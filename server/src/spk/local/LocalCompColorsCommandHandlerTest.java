@@ -28,7 +28,7 @@ public final class LocalCompColorsCommandHandlerTest {
         LocalCompColorsCommandHandler.Result ok=
             h.handle(new String[]{"compcolors","1","2","3","4","5","6"},
                 "::compcolors 1 2 3 4 5 6","opensrc",w);
-        if(ok==null||!ok.logText.contains("result=APPLIED selectors=1,2,3,4,5,6"))
+        if(ok==null||!ok.logText.contains("result=APPLIED selectors=[1, 2, 3, 4, 5, 6]"))
             throw new AssertionError("valid selector route="+(ok==null?"null":ok.logText));
         if(!"COMP_COLORS".equals(ok.saveReason))
             throw new AssertionError("save reason="+ok.saveReason);
