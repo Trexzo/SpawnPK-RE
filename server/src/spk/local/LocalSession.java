@@ -66,6 +66,7 @@ final class LocalSession implements Runnable {
     private final LocalPetCompatibilityCommandHandler petCompatibilityCommands;
     /** Engine R7 one-stop in-game developer control center. */
     private final DevControlCenter devPanel = new DevControlCenter();
+    private final LocalDevPanelRenderer devPanelRenderer;
     private SceneUpdatePublisher scenePublisher;
     private ServerPacketWriter sessionPackets;
     private OutboundPacketQueue outboundPackets;
@@ -186,6 +187,18 @@ final class LocalSession implements Runnable {
             movement);
         this.petCompatibilityCommands = new LocalPetCompatibilityCommandHandler(
             petAccessoryState,npcs,movement,petDialogs);
+        this.devPanelRenderer = new LocalDevPanelRenderer(
+            devPanel,
+            equipment,
+            combatStyles,
+            dev,
+            combat,
+            npcs,
+            petState,
+            magic,
+            prayers,
+            movement,
+            playerPresentation);
         if (movementEnabled && !bootstrap) throw new IllegalArgumentException("movement requires bootstrap");
     }
 
@@ -1518,137 +1531,8 @@ final class LocalSession implements Runnable {
     }
 
     private void renderDevPanel(ServerPacketWriter w)throws IOException{
-        if(!devPanel.isOpen())return;
-        String title="LocalLab Dev Control Center";
-        String[] o={"","","",""};
-        switch(devPanel.page()){
-            case MAIN:
-                title="LocalLab Dev Control Center | "+BuildInfo.VERSION;
-                o[0]="Combat & weapons";o[1]="Pets";o[2]="Magic & prayer";o[3]="More systems...";break;
-            case MORE:
-                title="More systems";
-                o[0]="World & collision";o[1]="Items & native UI";o[2]="Player / NPC lab";o[3]="Diagnostics";break;
-            case COMBAT:{
-                int wid=equipment.weapon(); CombatStyleRepository.Style st=combatStyles.current(CombatInterfaceRepository.forWeapon(wid));
-                title="Combat | "+wid+" "+devItemName(wid);
-                o[0]="Attack animation...";o[1]="Hitsplat lab...";o[2]="Cycle style ["+(st==null?"?":st.label)+"]";o[3]="More combat...";break;}
-            case COMBAT_MORE:{
-                int wid=equipment.weapon();V913WeaponRuntimeAuthority.Profile rp=V913WeaponRuntimeAuthority.resolve(wid);
-                title="Combat systems | runtime="+(rp==null?"none":wid);
-                o[0]="Runtime weapon lab...";o[1]="Current authority summary";o[2]="Back to main";o[3]="Back to combat";break;}
-            case COMBAT_RUNTIME:{
-                V913WeaponRuntimeAuthority.Profile rp=selectedRuntimeWeaponProfile();
-                title="Runtime weapon lab | "+(rp==null?"none":rp.itemId+" "+rp.name);
-                o[0]="Use equipped weapon";o[1]="Browse runtime item ID...";o[2]="Preview safe presentation";o[3]="Back";break;}
-            case COMBAT_ANIM:{
-                int wid=equipment.weapon();String ov=dev.hasCombatAnimationOverride(wid)?String.valueOf(dev.combatAnimationOverride(wid)):"AUTO";
-                title="Attack animation | weapon "+wid+" | "+ov;
-                o[0]="Set animation ID...";o[1]="Reset to authority";o[2]="Play current now";o[3]="Back";break;}
-            case COMBAT_HIT:
-                title="Hitsplat lab | "+clip(combat.devHitSummary(),58);
-                o[0]="Set damage...";o[1]="Set type...";o[2]="Auto normal/max";o[3]="Back";break;
-            case PETS:{
-                NpcEntity pet=npcs.pet();
-                title="Pets | "+(pet==null?"none":"item "+pet.petItemId+" npc "+pet.definitionId);
-                o[0]="Particle FX...";o[1]="Follow controls...";o[2]="Presentation...";o[3]="Back";break;}
-            case PET_FX:
-                title="Pet particle selector | "+(dev.petParticleSelector()==null?"AUTO":dev.petParticleSelector());
-                o[0]="Next selector";o[1]="Auto / clear";o[2]="Set selector ID...";o[3]="Back";break;
-            case PET_FOLLOW:
-                title="Pet follow | frozen="+npcs.followFrozen()+" delay="+(dev.petFollowDelayMs()==null?"AUTO":dev.petFollowDelayMs()+"ms");
-                o[0]=npcs.followFrozen()?"Resume follow":"Freeze follow";o[1]="Step once";o[2]="Snap to owner";o[3]="Back";break;
-            case PET_PRESENT:
-                title="Pet presentation | native state="+npcs.petNativeState();
-                o[0]="Play animation ID...";o[1]="Play GFX ID...";o[2]="Cycle native state";o[3]="More presentation...";break;
-            case PET_PRESENT_MORE:
-                title="Pet presentation / custom | "+(npcs.pet()==null?"no active pet":"npc "+npcs.pet().definitionId);
-                o[0]="Custom content...";o[1]="Show pet info";o[2]="R1 Voidglass status";o[3]="Back";break;
-            case CUSTOM_CONTENT:
-                title="Custom content | LOCAL DEV - not production authority";
-                o[0]="Voidglass Nistirio R3...";o[1]="Boundary / provenance";o[2]="R1 prototype reference";o[3]="Back";break;
-            case CUSTOM_VOIDGLASS:
-                title="Voidglass R3 | "+(VoidglassR3CustomContent.active(petState,npcs.pet())?"ACTIVE":"inactive")+" | item 29999";
-                o[0]="Give item 29999";o[1]="Next visual candidate";o[2]="Trigger VOIDGLASS RIFT";o[3]="Back";break;
-            case MAGIC_PRAYER:
-                title="Magic / Prayer | spells="+SpellDefinitionRepository.count()+" prayers="+PrayerDefinitionRepository.count();
-                o[0]="Magic controls...";o[1]="Prayer controls...";o[2]="Deactivate all prayers";o[3]="Back";break;
-            case MAGIC:
-                title="Magic book | "+magic.book()+" | root="+magic.root();
-                o[0]="Modern";o[1]="Ancient";o[2]="Lunar";o[3]="Back";break;
-            case PRAYER:
-                title="Prayer | "+prayers.book()+" active="+prayers.activeCount()+" icon="+prayers.manualHeadIcon();
-                o[0]="Toggle prayer book";o[1]="Toggle widget ID...";o[2]="Manual head icon...";o[3]="Back";break;
-            case WORLD:{
-                int rid=((movement.x()>>6)<<8)|(movement.y()>>6);
-                title="World | "+movement.x()+","+movement.y()+","+movement.plane()+" region="+rid;
-                o[0]="Load region ID...";o[1]="Return HOME";o[2]="Inspect collision";o[3]="Back";break;}
-            case ITEMS:
-                title="Items | weapon "+equipment.weapon()+" "+devItemName(equipment.weapon());
-                o[0]="Open Item Library ID...";o[1]="Equipment Stats";o[2]="Items Kept on Death";o[3]="Back";break;
-            case PLAYER_NPC:
-                title="Player / NPC lab | visible NPCs="+npcs.visibleCount();
-                o[0]="Player presentation...";o[1]="NPC sandbox...";o[2]="Authority census";o[3]="Back";break;
-            case PLAYER:
-                title="Player | "+playerPresentation.info();
-                o[0]="Morph to NPC ID...";o[1]="Clear morph";o[2]="Presentation...";o[3]="Back";break;
-            case PLAYER_PRESENT:
-                title="Player presentation probe";
-                o[0]="Play animation ID...";o[1]="Play GFX ID...";o[2]="Refresh appearance";o[3]="Back";break;
-            case NPC:
-                title="NPC sandbox | visible="+npcs.visibleCount();
-                o[0]="Spawn NPC ID...";o[1]="Clear dev NPCs";o[2]="List NPCs to log";o[3]="Back";break;
-            case DIAG:
-                title="Diagnostics | trace="+dev.trace().enabled()+" | "+clip(ContentAuthorityRepository.summary(),42);
-                o[0]=dev.trace().enabled()?"Disable protocol trace":"Enable protocol trace";o[1]="Authority browser...";o[2]="Reset dev overrides...";o[3]="Back";break;
-            case AUTHORITY:
-                title="Authority browser | read-only | "+ClientAssetAlignmentAuthority.shortStatus();
-                o[0]="Magic / prayer authority...";o[1]="World / item authority...";o[2]="Research closure...";o[3]="Back";break;
-            case AUTH_MAGIC:
-                title="Magic authority | "+clip(selectedMagicAuthoritySummary(),58);
-                o[0]="Browse spell widget ID...";o[1]="Browse prayer widget ID...";o[2]="Counts / boundary";o[3]="Back";break;
-            case AUTH_WORLD_ITEM:
-                title="World/item authority | "+clip(selectedWorldItemAuthoritySummary(),54);
-                o[0]="Browse item ID...";o[1]="Browse region ID...";o[2]="Use current region";o[3]="Back";break;
-            case RESEARCH:
-                title="Research closure | "+clip(ResearchExhaustionAuthority.summary(),58);
-                o[0]="Equipment/static stats...";o[1]="Pet proc/presentation...";o[2]="World transitions...";o[3]="Client discovery...";break;
-            case RESEARCH_EQUIP:{
-                int id=devPanel.selectedResearchEquipItemId();if(id<0)id=equipment.weapon();
-                title="Equipment research | "+clip(EquipmentResearchAuthority.itemSummary(id),55);
-                o[0]="Browse item ID...";o[1]="Use equipped weapon";o[2]="Schema / server boundary";o[3]="Back";break;}
-            case RESEARCH_PET:{
-                PetProcResearchAuthority.Row row=selectedPetProcResearchRow();
-                title="Pet research | "+clip(PetProcResearchAuthority.summary(row)+" | "+PetMovementResearchAuthority.summary(),55);
-                o[0]="Use active pet";o[1]="Browse research row #...";o[2]="Preview first candidate";o[3]="Back";break;}
-            case RESEARCH_WORLD:{
-                int rid=devPanel.selectedResearchTransitionRegion();if(rid<0)rid=((movement.x()>>6)<<8)|(movement.y()>>6);
-                int iid=devPanel.selectedResearchTeleportItemId();
-                title="World transitions | "+clip((iid<0?"tele:none":WorldTransitionResearchAuthority.teleportSummary(iid))+" | "+WorldTransitionResearchAuthority.regionSummary(rid),55);
-                o[0]="Browse teleport item ID...";o[1]="Use current region";o[2]="Service/static contracts...";o[3]="Back";break;}
-            case RESEARCH_SERVICE:
-                title="NPC / world / shop static | "+clip(ServiceResearchAuthority.summary(),55);
-                o[0]="Interaction router atlas";o[1]="Blood / enchantment contracts";o[2]="Shop framework / boundaries";o[3]="Back";break;
-            case RESEARCH_DISCOVERY:
-                title="Client discovery | "+clip(ClientDiscoveryAuthority.summary(),58);
-                o[0]="Tasks / achievements";o[1]="Magic / construction";o[2]="UI / controls / minigames";o[3]="Asset/model closure...";break;
-            case RESEARCH_ASSET:
-                title="Asset/model closure | "+clip(AssetRuntimeResearchAuthority.archiveSummary(),55);
-                o[0]="Client/assets alignment...";o[1]="Asset/model summaries";o[2]="Application protocols...";o[3]="Back";break;
-            case RESEARCH_PROTOCOL:
-                title="Application protocols | "+clip(ClientApplicationProtocolAuthority.summary(),55);
-                o[0]="S2C250 application bus";o[1]="S2C126 / VM / settings";o[2]="C2S / world / events";o[3]="Back";break;
-            case ALIGNMENT:
-                title="Client/assets alignment | "+ClientAssetAlignmentAuthority.shortStatus();
-                o[0]="Show pinned hashes";o[1]="Authority census";o[2]="Root 328 reconciliation";o[3]="Back";break;
-            case RESET_CONFIRM:
-                title="Reset ALL temporary dev overrides?";
-                o[0]="CONFIRM reset all";o[1]="Cancel";o[2]="Close panel";o[3]="Back";break;
-            default: break;
-        }
-        w.varShort(126,BootstrapPackets.widgetText126(2481,clip(title,80)));
-        for(int i=0;i<4;i++)w.varShort(126,BootstrapPackets.widgetText126(2482+i,clip(o[i],76)));
-        w.fixed(164,BootstrapPackets.chatboxInterface164(2480));
-        publishDialogNumberKeys(2482,2483,2484,2485);
+        if(devPanelRenderer.render(w))
+            publishDialogNumberKeys(2482,2483,2484,2485);
     }
 
     private void handleDevPanelWidget(int widget,ServerPacketWriter w,String tag)throws IOException{
