@@ -59,6 +59,7 @@ final class LocalSession implements Runnable {
     private final LocalDevNpcCommandHandler devNpcCommands;
     private final LocalDevToolCommandHandler devToolCommands;
     private final LocalVoidglassCommandHandler voidglassCommands;
+    private final LocalPetRuntimeCommandHandler petRuntimeCommands;
     /** Engine R7 one-stop in-game developer control center. */
     private final DevControlCenter devPanel = new DevControlCenter();
     private SceneUpdatePublisher scenePublisher;
@@ -90,8 +91,6 @@ final class LocalSession implements Runnable {
     private final PetAccessoryState petAccessoryState = new PetAccessoryState();
     /** Engine R3 per-view remote-player synchronization context. */
     private Player81WorldSync.Context player81Sync;
-    private int petTestSequenceStep=-1;
-    private long petTestSequenceAt=Long.MAX_VALUE;
     private volatile boolean logoutRequested;
 
     LocalSession(Socket socket, boolean bootstrap) { this(socket, bootstrap, false, World.shared()); }
@@ -154,6 +153,8 @@ final class LocalSession implements Runnable {
             dev,bank,equipment);
         this.voidglassCommands = new LocalVoidglassCommandHandler(
             bank,petState,npcs,movement,dev,voidglass);
+        this.petRuntimeCommands = new LocalPetRuntimeCommandHandler(
+            petState,petEffects,npcs,movement);
         if (movementEnabled && !bootstrap) throw new IllegalArgumentException("movement requires bootstrap");
     }
 
@@ -563,7 +564,9 @@ final class LocalSession implements Runnable {
                     int baseline=combat.state().context==CombatContext.PLAYER_PVP?100:200;
                     int remoteHitType=dealt>=baseline?6:1;
                 }
-                applyPetDamage(dealt,now,sessionPackets,tag,"COMBAT_M2");
+                String petDamage=petRuntimeCommands.applyDamage(
+                    dealt,now,sessionPackets,"COMBAT_M2");
+                if(petDamage!=null)System.out.println(tag+petDamage);
             }
             if(petEffects.tick(now) && npcs.pet()!=null && PetPresentationProfile.supportsNativeState(npcs.pet().definitionId)){
                 String reset=npcs.setPetNativeState(0,sessionPackets);
@@ -677,16 +680,23 @@ final class LocalSession implements Runnable {
     }
 
     private void ensurePetTestSequenceScheduled(long now){
-        if(!bootstrap||petTestRealtimeScheduled||petTestSequenceStep<0||sessionPackets==null)return;
-        long at=Math.max(now,petTestSequenceAt==Long.MAX_VALUE?now:petTestSequenceAt);
+        if(!bootstrap||petTestRealtimeScheduled||!petRuntimeCommands.sequenceActive()||sessionPackets==null)return;
+        long due=petRuntimeCommands.sequenceAt();
+        long at=Math.max(now,due==Long.MAX_VALUE?now:due);
         petTestRealtimeScheduled=true;
         world.realtime().schedule(at,worldPlayer,()->{
             petTestRealtimeScheduled=false;
-            if(petTestSequenceStep<0)return;
+            if(!petRuntimeCommands.sequenceActive())return;
             long when=System.currentTimeMillis();
-            try{tickPetTestSequence(when,sessionPackets,"[session "+socket.getRemoteSocketAddress()+"] ");}
-            catch(Throwable t){petTestSequenceStep=-1;petTestSequenceAt=Long.MAX_VALUE;System.err.println("[world player="+worldPlayer.id()+"] pet-test sequence failed: "+t);}
-            if(petTestSequenceStep>=0)ensurePetTestSequenceScheduled(when);
+            try{
+                String line=petRuntimeCommands.tickSequence(when,sessionPackets);
+                if(line!=null)System.out.println("[session "+socket.getRemoteSocketAddress()+"] "+line);
+            }
+            catch(Throwable t){
+                petRuntimeCommands.failSequence();
+                System.err.println("[world player="+worldPlayer.id()+"] pet-test sequence failed: "+t);
+            }
+            if(petRuntimeCommands.sequenceActive())ensurePetTestSequenceScheduled(when);
         });
     }
 
@@ -1379,183 +1389,10 @@ final class LocalSession implements Runnable {
             return;
         }
 
-        if (p.length>=1 && p[0].equalsIgnoreCase("petboost")) {
-            serverPackets.varShort(81,CombatSync.player81GfxOnly(1310,0,0));
-            System.out.println(tag+"V593_PET_BOOST_FIXTURE result=PLAYER_PRESENTATION anim=NONE gfx=1310 productionNormalPetEvidence=LIVE_COMPONENT_ISOLATION");
-            return;
-        }
-        if (p.length>=1 && p[0].equalsIgnoreCase("scopesnipe")) {
-            if(!scopesightActive() || npcs.pet()==null || npcs.pet().definitionId!=ScopesightPetProfile.NPC_ID){
-                System.out.println(tag+"V58_SCOPESIGHT_SNIPE result=REJECTED_NO_ACTIVE_SCOPESIGHT activePet="+(petState.active()?petState.itemId()+"->"+petState.npcId():"none"));
-                return;
-            }
-            String r=npcs.forcePetText(ScopesightPetProfile.NATIVE_TRIGGER_TEXT,serverPackets);
-            System.out.println(tag+"V58_SCOPESIGHT_SNIPE result="+r+" nativeClientTrigger=true");
-            return;
-        }
-        if (p.length>=1 && p[0].equalsIgnoreCase("petproc")) {
-            serverPackets.varShort(81,CombatSync.player81GfxOnly(1310,0,0));
-            String snipe="NOT_SCOPESIGHT";
-            if(scopesightActive() && npcs.pet()!=null && npcs.pet().definitionId==ScopesightPetProfile.NPC_ID)
-                snipe=npcs.forcePetText(ScopesightPetProfile.NATIVE_TRIGGER_TEXT,serverPackets);
-            System.out.println(tag+"V511_PET_PROC_FIXTURE playerAnim=NONE playerGfx=1310 scopesight="+snipe
-                             +" semantics=PRODUCTION_NORMAL_PET_BOOST_PRESENTATION");
-            return;
-        }
-
-        if (p.length>=1 && p[0].equalsIgnoreCase("petstatus")) {
-            NpcEntity pet=npcs.pet();
-            System.out.println(tag+"V59_PET_STATUS active="+(pet!=null)+" petState="+(petState.active()?petState.itemId()+"->"+petState.npcId():"none")+
-                " visibleNpc="+(pet==null?"none":pet.definitionId)+" nativeFamily="+(pet==null?"NONE":PetPresentationProfile.nativeStateFamily(pet.definitionId))+
-                " effectState={"+petEffects.summary()+"} followOwnerRunning="+npcs.recentOwnerRunning());
-            return;
-        }
-        if (p.length>=1 && p[0].equalsIgnoreCase("pettestall")) {
-            petTestSequenceStep=0; petTestSequenceAt=System.currentTimeMillis();
-            System.out.println(tag+"V59_PET_TEST_ALL_ARMED activePet="+(npcs.pet()==null?"none":npcs.pet().petItemId+"->"+npcs.pet().definitionId)+
-                " sequence=owner827,playerAnim10184_ONLY,playerGfx1310_ONLY,combined10184+1310,state1,state2,state3,state0,specific intervalMs=1800");
-            return;
-        }
-        if (p.length>=1 && p[0].equalsIgnoreCase("pettest")) {
-            String sub=p.length>=2?p[1].toLowerCase(java.util.Locale.ROOT):"help";
-            String r;
-            if(sub.equals("help")){
-                System.out.println(tag+"V59_PET_TEST_HELP commands=::pettestall | ::pettest all | profile | lifecycle | boost | state <0..3> | charge <0..3> | damage <amount> | reset | anim <id> [delay] | gfx <id> [height] [delay] | animfx <anim> <gfx> [height] [delay] | preview <npcId> | snipe | tempoross [state]");
-                return;
-            }
-            if(sub.equals("all")){
-                petTestSequenceStep=0; petTestSequenceAt=System.currentTimeMillis();
-                System.out.println(tag+"V59_PET_TEST_ALL_ARMED alias=pettest_all activePet="+(npcs.pet()==null?"none":npcs.pet().petItemId+"->"+npcs.pet().definitionId)+" intervalMs=1800");
-                return;
-            }
-            if(sub.equals("profile")){
-                NpcEntity active=npcs.pet();
-                System.out.println(tag+"V59_PET_TEST_PROFILE active="+(active!=null)+" pet="+(active==null?"none":active.petItemId+"->"+active.definitionId)+
-                    " nativeFamily="+(active==null?"NONE":PetPresentationProfile.nativeStateFamily(active.definitionId))+" stateVisuals="+
-                    (active==null?"none":PetPresentationProfile.nativeStateVisual(active.definitionId,1)+","+PetPresentationProfile.nativeStateVisual(active.definitionId,2)+","+PetPresentationProfile.nativeStateVisual(active.definitionId,3))+
-                    " lifecycle=owner827_noGfx boost=owner10184+gfx1310 effectState={"+petEffects.summary()+"}");
-                return;
-            }
-            if(sub.equals("lifecycle")){
-                serverPackets.varShort(81,CombatSync.player81AnimationOnly(PetPresentationProfile.OWNER_DROP_PICKUP_ANIMATION));
-                System.out.println(tag+"V59_PET_TEST lifecycle ownerAnim=827 ownerGfx=NONE evidence=V908_PRODUCTION_CERTIFIED");
-                return;
-            }
-            if(sub.equals("boost")){
-                serverPackets.varShort(81,CombatSync.player81GfxOnly(PetPresentationProfile.OWNER_BOOST_GFX,0,0));
-                System.out.println(tag+"V593_PET_TEST boost ownerAnim=NONE ownerGfx=1310");
-                return;
-            }
-            if(sub.equals("state")){
-                int state=p.length>=3?parseInt(p[2],-1):-1;
-                r=npcs.setPetNativeState(state,serverPackets);
-                System.out.println(tag+"V59_PET_TEST state result="+r);
-                return;
-            }
-            if(sub.equals("charge")){
-                int charge=p.length>=3?parseInt(p[2],-1):-1;
-                NpcEntity active=npcs.pet();
-                if(active==null || !PetPresentationProfile.isChargePet(active.petItemId,active.definitionId) || charge<0 || charge>3){
-                    System.out.println(tag+"V59_PET_TEST charge result=REJECTED expected=active_charge_pet_and_0..3"); return;
-                }
-                petEffects.forceCharge(charge,System.currentTimeMillis());
-                r=npcs.setPetNativeState(charge,serverPackets);
-                System.out.println(tag+"V59_PET_TEST charge result="+r+" effectState={"+petEffects.summary()+"}"); return;
-            }
-            if(sub.equals("damage")){
-                int damage=p.length>=3?parseInt(p[2],0):0;
-                applyPetDamage(damage,System.currentTimeMillis(),serverPackets,tag,"PETTEST_DAMAGE"); return;
-            }
-            if(sub.equals("reset")){
-                NpcEntity active=npcs.pet();
-                if(active!=null && PetPresentationProfile.supportsNativeState(active.definitionId)) r=npcs.setPetNativeState(0,serverPackets); else r="NO_NATIVE_STATE_TO_CLEAR";
-                petEffects.forceCharge(0,System.currentTimeMillis());
-                System.out.println(tag+"V59_PET_TEST reset result="+r+" effectState={"+petEffects.summary()+"}"); return;
-            }
-            if(sub.equals("anim")){
-                int anim=p.length>=3?parseInt(p[2],-999):-999; int delay=p.length>=4?parseInt(p[3],0):0;
-                r=npcs.animatePet(anim,delay,serverPackets);
-                System.out.println(tag+"V59_PET_TEST anim result="+r+" semantics=RAW_LOCALHOST_VISUAL_PROBE");
-                return;
-            }
-            if(sub.equals("gfx")){
-                int gfx=p.length>=3?parseInt(p[2],-999):-999; int h=p.length>=4?parseInt(p[3],0):0; int d=p.length>=5?parseInt(p[4],0):0;
-                r=npcs.gfxPet(gfx,h,d,serverPackets);
-                System.out.println(tag+"V59_PET_TEST gfx result="+r+" codec=EXACT_PACKET65_MASK_0x80");
-                return;
-            }
-            if(sub.equals("animfx")){
-                int anim=p.length>=3?parseInt(p[2],-999):-999; int gfx=p.length>=4?parseInt(p[3],-999):-999; int h=p.length>=5?parseInt(p[4],0):0; int d=p.length>=6?parseInt(p[5],0):0;
-                r=npcs.animationAndGfxPet(anim,0,gfx,h,d,serverPackets);
-                System.out.println(tag+"V59_PET_TEST animfx result="+r+" semantics=RAW_LOCALHOST_VISUAL_PROBE");
-                return;
-            }
-            if(sub.equals("preview")){
-                int npc=p.length>=3?parseInt(p[2],-1):-1;
-                r=npcs.previewPetDefinition(npc,movement,serverPackets);
-                System.out.println(tag+"V59_PET_TEST preview result="+r+" note=NOT_PERSISTED_USE_TO_IDENTIFY_SCOOBY_COLOR_MAPPING");
-                return;
-            }
-            if(sub.equals("snipe")){
-                r=npcs.pet()!=null&&npcs.pet().definitionId==8330?npcs.forcePetText("SNIPE",serverPackets):"REJECTED_ACTIVE_PET_NOT_SCOPESIGHT";
-                System.out.println(tag+"V59_PET_TEST snipe result="+r); return;
-            }
-            if(sub.equals("tempoross")){
-                int state=p.length>=3?parseInt(p[2],1):1;
-                if(npcs.pet()==null || PetPresentationProfile.nativeStateFamily(npcs.pet().definitionId)!=PetPresentationProfile.NativeStateFamily.TEMPOROSS_DEBUFF){
-                    System.out.println(tag+"V59_PET_TEST tempoross result=REJECTED_ACTIVE_PET_NOT_TEMPOROSS"); return;
-                }
-                String a=npcs.animatePet(PetPresentationProfile.TEMPOROSS_ACTIVATION_ANIMATION_CANDIDATE,0,serverPackets);
-                String st=npcs.setPetNativeState(state,serverPackets);
-                System.out.println(tag+"V59_PET_TEST tempoross anim="+a+" state="+st+" animationEvidence=EXACT_CACHE_NAME_CANDIDATE_NOT_RUNTIME_BOUND");
-                return;
-            }
-            System.out.println(tag+"V59_PET_TEST result=UNKNOWN_SUBCOMMAND sub="+sub+" use=::pettest_help");
-            return;
-        }
-        if (p.length>=1 && (p[0].equalsIgnoreCase("behemothcharge") || p[0].equalsIgnoreCase("petcharge"))) {
-            int charge=p.length>=2?parseInt(p[1],-1):-1;
-            NpcEntity pet=npcs.pet();
-            if(pet==null || !PetPresentationProfile.isChargePet(pet.petItemId,pet.definitionId)){
-                System.out.println(tag+"V59_BEHEMOTH_CHARGE result=REJECTED_ACTIVE_PET_NOT_CHARGE_FAMILY"); return;
-            }
-            if(charge<0||charge>3){ System.out.println(tag+"V59_BEHEMOTH_CHARGE result=REJECTED_RANGE expected=0..3"); return; }
-            petEffects.forceCharge(charge,System.currentTimeMillis());
-            String state=npcs.setPetNativeState(charge,serverPackets);
-            System.out.println(tag+"V59_BEHEMOTH_CHARGE result="+state+" effectState={"+petEffects.summary()+"}");
-            return;
-        }
-        if (p.length>=1 && (p[0].equalsIgnoreCase("behemothhit") || p[0].equalsIgnoreCase("petdamage"))) {
-            int damage=p.length>=2?parseInt(p[1],0):0;
-            applyPetDamage(damage,System.currentTimeMillis(),serverPackets,tag,"MANUAL_BEHEMOTH_HIT");
-            return;
-        }
-        if (p.length>=1 && p[0].equalsIgnoreCase("evilwolperproc")) {
-            NpcEntity pet=npcs.pet();
-            if(pet==null || !(pet.definitionId==6991||(pet.definitionId>=8124&&pet.definitionId<=8126))){
-                System.out.println(tag+"V59_EVIL_WOLPER_PROC result=REJECTED_ACTIVE_PET_NOT_EVIL_WOLPER"); return;
-            }
-            int state=p.length>=2?parseInt(p[1],1):1; if(state<1||state>3)state=1;
-            String st=npcs.setPetNativeState(state,serverPackets);
-            serverPackets.varShort(81,CombatSync.player81GfxOnly(PetPresentationProfile.OWNER_BOOST_GFX,0,0));
-            System.out.println(tag+"V593_EVIL_WOLPER_PROC state="+st+" ownerBoost=GFX1310_ONLY nativeIcon=sprite53 physicalBodyAnimation=UNRESOLVED_USE_pettest_anim");
-            return;
-        }
-        if (p.length>=1 && p[0].equalsIgnoreCase("temporossproc")) {
-            int state=p.length>=2?parseInt(p[1],1):1;
-            NpcEntity pet=npcs.pet();
-            if(pet==null || PetPresentationProfile.nativeStateFamily(pet.definitionId)!=PetPresentationProfile.NativeStateFamily.TEMPOROSS_DEBUFF){
-                System.out.println(tag+"V59_TEMPOROSS_PROC result=REJECTED_ACTIVE_PET_NOT_TEMPOROSS"); return;
-            }
-            String a=npcs.animatePet(PetPresentationProfile.TEMPOROSS_ACTIVATION_ANIMATION_CANDIDATE,0,serverPackets);
-            String st=npcs.setPetNativeState(state,serverPackets);
-            System.out.println(tag+"V59_TEMPOROSS_PROC anim="+a+" state="+st+" anim15562Evidence=EXACT_CACHE_NAME_CANDIDATE nativeStateRenderer=EXACT_CLIENT");
-            return;
-        }
-        if (p.length>=2 && p[0].equalsIgnoreCase("petnpc")) {
-            int npc=parseInt(p[1],-1);
-            String r=npcs.previewPetDefinition(npc,movement,serverPackets);
-            System.out.println(tag+"V59_PET_NPC_PREVIEW result="+r+" recommendedScoobyCandidates=5159,5160,5162,6650");
+        java.util.List<String> petRuntimeCommand=
+            petRuntimeCommands.handle(p,serverPackets);
+        if(petRuntimeCommand!=null){
+            for(String line:petRuntimeCommand)System.out.println(tag+line);
             return;
         }
 
@@ -1598,7 +1435,11 @@ final class LocalSession implements Runnable {
             int damage=p.length>=2?parseInt(p[1],0):0;
             String fixture=combat.fixtureHit(damage,npcs,serverPackets);
             int dealt=combat.consumeLastDamage();
-            if(dealt>0) applyPetDamage(dealt,System.currentTimeMillis(),serverPackets,tag,"COMBAT_FIXTURE");
+            if(dealt>0){
+                String petDamage=petRuntimeCommands.applyDamage(
+                    dealt,System.currentTimeMillis(),serverPackets,"COMBAT_FIXTURE");
+                if(petDamage!=null)System.out.println(tag+petDamage);
+            }
             System.out.println(tag+"V59_COMBAT_FIXTURE command="+command+" result="+fixture);
             return;
         }
@@ -1636,59 +1477,6 @@ final class LocalSession implements Runnable {
             base.standAnim,base.walkAnim,base.turn180Anim,base.turn90CWAnim,base.turn90CCWAnim,base.size,base.models,
             base.provenance+"+V593_SESSION_DEV_NPC_BINDING");
     }
-
-    private void applyPetDamage(int damage,long now,ServerPacketWriter serverPackets,String tag,String source)throws IOException{
-        if(damage<=0){ System.out.println(tag+"V59_PET_DAMAGE source="+source+" result=IGNORED_NONPOSITIVE damage="+damage); return; }
-        NpcEntity pet=npcs.pet();
-        if(pet==null || !PetPresentationProfile.isChargePet(pet.petItemId,pet.definitionId)){
-            System.out.println(tag+"V59_PET_DAMAGE source="+source+" damage="+damage+" result=NO_ACTIVE_CHARGE_PET"); return;
-        }
-        boolean changed=petEffects.recordDamage(damage,now);
-        String presentation="UNCHANGED";
-        if(changed) presentation=npcs.setPetNativeState(petEffects.charge(),serverPackets);
-        System.out.println(tag+"V59_PET_DAMAGE source="+source+" damage="+damage+" chargeChanged="+changed+" presentation="+presentation+
-            " effectState={"+petEffects.summary()+"} modifiersRecordedOnly=true combatM2FormulaStillFixture=true");
-    }
-
-    private void tickPetTestSequence(long now,ServerPacketWriter serverPackets,String tag)throws IOException{
-        NpcEntity pet=npcs.pet();
-        switch(petTestSequenceStep){
-            case 0:
-                serverPackets.varShort(81,CombatSync.player81AnimationOnly(PetPresentationProfile.OWNER_DROP_PICKUP_ANIMATION));
-                System.out.println(tag+"V591_PET_TEST_ALL step=1/9 ownerLifecycleAnim=827 gfx=NONE"); break;
-            case 1:
-                serverPackets.varShort(81,CombatSync.player81AnimationOnly(PetPresentationProfile.OWNER_BOOST_ANIMATION));
-                System.out.println(tag+"V591_PET_TEST_ALL step=2/9 playerAnim10184_ONLY gfx=NONE purpose=NURSE_COMPONENT_ISOLATION"); break;
-            case 2:
-                serverPackets.varShort(81,CombatSync.player81GfxOnly(PetPresentationProfile.OWNER_BOOST_GFX,0,0));
-                System.out.println(tag+"V591_PET_TEST_ALL step=3/9 playerGfx1310_ONLY anim=NONE purpose=NURSE_COMPONENT_ISOLATION"); break;
-            case 3:
-                serverPackets.varShort(81,CombatSync.player81AnimationAndGfx(PetPresentationProfile.OWNER_BOOST_ANIMATION,PetPresentationProfile.OWNER_BOOST_GFX,0,0));
-                System.out.println(tag+"V591_PET_TEST_ALL step=4/9 combined=10184+1310 purpose=REFERENCE_ONLY"); break;
-            case 4: case 5: case 6:
-                int state=petTestSequenceStep-3;
-                String sr=pet==null?"SKIP_NO_ACTIVE_PET":npcs.setPetNativeState(state,serverPackets);
-                System.out.println(tag+"V591_PET_TEST_ALL step="+(petTestSequenceStep+1)+"/9 state="+state+" result="+sr); break;
-            case 7:
-                String reset=pet==null?"SKIP_NO_ACTIVE_PET":npcs.setPetNativeState(0,serverPackets);
-                System.out.println(tag+"V591_PET_TEST_ALL step=8/9 state=0 result="+reset); break;
-            case 8:
-                String specific="NONE_FOR_THIS_PET";
-                if(pet!=null && pet.definitionId==8330) specific=npcs.forcePetText("SNIPE",serverPackets);
-                else if(pet!=null && PetPresentationProfile.nativeStateFamily(pet.definitionId)==PetPresentationProfile.NativeStateFamily.TEMPOROSS_DEBUFF){
-                    specific=npcs.animatePet(PetPresentationProfile.TEMPOROSS_ACTIVATION_ANIMATION_CANDIDATE,0,serverPackets)+"; "+npcs.setPetNativeState(1,serverPackets);
-                } else if(pet!=null && PetPresentationProfile.nativeStateFamily(pet.definitionId)==PetPresentationProfile.NativeStateFamily.WOLPER_KRAMP_ACTIVE){
-                    specific=npcs.setPetNativeState(1,serverPackets);
-                }
-                System.out.println(tag+"V591_PET_TEST_ALL step=9/9 specific="+specific);
-                petTestSequenceStep=-1; petTestSequenceAt=Long.MAX_VALUE; return;
-            default:
-                petTestSequenceStep=-1; petTestSequenceAt=Long.MAX_VALUE; return;
-        }
-        petTestSequenceStep++;
-        petTestSequenceAt=now+1800L;
-    }
-
 
     private boolean scopesightActive(){
         return petState.active() && petState.itemId()==ScopesightPetProfile.ITEM_ID && petState.npcId()==ScopesightPetProfile.NPC_ID;
