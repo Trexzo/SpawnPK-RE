@@ -67,6 +67,7 @@ final class LocalSession implements Runnable {
     /** Engine R7 one-stop in-game developer control center. */
     private final DevControlCenter devPanel = new DevControlCenter();
     private final LocalDevPanelRenderer devPanelRenderer;
+    private final LocalDevPanelAmountHandler devPanelAmounts;
     private SceneUpdatePublisher scenePublisher;
     private ServerPacketWriter sessionPackets;
     private OutboundPacketQueue outboundPackets;
@@ -199,6 +200,20 @@ final class LocalSession implements Runnable {
             prayers,
             movement,
             playerPresentation);
+        this.devPanelAmounts = new LocalDevPanelAmountHandler(
+            devPanel,
+            dev,
+            equipment,
+            combat,
+            npcs,
+            movement,
+            regionDevCommands,
+            itemLibrary,
+            playerPresentation,
+            playerState,
+            prayers,
+            devPanelRenderer,
+            ()->clearDialogNumberKeys());
         if (movementEnabled && !bootstrap) throw new IllegalArgumentException("movement requires bootstrap");
     }
 
@@ -1739,86 +1754,28 @@ final class LocalSession implements Runnable {
     }
 
     private void handleDevPanelAmount(int value,ServerPacketWriter w,String tag)throws IOException{
-        DevControlCenter.PendingAmount p=devPanel.pending();boolean reopen=true;String result;
-        try{
-            switch(p){
-                case COMBAT_ANIM:
-                    if(value<0||value>65535)result="REJECTED animation 0..65535";else{dev.setCombatAnimationOverride(equipment.weapon(),value);result="weapon="+equipment.weapon()+" animationOverride="+value;}break;
-                case HIT_DAMAGE:
-                    if(value<0||value>255)result="REJECTED damage 0..255";else result=combat.devHitCommand(new String[]{"devhit","damage",String.valueOf(value)});break;
-                case HIT_TYPE:
-                    if(value<0||value>255)result="REJECTED type 0..255";else result=combat.devHitCommand(new String[]{"devhit","type",String.valueOf(value)});break;
-                case PET_FX:
-                    if(value<0||value>255)result="REJECTED selector 0..255";else result=npcs.devSetParticleSelector(value,movement,w);break;
-                case PET_ANIM:
-                    if(value<0||value>65535)result="REJECTED animation 0..65535";else result=npcs.animatePet(value,0,w);break;
-                case PET_GFX:
-                    if(value<0||value>65535)result="REJECTED gfx 0..65535";else result=npcs.gfxPet(value,0,0,w);break;
-                case PET_NATIVE_STATE:
-                    if(value<0||value>3)result="REJECTED state 0..3";else result=npcs.setPetNativeState(value,w);break;
-                case REGION_ID:{
-                    LocalRegionDevCommandHandler.Result region=
-                        regionDevCommands.enterForPanel(
-                            value,0,scenePublisher,w);
-                    if(region.scenePublisher!=null)scenePublisher=region.scenePublisher;
-                    if(region.saveReason!=null)saveAccountQuiet(tag,region.saveReason);
-                    result=region.detailText;
-                    reopen=false;
-                    break;
-                }
-                case ITEM_LIBRARY_ID:
-                    if(ItemAuthorityRepository.get(value)==null)result="REJECTED unknown item "+value;
-                    else{devPanel.close();clearDialogNumberKeys();result=itemLibrary.open(w,value);reopen=false;}break;
-                case PLAYER_MORPH:
-                    if(value<0||value>16383)result="REJECTED npc 0..16383";else result=playerPresentation.morph(value,username,equipment,playerState,w);break;
-                case PLAYER_ANIM:
-                    if(value<0||value>65535)result="REJECTED animation 0..65535";else{w.varShort(81,CombatSync.player81AnimationOnly(value));result="player anim="+value;}break;
-                case PLAYER_GFX:
-                    if(value<0||value>65535)result="REJECTED gfx 0..65535";else{w.varShort(81,CombatSync.player81GfxOnly(value,0,0));result="player gfx="+value;}break;
-                case NPC_SPAWN:
-                    if(value<0||value>16383)result="REJECTED npc 0..16383";else result=npcs.devSpawnNpc(value,1,0,movement,w);break;
-                case PRAYER_WIDGET:{
-                    PrayerDefinitionRepository.Def d=PrayerDefinitionRepository.byWidget(value);
-                    if(d==null)result="REJECTED unknown prayer widget "+value;
-                    else if(d.book!=prayers.book())result="REJECTED prayer belongs to "+d.book+" current="+prayers.book()+" name="+d.name;
-                    else result=prayers.click(d,playerState,w);
-                    break;}
-                case PRAYER_ICON:
-                    result=prayers.publishManualHeadIcon(value,w);break;
-                case AUTH_SPELL_WIDGET:{
-                    SpellDefinitionRepository.Spell d=SpellDefinitionRepository.byWidget(value);
-                    if(d==null)result="REJECTED unknown spell widget "+value;else{devPanel.selectSpellWidget(value);result=spellAuthoritySummary(value);}
-                    break;}
-                case AUTH_PRAYER_WIDGET:{
-                    PrayerDefinitionRepository.Def d=PrayerDefinitionRepository.byWidget(value);
-                    if(d==null)result="REJECTED unknown prayer widget "+value;else{devPanel.selectPrayerWidget(value);result=prayerAuthoritySummary(value);}
-                    break;}
-                case AUTH_ITEM_ID:
-                    if(ItemAuthorityRepository.get(value)==null)result="REJECTED unknown item "+value;else{devPanel.selectItemId(value);result=itemAuthorityBrowserSummary(value);}break;
-                case AUTH_REGION_ID:
-                    if(WorldRegionAuthorityRepository.get(value)==null)result="REJECTED unknown region "+value;else{devPanel.selectRegionId(value);result=regionAuthoritySummary(value);}break;
-                case RUNTIME_WEAPON_ITEM:{
-                    V913WeaponRuntimeAuthority.Profile rp=V913WeaponRuntimeAuthority.resolve(value);
-                    if(rp==null)result="REJECTED item has no V9.13 runtime weapon profile: "+value;
-                    else{devPanel.selectRuntimeWeaponItemId(value);result=runtimeWeaponAuthoritySummary(value);}
-                    break;}
-                case RESEARCH_EQUIP_ITEM:
-                    if(ItemAuthorityRepository.get(value)==null)result="REJECTED unknown item "+value;else{devPanel.selectResearchEquipItemId(value);result=EquipmentResearchAuthority.itemSummary(value);}break;
-                case RESEARCH_PET_ROW:{
-                    PetProcResearchAuthority.Row row=PetProcResearchAuthority.byIndex(value);
-                    if(row==null)result="REJECTED pet research row must be 1.."+PetProcResearchAuthority.count();else{devPanel.selectResearchPetRow(value);result=PetProcResearchAuthority.summary(row);}
-                    break;}
-                case RESEARCH_TELE_ITEM:{
-                    WorldTransitionResearchAuthority.TeleportItem t=WorldTransitionResearchAuthority.teleport(value);
-                    if(t==null)result="REJECTED item has no static teleport-candidate row: "+value;else{devPanel.selectResearchTeleportItemId(value);result=WorldTransitionResearchAuthority.teleportSummary(value);}
-                    break;}
-                case RESEARCH_TRANSITION_REGION:
-                    if(WorldRegionAuthorityRepository.get(value)==null)result="REJECTED unknown region "+value;else{devPanel.selectResearchTransitionRegion(value);result=WorldTransitionResearchAuthority.regionSummary(value);}break;
-                default: result="IGNORED no pending developer amount";break;
-            }
-        }catch(IllegalArgumentException ex){result="REJECTED "+ex.getMessage();}
-        System.out.println(tag+"V5171_DEV_PANEL_AMOUNT kind="+p+" value="+value+" result={"+result+"}");
-        if(reopen){devPanel.finishPrompt();renderDevPanel(w);}else devPanel.cancelPending();
+        LocalDevPanelAmountHandler.Outcome outcome=
+            devPanelAmounts.handle(
+                value,username,scenePublisher,w);
+
+        if(outcome.scenePublisher!=null)
+            scenePublisher=outcome.scenePublisher;
+
+        if(outcome.saveReason!=null)
+            saveAccountQuiet(tag,outcome.saveReason);
+
+        System.out.println(
+            tag+"V5171_DEV_PANEL_AMOUNT kind="+
+            outcome.pending+
+            " value="+value+
+            " result={"+outcome.resultText+"}");
+
+        if(outcome.reopen){
+            devPanel.finishPrompt();
+            renderDevPanel(w);
+        }else{
+            devPanel.cancelPending();
+        }
     }
 
     private PetProcResearchAuthority.Row selectedPetProcResearchRow(){
