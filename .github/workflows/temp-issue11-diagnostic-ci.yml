@@ -1,9 +1,7 @@
 name: Temporary issue 11 diagnostic slice validation
 
 on:
-  push:
-    branches:
-      - refactor/issue-11-diagnostic-command-slice
+  pull_request:
 
 jobs:
   validate:
