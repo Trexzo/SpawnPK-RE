@@ -68,6 +68,7 @@ final class LocalSession implements Runnable {
     private final DevControlCenter devPanel = new DevControlCenter();
     private final LocalDevPanelRenderer devPanelRenderer;
     private final LocalDevPanelAmountHandler devPanelAmounts;
+    private final LocalDevPanelWidgetHandler devPanelWidgets;
     private SceneUpdatePublisher scenePublisher;
     private ServerPacketWriter sessionPackets;
     private OutboundPacketQueue outboundPackets;
@@ -213,6 +214,26 @@ final class LocalSession implements Runnable {
             playerState,
             prayers,
             devPanelRenderer,
+            ()->clearDialogNumberKeys());
+        this.devPanelWidgets = new LocalDevPanelWidgetHandler(
+            devPanel,
+            equipment,
+            combatStyles,
+            dev,
+            combat,
+            npcs,
+            movement,
+            voidglass,
+            voidglassCommands,
+            prayers,
+            magic,
+            regionDevCommands,
+            bank,
+            playerPresentation,
+            playerState,
+            devSessionCommands,
+            devPanelRenderer,
+            (pending,writer)->promptDevPanelAmount(pending,writer),
             ()->clearDialogNumberKeys());
         if (movementEnabled && !bootstrap) throw new IllegalArgumentException("movement requires bootstrap");
     }
@@ -1551,201 +1572,33 @@ final class LocalSession implements Runnable {
     }
 
     private void handleDevPanelWidget(int widget,ServerPacketWriter w,String tag)throws IOException{
-        if(widget==54195){w.fixed(219,new byte[0]);devPanel.close();clearDialogNumberKeys();System.out.println(tag+"V5171_DEV_PANEL_CLOSE widget=54195");return;}
-        int choice=widget-2482;if(choice<0||choice>3)return;
-        String result="";
-        switch(devPanel.page()){
-            case MAIN:
-                devPanel.setPage(choice==0?DevControlCenter.Page.COMBAT:choice==1?DevControlCenter.Page.PETS:choice==2?DevControlCenter.Page.MAGIC_PRAYER:DevControlCenter.Page.MORE);break;
-            case MORE:
-                devPanel.setPage(choice==0?DevControlCenter.Page.WORLD:choice==1?DevControlCenter.Page.ITEMS:choice==2?DevControlCenter.Page.PLAYER_NPC:DevControlCenter.Page.DIAG);break;
-            case COMBAT:
-                if(choice==0)devPanel.setPage(DevControlCenter.Page.COMBAT_ANIM);
-                else if(choice==1)devPanel.setPage(DevControlCenter.Page.COMBAT_HIT);
-                else if(choice==2)result=cycleCombatStyleFromPanel(w);
-                else devPanel.setPage(DevControlCenter.Page.COMBAT_MORE);break;
-            case COMBAT_MORE:
-                if(choice==0)devPanel.setPage(DevControlCenter.Page.COMBAT_RUNTIME);
-                else if(choice==1)result=runtimeWeaponAuthoritySummary(equipment.weapon());
-                else if(choice==2)devPanel.setPage(DevControlCenter.Page.MAIN);
-                else devPanel.setPage(DevControlCenter.Page.COMBAT);break;
-            case COMBAT_RUNTIME:
-                if(choice==0){V913WeaponRuntimeAuthority.Profile rp=V913WeaponRuntimeAuthority.resolve(equipment.weapon());if(rp==null)result="REJECTED equipped weapon has no V9.13 runtime profile: "+equipment.weapon();else{devPanel.selectRuntimeWeaponItemId(equipment.weapon());result=runtimeWeaponAuthoritySummary(equipment.weapon());}}
-                else if(choice==1){promptDevPanelAmount(DevControlCenter.PendingAmount.RUNTIME_WEAPON_ITEM,w);return;}
-                else if(choice==2){V913WeaponRuntimeAuthority.Profile rp=selectedRuntimeWeaponProfile();result=RuntimeWeaponPresentationLab.preview(rp,npcs,movement,scenePublisher,w);}
-                else devPanel.setPage(DevControlCenter.Page.COMBAT_MORE);break;
-            case COMBAT_ANIM:
-                if(choice==0){promptDevPanelAmount(DevControlCenter.PendingAmount.COMBAT_ANIM,w);return;}
-                else if(choice==1){dev.setCombatAnimationOverride(equipment.weapon(),null);result="combat animation reset to authority";}
-                else if(choice==2)result=playCurrentAttackAnimation(w);
-                else devPanel.setPage(DevControlCenter.Page.COMBAT);break;
-            case COMBAT_HIT:
-                if(choice==0){promptDevPanelAmount(DevControlCenter.PendingAmount.HIT_DAMAGE,w);return;}
-                else if(choice==1){promptDevPanelAmount(DevControlCenter.PendingAmount.HIT_TYPE,w);return;}
-                else if(choice==2)result=combat.devHitCommand(new String[]{"devhit","variant","auto"});
-                else devPanel.setPage(DevControlCenter.Page.COMBAT);break;
-            case PETS:
-                devPanel.setPage(choice==0?DevControlCenter.Page.PET_FX:choice==1?DevControlCenter.Page.PET_FOLLOW:choice==2?DevControlCenter.Page.PET_PRESENT:DevControlCenter.Page.MAIN);break;
-            case PET_FX:
-                if(choice==0){Integer cur=dev.petParticleSelector();Integer next=cur==null?0:(cur>=255?null:cur+1);result=npcs.devSetParticleSelector(next,movement,w);}
-                else if(choice==1)result=npcs.devSetParticleSelector(null,movement,w);
-                else if(choice==2){promptDevPanelAmount(DevControlCenter.PendingAmount.PET_FX,w);return;}
-                else devPanel.setPage(DevControlCenter.Page.PETS);break;
-            case PET_FOLLOW:
-                if(choice==0)result=npcs.devFollowFreeze(!npcs.followFrozen());
-                else if(choice==1)result=npcs.devFollowStep(movement,w);
-                else if(choice==2)result=npcs.devSnapToOwner(movement,w);
-                else devPanel.setPage(DevControlCenter.Page.PETS);break;
-            case PET_PRESENT:
-                if(choice==0){promptDevPanelAmount(DevControlCenter.PendingAmount.PET_ANIM,w);return;}
-                else if(choice==1){promptDevPanelAmount(DevControlCenter.PendingAmount.PET_GFX,w);return;}
-                else if(choice==2){int n=(npcs.petNativeState()+1)&3;result=npcs.setPetNativeState(n,w);}
-                else devPanel.setPage(DevControlCenter.Page.PET_PRESENT_MORE);break;
-            case PET_PRESENT_MORE:
-                if(choice==0)devPanel.setPage(DevControlCenter.Page.CUSTOM_CONTENT);
-                else if(choice==1)result=npcs.devInfo(movement);
-                else if(choice==2)result="R1 reference: "+voidglass.summary(dev.petParticleSelector())+" | R3 item29999 + candidate NPC12000..12003";
-                else devPanel.setPage(DevControlCenter.Page.PET_PRESENT);break;
-            case CUSTOM_CONTENT:
-                if(choice==0)devPanel.setPage(DevControlCenter.Page.CUSTOM_VOIDGLASS);
-                else if(choice==1)result=VoidglassR3CustomContent.boundary();
-                else if(choice==2)result="R1 prototype: item22960 Vasa -> npc3701; session-only overlay. Kept for regression/reference only.";
-                else devPanel.setPage(DevControlCenter.Page.PET_PRESENT_MORE);break;
-            case CUSTOM_VOIDGLASS:
-                if(choice==0){
-                    LocalVoidglassCommandHandler.Outcome give=
-                        voidglassCommands.giveR3(w);
-                    if(give.saveReason!=null)saveAccountQuiet(tag,give.saveReason);
-                    result=give.text;
-                }
-                else if(choice==1)result=voidglassCommands.cycleR3Candidate(w);
-                else if(choice==2)result=voidglassCommands.triggerR3Proc(w);
-                else devPanel.setPage(DevControlCenter.Page.CUSTOM_CONTENT);break;
-            case MAGIC_PRAYER:
-                if(choice==0)devPanel.setPage(DevControlCenter.Page.MAGIC);
-                else if(choice==1)devPanel.setPage(DevControlCenter.Page.PRAYER);
-                else if(choice==2)result=prayers.deactivateAll(w);
-                else devPanel.setPage(DevControlCenter.Page.MAIN);break;
-            case MAGIC:
-                if(choice==0)result=magic.switchBook("modern",w);
-                else if(choice==1)result=magic.switchBook("ancient",w);
-                else if(choice==2)result=magic.switchBook("lunar",w);
-                else devPanel.setPage(DevControlCenter.Page.MAGIC_PRAYER);break;
-            case PRAYER:
-                if(choice==0){result=prayers.switchBook(prayers.book()==PrayerDefinitionRepository.Book.NORMAL?"curses":"normal",w);}
-                else if(choice==1){promptDevPanelAmount(DevControlCenter.PendingAmount.PRAYER_WIDGET,w);return;}
-                else if(choice==2){promptDevPanelAmount(DevControlCenter.PendingAmount.PRAYER_ICON,w);return;}
-                else devPanel.setPage(DevControlCenter.Page.MAGIC_PRAYER);break;
-            case WORLD:
-                if(choice==0){promptDevPanelAmount(DevControlCenter.PendingAmount.REGION_ID,w);return;}
-                else if(choice==1){
-                    LocalRegionDevCommandHandler.Result region=
-                        regionDevCommands.returnHomeForPanel(
-                            username,scenePublisher,w);
-                    if(region.scenePublisher!=null)scenePublisher=region.scenePublisher;
-                    if(region.saveReason!=null)saveAccountQuiet(tag,region.saveReason);
-                    result=region.detailText;
-                }
-                else if(choice==2){int mask=WorldCollisionAuthority.maskAt(movement.x(),movement.y(),movement.plane());result="collision world="+movement.x()+","+movement.y()+","+movement.plane()+" mask="+mask+" blocked="+WorldCollisionAuthority.blockedTile(movement.x(),movement.y(),movement.plane());}
-                else devPanel.setPage(DevControlCenter.Page.MORE);break;
-            case ITEMS:
-                if(choice==0){promptDevPanelAmount(DevControlCenter.PendingAmount.ITEM_LIBRARY_ID,w);return;}
-                else if(choice==1){w.fixed(219,new byte[0]);devPanel.close();clearDialogNumberKeys();result=NativeEquipmentDeathUi.openEquipmentStats(w,equipment);System.out.println(tag+"V5171_DEV_PANEL action=EQUIPMENT_STATS result="+result);return;}
-                else if(choice==2){w.fixed(219,new byte[0]);devPanel.close();clearDialogNumberKeys();result=NativeEquipmentDeathUi.openDeathPreview(w,bank,equipment);System.out.println(tag+"V5171_DEV_PANEL action=DEATH_PREVIEW result="+result);return;}
-                else devPanel.setPage(DevControlCenter.Page.MORE);break;
-            case PLAYER_NPC:
-                if(choice==0)devPanel.setPage(DevControlCenter.Page.PLAYER);
-                else if(choice==1)devPanel.setPage(DevControlCenter.Page.NPC);
-                else if(choice==2)result=ContentAuthorityRepository.summary()+" | "+ContentAuthorityRepository.itemSummary(equipment.weapon());
-                else devPanel.setPage(DevControlCenter.Page.MORE);break;
-            case PLAYER:
-                if(choice==0){promptDevPanelAmount(DevControlCenter.PendingAmount.PLAYER_MORPH,w);return;}
-                else if(choice==1)result=playerPresentation.clear(username,equipment,playerState,w);
-                else if(choice==2)devPanel.setPage(DevControlCenter.Page.PLAYER_PRESENT);
-                else devPanel.setPage(DevControlCenter.Page.PLAYER_NPC);break;
-            case PLAYER_PRESENT:
-                if(choice==0){promptDevPanelAmount(DevControlCenter.PendingAmount.PLAYER_ANIM,w);return;}
-                else if(choice==1){promptDevPanelAmount(DevControlCenter.PendingAmount.PLAYER_GFX,w);return;}
-                else if(choice==2){playerPresentation.refresh(username,equipment,playerState,w);result="player appearance refreshed";}
-                else devPanel.setPage(DevControlCenter.Page.PLAYER);break;
-            case NPC:
-                if(choice==0){promptDevPanelAmount(DevControlCenter.PendingAmount.NPC_SPAWN,w);return;}
-                else if(choice==1)result=npcs.devRemoveAllNpcs(w);
-                else if(choice==2)result=npcs.devNpcList(20);
-                else devPanel.setPage(DevControlCenter.Page.PLAYER_NPC);break;
-            case DIAG:
-                if(choice==0){dev.trace().setEnabled(!dev.trace().enabled());result=dev.trace().summary();}
-                else if(choice==1)devPanel.setPage(DevControlCenter.Page.AUTHORITY);
-                else if(choice==2)devPanel.setPage(DevControlCenter.Page.RESET_CONFIRM);
-                else devPanel.setPage(DevControlCenter.Page.MORE);break;
-            case AUTHORITY:
-                if(choice==0)devPanel.setPage(DevControlCenter.Page.AUTH_MAGIC);
-                else if(choice==1)devPanel.setPage(DevControlCenter.Page.AUTH_WORLD_ITEM);
-                else if(choice==2)devPanel.setPage(DevControlCenter.Page.RESEARCH);
-                else devPanel.setPage(DevControlCenter.Page.DIAG);break;
-            case AUTH_MAGIC:
-                if(choice==0){promptDevPanelAmount(DevControlCenter.PendingAmount.AUTH_SPELL_WIDGET,w);return;}
-                else if(choice==1){promptDevPanelAmount(DevControlCenter.PendingAmount.AUTH_PRAYER_WIDGET,w);return;}
-                else if(choice==2)result="read-only authority: spells="+SpellDefinitionRepository.count()+" prayers="+PrayerDefinitionRepository.count()+"; server-owned costs/effects remain evidence-gated";
-                else devPanel.setPage(DevControlCenter.Page.AUTHORITY);break;
-            case AUTH_WORLD_ITEM:
-                if(choice==0){promptDevPanelAmount(DevControlCenter.PendingAmount.AUTH_ITEM_ID,w);return;}
-                else if(choice==1){promptDevPanelAmount(DevControlCenter.PendingAmount.AUTH_REGION_ID,w);return;}
-                else if(choice==2){int rid=((movement.x()>>6)<<8)|(movement.y()>>6);devPanel.selectRegionId(rid);result=regionAuthoritySummary(rid);}
-                else devPanel.setPage(DevControlCenter.Page.AUTHORITY);break;
-            case RESEARCH:
-                if(choice==0)devPanel.setPage(DevControlCenter.Page.RESEARCH_EQUIP);
-                else if(choice==1)devPanel.setPage(DevControlCenter.Page.RESEARCH_PET);
-                else if(choice==2)devPanel.setPage(DevControlCenter.Page.RESEARCH_WORLD);
-                else devPanel.setPage(DevControlCenter.Page.RESEARCH_DISCOVERY);break;
-            case RESEARCH_EQUIP:
-                if(choice==0){promptDevPanelAmount(DevControlCenter.PendingAmount.RESEARCH_EQUIP_ITEM,w);return;}
-                else if(choice==1){int id=equipment.weapon();devPanel.selectResearchEquipItemId(id);result=EquipmentResearchAuthority.itemSummary(id);}
-                else if(choice==2)result="fields="+java.util.Arrays.toString(EquipmentResearchAuthority.BASE_PROFILE_FIELDS)+" | "+EquipmentResearchAuthority.QUERY_EQUIPSTR+" | "+EquipmentResearchAuthority.boundary();
-                else devPanel.setPage(DevControlCenter.Page.RESEARCH);break;
-            case RESEARCH_PET:
-                if(choice==0){NpcEntity pet=npcs.pet();if(pet==null)result="REJECTED no active main pet";else{PetProcResearchAuthority.Row row=PetProcResearchAuthority.findForPetItem(pet.petItemId);if(row==null)result="activePet item="+pet.petItemId+" has no actual Item+Pet R4 proc tuple";else{devPanel.selectResearchPetRow(row.index);result=PetProcResearchAuthority.summary(row);}}}
-                else if(choice==1){promptDevPanelAmount(DevControlCenter.PendingAmount.RESEARCH_PET_ROW,w);return;}
-                else if(choice==2)result=previewSelectedPetResearchCandidate(w);
-                else devPanel.setPage(DevControlCenter.Page.RESEARCH);break;
-            case RESEARCH_WORLD:
-                if(choice==0){promptDevPanelAmount(DevControlCenter.PendingAmount.RESEARCH_TELE_ITEM,w);return;}
-                else if(choice==1){int rid=((movement.x()>>6)<<8)|(movement.y()>>6);devPanel.selectResearchTransitionRegion(rid);result=WorldTransitionResearchAuthority.regionSummary(rid)+" | "+WorldFullResearchAuthority.regionSummary(rid);}
-                else if(choice==2)devPanel.setPage(DevControlCenter.Page.RESEARCH_SERVICE);
-                else devPanel.setPage(DevControlCenter.Page.RESEARCH);break;
-            case RESEARCH_SERVICE:
-                if(choice==0)result=ServiceResearchAuthority.routerSummary();
-                else if(choice==1)result=ServiceResearchAuthority.bloodSummary();
-                else if(choice==2)result=ServiceResearchAuthority.shopSummary();
-                else devPanel.setPage(DevControlCenter.Page.RESEARCH_WORLD);break;
-            case RESEARCH_DISCOVERY:
-                if(choice==0)result=ClientDiscoveryAuthority.taskAchievementSummary()+" | "+ClientDiscoveryAuthority.boundary();
-                else if(choice==1)result=ClientDiscoveryAuthority.magicConstructionSummary()+" | "+ClientDiscoveryAuthority.boundary();
-                else if(choice==2)result=ClientDiscoveryAuthority.uiControlSummary()+" | "+ClientDiscoveryAuthority.minigameSummary()+" | "+ClientDiscoveryAuthority.boundary();
-                else devPanel.setPage(DevControlCenter.Page.RESEARCH_ASSET);break;
-            case RESEARCH_ASSET:
-                if(choice==0)devPanel.setPage(DevControlCenter.Page.ALIGNMENT);
-                else if(choice==1)result=AssetRuntimeResearchAuthority.mayaSummary()+" | "+AssetRuntimeResearchAuthority.objectRawSummary()+" | "+AssetRuntimeResearchAuthority.updaterBoundary();
-                else if(choice==2)devPanel.setPage(DevControlCenter.Page.RESEARCH_PROTOCOL);
-                else devPanel.setPage(DevControlCenter.Page.RESEARCH_DISCOVERY);break;
-            case RESEARCH_PROTOCOL:
-                if(choice==0)result=ClientApplicationProtocolAuthority.applicationSummary()+" | "+ClientApplicationProtocolAuthority.boundary();
-                else if(choice==1)result=ClientApplicationProtocolAuthority.controlSummary()+" | "+ClientApplicationProtocolAuthority.boundary();
-                else if(choice==2)result=ClientApplicationProtocolAuthority.interactionSummary()+" | "+ClientApplicationProtocolAuthority.boundary();
-                else devPanel.setPage(DevControlCenter.Page.RESEARCH_ASSET);break;
-            case ALIGNMENT:
-                if(choice==0)result="client="+ClientAssetAlignmentAuthority.CLIENT_SHA256+" assets="+ClientAssetAlignmentAuthority.SPAWNPK_ASSET_BUNDLE_SHA256+" authority="+ClientAssetAlignmentAuthority.SPAWNPK_AUTHORITY_SHA256;
-                else if(choice==1)result=ContentAuthorityRepository.summary()+" collisionRegions="+WorldCollisionAuthority.regionCount()+" worldPlacements="+ClientAssetAlignmentAuthority.STATIC_WORLD_PLACEMENTS;
-                else if(choice==2)result=root328AlignmentSummary();
-                else devPanel.setPage(DevControlCenter.Page.AUTHORITY);break;
-            case RESET_CONFIRM:
-                if(choice==0){result=devSessionCommands.resetForPanel(username,scenePublisher,w);devPanel.setPage(DevControlCenter.Page.DIAG);}
-                else if(choice==1||choice==3)devPanel.setPage(DevControlCenter.Page.DIAG);
-                else {w.fixed(219,new byte[0]);devPanel.close();clearDialogNumberKeys();System.out.println(tag+"V5171_DEV_PANEL_CLOSE reason=RESET_PAGE_CLOSE");return;}
-                break;
-            default: devPanel.setPage(DevControlCenter.Page.MAIN);break;
+        LocalDevPanelWidgetHandler.Outcome outcome=
+            devPanelWidgets.handle(
+                widget,username,scenePublisher,w);
+
+        if(outcome==null)return;
+
+        if(outcome.scenePublisher!=null)
+            scenePublisher=outcome.scenePublisher;
+
+        if(outcome.saveReason!=null)
+            saveAccountQuiet(tag,outcome.saveReason);
+
+        if(outcome.directLogText!=null){
+            System.out.println(tag+outcome.directLogText);
+            return;
         }
-        if(result!=null&&!result.isEmpty())System.out.println(tag+"V5171_DEV_PANEL page="+devPanel.page()+" choice="+(choice+1)+" result={"+result+"}");
+
+        if(!outcome.renderAfter)return;
+
+        if(outcome.resultText!=null&&!outcome.resultText.isEmpty()){
+            System.out.println(
+                tag+"V5171_DEV_PANEL page="+
+                devPanel.page()+
+                " choice="+(outcome.choice+1)+
+                " result={"+outcome.resultText+"}");
+        }
+
         renderDevPanel(w);
     }
 
@@ -1777,97 +1630,6 @@ final class LocalSession implements Runnable {
             devPanel.cancelPending();
         }
     }
-
-    private PetProcResearchAuthority.Row selectedPetProcResearchRow(){
-        int idx=devPanel.selectedResearchPetRow();
-        if(idx>0)return PetProcResearchAuthority.byIndex(idx);
-        NpcEntity pet=npcs.pet();
-        return pet==null?null:PetProcResearchAuthority.findForPetItem(pet.petItemId);
-    }
-
-    private String previewSelectedPetResearchCandidate(ServerPacketWriter w)throws IOException{
-        PetProcResearchAuthority.Row row=selectedPetProcResearchRow();
-        if(row==null)return "REJECTED no pet research row selected / active pet not mapped";
-        NpcEntity pet=npcs.pet();if(pet==null)return "REJECTED no active main pet";
-        if(!row.previewable())return "REJECTED row has no previewable animation/GFX; "+row.confidence+" binding="+row.bindingStatus+" runtimeNeeded="+row.minimalRuntimeNeeded;
-        int anim=row.firstAnimation(),gfx=row.firstGfx();String a="NONE",g="NONE";
-        if(anim>=0)a=npcs.animatePet(anim,0,w);
-        if(gfx>=0)g=npcs.gfxPet(gfx,0,0,w);
-        return "OK presentationOnly=true row="+row.index+" family="+row.family+" confidence="+row.confidence+" binding="+row.bindingStatus+" anim="+anim+" gfx="+gfx+" animResult={"+a+"} gfxResult={"+g+"} mechanics=NONE projectile=NONE impact=NONE; candidate preview does not promote production binding";
-    }
-
-    private V913WeaponRuntimeAuthority.Profile selectedRuntimeWeaponProfile(){
-        int id=devPanel.selectedRuntimeWeaponItemId();
-        if(id<0)id=equipment.weapon();
-        return V913WeaponRuntimeAuthority.resolve(id);
-    }
-
-    private String runtimeWeaponAuthoritySummary(int itemId){
-        V913WeaponRuntimeAuthority.Profile p=V913WeaponRuntimeAuthority.resolve(itemId);
-        return RuntimeWeaponPresentationLab.summary(p)+" previewSafe="+RuntimeWeaponPresentationLab.previewSafe(p)+
-            " projectilePolicy="+RuntimeWeaponPresentationLab.PROJECTILE_POLICY+
-            " preAnimationPolicy="+RuntimeWeaponPresentationLab.PRE_ANIMATION_POLICY;
-    }
-
-    private String selectedMagicAuthoritySummary(){
-        String a=devPanel.selectedSpellWidget()<0?"spell:none":clip(spellAuthoritySummary(devPanel.selectedSpellWidget()),30);
-        String b=devPanel.selectedPrayerWidget()<0?"prayer:none":clip(prayerAuthoritySummary(devPanel.selectedPrayerWidget()),30);
-        return a+" | "+b;
-    }
-
-    private String selectedWorldItemAuthoritySummary(){
-        String a=devPanel.selectedItemId()<0?"item:none":clip(itemAuthorityBrowserSummary(devPanel.selectedItemId()),28);
-        int rid=devPanel.selectedRegionId();
-        if(rid<0)rid=((movement.x()>>6)<<8)|(movement.y()>>6);
-        return a+" | "+clip(regionAuthoritySummary(rid),28);
-    }
-
-    private String spellAuthoritySummary(int widget){
-        SpellDefinitionRepository.Spell d=SpellDefinitionRepository.byWidget(widget);
-        if(d==null)return "spell widget="+widget+" UNKNOWN";
-        return "spell widget="+widget+" "+d.name+" book="+d.book+" lvl="+d.level+" target="+d.targeted+" resources="+(d.resources==null?0:d.resources.length);
-    }
-
-    private String prayerAuthoritySummary(int widget){
-        PrayerDefinitionRepository.Def d=PrayerDefinitionRepository.byWidget(widget);
-        if(d==null)return "prayer widget="+widget+" UNKNOWN";
-        return "prayer widget="+widget+" "+d.name+" book="+d.book+" lvl="+d.level+" varp="+d.varp;
-    }
-
-    private String itemAuthorityBrowserSummary(int itemId){
-        ItemAuthorityRepository.Entry e=ItemAuthorityRepository.get(itemId);
-        if(e==null)return "item="+itemId+" UNKNOWN";
-        return ContentAuthorityRepository.itemSummary(itemId)+" equip="+e.equippable()+" effectText="+(e.effectText!=null&&!e.effectText.trim().isEmpty());
-    }
-
-    private String regionAuthoritySummary(int regionId){
-        WorldRegionAuthorityRepository.Region r=WorldRegionAuthorityRepository.get(regionId);
-        if(r==null)return "region="+regionId+" UNKNOWN";
-        return "region="+regionId+" "+(r.name==null||r.name.isEmpty()?"unnamed":r.name)+" bounds="+r.x0+","+r.y0+".."+r.x1+","+r.y1+" decoded="+(r.mapPresent&&r.landPresent&&r.terrainParseOk&&r.objectParseOk)+" placements="+r.placements+" usage="+r.usageStatus;
-    }
-
-    private String root328AlignmentSummary(){
-        CombatStyleRepository.Style a=CombatStyleRepository.byValue(328,0),b=CombatStyleRepository.byValue(328,1),c=CombatStyleRepository.byValue(328,2);
-        return "root328="+(ClientAssetAlignmentAuthority.root328Aligned()?"PASS":"FAIL")+" styles="+(a==null?"?":a.label)+"/"+(b==null?"?":b.label)+"/"+(c==null?"?":c.label)+" totalRoots="+CombatStyleRepository.rootCount()+" totalStyles="+CombatStyleRepository.countStyles();
-    }
-
-    private String cycleCombatStyleFromPanel(ServerPacketWriter w)throws IOException{
-        int root=CombatInterfaceRepository.forWeapon(equipment.weapon()), cur=combatStyles.value();
-        for(int i=1;i<=4;i++){int v=(cur+i)&3;CombatStyleRepository.Style s=CombatStyleRepository.byValue(root,v);if(s!=null)return combatStyles.click(root,s.widget,w);}
-        return "NO_ALTERNATE_STYLE root="+root;
-    }
-
-    private String playCurrentAttackAnimation(ServerPacketWriter w)throws IOException{
-        int weapon=equipment.weapon();Integer anim=null;String authority="";
-        if(dev.hasCombatAnimationOverride(weapon)){Integer x=dev.combatAnimationOverride(weapon);if(x!=null&&x>=0){anim=x;authority="TEMPORARY_OVERRIDE";}}
-        if(anim==null){V913WeaponRuntimeAuthority.Profile p=V913WeaponRuntimeAuthority.resolve(weapon);if(p!=null&&p.attackAnimation>=0){anim=p.attackAnimation;authority="PRODUCTION_RUNTIME_V913";}}
-        if(anim==null){WeaponAttackAuthorityRepository.Row r=WeaponAttackAuthorityRepository.resolve(weapon);if(r!=null&&r.attackAnimation>=0){anim=r.attackAnimation;authority=r.attackAuthority;}}
-        if(anim==null)return "NO_RESOLVED_ATTACK_ANIMATION weapon="+weapon;
-        w.varShort(81,CombatSync.player81AnimationOnly(anim));return "PLAY_ATTACK_ANIMATION weapon="+weapon+" anim="+anim+" authority="+authority;
-    }
-
-    private String devItemName(int itemId){ItemAuthorityRepository.Entry e=ItemAuthorityRepository.get(itemId);return e==null?"unknown":clip(ItemAuthorityRepository.stripTags(e.name),30);}
-    private static String clip(String s,int n){if(s==null)return "";String x=s.replace('\n',' ').replace('\r',' ').replaceAll("\\s+"," ").trim();return x.length()<=n?x:x.substring(0,Math.max(0,n-3))+"...";}
 
     /**
      * Generic LocalLab classic-dialog keyboard contract. The exact client key
