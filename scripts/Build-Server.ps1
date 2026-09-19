@@ -7,9 +7,13 @@ $repo = Split-Path -Parent $PSScriptRoot
 $buildJava = Set-LocalLabBuildJava
 
 $build = Join-Path $repo "server\build.ps1"
+$gradleBuild = Join-Path $repo "server\build.gradle"
+$gradleLauncher = Join-Path $repo "server\gradlew.bat"
 
-if (-not (Test-Path -LiteralPath $build -PathType Leaf)) {
-    throw "Server build script missing: $build"
+foreach ($required in @($build,$gradleBuild,$gradleLauncher)) {
+    if (-not (Test-Path -LiteralPath $required -PathType Leaf)) {
+        throw "Server build component missing: $required"
+    }
 }
 
 Push-Location $repo
@@ -31,4 +35,4 @@ if (-not (Test-Path -LiteralPath $jar -PathType Leaf)) {
 }
 
 $sha = (Get-FileHash -LiteralPath $jar -Algorithm SHA256).Hash.ToLowerInvariant()
-Write-Host "SERVER_BUILD_OK $sha" -ForegroundColor Green
+Write-Host "SERVER_BUILD_OK $sha gradle=true bytecodeMajor=55" -ForegroundColor Green
