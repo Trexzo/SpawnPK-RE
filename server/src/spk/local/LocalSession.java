@@ -55,6 +55,8 @@ final class LocalSession implements Runnable {
     private final LocalPetInventoryDialogHandler petDialogs;
     private final LocalCompCapeCustomizeHandler compCapeCustomize;
     private final LocalDevPetCommandHandler devPetCommands;
+    private final LocalDevPlayerCommandHandler devPlayerCommands;
+    private final LocalDevNpcCommandHandler devNpcCommands;
     /** Engine R7 one-stop in-game developer control center. */
     private final DevControlCenter devPanel = new DevControlCenter();
     private SceneUpdatePublisher scenePublisher;
@@ -142,6 +144,10 @@ final class LocalSession implements Runnable {
             bank,playerState);
         this.devPetCommands = new LocalDevPetCommandHandler(
             dev,npcs,movement,bank);
+        this.devPlayerCommands = new LocalDevPlayerCommandHandler(
+            playerPresentation,equipment,playerState);
+        this.devNpcCommands = new LocalDevNpcCommandHandler(
+            npcs,movement);
         if (movementEnabled && !bootstrap) throw new IllegalArgumentException("movement requires bootstrap");
     }
 
@@ -1327,75 +1333,17 @@ final class LocalSession implements Runnable {
             for(String line:devPetCommand)System.out.println(tag+line);
             return;
         }
-        if(p.length>=1 && p[0].equalsIgnoreCase("devplayer")){
-            String sub=p.length>=2?p[1].toLowerCase(java.util.Locale.ROOT):"help";
-            if(sub.equals("anim")){
-                int anim=p.length>=3?parseInt(p[2],-999):-999;
-                if(anim<-1||anim>65535){System.out.println(tag+"V591_DEV_PLAYER_ANIM result=REJECTED_RANGE");return;}
-                serverPackets.varShort(81,CombatSync.player81AnimationOnly(anim));
-                System.out.println(tag+"V591_DEV_PLAYER_ANIM anim="+anim+" gfx=NONE authority=TEMPORARY_VISUAL_PROBE"); return;
-            }
-            if(sub.equals("gfx")){
-                int gfx=p.length>=3?parseInt(p[2],-999):-999, h=p.length>=4?parseInt(p[3],0):0, d=p.length>=5?parseInt(p[4],0):0;
-                try { serverPackets.varShort(81,CombatSync.player81GfxOnly(gfx,h,d)); System.out.println(tag+"V591_DEV_PLAYER_GFX gfx="+gfx+" height="+h+" delay="+d+" anim=NONE authority=TEMPORARY_VISUAL_PROBE"); }
-                catch(IllegalArgumentException e){ System.out.println(tag+"V591_DEV_PLAYER_GFX result=REJECTED "+e.getMessage()); }
-                return;
-            }
-            if(sub.equals("animfx")){
-                int anim=p.length>=3?parseInt(p[2],-999):-999, gfx=p.length>=4?parseInt(p[3],-999):-999, h=p.length>=5?parseInt(p[4],0):0, d=p.length>=6?parseInt(p[5],0):0;
-                try { serverPackets.varShort(81,CombatSync.player81AnimationAndGfx(anim,gfx,h,d)); System.out.println(tag+"V591_DEV_PLAYER_ANIMFX anim="+anim+" gfx="+gfx+" height="+h+" delay="+d+" authority=TEMPORARY_VISUAL_PROBE"); }
-                catch(IllegalArgumentException e){ System.out.println(tag+"V591_DEV_PLAYER_ANIMFX result=REJECTED "+e.getMessage()); }
-                return;
-            }
-            if(sub.equals("morph")||sub.equals("npc")){
-                int npc=p.length>=3?parseInt(p[2],-1):-1;
-                if(npc<0||npc>16383){System.out.println(tag+"V592_DEV_PLAYER_MORPH result=REJECTED expected=npcId_0..16383");return;}
-                try { System.out.println(tag+"V592_"+playerPresentation.morph(npc,username,equipment,playerState,serverPackets)); }
-                catch(IllegalArgumentException e){ System.out.println(tag+"V592_DEV_PLAYER_MORPH result=REJECTED "+e.getMessage()); }
-                return;
-            }
-            if(sub.equals("clear")||sub.equals("normal")||sub.equals("unmorph")){
-                System.out.println(tag+"V592_"+playerPresentation.clear(username,equipment,playerState,serverPackets)); return;
-            }
-            if(sub.equals("info")){ System.out.println(tag+"V592_"+playerPresentation.info()); return; }
-            System.out.println(tag+"V592_DEV_PLAYER_HELP commands=info | morph <npcId> | clear | anim <id> | gfx <id> [height] [delay] | animfx <anim> <gfx> [height] [delay] nurseIsolation='anim 10184' vs 'gfx 1310' vs 'animfx 10184 1310'"); return;
+        java.util.List<String> devPlayerCommand=
+            devPlayerCommands.handle(p,username,serverPackets);
+        if(devPlayerCommand!=null){
+            for(String line:devPlayerCommand)System.out.println(tag+line);
+            return;
         }
-        if(p.length>=1 && p[0].equalsIgnoreCase("devnpc")){
-            String sub=p.length>=2?p[1].toLowerCase(java.util.Locale.ROOT):"help";
-            String r;
-            if(sub.equals("list")){ int limit=p.length>=3?parseInt(p[2],20):20; System.out.println(tag+"V592_"+npcs.devNpcList(limit)); return; }
-            if(sub.equals("info")){ int scene=p.length>=3?parseInt(p[2],-1):-1; System.out.println(tag+"V592_"+npcs.devNpcInfo(scene,movement)); return; }
-            if(sub.equals("spawn")){
-                int npc=p.length>=3?parseInt(p[2],-1):-1, dx=p.length>=4?parseInt(p[3],1):1, dy=p.length>=5?parseInt(p[4],0):0;
-                System.out.println(tag+"V592_"+npcs.devSpawnNpc(npc,dx,dy,movement,serverPackets)); return;
-            }
-            if(sub.equals("remove")){ int scene=p.length>=3?parseInt(p[2],-1):-1; System.out.println(tag+"V592_"+npcs.devRemoveNpc(scene,serverPackets)); return; }
-            if(sub.equals("clear")){ System.out.println(tag+"V592_"+npcs.devRemoveAllNpcs(serverPackets)); return; }
-            if(sub.equals("anim")){
-                int scene=p.length>=3?parseInt(p[2],-1):-1, anim=p.length>=4?parseInt(p[3],-999):-999, delay=p.length>=5?parseInt(p[4],0):0;
-                System.out.println(tag+"V592_"+npcs.devNpcAnimation(scene,anim,delay,serverPackets)); return;
-            }
-            if(sub.equals("gfx")){
-                int scene=p.length>=3?parseInt(p[2],-1):-1, gfx=p.length>=4?parseInt(p[3],-999):-999, h=p.length>=5?parseInt(p[4],0):0, d=p.length>=6?parseInt(p[5],0):0;
-                System.out.println(tag+"V592_"+npcs.devNpcGfx(scene,gfx,h,d,serverPackets)); return;
-            }
-            if(sub.equals("text")){
-                int scene=p.length>=3?parseInt(p[2],-1):-1;
-                String text=p.length>=4?joinTokens(p,3):"";
-                System.out.println(tag+"V592_"+npcs.devNpcText(scene,text,serverPackets)); return;
-            }
-            if(sub.equals("target")){
-                int scene=p.length>=3?parseInt(p[2],-1):-1;
-                String tv=p.length>=4?p[3].toLowerCase(java.util.Locale.ROOT):"";
-                int target=tv.equals("player")?(32768+NpcRegistry.LOCAL_PLAYER_INDEX):parseInt(tv,-1);
-                System.out.println(tag+"V592_"+npcs.devNpcTarget(scene,target,serverPackets)); return;
-            }
-            if(sub.equals("hit")){
-                int scene=p.length>=3?parseInt(p[2],-1):-1, damage=p.length>=4?parseInt(p[3],0):0;
-                int max=p.length>=6?parseInt(p[5],100):100, cur=p.length>=5?parseInt(p[4],Math.max(0,max-damage)):Math.max(0,max-damage);
-                System.out.println(tag+"V592_"+npcs.devNpcHit(scene,damage,cur,max,serverPackets)); return;
-            }
-            System.out.println(tag+"V592_DEV_NPC_HELP commands=list [limit] | info <scene> | spawn <npcId> [dx] [dy] | remove <scene> | clear | anim <scene> <anim> [delay] | gfx <scene> <gfx> [height] [delay] | text <scene> <text...> | target <scene> player|<raw0..65535> | hit <scene> <damage> [currentHp] [maxHp]"); return;
+        java.util.List<String> devNpcCommand=
+            devNpcCommands.handle(p,serverPackets);
+        if(devNpcCommand!=null){
+            for(String line:devNpcCommand)System.out.println(tag+line);
+            return;
         }
         if(p.length>=1 && p[0].equalsIgnoreCase("devtrace")){
             String sub=p.length>=2?p[1].toLowerCase(java.util.Locale.ROOT):"info";
