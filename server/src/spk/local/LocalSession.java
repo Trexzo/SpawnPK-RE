@@ -2721,10 +2721,16 @@ final class LocalSession implements Runnable {
             bank.close(serverPackets);
             System.out.println(tag+"V5122_BANK_CLOSE_ON_MOVEMENT opcode="+req.opcode+" final="+req.finalX()+","+req.finalY()+" normalInventory3214Refresh=true");
         }
-        if(pendingMiniConfigureItem>=0 || pendingPetColorItems!=null || pendingPetAccessoryItem>=0 || devPanel.isOpen()){
+        if(petDialogs.hasAnyOpen() || devPanel.isOpen()){
             serverPackets.fixed(219,new byte[0]);
-            boolean mini=pendingMiniConfigureItem>=0, color=pendingPetColorItems!=null, accessory=pendingPetAccessoryItem>=0, panel=devPanel.isOpen();
-            clearMiniConfigureDialog(); clearPetColorDialog(); clearPetAccessoryDialog(); devPanel.close(); clearDialogNumberKeys();
+            LocalPetInventoryDialogHandler.CloseState petDialogClose=
+                petDialogs.clearAll();
+            boolean mini=petDialogClose.miniConfigWasOpen;
+            boolean color=petDialogClose.petColorWasOpen;
+            boolean accessory=petDialogClose.petAccessoryWasOpen;
+            boolean panel=devPanel.isOpen();
+            devPanel.close();
+            clearDialogNumberKeys();
             System.out.println(tag+"V5170_DIALOG_CLOSE_ON_MOVEMENT mini="+mini+" petColor="+color+" petAccessory="+accessory+" devPanel="+panel+" opcode="+req.opcode);
         }
         int clientStartX=req.waypointCount()>0?req.x[0]:movement.x();
