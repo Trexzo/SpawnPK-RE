@@ -62,6 +62,7 @@ final class LocalSession implements Runnable {
     private final LocalPetRuntimeCommandHandler petRuntimeCommands;
     private final LocalCombatCommandHandler combatCommands;
     private final LocalRegionDevCommandHandler regionDevCommands;
+    private final LocalDevSessionCommandHandler devSessionCommands;
     /** Engine R7 one-stop in-game developer control center. */
     private final DevControlCenter devPanel = new DevControlCenter();
     private SceneUpdatePublisher scenePublisher;
@@ -172,6 +173,16 @@ final class LocalSession implements Runnable {
                 nextPetFollowAt=Long.MAX_VALUE;
                 petFollowRealtimeScheduled=false;
             });
+        this.devSessionCommands = new LocalDevSessionCommandHandler(
+            world,
+            dev,
+            npcs,
+            playerPresentation,
+            equipment,
+            playerState,
+            bank,
+            petState,
+            movement);
         if (movementEnabled && !bootstrap) throw new IllegalArgumentException("movement requires bootstrap");
     }
 
@@ -1345,19 +1356,11 @@ final class LocalSession implements Runnable {
 
         // v5.9.1 session-only Dev Authority Workbench. These routes never persist
         // experimental presentation values into opensrc.properties.
-        if(p.length>=1 && p[0].equalsIgnoreCase("dev")){
-            String sub=p.length>=2?p[1].toLowerCase(java.util.Locale.ROOT):"info";
-            if(sub.equals("reset")){
-                boolean hadMorph=dev.playerNpcTransformId()!=null;
-                String npcr=npcs.devRemoveAllNpcs(serverPackets);
-                String worldr=resetDevWorld(serverPackets);
-                dev.resetAll();
-                if(hadMorph) playerPresentation.refresh(username,equipment,playerState,serverPackets);
-                String petReset="none";
-                if(npcs.pet()!=null && petState.active()) petReset=npcs.previewPetDefinition(petState.npcId(),movement,serverPackets);
-                String rr=bank.restoreDevInventoryPreview(serverPackets);
-                System.out.println(tag+"V511_DEV_RESET workbench="+dev.summary()+" inventory="+rr+" pet="+petReset+" devNpcs="+npcr+" devWorld="+worldr+" playerRefresh="+hadMorph+" persisted=false");
-            } else System.out.println(tag+"V592_DEV_INFO "+dev.summary());
+        String devSessionCommand=
+            devSessionCommands.handle(
+                p,username,scenePublisher,serverPackets);
+        if(devSessionCommand!=null){
+            System.out.println(tag+devSessionCommand);
             return;
         }
         java.util.List<String> devPetCommand=
@@ -1449,13 +1452,6 @@ final class LocalSession implements Runnable {
         }
     }
 
-
-    private String resetDevWorld(ServerPacketWriter serverPackets)throws IOException{
-        int ground=0,objects=0;
-        for(GroundItem g:world.groundItems().removeDevOwned()){try{scenePublisher.groundRemove(g);ground++;}catch(IllegalArgumentException ignored){}}
-        for(WorldObject o:world.objects().removeDevOwned()){try{scenePublisher.objectRemove(o.tile,o.shape,o.rotation);objects++;}catch(IllegalArgumentException ignored){}}
-        return "DEV_WORLD_RESET ground="+ground+" objects="+objects;
-    }
 
     private PetDefinitionRepository.Def resolvePetDefinitionForDrop(int itemId){
         Integer override=dev.petNpcBinding(itemId);
@@ -1839,7 +1835,7 @@ final class LocalSession implements Runnable {
                 else if(choice==2)result=root328AlignmentSummary();
                 else devPanel.setPage(DevControlCenter.Page.AUTHORITY);break;
             case RESET_CONFIRM:
-                if(choice==0){result=resetAllDevOverridesFromPanel(w);devPanel.setPage(DevControlCenter.Page.DIAG);}
+                if(choice==0){result=devSessionCommands.resetForPanel(username,scenePublisher,w);devPanel.setPage(DevControlCenter.Page.DIAG);}
                 else if(choice==1||choice==3)devPanel.setPage(DevControlCenter.Page.DIAG);
                 else {w.fixed(219,new byte[0]);devPanel.close();clearDialogNumberKeys();System.out.println(tag+"V5171_DEV_PANEL_CLOSE reason=RESET_PAGE_CLOSE");return;}
                 break;
@@ -2022,14 +2018,6 @@ final class LocalSession implements Runnable {
         if(anim==null){WeaponAttackAuthorityRepository.Row r=WeaponAttackAuthorityRepository.resolve(weapon);if(r!=null&&r.attackAnimation>=0){anim=r.attackAnimation;authority=r.attackAuthority;}}
         if(anim==null)return "NO_RESOLVED_ATTACK_ANIMATION weapon="+weapon;
         w.varShort(81,CombatSync.player81AnimationOnly(anim));return "PLAY_ATTACK_ANIMATION weapon="+weapon+" anim="+anim+" authority="+authority;
-    }
-
-    private String resetAllDevOverridesFromPanel(ServerPacketWriter w)throws IOException{
-        boolean hadMorph=dev.playerNpcTransformId()!=null;String npcr=npcs.devRemoveAllNpcs(w);String worldr=resetDevWorld(w);dev.resetAll();LocalDevVisualOverrideStore.clear();
-        if(hadMorph)playerPresentation.refresh(username,equipment,playerState,w);
-        String petReset="none";if(npcs.pet()!=null&&petState.active())petReset=npcs.previewPetDefinition(petState.npcId(),movement,w);
-        String inv=bank.restoreDevInventoryPreview(w);
-        return "workbench="+dev.summary()+" inventory="+inv+" pet="+petReset+" devNpcs="+npcr+" devWorld="+worldr+" playerRefresh="+hadMorph+" persisted=false";
     }
 
     private String devItemName(int itemId){ItemAuthorityRepository.Entry e=ItemAuthorityRepository.get(itemId);return e==null?"unknown":clip(ItemAuthorityRepository.stripTags(e.name),30);}
