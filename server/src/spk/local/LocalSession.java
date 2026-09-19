@@ -49,6 +49,7 @@ final class LocalSession implements Runnable {
     private final LocalGameplayWidgetHandler gameplayWidgetHandler;
     private final LocalBankObjectInteractionHandler bankObjectHandler;
     private final LocalRoutedNpcInteractionHandler routedNpcHandler;
+    private final LocalGenericInteractionHandler genericInteractionHandler;
     /** Engine R7 one-stop in-game developer control center. */
     private final DevControlCenter devPanel = new DevControlCenter();
     private SceneUpdatePublisher scenePublisher;
@@ -135,6 +136,7 @@ final class LocalSession implements Runnable {
         this.bankObjectHandler = new LocalBankObjectInteractionHandler(bank,movement);
         this.routedNpcHandler = new LocalRoutedNpcInteractionHandler(
             npcs,bank,movement);
+        this.genericInteractionHandler = new LocalGenericInteractionHandler();
         if (movementEnabled && !bootstrap) throw new IllegalArgumentException("movement requires bootstrap");
     }
 
@@ -879,25 +881,8 @@ final class LocalSession implements Runnable {
 
     private void acceptPendingGenericInteraction(ClientPacketProbe clientPackets, ServerPacketWriter serverPackets, String tag) throws IOException {
         for (GenericInteractionEvent e; (e=R85GenericC2SBridge.take(clientPackets))!=null; ) {
-            switch (e.family) {
-                case OBJECT_OPTION:
-                    System.out.println(tag+"V5185_GENERIC_OBJECT_ACTION "+e+" result=DECODED_FAIL_CLOSED authority=EXACT_CLIENT_WIRE_AND_TRIGGER_SERVER_BEHAVIOR_UNKNOWN");
-                    break;
-                case WIDGET_ITEM_OPTION:
-                    System.out.println(tag+"V5185_WIDGET_ITEM_ACTION "+e+" result=DECODED_FAIL_CLOSED authority=EXACT_CLIENT_WIRE_AND_TRIGGER_SERVER_BEHAVIOR_UNKNOWN");
-                    break;
-                case ITEM_ON_PLAYER:
-                    System.out.println(tag+"V5185_ITEM_ON_PLAYER "+e+" result=DECODED_FAIL_CLOSED authority=EXACT_CLIENT_WIRE_AND_TRIGGER_SERVER_BEHAVIOR_UNKNOWN");
-                    break;
-                case ITEM_ON_GROUND_ITEM:
-                    System.out.println(tag+"V5185_ITEM_ON_GROUND "+e+" result=DECODED_FAIL_CLOSED authority=EXACT_CLIENT_WIRE_AND_TRIGGER_SERVER_BEHAVIOR_UNKNOWN");
-                    break;
-                case ITEM_ON_OBJECT:
-                    System.out.println(tag+"V5185_ITEM_ON_OBJECT "+e+" result=DECODED_FAIL_CLOSED authority=EXACT_CLIENT_WIRE_AND_TRIGGER_SERVER_BEHAVIOR_UNKNOWN");
-                    break;
-                default:
-                    System.out.println(tag+"V5185_GENERIC_INTERACTION "+e+" result=DECODED_FAIL_CLOSED");
-            }
+            String result=genericInteractionHandler.handle(e);
+            if(result!=null)System.out.println(tag+result);
         }
     }
 
