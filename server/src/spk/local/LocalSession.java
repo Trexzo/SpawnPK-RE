@@ -45,6 +45,7 @@ final class LocalSession implements Runnable {
     private final LocalItemOnItemHandler itemOnItemHandler;
     private final LocalSpellTargetHandler spellTargetHandler;
     private final LocalGroundItemInteractionHandler groundItemHandler;
+    private final LocalItemOnNpcHandler itemOnNpcHandler;
     /** Engine R7 one-stop in-game developer control center. */
     private final DevControlCenter devPanel = new DevControlCenter();
     private SceneUpdatePublisher scenePublisher;
@@ -82,8 +83,8 @@ final class LocalSession implements Runnable {
     private String pendingPetColorFamily;
     private int pendingMiniConfigureSlot=-1,pendingMiniConfigureItem=-1;
     private int pendingPetAccessorySlot=-1,pendingPetAccessoryItem=-1;
-    /** Persisted semantic global pet accessory. 0 means none. Visual selector mapping remains evidence-gated. */
-    private int activePetAccessoryItem;
+    /** Persisted semantic global pet accessory. 0 means none. */
+    private final PetAccessoryState petAccessoryState = new PetAccessoryState();
     /** Engine R3 per-view remote-player synchronization context. */
     private Player81WorldSync.Context player81Sync;
     private EntityId activePlayerFollow;
@@ -128,6 +129,8 @@ final class LocalSession implements Runnable {
             magic,bank,equipment,playerState,npcs,combat);
         this.groundItemHandler = new LocalGroundItemInteractionHandler(
             world,bank,movement);
+        this.itemOnNpcHandler = new LocalItemOnNpcHandler(
+            bank,npcs,movement,petAccessoryState);
         if (movementEnabled && !bootstrap) throw new IllegalArgumentException("movement requires bootstrap");
     }
 
@@ -163,8 +166,8 @@ final class LocalSession implements Runnable {
             username=account.username;
             persistentAccount=account.persistent;
             LocalAccountLifecycle.LoadResult accountLoad=LocalAccountLifecycle.load(
-                account,bank,equipment,movement,petState,playerState,LocalSession::isPetAccessoryItem,tag);
-            activePetAccessoryItem=accountLoad.accessoryItem;
+                account,bank,equipment,movement,petState,playerState,PetAccessoryAuthority::isAccessory,tag);
+            petAccessoryState.setActiveItem(accountLoad.accessoryItem);
 
             // One-time migration from the superseded LocalLab bug that stored native icons in AMMO.
             if(!playerState.cosmetic().active() && ItemCatalog.isNativePlayerIcon(equipment.itemAt(EquipmentSlot.AMMO))){
@@ -265,10 +268,10 @@ final class LocalSession implements Runnable {
                     // HOME replay owns packet85 internally; invalidate our persistent context so the next standalone scene event re-establishes it.
                     scenePublisher.context().invalidate();
                     npcs.bootstrapHome(serverPackets,movement,petState,homeWorld);
-                    if(petState.active() && activePetAccessoryItem!=0){
-                        Integer selector=petAccessorySelector(activePetAccessoryItem);
+                    if(petState.active() && petAccessoryState.activeItem()!=0){
+                        Integer selector=PetAccessoryAuthority.selector(petAccessoryState.activeItem());
                         String visual=npcs.devSetParticleSelector(selector,movement,serverPackets);
-                        System.out.println(tag+"V5131_PET_ACCESSORY_PERSIST_RESTORE item="+activePetAccessoryItem+" selector="+selector+" visual={"+visual+"} authority=ACCOUNT_SEMANTIC_STATE");
+                        System.out.println(tag+"V5131_PET_ACCESSORY_PERSIST_RESTORE item="+petAccessoryState.activeItem()+" selector="+selector+" visual={"+visual+"} authority=ACCOUNT_SEMANTIC_STATE");
                     }
                     if(petState.active() && petState.miniConfigured())
                         System.out.println(tag+"V511_MINIPET_BOOTSTRAP "+miniPets.onMainPetSpawn(petState,npcs,movement,serverPackets));
@@ -785,17 +788,17 @@ final class LocalSession implements Runnable {
                     System.out.println(tag+"V5130_PET_ACCESSORY_DIALOG item="+item+" action=ACTIVATE result=REJECTED_ITEM_MOVED");
                     clearPetAccessoryDialog(); return;
                 }
-                activePetAccessoryItem=item;
-                Integer selector=petAccessorySelector(item);
+                petAccessoryState.setActiveItem(item);
+                Integer selector=PetAccessoryAuthority.selector(item);
                 String visual=npcs.devSetParticleSelector(selector,movement,serverPackets);
                 serverPackets.fixed(219,new byte[0]);
                 saveAccountQuiet(tag,"PET_ACCESSORY_ACTIVATE");
                 System.out.println(tag+"V5130_PET_ACCESSORY_DIALOG item="+item+" action=ACTIVATE selector="+selector+
-                    " visual={"+visual+"} wording=RECONSTRUCTED_FROM_OFFICIAL_TOGGLE_SEMANTIC provenance="+petAccessorySelectorAuthority(item));
+                    " visual={"+visual+"} wording=RECONSTRUCTED_FROM_OFFICIAL_TOGGLE_SEMANTIC provenance="+PetAccessoryAuthority.selectorAuthority(item));
                 clearPetAccessoryDialog(); return;
             }
             if(widget==2483){
-                activePetAccessoryItem=0;
+                petAccessoryState.clear();
                 String visual=npcs.devSetParticleSelector(null,movement,serverPackets);
                 serverPackets.fixed(219,new byte[0]);
                 saveAccountQuiet(tag,"PET_ACCESSORY_DETACH");
@@ -1057,15 +1060,15 @@ final class LocalSession implements Runnable {
         // text describes the items as "toggled", infinite-use particle accessories, so
         // LocalLab opens a native chatbox with reconstructed management wording instead
         // of silently toggling on Read.
-        if(a.opcode==122 && a.widgetId==BankState.NORMAL_INVENTORY_CONTAINER && isPetAccessoryItem(a.itemId)){
+        if(a.opcode==122 && a.widgetId==BankState.NORMAL_INVENTORY_CONTAINER && PetAccessoryAuthority.isAccessory(a.itemId)){
             BankState.Stack st=bank.inventoryAt(a.slot);
             if(st==null||st.itemId!=a.itemId||st.qty<=0){System.out.println(tag+"V5130_PET_ACCESSORY "+a+" result=REJECTED_INVENTORY_MISMATCH");return;}
             String semantic=ItemActionResolver.inventoryOption1Semantic(a.itemId);
             if(!"Read".equalsIgnoreCase(semantic)){System.out.println(tag+"V5130_PET_ACCESSORY "+a+" result=REJECTED_ACTION_SEMANTIC semantic="+semantic);return;}
             openPetAccessoryDialog(a.slot,a.itemId,serverPackets);
-            System.out.println(tag+"V5130_PET_ACCESSORY_READ item="+a.itemId+" name="+petAccessoryName(a.itemId)+
+            System.out.println(tag+"V5130_PET_ACCESSORY_READ item="+a.itemId+" name="+PetAccessoryAuthority.name(a.itemId)+
                 " result=DIALOG_OPEN wording=RECONSTRUCTED_SERVER_RESPONSE officialSemantics=TOGGLE_INFINITE_USE currentActive="+
-                (activePetAccessoryItem==0?"NONE":activePetAccessoryItem));
+                (petAccessoryState.activeItem()==0?"NONE":petAccessoryState.activeItem()));
             return;
         }
 
@@ -1191,21 +1194,11 @@ final class LocalSession implements Runnable {
     }
 
     private void acceptPendingItemOnNpc(ClientPacketProbe clientPackets,ServerPacketWriter serverPackets,String tag)throws IOException{
-        ItemOnNpcAction a=clientPackets.takeItemOnNpc();
-        if(a==null)return;
-        NpcEntity target=npcs.scene(a.targetNpcIndex);
-        BankState.Stack st=a.widgetId==BankState.NORMAL_INVENTORY_CONTAINER?bank.inventoryAt(a.slot):null;
-        if(st==null||st.itemId!=a.itemId){System.out.println(tag+"V5128_ITEM_ON_NPC "+a+" result=REJECTED_SOURCE_INVENTORY_MISMATCH");return;}
-        if(isPetAccessoryItem(a.itemId) && target!=null && target==npcs.pet()){
-            Integer selector=petAccessorySelector(a.itemId);
-            activePetAccessoryItem=a.itemId;
-            String visual=npcs.devSetParticleSelector(selector,movement,serverPackets);
-            saveAccountQuiet(tag,"PET_ACCESSORY_USE_ON_PET");
-            System.out.println(tag+"V5129_PET_ACCESSORY_USE_ON_PET "+a+" targetDef="+target.definitionId+
-                " result=ATTACHED selector="+selector+" visual={"+visual+"} provenance="+petAccessorySelectorAuthority(a.itemId));
-            return;
-        }
-        System.out.println(tag+"V5128_ITEM_ON_NPC "+a+" target="+target+" result=DECODED_NO_SEMANTIC_HANDLER");
+        ItemOnNpcAction action=clientPackets.takeItemOnNpc();
+        if(action==null)return;
+        LocalItemOnNpcHandler.Result result=itemOnNpcHandler.handle(action,serverPackets);
+        if(result.saveReason!=null)saveAccountQuiet(tag,result.saveReason);
+        System.out.println(tag+result.logText);
     }
 
     private void acceptPendingSpellTarget(ClientPacketProbe clientPackets,ServerPacketWriter serverPackets,String tag)throws IOException{
@@ -1295,8 +1288,8 @@ final class LocalSession implements Runnable {
         petState.activate(def);
         petEffects.onPetChanged(def.itemId,def.npcId);
         String accessorySpawn="NONE";
-        if(activePetAccessoryItem!=0){
-            Integer selector=petAccessorySelector(activePetAccessoryItem);
+        if(petAccessoryState.activeItem()!=0){
+            Integer selector=PetAccessoryAuthority.selector(petAccessoryState.activeItem());
             accessorySpawn=npcs.devSetParticleSelector(selector,movement,serverPackets);
         }
         String miniSpawn=petState.miniConfigured()?miniPets.onMainPetSpawn(petState,npcs,movement,serverPackets):"MINIPET_NONE_CONFIGURED";
@@ -1309,7 +1302,7 @@ final class LocalSession implements Runnable {
                          +(replacing?" replaced="+oldItem+"->"+oldNpc+" restoredOldItemSlot="+restoredOldSlot:"")
                          +" scopesightSkillMask=0x"+Integer.toHexString(passiveChanged)
                          +" ownerAnim="+PetPresentationProfile.OWNER_DROP_PICKUP_ANIMATION+" ownerGfx=NONE"
-                         +" accessory="+(activePetAccessoryItem==0?"NONE":activePetAccessoryItem+"/selector"+petAccessorySelector(activePetAccessoryItem)+"/"+accessorySpawn)
+                         +" accessory="+(petAccessoryState.activeItem()==0?"NONE":petAccessoryState.activeItem()+"/selector"+PetAccessoryAuthority.selector(petAccessoryState.activeItem())+"/"+accessorySpawn)
                          +" mini="+miniSpawn+" persistent="+persistentAccount);
     }
 
@@ -2320,8 +2313,8 @@ final class LocalSession implements Runnable {
         }
         if(p.length>=1 && p[0].equalsIgnoreCase("petaccessory")){
             String sub=p.length>=2?p[1].toLowerCase(java.util.Locale.ROOT):"status";
-            if(sub.equals("off")||sub.equals("none")||sub.equals("disable")){activePetAccessoryItem=0;String visual=npcs.devSetParticleSelector(null,movement,serverPackets);saveAccountQuiet(tag,"PET_ACCESSORY_DEV_OFF");System.out.println(tag+"V5128_PET_ACCESSORY active=NONE visual={"+visual+"}");return;}
-            System.out.println(tag+"V5128_PET_ACCESSORY active="+(activePetAccessoryItem==0?"NONE":activePetAccessoryItem+"/"+petAccessoryName(activePetAccessoryItem))+" visualSelectorMapping=UNRESOLVED_FAIL_CLOSED");
+            if(sub.equals("off")||sub.equals("none")||sub.equals("disable")){petAccessoryState.clear();String visual=npcs.devSetParticleSelector(null,movement,serverPackets);saveAccountQuiet(tag,"PET_ACCESSORY_DEV_OFF");System.out.println(tag+"V5128_PET_ACCESSORY active=NONE visual={"+visual+"}");return;}
+            System.out.println(tag+"V5128_PET_ACCESSORY active="+(petAccessoryState.activeItem()==0?"NONE":petAccessoryState.activeItem()+"/"+PetAccessoryAuthority.name(petAccessoryState.activeItem()))+" visualSelectorMapping=UNRESOLVED_FAIL_CLOSED");
             return;
         }
         if(p.length>=1 && p[0].equalsIgnoreCase("petswitchcolor")){
@@ -2541,7 +2534,7 @@ final class LocalSession implements Runnable {
     private void saveAccountQuiet(String tag, String reason) {
         LocalAccountLifecycle.saveQuiet(
             username,persistentAccount,bank,equipment,movement,petState,playerState,
-            activePetAccessoryItem,tag,reason);
+            petAccessoryState.activeItem(),tag,reason);
     }
 
 
@@ -3075,7 +3068,7 @@ final class LocalSession implements Runnable {
     private void openPetAccessoryDialog(int slot,int itemId,ServerPacketWriter w)throws IOException{
         pendingPetAccessorySlot=slot; pendingPetAccessoryItem=itemId;
         w.varShort(126,BootstrapPackets.widgetText126(2481,"Pet accessory"));
-        w.varShort(126,BootstrapPackets.widgetText126(2482,"Activate "+petAccessoryName(itemId)));
+        w.varShort(126,BootstrapPackets.widgetText126(2482,"Activate "+PetAccessoryAuthority.name(itemId)));
         w.varShort(126,BootstrapPackets.widgetText126(2483,"Remove active pet accessory"));
         w.varShort(126,BootstrapPackets.widgetText126(2484,"Cancel"));
         w.varShort(126,BootstrapPackets.widgetText126(2485,"Close"));
@@ -3145,41 +3138,6 @@ final class LocalSession implements Runnable {
     private static boolean petColorCurrentAllowed(String family,int current,int[] choices){
         if("SCOOBY_BEHEMOTH".equals(family))return current>=24016&&current<=24019;
         return contains(choices,current);
-    }
-    private static boolean isPetAccessoryItem(int itemId){
-        return (itemId>=20542&&itemId<=20546)||itemId==20699||itemId==21068;
-    }
-    private static String petAccessoryName(int itemId){
-        switch(itemId){
-            case 20542:return "White pet accessory";
-            case 20543:return "Red pet accessory";
-            case 20544:return "Green pet accessory";
-            case 20545:return "Blue pet accessory";
-            case 20546:return "Gold pet accessory";
-            case 20699:return "Enchanted pet accessory";
-            case 21068:return "Easter pet accessory";
-            default:return "Unknown pet accessory";
-        }
-    }
-    private static Integer petAccessorySelector(int itemId){
-        switch(itemId){
-            // R2.10 runtime authority: these values are the selectors that the
-            // current LocalLab client actually rendered as the labelled accessory
-            // colors during the user's live A/B pass.
-            case 20542:return 1; // White item -> live white presentation
-            case 20543:return 2; // Red item -> live red presentation
-            case 20544:return 3; // Green item -> live light-green presentation
-            case 20545:return 4; // Blue item -> live light-blue presentation
-            case 20546:return 5; // Gold item -> live yellow/gold presentation
-            case 20699:return 7; // strong behavior/name mapping: cycles 1..5
-            case 21068:return 8; // strong behavior/name mapping: cyan/pink alternation
-            default:return null;
-        }
-    }
-    private static String petAccessorySelectorAuthority(int itemId){
-        return itemId>=20542&&itemId<=20546?"USER_RUNTIME_CERTIFIED_LABEL_TO_SELECTOR_R2_10":
-               itemId==20699?"STRONG_ENCHANTED_CYCLE_BEHAVIOR_NAME_MAPPING":
-               itemId==21068?"STRONG_EASTER_CYAN_MAGENTA_BEHAVIOR_NAME_MAPPING":"UNKNOWN";
     }
     private void publishOpponentOverlay(NpcEntity target,ServerPacketWriter w,String tag,String reason)throws IOException{
         if(target==null)return;
