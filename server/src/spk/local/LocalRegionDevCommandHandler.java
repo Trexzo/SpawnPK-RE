@@ -15,6 +15,7 @@ import java.util.List;
 final class LocalRegionDevCommandHandler {
     static final class Result {
         final String logText;
+        final String detailText;
         final String saveReason;
         final SceneUpdatePublisher scenePublisher;
 
@@ -24,8 +25,18 @@ final class LocalRegionDevCommandHandler {
             SceneUpdatePublisher scenePublisher
         ){
             this.logText=logText;
+            this.detailText=detail(logText);
             this.saveReason=saveReason;
             this.scenePublisher=scenePublisher;
+        }
+
+        private static String detail(String logText){
+            if(logText==null)return null;
+            String load="V5160_REGION_LOAD ";
+            String home="V5160_REGION_HOME ";
+            if(logText.startsWith(load))return logText.substring(load.length());
+            if(logText.startsWith(home))return logText.substring(home.length());
+            return logText;
         }
     }
 
@@ -102,6 +113,23 @@ final class LocalRegionDevCommandHandler {
         }
 
         return null;
+    }
+
+    Result enterForPanel(
+        int regionId,
+        int plane,
+        SceneUpdatePublisher currentScenePublisher,
+        ServerPacketWriter writer
+    )throws IOException{
+        return enter(regionId,plane,currentScenePublisher,writer);
+    }
+
+    Result returnHomeForPanel(
+        String username,
+        SceneUpdatePublisher currentScenePublisher,
+        ServerPacketWriter writer
+    )throws IOException{
+        return returnHome(username,currentScenePublisher,writer);
     }
 
     private Result enter(
