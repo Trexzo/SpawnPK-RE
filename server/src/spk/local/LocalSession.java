@@ -38,6 +38,7 @@ final class LocalSession implements Runnable {
     private final LocalDevWorldCommandHandler devWorldCommands;
     private final LocalMiniPetCommandHandler miniPetCommands;
     private final LocalCosmeticCommandHandler cosmeticCommands;
+    private final LocalCompColorsCommandHandler compColorsCommands;
     /** Engine R7 one-stop in-game developer control center. */
     private final DevControlCenter devPanel = new DevControlCenter();
     private SceneUpdatePublisher scenePublisher;
@@ -114,6 +115,7 @@ final class LocalSession implements Runnable {
         this.devWorldCommands = new LocalDevWorldCommandHandler(world,movement);
         this.miniPetCommands = new LocalMiniPetCommandHandler(miniPets,petState,npcs,movement);
         this.cosmeticCommands = new LocalCosmeticCommandHandler(bank,equipment,playerState,playerPresentation);
+        this.compColorsCommands = new LocalCompColorsCommandHandler(playerState,equipment,playerPresentation);
         if (movementEnabled && !bootstrap) throw new IllegalArgumentException("movement requires bootstrap");
     }
 
@@ -2352,18 +2354,11 @@ final class LocalSession implements Runnable {
             return;
         }
 
-        if (p.length==7 && p[0].equalsIgnoreCase("compcolors")) {
-            int[] selectors=new int[6];
-            boolean valid=true;
-            for(int i=0;i<6;i++){ selectors[i]=parseInt(p[i+1],-1); if(selectors[i]<0 || selectors[i]>19) valid=false; }
-            if(!valid || !playerState.setCompSelectors(selectors)){
-                System.out.println(tag+"V54_COMP_COLORS command="+command+" result=REJECTED_SELECTOR_RANGE expected=0..19");
-                return;
-            }
-            boolean equipped=BootstrapPackets.hasSpecialCompletionistCape(equipment.appearanceItems());
-            if(equipped) playerPresentation.refresh(username,equipment,playerState,serverPackets);
-            saveAccountQuiet(tag,"COMP_COLORS");
-            System.out.println(tag+"V55_COMP_COLORS command="+command+" result=APPLIED selectors="+playerState.compSelectorSummary()+" capeEquipped="+equipped+" appearanceRefresh="+equipped);
+        LocalCompColorsCommandHandler.Result compColorsCommand=
+            compColorsCommands.handle(p,command,username,serverPackets);
+        if(compColorsCommand!=null){
+            if(compColorsCommand.saveReason!=null)saveAccountQuiet(tag,compColorsCommand.saveReason);
+            System.out.println(tag+compColorsCommand.logText);
             return;
         }
         if(p.length>=1 && p[0].equalsIgnoreCase("devhit")){
