@@ -57,6 +57,7 @@ final class LocalSession implements Runnable {
     private final LocalDevPetCommandHandler devPetCommands;
     private final LocalDevPlayerCommandHandler devPlayerCommands;
     private final LocalDevNpcCommandHandler devNpcCommands;
+    private final LocalDevToolCommandHandler devToolCommands;
     /** Engine R7 one-stop in-game developer control center. */
     private final DevControlCenter devPanel = new DevControlCenter();
     private SceneUpdatePublisher scenePublisher;
@@ -148,6 +149,8 @@ final class LocalSession implements Runnable {
             playerPresentation,equipment,playerState);
         this.devNpcCommands = new LocalDevNpcCommandHandler(
             npcs,movement);
+        this.devToolCommands = new LocalDevToolCommandHandler(
+            dev,bank,equipment);
         if (movementEnabled && !bootstrap) throw new IllegalArgumentException("movement requires bootstrap");
     }
 
@@ -1345,65 +1348,12 @@ final class LocalSession implements Runnable {
             for(String line:devNpcCommand)System.out.println(tag+line);
             return;
         }
-        if(p.length>=1 && p[0].equalsIgnoreCase("devtrace")){
-            String sub=p.length>=2?p[1].toLowerCase(java.util.Locale.ROOT):"info";
-            if(sub.equals("on")){ dev.trace().setEnabled(true); System.out.println(tag+"V592_DEV_TRACE "+dev.trace().summary()); return; }
-            if(sub.equals("off")){ dev.trace().setEnabled(false); System.out.println(tag+"V592_DEV_TRACE "+dev.trace().summary()); return; }
-            if(sub.equals("clear")){ dev.trace().clear(); System.out.println(tag+"V592_DEV_TRACE_CLEAR "+dev.trace().summary()); return; }
-            if(sub.equals("show")){
-                int limit=p.length>=3?parseInt(p[2],20):20;
-                java.util.List<String> rows=dev.trace().snapshot(limit);
-                System.out.println(tag+"V592_DEV_TRACE_SHOW "+dev.trace().summary());
-                for(String row:rows) System.out.println(tag+"V592_TRACE "+row);
-                return;
-            }
-            System.out.println(tag+"V592_DEV_TRACE_INFO "+dev.trace().summary()+" commands=on|off|show_[n]|clear"); return;
+        java.util.List<String> devToolCommand=
+            devToolCommands.handle(p,serverPackets);
+        if(devToolCommand!=null){
+            for(String line:devToolCommand)System.out.println(tag+line);
+            return;
         }
-        if(p.length>=1 && p[0].equalsIgnoreCase("devasset")){
-            String sub=p.length>=2?p[1].toLowerCase(java.util.Locale.ROOT):"help";
-            if(sub.equals("item")){ int id=p.length>=3?parseInt(p[2],-1):-1; System.out.println(tag+"V592_"+DevAssetBrowser.item(id)); return; }
-            if(sub.equals("pet")){ int id=p.length>=3?parseInt(p[2],-1):-1; System.out.println(tag+"V592_"+DevAssetBrowser.pet(id)); return; }
-            if(sub.equals("find")){
-                if(p.length<3){System.out.println(tag+"V592_DEV_ASSET_FIND result=REJECTED_EMPTY");return;}
-                String q=joinTokens(p,2);
-                java.util.List<String> rows=DevAssetBrowser.findItems(q,25);
-                System.out.println(tag+"V592_DEV_ASSET_FIND query=\""+q+"\" count="+rows.size());
-                for(String row:rows) System.out.println(tag+"V592_ASSET "+row);
-                return;
-            }
-            System.out.println(tag+"V592_DEV_ASSET_HELP commands=item <id> | pet <itemId> | find <nameTerm>"); return;
-        }
-        if(p.length>=1 && p[0].equalsIgnoreCase("devitem")){
-            String sub=p.length>=2?p[1].toLowerCase(java.util.Locale.ROOT):"help";
-            if(sub.equals("sprite")){
-                int slot=p.length>=3?parseInt(p[2],-1):-1, item=p.length>=4?parseInt(p[3],-1):-1;
-                System.out.println(tag+"V591_"+bank.sendDevInventorySpritePreview(slot,item,serverPackets)); return;
-            }
-            if(sub.equals("gallery")){
-                int start=p.length>=3?parseInt(p[2],0):0;
-                if(p.length<4){System.out.println(tag+"V591_DEV_ITEM_GALLERY result=REJECTED_NEED_ITEM_IDS");return;}
-                int[] ids=new int[p.length-3]; for(int i=3;i<p.length;i++)ids[i-3]=parseInt(p[i],-1);
-                System.out.println(tag+"V591_"+bank.sendDevInventorySpriteGallery(start,ids,serverPackets)); return;
-            }
-            if(sub.equals("restore")||sub.equals("reset")){System.out.println(tag+"V591_"+bank.restoreDevInventoryPreview(serverPackets));return;}
-            System.out.println(tag+"V591_DEV_ITEM_HELP commands=sprite <slot0..27> <itemId> | gallery <startSlot> <itemId...> | restore note=preview_is_client_container_only_do_not_click_it"); return;
-        }
-        if(p.length>=1 && p[0].equalsIgnoreCase("devcombat")){
-            String sub=p.length>=2?p[1].toLowerCase(java.util.Locale.ROOT):"info";
-            int weapon=equipment.weapon();
-            if(sub.equals("anim")){
-                String v=p.length>=3?p[2].toLowerCase(java.util.Locale.ROOT):"auto";
-                try {
-                    if(v.equals("auto")||v.equals("reset")) dev.setCombatAnimationOverride(weapon,null);
-                    else if(v.equals("off")||v.equals("none")) dev.setCombatAnimationOverride(weapon,-1);
-                    else { int a=parseInt(v,-999); if(a<-1||a>65535)throw new IllegalArgumentException("animation -1..65535"); dev.setCombatAnimationOverride(weapon,a); }
-                    System.out.println(tag+"V591_DEV_COMBAT_ANIM weapon="+weapon+" override="+(dev.hasCombatAnimationOverride(weapon)?dev.combatAnimationOverride(weapon):"AUTO")+" authority=TEMPORARY_OVERRIDE");
-                } catch(IllegalArgumentException e){System.out.println(tag+"V591_DEV_COMBAT_ANIM result=REJECTED "+e.getMessage());}
-                return;
-            }
-            System.out.println(tag+"V591_DEV_COMBAT_INFO weapon="+weapon+" profile="+CombatWeaponRepository.resolve(weapon)+" animOverride="+(dev.hasCombatAnimationOverride(weapon)?dev.combatAnimationOverride(weapon):"AUTO")+" scorchingNormalPolicy=UNBOUND_ANIMATION_SUPPRESSED_AFTER_LIVE_CRASH"); return;
-        }
-
         LocalNurseCommandHandler.Result nurseCommand=
             nurseCommands.handle(p,command,scopesightActive(),serverPackets);
         if(nurseCommand!=null){
