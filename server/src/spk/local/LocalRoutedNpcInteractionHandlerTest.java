@@ -1,0 +1,89 @@
+package spk.local;
+
+import java.io.ByteArrayOutputStream;
+
+public final class LocalRoutedNpcInteractionHandlerTest {
+    public static void main(String[] args)throws Exception{
+        WorldPlayer player=new WorldPlayer();
+        MovementState movement=player.movement();
+        BankState bank=player.bank();
+        NpcRegistry npcs=new NpcRegistry();
+
+        ByteArrayOutputStream wire=new ByteArrayOutputStream();
+        ServerPacketWriter w=new ServerPacketWriter(
+            wire,new IsaacCipher(new int[]{1,2,3,4}));
+
+        LocalRoutedNpcInteractionHandler h=
+            new LocalRoutedNpcInteractionHandler(npcs,bank,movement);
+
+        // Runtime-certified banker 7605: option 1 Talk-to routes to BANK.
+        String spawned=npcs.devSpawnNpc(
+            7605,1,0,movement,w);
+        if(!spawned.startsWith("DEV_NPC_SPAWN_OK"))
+            throw new AssertionError("banker spawn precondition="+spawned);
+
+        NpcEntity banker=null;
+        for(NpcEntity n:npcs.snapshot()){
+            if(n.definitionId==7605){banker=n;break;}
+        }
+        if(banker==null)throw new AssertionError("banker not visible");
+
+        int before=wire.size();
+        String opened=h.handle(
+            new NpcAction(155,banker.sceneIndex),
+            banker,
+            w
+        );
+        if(opened==null||
+           !opened.contains("V511_BANK_OPEN_NPC npc=7605")||
+           !opened.contains("action=OPENED_ADJACENT_IMMEDIATE"))
+            throw new AssertionError("adjacent banker route="+opened);
+        if(!bank.isOpen())
+            throw new AssertionError("bank did not open");
+        if(wire.size()<=before)
+            throw new AssertionError("banker open emitted no packets");
+
+        // A second banker outside adjacency proves the coordinator owns the
+        // deferred scene/deadline state and current path-ended cancellation.
+        String spawnedFar=npcs.devSpawnNpc(
+            7605,3,0,movement,w);
+        if(!spawnedFar.startsWith("DEV_NPC_SPAWN_OK"))
+            throw new AssertionError("far banker spawn precondition="+spawnedFar);
+
+        NpcEntity far=null;
+        for(NpcEntity n:npcs.snapshot()){
+            if(n.definitionId==7605&&n!=banker){far=n;break;}
+        }
+        if(far==null)throw new AssertionError("far banker not visible");
+
+        String deferred=h.handle(
+            new NpcAction(155,far.sceneIndex),
+            far,
+            w
+        );
+        if(deferred==null||
+           !deferred.contains("action=DEFERRED_UNTIL_ADJACENT"))
+            throw new AssertionError("deferred banker route="+deferred);
+        if(!h.hasPendingBank())
+            throw new AssertionError("deferred bank scene not retained");
+
+        String cancelled=h.tick(System.currentTimeMillis(),w);
+        if(cancelled==null||
+           !cancelled.contains("CANCELLED_PATH_ENDED_NOT_ADJACENT"))
+            throw new AssertionError("deferred cancellation="+cancelled);
+        if(h.hasPendingBank())
+            throw new AssertionError("cancelled bank scene still pending");
+
+        NpcEntity unknown=new NpcEntity(
+            999,1,movement.x(),movement.y());
+        String generic=h.handle(
+            new NpcAction(155,999),unknown,w);
+        if(generic==null||
+           !generic.contains("V511_NPC_ACTION")||
+           !generic.contains("result=DECODED_SEMANTIC_"))
+            throw new AssertionError("generic route="+generic);
+
+        System.out.println(
+            "LOCAL_ROUTED_NPC_INTERACTION_HANDLER_PASS bankerImmediate=true deferredOwnership=true pathEndCancel=true genericFailClosed=true");
+    }
+}
