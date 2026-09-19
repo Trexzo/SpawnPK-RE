@@ -57,7 +57,7 @@ public final class LocalPlayerInteractionHandlerTest {
                 new LocalPlayerInteractionHandler(
                     world,p1,p1.movement(),p1.equipment());
 
-            PlayerAction attack=new PlayerAction(1,targetIndex);
+            PlayerAction attack=new PlayerAction(128,1,targetIndex,"Attack");
             String attackRequest=h.handleResolved(attack,p2,sync1);
             if(attackRequest==null||
                !attackRequest.contains("V5131_PLAYER_ATTACK_REQUEST")||
@@ -80,7 +80,7 @@ public final class LocalPlayerInteractionHandlerTest {
             if(wire1.size()<=before)
                 throw new AssertionError("attack presentation emitted no packet");
 
-            PlayerAction follow=new PlayerAction(2,targetIndex);
+            PlayerAction follow=new PlayerAction(153,2,targetIndex,"Follow");
             String followResult=h.handleResolved(follow,p2,sync1);
             if(followResult==null||
                !followResult.contains("V5131_PLAYER_FOLLOW_REQUEST"))
@@ -89,7 +89,7 @@ public final class LocalPlayerInteractionHandlerTest {
                h.activeAttack()!=null)
                 throw new AssertionError("follow state replacement");
 
-            PlayerAction trade=new PlayerAction(3,targetIndex);
+            PlayerAction trade=new PlayerAction(73,3,targetIndex,"Trade with");
             String tradeResult=h.handleResolved(trade,p2,sync1);
             if(tradeResult==null||
                !tradeResult.contains("V5141_PLAYER_TRADE_DISPATCH")||
