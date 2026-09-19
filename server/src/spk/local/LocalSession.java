@@ -60,6 +60,7 @@ final class LocalSession implements Runnable {
     private final LocalDevToolCommandHandler devToolCommands;
     private final LocalVoidglassCommandHandler voidglassCommands;
     private final LocalPetRuntimeCommandHandler petRuntimeCommands;
+    private final LocalCombatCommandHandler combatCommands;
     /** Engine R7 one-stop in-game developer control center. */
     private final DevControlCenter devPanel = new DevControlCenter();
     private SceneUpdatePublisher scenePublisher;
@@ -155,6 +156,8 @@ final class LocalSession implements Runnable {
             bank,petState,npcs,movement,dev,voidglass);
         this.petRuntimeCommands = new LocalPetRuntimeCommandHandler(
             petState,petEffects,npcs,movement);
+        this.combatCommands = new LocalCombatCommandHandler(
+            combat,equipment,combatStyles,npcs,petRuntimeCommands);
         if (movementEnabled && !bootstrap) throw new IllegalArgumentException("movement requires bootstrap");
     }
 
@@ -1403,9 +1406,10 @@ final class LocalSession implements Runnable {
             System.out.println(tag+compColorsCommand.logText);
             return;
         }
-        if(p.length>=1 && p[0].equalsIgnoreCase("devhit")){
-            String r=combat.devHitCommand(p);
-            System.out.println(tag+"V5128_"+r);
+        java.util.List<String> combatCommand=
+            combatCommands.handle(p,command,serverPackets);
+        if(combatCommand!=null){
+            for(String line:combatCommand)System.out.println(tag+line);
             return;
         }
         if(p.length>=1 && p[0].equalsIgnoreCase("petaccessory")){
@@ -1422,27 +1426,6 @@ final class LocalSession implements Runnable {
             return;
         }
 
-        if (p.length>=1 && p[0].equalsIgnoreCase("combatprobe")) {
-            CombatWeaponProfile profile=CombatWeaponRepository.resolve(equipment.weapon());
-            int combatRoot=CombatInterfaceRepository.forWeapon(equipment.weapon());
-            System.out.println(tag+"V56_COMBAT_PROBE weapon="+equipment.weapon()+" profile="+profile
-                             +" style={"+combatStyles.summary(combatRoot)+"}"
-                             +" targetScene="+combat.state().targetSceneIndex+" targetDef="+combat.state().targetDefinitionId
-                             +" context="+combat.state().context+" formula=UNRESOLVED_NO_DAMAGE_GUESS");
-            return;
-        }
-        if (p.length>=1 && p[0].equalsIgnoreCase("combatfixture")) {
-            int damage=p.length>=2?parseInt(p[1],0):0;
-            String fixture=combat.fixtureHit(damage,npcs,serverPackets);
-            int dealt=combat.consumeLastDamage();
-            if(dealt>0){
-                String petDamage=petRuntimeCommands.applyDamage(
-                    dealt,System.currentTimeMillis(),serverPackets,"COMBAT_FIXTURE");
-                if(petDamage!=null)System.out.println(tag+petDamage);
-            }
-            System.out.println(tag+"V59_COMBAT_FIXTURE command="+command+" result="+fixture);
-            return;
-        }
         LocalItemSpawnCommandHandler.Result itemSpawnCommand=
             itemSpawnCommands.handle(p,command,serverPackets);
         if(itemSpawnCommand!=null){
