@@ -52,6 +52,7 @@ final class LocalSession implements Runnable {
     private final LocalGenericInteractionHandler genericInteractionHandler;
     private final LocalPlayerInteractionHandler playerInteractions;
     private final LocalEquipmentItemActionHandler equipmentItemActions;
+    private final LocalPetInventoryDialogHandler petDialogs;
     /** Engine R7 one-stop in-game developer control center. */
     private final DevControlCenter devPanel = new DevControlCenter();
     private SceneUpdatePublisher scenePublisher;
@@ -80,11 +81,6 @@ final class LocalSession implements Runnable {
     private String loginAlias = "localtest";
     private boolean persistentAccount;
     private boolean compCapeCustomizeOpen;
-    private int pendingPetColorSlot=-1;
-    private int[] pendingPetColorItems;
-    private String pendingPetColorFamily;
-    private int pendingMiniConfigureSlot=-1,pendingMiniConfigureItem=-1;
-    private int pendingPetAccessorySlot=-1,pendingPetAccessoryItem=-1;
     /** Persisted semantic global pet accessory. 0 means none. */
     private final PetAccessoryState petAccessoryState = new PetAccessoryState();
     /** Engine R3 per-view remote-player synchronization context. */
@@ -139,6 +135,8 @@ final class LocalSession implements Runnable {
             world,worldPlayer,movement,equipment);
         this.equipmentItemActions = new LocalEquipmentItemActionHandler(
             bank,equipment,playerState,playerPresentation,combatStyles);
+        this.petDialogs = new LocalPetInventoryDialogHandler(
+            bank,miniPets,petState,npcs,movement,petAccessoryState);
         if (movementEnabled && !bootstrap) throw new IllegalArgumentException("movement requires bootstrap");
     }
 
@@ -420,7 +418,7 @@ final class LocalSession implements Runnable {
                 boolean removed=world.unregisterPlayer(worldPlayer);worldRegistered=false;
                 System.out.println(tag+"V512_WORLD_UNREGISTER playerId="+worldPlayer.id()+" removed="+removed+" members="+world.players().size()+" queuedCommands="+world.commands().size());
             }
-            if(pendingPetColorItems!=null || pendingMiniConfigureItem>=0 || pendingPetAccessoryItem>=0 || devPanel.isOpen()) clearDialogNumberKeys();
+            if(petDialogs.hasAnyOpen() || devPanel.isOpen()) clearDialogNumberKeys();
             devPanel.close();
             synchronized(worldPlayer.mutationLock()){saveAccountQuiet(tag, "SESSION_END");}
         }
@@ -685,12 +683,11 @@ final class LocalSession implements Runnable {
         clearDialogNumberKeys();
         boolean wasOpen = bank.clientClosed();
         boolean compWasOpen = compCapeCustomizeOpen;
-        boolean petColorWasOpen=pendingPetColorItems!=null;
-        boolean miniConfigWasOpen=pendingMiniConfigureItem>=0;
-        boolean petAccessoryWasOpen=pendingPetAccessoryItem>=0;
-        if(petColorWasOpen)clearPetColorDialog();
-        if(miniConfigWasOpen)clearMiniConfigureDialog();
-        if(petAccessoryWasOpen)clearPetAccessoryDialog();
+        LocalPetInventoryDialogHandler.CloseState petDialogClose=
+            petDialogs.clearAll();
+        boolean petColorWasOpen=petDialogClose.petColorWasOpen;
+        boolean miniConfigWasOpen=petDialogClose.miniConfigWasOpen;
+        boolean petAccessoryWasOpen=petDialogClose.petAccessoryWasOpen;
         compCapeCustomizeOpen = false;
         // Bank overlay inventory is widget 5064; once the overlay closes the normal
         // inventory is widget 3214. Re-send 3214 so withdrawals remain visible.
@@ -747,103 +744,13 @@ final class LocalSession implements Runnable {
             return;
         }
 
-        if(pendingMiniConfigureItem>=0 && (widget==2482||widget==2483||widget==2484||widget==2485||widget==54195)){
-            if(widget==54195||widget==2484||widget==2485){
-                serverPackets.fixed(219,new byte[0]);
-                System.out.println(tag+"V5127_MINIPET_CONFIGURE_DIALOG item="+pendingMiniConfigureItem+" action=CANCEL widget="+widget);
-                clearMiniConfigureDialog();
-                return;
-            }
-            int item=pendingMiniConfigureItem;
-            if(widget==2482){
-                String result=miniPets.configure(item,petState,npcs,movement,serverPackets);
-                saveAccountQuiet(tag,"MINIPET_CONFIGURE");
-                serverPackets.fixed(219,new byte[0]);
-                System.out.println(tag+"V5127_MINIPET_CONFIGURE_DIALOG item="+item+" action=ACTIVATE result="+result+" actorRequiresMainPet=true");
-                clearMiniConfigureDialog();
-                return;
-            }
-            if(widget==2483){
-                String result=miniPets.off(petState,npcs,serverPackets);
-                saveAccountQuiet(tag,"MINIPET_DISABLE");
-                serverPackets.fixed(219,new byte[0]);
-                System.out.println(tag+"V5127_MINIPET_CONFIGURE_DIALOG item="+item+" action=DISABLE result="+result);
-                clearMiniConfigureDialog();
-                return;
-            }
+        LocalPetInventoryDialogHandler.Result petDialogWidget=
+            petDialogs.handleWidget(widget,serverPackets);
+        if(petDialogWidget!=null){
+            applyPetDialogResult(petDialogWidget,tag);
+            return;
         }
 
-        if(pendingPetAccessoryItem>=0 && (widget==54195 || (widget>=2482 && widget<=2485))){
-            int item=pendingPetAccessoryItem;
-            if(widget==54195 || widget==2485){
-                serverPackets.fixed(219,new byte[0]);
-                System.out.println(tag+"V5130_PET_ACCESSORY_DIALOG item="+item+" action=CLOSE widget="+widget);
-                clearPetAccessoryDialog();
-                return;
-            }
-            if(widget==2482){
-                BankState.Stack st=bank.inventoryAt(pendingPetAccessorySlot);
-                if(st==null || st.itemId!=item || st.qty<=0){
-                    serverPackets.fixed(219,new byte[0]);
-                    System.out.println(tag+"V5130_PET_ACCESSORY_DIALOG item="+item+" action=ACTIVATE result=REJECTED_ITEM_MOVED");
-                    clearPetAccessoryDialog(); return;
-                }
-                petAccessoryState.setActiveItem(item);
-                Integer selector=PetAccessoryAuthority.selector(item);
-                String visual=npcs.devSetParticleSelector(selector,movement,serverPackets);
-                serverPackets.fixed(219,new byte[0]);
-                saveAccountQuiet(tag,"PET_ACCESSORY_ACTIVATE");
-                System.out.println(tag+"V5130_PET_ACCESSORY_DIALOG item="+item+" action=ACTIVATE selector="+selector+
-                    " visual={"+visual+"} wording=RECONSTRUCTED_FROM_OFFICIAL_TOGGLE_SEMANTIC provenance="+PetAccessoryAuthority.selectorAuthority(item));
-                clearPetAccessoryDialog(); return;
-            }
-            if(widget==2483){
-                petAccessoryState.clear();
-                String visual=npcs.devSetParticleSelector(null,movement,serverPackets);
-                serverPackets.fixed(219,new byte[0]);
-                saveAccountQuiet(tag,"PET_ACCESSORY_DETACH");
-                System.out.println(tag+"V5130_PET_ACCESSORY_DIALOG item="+item+" action=DETACH visual={"+visual+"} wording=RECONSTRUCTED_FROM_OFFICIAL_TOGGLE_SEMANTIC");
-                clearPetAccessoryDialog(); return;
-            }
-            if(widget==2484){
-                serverPackets.fixed(219,new byte[0]);
-                System.out.println(tag+"V5130_PET_ACCESSORY_DIALOG item="+item+" action=CANCEL");
-                clearPetAccessoryDialog(); return;
-            }
-        }
-
-        if(pendingPetColorItems!=null && (widget==54195 || (widget>=2482 && widget<=2485))){
-            if(widget==54195){
-                serverPackets.fixed(219,new byte[0]);
-                System.out.println(tag+"V5127_PET_COLOR_DIALOG family="+pendingPetColorFamily+" action=CLOSE_WINDOW widget=54195");
-                clearPetColorDialog();
-                return;
-            }
-            if(widget==2485 && !"SCOOBY_BEHEMOTH".equals(pendingPetColorFamily)){
-                serverPackets.fixed(219,new byte[0]);
-                System.out.println(tag+"V57_PET_COLOR_DIALOG family="+pendingPetColorFamily+" action=CANCEL");
-                clearPetColorDialog();
-                return;
-            }
-            int choice=widget-2482;
-            if(choice>=0 && choice<pendingPetColorItems.length){
-                BankState.Stack st=bank.inventoryAt(pendingPetColorSlot);
-                int current=st==null?-1:st.itemId;
-                if(st==null || !petColorCurrentAllowed(pendingPetColorFamily,current,pendingPetColorItems)){
-                    serverPackets.fixed(219,new byte[0]);
-                    System.out.println(tag+"V57_PET_COLOR_DIALOG family="+pendingPetColorFamily+" result=REJECTED_ITEM_MOVED");
-                    clearPetColorDialog();
-                    return;
-                }
-                int replacement=pendingPetColorItems[choice];
-                String result=current==replacement?"INVENTORY_TRANSFORM_NOOP":bank.transformInventoryOne(pendingPetColorSlot,current,replacement,serverPackets);
-                serverPackets.fixed(219,new byte[0]);
-                if(result.startsWith("INVENTORY_TRANSFORM_OK")||result.equals("INVENTORY_TRANSFORM_NOOP"))saveAccountQuiet(tag,"PET_SWITCH_COLOR");
-                System.out.println(tag+"V57_PET_COLOR_DIALOG family="+pendingPetColorFamily+" choice="+(choice+1)+" result="+result+" item="+current+"->"+replacement);
-                clearPetColorDialog();
-                return;
-            }
-        }
         if (widget == 63027 || widget == 63031) {
             if (!compCapeCustomizeOpen) {
                 System.out.println(tag + "V55_COMP_CAPE_WIDGET widget="+widget+" result=IGNORED_NOT_OPEN");
@@ -884,6 +791,19 @@ final class LocalSession implements Runnable {
             bank.close(serverPackets);
             System.out.println(tag + "V4_BANK_WIDGET widget="+widget+" action=CLOSE_BANK bankOpen="+bank.isOpen());
         }
+    }
+
+    private void applyPetDialogResult(
+        LocalPetInventoryDialogHandler.Result result,
+        String tag
+    ){
+        if(result==null)return;
+        if(result.keyAction==LocalPetInventoryDialogHandler.KeyAction.PUBLISH_2482_2485)
+            publishDialogNumberKeys(2482,2483,2484,2485);
+        if(result.saveReason!=null)saveAccountQuiet(tag,result.saveReason);
+        if(result.logText!=null)System.out.println(tag+result.logText);
+        if(result.keyAction==LocalPetInventoryDialogHandler.KeyAction.CLEAR_AFTER_LOG)
+            clearDialogNumberKeys();
     }
 
     private void acceptPendingGenericInteraction(ClientPacketProbe clientPackets, ServerPacketWriter serverPackets, String tag) throws IOException {
@@ -930,59 +850,11 @@ final class LocalSession implements Runnable {
             return;
         }
 
-        // Exact mini-pet inventory action: Configure is option 1 -> C2S122. The
-        // production dialogue text is server-authored and unavailable statically, so
-        // LocalLab exposes a clearly reconstructed Activate/Disable/Cancel chatbox.
-        if(a.opcode==122 && a.widgetId==BankState.NORMAL_INVENTORY_CONTAINER && MiniPetDefinitionRepository.isMiniPetItem(a.itemId)){
-            BankState.Stack st=bank.inventoryAt(a.slot);
-            if(st==null||st.itemId!=a.itemId||st.qty<=0){System.out.println(tag+"V5127_MINIPET_CONFIGURE "+a+" result=REJECTED_INVENTORY_MISMATCH");return;}
-            String semantic=ItemActionResolver.inventoryOption1Semantic(a.itemId);
-            if(!"Configure".equalsIgnoreCase(semantic)){System.out.println(tag+"V5127_MINIPET_CONFIGURE "+a+" result=REJECTED_ACTION_SEMANTIC semantic="+semantic);return;}
-            openMiniConfigureDialog(a.slot,a.itemId,serverPackets);
-            System.out.println(tag+"V5127_MINIPET_CONFIGURE "+a+" result=DIALOG_OPEN authority=EXACT_ACTION_RECONSTRUCTED_SERVER_WORDING");
+        LocalPetInventoryDialogHandler.Result petDialogItem=
+            petDialogs.handleItemAction(a,serverPackets);
+        if(petDialogItem!=null){
+            applyPetDialogResult(petDialogItem,tag);
             return;
-        }
-
-        // Pet accessories are reusable global toggles. The exact client only proves
-        // that Read is C2S122; the response is server-authored. Official SpawnPK update
-        // text describes the items as "toggled", infinite-use particle accessories, so
-        // LocalLab opens a native chatbox with reconstructed management wording instead
-        // of silently toggling on Read.
-        if(a.opcode==122 && a.widgetId==BankState.NORMAL_INVENTORY_CONTAINER && PetAccessoryAuthority.isAccessory(a.itemId)){
-            BankState.Stack st=bank.inventoryAt(a.slot);
-            if(st==null||st.itemId!=a.itemId||st.qty<=0){System.out.println(tag+"V5130_PET_ACCESSORY "+a+" result=REJECTED_INVENTORY_MISMATCH");return;}
-            String semantic=ItemActionResolver.inventoryOption1Semantic(a.itemId);
-            if(!"Read".equalsIgnoreCase(semantic)){System.out.println(tag+"V5130_PET_ACCESSORY "+a+" result=REJECTED_ACTION_SEMANTIC semantic="+semantic);return;}
-            openPetAccessoryDialog(a.slot,a.itemId,serverPackets);
-            System.out.println(tag+"V5130_PET_ACCESSORY_READ item="+a.itemId+" name="+PetAccessoryAuthority.name(a.itemId)+
-                " result=DIALOG_OPEN wording=RECONSTRUCTED_SERVER_RESPONSE officialSemantics=TOGGLE_INFINITE_USE currentActive="+
-                (petAccessoryState.activeItem()==0?"NONE":petAccessoryState.activeItem()));
-            return;
-        }
-
-        // Native dyed Doppelganger pet exposes Remove-dye as inventory option index 3
-        // (menu 493 -> opcode 75).  The current item catalogue gives an exact base/dyed
-        // pair: 28807 Doppelganger pet (dyed) -> 3241 Doppelganger pet.  This implements
-        // only the item-state transition; the special dyed NPC presentation remains
-        // evidence-blocked and is not guessed here.
-        if (a.opcode == 75 && a.widgetId == BankState.NORMAL_INVENTORY_CONTAINER && a.itemId == 28807) {
-            String result=bank.splitInventoryOne(a.slot,28807,3241,28824,serverPackets);
-            if(result.startsWith("INVENTORY_SPLIT_OK")) saveAccountQuiet(tag,"DOPPELGANGER_REMOVE_DYE");
-            System.out.println(tag+"V57_DOPPELGANGER_REMOVE_DYE "+a+" result="+result+" baseItem=3241 returnedDye=28824 decoderAligned=true");
-            return;
-        }
-
-        // Resvano and Scooby Behemoth use a native choice dialogue rather than a
-        // blind cycle. Widget family 2481..2485 is the current classic option UI;
-        // labels are deliberately generic because production colour names are not
-        // present in the recovered item config.
-        if (a.opcode == 75 && a.widgetId == BankState.NORMAL_INVENTORY_CONTAINER) {
-            int[] family=petColorFamily(a.itemId);
-            if(family!=null){
-                openPetColorDialog(a.slot,family,petColorFamilyName(a.itemId),serverPackets);
-                System.out.println(tag+"V59_PET_COLOR_DIALOG_OPEN "+a+" family="+pendingPetColorFamily+" choices="+java.util.Arrays.toString(family)+" chatboxRoot=2480 transport=S2C164");
-                return;
-            }
         }
 
         // Native Grand completionist cape Customize inventory action (menu 493 -> opcode 75).
@@ -2032,16 +1904,9 @@ final class LocalSession implements Runnable {
         }
         if(p.length>=1 && p[0].equalsIgnoreCase("petswitchcolor")){
             int requested=p.length>=2?parseInt(p[1],-1):-1;
-            int slot=-1,current=-1;
-            for(int i=0;i<bank.inventoryCapacity();i++){
-                BankState.Stack st=bank.inventoryAt(i);
-                if(st==null) continue;
-                if(st.itemId>=24016 && st.itemId<=24019 && (requested<0 || st.itemId==requested)){slot=i;current=st.itemId;break;}
-            }
-            if(slot<0){System.out.println(tag+"V5128_SCOOBY_SWITCH_COLOR result=REJECTED_NO_VARIANT_IN_INVENTORY requested="+requested);return;}
-            int[] family=petColorFamily(current);
-            openPetColorDialog(slot,family,petColorFamilyName(current),serverPackets);
-            System.out.println(tag+"V5128_SCOOBY_SWITCH_COLOR result=DIALOG_OPEN current="+current+" slot="+slot+" choices="+java.util.Arrays.toString(family)+" authority=LOCAL_COMPAT_EXTENSION native24019MenuAbsent=true");
+            LocalPetInventoryDialogHandler.Result petColorCompat=
+                petDialogs.openScoobyColorCompat(requested,serverPackets);
+            applyPetDialogResult(petColorCompat,tag);
             return;
         }
 
@@ -2261,7 +2126,8 @@ final class LocalSession implements Runnable {
         if(bank.isOpen())bank.close(w);
         TradeService.cancelIfActive(worldPlayer,"DEV_PANEL_OPEN");
         itemLibrary.close();
-        clearMiniConfigureDialog();clearPetColorDialog();clearPetAccessoryDialog();
+        petDialogs.clearAll();
+        clearDialogNumberKeys();
         w.fixed(219,new byte[0]);
         devPanel.open(page);
         renderDevPanel(w);
@@ -2766,48 +2632,6 @@ final class LocalSession implements Runnable {
     private String devItemName(int itemId){ItemAuthorityRepository.Entry e=ItemAuthorityRepository.get(itemId);return e==null?"unknown":clip(ItemAuthorityRepository.stripTags(e.name),30);}
     private static String clip(String s,int n){if(s==null)return "";String x=s.replace('\n',' ').replace('\r',' ').replaceAll("\\s+"," ").trim();return x.length()<=n?x:x.substring(0,Math.max(0,n-3))+"...";}
 
-    private void openMiniConfigureDialog(int slot,int itemId,ServerPacketWriter w)throws IOException{
-        pendingMiniConfigureSlot=slot;pendingMiniConfigureItem=itemId;
-        w.varShort(126,BootstrapPackets.widgetText126(2481,"Configure mini-pet"));
-        w.varShort(126,BootstrapPackets.widgetText126(2482,"Activate this mini-pet"));
-        w.varShort(126,BootstrapPackets.widgetText126(2483,"Disable current mini-pet"));
-        w.varShort(126,BootstrapPackets.widgetText126(2484,"Cancel"));
-        w.varShort(126,BootstrapPackets.widgetText126(2485,"Close"));
-        w.fixed(164,BootstrapPackets.chatboxInterface164(2480));
-        publishDialogNumberKeys(2482,2483,2484,2485);
-    }
-    private void clearMiniConfigureDialog(){pendingMiniConfigureSlot=-1;pendingMiniConfigureItem=-1;clearDialogNumberKeys();}
-
-    private void openPetAccessoryDialog(int slot,int itemId,ServerPacketWriter w)throws IOException{
-        pendingPetAccessorySlot=slot; pendingPetAccessoryItem=itemId;
-        w.varShort(126,BootstrapPackets.widgetText126(2481,"Pet accessory"));
-        w.varShort(126,BootstrapPackets.widgetText126(2482,"Activate "+PetAccessoryAuthority.name(itemId)));
-        w.varShort(126,BootstrapPackets.widgetText126(2483,"Remove active pet accessory"));
-        w.varShort(126,BootstrapPackets.widgetText126(2484,"Cancel"));
-        w.varShort(126,BootstrapPackets.widgetText126(2485,"Close"));
-        w.fixed(164,BootstrapPackets.chatboxInterface164(2480));
-        publishDialogNumberKeys(2482,2483,2484,2485);
-    }
-    private void clearPetAccessoryDialog(){pendingPetAccessorySlot=-1;pendingPetAccessoryItem=-1;clearDialogNumberKeys();}
-
-    private void openPetColorDialog(int slot,int[] family,String name,ServerPacketWriter w)throws IOException{
-        pendingPetColorSlot=slot; pendingPetColorItems=family.clone(); pendingPetColorFamily=name;
-        w.varShort(126,BootstrapPackets.widgetText126(2481,"Select a color"));
-        if("SCOOBY_BEHEMOTH".equals(name) && family.length==4){
-            w.varShort(126,BootstrapPackets.widgetText126(2482,"Black / white"));
-            w.varShort(126,BootstrapPackets.widgetText126(2483,"Black / orange"));
-            w.varShort(126,BootstrapPackets.widgetText126(2484,"White / blue"));
-            w.varShort(126,BootstrapPackets.widgetText126(2485,"Green / black"));
-        } else {
-            w.varShort(126,BootstrapPackets.widgetText126(2482,"Color 1"));
-            w.varShort(126,BootstrapPackets.widgetText126(2483,"Color 2"));
-            w.varShort(126,BootstrapPackets.widgetText126(2484,"Color 3"));
-            w.varShort(126,BootstrapPackets.widgetText126(2485,"Cancel"));
-        }
-        w.fixed(164,BootstrapPackets.chatboxInterface164(2480));
-        publishDialogNumberKeys(2482,2483,2484,2485);
-    }
-    private void clearPetColorDialog(){pendingPetColorSlot=-1;pendingPetColorItems=null;pendingPetColorFamily=null;clearDialogNumberKeys();}
     /**
      * Generic LocalLab classic-dialog keyboard contract. The exact client key
      * queue returns ASCII digits; the client helper translates 1..9 into the
@@ -2834,24 +2658,6 @@ final class LocalSession implements Runnable {
         }catch(Throwable t){System.err.println("LOCALLAB_DIALOG_NUMBER_KEYS_STATE_CLEAR_FAILED "+t);}
     }
 
-    private static boolean contains(int[] xs,int v){for(int x:xs)if(x==v)return true;return false;}
-    private static int[] petColorFamily(int itemId){
-        if(itemId>=27340&&itemId<=27342)return new int[]{27340,27341,27342};
-        if(itemId>=27343&&itemId<=27345)return new int[]{27343,27344,27345};
-        if(itemId>=24016&&itemId<=24019)return new int[]{24016,24017,24018,24019};
-        return null;
-    }
-    private static String petColorFamilyName(int itemId){
-        if(itemId>=27340&&itemId<=27342)return "RESVANO_EVIL_WOLPER";
-        if(itemId>=27343&&itemId<=27345)return "RESVANO_ETHEREAL";
-        if(itemId>=24016&&itemId<=24019)return "SCOOBY_BEHEMOTH";
-        return "UNKNOWN";
-    }
-
-    private static boolean petColorCurrentAllowed(String family,int current,int[] choices){
-        if("SCOOBY_BEHEMOTH".equals(family))return current>=24016&&current<=24019;
-        return contains(choices,current);
-    }
     private void publishOpponentOverlay(NpcEntity target,ServerPacketWriter w,String tag,String reason)throws IOException{
         if(target==null)return;
         EffectiveNpcDefinitionRepository.Def d=EffectiveNpcDefinitionRepository.get(target.definitionId);
