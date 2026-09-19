@@ -46,6 +46,7 @@ final class LocalSession implements Runnable {
     private final LocalSpellTargetHandler spellTargetHandler;
     private final LocalGroundItemInteractionHandler groundItemHandler;
     private final LocalItemOnNpcHandler itemOnNpcHandler;
+    private final LocalGameplayWidgetHandler gameplayWidgetHandler;
     /** Engine R7 one-stop in-game developer control center. */
     private final DevControlCenter devPanel = new DevControlCenter();
     private SceneUpdatePublisher scenePublisher;
@@ -131,6 +132,8 @@ final class LocalSession implements Runnable {
             world,bank,movement);
         this.itemOnNpcHandler = new LocalItemOnNpcHandler(
             bank,npcs,movement,petAccessoryState);
+        this.gameplayWidgetHandler = new LocalGameplayWidgetHandler(
+            prayers,playerState,equipment,combatStyles,magic,bank);
         if (movementEnabled && !bootstrap) throw new IllegalArgumentException("movement requires bootstrap");
     }
 
@@ -726,24 +729,9 @@ final class LocalSession implements Runnable {
             return;
         }
 
-        PrayerDefinitionRepository.Def prayer=PrayerDefinitionRepository.byWidget(widget);
-        if(prayer!=null){
-            String result=prayers.click(prayer,playerState,serverPackets);
-            System.out.println(tag+"V510_PRAYER_WIDGET widget="+widget+" result="+result+" state={"+prayers.summary()+"}");
-            return;
-        }
-
-        int currentCombatRoot=CombatInterfaceRepository.forWeapon(equipment.weapon());
-        CombatStyleRepository.Style style=CombatStyleRepository.byWidget(currentCombatRoot,widget);
-        if(style!=null){
-            String result=combatStyles.click(currentCombatRoot,widget,serverPackets);
-            System.out.println(tag+"V510_COMBAT_STYLE widget="+widget+" weapon="+equipment.weapon()+" result="+result);
-            return;
-        }
-
-        MagicState.Check directSpell=magic.direct(widget,bank,equipment,playerState);
-        if(directSpell.handled){
-            System.out.println(tag+"V510_MAGIC_DIRECT widget="+widget+" result="+directSpell.message+" state={"+magic.summary()+"}");
+        String gameplayWidget=gameplayWidgetHandler.handle(widget,serverPackets);
+        if(gameplayWidget!=null){
+            System.out.println(tag+gameplayWidget);
             return;
         }
 
