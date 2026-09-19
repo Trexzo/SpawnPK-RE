@@ -51,6 +51,7 @@ final class LocalSession implements Runnable {
     private final LocalRoutedNpcInteractionHandler routedNpcHandler;
     private final LocalGenericInteractionHandler genericInteractionHandler;
     private final LocalPlayerInteractionHandler playerInteractions;
+    private final LocalEquipmentItemActionHandler equipmentItemActions;
     /** Engine R7 one-stop in-game developer control center. */
     private final DevControlCenter devPanel = new DevControlCenter();
     private SceneUpdatePublisher scenePublisher;
@@ -136,6 +137,8 @@ final class LocalSession implements Runnable {
         this.genericInteractionHandler = new LocalGenericInteractionHandler();
         this.playerInteractions = new LocalPlayerInteractionHandler(
             world,worldPlayer,movement,equipment);
+        this.equipmentItemActions = new LocalEquipmentItemActionHandler(
+            bank,equipment,playerState,playerPresentation,combatStyles);
         if (movementEnabled && !bootstrap) throw new IllegalArgumentException("movement requires bootstrap");
     }
 
@@ -918,41 +921,13 @@ final class LocalSession implements Runnable {
             return;
         }
 
-        // v5.18.4.2: inventory opcodes are generic option transports.  Resolve the
-        // clicked option through the exact current item-definition action array before
-        // assigning semantics.  This is required because option 3 (C2S16) is Defuse
-        // on the infernal capes but Override on staff/rank partyhats.
-        if (a.widgetId == BankState.NORMAL_INVENTORY_CONTAINER) {
-            InventoryActionRouter.Resolution route = InventoryActionRouter.resolve(a);
-            if (route.is("Override")) {
-                BankState.Stack st = bank.inventoryAt(a.slot);
-                if (st == null || st.itemId != a.itemId || st.qty <= 0) {
-                    System.out.println(tag+"V51842_OVERRIDE "+a+" route="+route+" result=REJECTED_INVENTORY_MISMATCH");
-                    return;
-                }
-                String result = CosmeticOverrideService.apply(bank, a.slot, a.itemId, playerState.cosmetic(), serverPackets);
-                boolean changed = result.startsWith("COSMETIC_OVERRIDE_OK");
-                if (changed) {
-                    playerState.syncEquipmentPresentation(equipment);
-                    bank.sendCosmetic(serverPackets, playerState.cosmetic());
-                    playerPresentation.refresh(username, equipment, playerState, serverPackets);
-                    saveAccountQuiet(tag, "COSMETIC_OVERRIDE");
-                }
-                System.out.println(tag+"V51842_OVERRIDE "+a+" route="+route+" result="+result+
-                    " bs="+playerState.cosmetic().itemId()+" underlyingEquipmentUnchanged=true ammo="+equipment.itemAt(EquipmentSlot.AMMO)+
-                    " appearanceRefresh="+changed+" authority=EXACT_CLIENT_ACTION_PLUS_EXISTING_BS_CHANNEL");
-                return;
-            }
-            if (route.is("Defuse")) {
-                BankState.Stack st = bank.inventoryAt(a.slot);
-                if (st == null || st.itemId != a.itemId || st.qty <= 0) {
-                    System.out.println(tag+"V51842_DEFUSE "+a+" route="+route+" result=REJECTED_INVENTORY_MISMATCH");
-                    return;
-                }
-                System.out.println(tag+"V51842_DEFUSE "+a+" route="+route+
-                    " result=FAIL_CLOSED_NO_MUTATION authority=UNKNOWN_SERVER_AUTHORITY");
-                return;
-            }
+        LocalEquipmentItemActionHandler.Result equipmentAction=
+            equipmentItemActions.handle(a,username,serverPackets);
+        if(equipmentAction!=null){
+            for(String line:equipmentAction.beforeSaveLogs)System.out.println(tag+line);
+            if(equipmentAction.saveReason!=null)saveAccountQuiet(tag,equipmentAction.saveReason);
+            for(String line:equipmentAction.afterSaveLogs)System.out.println(tag+line);
+            return;
         }
 
         // Exact mini-pet inventory action: Configure is option 1 -> C2S122. The
@@ -1022,74 +997,6 @@ final class LocalSession implements Runnable {
             serverPackets.fixed(97, BootstrapPackets.interface97(63036));
             compCapeCustomizeOpen = true;
             System.out.println(tag+"V55_COMP_CAPE_CUSTOMIZE_OPEN "+a+" result=OPENED_NATIVE_ROOT_63036 selectors="+playerState.compSelectorSummary());
-            return;
-        }
-
-        // Native icon-family items use the dedicated COSMETIC/bs channel, never AMMO slot 13.
-        if(a.opcode==41 && a.widgetId==BankState.NORMAL_INVENTORY_CONTAINER && ItemCatalog.isNativePlayerIcon(a.itemId)){
-            String result=bank.equipCosmeticFromInventory(a.slot,a.itemId,playerState.cosmetic(),serverPackets);
-            boolean changed=result.startsWith("COSMETIC_EQUIP_OK");
-            if(changed){playerState.syncEquipmentPresentation(equipment);bank.sendCosmetic(serverPackets,playerState.cosmetic());playerPresentation.refresh(username,equipment,playerState,serverPackets);saveAccountQuiet(tag,"COSMETIC_EQUIP");}
-            System.out.println(tag+"V511_COSMETIC_EQUIP "+a+" result="+result+" nativeBs="+playerState.nativeIconItemId()+" ammo="+equipment.itemAt(EquipmentSlot.AMMO)+" appearanceRefresh="+changed);
-            return;
-        }
-
-        // The pinned client maps inventory action text containing Wear/Wield/Equip
-        // to menu action 454 -> opcode 41. Handle that one path generically for
-        // every slot resolved by EquipmentMetadataRepository.
-        if (a.opcode == 41 && a.widgetId == BankState.NORMAL_INVENTORY_CONTAINER) {
-            String result = bank.equipFromInventory(a.slot, a.itemId, equipment, serverPackets);
-            boolean changed = result.startsWith("EQUIP_OK");
-            if (changed) {
-                playerState.syncEquipmentPresentation(equipment);
-                playerPresentation.refresh(username,equipment,playerState,serverPackets);
-                int root=CombatInterfaceRepository.forWeapon(equipment.weapon());
-                serverPackets.fixed(71, BootstrapPackets.sidebar71(root, CombatInterfaceRepository.TAB_INDEX));
-                System.out.println(tag+"V510_STYLE_EQUIP_RECONCILE "+combatStyles.reconcileRoot(root,serverPackets));
-            }
-            saveAccountQuiet(tag, "EQUIP_FROM_INVENTORY");
-            System.out.println(tag + "V522_EQUIPMENT_ITEM_ACTION " + a + " result=" + result
-                             + " weapon="+equipment.weapon()+" appearanceRefresh="+changed
-                             + " decoderAligned=true");
-            return;
-        }
-
-        // Exact current client builds a dedicated one-slot cosmetic widget 27701
-        // at the bottom-center of equipment root 1644. Its Remove option uses the
-        // normal widget-item option transport. Keep this independent from AMMO/1688.
-        if(a.opcode==145 && a.widgetId==BankState.COSMETIC_WIDGET){
-            int active=playerState.cosmetic().itemId();
-            if(a.slot!=0 || active<0 || a.itemId!=active){
-                System.out.println(tag+"V5124_COSMETIC_WIDGET_REMOVE "+a+" result=REJECTED_EXPECTED slot0_item="+active); return;
-            }
-            String result=bank.unequipCosmeticToInventory(playerState.cosmetic(),serverPackets);
-            boolean changed=result.startsWith("COSMETIC_UNEQUIP_OK");
-            if(changed){
-                playerState.syncEquipmentPresentation(equipment);
-                bank.sendCosmetic(serverPackets,playerState.cosmetic());
-                playerPresentation.refresh(username,equipment,playerState,serverPackets);
-                saveAccountQuiet(tag,"COSMETIC_WIDGET_REMOVE");
-            }
-            System.out.println(tag+"V5124_COSMETIC_WIDGET_REMOVE "+a+" result="+result+" nativeBs="+playerState.nativeIconItemId()+" ammo="+equipment.itemAt(EquipmentSlot.AMMO));
-            return;
-        }
-
-        // Classic equipment widget 1688 uses the normal first item-container action
-        // (opcode 145) for Remove. This returns the item to inventory, refreshes the
-        // 14-slot equipment container, then refreshes packet-81 appearance.
-        if (a.opcode == 145 && a.widgetId == EquipmentState.EQUIPMENT_WIDGET) {
-            String result = bank.unequipToInventory(a.slot, a.itemId, equipment, serverPackets);
-            boolean changed = result.startsWith("UNEQUIP_OK");
-            if (changed) {
-                playerState.syncEquipmentPresentation(equipment);
-                playerPresentation.refresh(username,equipment,playerState,serverPackets);
-                int root=CombatInterfaceRepository.forWeapon(equipment.weapon());
-                serverPackets.fixed(71, BootstrapPackets.sidebar71(root, CombatInterfaceRepository.TAB_INDEX));
-                System.out.println(tag+"V510_STYLE_UNEQUIP_RECONCILE "+combatStyles.reconcileRoot(root,serverPackets));
-            }
-            saveAccountQuiet(tag, "UNEQUIP_TO_INVENTORY");
-            System.out.println(tag + "V522_UNEQUIP_ITEM_ACTION " + a + " result=" + result
-                             + " appearanceRefresh="+changed+" decoderAligned=true");
             return;
         }
 
