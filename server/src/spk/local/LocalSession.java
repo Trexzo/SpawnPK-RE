@@ -132,27 +132,14 @@ final class LocalSession implements Runnable {
             System.out.println(tag + frame);
             if (frame.revision != 317) throw new IOException("expected protocol revision 317, got " + frame.revision);
 
-            // v5.12.3: two persistent localhost profiles without requiring a second
-            // client configuration. The first canonical/localtest login is opensrc;
-            // while opensrc is online, the next identical login becomes src. An
-            // explicitly supplied src login also selects that profile directly.
-            username = LocalAccountProfiles.chooseForLogin(world,loginAlias);
-            persistentAccount = LocalAccountProfiles.isPersistent(username);
-            if(!username.equalsIgnoreCase(loginAlias) && !loginAlias.equalsIgnoreCase("localtest"))
-                System.out.println(tag+"V5123_LOCAL_PROFILE_ALIAS loginAlias="+loginAlias+" selected="+username+" reason="+(username.equalsIgnoreCase(LocalAccountProfiles.SECONDARY)?"PRIMARY_ALREADY_ONLINE":"CANONICAL_ALIAS"));
-            else if(username.equalsIgnoreCase(LocalAccountProfiles.SECONDARY))
-                System.out.println(tag+"V5123_LOCAL_PROFILE_ALIAS loginAlias="+loginAlias+" selected=src reason=PRIMARY_ALREADY_ONLINE");
-            if (persistentAccount) {
-                try {
-                    System.out.println(tag + "V5123_ACCOUNT " + LocalAccountProfiles.load(username,bank,equipment,movement,petState,playerState));
-                    int persistedAccessory=PetAccessoryPersistence.load(username);
-                    activePetAccessoryItem=isPetAccessoryItem(persistedAccessory)?persistedAccessory:0;
-                    System.out.println(tag+"V5131_PET_ACCESSORY_PERSIST_LOAD item="+(activePetAccessoryItem==0?"NONE":activePetAccessoryItem)+" authority=ACCOUNT_SEMANTIC_STATE");
-                }
-                catch (Throwable e) {
-                    System.err.println(tag + "V5123_ACCOUNT_LOAD_FAILED file="+LocalAccountProfiles.accountFile(username)+" profile="+username+" error="+e+" action=KEEP_DEFAULTS");
-                }
-            }
+            // v5.12.3 two-profile selection/load remains byte/state compatible,
+            // but filesystem/profile orchestration now lives outside the socket session.
+            LocalAccountLifecycle.Selection account=LocalAccountLifecycle.select(world,loginAlias,tag);
+            username=account.username;
+            persistentAccount=account.persistent;
+            LocalAccountLifecycle.LoadResult accountLoad=LocalAccountLifecycle.load(
+                account,bank,equipment,movement,petState,playerState,LocalSession::isPetAccessoryItem,tag);
+            activePetAccessoryItem=accountLoad.accessoryItem;
 
             // One-time migration from the superseded LocalLab bug that stored native icons in AMMO.
             if(!playerState.cosmetic().active() && ItemCatalog.isNativePlayerIcon(equipment.itemAt(EquipmentSlot.AMMO))){
@@ -2704,14 +2691,9 @@ final class LocalSession implements Runnable {
     }
 
     private void saveAccountQuiet(String tag, String reason) {
-        if (!persistentAccount) return;
-        try {
-            String result=LocalAccountProfiles.save(username,bank,equipment,movement,petState,playerState);
-            PetAccessoryPersistence.save(username,activePetAccessoryItem);
-            System.out.println(tag + "V5123_ACCOUNT_SAVE reason="+reason+" " + result + " petAccessory="+(activePetAccessoryItem==0?"NONE":activePetAccessoryItem));
-        } catch (Throwable e) {
-            System.err.println(tag + "V5123_ACCOUNT_SAVE_FAILED reason="+reason+" file="+LocalAccountProfiles.accountFile(username)+" profile="+username+" error="+e);
-        }
+        LocalAccountLifecycle.saveQuiet(
+            username,persistentAccount,bank,equipment,movement,petState,playerState,
+            activePetAccessoryItem,tag,reason);
     }
 
 
