@@ -43,6 +43,7 @@ final class LocalSession implements Runnable {
     private final LocalNurseCommandHandler nurseCommands;
     private final LocalBankRequestHandler bankRequests;
     private final LocalItemOnItemHandler itemOnItemHandler;
+    private final LocalSpellTargetHandler spellTargetHandler;
     /** Engine R7 one-stop in-game developer control center. */
     private final DevControlCenter devPanel = new DevControlCenter();
     private SceneUpdatePublisher scenePublisher;
@@ -124,6 +125,8 @@ final class LocalSession implements Runnable {
         this.nurseCommands = new LocalNurseCommandHandler(playerState,movement);
         this.bankRequests = new LocalBankRequestHandler(worldPlayer,bank);
         this.itemOnItemHandler = new LocalItemOnItemHandler(bank);
+        this.spellTargetHandler = new LocalSpellTargetHandler(
+            magic,bank,equipment,playerState,npcs,combat);
         if (movementEnabled && !bootstrap) throw new IllegalArgumentException("movement requires bootstrap");
     }
 
@@ -1206,32 +1209,7 @@ final class LocalSession implements Runnable {
     private void acceptPendingSpellTarget(ClientPacketProbe clientPackets,ServerPacketWriter serverPackets,String tag)throws IOException{
         SpellTargetRequest req=clientPackets.takeSpellTarget();
         if(req==null)return;
-        MagicState.Check check=magic.target(req,bank,equipment,playerState);
-        if(!check.accepted){
-            System.out.println(tag+"V510_MAGIC_TARGET "+req+" result="+check.message+" state={"+magic.summary()+"}");
-            return;
-        }
-
-        String effect="ROUTER_ACCEPTED_EFFECT_UNIMPLEMENTED";
-        if(req.kind==SpellTargetRequest.Kind.NPC){
-            NpcEntity target=npcs.scene(req.targetIndex);
-            if(target==null) effect="REJECTED_TARGET_NPC_NOT_VISIBLE scene="+req.targetIndex;
-            else if(CombatTargetRepository.isCombatDummy(target.definitionId))
-                effect=combat.magicFixtureHit(req.targetIndex,check.spell,npcs,serverPackets);
-            else effect="TARGET_NPC_VISIBLE def="+target.definitionId+" effect=UNIMPLEMENTED_SERVER_AUTHORITY";
-        } else if(req.kind==SpellTargetRequest.Kind.INVENTORY_ITEM){
-            BankState.Stack at=bank.inventoryAt(req.targetSlot);
-            if(req.targetWidget==BankState.NORMAL_INVENTORY_CONTAINER && (at==null||at.itemId!=req.targetId))
-                effect="REJECTED_TARGET_INVENTORY_MISMATCH";
-            else effect="TARGET_ITEM_ROUTED effect=UNIMPLEMENTED_SERVER_AUTHORITY";
-        } else if(req.kind==SpellTargetRequest.Kind.PLAYER){
-            effect="TARGET_PLAYER_ROUTED index="+req.targetIndex+" effect=UNIMPLEMENTED_SERVER_AUTHORITY";
-        } else if(req.kind==SpellTargetRequest.Kind.OBJECT){
-            effect="TARGET_OBJECT_ROUTED id="+req.targetId+" world="+req.worldX+","+req.worldY+" effect=UNIMPLEMENTED_SERVER_AUTHORITY";
-        } else if(req.kind==SpellTargetRequest.Kind.GROUND_ITEM){
-            effect="TARGET_GROUND_ITEM_ROUTED id="+req.targetId+" world="+req.worldX+","+req.worldY+" effect=UNIMPLEMENTED_SERVER_AUTHORITY";
-        }
-        System.out.println(tag+"V510_MAGIC_TARGET "+req+" spell="+check.spell+" validation="+check.message+" result="+effect);
+        System.out.println(tag+spellTargetHandler.handle(req,serverPackets));
     }
 
     private void acceptPendingDropItem(ClientPacketProbe clientPackets, ServerPacketWriter serverPackets, String tag) throws IOException {
