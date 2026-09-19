@@ -39,6 +39,7 @@ final class LocalSession implements Runnable {
     private final LocalMiniPetCommandHandler miniPetCommands;
     private final LocalCosmeticCommandHandler cosmeticCommands;
     private final LocalCompColorsCommandHandler compColorsCommands;
+    private final LocalItemSpawnCommandHandler itemSpawnCommands;
     /** Engine R7 one-stop in-game developer control center. */
     private final DevControlCenter devPanel = new DevControlCenter();
     private SceneUpdatePublisher scenePublisher;
@@ -116,6 +117,7 @@ final class LocalSession implements Runnable {
         this.miniPetCommands = new LocalMiniPetCommandHandler(miniPets,petState,npcs,movement);
         this.cosmeticCommands = new LocalCosmeticCommandHandler(bank,equipment,playerState,playerPresentation);
         this.compColorsCommands = new LocalCompColorsCommandHandler(playerState,equipment,playerPresentation);
+        this.itemSpawnCommands = new LocalItemSpawnCommandHandler(bank);
         if (movementEnabled && !bootstrap) throw new IllegalArgumentException("movement requires bootstrap");
     }
 
@@ -2404,14 +2406,12 @@ final class LocalSession implements Runnable {
             System.out.println(tag+"V59_COMBAT_FIXTURE command="+command+" result="+fixture);
             return;
         }
-        if (p.length>=2 && (p[0].equalsIgnoreCase("item") || p[0].equalsIgnoreCase("tabitem"))) {
-            int id=parseInt(p[1],-1);
-            int amount=p.length>=3?parseAmount(p[2],1):1;
-            String spawn=bank.spawnItem(id,amount,serverPackets);
-            saveAccountQuiet(tag, "ITEM_SPAWN");
-            System.out.println(tag + "V522_ITEM_COMMAND source="+p[0].toLowerCase(java.util.Locale.ROOT)
-                             + " command="+command+" result="+spawn
-                             + " decoderAligned="+clientPackets.isAligned());
+        LocalItemSpawnCommandHandler.Result itemSpawnCommand=
+            itemSpawnCommands.handle(p,command,serverPackets);
+        if(itemSpawnCommand!=null){
+            if(itemSpawnCommand.saveReason!=null)saveAccountQuiet(tag,itemSpawnCommand.saveReason);
+            System.out.println(tag+itemSpawnCommand.logText+
+                " decoderAligned="+clientPackets.isAligned());
         }
     }
 
