@@ -7,7 +7,6 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 
 final class LocalSession implements Runnable {
-    private static final long SERVER_SEED = 0x0123456789ABCDEFL;
     private static final long PET_PICKUP_REMOVE_DELAY_MS=0L;
     private static final long PET_PICKUP_FACING_CLEAR_DELAY_MS=450L;
     private final Socket socket;
@@ -109,28 +108,8 @@ final class LocalSession implements Runnable {
     @Override public void run() {
         String tag = "[session " + socket.getRemoteSocketAddress() + "] ";
         try (socket; InputStream in = socket.getInputStream(); OutputStream out = socket.getOutputStream()) {
-            if (!socket.getInetAddress().isLoopbackAddress()) throw new SecurityException("non-loopback peer refused");
-            socket.setSoTimeout(30_000);
-
-            byte[] pre = Binary.readExactly(in, 2);
-            int requestType = pre[0] & 0xff;
-            int userHash5 = pre[1] & 0xff;
-            if (requestType != 14) throw new IOException("expected prelogin 14, got " + requestType);
-            System.out.println(tag + "prelogin ok type=14 userHash5=" + userHash5);
-
-            out.write(new byte[8]);
-            out.write(0);
-            Binary.put64(out, SERVER_SEED);
-            out.flush();
-
-            int loginType = in.read();
-            int outerLength = in.read();
-            if (loginType < 0 || outerLength < 0) throw new EOFException("login header EOF");
-            byte[] payload = Binary.readExactly(in, outerLength);
-            LoginFrame frame = LoginFrame.parse(loginType, payload);
+            LoginFrame frame = LocalLoginTransport.readLogin(socket,in,out,tag);
             loginAlias = frame.username == null || frame.username.isEmpty() ? "localtest" : frame.username;
-            System.out.println(tag + frame);
-            if (frame.revision != 317) throw new IOException("expected protocol revision 317, got " + frame.revision);
 
             // v5.12.3: two persistent localhost profiles without requiring a second
             // client configuration. The first canonical/localtest login is opensrc;
@@ -179,22 +158,18 @@ final class LocalSession implements Runnable {
             world.start();
             System.out.println(tag+"V512_WORLD_REGISTER playerId="+worldPlayer.id()+" generation="+worldPlayerGeneration+" username="+username+" members="+world.players().size()+" worldIdentity="+System.identityHashCode(world));
 
-            int[] outboundSeeds = frame.isaacSeeds.clone();
-            int[] inboundSeeds = frame.isaacSeeds.clone();
-            for (int i = 0; i < inboundSeeds.length; i++) inboundSeeds[i] += 50;
-            IsaacCipher clientToServer = new IsaacCipher(outboundSeeds);
-            IsaacCipher serverToClient = new IsaacCipher(inboundSeeds);
+            LocalLoginTransport.Ciphers loginCiphers=LocalLoginTransport.ciphers(frame);
             outboundPackets = new OutboundPacketQueue();
-            ServerPacketWriter serverPackets = new ServerPacketWriter(outboundPackets, serverToClient);
+            ServerPacketWriter serverPackets = new ServerPacketWriter(outboundPackets, loginCiphers.serverToClient);
             sessionPackets=serverPackets;
             scenePublisher = new SceneUpdatePublisher(serverPackets,new SceneCoordinateContext(MovementState.REGION_BASE_X,MovementState.REGION_BASE_Y,0));
-            ClientPacketProbe clientPackets = new ClientPacketProbe(in, clientToServer, tag);
+            ClientPacketProbe clientPackets = new ClientPacketProbe(in, loginCiphers.clientToServer, tag);
             System.out.println(tag+"BUILD "+BuildInfo.summary()+" world="+world.summary()+" npcDefinitions="+EffectiveNpcDefinitionRepository.count()+" miniPetDefinitions="+MiniPetDefinitionRepository.count());
 
             // Login response 2 is followed by the exact bytes consumed as Client.cT
             // and the client boolean flag. 205 passes both current privileged gate families
             // used by the native Spawn Tab/debug surfaces; server authority remains LOCAL only.
-            out.write(2); out.write(205); out.write(0); out.flush();
+            LocalLoginTransport.writeLoginSuccess(out);
             System.out.println(tag + "LOGIN_SUCCESS_LOCAL rank=205 localDevAuthority=true flag=false account="+username+" loginAlias="+loginAlias+" persistent="+persistentAccount+" at " + Instant.now());
 
             socket.setSoTimeout(5_000);
