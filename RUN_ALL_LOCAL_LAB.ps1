@@ -1,13 +1,20 @@
-﻿
-# R85 JAVA11+ AUTOSELECT BEGIN
-$__r85Selector = Join-Path $PSScriptRoot 'tools\R85_SelectJava11Plus.ps1'
-if(-not(Test-Path -LiteralPath $__r85Selector -PathType Leaf)){throw 'Missing R8.5 Java selector helper'}
-. $__r85Selector
-$__r85JavaInfo = Set-R85Java11Plus
-Write-Host ("R85_LAUNCH_JAVA_OK major={0} path={1}" -f $__r85JavaInfo.Major,$__r85JavaInfo.Path) -ForegroundColor Green
-# R85 JAVA11+ AUTOSELECT END
+Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
 Set-Location $PSScriptRoot
+
+# R85 JAVA11+ AUTOSELECT BEGIN
+# Keep this marker for VERIFY_OFFLINE_READY.ps1 compatibility, but use the
+# current canonical selector shared by scripts/Run-Server.ps1 and
+# scripts/Run-Client-Airgap.ps1. It prefers the proven Java 17 runtime.
+$__r85Selector = Join-Path $PSScriptRoot 'scripts\Select-LocalLabJava.ps1'
+if (-not (Test-Path -LiteralPath $__r85Selector -PathType Leaf)) {
+    throw "Missing LocalLab Java selector: $__r85Selector"
+}
+. $__r85Selector
+$__r85JavaInfo = Set-LocalLabJava
+Write-Host ("R85_LAUNCH_JAVA_OK major={0} path={1}" -f $__r85JavaInfo.Major,$__r85JavaInfo.Path) -ForegroundColor Green
+# R85 JAVA11+ AUTOSELECT END
+
 & .\VERIFY_OFFLINE_READY.ps1
 
 $ports = 43594,43595
@@ -45,32 +52,40 @@ if ($busy) {
 }
 
 $root = $PSScriptRoot
+$serverScript = Join-Path $root 'scripts\Run-Server.ps1'
+$watcherScript = Join-Path $root 'WATCH_CLIENT_NETWORK.ps1'
+$clientScript = Join-Path $root 'scripts\Run-Client-Airgap.ps1'
+
+foreach ($required in @($serverScript,$watcherScript,$clientScript)) {
+    if (-not (Test-Path -LiteralPath $required -PathType Leaf)) {
+        throw "Missing LocalLab launcher component: $required"
+    }
+}
+
 Write-Host 'Starting localhost server in a new PowerShell...' -ForegroundColor Green
-Start-Process powershell.exe -ArgumentList @(
-    '-NoExit','-ExecutionPolicy','Bypass','-Command',
-    "Set-Location '$root'; .\RUN_SERVER_LOCAL_WORLD.ps1"
+Start-Process powershell.exe -WorkingDirectory $root -ArgumentList @(
+    '-NoExit','-ExecutionPolicy','Bypass','-File',"`"$serverScript`""
 )
 
 $ready = $false
-for ($i = 0; $i -lt 30; $i++) {
-    Start-Sleep -Milliseconds 200
+$readyDeadline = (Get-Date).AddSeconds(30)
+while ((Get-Date) -lt $readyDeadline) {
+    Start-Sleep -Milliseconds 250
     if (Get-NetTCPConnection -LocalPort 43594 -State Listen -ErrorAction SilentlyContinue) {
         $ready = $true
         break
     }
 }
-if (-not $ready) { throw 'Local server did not begin listening on 43594.' }
+if (-not $ready) { throw 'Local server did not begin listening on 43594 within 30 seconds.' }
 
 Write-Host 'Starting loopback network watcher...' -ForegroundColor Green
-Start-Process powershell.exe -ArgumentList @(
-    '-NoExit','-ExecutionPolicy','Bypass','-Command',
-    "Set-Location '$root'; .\WATCH_CLIENT_NETWORK.ps1"
+Start-Process powershell.exe -WorkingDirectory $root -ArgumentList @(
+    '-NoExit','-ExecutionPolicy','Bypass','-File',"`"$watcherScript`""
 )
 
 Write-Host 'Starting airgap client...' -ForegroundColor Green
-Start-Process powershell.exe -ArgumentList @(
-    '-NoExit','-ExecutionPolicy','Bypass','-Command',
-    "Set-Location '$root'; .\RUN_CLIENT_AIRGAP.ps1"
+Start-Process powershell.exe -WorkingDirectory $root -ArgumentList @(
+    '-NoExit','-ExecutionPolicy','Bypass','-File',"`"$clientScript`""
 )
 
 Write-Host 'LOCAL_LAB_WINDOWS_STARTED_V521' -ForegroundColor Cyan
