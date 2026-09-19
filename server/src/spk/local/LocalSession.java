@@ -36,6 +36,7 @@ final class LocalSession implements Runnable {
     private final LocalDiagnosticCommandHandler diagnosticCommands;
     private final LocalPrayerMagicCommandHandler prayerMagicCommands;
     private final LocalDevWorldCommandHandler devWorldCommands;
+    private final LocalMiniPetCommandHandler miniPetCommands;
     /** Engine R7 one-stop in-game developer control center. */
     private final DevControlCenter devPanel = new DevControlCenter();
     private SceneUpdatePublisher scenePublisher;
@@ -110,6 +111,7 @@ final class LocalSession implements Runnable {
             world,equipment,movement,prayers,magic,combatStyles,itemLibrary);
         this.prayerMagicCommands = new LocalPrayerMagicCommandHandler(prayers,magic);
         this.devWorldCommands = new LocalDevWorldCommandHandler(world,movement);
+        this.miniPetCommands = new LocalMiniPetCommandHandler(miniPets,petState,npcs,movement);
         if (movementEnabled && !bootstrap) throw new IllegalArgumentException("movement requires bootstrap");
     }
 
@@ -1750,12 +1752,11 @@ final class LocalSession implements Runnable {
                 " note=R25_core_17_59_plus_independent_exact_staff328_3; unproven_server_mechanics_remain_fail_closed");
             return;
         }
-        if(p.length>=1 && p[0].equalsIgnoreCase("minipet")){
-            String sub=p.length>=2?p[1].toLowerCase(java.util.Locale.ROOT):"status";
-            if(sub.equals("status")||sub.equals("info")){System.out.println(tag+"V511_"+miniPets.status(petState,npcs));return;}
-            if(sub.equals("off")||sub.equals("disable")){String r=miniPets.off(petState,npcs,serverPackets);saveAccountQuiet(tag,"MINIPET_OFF");System.out.println(tag+"V511_"+r);return;}
-            if(sub.equals("set")&&p.length>=3){int item=parseInt(p[2],-1);String r=miniPets.configure(item,petState,npcs,movement,serverPackets);if(r.startsWith("MINIPET_CONFIGURED"))saveAccountQuiet(tag,"MINIPET_SET_DEV");System.out.println(tag+"V511_"+r+" commandAuthority=LOCAL_DEV");return;}
-            System.out.println(tag+"V511_MINIPET_HELP commands=status | set <itemId> | off nativeInventoryAction=Configure/C2S122");return;
+        LocalMiniPetCommandHandler.Result miniPetCommand=miniPetCommands.handle(p,serverPackets);
+        if(miniPetCommand!=null){
+            if(miniPetCommand.saveReason!=null)saveAccountQuiet(tag,miniPetCommand.saveReason);
+            System.out.println(tag+miniPetCommand.logText);
+            return;
         }
         if(p.length>=1 && p[0].equalsIgnoreCase("cosmetic")){
             String sub=p.length>=2?p[1].toLowerCase(java.util.Locale.ROOT):"info";
