@@ -8,12 +8,26 @@ import java.util.Locale;
  * Values are synthetic test data and never claimed as SpawnPK production content.
  */
 final class ApplicationUiFixtureService {
+    /**
+     * Exact-current client/cache research identifies these as the native Make-X
+     * root family. The production rule selecting a particular layout root is
+     * still server authority; this LOCAL_DEV fixture deliberately uses the first
+     * proven native root instead of inventing a production mapping.
+     */
+    static final int MAKE_X_FIXTURE_ROOT=55290;
+    static final int[] MAKE_X_NATIVE_ROOTS={55290,55291,55292,55293,55333};
+
+    static boolean isKnownMakeXRoot(int root){
+        for(int v:MAKE_X_NATIVE_ROOTS)if(v==root)return true;
+        return false;
+    }
+
     static String run(String name,ServerPacketWriter w)throws IOException{
         String n=name==null?"help":name.toLowerCase(Locale.ROOT);
         switch(n){
             case "mail":case "mailbox": mailbox(w);return "LOCAL_DEV_FIXTURE mailbox subtype31 root32000 rows=3 attachment=4151x1";
             case "items":case "itemlist": itemList(w);return "LOCAL_DEV_FIXTURE itemlist subtype14 root36000 rows=3 search/actions/tabs";
-            case "makex": makeX(w);return "LOCAL_DEV_FIXTURE makex subtype35 root55300 quantities=1/5/10/X/All";
+            case "makex": makeX(w);return "LOCAL_DEV_FIXTURE makex subtype35 root="+MAKE_X_FIXTURE_ROOT+" nativeRoot=true layoutAuthority=CUSTOM_LOCALLAB quantities=1/5/10/X/All";
             case "tasks":case "eventtask": eventTask(w);return "LOCAL_DEV_FIXTURE eventtask subtype10 root57220 synthetic progress";
             case "events": activeEvents(w);return "LOCAL_DEV_FIXTURE active-events subtype13 synthetic timers";
             case "shop": shopTabs(w);return "LOCAL_DEV_FIXTURE shop-tabs subtype17 state-only labels=Main/Void/Utility";
@@ -48,7 +62,20 @@ final class ApplicationUiFixtureService {
         ApplicationUiService.itemListDescription(w,"LocalLab client-exact item-list fixture");ApplicationUiService.itemListSearchDescription(w,"Search is client-side over these synthetic rows");ApplicationUiService.itemListMainActions(w,"Inspect","Select","Preview");ApplicationUiService.itemListTab(w,"Fixture");ApplicationUiService.itemListTab(w,"Custom");ApplicationUiService.itemListSelectTab(w,0);ApplicationUiService.itemListFinalize(w);
     }
     private static void makeX(ServerPacketWriter w)throws IOException{
-        w.fixed(97,BootstrapPackets.interface97(55300));ApplicationUiService.makeXReset(w);ApplicationUiService.makeXLayout(w,"LocalLab Make-X fixture","No production recipe/cost authority");ApplicationUiService.makeXPreview(w,0,4151);ApplicationUiService.makeXPreview(w,1,20570);ApplicationUiService.makeXRowAction(w,0,"Local fixture row");ApplicationUiService.makeXRowResource(w,0,"npc_1");ApplicationUiService.makeXPreset(w,2);
+        // 55300 was never a recovered native Make-X root and could disconnect the
+        // exact client when the fixture attempted to open it. Use a proven native
+        // root, but keep the layout selection explicitly LOCAL/CUSTOM until the
+        // production root-selection rule is recovered.
+        w.fixed(97,BootstrapPackets.interface97(MAKE_X_FIXTURE_ROOT));
+        ApplicationUiService.makeXReset(w);
+        ApplicationUiService.makeXLayout(w,"LocalLab Make-X fixture","No production recipe/cost authority");
+        // Keep the synthetic fixture to the first proven preview/action row. This
+        // exercises every subtype-35 operation family without assuming how the
+        // production server chooses among the five native roots.
+        ApplicationUiService.makeXPreview(w,0,4151);
+        ApplicationUiService.makeXRowAction(w,0,"Local fixture row");
+        ApplicationUiService.makeXRowResource(w,0,"npc_1");
+        ApplicationUiService.makeXPreset(w,2);
     }
     private static void eventTask(ServerPacketWriter w)throws IOException{
         w.fixed(97,BootstrapPackets.interface97(57220));ApplicationUiService.eventTaskReset(w);ApplicationUiService.eventTaskAppend(w,"{LABEL}LocalLab fixture task{line}Client parser test");ApplicationUiService.eventTaskPercent(w,42);ApplicationUiService.eventTaskHidden(w,false);ApplicationUiService.eventTaskAction(w,false,"Inspect local fixture");ApplicationUiService.eventTaskFinalize(w);
