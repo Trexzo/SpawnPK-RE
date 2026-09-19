@@ -40,6 +40,7 @@ final class LocalSession implements Runnable {
     private final LocalCosmeticCommandHandler cosmeticCommands;
     private final LocalCompColorsCommandHandler compColorsCommands;
     private final LocalItemSpawnCommandHandler itemSpawnCommands;
+    private final LocalNurseCommandHandler nurseCommands;
     /** Engine R7 one-stop in-game developer control center. */
     private final DevControlCenter devPanel = new DevControlCenter();
     private SceneUpdatePublisher scenePublisher;
@@ -118,6 +119,7 @@ final class LocalSession implements Runnable {
         this.cosmeticCommands = new LocalCosmeticCommandHandler(bank,equipment,playerState,playerPresentation);
         this.compColorsCommands = new LocalCompColorsCommandHandler(playerState,equipment,playerPresentation);
         this.itemSpawnCommands = new LocalItemSpawnCommandHandler(bank);
+        this.nurseCommands = new LocalNurseCommandHandler(playerState,movement);
         if (movementEnabled && !bootstrap) throw new IllegalArgumentException("movement requires bootstrap");
     }
 
@@ -2059,20 +2061,11 @@ final class LocalSession implements Runnable {
             System.out.println(tag+"V591_DEV_COMBAT_INFO weapon="+weapon+" profile="+CombatWeaponRepository.resolve(weapon)+" animOverride="+(dev.hasCombatAnimationOverride(weapon)?dev.combatAnimationOverride(weapon):"AUTO")+" scorchingNormalPolicy=UNBOUND_ANIMATION_SUPPRESSED_AFTER_LIVE_CRASH"); return;
         }
 
-        if (p.length>=1 && p[0].equalsIgnoreCase("nurse")) {
-            int changed=playerState.restoreNurse();
-            movement.setRunEnergy(100);
-            changed |= playerState.syncScopesightMaintenance(scopesightActive());
-            publishSkillMask(changed,serverPackets);
-            serverPackets.fixed(110,BootstrapPackets.runEnergy110(100));
-            serverPackets.varShort(126,BootstrapPackets.widgetText126(149,"100%"));
-            serverPackets.varShort(81,CombatSync.player81AnimationAndGfx(10184,1310,0,0));
-            saveAccountQuiet(tag,"NURSE");
-            System.out.println(tag+"V58_NURSE command="+command+" hp="+playerState.currentLevel(PlayerState.HITPOINTS)
-                             +" prayer="+playerState.currentLevel(PlayerState.PRAYER)+" ranged="+playerState.currentLevel(PlayerState.RANGED)
-                             +" magic="+playerState.currentLevel(PlayerState.MAGIC)+" special="+playerState.specialEnergy()
-                             +" run="+movement.runEnergy()+" poison="+playerState.poison()+" venom="+playerState.venom()+" sicken="+playerState.sicken()
-                             +" anim=10184 gfx=1310 gfxHeight=0 gfxDelay=0 scopesightActive="+scopesightActive());
+        LocalNurseCommandHandler.Result nurseCommand=
+            nurseCommands.handle(p,command,scopesightActive(),serverPackets);
+        if(nurseCommand!=null){
+            if(nurseCommand.saveReason!=null)saveAccountQuiet(tag,nurseCommand.saveReason);
+            System.out.println(tag+nurseCommand.logText);
             return;
         }
         if (p.length>=1 && p[0].equalsIgnoreCase("appfixture")) {
