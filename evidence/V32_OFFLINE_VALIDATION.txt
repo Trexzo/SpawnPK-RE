@@ -1,0 +1,105 @@
+SpawnPK Local Lab v3.2 offline validation
+
+ISAAC_PARITY_WITH_CLIENT_RS_Q_A_PASS outputs=6144
+BOOTSTRAP_STATIC_ENCODING_PASS idle81=00-7F-F0 teleport81_bits=5 appearance=62 packet81_withAppearance=69 region73=4 packet249=3 runEnergy110=100 widget126_149=100%
+APPEARANCE_CLIENT_PARSER_PARITY_PASS bytes=62 consumed=62 displayName=localtest
+PACKET81_FULL_CLIENT_DECODER_PARITY_PASS payload=69 consumed=69 displayName=localtest plane=0
+M5_PACKET81_CLIENT_PARITY_PASS bootstrap=55,55 walk=56,55->56,56 run=57,54
+RUN_ORB_WIDGET126_CLIENT_PARITY_PASS widget=149 text=100% bytes=7 consumed=7
+RUN_TOGGLE_CONFIG36_CLIENT_PARITY_PASS setting=173 on=1 off=0 bytes=3
+[test] CLIENT_PACKET seq=1 opcode=185 len=2 widget=912 expectedWidget=912
+[test] CLIENT_PACKET seq=2 opcode=103 len=4 command="abc" newline=true
+[test] CLIENT_PACKET seq=3 opcode=0 len=0 count=1
+[test] CLIENT_PACKET seq=4 opcode=121 len=0 loadingAck=true
+[test] CLIENT_PACKET seq=5 opcode=3 len=1 focus=0 focused=false schema=STATIC_EXACT
+[test] CLIENT_PACKET seq=6 opcode=77 len=12 periodicTelemetry=true payload=24 65 E9 B0 24 63 40 26 5D D4 BC F6 schema=STATIC_EXACT_VARBYTE
+[test] CLIENT_PACKET seq=7 opcode=164 len=5 movementFamily=true steps=1 startX=3087 startY=3495 run=0 deltas=[] decodedWaypoints=true
+[test] CLIENT_PACKET seq=8 opcode=185 len=2 widget=152 schema=STATIC_EXACT_ALL_CALLSITES
+[test] CLIENT_PACKET seq=9 opcode=132 len=6 objectAction=true objectId=26972 worldX=3095 worldY=3493 schema=STATIC_EXACT_FIXED6
+[test] CLIENT_PACKET seq=10 opcode=41 len=6 inventoryItemAction=true widget=3214 slot=0 itemId=4151 semantic=ITEM_OPTION_2 action=OBSERVE_ONLY schema=STATIC_EXACT_FIXED6
+[test] CLIENT_PACKET seq=11 opcode=130 len=0 interfaceClose=true schema=STATIC_EXACT_FIXED0
+[test] CLIENT_PACKET seq=12 opcode=164 len=5 movementFamily=true steps=1 startX=3087 startY=3496 run=0 deltas=[] decodedWaypoints=true
+[test] CLIENT_PACKET seq=13 opcode=248 len=19 movementFamily=true steps=1 startX=3088 startY=3496 run=0 deltas=[] decodedWaypoints=true telemetry14=00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D minimapPath=ACCEPTABLE
+CLIENT_PACKET_PROBE_V32_PASS decoded=13 aligned=true walk164->widget185->object132->item41->close130->walk164->minimap248 telemetry14=preserved
+V32_BANK_OVERLAY_CLIENT_PARITY_PASS packet248 main=5292 side=5063 inventoryWidget=5064 item=995 qty=1
+[bank-decoder-test] CLIENT_PACKET seq=1 opcode=145 len=6 itemContainerAction=true widget=5382 slot=2 itemId=565 semantic=WITHDRAW_1 schema=STATIC_EXACT
+[bank-decoder-test] CLIENT_PACKET seq=2 opcode=117 len=6 itemContainerAction=true widget=5382 slot=2 itemId=565 semantic=WITHDRAW_5 schema=STATIC_EXACT
+[bank-decoder-test] CLIENT_PACKET seq=3 opcode=43 len=6 itemContainerAction=true widget=5382 slot=2 itemId=565 semantic=WITHDRAW_10 schema=STATIC_EXACT
+[bank-decoder-test] CLIENT_PACKET seq=4 opcode=129 len=6 itemContainerAction=true widget=5382 slot=2 itemId=565 semantic=WITHDRAW_ALL schema=STATIC_EXACT
+[bank-decoder-test] CLIENT_PACKET seq=5 opcode=135 len=6 itemContainerAction=true widget=5382 slot=2 itemId=565 semantic=WITHDRAW_X schema=STATIC_EXACT
+[bank-decoder-test] CLIENT_PACKET seq=6 opcode=141 len=10 itemContainerAction=true widget=5382 slot=2 itemId=565 semantic=WITHDRAW_14 extra=14 schema=STATIC_EXACT
+[bank-decoder-test] CLIENT_PACKET seq=7 opcode=140 len=6 itemContainerAction=true widget=5382 slot=2 itemId=565 semantic=WITHDRAW_ALL_BUT_ONE schema=STATIC_EXACT
+V3_BANK_CLIENT_ACTION_DECODER_PASS opcodes=145,117,43,129,135,141,140 aligned=true
+[session /127.0.0.1:32834] prelogin ok type=14 userHash5=7
+[session /127.0.0.1:32834] LoginFrame{type=16, revision=317, memoryFlag=0, checksums=[0, 0, 0, 0, 0, 0, 0, 0, 0], seeds=[16909060, 287454020, 19088743, -1985229329], config1=748878668, config2=307, username='local', password=<redacted>, deviceId='LOCAL-DEVICE', trailingClientId='LOCAL-CLIENT'}
+[session /127.0.0.1:32834] LOGIN_SUCCESS_LOCAL rank=0 flag=false at 2026-09-14T13:23:22.838605067Z
+[session /127.0.0.1:32834] CLIENT_PACKET seq=1 opcode=185 len=2 widget=912 expectedWidget=912
+[session /127.0.0.1:32834] M4_BOOTSTRAP_SENT packets=249,73,81 region=385,436 local=55,55 appearanceMask=0x10 appearanceBytes=58 status=M4_CERTIFIED
+[session /127.0.0.1:32834] M5_RUN_ENERGY_SENT opcode=110 value=100 schema=STATIC_EXACT_FIXED1
+[session /127.0.0.1:32834] M5_RUN_ORB_WIDGET_SENT opcode=126 widget=149 text="100%" schema=STATIC_EXACT_VARSHORT
+[session /127.0.0.1:32834] M5_AUTHORITY_ENABLED world=3087,3495 tickMs=600 collision=CLIENT_SUBMITTED_PATH regionPolicy=CURRENT_104x104 runEnergy=100 runToggleWidget=152 config173=ACK minimap248=ACCEPT_PATH_CORE
+[session /127.0.0.1:32834] CLIENT_PACKET seq=2 opcode=164 len=5 movementFamily=true steps=1 startX=3088 startY=3495 run=0 deltas=[] decodedWaypoints=true
+[session /127.0.0.1:32834] M5_MOVEMENT_REQUEST MovementRequest{opcode=164, run=false, waypoints=[3088,3495]} action=ACCEPTED queued=1 final=3088,3495 packetRun=0 persistentRun=0 effectiveRun=0 authorityWorld=3087,3495
+[session /127.0.0.1:32834] M5_AUTHORITATIVE_TICK mode=WALK tiles=1 from=3087,3495 to=3088,3495 dir=4 remaining=0 movementTick=1
+[session /127.0.0.1:32834] LOCAL_WORLD_TICK opcode=81 tick=1 world=3088,3495 queued=0 certification=M4_CERTIFIED M5=ACTIVE
+[session /127.0.0.1:32834] CLIENT_PACKET seq=3 opcode=185 len=2 widget=152 schema=STATIC_EXACT_ALL_CALLSITES
+[session /127.0.0.1:32834] M5_RUN_TOGGLE widget=152 enabled=true opcode=36 setting=173 value=1 authority=PERSISTENT_SERVER_TOGGLE
+[session /127.0.0.1:32834] CLIENT_PACKET seq=4 opcode=164 len=5 movementFamily=true steps=1 startX=3090 startY=3495 run=0 deltas=[] decodedWaypoints=true
+[session /127.0.0.1:32834] M5_MOVEMENT_REQUEST MovementRequest{opcode=164, run=false, waypoints=[3090,3495]} action=ACCEPTED queued=2 final=3090,3495 packetRun=0 persistentRun=1 effectiveRun=1 authorityWorld=3088,3495
+[session /127.0.0.1:32834] M5_AUTHORITATIVE_TICK mode=RUN tiles=2 from=3088,3495 to=3090,3495 dirs=4,4 remaining=0 movementTick=2
+[session /127.0.0.1:32834] CLIENT_PACKET seq=5 opcode=185 len=2 widget=152 schema=STATIC_EXACT_ALL_CALLSITES
+[session /127.0.0.1:32834] M5_RUN_TOGGLE widget=152 enabled=false opcode=36 setting=173 value=0 authority=PERSISTENT_SERVER_TOGGLE
+[session /127.0.0.1:32834] CLIENT_PACKET seq=6 opcode=164 len=5 movementFamily=true steps=1 startX=3090 startY=3496 run=0 deltas=[] decodedWaypoints=true
+[session /127.0.0.1:32834] M5_MOVEMENT_REQUEST MovementRequest{opcode=164, run=false, waypoints=[3090,3496]} action=ACCEPTED queued=1 final=3090,3496 packetRun=0 persistentRun=0 effectiveRun=0 authorityWorld=3090,3495
+[session /127.0.0.1:32834] M5_AUTHORITATIVE_TICK mode=WALK tiles=1 from=3090,3495 to=3090,3496 dir=1 remaining=0 movementTick=3
+[session /127.0.0.1:32834] CLIENT_PACKET seq=7 opcode=164 len=5 movementFamily=true steps=1 startX=3092 startY=3496 run=1 deltas=[] decodedWaypoints=true
+[session /127.0.0.1:32834] M5_MOVEMENT_REQUEST MovementRequest{opcode=164, run=true, waypoints=[3092,3496]} action=ACCEPTED queued=2 final=3092,3496 packetRun=1 persistentRun=0 effectiveRun=1 authorityWorld=3090,3496
+[session /127.0.0.1:32834] M5_AUTHORITATIVE_TICK mode=RUN tiles=2 from=3090,3496 to=3092,3496 dirs=4,4 remaining=0 movementTick=4
+[session /127.0.0.1:32834] CLIENT_PACKET seq=8 opcode=132 len=6 objectAction=true objectId=26972 worldX=3095 worldY=3493 schema=STATIC_EXACT_FIXED6
+[session /127.0.0.1:32834] V32_BANK_OPEN ObjectInteraction{opcode=132, objectId=26972, worldX=3095, worldY=3493} root=5292 bankContainer=5382 bankInventoryRoot=5063 inventoryContainer=5064 bankSlots=5 inventorySlots=0 action=OPENED_LOCAL_BANK
+[session /127.0.0.1:32834] CLIENT_PACKET seq=9 opcode=164 len=5 movementFamily=true steps=1 startX=3093 startY=3496 run=0 deltas=[] decodedWaypoints=true
+[session /127.0.0.1:32834] M5_MOVEMENT_REQUEST MovementRequest{opcode=164, run=false, waypoints=[3093,3496]} action=ACCEPTED queued=1 final=3093,3496 packetRun=0 persistentRun=0 effectiveRun=0 authorityWorld=3092,3496
+[session /127.0.0.1:32834] M5_AUTHORITATIVE_TICK mode=WALK tiles=1 from=3092,3496 to=3093,3496 dir=4 remaining=0 movementTick=5
+[session /127.0.0.1:32834] CLIENT_PACKET seq=10 opcode=248 len=19 movementFamily=true steps=1 startX=3093 startY=3497 run=0 deltas=[] decodedWaypoints=true telemetry14=A0 A1 A2 A3 A4 A5 A6 A7 A8 A9 AA AB AC AD minimapPath=ACCEPTABLE
+[session /127.0.0.1:32834] M5_MOVEMENT_REQUEST MovementRequest{opcode=248, run=false, waypoints=[3093,3497]} action=ACCEPTED queued=1 final=3093,3497 packetRun=0 persistentRun=0 effectiveRun=0 authorityWorld=3093,3496
+[session /127.0.0.1:32834] M5_AUTHORITATIVE_TICK mode=WALK tiles=1 from=3093,3496 to=3093,3497 dir=1 remaining=0 movementTick=6
+M5_V32_AUTHORITATIVE_MOVEMENT_INTEGRATION_PASS energy110=100 widget126_149=100% widget152_toggle=config173 object132->248+53+53->movement aligned=true persistentRun+ctrlRun+minimap248
+[session /127.0.0.1:49734] prelogin ok type=14 userHash5=7
+[session /127.0.0.1:49734] LoginFrame{type=16, revision=317, memoryFlag=0, checksums=[0, 0, 0, 0, 0, 0, 0, 0, 0], seeds=[16909060, 287454020, 19088743, -1985229329], config1=748878668, config2=307, username='local', password=<redacted>, deviceId='LOCAL-DEVICE', trailingClientId='LOCAL-CLIENT'}
+[session /127.0.0.1:49734] LOGIN_SUCCESS_LOCAL rank=0 flag=false at 2026-09-14T13:23:27.036396256Z
+[session /127.0.0.1:49734] CLIENT_PACKET seq=1 opcode=185 len=2 widget=912 expectedWidget=912
+[session /127.0.0.1:49734] M4_BOOTSTRAP_SENT packets=249,73,81 region=385,436 local=55,55 appearanceMask=0x10 appearanceBytes=58 status=M4_CERTIFIED
+[session /127.0.0.1:49734] M5_RUN_ENERGY_SENT opcode=110 value=100 schema=STATIC_EXACT_FIXED1
+[session /127.0.0.1:49734] M5_RUN_ORB_WIDGET_SENT opcode=126 widget=149 text="100%" schema=STATIC_EXACT_VARSHORT
+[session /127.0.0.1:49734] M5_AUTHORITY_ENABLED world=3087,3495 tickMs=600 collision=CLIENT_SUBMITTED_PATH regionPolicy=CURRENT_104x104 runEnergy=100 runToggleWidget=152 config173=ACK minimap248=ACCEPT_PATH_CORE
+[session /127.0.0.1:49734] CLIENT_PACKET seq=2 opcode=132 len=6 objectAction=true objectId=26972 worldX=3095 worldY=3493 schema=STATIC_EXACT_FIXED6
+[session /127.0.0.1:49734] V32_BANK_OPEN ObjectInteraction{opcode=132, objectId=26972, worldX=3095, worldY=3493} root=5292 bankContainer=5382 bankInventoryRoot=5063 inventoryContainer=5064 bankSlots=5 inventorySlots=0 action=OPENED_LOCAL_BANK
+[session /127.0.0.1:49734] CLIENT_PACKET seq=3 opcode=145 len=6 itemContainerAction=true widget=5382 slot=0 itemId=995 semantic=WITHDRAW_1 schema=STATIC_EXACT
+[session /127.0.0.1:49734] V3_BANK_ITEM_ACTION ItemContainerAction{opcode=145, widgetId=5382, slot=0, itemId=995, semantic=WITHDRAW_1} result=WITHDRAW_OK amount=1 bankSlots=5 inventorySlots=1 decoderAligned=true
+[session /127.0.0.1:49734] CLIENT_PACKET seq=4 opcode=145 len=6 itemContainerAction=true widget=5064 slot=0 itemId=995 semantic=STORE_1 schema=STATIC_EXACT
+[session /127.0.0.1:49734] V3_BANK_ITEM_ACTION ItemContainerAction{opcode=145, widgetId=5064, slot=0, itemId=995, semantic=STORE_1} result=STORE_OK amount=1 bankSlots=5 inventorySlots=0 decoderAligned=true
+[session /127.0.0.1:49734] CLIENT_PACKET seq=5 opcode=130 len=0 interfaceClose=true schema=STATIC_EXACT_FIXED0
+[session /127.0.0.1:49734] V32_INTERFACE_CLOSE opcode=130 bankWasOpen=true bankOpen=false decoderAligned=true
+[session /127.0.0.1:49734] CLIENT_PACKET seq=6 opcode=132 len=6 objectAction=true objectId=26972 worldX=3095 worldY=3493 schema=STATIC_EXACT_FIXED6
+[session /127.0.0.1:49734] V32_BANK_OPEN ObjectInteraction{opcode=132, objectId=26972, worldX=3095, worldY=3493} root=5292 bankContainer=5382 bankInventoryRoot=5063 inventoryContainer=5064 bankSlots=5 inventorySlots=0 action=OPENED_LOCAL_BANK
+[session /127.0.0.1:49734] CLIENT_PACKET seq=7 opcode=130 len=0 interfaceClose=true schema=STATIC_EXACT_FIXED0
+[session /127.0.0.1:49734] V32_INTERFACE_CLOSE opcode=130 bankWasOpen=true bankOpen=false decoderAligned=true
+[session /127.0.0.1:49734] CLIENT_PACKET seq=8 opcode=164 len=5 movementFamily=true steps=1 startX=3088 startY=3495 run=0 deltas=[] decodedWaypoints=true
+[session /127.0.0.1:49734] M5_MOVEMENT_REQUEST MovementRequest{opcode=164, run=false, waypoints=[3088,3495]} action=ACCEPTED queued=1 final=3088,3495 packetRun=0 persistentRun=0 effectiveRun=0 authorityWorld=3087,3495
+[session /127.0.0.1:49734] M5_AUTHORITATIVE_TICK mode=WALK tiles=1 from=3087,3495 to=3088,3495 dir=4 remaining=0 movementTick=1
+[session /127.0.0.1:49734] LOCAL_WORLD_TICK opcode=81 tick=1 world=3088,3495 queued=0 certification=M4_CERTIFIED M5=ACTIVE
+V32_BANK_RUNTIME_INTEGRATION_PASS object132->248(5292,5063)->53(5382)+53(5064)->withdraw145->store145->close130->reopen->walk164 aligned=true
+LOCAL_ONLY_STATIC_GUARDS_PASS_V32
+server_loopback_only_literals=true
+client_game_endpoint=127.0.0.1
+airgap_known_application_external_endpoints=rewritten_to_loopback
+m4_certification=CERTIFIED
+m5_walking_running=LIVE_CERTIFIED
+v32_bank_main_root=5292
+v32_bank_container=5382
+v32_bank_inventory_overlay_root=5063
+v32_bank_inventory_widget=5064
+v32_inventory_initial_state=EMPTY
+v32_close_interface_opcode130=STATIC_EXACT_FIXED0
+v32_inventory_item_opcode41=STATIC_EXACT_FIXED6_OBSERVE_ONLY
+V32_OFFLINE_VALIDATION_ALL_PASS

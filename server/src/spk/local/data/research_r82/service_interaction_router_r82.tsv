@@ -1,0 +1,17 @@
+router_family	option_slot	c2s_opcode	payload_role	notes
+npc_option	1	155	target NPC index	semantic determined by effective NPC action
+npc_option	2	72	target NPC index	often Attack but structurally option2
+npc_option	3	17	target NPC index	e.g. production Banker Bank action
+npc_option	4	21	target NPC index	contextual
+npc_option	5	18	target NPC index	contextual
+object_option	1	132	object id + tile/context	contextual
+object_option	2	252	object id + tile/context	contextual
+object_option	3	70	object id + tile/context	contextual
+object_option	4	234	object id + tile/context	contextual
+object_option	5	228	object id + tile/context	contextual
+widget_item_option	1	145	widget+slot+item	contextual
+widget_item_option	2	117	widget+slot+item	contextual
+widget_item_option	3	43	widget+slot+item	contextual
+widget_item_option	4	129	widget+slot+item	contextual
+widget_item_option	5	135	widget+slot+item	shop root3824: Buy 100
+widget_item_option	6	176	widget+slot+item	shop root3824: Buy 1000

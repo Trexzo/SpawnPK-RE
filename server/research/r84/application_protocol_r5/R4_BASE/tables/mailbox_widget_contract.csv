@@ -1,0 +1,16 @@
+widget_id,role,client_text_or_note
+32022,Inbox header,Inbox (35 / 35)
+32023,Inbox scroll,row container
+32026,Inbox row base,row widgets advance by 4
+32166,Selected message root,detail area
+32168,Subject text,Mail Subject
+32169,Sent/expiry text,Sent x time ago / Expires in x time
+32170,Attachment header,Items / Rewards
+32175,Attachment item container,normal item/container publication
+32176,No-items text,No items attached to this message!
+32177,Attachment claim scroll/container,claim-state area
+32178,Deposit to bank action,Deposit items to bank
+32181,Deposit to inventory action,Deposit items to inventory
+32184,Delete action,Delete this message
+32185,Refresh control,refresh
+32188,Claimed-state visual,shown in claimed state

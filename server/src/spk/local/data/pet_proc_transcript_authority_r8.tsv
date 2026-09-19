@@ -1,0 +1,17 @@
+key	subject	animations	gfx	projectiles	impacts	native_trigger	confidence	boundary	provenance
+VESPULA	Vespula	16004|16007					STATIC_REMAP_STRONG	SpawnPK-local remap of upstream attack animations; final proc selection server-owned	R30 transcript
+KEPHRI	Kephri		4128	4129|5047	5048		STATIC_CHAIN_STRONG	source/drop gfx -> dungball candidate -> explosion; exact final selection server-owned	R30 transcript
+ARAXXOR	Araxxor / Dark Araxxor	15877|15878|15879|15880|15884		5103|5104|5105	5102|5107		STATIC_FAMILY_STRONG	current-cache family; disease proc binding not proven	R30 transcript
+TSUNAMI_TEMPOROSS	Tsunami Tempoross	15562	4104				STATIC_REMAP_VERY_STRONG	15562 remaps upstream 8905; whirlpool gfx 4104; variant selection server-owned	R30 transcript
+MIDNIGHT_TIGER	Midnight Tiger	5228	4101|4102				MIXED_GFX_STRONG_ANIM_HISTORICAL	gfx exact-current named; body animation historical family evidence	R30 transcript
+ICELORD	Icelord	5725					HISTORICAL_FAMILY_STRONG	attack animation family strong; icicle projectile explicitly unresolved/runtime-required	R30/R4 transcript
+GEYSER_TITAN	Geyser Titan	7879					HISTORICAL_ATTACK_ONLY	do not equate attack animation with owner defensive Steam Ward proc	R30 transcript
+HYDRA_LIGHTNING	Blood / Vigorous Hydra	8241	1664|1665				STATIC_FAMILY_CANDIDATE	lightning lane; generic current 15450 remains alternate family candidate	R30 transcript
+HYDRA_FIRE	Ancient / Volcanic Hydra	8248	1667				STATIC_FAMILY_CANDIDATE	fire/lava-spit lane; generic current 15450 remains alternate family candidate	R30 transcript
+MAD_HATTER	Mad / Psychotic Mad Hatter	866|2106|2107|2108					STATIC_ACTION_CANDIDATES	Dance/Jig/Spin/Headbang candidate set; exact action mapping remains unresolved	Item+Pet R4 transcript
+DROP_PICKUP	Pet Drop / Pick-up	827					RUNTIME_PROVEN	exact runtime animation; classic frame total 58 cycles = 1160ms	Item+Pet R4 + supporting runtime
+OWNER_BOOST	Normal owner boost	10184	1310				RUNTIME_PROVEN	known native owner boost animation+gfx fact	056F0C transcript summary
+SCOPESIGHT	Scopesight					SNIPE	RUNTIME_PROVEN_NATIVE_TRIGGER	native text/state trigger, not ordinary proc tuple	056F0C transcript summary
+EVIL_WOLPER	Evil Wolper					sprite53	RUNTIME_PROVEN_NATIVE_STATE	hidden/native sprite-53 state	056F0C transcript summary
+BEHEMOTH	Behemoth 1/2/3					sprite22	RUNTIME_PROVEN_NATIVE_STATE	hidden/native sprite-22 states	056F0C transcript summary
+RIPPER_DEMON	Ripper Demon						STATIC_EXHAUSTED_UNRESOLVED	no trustworthy static Demon Aura presentation; do not guess	Item+Pet R4 transcript

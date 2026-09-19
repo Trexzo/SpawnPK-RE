@@ -1,0 +1,23 @@
+class rs.q.b.e extends rs.q.a.a.a {
+  rs.q.b.e();
+    Code:
+       0: aload_0
+       1: invokespecial #5                  // Method rs/q/a/a/a."<init>":()V
+       4: return
+
+  public void a();
+    Code:
+       0: aload_0
+       1: invokevirtual #8                  // Method e:()I
+       4: istore_1
+       5: iload_1
+       6: ifne          15
+       9: getstatic     #4                  // Field rs/q/b/d.a:Lrs/q/b/d;
+      12: invokevirtual #7                  // Method rs/q/b/d.b:()V
+      15: iload_1
+      16: iconst_1
+      17: if_icmpne     26
+      20: getstatic     #4                  // Field rs/q/b/d.a:Lrs/q/b/d;
+      23: invokevirtual #6                  // Method rs/q/b/d.a:()V
+      26: return
+}

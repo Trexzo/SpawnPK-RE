@@ -1,0 +1,10 @@
+control_key	payload_schema	subsystem	semantic	confidence	notes
+10	int offset	BLOOD_FOUNTAIN_PERK_TREE	PERK_WIDGET_ACTIVATE_HIGHLIGHT	EXACT_CURRENT_BYTECODE	Adds offset to static base widget and calls a(widget,true).
+11	int offset	BLOOD_FOUNTAIN_PERK_TREE	PERK_WIDGET_SECONDARY_STATE	EXACT_CURRENT_BYTECODE	Adds offset to base widget and calls b(widget,false).
+12	int offset	BLOOD_FOUNTAIN_PERK_TREE	PERK_WIDGET_DEACTIVATE_UNHIGHLIGHT	EXACT_CURRENT_BYTECODE	Adds offset to base widget and calls a(widget,false).
+13	int,int,int,int	BLOOD_DIAMOND_FUSER	FUSER_SLOT_STATE	EXACT_CURRENT_BYTECODE	Four parsed ints passed unchanged to Blood Diamond Fuser controller; first two are slot/index + itemId-like values, remaining two deliberately left arg2/arg3.
+15	index1Based:int,itemId:int,quantity:int	BANK	DYNAMIC_BANK_TAB_ITEM_MUTATION	EXACT_CURRENT_BYTECODE	Converts index to zero-based and applies Client.d(index,itemId,qty).
+16	tabIndex1Based:int	BANK	BANK_TAB_SELECT_HIGHLIGHT	EXACT_CURRENT_BYTECODE	Converts to zero-based and calls Client.l(index); updates bank tab state.
+37	slot:int	BLOOD_POOL_SHOP	ADD_SHOP_SLOT	EXACT_CURRENT_BYTECODE	Appends to Client.ad; key1 RESET_BLOOD_POOL_SHOP_SLOTS clears same list.
+38	state:int	ENCHANTMENT_CHEST	RESULT_ANIMATION_STATE	EXACT_CURRENT_BYTECODE	Drives Preparing enchantment / success/fail result state in native Item Enchantment Chest.
+71	selectedIndex:int	ENCHANTMENT_CHEST	ITEM_RESULT_SELECTION_HIGHLIGHT	EXACT_CURRENT_BYTECODE	Selects one of 60 widgets 50254..50313; swaps selected/default sprites.

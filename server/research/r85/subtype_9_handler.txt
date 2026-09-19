@@ -1,0 +1,22 @@
+  public void a();
+    Code:
+       0: aload_0
+       1: invokevirtual #9                  // Method e:()I
+       4: istore_1
+       5: iload_1
+       6: ifne          17
+       9: getstatic     #6                  // Field rs/n/c/ag.d:Ljava/util/Set;
+      12: invokeinterface #12,  1           // InterfaceMethod java/util/Set.clear:()V
+      17: iload_1
+      18: iconst_1
+      19: if_icmpne     40
+      22: aload_0
+      23: invokevirtual #8                  // Method c:()I
+      26: istore_2
+      27: getstatic     #6                  // Field rs/n/c/ag.d:Ljava/util/Set;
+      30: iload_2
+      31: invokestatic  #7                  // Method java/lang/Integer.valueOf:(I)Ljava/lang/Integer;
+      34: invokeinterface #11,  2           // InterfaceMethod java/util/Set.add:(Ljava/lang/Object;)Z
+      39: pop
+      40: return
+}

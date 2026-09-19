@@ -1,0 +1,378 @@
+Compiled from "PetDefinitionRepository.java"
+final class spk.local.PetDefinitionRepository {
+  private static final java.util.Map<java.lang.Integer, spk.local.PetDefinitionRepository$Def> BY_ITEM;
+
+  private static final java.util.Map<java.lang.Integer, java.lang.String> AMBIGUOUS;
+
+  private spk.local.PetDefinitionRepository();
+    Code:
+       0: aload_0
+       1: invokespecial #1                  // Method java/lang/Object."<init>":()V
+       4: return
+
+  static spk.local.PetDefinitionRepository$Def get(int);
+    Code:
+       0: getstatic     #7                  // Field BY_ITEM:Ljava/util/Map;
+       3: iload_0
+       4: invokestatic  #13                 // Method java/lang/Integer.valueOf:(I)Ljava/lang/Integer;
+       7: invokeinterface #19,  2           // InterfaceMethod java/util/Map.get:(Ljava/lang/Object;)Ljava/lang/Object;
+      12: checkcast     #25                 // class spk/local/PetDefinitionRepository$Def
+      15: areturn
+
+  static boolean isMapped(int);
+    Code:
+       0: getstatic     #7                  // Field BY_ITEM:Ljava/util/Map;
+       3: iload_0
+       4: invokestatic  #13                 // Method java/lang/Integer.valueOf:(I)Ljava/lang/Integer;
+       7: invokeinterface #27,  2           // InterfaceMethod java/util/Map.containsKey:(Ljava/lang/Object;)Z
+      12: ireturn
+
+  static boolean isAmbiguous(int);
+    Code:
+       0: getstatic     #31                 // Field AMBIGUOUS:Ljava/util/Map;
+       3: iload_0
+       4: invokestatic  #13                 // Method java/lang/Integer.valueOf:(I)Ljava/lang/Integer;
+       7: invokeinterface #27,  2           // InterfaceMethod java/util/Map.containsKey:(Ljava/lang/Object;)Z
+      12: ireturn
+
+  static java.lang.String ambiguousEvidence(int);
+    Code:
+       0: getstatic     #31                 // Field AMBIGUOUS:Ljava/util/Map;
+       3: iload_0
+       4: invokestatic  #13                 // Method java/lang/Integer.valueOf:(I)Ljava/lang/Integer;
+       7: invokeinterface #19,  2           // InterfaceMethod java/util/Map.get:(Ljava/lang/Object;)Ljava/lang/Object;
+      12: checkcast     #34                 // class java/lang/String
+      15: areturn
+
+  static int count();
+    Code:
+       0: getstatic     #7                  // Field BY_ITEM:Ljava/util/Map;
+       3: invokeinterface #36,  1           // InterfaceMethod java/util/Map.size:()I
+       8: ireturn
+
+  static int ambiguousCount();
+    Code:
+       0: getstatic     #31                 // Field AMBIGUOUS:Ljava/util/Map;
+       3: invokeinterface #36,  1           // InterfaceMethod java/util/Map.size:()I
+       8: ireturn
+
+  static java.util.Collection<spk.local.PetDefinitionRepository$Def> all();
+    Code:
+       0: getstatic     #7                  // Field BY_ITEM:Ljava/util/Map;
+       3: invokeinterface #40,  1           // InterfaceMethod java/util/Map.values:()Ljava/util/Collection;
+       8: invokestatic  #44                 // Method java/util/Collections.unmodifiableCollection:(Ljava/util/Collection;)Ljava/util/Collection;
+      11: areturn
+
+  private static java.nio.file.Path resolveData(java.lang.String) throws java.io.IOException;
+    Code:
+       0: ldc           #50                 // String server
+       2: iconst_2
+       3: anewarray     #34                 // class java/lang/String
+       6: dup
+       7: iconst_0
+       8: ldc           #52                 // String data
+      10: aastore
+      11: dup
+      12: iconst_1
+      13: aload_0
+      14: aastore
+      15: invokestatic  #54                 // Method java/nio/file/Paths.get:(Ljava/lang/String;[Ljava/lang/String;)Ljava/nio/file/Path;
+      18: astore_1
+      19: aload_1
+      20: iconst_0
+      21: anewarray     #59                 // class java/nio/file/LinkOption
+      24: invokestatic  #61                 // Method java/nio/file/Files.isRegularFile:(Ljava/nio/file/Path;[Ljava/nio/file/LinkOption;)Z
+      27: ifeq          32
+      30: aload_1
+      31: areturn
+      32: ldc           #52                 // String data
+      34: iconst_1
+      35: anewarray     #34                 // class java/lang/String
+      38: dup
+      39: iconst_0
+      40: aload_0
+      41: aastore
+      42: invokestatic  #54                 // Method java/nio/file/Paths.get:(Ljava/lang/String;[Ljava/lang/String;)Ljava/nio/file/Path;
+      45: astore_1
+      46: aload_1
+      47: iconst_0
+      48: anewarray     #59                 // class java/nio/file/LinkOption
+      51: invokestatic  #61                 // Method java/nio/file/Files.isRegularFile:(Ljava/nio/file/Path;[Ljava/nio/file/LinkOption;)Z
+      54: ifeq          59
+      57: aload_1
+      58: areturn
+      59: ldc           #8                  // class spk/local/PetDefinitionRepository
+      61: aload_0
+      62: invokedynamic #67,  0             // InvokeDynamic #0:makeConcatWithConstants:(Ljava/lang/String;)Ljava/lang/String;
+      67: invokevirtual #71                 // Method java/lang/Class.getResourceAsStream:(Ljava/lang/String;)Ljava/io/InputStream;
+      70: astore_2
+      71: aload_2
+      72: ifnull        129
+      75: aload_0
+      76: bipush        46
+      78: bipush        45
+      80: invokevirtual #77                 // Method java/lang/String.replace:(CC)Ljava/lang/String;
+      83: invokedynamic #81,  0             // InvokeDynamic #1:makeConcatWithConstants:(Ljava/lang/String;)Ljava/lang/String;
+      88: ldc           #82                 // String .tmp
+      90: iconst_0
+      91: anewarray     #84                 // class java/nio/file/attribute/FileAttribute
+      94: invokestatic  #86                 // Method java/nio/file/Files.createTempFile:(Ljava/lang/String;Ljava/lang/String;[Ljava/nio/file/attribute/FileAttribute;)Ljava/nio/file/Path;
+      97: astore_3
+      98: aload_2
+      99: aload_3
+     100: iconst_1
+     101: anewarray     #90                 // class java/nio/file/CopyOption
+     104: dup
+     105: iconst_0
+     106: getstatic     #92                 // Field java/nio/file/StandardCopyOption.REPLACE_EXISTING:Ljava/nio/file/StandardCopyOption;
+     109: aastore
+     110: invokestatic  #98                 // Method java/nio/file/Files.copy:(Ljava/io/InputStream;Ljava/nio/file/Path;[Ljava/nio/file/CopyOption;)J
+     113: pop2
+     114: aload_2
+     115: invokevirtual #102                // Method java/io/InputStream.close:()V
+     118: aload_3
+     119: invokeinterface #107,  1          // InterfaceMethod java/nio/file/Path.toFile:()Ljava/io/File;
+     124: invokevirtual #113                // Method java/io/File.deleteOnExit:()V
+     127: aload_3
+     128: areturn
+     129: new           #118                // class java/io/FileNotFoundException
+     132: dup
+     133: aload_0
+     134: invokespecial #120                // Method java/io/FileNotFoundException."<init>":(Ljava/lang/String;)V
+     137: athrow
+
+  private static void loadMappings(java.nio.file.Path) throws java.io.IOException;
+    Code:
+       0: aload_0
+       1: getstatic     #123                // Field java/nio/charset/StandardCharsets.UTF_8:Ljava/nio/charset/Charset;
+       4: invokestatic  #129                // Method java/nio/file/Files.newBufferedReader:(Ljava/nio/file/Path;Ljava/nio/charset/Charset;)Ljava/io/BufferedReader;
+       7: astore_1
+       8: aload_1
+       9: invokevirtual #133                // Method java/io/BufferedReader.readLine:()Ljava/lang/String;
+      12: astore_2
+      13: aload_1
+      14: invokevirtual #133                // Method java/io/BufferedReader.readLine:()Ljava/lang/String;
+      17: dup
+      18: astore_2
+      19: ifnull        178
+      22: aload_2
+      23: invokevirtual #139                // Method java/lang/String.isBlank:()Z
+      26: ifeq          32
+      29: goto          13
+      32: aload_2
+      33: ldc           #143                // String \\t
+      35: iconst_m1
+      36: invokevirtual #145                // Method java/lang/String.split:(Ljava/lang/String;I)[Ljava/lang/String;
+      39: astore_3
+      40: aload_3
+      41: arraylength
+      42: bipush        12
+      44: if_icmpge     61
+      47: new           #149                // class java/io/IOException
+      50: dup
+      51: aload_2
+      52: invokedynamic #151,  0            // InvokeDynamic #2:makeConcatWithConstants:(Ljava/lang/String;)Ljava/lang/String;
+      57: invokespecial #152                // Method java/io/IOException."<init>":(Ljava/lang/String;)V
+      60: athrow
+      61: new           #25                 // class spk/local/PetDefinitionRepository$Def
+      64: dup
+      65: aload_3
+      66: iconst_0
+      67: aaload
+      68: invokestatic  #153                // Method pi:(Ljava/lang/String;)I
+      71: aload_3
+      72: iconst_1
+      73: aaload
+      74: invokestatic  #153                // Method pi:(Ljava/lang/String;)I
+      77: aload_3
+      78: iconst_2
+      79: aaload
+      80: aload_3
+      81: iconst_3
+      82: aaload
+      83: aload_3
+      84: iconst_4
+      85: aaload
+      86: invokestatic  #153                // Method pi:(Ljava/lang/String;)I
+      89: aload_3
+      90: iconst_5
+      91: aaload
+      92: invokestatic  #153                // Method pi:(Ljava/lang/String;)I
+      95: aload_3
+      96: bipush        6
+      98: aaload
+      99: invokestatic  #153                // Method pi:(Ljava/lang/String;)I
+     102: aload_3
+     103: bipush        7
+     105: aaload
+     106: invokestatic  #153                // Method pi:(Ljava/lang/String;)I
+     109: aload_3
+     110: bipush        8
+     112: aaload
+     113: invokestatic  #153                // Method pi:(Ljava/lang/String;)I
+     116: aload_3
+     117: bipush        9
+     119: aaload
+     120: invokestatic  #153                // Method pi:(Ljava/lang/String;)I
+     123: aload_3
+     124: bipush        10
+     126: aaload
+     127: aload_3
+     128: bipush        11
+     130: aaload
+     131: invokespecial #157                // Method spk/local/PetDefinitionRepository$Def."<init>":(IILjava/lang/String;Ljava/lang/String;IIIIIILjava/lang/String;Ljava/lang/String;)V
+     134: astore        4
+     136: getstatic     #7                  // Field BY_ITEM:Ljava/util/Map;
+     139: aload         4
+     141: getfield      #160                // Field spk/local/PetDefinitionRepository$Def.itemId:I
+     144: invokestatic  #13                 // Method java/lang/Integer.valueOf:(I)Ljava/lang/Integer;
+     147: aload         4
+     149: invokeinterface #164,  3          // InterfaceMethod java/util/Map.put:(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;
+     154: ifnull        175
+     157: new           #149                // class java/io/IOException
+     160: dup
+     161: aload         4
+     163: getfield      #160                // Field spk/local/PetDefinitionRepository$Def.itemId:I
+     166: invokedynamic #168,  0            // InvokeDynamic #3:makeConcatWithConstants:(I)Ljava/lang/String;
+     171: invokespecial #152                // Method java/io/IOException."<init>":(Ljava/lang/String;)V
+     174: athrow
+     175: goto          13
+     178: aload_1
+     179: ifnull        209
+     182: aload_1
+     183: invokevirtual #171                // Method java/io/BufferedReader.close:()V
+     186: goto          209
+     189: astore_2
+     190: aload_1
+     191: ifnull        207
+     194: aload_1
+     195: invokevirtual #171                // Method java/io/BufferedReader.close:()V
+     198: goto          207
+     201: astore_3
+     202: aload_2
+     203: aload_3
+     204: invokevirtual #174                // Method java/lang/Throwable.addSuppressed:(Ljava/lang/Throwable;)V
+     207: aload_2
+     208: athrow
+     209: return
+    Exception table:
+       from    to  target type
+           8   178   189   Class java/lang/Throwable
+         194   198   201   Class java/lang/Throwable
+
+  private static void loadAmbiguous(java.nio.file.Path) throws java.io.IOException;
+    Code:
+       0: aload_0
+       1: getstatic     #123                // Field java/nio/charset/StandardCharsets.UTF_8:Ljava/nio/charset/Charset;
+       4: invokestatic  #129                // Method java/nio/file/Files.newBufferedReader:(Ljava/nio/file/Path;Ljava/nio/charset/Charset;)Ljava/io/BufferedReader;
+       7: astore_1
+       8: aload_1
+       9: invokevirtual #133                // Method java/io/BufferedReader.readLine:()Ljava/lang/String;
+      12: astore_2
+      13: aload_1
+      14: invokevirtual #133                // Method java/io/BufferedReader.readLine:()Ljava/lang/String;
+      17: dup
+      18: astore_2
+      19: ifnull        101
+      22: aload_2
+      23: invokevirtual #139                // Method java/lang/String.isBlank:()Z
+      26: ifeq          32
+      29: goto          13
+      32: aload_2
+      33: ldc           #143                // String \\t
+      35: iconst_m1
+      36: invokevirtual #145                // Method java/lang/String.split:(Ljava/lang/String;I)[Ljava/lang/String;
+      39: astore_3
+      40: aload_3
+      41: arraylength
+      42: iconst_5
+      43: if_icmpge     60
+      46: new           #149                // class java/io/IOException
+      49: dup
+      50: aload_2
+      51: invokedynamic #178,  0            // InvokeDynamic #4:makeConcatWithConstants:(Ljava/lang/String;)Ljava/lang/String;
+      56: invokespecial #152                // Method java/io/IOException."<init>":(Ljava/lang/String;)V
+      59: athrow
+      60: getstatic     #31                 // Field AMBIGUOUS:Ljava/util/Map;
+      63: aload_3
+      64: iconst_0
+      65: aaload
+      66: invokestatic  #153                // Method pi:(Ljava/lang/String;)I
+      69: invokestatic  #13                 // Method java/lang/Integer.valueOf:(I)Ljava/lang/Integer;
+      72: aload_3
+      73: iconst_0
+      74: aaload
+      75: aload_3
+      76: iconst_1
+      77: aaload
+      78: aload_3
+      79: iconst_2
+      80: aaload
+      81: aload_3
+      82: iconst_3
+      83: aaload
+      84: aload_3
+      85: iconst_4
+      86: aaload
+      87: invokedynamic #179,  0            // InvokeDynamic #5:makeConcatWithConstants:(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;
+      92: invokeinterface #164,  3          // InterfaceMethod java/util/Map.put:(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;
+      97: pop
+      98: goto          13
+     101: aload_1
+     102: ifnull        132
+     105: aload_1
+     106: invokevirtual #171                // Method java/io/BufferedReader.close:()V
+     109: goto          132
+     112: astore_2
+     113: aload_1
+     114: ifnull        130
+     117: aload_1
+     118: invokevirtual #171                // Method java/io/BufferedReader.close:()V
+     121: goto          130
+     124: astore_3
+     125: aload_2
+     126: aload_3
+     127: invokevirtual #174                // Method java/lang/Throwable.addSuppressed:(Ljava/lang/Throwable;)V
+     130: aload_2
+     131: athrow
+     132: return
+    Exception table:
+       from    to  target type
+           8   101   112   Class java/lang/Throwable
+         117   121   124   Class java/lang/Throwable
+
+  private static int pi(java.lang.String);
+    Code:
+       0: aload_0
+       1: invokevirtual #182                // Method java/lang/String.trim:()Ljava/lang/String;
+       4: invokestatic  #185                // Method java/lang/Integer.parseInt:(Ljava/lang/String;)I
+       7: ireturn
+
+  static {};
+    Code:
+       0: new           #188                // class java/util/LinkedHashMap
+       3: dup
+       4: invokespecial #190                // Method java/util/LinkedHashMap."<init>":()V
+       7: putstatic     #7                  // Field BY_ITEM:Ljava/util/Map;
+      10: new           #188                // class java/util/LinkedHashMap
+      13: dup
+      14: invokespecial #190                // Method java/util/LinkedHashMap."<init>":()V
+      17: putstatic     #31                 // Field AMBIGUOUS:Ljava/util/Map;
+      20: ldc           #191                // String pet_mappings.tsv
+      22: invokestatic  #193                // Method resolveData:(Ljava/lang/String;)Ljava/nio/file/Path;
+      25: invokestatic  #197                // Method loadMappings:(Ljava/nio/file/Path;)V
+      28: ldc           #201                // String pet_ambiguous.tsv
+      30: invokestatic  #193                // Method resolveData:(Ljava/lang/String;)Ljava/nio/file/Path;
+      33: invokestatic  #203                // Method loadAmbiguous:(Ljava/nio/file/Path;)V
+      36: goto          49
+      39: astore_0
+      40: new           #206                // class java/lang/ExceptionInInitializerError
+      43: dup
+      44: aload_0
+      45: invokespecial #208                // Method java/lang/ExceptionInInitializerError."<init>":(Ljava/lang/Throwable;)V
+      48: athrow
+      49: return
+    Exception table:
+       from    to  target type
+          20    36    39   Class java/io/IOException
+}

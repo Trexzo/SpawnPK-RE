@@ -1,0 +1,37 @@
+key	value	provenance
+client_revision	v150	EXACT_CLIENT_TRANSCRIPT
+maya_configured_sequences	107	R6 transcript
+maya_unique_keyframe_archives	105	R6 transcript
+maya_parsed_420_signature	105/105	R6 transcript
+maya_exact_skeleton_families	28	R6 transcript
+maya_channels	0-2 rotXYZ;3-5 transXYZ;6-8 scaleXYZ	R6 transcript
+maya_side_channel_e_used	67	R6 transcript
+maya_side_channel_e_unused	38	R6 transcript
+maya_models_in_definition_edges	43	R6 transcript
+maya_bone_bound_models	39	R6 transcript
+maya_static_components	4	R6 transcript
+maya_observed_bound_edges	95	R6 transcript
+maya_out_of_range_bone_indices	0	R6 transcript
+maya_same_skeleton_combinations	259	R6 transcript
+maya_observed_combinations	75	R6 transcript
+maya_rig_compatible_candidates	184	R6 transcript; semantic correctness NOT proven
+object_defs_standard	27283	R7 transcript
+object_defs_oldschool	43085	R7 transcript
+object_defs_new	62353	R7 transcript
+object_defs_osrs_config	60661	R7 transcript
+o_bin_live_overrides	292	R7 transcript
+standard_hardcoded_model_changes	29	R7 transcript
+standard_effective_changed_objects	31	R7 transcript
+standard_effective_model_refs	34195	R7 transcript
+standard_effective_unique_models	14648	R7 transcript
+expanded_definition_model_refs	120098	R7 transcript
+expanded_unique_models	28907	R7 transcript
+standard_raw_unique_models	397	R7 transcript
+standard_raw_only_dependencies	0	R7 transcript
+oldschool_hardcoded_region_entries	240	R7 transcript
+oldschool_unique_regions	222	R7 transcript
+oldschool_raw_only_model_ids	250	R7 transcript; potential not placement-certified
+oldschool_raw_only_object_refs	371	R7 transcript; potential not placement-certified
+oldschool_map_index_regions_after_precedence	55	R7 transcript
+raw_version_in_exact_client	absent	R7 transcript
+launcher_raw_version_boundary	SPK.jar or legacy/unused	R7 transcript; unresolved

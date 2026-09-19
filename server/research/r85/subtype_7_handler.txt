@@ -1,0 +1,179 @@
+  public void a();
+    Code:
+       0: aload_0
+       1: getfield      #22                 // Field e:Lrs/l/f/a/c/a;
+       4: ifnull        17
+       7: aload_0
+       8: getfield      #22                 // Field e:Lrs/l/f/a/c/a;
+      11: invokevirtual #27                 // Method rs/l/f/a/c/a.M:()Z
+      14: ifeq          50
+      17: aload_0
+      18: new           #9                  // class rs/l/f/a/c/a
+      21: dup
+      22: aload_0
+      23: getfield      #21                 // Field d:Lrs/e/i;
+      26: ldc           #13                 // class rs/s/a/a
+      28: invokevirtual #24                 // Method rs/e/i.a:(Ljava/lang/Class;)Lrs/e/b;
+      31: checkcast     #13                 // class rs/s/a/a
+      34: invokespecial #25                 // Method rs/l/f/a/c/a."<init>":(Lrs/s/a/a;)V
+      37: putfield      #22                 // Field e:Lrs/l/f/a/c/a;
+      40: invokestatic  #33                 // Method rs/l/f/e.d:()Lrs/l/f/e;
+      43: aload_0
+      44: getfield      #22                 // Field e:Lrs/l/f/a/c/a;
+      47: invokevirtual #32                 // Method rs/l/f/e.a:(Lrs/l/f/b;)V
+      50: aload_0
+      51: invokevirtual #29                 // Method e:()I
+      54: istore_1
+      55: iload_1
+      56: iconst_1
+      57: if_icmpne     90
+      60: aload_0
+      61: getfield      #22                 // Field e:Lrs/l/f/a/c/a;
+      64: invokevirtual #26                 // Method rs/l/f/a/c/a.L:()V
+      67: aload_0
+      68: getfield      #22                 // Field e:Lrs/l/f/a/c/a;
+      71: aload_0
+      72: invokevirtual #29                 // Method e:()I
+      75: iconst_1
+      76: if_icmpne     83
+      79: iconst_1
+      80: goto          84
+      83: iconst_0
+      84: invokevirtual #28                 // Method rs/l/f/a/c/a.k:(Z)V
+      87: goto          360
+      90: iload_1
+      91: iconst_2
+      92: if_icmpne     120
+      95: aload_0
+      96: getfield      #22                 // Field e:Lrs/l/f/a/c/a;
+      99: aload_0
+     100: invokevirtual #30                 // Method g:()I
+     103: putfield      #15                 // Field rs/l/f/a/c/a.s:I
+     106: aload_0
+     107: getfield      #22                 // Field e:Lrs/l/f/a/c/a;
+     110: aload_0
+     111: invokevirtual #30                 // Method g:()I
+     114: putfield      #16                 // Field rs/l/f/a/c/a.t:I
+     117: goto          360
+     120: iload_1
+     121: iconst_4
+     122: if_icmpne     227
+     125: aload_0
+     126: invokevirtual #30                 // Method g:()I
+     129: istore_2
+     130: aload_0
+     131: invokevirtual #30                 // Method g:()I
+     134: istore_3
+     135: iload_2
+     136: iload_3
+     137: if_icmpne     152
+     140: aload_0
+     141: getfield      #22                 // Field e:Lrs/l/f/a/c/a;
+     144: bipush        100
+     146: putfield      #14                 // Field rs/l/f/a/c/a.r:I
+     149: goto          183
+     152: iload_2
+     153: ifne          167
+     156: aload_0
+     157: getfield      #22                 // Field e:Lrs/l/f/a/c/a;
+     160: iconst_0
+     161: putfield      #14                 // Field rs/l/f/a/c/a.r:I
+     164: goto          183
+     167: aload_0
+     168: getfield      #22                 // Field e:Lrs/l/f/a/c/a;
+     171: iload_2
+     172: i2f
+     173: iload_3
+     174: i2f
+     175: fdiv
+     176: ldc           #1                  // float 100.0f
+     178: fmul
+     179: f2i
+     180: putfield      #14                 // Field rs/l/f/a/c/a.r:I
+     183: aload_0
+     184: getfield      #22                 // Field e:Lrs/l/f/a/c/a;
+     187: iload_2
+     188: iload_3
+     189: aload_0
+     190: getfield      #22                 // Field e:Lrs/l/f/a/c/a;
+     193: getfield      #14                 // Field rs/l/f/a/c/a.r:I
+     196: invokedynamic #35,  0             // InvokeDynamic #0:makeConcatWithConstants:(III)Ljava/lang/String;
+     201: putfield      #17                 // Field rs/l/f/a/c/a.u:Ljava/lang/String;
+     204: aload_0
+     205: getfield      #22                 // Field e:Lrs/l/f/a/c/a;
+     208: iload_2
+     209: aload_0
+     210: getfield      #22                 // Field e:Lrs/l/f/a/c/a;
+     213: getfield      #14                 // Field rs/l/f/a/c/a.r:I
+     216: invokedynamic #36,  0             // InvokeDynamic #1:makeConcatWithConstants:(II)Ljava/lang/String;
+     221: putfield      #18                 // Field rs/l/f/a/c/a.v:Ljava/lang/String;
+     224: goto          360
+     227: iload_1
+     228: iconst_5
+     229: if_icmpne     246
+     232: aload_0
+     233: getfield      #22                 // Field e:Lrs/l/f/a/c/a;
+     236: aload_0
+     237: invokevirtual #31                 // Method h:()Ljava/lang/String;
+     240: putfield      #19                 // Field rs/l/f/a/c/a.w:Ljava/lang/String;
+     243: goto          360
+     246: iload_1
+     247: bipush        6
+     249: if_icmpne     273
+     252: aload_0
+     253: invokevirtual #30                 // Method g:()I
+     256: istore_2
+     257: aload_0
+     258: getfield      #22                 // Field e:Lrs/l/f/a/c/a;
+     261: iload_2
+     262: invokedynamic #37,  0             // InvokeDynamic #2:makeConcatWithConstants:(I)Ljava/lang/String;
+     267: putfield      #20                 // Field rs/l/f/a/c/a.x:Ljava/lang/String;
+     270: goto          360
+     273: iload_1
+     274: bipush        7
+     276: if_icmpne     360
+     279: aload_0
+     280: invokevirtual #30                 // Method g:()I
+     283: istore_2
+     284: aload_0
+     285: invokevirtual #30                 // Method g:()I
+     288: istore_3
+     289: iload_2
+     290: iload_3
+     291: if_icmpne     306
+     294: aload_0
+     295: getfield      #22                 // Field e:Lrs/l/f/a/c/a;
+     298: bipush        100
+     300: putfield      #14                 // Field rs/l/f/a/c/a.r:I
+     303: goto          337
+     306: iload_2
+     307: ifne          321
+     310: aload_0
+     311: getfield      #22                 // Field e:Lrs/l/f/a/c/a;
+     314: iconst_0
+     315: putfield      #14                 // Field rs/l/f/a/c/a.r:I
+     318: goto          337
+     321: aload_0
+     322: getfield      #22                 // Field e:Lrs/l/f/a/c/a;
+     325: iload_2
+     326: i2f
+     327: iload_3
+     328: i2f
+     329: fdiv
+     330: ldc           #1                  // float 100.0f
+     332: fmul
+     333: f2i
+     334: putfield      #14                 // Field rs/l/f/a/c/a.r:I
+     337: aload_0
+     338: invokevirtual #31                 // Method h:()Ljava/lang/String;
+     341: astore        4
+     343: aload_0
+     344: getfield      #22                 // Field e:Lrs/l/f/a/c/a;
+     347: aload_0
+     348: getfield      #22                 // Field e:Lrs/l/f/a/c/a;
+     351: aload         4
+     353: dup_x1
+     354: putfield      #18                 // Field rs/l/f/a/c/a.v:Ljava/lang/String;
+     357: putfield      #17                 // Field rs/l/f/a/c/a.u:Ljava/lang/String;
+     360: return
+}

@@ -1,0 +1,69 @@
+index	region_id	region_x	region_y	world_x0	world_y0	world_x1	world_y1	map_archive	land_archive	osrs	name	group	osid	force_roofs	base_index	m_bin	hardcoded	provenance	duplicate_region_id_count
+364	10057	39	73	2496	4672	2559	4735	708	709	False		mage_bank		False	True	True	False	BASE+M_BIN	1
+632	11166	43	158	2752	10112	2815	10175	1086	1087	False		vintage_dungeon_exit		False	True	True	False	BASE+M_BIN	1
+878	11601	45	81	2880	5184	2943	5247	3474	3475	False		nex_lair		False	True	True	True	BASE+M_BIN+HARDCODE	1
+919	12611	49	67	3136	4288	3199	4351	3423	3424	True	tob_verzik	tob_verzik	12611	False	True	True	False	BASE+M_BIN	1
+937	12693	49	149	3136	9536	3199	9599	1866	1867	True		vintage_dungeon	12693	False	True	True	False	BASE+M_BIN	1
+968	12867	50	67	3200	4288	3263	4351	4965	4966	True	tob_reward	tob_reward	12867	False	True	True	False	BASE+M_BIN	1
+969	12869	50	69	3200	4416	3263	4479	1116	1117	True	tob_maiden	tob_maiden	12869	False	True	True	False	BASE+M_BIN	1
+978	12889	50	89	3200	5696	3263	5759	759	760	True	Xeric olm	xeric	12889	True	True	True	False	BASE+M_BIN	1
+982	12946	50	146	3200	9344	3263	9407	1194	1195	False	Blood slayer cave	bs_cave		False	True	True	False	BASE+M_BIN	1
+985	12949	50	149	3200	9536	3263	9599	3681	3682	True	Vintage dungeon 2	vintage_dungeon	12949	False	True	True	False	BASE+M_BIN	1
+1019	13131	51	75	3264	4800	3327	4863	1894	1895	False		white_portal		False	True	True	True	BASE+M_BIN+HARDCODE	1
+1022	13138	51	82	3264	5248	3327	5311	768	769	True	Xeric	xeric	13138	True	True	True	False	BASE+M_BIN	1
+1023	13140	51	84	3264	5376	3327	5439	5478	5479	True	Xeric	xeric	13140	True	True	True	False	BASE+M_BIN	1
+1024	13141	51	85	3264	5440	3327	5503	2193	2194	True	Xeric	xeric	13141	True	True	True	False	BASE+M_BIN	1
+1033	13202	51	146	3264	9344	3327	9407	1196	1197	False	Blood slayer cave	bs_cave		False	True	True	False	BASE+M_BIN	1
+1064	13386	52	74	3328	4736	3391	4799	1912	1913	False		white_portal		False	True	True	True	BASE+M_BIN+HARDCODE	1
+1065	13387	52	75	3328	4800	3391	4863	1880	1881	False		white_portal		False	True	True	True	BASE+M_BIN+HARDCODE	1
+1066	13393	52	81	3328	5184	3391	5247	408	409	True	Xeric	xeric	13393	True	True	True	False	BASE+M_BIN	1
+1226	13130	51	74	3264	4736	3327	4799	1900	1901	False		white_portal		False	False	True	True	M_BIN+HARDCODE	1
+1268	13397	52	85	3328	5440	3391	5503	2553	2554	True	Xeric	xeric	13397	True	False	True	False	M_BIN	1
+1269	13137	51	81	3264	5184	3327	5247	4335	4336	True	Xeric	xeric	13137	True	False	True	False	M_BIN	1
+1270	13139	51	83	3264	5312	3327	5375	2388	2389	True	Xeric	xeric	13139	True	False	True	False	M_BIN	1
+1271	13395	52	83	3328	5312	3391	5375	4791	4792	True	Xeric	xeric	13395	True	False	True	False	M_BIN	1
+1272	13394	52	82	3328	5248	3391	5311	3531	3532	True	Xeric	xeric	13394	True	False	True	False	M_BIN	1
+1291	12612	49	68	3136	4352	3199	4415	3633	3634	True	tob_xarpus	tob_xarpus	12612	False	False	True	False	M_BIN	1
+1292	12613	49	69	3136	4416	3199	4479	4410	4411	True	tob_maiden	tob_maiden	12613	False	False	True	False	M_BIN	1
+1374	13122	51	66	3264	4224	3327	4287	1932	1933	True	tob_nylocas	tob_nylocas	13122	False	False	True	False	M_BIN	1
+1376	13125	51	69	3264	4416	3327	4479	228	229	True	tob_bloat	tob_bloat	13125	False	False	True	False	M_BIN	1
+2000	16168	63	40	4032	2560	4095	2623	6348	6349	True	Vetion's Rest	vetion	13215	False	False	True	False	M_BIN	1
+2001	16170	63	42	4032	2688	4095	2751	6333	6334	True	Silk chasm	venenatis	13727	False	False	True	False	M_BIN	1
+2002	16172	63	44	4032	2816	4095	2879	6336	6337	True	Callisto's den	callisto	13473	False	False	True	False	M_BIN	1
+2003	13644	53	76	3392	4864	3455	4927	3474	3475	True	cwars1	clan_wars_1	13644	False	False	True	False	M_BIN	1
+2004	13645	53	77	3392	4928	3455	4991	5649	5650	True	cwars2	clan_wars_2	13645	False	False	True	False	M_BIN	1
+2005	12621	49	77	3136	4928	3199	4991	2406	2407	True	cwars3	clan_wars_3	12621	False	False	True	False	M_BIN	1
+2006	12622	49	78	3136	4992	3199	5055	1906	1907	False	cwars4a	clan_wars_4		False	False	True	False	M_BIN	1
+2007	12623	49	79	3136	5056	3199	5119	1898	1899	False	cwars4b	clan_wars_4		False	False	True	False	M_BIN	1
+2008	13647	53	79	3392	5056	3455	5119	4671	4672	True	cwars5	clan_wars_5	13647	False	False	True	False	M_BIN	1
+2009	13646	53	78	3392	4992	3455	5055	6147	6148	True	cwars6	clan_wars_6	13646	False	False	True	False	M_BIN	1
+2010	13133	51	77	3264	4928	3327	4991	513	514	True	cwars7	clan_wars_7	13133	False	False	True	False	M_BIN	1
+2011	13641	53	73	3392	4672	3455	4735	1851	1852	True	cwars8a	clan_wars_8	13641	False	False	True	False	M_BIN	1
+2012	13642	53	74	3392	4736	3455	4799	3435	3436	True	cwars8b	clan_wars_8	13642	False	False	True	False	M_BIN	1
+2013	12624	49	80	3136	5120	3199	5183	-1	-1	True				False	False	True	False	M_BIN	1
+2014	15911	62	39	3968	2496	4031	2559	6330	6331	True	Escape cave	esc_cave	13472	False	False	True	False	M_BIN	1
+2015	16174	63	46	4032	2944	4095	3007	2379	2380	True	Cosmic Dzone	cosmic_zone	12895	False	False	True	False	M_BIN	1
+2016	16176	63	48	4032	3072	4095	3135	5700	5701	True	Mythic Dzone	mythic_zone	9012	False	False	True	False	M_BIN	1
+2017	16175	63	47	4032	3008	4095	3071	3276	3277	True	Mythic Dzone	mythic_zone	9011	False	False	True	False	M_BIN	1
+2018	16177	63	49	4032	3136	4095	3199	1812	1813	True	Regular Dzone	dzone	-1	False	False	True	False	M_BIN	1
+2019	16178	63	50	4032	3200	4095	3263	1824	1825	True	Elite Dzone	ezone	-1	False	False	True	False	M_BIN	1
+2020	16179	63	51	4032	3264	4095	3327	10000	10001	True	VIP Dzone	vipzone	-1	False	False	True	False	M_BIN	1
+2021	16180	63	52	4032	3328	4095	3391	3524	3525	True	Sponsor Dzone	sponsorzone	-1	False	False	True	False	M_BIN	1
+2022	16181	63	53	4032	3392	4095	3455	10002	10003	True	Vote boss	votelair	-1	False	False	True	False	M_BIN	1
+2023	16183	63	55	4032	3520	4095	3583	1398	1399	True	Mimic lair	mimic_lair	10819	False	False	True	False	M_BIN	1
+2024	16185	63	57	4032	3648	4095	3711	10004	10005	True	Gamble	gamble	10819	False	False	True	False	M_BIN	1
+2025	16187	63	59	4032	3776	4095	3839	1398	1399	True	Cursed lair	c_mimic_lair		False	False	True	False	M_BIN	1
+2026	16189	63	61	4032	3904	4095	3967	1398	1399	True	Cursed lobby	c_mimic_lobby		False	False	True	False	M_BIN	1
+2027	16191	63	63	4032	4032	4095	4095	6036	6037	True	Falador chunk	osrs_falador	12085	False	False	True	False	M_BIN	1
+2028	16190	63	62	4032	3968	4095	4031	540	541	True	Falador chunk	osrs_falador	12084	False	False	True	False	M_BIN	1
+2029	16447	64	63	4096	4032	4159	4095	4695	4696	True	Falador chunk	osrs_falador	12341	False	False	True	False	M_BIN	1
+2030	16446	64	62	4096	3968	4159	4031	204	205	True	Falador chunk	osrs_falador	12340	False	False	True	False	M_BIN	1
+2031	16193	63	65	4032	4160	4095	4223	2859	2860	True	araxxor_lair	araxxor_lair	14489	False	False	True	False	M_BIN	1
+2096	16226	63	98	4032	6272	4095	6335	1626	1627	True	toa_lobby1	toa_lobby1	14160	False	False	True	False	M_BIN	1
+2097	16224	63	96	4032	6144	4095	6207	381	382	True	toa_akkha	toa_akkha	14676	False	False	True	False	M_BIN	1
+2098	16228	63	100	4032	6400	4095	6463	3717	3718	True	toa_baba	toa_baba	15188	False	False	True	False	M_BIN	1
+2099	16230	63	102	4032	6528	4095	6591	5829	5830	True	toa_kephri	toa_kephri	14164	False	False	True	False	M_BIN	1
+2100	16232	63	104	4032	6656	4095	6719	1386	1387	True	toa_zebak	toa_zebak	15700	False	False	True	False	M_BIN	1
+2101	16234	63	106	4032	6784	4095	6847	927	928	True	toa_eldinis	toa_eldinis	15184	False	False	True	False	M_BIN	1
+2102	16236	63	108	4032	6912	4095	6975	6210	6211	True	toa_tumeken	toa_tumeken	15696	False	False	True	False	M_BIN	1
+2103	16238	63	110	4032	7040	4095	7103	1209	1210	True	toa_reward	toa_reward	14672	False	False	True	False	M_BIN	1

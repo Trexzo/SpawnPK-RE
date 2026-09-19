@@ -1,0 +1,10 @@
+﻿SpawnPK LocalLab Git import
+Source=C:\Users\Felix\Desktop\SpawnPK-LocalLab-v0.1
+ImportedServerSHA256=589635cef6244f1282aee487fdb0649150ded5b60bdc7e3fefd28bba8a86372c
+Source untouched=true
+
+File count:
+809
+
+Total MB:
+35.53

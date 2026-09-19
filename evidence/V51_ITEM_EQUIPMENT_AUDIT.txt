@@ -1,0 +1,46 @@
+V51 ITEM + EQUIPMENT STATIC DOUBLE-BACK
+
+ITEM CATALOG
+- rows: 28673
+- unique ids: 28673
+- id range: 0..29999
+- native Spawn Tab -> opcode103 tabitem -> generic Inventory[28] remains intact
+- generic item spawn/bank lifecycle regression retained
+- item-specific mechanics remain outside the catalog layer by design
+
+EQUIPMENT DEFECTS FOUND IN RELEASED V5
+1. isWieldableWeapon() accepted any inherited Wield action as weapon slot 3.
+2. current custom catalog contains 347 explicit Wield rows, including non-weapon oddities such as:
+   21026 Infernal max cape |Wield|Split||Drop
+   therefore Wield != authoritative weapon-slot metadata.
+3. v5 packet serializer special-cased only scythe stand animation rather than resolving a complete pose object.
+4. name-only scythe matching could include non-equipment such as scythe kits.
+
+V5.1 CORRECTIONS
+- EquipmentMetadataRepository separates action metadata from slot authority.
+- unknown slot => REJECTED_EQUIPMENT_SLOT_UNRESOLVED, never guessed.
+- EquipmentState is generic 12-slot state; weapon slot 3 is no longer the only state operation.
+- EquipmentPoseProfile contains all seven packet81 fields.
+- EquipmentPoseRepository selects pose from equipped metadata/family.
+- SCYTHE_VITUR_FAMILY reusable by Bloodrend/Sanguine/Vitur family.
+- scythe family matching now requires exact clone family or Wield + scythe evidence; scythe kit 28524 is rejected.
+- current scythe pose wire values: 8057,823,819,820,821,822,824.
+- weapon-specific evidence mask=0x1: only stand 8057 is claimed scythe-specific today.
+- twoHanded=true is represented for the scythe family.
+
+PINNED CLIENT PARITY
+- Bloodrend appearance slot 3 parses as 512+28526 = 29038.
+- all seven Bloodrend pose fields parse in the expected packet81 order.
+- Whip 4151 wire stand=808; exact client guarded correction parses stand=11973.
+- mask-only equipment swap and movement-after-equip integration remain aligned.
+
+CERTIFICATION
+V51_EQUIPMENT_METADATA_PASS
+V51_EQUIPMENT_APPEARANCE_CLIENT_PARITY_PASS
+V5_EQUIPMENT_RUNTIME_PASS
+V51_OFFLINE_VALIDATION_ALL_PASS tests=29
+
+LIVE STATUS
+- M4/M5 previously certified baseline retained.
+- v5 item/bank-distance/decoder/scythe changes were NOT live-tested by the user before v5.1.
+- v5.1 is therefore OFFLINE/PARITY CERTIFIED, LIVE CERTIFICATION PENDING.

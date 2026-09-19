@@ -1,0 +1,68 @@
+  public void a();
+    Code:
+       0: aload_0
+       1: invokevirtual #12                 // Method e:()I
+       4: istore_1
+       5: iload_1
+       6: ifne          17
+       9: iconst_0
+      10: putstatic     #7                  // Field rs/n/c/ay.k:I
+      13: iconst_0
+      14: putstatic     #6                  // Field rs/n/c/ay.j:I
+      17: iload_1
+      18: iconst_1
+      19: if_icmpne     83
+      22: aload_0
+      23: invokevirtual #12                 // Method e:()I
+      26: istore_2
+      27: aload_0
+      28: invokevirtual #11                 // Method c:()I
+      31: istore_3
+      32: iload_3
+      33: sipush        457
+      36: invokestatic  #10                 // Method java/lang/Math.min:(II)I
+      39: istore_3
+      40: iload_3
+      41: iconst_0
+      42: invokestatic  #9                  // Method java/lang/Math.max:(II)I
+      45: istore_3
+      46: iload_2
+      47: lookupswitch  { // 2
+                     0: 72
+                     1: 79
+               default: 83
+          }
+      72: iload_3
+      73: putstatic     #6                  // Field rs/n/c/ay.j:I
+      76: goto          83
+      79: iload_3
+      80: putstatic     #7                  // Field rs/n/c/ay.k:I
+      83: iload_1
+      84: iconst_2
+      85: if_icmpne     128
+      88: aload_0
+      89: invokevirtual #12                 // Method e:()I
+      92: istore_2
+      93: aload_0
+      94: invokevirtual #12                 // Method e:()I
+      97: iconst_1
+      98: isub
+      99: istore_3
+     100: iload_3
+     101: iconst_m1
+     102: if_icmpne     114
+     105: getstatic     #8                  // Field rs/n/c/ay.l:[Lrs/n/c/ay$a;
+     108: iload_2
+     109: aconst_null
+     110: aastore
+     111: goto          128
+     114: invokestatic  #13                 // Method rs/n/c/ay$a.values:()[Lrs/n/c/ay$a;
+     117: iload_3
+     118: aaload
+     119: astore        4
+     121: getstatic     #8                  // Field rs/n/c/ay.l:[Lrs/n/c/ay$a;
+     124: iload_2
+     125: aload         4
+     127: aastore
+     128: return
+}

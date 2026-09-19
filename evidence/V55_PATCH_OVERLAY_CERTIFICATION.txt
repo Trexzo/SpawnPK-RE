@@ -1,0 +1,2 @@
+V55_PATCH_OVERLAY_FROM_V54_PASS payloadFiles=319 mismatches=0 accountPreserved=true lane=MAIN newServerSHA256=50d15e2a7a5a63294b28b58611466459c9c203a4d6ea2b8891d037ff36911db0
+Installer also contains explicit WORLD-LANE/WORLD-R refusal and exact-v5.4 baseline guard.

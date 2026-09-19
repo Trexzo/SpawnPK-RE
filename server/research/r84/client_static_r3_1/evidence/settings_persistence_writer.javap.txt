@@ -1,0 +1,391 @@
+      32: putstatic     #213                // Field az:Z
+      35: iconst_1
+      36: putstatic     #258                // Field rs/l/E.i:Z
+      39: return
+
+  public static void d();
+    Code:
+       0: ldc           #13                 // String SaveSettings
+       2: invokedynamic #313,  0            // InvokeDynamic #0:invoke:()Lrs/h/b;
+       7: invokestatic  #309                // Method rs/h/c.a:(Ljava/lang/String;Lrs/h/b;)V
+      10: return
+
+  private static void g();
+    Code:
+       0: new           #119                // class java/io/File
+       3: dup
+       4: getstatic     #191                // Field ad:Ljava/lang/String;
+       7: invokedynamic #314,  0            // InvokeDynamic #1:makeConcatWithConstants:(Ljava/lang/String;)Ljava/lang/String;
+      12: invokespecial #269                // Method java/io/File."<init>":(Ljava/lang/String;)V
+      15: astore_0
+      16: aload_0
+      17: invokevirtual #271                // Method java/io/File.exists:()Z
+      20: ifne          28
+      23: aload_0
+      24: invokevirtual #270                // Method java/io/File.createNewFile:()Z
+      27: pop
+      28: new           #118                // class java/io/BufferedWriter
+      31: dup
+      32: new           #121                // class java/io/FileWriter
+      35: dup
+      36: aload_0
+      37: invokespecial #274                // Method java/io/FileWriter."<init>":(Ljava/io/File;)V
+      40: invokespecial #265                // Method java/io/BufferedWriter."<init>":(Ljava/io/Writer;)V
+      43: astore_1
+      44: aload_1
+      45: getstatic     #197                // Field aj:Z
+      48: invokedynamic #315,  0            // InvokeDynamic #2:makeConcatWithConstants:(Z)Ljava/lang/String;
+      53: invokevirtual #268                // Method java/io/BufferedWriter.write:(Ljava/lang/String;)V
+      56: aload_1
+      57: invokevirtual #267                // Method java/io/BufferedWriter.newLine:()V
+      60: aload_1
+      61: getstatic     #235                // Field bu:I
+      64: invokedynamic #316,  0            // InvokeDynamic #3:makeConcatWithConstants:(I)Ljava/lang/String;
+      69: invokevirtual #268                // Method java/io/BufferedWriter.write:(Ljava/lang/String;)V
+      72: aload_1
+      73: invokevirtual #267                // Method java/io/BufferedWriter.newLine:()V
+      76: aload_1
+      77: getstatic     #196                // Field ai:Lrs/f/a$c;
+      80: invokevirtual #307                // Method rs/f/a$c.name:()Ljava/lang/String;
+      83: invokedynamic #317,  0            // InvokeDynamic #4:makeConcatWithConstants:(Ljava/lang/String;)Ljava/lang/String;
+      88: invokevirtual #268                // Method java/io/BufferedWriter.write:(Ljava/lang/String;)V
+      91: aload_1
+      92: invokevirtual #267                // Method java/io/BufferedWriter.newLine:()V
+      95: aload_1
+      96: getstatic     #208                // Field au:Z
+      99: invokedynamic #318,  0            // InvokeDynamic #5:makeConcatWithConstants:(Z)Ljava/lang/String;
+     104: invokevirtual #268                // Method java/io/BufferedWriter.write:(Ljava/lang/String;)V
+     107: aload_1
+     108: invokevirtual #267                // Method java/io/BufferedWriter.newLine:()V
+     111: aload_1
+     112: getstatic     #211                // Field ax:Z
+     115: invokedynamic #319,  0            // InvokeDynamic #6:makeConcatWithConstants:(Z)Ljava/lang/String;
+     120: invokevirtual #268                // Method java/io/BufferedWriter.write:(Ljava/lang/String;)V
+     123: aload_1
+     124: invokevirtual #267                // Method java/io/BufferedWriter.newLine:()V
+     127: aload_1
+     128: getstatic     #210                // Field aw:Z
+     131: invokedynamic #320,  0            // InvokeDynamic #7:makeConcatWithConstants:(Z)Ljava/lang/String;
+     136: invokevirtual #268                // Method java/io/BufferedWriter.write:(Ljava/lang/String;)V
+     139: aload_1
+     140: invokevirtual #267                // Method java/io/BufferedWriter.newLine:()V
+     143: aload_1
+     144: getstatic     #212                // Field ay:Z
+     147: invokedynamic #321,  0            // InvokeDynamic #8:makeConcatWithConstants:(Z)Ljava/lang/String;
+     152: invokevirtual #268                // Method java/io/BufferedWriter.write:(Ljava/lang/String;)V
+     155: aload_1
+     156: invokevirtual #267                // Method java/io/BufferedWriter.newLine:()V
+     159: aload_1
+     160: getstatic     #213                // Field az:Z
+     163: invokedynamic #322,  0            // InvokeDynamic #9:makeConcatWithConstants:(Z)Ljava/lang/String;
+     168: invokevirtual #268                // Method java/io/BufferedWriter.write:(Ljava/lang/String;)V
+     171: aload_1
+     172: invokevirtual #267                // Method java/io/BufferedWriter.newLine:()V
+     175: aload_1
+     176: getstatic     #164                // Field aA:Z
+     179: invokedynamic #323,  0            // InvokeDynamic #10:makeConcatWithConstants:(Z)Ljava/lang/String;
+     184: invokevirtual #268                // Method java/io/BufferedWriter.write:(Ljava/lang/String;)V
+     187: aload_1
+     188: invokevirtual #267                // Method java/io/BufferedWriter.newLine:()V
+     191: aload_1
+     192: getstatic     #166                // Field aC:Z
+     195: invokedynamic #324,  0            // InvokeDynamic #11:makeConcatWithConstants:(Z)Ljava/lang/String;
+     200: invokevirtual #268                // Method java/io/BufferedWriter.write:(Ljava/lang/String;)V
+     203: aload_1
+     204: invokevirtual #267                // Method java/io/BufferedWriter.newLine:()V
+     207: aload_1
+     208: getstatic     #167                // Field aD:Z
+     211: invokedynamic #325,  0            // InvokeDynamic #12:makeConcatWithConstants:(Z)Ljava/lang/String;
+     216: invokevirtual #268                // Method java/io/BufferedWriter.write:(Ljava/lang/String;)V
+     219: aload_1
+     220: invokevirtual #267                // Method java/io/BufferedWriter.newLine:()V
+     223: aload_1
+     224: getstatic     #168                // Field aE:Z
+     227: invokedynamic #326,  0            // InvokeDynamic #13:makeConcatWithConstants:(Z)Ljava/lang/String;
+     232: invokevirtual #268                // Method java/io/BufferedWriter.write:(Ljava/lang/String;)V
+     235: aload_1
+     236: invokevirtual #267                // Method java/io/BufferedWriter.newLine:()V
+     239: aload_1
+     240: getstatic     #169                // Field aF:Z
+     243: invokedynamic #327,  0            // InvokeDynamic #14:makeConcatWithConstants:(Z)Ljava/lang/String;
+     248: invokevirtual #268                // Method java/io/BufferedWriter.write:(Ljava/lang/String;)V
+     251: aload_1
+     252: invokevirtual #267                // Method java/io/BufferedWriter.newLine:()V
+     255: aload_1
+     256: getstatic     #170                // Field aG:Z
+     259: invokedynamic #328,  0            // InvokeDynamic #15:makeConcatWithConstants:(Z)Ljava/lang/String;
+     264: invokevirtual #268                // Method java/io/BufferedWriter.write:(Ljava/lang/String;)V
+     267: aload_1
+     268: invokevirtual #267                // Method java/io/BufferedWriter.newLine:()V
+     271: aload_1
+     272: getstatic     #171                // Field aH:Z
+     275: invokedynamic #329,  0            // InvokeDynamic #16:makeConcatWithConstants:(Z)Ljava/lang/String;
+     280: invokevirtual #268                // Method java/io/BufferedWriter.write:(Ljava/lang/String;)V
+     283: aload_1
+     284: invokevirtual #267                // Method java/io/BufferedWriter.newLine:()V
+     287: aload_1
+     288: getstatic     #172                // Field aI:Z
+     291: invokedynamic #330,  0            // InvokeDynamic #17:makeConcatWithConstants:(Z)Ljava/lang/String;
+     296: invokevirtual #268                // Method java/io/BufferedWriter.write:(Ljava/lang/String;)V
+     299: aload_1
+     300: invokevirtual #267                // Method java/io/BufferedWriter.newLine:()V
+     303: aload_1
+     304: getstatic     #173                // Field aJ:Z
+     307: invokedynamic #331,  0            // InvokeDynamic #18:makeConcatWithConstants:(Z)Ljava/lang/String;
+     312: invokevirtual #268                // Method java/io/BufferedWriter.write:(Ljava/lang/String;)V
+     315: aload_1
+     316: invokevirtual #267                // Method java/io/BufferedWriter.newLine:()V
+     319: aload_1
+     320: getstatic     #176                // Field aM:Z
+     323: invokedynamic #332,  0            // InvokeDynamic #19:makeConcatWithConstants:(Z)Ljava/lang/String;
+     328: invokevirtual #268                // Method java/io/BufferedWriter.write:(Ljava/lang/String;)V
+     331: aload_1
+     332: invokevirtual #267                // Method java/io/BufferedWriter.newLine:()V
+     335: iconst_0
+     336: istore_2
+     337: iload_2
+     338: getstatic     #153                // Field G:[I
+     341: arraylength
+     342: if_icmpge     380
+     345: aload_1
+     346: iload_2
+     347: getstatic     #153                // Field G:[I
+     350: iload_2
+     351: iaload
+     352: invokedynamic #333,  0            // InvokeDynamic #20:makeConcatWithConstants:(II)Ljava/lang/String;
+     357: invokevirtual #268                // Method java/io/BufferedWriter.write:(Ljava/lang/String;)V
+     360: iload_2
+     361: getstatic     #153                // Field G:[I
+     364: arraylength
+     365: iconst_1
+     366: iadd
+     367: if_icmpeq     374
+     370: aload_1
+     371: invokevirtual #267                // Method java/io/BufferedWriter.newLine:()V
+     374: iinc          2, 1
+     377: goto          337
+     380: aload_1
+     381: invokevirtual #267                // Method java/io/BufferedWriter.newLine:()V
+     384: aload_1
+     385: getstatic     #218                // Field bd:I
+     388: invokedynamic #334,  0            // InvokeDynamic #21:makeConcatWithConstants:(I)Ljava/lang/String;
+     393: invokevirtual #268                // Method java/io/BufferedWriter.write:(Ljava/lang/String;)V
+     396: aload_1
+     397: invokevirtual #267                // Method java/io/BufferedWriter.newLine:()V
+     400: aload_1
+     401: getstatic     #219                // Field be:Z
+     404: invokedynamic #335,  0            // InvokeDynamic #22:makeConcatWithConstants:(Z)Ljava/lang/String;
+     409: invokevirtual #268                // Method java/io/BufferedWriter.write:(Ljava/lang/String;)V
+     412: aload_1
+     413: invokevirtual #267                // Method java/io/BufferedWriter.newLine:()V
+     416: aload_1
+     417: getstatic     #195                // Field ah:Z
+     420: invokedynamic #336,  0            // InvokeDynamic #23:makeConcatWithConstants:(Z)Ljava/lang/String;
+     425: invokevirtual #268                // Method java/io/BufferedWriter.write:(Ljava/lang/String;)V
+     428: aload_1
+     429: invokevirtual #267                // Method java/io/BufferedWriter.newLine:()V
+     432: aload_1
+     433: getstatic     #250                // Field s:I
+     436: invokedynamic #337,  0            // InvokeDynamic #24:makeConcatWithConstants:(I)Ljava/lang/String;
+     441: invokevirtual #268                // Method java/io/BufferedWriter.write:(Ljava/lang/String;)V
+     444: aload_1
+     445: invokevirtual #267                // Method java/io/BufferedWriter.newLine:()V
+     448: aload_1
+     449: getstatic     #178                // Field aO:Z
+     452: invokedynamic #338,  0            // InvokeDynamic #25:makeConcatWithConstants:(Z)Ljava/lang/String;
+     457: invokevirtual #268                // Method java/io/BufferedWriter.write:(Ljava/lang/String;)V
+     460: aload_1
+     461: invokevirtual #267                // Method java/io/BufferedWriter.newLine:()V
+     464: aload_1
+     465: getstatic     #179                // Field aP:Z
+     468: invokedynamic #339,  0            // InvokeDynamic #26:makeConcatWithConstants:(Z)Ljava/lang/String;
+     473: invokevirtual #268                // Method java/io/BufferedWriter.write:(Ljava/lang/String;)V
+     476: aload_1
+     477: invokevirtual #267                // Method java/io/BufferedWriter.newLine:()V
+     480: aload_1
+     481: getstatic     #180                // Field aQ:Z
+     484: invokedynamic #340,  0            // InvokeDynamic #27:makeConcatWithConstants:(Z)Ljava/lang/String;
+     489: invokevirtual #268                // Method java/io/BufferedWriter.write:(Ljava/lang/String;)V
+     492: aload_1
+     493: invokevirtual #267                // Method java/io/BufferedWriter.newLine:()V
+     496: getstatic     #240                // Field h:Ljava/lang/Boolean;
+     499: invokevirtual #276                // Method java/lang/Boolean.booleanValue:()Z
+     502: ifeq          521
+     505: aload_1
+     506: getstatic     #151                // Field rs/Client.fn:Ljava/lang/String;
+     509: invokedynamic #341,  0            // InvokeDynamic #28:makeConcatWithConstants:(Ljava/lang/String;)Ljava/lang/String;
+     514: invokevirtual #268                // Method java/io/BufferedWriter.write:(Ljava/lang/String;)V
+     517: aload_1
+     518: invokevirtual #267                // Method java/io/BufferedWriter.newLine:()V
+     521: aload_1
+     522: getstatic     #181                // Field aR:Z
+     525: invokedynamic #342,  0            // InvokeDynamic #29:makeConcatWithConstants:(Z)Ljava/lang/String;
+     530: invokevirtual #268                // Method java/io/BufferedWriter.write:(Ljava/lang/String;)V
+     533: aload_1
+     534: invokevirtual #267                // Method java/io/BufferedWriter.newLine:()V
+     537: aload_1
+     538: getstatic     #259                // Field rs/n/c/ap.d:Z
+     541: invokedynamic #343,  0            // InvokeDynamic #30:makeConcatWithConstants:(Z)Ljava/lang/String;
+     546: invokevirtual #268                // Method java/io/BufferedWriter.write:(Ljava/lang/String;)V
+     549: aload_1
+     550: invokevirtual #267                // Method java/io/BufferedWriter.newLine:()V
+     553: getstatic     #261                // Field rs/n/c/ap.f:Ljava/util/List;
+     556: getstatic     #262                // Field rs/n/c/ap$a.a:Lrs/n/c/ap$a;
+     559: invokeinterface #312,  2          // InterfaceMethod java/util/List.contains:(Ljava/lang/Object;)Z
+     564: ifeq          577
+     567: aload_1
+     568: ldc           #103                // String spellbook_filter_combat=true
+     570: invokevirtual #268                // Method java/io/BufferedWriter.write:(Ljava/lang/String;)V
+     573: aload_1
+     574: invokevirtual #267                // Method java/io/BufferedWriter.newLine:()V
+     577: getstatic     #261                // Field rs/n/c/ap.f:Ljava/util/List;
+     580: getstatic     #263                // Field rs/n/c/ap$a.b:Lrs/n/c/ap$a;
+     583: invokeinterface #312,  2          // InterfaceMethod java/util/List.contains:(Ljava/lang/Object;)Z
+     588: ifeq          601
+     591: aload_1
+     592: ldc           #107                // String spellbook_filter_teleport=true
+     594: invokevirtual #268                // Method java/io/BufferedWriter.write:(Ljava/lang/String;)V
+     597: aload_1
+     598: invokevirtual #267                // Method java/io/BufferedWriter.newLine:()V
+     601: getstatic     #261                // Field rs/n/c/ap.f:Ljava/util/List;
+     604: getstatic     #264                // Field rs/n/c/ap$a.c:Lrs/n/c/ap$a;
+     607: invokeinterface #312,  2          // InterfaceMethod java/util/List.contains:(Ljava/lang/Object;)Z
+     612: ifeq          625
+     615: aload_1
+     616: ldc           #109                // String spellbook_filter_utility=true
+     618: invokevirtual #268                // Method java/io/BufferedWriter.write:(Ljava/lang/String;)V
+     621: aload_1
+     622: invokevirtual #267                // Method java/io/BufferedWriter.newLine:()V
+     625: aload_1
+     626: getstatic     #260                // Field rs/n/c/ap.e:Z
+     629: invokedynamic #344,  0            // InvokeDynamic #31:makeConcatWithConstants:(Z)Ljava/lang/String;
+     634: invokevirtual #268                // Method java/io/BufferedWriter.write:(Ljava/lang/String;)V
+     637: aload_1
+     638: invokevirtual #267                // Method java/io/BufferedWriter.newLine:()V
+     641: aload_1
+     642: getstatic     #223                // Field bi:I
+     645: invokedynamic #345,  0            // InvokeDynamic #32:makeConcatWithConstants:(I)Ljava/lang/String;
+     650: invokevirtual #268                // Method java/io/BufferedWriter.write:(Ljava/lang/String;)V
+     653: aload_1
+     654: invokevirtual #267                // Method java/io/BufferedWriter.newLine:()V
+     657: aload_1
+     658: getstatic     #222                // Field bh:I
+     661: invokedynamic #346,  0            // InvokeDynamic #33:makeConcatWithConstants:(I)Ljava/lang/String;
+     666: invokevirtual #268                // Method java/io/BufferedWriter.write:(Ljava/lang/String;)V
+     669: aload_1
+     670: invokevirtual #267                // Method java/io/BufferedWriter.newLine:()V
+     673: aload_1
+     674: getstatic     #182                // Field aS:Z
+     677: invokedynamic #347,  0            // InvokeDynamic #34:makeConcatWithConstants:(Z)Ljava/lang/String;
+     682: invokevirtual #268                // Method java/io/BufferedWriter.write:(Ljava/lang/String;)V
+     685: aload_1
+     686: invokevirtual #267                // Method java/io/BufferedWriter.newLine:()V
+     689: aload_1
+     690: getstatic     #183                // Field aT:Z
+     693: invokedynamic #348,  0            // InvokeDynamic #35:makeConcatWithConstants:(Z)Ljava/lang/String;
+     698: invokevirtual #268                // Method java/io/BufferedWriter.write:(Ljava/lang/String;)V
+     701: aload_1
+     702: invokevirtual #267                // Method java/io/BufferedWriter.newLine:()V
+     705: aload_1
+     706: getstatic     #185                // Field aV:Z
+     709: invokedynamic #349,  0            // InvokeDynamic #36:makeConcatWithConstants:(Z)Ljava/lang/String;
+     714: invokevirtual #268                // Method java/io/BufferedWriter.write:(Ljava/lang/String;)V
+     717: aload_1
+     718: invokevirtual #267                // Method java/io/BufferedWriter.newLine:()V
+     721: aload_1
+     722: getstatic     #221                // Field bg:Ljava/lang/String;
+     725: invokedynamic #350,  0            // InvokeDynamic #37:makeConcatWithConstants:(Ljava/lang/String;)Ljava/lang/String;
+     730: invokevirtual #268                // Method java/io/BufferedWriter.write:(Ljava/lang/String;)V
+     733: aload_1
+     734: invokevirtual #267                // Method java/io/BufferedWriter.newLine:()V
+     737: aload_1
+     738: getstatic     #187                // Field aX:Z
+     741: invokedynamic #351,  0            // InvokeDynamic #38:makeConcatWithConstants:(Z)Ljava/lang/String;
+     746: invokevirtual #268                // Method java/io/BufferedWriter.write:(Ljava/lang/String;)V
+     749: aload_1
+     750: invokevirtual #267                // Method java/io/BufferedWriter.newLine:()V
+     753: getstatic     #248                // Field p:Lrs/f/a$b;
+     756: ifnull        784
+     759: aload_1
+     760: getstatic     #248                // Field p:Lrs/f/a$b;
+     763: invokevirtual #304                // Method rs/f/a$b.name:()Ljava/lang/String;
+     766: getstatic     #246                // Field n:Lrs/f/a$d;
+     769: invokevirtual #308                // Method rs/f/a$d.name:()Ljava/lang/String;
+     772: invokedynamic #352,  0            // InvokeDynamic #39:makeConcatWithConstants:(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;
+     777: invokevirtual #268                // Method java/io/BufferedWriter.write:(Ljava/lang/String;)V
+     780: aload_1
+     781: invokevirtual #267                // Method java/io/BufferedWriter.newLine:()V
+     784: aload_1
+     785: getstatic     #189                // Field aZ:Z
+     788: invokedynamic #353,  0            // InvokeDynamic #40:makeConcatWithConstants:(Z)Ljava/lang/String;
+     793: invokevirtual #268                // Method java/io/BufferedWriter.write:(Ljava/lang/String;)V
+     796: aload_1
+     797: invokevirtual #267                // Method java/io/BufferedWriter.newLine:()V
+     800: aload_1
+     801: getstatic     #215                // Field ba:Z
+     804: invokedynamic #354,  0            // InvokeDynamic #41:makeConcatWithConstants:(Z)Ljava/lang/String;
+     809: invokevirtual #268                // Method java/io/BufferedWriter.write:(Ljava/lang/String;)V
+     812: aload_1
+     813: invokevirtual #267                // Method java/io/BufferedWriter.newLine:()V
+     816: aload_1
+     817: getstatic     #216                // Field bb:Z
+     820: invokedynamic #355,  0            // InvokeDynamic #42:makeConcatWithConstants:(Z)Ljava/lang/String;
+     825: invokevirtual #268                // Method java/io/BufferedWriter.write:(Ljava/lang/String;)V
+     828: aload_1
+     829: invokevirtual #267                // Method java/io/BufferedWriter.newLine:()V
+     832: aload_1
+     833: getstatic     #226                // Field bl:Z
+     836: invokedynamic #356,  0            // InvokeDynamic #43:makeConcatWithConstants:(Z)Ljava/lang/String;
+     841: invokevirtual #268                // Method java/io/BufferedWriter.write:(Ljava/lang/String;)V
+     844: aload_1
+     845: invokevirtual #267                // Method java/io/BufferedWriter.newLine:()V
+     848: aload_1
+     849: getstatic     #251                // Field t:Z
+     852: invokedynamic #357,  0            // InvokeDynamic #44:makeConcatWithConstants:(Z)Ljava/lang/String;
+     857: invokevirtual #268                // Method java/io/BufferedWriter.write:(Ljava/lang/String;)V
+     860: aload_1
+     861: invokevirtual #267                // Method java/io/BufferedWriter.newLine:()V
+     864: aload_1
+     865: getstatic     #217                // Field bc:Z
+     868: invokedynamic #358,  0            // InvokeDynamic #45:makeConcatWithConstants:(Z)Ljava/lang/String;
+     873: invokevirtual #268                // Method java/io/BufferedWriter.write:(Ljava/lang/String;)V
+     876: aload_1
+     877: invokevirtual #267                // Method java/io/BufferedWriter.newLine:()V
+     880: aload_1
+     881: getstatic     #175                // Field aL:Z
+     884: invokedynamic #359,  0            // InvokeDynamic #46:makeConcatWithConstants:(Z)Ljava/lang/String;
+     889: invokevirtual #268                // Method java/io/BufferedWriter.write:(Ljava/lang/String;)V
+     892: aload_1
+     893: invokevirtual #267                // Method java/io/BufferedWriter.newLine:()V
+     896: aload_1
+     897: invokevirtual #266                // Method java/io/BufferedWriter.close:()V
+     900: getstatic     #191                // Field ad:Ljava/lang/String;
+     903: invokedynamic #314,  0            // InvokeDynamic #1:makeConcatWithConstants:(Ljava/lang/String;)Ljava/lang/String;
+     908: iconst_0
+     909: anewarray     #127                // class java/lang/String
+     912: invokestatic  #292                // Method java/nio/file/Paths.get:(Ljava/lang/String;[Ljava/lang/String;)Ljava/nio/file/Path;
+     915: astore_2
+     916: aload_2
+     917: getstatic     #191                // Field ad:Ljava/lang/String;
+     920: iconst_0
+     921: anewarray     #127                // class java/lang/String
+     924: invokestatic  #292                // Method java/nio/file/Paths.get:(Ljava/lang/String;[Ljava/lang/String;)Ljava/nio/file/Path;
+     927: iconst_1
+     928: anewarray     #132                // class java/nio/file/CopyOption
+     931: dup
+     932: iconst_0
+     933: getstatic     #150                // Field java/nio/file/StandardCopyOption.REPLACE_EXISTING:Ljava/nio/file/StandardCopyOption;
+     936: aastore
+     937: invokestatic  #290                // Method java/nio/file/Files.copy:(Ljava/nio/file/Path;Ljava/nio/file/Path;[Ljava/nio/file/CopyOption;)Ljava/nio/file/Path;
+     940: pop
+     941: aload_2
+     942: invokestatic  #291                // Method java/nio/file/Files.delete:(Ljava/nio/file/Path;)V
+     945: goto          953
+     948: astore_0
+     949: aload_0
+     950: invokevirtual #280                // Method java/lang/Exception.printStackTrace:()V
+     953: return
+    Exception table:
+       from    to  target type
+           0   945   948   Class java/lang/Exception
+

@@ -1,0 +1,29 @@
+=== ARTIFACT ===
+ab88bffa8b42e261d4307e4dad472da755e76dfb42ef45689bb0cce1e2ab275d  build/SpawnPKLocalServer.jar
+=== BOOTSTRAP STATIC ===
+BOOTSTRAP_STATIC_ENCODING_PASS idle81=00-7F-F0 teleport81_bits=5 appearance=55 packet81_withAppearance=62 region73=4 packet249=3
+=== HANDSHAKE ===
+[session /127.0.0.1:40678] prelogin ok type=14 userHash5=7
+[session /127.0.0.1:40678] LoginFrame{type=16, revision=317, memoryFlag=0, checksums=[0, 0, 0, 0, 0, 0, 0, 0, 0], seeds=[16909060, 287454020, 19088743, -1985229329], config1=748878668, config2=307, username='local', password=<redacted>, deviceId='LOCAL-DEVICE', trailingClientId='LOCAL-CLIENT'}
+[session /127.0.0.1:40678] LOGIN_SUCCESS_LOCAL rank=0 flag=false at 2026-09-13T23:59:29.880211075Z
+[session /127.0.0.1:40678] CLIENT_PACKET seq=1 opcode=185 len=2 widget=912 expectedWidget=912
+LOCAL_HANDSHAKE_INTEGRATION_PASS prelogin+seed+login+success+isaac185/widget912
+=== M4 PARTIAL INTEGRATION ===
+[session /127.0.0.1:58644] prelogin ok type=14 userHash5=7
+[session /127.0.0.1:58644] LoginFrame{type=16, revision=317, memoryFlag=0, checksums=[0, 0, 0, 0, 0, 0, 0, 0, 0], seeds=[16909060, 287454020, 19088743, -1985229329], config1=748878668, config2=307, username='local', password=<redacted>, deviceId='LOCAL-DEVICE', trailingClientId='LOCAL-CLIENT'}
+[session /127.0.0.1:58644] LOGIN_SUCCESS_LOCAL rank=0 flag=false at 2026-09-13T23:59:30.049909296Z
+[session /127.0.0.1:58644] CLIENT_PACKET seq=1 opcode=185 len=2 widget=912 expectedWidget=912
+[session /127.0.0.1:58644] EXPERIMENTAL_M4_SENT packets=249,73,81 region=385,436 local=55,55 appearanceMask=0x10 appearanceBytes=51 status=NOT_CERTIFIED
+[session /127.0.0.1:58644] CLIENT_PACKET_NEXT none within 1s after first packet
+[session /127.0.0.1:58644] LOCAL_WORLD_TICK opcode=81 idle tick=1 certification=M4_PARTIAL
+LOCAL_M4_PARTIAL_INTEGRATION_PASS bootstrap=249,73,81 appearanceMask=0x10 idle81_ticks=2 cadence~600ms certification=NOT_CERTIFIED
+=== APPEARANCE CLIENT PARITY ===
+APPEARANCE_CLIENT_PARSER_PARITY_PASS bytes=55 consumed=55 displayName=localtest
+=== FULL PACKET81 CLIENT DECODER PARITY ===
+PACKET81_FULL_CLIENT_DECODER_PARITY_PASS payload=62 consumed=62 displayName=localtest plane=0
+=== STATIC GUARDS ===
+LOCAL_ONLY_STATIC_GUARDS_PASS_V03
+server_loopback_only_literals=true
+client_game_endpoint=127.0.0.1
+airgap_known_application_external_endpoints=rewritten_to_loopback
+m4_certification=PARTIAL_NOT_CERTIFIED

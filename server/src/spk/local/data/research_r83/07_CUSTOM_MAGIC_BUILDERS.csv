@@ -1,0 +1,9 @@
+name,widget_or_primary_id,visible_level,description_type,raw_item_or_rune_ids,raw_sprite_ids,notes
+Miasmic rush,45149,60,single attack,"9075,562,557","30011,30006","raw trailing=8,10,2"
+Miasmic burst,45751,72,multi-target,"9075,562,557","30011,30006","raw trailing=7,10,2"
+Miasmic blitz,45743,84,single target,"9075,565,557","30014,30006","raw trailing=6,10,2"
+Miasmic barrage,45694,96,multi-target,"9075,565,557","30014,30006","raw trailing=5,10,2"
+Air surge,19100,81,single attack,"20987,556",30005,"raw trailing=9,10,2; enum filter threshold is 82"
+Water surge,19110,85,single attack,"20987,555,556","30004,30005","raw trailing=10,10,2; enum filter threshold is 86"
+Earth surge,19150,90,single attack,"20987,557,556","30006,30005","raw trailing=11,10,2; enum filter threshold is 91"
+Fire surge,19130,95,single attack,"20987,554,556","30003,30005","raw trailing=12,10,2; enum filter threshold is 96"

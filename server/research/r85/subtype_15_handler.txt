@@ -1,0 +1,20 @@
+  public void a();
+    Code:
+       0: aload_0
+       1: invokevirtual #8                  // Method e:()I
+       4: istore_1
+       5: iload_1
+       6: iconst_1
+       7: if_icmpne     32
+      10: aload_0
+      11: invokevirtual #8                  // Method e:()I
+      14: iconst_1
+      15: if_icmpne     22
+      18: iconst_1
+      19: goto          23
+      22: iconst_0
+      23: putstatic     #5                  // Field rs/n/c/V.c:Z
+      26: invokestatic  #7                  // Method java/lang/System.currentTimeMillis:()J
+      29: putstatic     #6                  // Field rs/n/c/V.d:J
+      32: return
+}

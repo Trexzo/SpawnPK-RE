@@ -1,0 +1,13 @@
+V5.2 LIVE BLOCKER
+CLIENT_PACKET_UNKNOWN seq=377 opcode=202 encoded=212 payloadLen=UNKNOWN decoder=PAUSED
+
+PINNED CLIENT STATIC RECOVERY
+Exact long-session writer in Client.C():
+    fv.a(202)
+No payload-writing operations occur before the next packet begins.
+
+V5.2.1 SCHEMA
+opcode 202 = FIXED0 long-session keepalive
+
+POLICY
+This only resolves opcode 202. Unknown packet lengths remain fail-closed; no speculative byte skipping or blind resync was introduced.

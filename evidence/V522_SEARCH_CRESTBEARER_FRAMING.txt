@@ -1,0 +1,25 @@
+SpawnPK LocalLab v5.2.2 targeted fixes
+
+SEARCH
+- v5.2.1 used packet71 shortcut root 0 -> 67027 at sidebar index 10.
+- Exact fixed-mode client tab geometry has top row 0..6 and bottom row 7..13; the real SpawnPK screenshot places Search at bottom-right.
+- v5.2.2 maps the native Spawn/Search root to index 13.
+- Search/results remain entirely client-native; LocalLab only receives ::tabitem commands.
+
+CRESTBEARER
+- Live v5.2.1 emitted opcode41 correctly but rejected 23141/23142/23143 because the conservative slot resolver had no authoritative anchors.
+- v5.2.2 anchors 23141 HEAD/FULL_HELM, 23142 CHEST/FULL_BODY, 23143 LEGS.
+- Also anchors mage 22105/22106/22107, dyed 28708/28707/28706, hide 28872/28871/28870.
+- Completionist cape 19050 anchors CAPE; 23063 Grand comp. cape (melee) inherits CAPE via clone.
+
+DECODER
+- Integrated exact-current-client C2S authority: 188 sole-writer callsites / 86 distinct opcodes / 0 dynamic sites.
+- All 86 frame types are consumed exactly; unimplemented gameplay semantics are framingOnly=true.
+- Explicit encrypted 185 -> 202 -> 164 regression remains aligned.
+- Out-of-authority opcode 5 still pauses fail-closed.
+
+TESTS
+- 34 Java test entrypoints pass.
+- Spawn root packet71 parity: wire root 0, tab 13, client handler resolves root 67027.
+- Crestbearer + grand-comp equipment resolver test passes.
+- 86/86 continuous ISAAC framing test passes.

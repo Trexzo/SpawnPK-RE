@@ -1,0 +1,4 @@
+6232bae206846a4ba8d09766a2dee886b69016066a3f50f83b201bf705f93662  evidence/client(6).jar (preserved full-tree prerequisite)
+aabca3605421337e81ab96da0de5669b94b2db8471c0157ad3f7ac9a84d031a2  local-client/client-localhost.jar (preserved full-tree prerequisite)
+981eb3607802fcd892fd465d62a6f1ba9d8afffcbfd410045b5cc170ae06e71e  local-client/client-airgap.jar (preserved full-tree prerequisite)
+38cf25de6001a1b70b41fd6b9bb30aac44087b5f6fa79807eb97e450dc3cbd05  server/build/SpawnPKLocalServer.jar

@@ -1,0 +1,44 @@
+script_id,handler_class,canonical_semantic,semantic_confidence,flattened_read_grammar,r4_status
+1,rs.q.a.a.a.d,MATCHMAKING_MATCH_STATUS,HIGH,u8 > u8 > u16_be > string_nl > u8 > string_nl > u8 > u8 > u8 > u8 > u16_be > u16_be > u8 > u16_be > string_nl > u8 > u8,PER_OPERATION_DECODED_R5
+2,rs.q.a.a.a.k,DYNAMIC_SCENE_OBJECT_OVERRIDE_STATE,HIGH_STRUCTURAL,u8 > u16_be > u16_be > u8 > u8 > i32_be > u16_be > u16_be > u8 > u8 > u8 > i32_be,PER_OPERATION_DECODED_R5
+3,rs.q.a.a.a.l,MAIL_AND_REWARD_COFFER,HIGH,u16_be > u8,R8_OUTER_GRAMMAR_RETAINED
+4,rs.l.e.a.i,TOKEN_ROLL_REWARD_UI,MEDIUM,u8 > u16_be > u8 > u16_be > u16_be > i32_be > u8 > u8 > u8,R8_OUTER_GRAMMAR_RETAINED
+5,rs.q.a.a.a.n,WIDGET_RUNTIME_SCALAR_UPDATE,HIGH_STRUCTURAL,u8 > i32_be > u16_be,R8_OUTER_GRAMMAR_RETAINED
+6,rs.n.c.K,EVENT_ACTIVITY_TOKEN_LIMIT_STATE,HIGH_SUBSYSTEM,u8 > string_nl > u8 > string_nl > i32_be > i32_be > i64_be,R8_OUTER_GRAMMAR_RETAINED
+7,rs.l.f.a.c.b,BOSS_BAR_OVERLAY_STATE,HIGH_SUBSYSTEM,u8 > u8 > i32_be > i32_be > i32_be > i32_be > string_nl > i32_be > i32_be > i32_be > string_nl,R8_OUTER_GRAMMAR_RETAINED
+8,rs.l.e.a.d,COMBAT_METRIC_OVERLAY_STATE,MEDIUM_SUBSYSTEM,u8 > u8 > u8 > string_nl > string_nl > u8 > u16_be > u16_be > u16_be > u16_be > u8 > u16_be > u16_be > u16_be > u16_be > u8 > u16_be > u16_be > u16_be > u16_be > u8 > u16_be > u16_be > u8 > u8 > u8,R8_OUTER_GRAMMAR_RETAINED
+9,rs.n.c.ah,ITEMS_KEPT_ON_DEATH_AUTOKEEP_SET,HIGH_SUBSYSTEM,u8 > u16_be,R8_OUTER_GRAMMAR_RETAINED
+10,rs.n.c.b.d,EVENT_TASK_UI,HIGH,u8 > string_nl > i32_be > u8 > u8 > string_nl > i32_be > string_nl > u16_be > u8 > string_nl,PER_OPERATION_DECODED_R5
+11,rs.l.e.a.b,KILLCOUNT_DROP_RATE_ESSENCE_BONUS,HIGH,u8 > u8 > u16_be > u16_be > u16_be,R8_OUTER_GRAMMAR_RETAINED
+12,rs.l.e.p,WORLD_TILE_POLYGON_HIGHLIGHT_OVERLAY,HIGH_STRUCTURAL,u8 > u8 > u8 > u8 > u8 > u8 > u8 > u8 > u8 > u16_be > u16_be > u8 > string_nl > u16_be > u16_be,PER_OPERATION_DECODED_R5
+13,rs.n.c.P,ACTIVE_EVENTS_HOTSPOT_TIMER_STATE,HIGH_SUBSYSTEM,u8 > i64_be > string_nl > i64_be > i32_be > i32_be > string_nl > i64_be > i64_be > string_nl > i64_be > string_nl > i64_be > i64_be,PER_OPERATION_DECODED_R5
+14,rs.q.a.a.a.h,ITEM_LIST_SEARCH_TRANSFER_UI,HIGH_STRUCTURAL,u8 > u8 > u8 > u8 > u8 > i32_be > i32_be > string_nl > string_nl > u8 > u8 > string_nl > string_nl > string_nl > u8 > string_nl > string_nl > u8 > u8 > u8 > u8 > u8 > u8 > u8 > u16_be > i32_be > i32_be > u8 > string_nl > u16_be > u16_be,PER_OPERATION_DECODED_R5
+15,rs.n.c.W,GAMBLING_SESSION_STATE_TOGGLE,HIGH_SUBSYSTEM,u8 > u8,R8_OUTER_GRAMMAR_RETAINED
+16,rs.n.c.aN,SERVER_SELECTION_LIST_40405_STATE,HIGH_STRUCTURAL,u8 > u8 > u8 > string_nl > u16_be > string_nl,PER_OPERATION_DECODED_R5
+17,rs.n.c.aP,SHOP_TAB_STATE,HIGH_SUBSYSTEM,u8 > u8 > u8 > string_nl > u8,PER_OPERATION_DECODED
+18,rs.l.e.a.w,KILLCOUNT_DROP_RATE_TICKET_BONUS,HIGH,u8 > u8 > u16_be > u16_be > u16_be,R8_OUTER_GRAMMAR_RETAINED
+19,rs.q.a.a.a.p,TIMED_EFFECT_BUFF_STATE,HIGH,string_nl > i32_be,R8_OUTER_GRAMMAR_RETAINED
+20,rs.q.b.e,EXTERNAL_LOGIN_LOG_RECEIVER_CONTROL,HIGH_STRUCTURAL,u8,PER_OPERATION_DECODED_R5
+21,rs.q.a.a.a.c,ACTOR_ATTACHED_EFFECT_LIST_CLEAR,HIGH_STRUCTURAL,u8 > i32_be,R8_OUTER_GRAMMAR_RETAINED
+22,rs.n.c.d,CHAPTER_REWARD_CLAIM_UI,HIGH,u8 > u8 > i32_be > u8 > string_nl > string_nl > u8 > i32_be > i32_be > u16_be > u16_be > u8 > u8 > u16_be > u16_be,PER_OPERATION_DECODED
+23,rs.l.f.a.a.d,THREE_LINE_TOAST_NOTIFICATION_OVERLAY,HIGH_STRUCTURAL,string_nl > string_nl > string_nl,R8_OUTER_GRAMMAR_RETAINED
+24,rs.l.f.a.i.d,FLASHING_UI_ATTENTION_HINT,HIGH_STRUCTURAL,u8 > i32_be > u8 > u16_be > u16_be > u8 > u8 > i32_be,R8_OUTER_GRAMMAR_RETAINED
+25,rs.l.e.a.g,OVERLAY_COUNTER_PAIR_UPDATE,HIGH_STRUCTURAL,u16_be > u16_be,R8_OUTER_GRAMMAR_RETAINED
+26,rs.l.e.a.l,OVERLAY_PAIR_STATE_UPDATE,HIGH_STRUCTURAL,u8 > u8,R8_OUTER_GRAMMAR_RETAINED
+27,rs.l.f.a.h.b,MULTI_FIELD_OVERLAY_TEXT_STATE,HIGH_STRUCTURAL,u8 > u8 > string_nl,R8_OUTER_GRAMMAR_RETAINED
+28,rs.n.c.B,CONFIRMATION_DIALOG_STATE,HIGH_SUBSYSTEM,u8 > u8 > i32_be > i32_be > u8 > i32_be > i32_be > u8,PER_OPERATION_DECODED
+29,rs.q.a.a.a.m,CACHE_ARCHIVE2_RESOURCE_REQUEST,HIGH_STRUCTURAL,u16_be,R8_OUTER_GRAMMAR_RETAINED
+30,rs.s.t.j,TRADEPOST_LISTING_STATE,HIGH_SUBSYSTEM,u8 > i32_be > i32_be > i32_be > i32_be > u8 > i32_be,PER_OPERATION_DECODED
+31,rs.n.c.c.e,MAIL_UI_STATE,HIGH_SUBSYSTEM,u8 > u8 > string_nl > u8 > u8 > u8 > u8 > u8,PER_OPERATION_DECODED
+32,rs.q.a.a.a.a,CUSTOM_MAGIC_SPELL_STATE,HIGH,u8 > u16_be > u8 > u16_be > string_nl > u8 > u8 > u8 > u8 > u16_be > u16_be > u16_be > u16_be > u16_be > u8,PER_OPERATION_DECODED
+33,rs.n.c.a.b,SCREEN_STATUS_PANEL_CONTROLLER_30700,HIGH_STRUCTURAL,u8 > i32_be > i32_be > u8 > u8 > string_nl > string_nl > string_nl > string_nl > string_nl > string_nl > string_nl > string_nl > string_nl > string_nl > i32_be > i32_be,R8_OUTER_GRAMMAR_RETAINED
+34,rs.q.a.a.a.e,INFOBOX_OVERLAY_CONTROL,HIGH,u8,R8_OUTER_GRAMMAR_RETAINED
+35,rs.n.c.ar,MAKE_X_QUANTITY_INTERFACE,HIGH,u8 > u8 > i32_be > u8 > u8 > string_nl > u8 > string_nl > u8 > string_nl > u8 > string_nl,PER_OPERATION_DECODED
+36,rs.n.c.ax,INDEXED_ENUM_PROGRESS_STATE_457,HIGH_STRUCTURAL,u8 > u8 > u16_be > u8 > u8,R8_OUTER_GRAMMAR_RETAINED
+37,rs.q.a.a.a.f,WIDGET_ACTION_TEXT_AND_GEOMETRY_UPDATE,HIGH_STRUCTURAL,u8 > i32_be > u16_be > string_nl > string_nl > u8 > u16_be > u16_be,PER_OPERATION_DECODED
+38,rs.q.a.a.a.o,NAMED_CHAT_MESSAGE_TYPE6,HIGH_STRUCTURAL,u8 > i64_be > string_nl,R8_OUTER_GRAMMAR_RETAINED
+39,rs.q.a.a.a.g,CLIENT_INT_STATE_MAP_UPDATE,HIGH_STRUCTURAL,i32_be > u16_be,PER_OPERATION_DECODED
+40,rs.q.a.a.a.b,SELECTION_DIALOG,HIGH,u8 > i32_be > u8 > string_nl > u8 > string_nl > i32_be > u8,PER_OPERATION_DECODED
+41,rs.n.c.d.d,RAID_INSTANCE_UI_STATE,HIGH,u8 > u8 > u8 > u8 > string_nl > string_nl > u8 > u8 > u8 > i32_be > i32_be > u8 > u8 > i32_be > i32_be > i32_be > u8 > u8 > string_nl,PER_OPERATION_DECODED
+42,rs.q.a.a.a.i,NPC_DEFINITION_RUNTIME_OVERRIDE_STATE,HIGH_STRUCTURAL,u8 > u8 > i32_be > i32_be > u8 > i32_be > i32_be > i32_be,PER_OPERATION_DECODED
+43,rs.q.a.a.a.j,CLIENT_INTEGER_FLAG_MAP_UPDATE,HIGH_STRUCTURAL,i32_be > u8,PER_OPERATION_DECODED

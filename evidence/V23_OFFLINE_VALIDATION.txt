@@ -1,0 +1,33 @@
+SpawnPK Local Lab v2.3 offline validation
+
+Pinned client authority:
+6232bae206846a4ba8d09766a2dee886b69016066a3f50f83b201bf705f93662
+
+Server JAR:
+c5ab550273a4254dc1839611de3b3fd2574fbbf88f7a7b6c9f914b9c5968c240
+
+PASS ISAAC_PARITY_WITH_CLIENT_RS_Q_A outputs=6144
+PASS APPEARANCE_CLIENT_PARSER_PARITY bytes=62 consumed=62
+PASS PACKET81_FULL_CLIENT_DECODER_PARITY payload=69 consumed=69
+PASS BOOTSTRAP_STATIC_ENCODING
+PASS LOCAL_M4_BOOTSTRAP_INTEGRATION
+PASS LOCAL_HANDSHAKE_INTEGRATION
+PASS CLIENT_PACKET_PROBE_V23 decoded=11 aligned=true
+     walk164 -> widget185 -> object132(live bank vector) -> walk164 -> minimap248
+PASS MOVEMENT_STATE_V23
+PASS M5_PACKET81_CLIENT_PARITY
+PASS RUN_ORB_WIDGET126_CLIENT_PARITY widget149=100%
+PASS RUN_TOGGLE_CONFIG36_CLIENT_PARITY setting173 on/off
+PASS M5_V23_AUTHORITATIVE_MOVEMENT_INTEGRATION
+     object132 -> subsequent walk164 remains authoritative/aligned
+
+Opcode132 live regression vector:
+payload=97 0C 69 5C 0D 25
+worldX=3095
+objectId=26972
+worldY=3493
+schema=STATIC_EXACT_FIXED6
+
+Scope:
+- fixes decoder freeze after bank/object first-option click
+- does NOT yet implement bank interface/content

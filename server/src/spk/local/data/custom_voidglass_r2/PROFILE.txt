@@ -1,0 +1,14 @@
+CUSTOM LOCALLAB CONTENT - NOT SPAWNPK PRODUCTION AUTHORITY
+Name: Voidglass Nistirio
+Item ID: 32760
+NPC ID: 12000
+Model: 36185 (exact-current Hydra-family native asset)
+Idle: 8233
+Walk/turn: 8232
+Manual proc animation: 8236
+Manual proc GFX: 4098
+Proc text: VOID RESONANCE
+Gameplay modifier: NONE
+Palette: CUSTOM_LOCALLAB_VOIDGLASS_PALETTE_V1_NOT_PRODUCTION_RECOVERY
+Palette source policy: composed only from destination color values already present in exact-current Hydra-family definitions. The old standalone R2 recolor table was not available and is not claimed to be recovered.
+Lifecycle: normal current LocalLab pet Drop -> follow -> Pick-up path; no v5.12 movement code restored.

@@ -1,0 +1,19 @@
+  public void a();
+    Code:
+       0: aload_0
+       1: invokevirtual #7                  // Method e:()I
+       4: istore_1
+       5: iload_1
+       6: iconst_2
+       7: if_icmpne     12
+      10: iconst_m1
+      11: istore_1
+      12: aload_0
+      13: invokevirtual #7                  // Method e:()I
+      16: istore_2
+      17: getstatic     #5                  // Field rs/l/e/f.h:Lrs/l/e/a/k;
+      20: iload_1
+      21: iload_2
+      22: invokevirtual #6                  // Method rs/l/e/a/k.a:(II)V
+      25: return
+}

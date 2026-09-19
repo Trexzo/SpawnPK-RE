@@ -1,0 +1,6046 @@
+### rs/Client.class (722)
+ (level-
+ @or3@- @mag@
+Hold @yel@CTRL@whi@ to view stats
+Press @or2@CTRL@whi@ 
+ (skill-
+ <img=370>
+ @cya@
+ @gre@
+ @gre@(@cya@ID: @whi@
+ @lre@
+ @mag@(Spawned)
+ @whi@
+ @yel@
+ Too many npcs
+ Too many players
+ days ago
+ glcfb 
+ has been updated!
+ has logged in.
+ has logged out.
+ is already on your friend list
+ is already on your ignore list
+ null entry in npc list - pos:
+ size:
+ null entry in pl list - pos:
+ size mismatch in getnpcpos - pos:
+ psize:
+ spell filtering
+ unread messages
+ with_pet
+ you changed your recovery questions
+@whi@ / 
+ more options
+Next Lvl: 
+Remainder: 
+'  -> Set entitiesAwaitingUpdate to self
+] direction=
+, updateRequired=
+] firstDirection=
+, secondDirection=
+, updaterequired=
+!  -> direction=
+ updateRequired=
+8  -> firstDirection=
+ secondDirection=
+(  -> teleport=
+  ->..appearence block done!
+  ->..done!
+   ->GFX=
+  ->Starting GFX block..
+  ->Starting animation block..
+  ->Starting appearence block..
+  ->Starting chat block..
+  ->Starting forcechat block..
+"  ->Starting forcemovement block..
+   ->Starting hits update block..
+  ->Starting interaction bloc..
+!  ->Starting turn to tile block..
+  ->faceX=
+ faceY
+  ->forceMovement direction=
+  ->health=
+  ->interactingEntity=
+ -> Update: 
+ -> discardWalkingQueue=
+ -> index=
+ -> newPlayerCount=
+ -> type: 
+ -> update=
+] STARTING mask=
+ ->shiftingMask=
+Loading, please wait..
+Press @or2@CTRL@whi@ to view guide
+and receive @yel@+2 vote points!
+Type @yel@::claim@whi@ in-game after voting
+[                  <u=16748608>@lre@Attack@whi@</u>      <u=16748608>@lre@Defence@whi@</u>  
+<col=FFBD5C>Stab:
+<col=FFBD5C>Slash:
+<col=FFBD5C>Crush:
+<col=FFBD5C>Magic:
+<col=FFBD5C>Range:
+<u=16748608>@lre@Other Bonuses</u> 
+<col=FFBD5C>Strength:@whi@ 
+<col=FFBD5C>Prayer:@whi@ 
+<col=FFBD5C>Range strength:@whi@ 
+<col=FFBD5C>Magic damage:@whi@ +
+        Purchase
+       <img=50> @yel@Summer Battlefield Minigame <img=50>
+You'll be auto-assigned to one of the teams
+in a war between Wizards vs Warriors. Join as@whi@
+a pvp @or2@<img=53> Fighter@whi@ or non-pvp @gre@<img=49> Medic!
+ <col=5700FF>(Noted) 
+G <img=16> 
+Check out which players and
+clans are dominating the arena!
+J <img=16> 
+Various daily leaderboards
+for PKing, offering roster rewards!
+ <img=25> @or2@Unspawnable   
+ <img=40>  Information 
+ <img=83> Info
+ <img=9> Collect 
+ @gre@Item ID: @yel@
+ @red@
+^ @whi@Broken items will automatically       
+repair on death, using gold
+stored in the coffer.
+a @whi@Broken items will automatically        
+repair on death, using shards
+ @whi@Once the entire server has spent
+@yel@10,000,000@whi@ tokens, all participants 
+who purchased at least @yel@10 rolls @whi@will
+receive a bonus: @gre@Goodie bag.
+@yel@15,000,000@whi@ tokens, all participants 
+receive a bonus: @gre@Mystery box.
+@yel@20,000,000@whi@ tokens, all participants 
+receive a bonus: @gre@Mystery chest.
+ @whi@Select tab @lre@
+ @yel@Task progress left:
+ Account information
+
+### rs/l/e/q$a.class (143)
+ ANTIVENOM
+NAdventure Scroll
++10 blood money from PKs
++15% PvM damage
++25% Drop rate bonus
+While under amnesty, 
+players can't harm you.
+Attacking a player or the
+jungle demon will cancel it.
+Anti-venom duration
+Antifire duration
+ BLOODLUST
+RBlood Satiation
+Grants +10% PvM damage & accuarcy
+for magic and range (+5% in PvP)
+IBlood discount
+@gre@10%@whi@ cheaper purchases
+from Blood fountain shops!
+2Blood lust
+Earn +10 blood money
+from player kills.
+,Blood slayer task
+Complete the task in time!
+Charge duration
+#Coin bonus
+PvM GP increased by +25%
+?Cosmic gold
+Receive @gre@+25%@whi@ more gold
+from all PvM drops
+$Cosmic luck
+Drop rate bonus @gre@+5%
+2Cosmic strength
+Deal @gre@+5%@whi@ more PvM damage
+,Deep Wild Boost
++10% PvM damage
+in Deep Wild
+Dfs cooldown
+4Donator elixir
+2X zone tokens for
+ all donator zones
+,Dragon Boost
+against Dragons
+Drop rate bonus
+Chaos elemental
+#Drop rate bonus
+Crazy archaeologist
+Demonic gorilla
+*Drop rate bonus
+Drop rate increased by +5%
+!Enchanted heart
+Cooldown duration
+\Event booster
+Gives @gre@25%@whi@ more @yel@event
+@yel@currency@whi@ from @or1@World events!
+Freeze duration
+Deal +10% melee damage in PvM
+(+5% in PvP)
+RHotspot bonus
+@gre@2x@whi@ Hotspot Points <img=158>
+from hotspots for limited time
+2Hotspot crystal
+Double chance for
+hot spot caskets
+)Hunger games perk
+Temporary power-up perk
+KHunter elixir
+Double blood slayer points
+(Does not stack with streak bonus)
+ Hunter elixir
+Double soul shards
+Imbued heart
+ Infernal heart
+LKharazi safe bank
+After this duration
+you will be removed
+from the bank hut.
+@Larran's loot
+@gre@2x@whi@ larrans keys from
+blood slayer tasks.
+%Luck scroll
+Drop rate bonus @gre@+10%
+bMagic sickness
+You can't teleport in 20+ wild
+with your spellbook, items, or
+pets during sickness.
+4Maledictus Boost
++20% Superior Blood
+Revenant chance
+;Minigame scroll
+2x minigame points & +25%
+Kharazi drop rate
+ PVM_BONUS
+dPet silence
+While under silence, your 
+pet's effects are disabled and 
+you can't release other pets!
+0Raid Boost
+against Raid monsters
+)Raid scroll
+Raids reward chance @gre@+10%
+3Raids chart
+Increased chance for
+raids chest rares!
+0Revenant Boost
+against Revenants
+^Seasonal boost
+Gives @gre@+15%@whi@ more @yel@drop
+@yel@rate bonus@whi@ during Seasonal event!
+bSeasonal double
+Gives @gre@+5%@whi@ chance for @yel@doubled
+@yel@drops@whi@ during Seasonal event!
+_Seasonal hotspot
+Gives @gre@25%@whi@ more @yel@hotspot
+@yel@caskets@whi@ during Seasonal event!
+_Seasonal revs
+Gives @gre@25%@whi@ more @yel@superior
+@yel@revenants@whi@ during Seasonal event!
+4Slayer crystal
+Double slayer and
+blood slayer points
+
+### rs/r.class (142)
+@cya@Grants a random rare from the following:
+- Blood reaper scythe hilt
+- Blood reaper pet
+- Reaper bludgeon
+- 3x h'ween dyes
+- Easter elemental c'bow
+- Easter dragon pet
+- 3x Easter dyes
+- 3x Grand crests
+- Grand promo package @yel@(rare)
+- Frosty twisted branch
+- Winter demon pet
+- Promo package III
+- Lunar saradomin sword
+- Lunar hide body / chaps
+- Solar dark bow
+- Solar / Lunar demon pet
+- Solar / Lunar icon
+@cya@Limited seasonal item!
+Opens for the following:
+- Past promotional item (rare 
+chance for a pet fuse box)
+- 25,000 summer gems
+- Complimentary bond ($20-30)
+- Summer mystery box
+@cya@Limited time season item!
+- 10,000 h'ween tokens
+- H'ween mystery chest
+- Grand prize key
+- Guarenteed promo item
+- 5,000 h'ween tokens
+- Prize key
+- Chance for a promo item
+Has a chance to give some of the 
+most valuable items in the game!
+Also may include an extra easter item!
+Also gives 25-300 h'ween event tokens!
+Opens 5 donor mystery boxes at once.
+Rare chance for blood diamond items! 
+Gives 250-1500 h'ween event tokens.
+Chance to give bounty shop
+rewards as well as other unique
+rewards that can only be
+obtained from this crate!
+Gives 2 random prizes!
+Gives 5 random boosts!
+Gives a random Bounty shop item.
+Gives a random bond between
+$5 and $30 bonds.
+Gives a random epic fusion pet.
+Gives a random morrigan, zuriel,
+statius or vesta armor or weapon piece.
+Gives a random original 3rd age item,
+not including the bow and sword.
+Gives exotic & unique rewards.
+Gives five random epic fusion pets.
+Guarantees one of the most valuable rares
+Has a @or1@rare chance@whi@ to give @cya@imbued Abyssal dagger@whi@!
+Has a @or1@rare chance@whi@ to give @cya@strongest@whi@ pvp
+weapons in the game!
+Mystery chest with a rare chance for
+an easter partyhat, flippers, or
+pet accessory! Additionally gives
+stacks of choccy tokens alongside loot.
+Open with a friend and both of you will 
+receive a rare item! Very rare chance 
+for an @cya@Easter partyhat!
+receive a rare item! Very rare chance for 
+an @cya@enchanted partyhat or h'ween mask!
+Opens 3 donor mystery boxes at once.
+Also has a rare chance of giving blood 
+diamond items!
+Each item is a guaranteed rare!
+@or1@Not useable with prize keys!
+Guarentees at least one blood diamond item.
+Opens for @yel@10,000 donator tickets.
+Also opens for @yel@3 FREE mystery boxes
+You'll also receive +$100 total
+donated upon opening the bond.
+Opens for @yel@50,000 donator tickets.
+Also opens for @yel@3 FREE mystery chests
+You'll also receive +$500 total
+Opens for @yel@7,500 donator tickets.
+Also opens for @yel@1 FREE mystery box
+You'll also receive +$75 total
+Use on @yel@blood wild caskets
+for 2x the rewards
+and a chance to obtain
+@mag@very rare@whi@ rewards.
+and a guaranteed
+@mag@very rare@whi@ reward.
+Use on a @yel@Bond casket@whi@ to receive
+a random bond between $30 and $100.
+from previous SpawnPK events!
+ @whi@- @yel@Seasonal!
+Gives 50-100 winter shards upon opening
+Also has a chance for 2X rewards!
+P @gre@Epic pet box
+Commonly gives high valued pets.
+Rare chance for fusion pets!
+[ @gre@Epic pet chest
+Opens for five commonly high valued pets.
+$100.00 bond
+$500.00 bond
+$75.00 bond
+3rd age mystery box
+Blood chest
+ Blood key
+Bond casket
+Bond casket key
+Boost pack (5)
+Christmas cracker
+Cursed mystery crate
+Donator mystery box
+Easter 2020 casket
+Easter cracker
+Easter mystery box
+Easter mystery chest
+Epic pet mystery box
+Epic pet mystery chest
+
+### rs/n/c/ap.class (114)
+A<tab=20><col=0xFF981F>Show @whi@Combat</col><col=0xFF981F> spells
+C<tab=20><col=0xFF981F>Show @whi@Teleport</col><col=0xFF981F> spells
+B<tab=20><col=0xFF981F>Show @whi@Utility</col><col=0xFF981F> spells
+e<tab=20><col=0xFF981F>Show spells that require less\n<tab=20><col=0xFF981F>than half your magic level
+@gre@Boss Teleports
+@gre@Minigame Teleport
+@gre@Minigame Teleports
+@gre@Money Making
+@gre@Money Making Teleports
+@gre@PK Teleports
+@gre@Teleport to Bounty Target
+@gre@Teleport to House
+@gre@Teleport to Target
+@gre@Training & Slayer
+@gre@Training Teleports
+A multi-target miasmic spell
+A single attack miasmic spell
+A single attack surge spell
+A single target miasmic spell
+A teleport which requires no
+ Air surge
+7Allows another player to rebound\ndamage to an opponent
+Bake Pie
+Bake pies without a stove
+Boost Potion Share
+Cast @gre@Home Teleport
+1Cast on another player to see their\nskill levels
+Catherby Teleport
+-Change to another spellbook for 1\nspell cast
+ Combine runes without a talisman
+Cure Group
+Cure Me
+Cure Other
+Cure Plant
+Cure disease on farming patch
+Cure poisoned players
+Cures Poison
+Cures Poison on players
+*Detect the combat statistics of a\nmonster
+Earth surge
+Energy Transfer
+Fertile Soil
+-Fertilise a farming patch with super\ncompost
+Fire surge
+Fishing Guild Teleport
+Get skilling tools!
+Heal Group
+Heal Other
+Ice Plateau Teleport
+Level 0: Home Teleport
+Magic Imbue
+Magic spellbook filter
+Make glass without a furnace
+Miasmic barrage
+Miasmic blitz
+Miasmic burst
+Miasmic rush
+Monster Examine
+NPC Contact
+Opens a selection of teleports
+Plank Make
+Rebound damage to an opponent
+Select filter
++Share a potion with up to 4 nearby\nplayers
+,Shares a potion with up to 4 nearby\nplayers
+Skilling Kit
+Speak with varied NPCs
+Spell Filters
+Spellbook Swap
+OSpend hitpoints and SA Energy to\n give another player hitpoints and run energy
+Stat Restore Pot\nShare
+Stat Spy
+String Jewellery
+String amulets without wool
+Superglass Make
+Surprise your opponent!
+2Take a rest and restore hitpoints 3\n times faster
+Tele Group Barbarian
+Tele Group Catherby
+Tele Group Fishing\nGuild
+Tele Group Ice\n Plateau
+Tele Group Khazard
+Teleport Pking spots
+Teleport to money areas
+Teleport to powerful foes
+Teleport to shop areas
+Teleport to various monsters
+Teleport to your PoH
+Teleports players to Catherby
+ Teleports players to Ice Plateau
+!Teleports players to Port khazard
++Teleports players to the Barbarian\noutpost
+'Teleports players to the Fishing\nGuild
+Teleports you to Bounty Target
+Teleports you to Catherby
+Teleports you to Ice Plateau
+"Teleports you to the fishing guild
+Teleports you to your PoH
+*Transfer up to 75% of hitpoints to a group
+3Transfer up to 75% of hitpoints\n to another player
+Turn Logs into planks
+ Vengeance
+Vengeance Other
+Water surge
+ [Lrs/l/K;
+ [Lrs/n/e;
+ fills certain vessels with water
+magic/filter 1
+magic/filter 2
+magic/filter 3
+magic/home 2
+ rs/Client
+ runes and no required level that
+teleports you to the main land.
+
+### rs/q.class (110)
+100% chance to spawn @or1@Superior
+@or1@blood rev@whi@ when killing blood revs.
+Consumes scroll on summon.
+Binding this to an
+easter weapon will
+progress it further
+into its imbued form!
+Boosts accuracy of all
+dragon weapon special
+attacks by +15%
+Collect 5 to teleport
+to an instanced event boss!
+(Lunar and Solar demon)
+Combine all three pieces
+for ancient treasures.
+Crumbles to dust after you
+apply 75 hits in PvP combat.
+Deals +25% damage in PvM
+But max hit is @or1@capped at 60!
+Earn @gre@+10@whi@ blood money
+from kills for 15 minutes.
+from kills for 30 minutes.
+Earn @gre@2x@whi@ larran's keys from
+blood slayer for 20 minutes.
+Earn @gre@2x@whi@ loot from
+thieving for 15 minutes.
+<img=6> Best used at rogue's chest
+Expired summer gems from
+the Summer event of 2017-2019
+From the limited time
+easter holiday event.
+Grants @yel@+15%@whi@ drop rate
+only during @yel@Seasonal events@whi@
+and lasts for one hour.
+Grants @yel@+25%@whi@ chance for hotspot
+caskets only during @yel@Seasonal events@whi@
+Grants @yel@+25%@whi@ chance for superior
+rev spawns only during @yel@Seasonal evente@whi@
+Grants @yel@25%@whi@ more @yel@hween
+@yel@tokens@whi@ for one hour.
+Grants @yel@25%@whi@ more @yel@summer
+@yel@gems@whi@ for one hour.
+Grants @yel@25%@whi@ more @yel@winter
+@yel@shards@whi@ for one hour.
+Grants @yel@5%@whi@ chance for 2x drops
+I should take these to 
+Kolodion in the Mage arena.
+Obtained from a limited
+time Mage Arena event.
+Repairs any piece of broken
+armor, free of charge!
+Salvages are used in
+the enchantment chest
+for enchanted heraldics.
+Teleports you to a Singles+ wildy
+dungeon where most customs
+are restricted!
+These can be fletched
+into trading sticks.
+This item can be taken
+to Mandrith to exchange for coins.
+This might be useful for
+chopping jungle trees.
+This oddly resembles
+a dragon dagger..
+Unique dharoks that gives
+extra @gre@+5@whi@ slash bonus on each
+piece. Also has @or1@1/4 chance
+to deal @gre@2x@whi@ damage in PvM.
+Use on @yel@wild caskets
+for 2x the rewards
+and a chance to obtain
+@mag@rare@whi@ ornament kits.
+Used to open the lava chest
+at the center of the lava maze.
+When activated, bloodwyrm will
+be guarenteed to spawn after
+the next wildywyrm death.
+Adventurer's whip
+ Blood key
+Dragon upgrade scroll
+Egg weapon charge
+Holiday cake
+Repair scroll
+Seasonal blood rev scroll
+Seasonal drop boost scroll
+Seasonal drop doubler scroll
+Seasonal hotspot scroll
+Spooky hween scroll
+Summer elixir
+Superior blood rev scroll
+Vintage dungeon tele
+beginner ags
+beginner dragon claws
+bloodlust scroll
+bloodwyrm scroll
+choccy tokens
+crest piece
+crumbled summer gem
+easter dharok
+heraldic salvage
+holy shard
+killer's dagger
+larran's loot scroll
+lava key
+mystic coins
+scrapey tree logs
+shard of balance
+summer totem
+thief's scroll
+
+### rs/n/c/d/c.class (106)
+ Adept difficulty
+- +5% rare reward chance
+- Bosses have 50% more HP
+- Bosses have 10% more defence
+- Bosses deal 5% more damage
+- You deal 5% less damage
+ Expert difficulty
+- +25% rare reward chance
+- Bosses have 200% more HP
+- Bosses have 20% more defence
+- Bosses deal 7.5% more damage
+- You deal 7.5% less damage
+ Grandmaster difficulty
+- Receive +3 common rewards
+- +75% rare reward chance
+- Bosses have 400% more HP
+- Bosses have 50% more defence
+- Bosses deal 15% more damage
+- You deal 15% less damage
+ Master difficulty
+- Receive +2 common rewards
+- +50% rare reward chance
+- Bosses have 300% more HP
+- Bosses have 30% more defence
+- Bosses deal 10% more damage
+- You deal 10% less damage
+<img=17> Create @gre@(Public)
+<img=17> Create @or3@(Private)
+Y<img=17> Create Private
+Your party will only be joinable by
+players in your friend's list
+f<img=17> Create Public
+Your party will be publicly listed and
+available to players via the "Join" tab.
+<img=291> Waiting
+<img=2> Create @mag@(Mass)
+<img=2> Start Mass
+Create a special public party with a huge capacity!
+In addition, mass raids let all players
+participate in any difficulty (req. bypass)
+NOTE: This button is only visible
+to accounts with authorization
+<img=375> Ready
+<img=376> Cancel
+<img=377> Leave
+<img=378> Enter Raid
+<img=378> Start Mass
+<img=401> Enter Raid
+<img=80> Join Private
+U<img=80> Join Private
+Enter the username of a friend
+to join their private raid party
+<img=88> Friends only
+<img=88> Invite only
+<img=88> Public
+Add affliction tome(s)
+Adept (Req. 10+ raids)
+Aff. Tome Coffer
+'Buy x25:@gre@ <tab=55><item=10834>2,500
+'Buy x50:@gre@ <tab=55><item=10834>4,500
+Cancel invitation
+Cancel your ready status
+Chambers of Xeric <img=185>
+Close interface
+Current Status
+Deposit all tomes from bank
+ Deposit all tomes from inventory
+Enter the raid instance lobby
+Expert (Req. 50+ raids)
+Grandmaster (Req. 250+)
+Invite a player
+Kick player
+#Leave the party (disbands if empty)
+$Mark yourself as ready for the raid!
+Master (Req. 100+ raids)
+Members (1/5)
+Normal (No reqs.)
+Party Afflictions
+Raid Difficulty
+Raid Selection
+$Raid: @yel@Grandmaster ToB @gre@(4A)
+Reload last settings
+RReload last settings
+Apply the same raid type and
+difficulty as your last instance
+Remove affliction tome(s)
+!Start the raid mass (lobby stage)
+Theatre of Blood <img=184>
+ZWaiting for leader..
+You will be able to join once the
+leader of the mass starts the raid!
+What are Afflictions?
+BWould you like to create your own party? Or join an existing one..
+%You're not currently in a raid party!
+bank/bank 17
+bank/bank 18
+bank/bank 31
+bank/bank 32
+misc/donor 10
+misc/donor 11
+misc/donor 12
+misc/donor 9
+raids/refresh 1
+raids/refresh 2
+raids/sprite 8
+raids/sprite 9
+
+### rs/n/c/aH.class (98)
+Burst of Strength
+Charity of Thought
+ Eagle Eye
+Hawk Eye
+Hide stat adjustments
+Improved Reflexes
+Incredible Reflexes
+0Level 01
+Thick Skin
+Increases your Defence by 5%
+8Level 04
+Increases your Strength by 5%
+7Level 07
+Increases your Attack by 5%
+.Level 08
+Sharp Eye
+Increases your Ranged by 5%
+/Level 09
+Mystic Will
+Increases your Magic by 5%
+0Level 10
+Rock Skin
+Increases your Defence by 10%
+;Level 13
+Superhuman Strength
+Increases your Strength by 10%
+7Level 16
+Increases your Attack by 10%
+PLevel 19
+Rapid Restore
+2x restore rate for all stats
+except Hitpoints and Prayer
+:Level 22
+Rapid Heal
+2x restore rate for the
+Hitpoints stat
+4Level 25
+Protect Item
+Keep one extra item if you die
+.Level 26
+Increases your Ranged by 10%
+0Level 27
+Mystic Lore
+Increases your Magic by 10%
+1Level 28
+Steel Skin
+Increases your Defence by 15%
+9Level 31
+Ultimate Strength
+Increases your Strength by 15%
+9Level 34
+Increases your Attack by 15%
+;Level 37
+Protect from Magic
+Protection from magical attacks
+=Level 40
+Protect from Missiles
+Protection from ranged attacks
+9Level 43
+Protect from Melee
+Protection from close attacks
+/Level 44
+Eagle Eye
+Increases your Ranged by 15%
+1Level 45
+Mystic Might
+Increases your Magic by 15%
+ALevel 46
+Inflicts damage to nearby
+targets if you die
+HLevel 49
+Heals you when damaged
+and Hitpoints falls
+below 10%
+HLevel 52
+1/4 of damage dealt is
+also removed from
+opponents Prayer
+/Level 55
+Boosted stats last 50% longer
+RLevel 60
+Increases your Defence by 20%,
+Strength by 18% and Attack by
+OLevel 70
+Increases your Defence by 25%,
+Strength by 23% and Attack by
+DLevel 74
+Increases your Ranged by 20%
+and your Defence by 25%
+CLevel 77
+Increases your Magic by 20%
+ Rock Skin
+ Sharp Eye
+Show stat adjustments
+ [Lrs/l/K;
+ [Lrs/n/e;
+prayer/sprite 1
+prayer/sprite 2
+
+### rs/n/c/aG.class (96)
+ Berserker
+Deflect Magic
+Deflect Melee
+Deflect Missiles
+Deflect Summoning
+Leech Attack
+Leech Defence
+Leech Energy
+Leech Magic
+Leech Ranged
+Leech Special Attack
+Leech Strength
+2Level 50
+Protect Item
+Keep 1 extra item if you die
+bLevel 50
+Sap Warrior
+Drains 10% of enemy Attack,
+Strength and Defence,
+increasing to 20% over time
+WLevel 52
+Sap Ranger
+Drains 10% of enemy Ranged
+and Defence, increasing to 20%
+over time
+TLevel 54
+Sap Mage
+Drains 10% of enemy Magic
+7Level 56
+Sap Spirit
+Drains enenmy special attack
+0Level 59
+Boosted stats last 15% longer
+Level 62
+Reduces damage dealt from
+Summoning scrolls, prevents the
+use of a familiar's special
+attack, and can deflect some of
+damage back to the attacker
+oLevel 65
+Protects against magical attacks
+and can deflect some of the
+qLevel 68
+Protects against ranged attacks
+mLevel 71
+Protects against melee attacks
+Level 74
+Boosts Attack by 5%, increasing
+to 10% over time, while draining
+enemy Attack by 10%,
+increasing to 25% over time
+Level 76
+Boosts Ranged by 5%, increasing
+to 10% over time,
+while draining enemy Ranged by
+10%, increasing to 25% over
+Level 78
+Boosts Magic by 5%, increasing
+enemy Magic by 10%, increasing
+to 25% over time
+Level 80
+Boosts Defence by 5%, increasing
+while draining enemy Defence by
+Level 82
+Boosts Strength by 5%, increasing
+while draining enemy Strength by
+HLevel 84
+Drains enemy run energy, while
+increasing your own
+[Level 86
+Drains enemy special attack
+energy, while increasing your
+;Level 89
+Inflicts damage to nearby
+targets if you die
+jLevel 92
+Soul Split
+1/4 of damage dealt is
+also removed from
+opponent's Prayer and added to
+your Hitpoints
+~Level 95
+Increases Attack and Defence
+by 15%, plus 15% of enemy's
+level, and Strength by 15% plus
+10% of enemy's level
+YLevel 95
+Turmoil (magic)
+Increases Magic by 20%
+and Defence by 25%
+(Weaker in PvP combat)
+ZLevel 95
+Turmoil (range)
+Increases Ranged by 20%
+ [Lrs/l/K;
+ [Lrs/n/e;
+
+### rs/d/r.class (96)
+ @whi@[
+ (IIIIIZ)V
+ (J)Lrs/a;
+250k Stall
+350k Stall
+450k Stall
+650k Stall
+850k Stall
+<img=49> Bandage table
+<img=53> Upgrade potion table
+<img=57> Spawn
+<img=57> Toggle-hide
+@gre@Monster spawn orb
+@gre@Restore orb
+Barrelchest portal
+Beach ball
+Beach shovel
+Big palm tree
+Blood fountain
+Blood obelisk
+Blood pool
+Blood synthesis pool
+Blood thorn bush
+Blood totem
+ Cave exit
+Chaos elemental portal
+ Chop down
+Christmas tree
+Crazy archaeologist portal
+Dark altar
+7Dark altar offers runecrafting and prayer regeneration.
+Dark orrery
+Demonic gorilla portal
+Donator zone portal
+Dragon pool
+Duel arena portal
+BE:\Users\dariu\Desktop\Files\Documents\OSRS Dumps\177 dump\index1\
+FE:\Users\dariu\Desktop\Files\Documents\OSRS Dumps\177 dump\index1\
+Enchanted crystals
+Enchanted pool
+Equipment coffer
+Event armory
+Event reward chest
+ Evergreen
+Gamble zone portal
+Giant snowglobe
+Gilded burner
+Gilded repair bench
+Grand crystal
+Hotspot crystal
+Jungle essence rock
+Kharazi chest <img=248>
+Kharazi storage chest
+Kraken portal
+Large door
+Larran's chest <img=17>
+ Look-into
+Looty imp box table
+Magical pumpkin
+Mystic gem statue
+Oak tree
+Oasis 2
+,Object definition data/index length mismatch
+ Palm tree
+Raids chart
+Regular imp box table
+Revenant cave entrance
+Reward exchange
+Rogue's chest
+Row boat
+Safespot barricade
+Sand mound
+Skotizo portal
+Slayer crystal
+ Snowdrops
+Spell-book altar
+Summer comet
+Summer oasis
+Swift imp box table
+Switch-ancients <img=55>
+Switch-lunar <img=56>
+Switch-modern <img=59>
+ Take-from
+Throne of the gods
+Trading post
+Upgrade tent
+Vet'ion portal
+Well of Goodwill
+Wildy obelisk
+Wildywyrm portal
+ [Lrs/a/h;
+ [Lrs/d/a;
+ [Lrs/d/r;
+ [Lrs/d/y;
+ rs/Client
+ separator
+
+### rs/n/a.class (81)
+--- IDX 
+..Check complete!
+%<img=2> Chat command mode has been: 
+)<img=2> Item hover descriptions reloaded!
+5<img=2> Type @dpu@chatcmd@bla@ to toggle it back off!
+Q<img=6> You've 
+ mode! Re-enter the command @blu@::summer@bla@ again to toggle.
+G@blu@<img=6> NOTE: Changes will not take effect until your map reloads!
+D@dgr@<img=24> Wildy minimap multi lines in the minimap will now show
+@dgr@<img=24>ENABLED
+8@dgr@<img=6> Display of your character has been enabled.
+H@dre@<img=25> Wild minimap multi lines in the minimap will now be hidden
+=@dre@<img=25> You can't enter this command in the wilderness!
+@dre@<img=25>DISABLED
+M@dre@<img=40> Your character is now hidden (only on your screen, not others!)
+Buddy 
+Can't find item definition!
+Can't find item model! 
+4Checking availablility for interface ID(s) 
+-Found a range of 
+ free interface IDS: 
+: model: 
+, anim:
+Interfaces reloaded.
+Progress: 
+Searcing regions..
+&[!!!!] Interface ID 
+ is free for use!
+[ITEM 
+ [Lrs/d/a;
+ [Lrs/d/x;
+ [Lrs/n/e;
+#[WARNING] Interface ID 
+ is in use!
+actions = new String[] {
+ actions=null,null,null,null,Drop
+ ambient=
+anInt233 = 
+childX = new int[] {
+childY = new int[] {
+children = new int[] {
+ clearchat
+dark winter
+ dumpitems
+entityDef.anInt86 = 
+entityDef.anInt91 = 
+%entityDef.anIntArray70 = new int[] 
+%entityDef.anIntArray76 = new int[] 
+%entityDef.anIntArray94 = new int[] 
+entityDef.standAnim = 
+SentityDef.walkAnim = entityDef.anInt55 = entityDef.anInt83 = entityDef.anInt58 = 
+ entitydef
+frameDurations: 
+ frames: 
+height = 
+inv = new int[
+invSpritePadX = 
+invSpritePadY = 
+invSpriteSize = 
+invStackSizes = new int[
+landscape file id: 
+map file id: 
+mediaID = 
+ modelID=
+modelRotation1 = 
+modelRotation2 = 
+modelZoom = 
+objectDef.anInt781 = 
+objectDef.anIntArray773 = 
+!objectDef.modifiedModelColors = 
+!objectDef.originalModelColors = 
+objectDef.sizeX = 
+objectDef.sizeY = 
+ objectdef
+ offset1=
+ offset2=
+ region: 
+ rs/Client
+ substring
+type = 
+width = 
+
+### rs/s/h.class (56)
+*Adds a notification message to the chatbox
+Always on top
+Block extra mouse buttons
+(Blocks extra mouse buttons (4 and above)
+CChoose how the window should resize when opening and closing panels
+9Configures the background color of infoboxes and overlays
+5Configures the hotkey used to drag UI elements around
+OConfigures the volume of custom notifications (does not control native volume).
+8Configures the window focus request type on notification
+Contain in screen
+3Determines if the window resizing is allowed or not
+|Disabling this may limit your ability to receive tray notifications.
+Please restart your client after changing this setting.
+Drag Hotkey
+Enable custom window chrome
+Enable tray icon
+Enable tray notifications
+Enables icon in system tray
+DEnables the playing of a beep sound when notifications are displayed
+Enables tray notifications
+(Flashes the game frame as a notification
+Game message notifications
+yHow long notification will be shown in milliseconds. A value of 0 will make it use the system configuration. (Linux only)
+Lock window size
+Makes the client move itself to stay within the screen when resizing..<br>Note: 'Always' only works on Windows and if custom chrome is enabled.
+Notification Flash
+Notification Settings
+Notification sound
+Notification timeout
+Notification volume
+Overlay Color
+Overlay Settings
+6Please restart your client after changing this setting
+Plugin Panel Toggle Key
+Remember client position
+Request focus
+Resize type
+6Save the position and size of the client after exiting
+Send notifications when focused
+Set the windows opacity.
++Sets the color of the notification flashes.
+Settings relating to fonts
+"Settings relating to notifications
+2Settings relating to the client's window and frame
+Show display name in title
+Sidebar Toggle Key
+0The game will always be on the top of the screen
+TThe key that will toggle the current or last opened plugin panel (accepts modifiers)
+8The key that will toggle the sidebar (accepts modifiers)
+8Toggles all notifications for when the client is focused
+AToggles displaying of local player's display name in client title
+/Use RuneLite's custom window title and borders.
+Use actively traded price
+LUse actively traded prices, sourced from the RuneScape wiki, for item prices
+Window Settings
+Window opacity
+
+### rs/n/c/aC.class (56)
+/options/sprite 52
+/options/sprite 53
+Coming soon
+Cosmetic "icons" visibility
+Desktop notifications
+!Extend the zoom and draw distance
+Extended zoom & distance
+Fog distance
+Hide other pets (non-wild)
+Instant switching
+Left click attack target only
+Left click magic target only
+Left-click attack
+ Lite mode
+Lock spawnable item dropping
+Multiplied 10x hits
+New HP bar
+New hit marks
+New hitpoints bar
+Oldschool 07 graphics
+Oldschool 07 ticks
+"Only left-click attack your target
+&Only left-click spell cast your target
+Open attack options
+Open house options
+Open key binding selection
+Particle/glow effects
+Player lighting
+Prayer adjustments
+Resizable mode
+Shift dropping
+Show combat overlay
+Show news broadcasts
+Split private chat
+Swap rigour/augury
+Toggle broadcasts
+Toggle combat overlay
+Toggle desktop notificaitons
+#Toggle dropping for spawnable items
+Toggle fog
+Toggle left-click attack
+Toggle new graphics
+Toggle non-wild pets
+Toggle particles
+Toggle pets for "bank all"
+Toggle player lighting
+Toggle roofs
+Toggle shift dropping
++Toggle visibility for icon items on players
+Toggle/show roofs
+Very Bright
+ [Lrs/l/K;
+ [Lrs/n/e;
+options/sprite 37
+options/sprite 38
+x10 hits
+
+### rs/cache/osrs/util/OsrsMapDependencyScanner.class (56)
+ animation=
+DECODE_ERROR 
+'EXPECTED_SKELETAL_KEYFRAMES animation=
+Empty YAML: 
+DExit: 0 clean, 1 dependency findings, 2 incomplete scan/setup error.
+FRAME_DECODE_ERROR 
+!FRAME_FILE_OUT_OF_CLIENT_BOUNDS 
+Frame data length mismatch
+(Frame index exceeds client allocation: 
+INCOMPLETE region=
+ yaml=
+2INCOMPLETE: No entries with type: osrs were found.
+INVALID_GZIP 
+$KEYFRAME_FILE_OUT_OF_CLIENT_BOUNDS 
+ Landscape location out of bounds
+MISSING_FRAME animation=
+.MISSING_OR_INVALID_LEGACY_FRAMES animation=
+ Missing 
+-Missing config archive main_file_cache.idx0:2
+Missing/non-numeric 
+/Missing/unreadable packed landscape osrs.idx4:
+No missing dependencies found.
+OSRS map dependency scan: 
+ regions, 
+ spawns, 
+ distinct spawned objects
+ affected regions, 
+ distinct problem assets, 
+ incomplete checks
+Cache: 
+Maps: 
+Regions with land: -1 (no object spawns): 
+Checks all models and morph alternatives, regardless of current varbits/spawn shape.
+Uses client object/animation overrides and configs/*.yaml, not serialized production configs.
+Asset IDs: idx1=models; idx2=frame/keyframe files; animation=N is a sequence ID.
+Loose packing directories do not count as packed assets. Model geometry and skeletal content are not decoded.
+Problem assets:
+Findings (one example spawn per region/root object/dependency):
+AReport must be outside the cache and must not overwrite maps.yaml
+ Report: 
+Scan failed: 
+PSequence expects classic frames but file contains skeletal keyframes (magic 420)
+Trailing landscape bytes
+%Truncated/invalid landscape at byte 
+JUsage: OsrsMapDependencyScanner [cache-directory] [maps.yaml] [report.txt]
+ [Lrs/d/a;
+ getParent
+keyframes animation=
+ normalize
+ dependencyObject=
+ land=
+ group=
+ example=
+ type=
+ rotation=
+ substring
+
+### rs/n/c/aD.class (53)
+::selectperk 
+,<img=186> Blood Fountain Perk Tree <img=186>
+(@whi@Selected perk: @gre@Blood vengeance
+Archaeologist I
+Archaeologist II
+Archaeologist III
+Blood alchemy
+Blood alchemy II
+Blood alchemy III
+Blood archer ring
+Blood berserker ring
+Blood dark bow
+Blood pool
+Blood ring
+Blood rune c'bow
+Blood seers ring
+Blood staff
+Blood vengeance I
+Blood vengeance II
+Blood whip
+ Bloodlust
+Bloodthirsty I
+Bloodthirsty II
+Bounty teleport
+Death's accomplice
+Death's door
+Diamonds are forever
+Emblem snatcher
+Escape Artist
+Eternal blood cape
+Eternal recoil
+ Excavator
+Grand treasure
+ Killjoy I
+Killjoy II
+Mercenary I
+Mercenary II
+Treasure buddy
+Treasure hunter I
+Treasure hunter II
+Unholy smite
+Vampiric accuracy
+Vampiric damage
+Vampiric defence
+War diamonds
+ [Lrs/l/K;
+ [Lrs/n/e;
+fountain/sprite 1
+fountain/sprite 19
+fountain/sprite 2
+fountain/sprite 20
+fountain/sprite 3
+ rs/Client
+
+### rs/n/c/h.class (52)
+Always set as placeholders
+1Click here to view the full contents of your bank
+Close Window
+Collapse tab
+Decant all potions in your bank
+Decant potions
+Deposit carried tems
+Deposit pet
+Deposit worn items
+Deposit your pet to your bank
+Do not set as placeholders
+%Drag an item here to create a new tab
+/Empty the items your are
+wearing into your bank
+"Empty your backpack into
+your bank
+Enter name of item to search
+"Filter by currencies
+Repair items
+Search for item
+Select tab
+Swap Withdraw Mode
+Switch to insert items 
+Switch to item withdrawal 
+Switch to note withdrawal 
+Switch to swap items 
+The Bank of SpawnPK
+Toggle note
+Toggle placeholders
+Withdraw 
+Withdraw 1
+Withdraw 10
+Withdraw 14
+Withdraw 5
+Withdraw All
+Withdraw All But One
+Withdraw X
+ [Lrs/l/K;
+ [Lrs/n/e;
+ bank/BANK
+bank/BANK 13
+bank/BANK 14
+bank/BANK 15
+bank/BANK 16
+bank/BANK 3
+bank/BANK 4
+bank/TAB 0
+bank/TAB 1
+bank/TAB 2
+bank/TAB 3
+bank/TAB 4
+ rs/Client
+
+### rs/k/k.class (45)
+ CL_DEVICE_ADDRESS_BITS: {}
+ CL_DEVICE_AVAILABLE: {}
+! CL_DEVICE_COMPILER_AVAILABLE: {}
+ CL_DEVICE_EXTENSIONS: {}
+" CL_DEVICE_MAX_CLOCK_FREQUENCY: {}
+  CL_DEVICE_MAX_COMPUTE_UNITS: {}
+" CL_DEVICE_MAX_WORK_GROUP_SIZE: {}
+' CL_DEVICE_MAX_WORK_ITEM_DIMENSIONS: {}
+ CL_DEVICE_NAME: {}
+ CL_DEVICE_PROFILE: {}
+ CL_DEVICE_TYPE: {}
+ CL_DEVICE_VENDOR: {}
+ CL_DEVICE_VENDOR_ID: {}
+ CL_DEVICE_VERSION: {}
+ CL_DRIVER_VERSION: {}
+#define FACE_COUNT 
+Binary type: {}
+Build log: {}
+Build options: {}
+Build status: {}
+Compiling program:
+7Compute device does not support min work group size 256
+'Created command_queue {}, properties {}
+(Device CL_DEVICE_MAX_WORK_GROUP_SIZE: {}
+Device id {}
+!Face counts: small: {}, large: {}
+ Got macOS CLGL compute device {}
+Loaded kernel {} for program {}
+No OpenCL platforms found.
+OpenCL error [%d]
+Platform extensions: {}
+Platform name: {}
+Platform profile: {}
+Platform vendor: {}
+Platform version: {}
+Unable to find compute platform
+[LWJGL] cl_context_callback: {}
+ callocInt
+error checking device
+error checking platform
+ getLogger
+ getWGLHDC
+ mallocInt
+ stackPush
+unsupported platform
+
+### rs/k/e.class (43)
+2#define THREAD_COUNT 
+#define FACES_PER_THREAD 
+#version 420
+#extension GL_ARB_compute_shader : require
+#extension GL_ARB_shader_storage_buffer_object : require
+#extension GL_ARB_explicit_attrib_location : require
+#version 430
+ (IIIII)[I
+ (IIIIII)V
+ (IIIZIJ)V
+3AA samples: {}, max samples: {}, forced samples: {}
+Buffer resize: {} {} -> {}
+Error starting GPU plugin
+FBO is incomplete. status: 
+(OpenGL 3.1 is required but not available
+ SHARED_LIBRARY_EXTRACT_DIRECTORY
+Shutting down..
+Using device: {}
+Using driver: {}
+ [Lrs/l/C;
+ comp.glsl
+=disabling compute shaders because OpenGL 4.3 is not available
+ frag.glsl
+ getHeight
+ getLogger
+ getScaleX
+ getScaleY
+ glDisable
+ glRenderbufferStorageMultisample
+model buffer large
+model buffer small
+model buffer unordered
+out tex buffer
+out vertex buffer
+ remaining
+ rs/Client
+scene tex buffer
+scene vertex buffer
+tmp tex buffer
+tmp vertex buffer
+uniform buffer
+$unsupported swap interval {}, got {}
+ vert.glsl
+
+### rs/n/c/aL.class (42)
+<img=24> Start raid   
+<img=25> Leave party   
+Adept (Req. 10+ raids)
+Adept difficulty
+Chambers of Xeric
+Description and requirements
+Expert (Req. 50+ raids)
+Expert difficulty
+Grandmaster (Req. 250+)
+Grandmaster difficulty
+Invite member
+Leave/disband party
+Line 1
+Line 10
+Line 11
+Line 12
+Line 13
+Line 2
+Line 3
+Line 4
+Line 5
+Line 6
+Line 7
+Line 8
+Line 9
+Master (Req. 150+ raids)
+Master difficulty
+Normal (No requirements)
+Normal difficulty
+Possible drops and rewards
+Raid type and difficulty
+Raiding Party Set-up
+Rank: 1
+Re-invite last players
+Remove member
+Selected raid
+Start raid
+Theatre of Blood
+Your raiding party (1 member)
+ [Lrs/l/K;
+ [Lrs/n/e;
+raids/sprite 0
+
+### rs/l/b/b.class (40)
+ @gre@(COMPLETE)
+ in: @gre@
+ (IIIIII)V
+: @gre@
+&<img=40> @whi@WHIP + DDS ONLY <img=40>
+ <img=40> @whi@WHIP ONLY <img=40>
+@or2@Total: @whi@
+@or2@Your points: @whi@
++@or2@[Warning] <img=37> @yel@System update
+J@or2@[Warning] <img=37> @yel@System update @or1@(5 min timer)@yel@ starts
+ @yel@
+Begin in..
+COORDINATE INFORMATION
+Coords: 
+Debug Interface Position X: 
+Debug Interface Position tY: 
+Debug Interface: 
+Debug Item: 
+Debug Offset1: 
+Debug Offset2: 
+Debug RotX: 
+Debug RotY: 
+Debug Zoom: 
+ Fighters:
+Mouse X: 
+ , Mouse Y: 
+ Opponents
+ Ping: 
+RUNTIME INFORMATION
+Region ID: 
+Round ends in:
+Round starts in:
+(System update warning timer is complete!
+Tournament starts in:
+Tracking: @yel@
+Waiting for more players
+ Your clan
+ [Lrs/l/F;
+ [Lrs/n/e;
+ rs/Client
+
+### rs/n/c/c.class (39)
+<img=24> @gre@CLAIMED
+<img=9> Claim all
+A<str=3145472>                                                    
+@yel@CLAIM!
+Chapter Progress
+Claim reward
+Claim rewards
+1Complete the @or1@Undead PKer@whi@ daily activity
+)Dip an abyssal whip in the blood fountain
+:Earn 50 @or1@Vintage tickets@whi@ at the @or1@Vintage cave
+Kill {prog} blood-revenants
+2List vote ticket(s) for sale via @or1@Trading Post
+Next chapter
+No mail message selected!
+Previous chapter
+:Purchase a @or1@Toxic Blowpipe@whi@ from the Trading Post.
+Teleport to Task
+@Then, swap the vote points for @or1@vote tickets@whi@ (via shop)
+%This is a great starter item for PvM!
+Tips & Information
++Unlock the @or1@Blood Vengeance I@whi@ perk
+$Unlock the @or1@Blood Whip@whi@ perk
+KVote for SPK @or1@(::vote)@whi@ then @or1@(::redeem)@whi@ your vote points!
+ [Lrs/n/e;
+teleport/sprite 19
+teleport/sprite 20
+teleport/sprite 21
+teleport/sprite 22
+teleport/sprite 23
+teleport/sprite 24
+teleport/sprite 25
+teleport/sprite 26
+teleport/sprite 27
+teleport/sprite 28
+teleport/sprite 29
+teleport/sprite 30
+teleport/sprite 31
+teleport/sprite 32
+&to create a Blood whip (perk required)
+
+### rs/n/c/o.class (38)
+@or1@Boss Teleportation Network
+@or1@Name of Boss
+@or1@Possible drops and rewards
+@yel@-@whi@ Placeholder I
+@yel@-@whi@ Placeholder II
+@yel@-@whi@ Placeholder III
+@yel@Available achievements:
+@yel@Information & Stats:
+@yel@View All
+Combat level: @whi@100
+Combat zone: @whi@Single
+Line 11
+Line 12
+Line 13
+Line 14
+Line 15
+Line 16
+Line 17
+Select this teleport
+Teleport #1
+Teleport #10
+Teleport #11
+Teleport #12
+Teleport #13
+Teleport #2
+Teleport #3
+Teleport #4
+Teleport #5
+Teleport #6
+Teleport #7
+Teleport #8
+Teleport #9
+Teleport <img=149>
+Teleport to boss
+View full drop table
+Wilderness level: @whi@Safe
+ [Lrs/l/K;
+ [Lrs/n/e;
+
+### rs/n/e.class (36)
+ @gre@Random player
+ Debtor Hideout
+ M. Settlement
+  Mountain
+ Trinity Outpost
+ (IIIIII)V
+ (IIIIIZ)V
+ (J)Lrs/a;
+Activate@or1@ 
+Activate@or2@ 
+Build 
+Buy 100
+Buy 1000
+Cast @gre@
+Cast @gre@Lunar Home Teleport
+Cast On
+Cast on
+Extend slots
+Kharazi storage chest
+Level 
+ RuneScape
+ Runescape
+#Select to perform a special
+Take 1
+Take 10
+Take 5
+Take All
+Use @gre@Special Attack
+ [Lrs/d/a;
+ [Lrs/l/F;
+ [Lrs/l/K;
+ [Lrs/n/e;
+ magic/off
+ rs/Client
+ runescape
+ substring
+
+### rs/s/s/a.class (34)
+Background color
+Color scheme
+Descriptions on bank screen
+ Descriptions on equipment screen
+Descriptions on inventory
+Display hovers for Guides
+Display hovers for NPCs
+Display hovers for Objects
+Display hovers for Players
+Display wandering merchant
+Entity hovers
+Hide all entity hovers in wild
+Hide descriptions in wild
+Hide item hovers in wild
+Inner border color
+Item hovers
+Outer border color
+Show hovers on inventory
+/Show sink values (Blood diamonds, shards, etc.)
+)The background color for tooltip overlays
++The inner border color for tooltip overlays
++The outer border color for tooltip overlays
+<Whether to hide entity tooltip hovers when in the wilderness
+4Whether to hide item tooltips when in the wilderness
+eWhether to include an icon on the tooltip if the item is a potential task from the wandering merchant
+5Whether to show item tooltip descriptions in the bank
+5Whether to show item tooltips on the equipment screen
+4Whether to show item tooltips on the inventory items
+5Whether to show item tooltips on your inventory items
+AWhether to show knowledgebase guide shortcuts with the hover menu
+8Whether to show the sink value of an item in the tooltip
+5Whether to show tooltips with the hover menu for NPCs
+8Whether to show tooltips with the hover menu for Players
+8Whether to show tooltips with the hover menu for objects
+
+### rs/n/c/ac.class (34)
+ Go back
+ Search by item
+ Select tab
+<img=39> Search for an item
+*<img=39> Search: @yel@"
+" @gre@(
+ results)
+ Deposit 1
+Deposit 10
+ Deposit 5
+Deposit All
+Deposit all to bank
+Deposit all to inventory
+Description Line 1
+Description Line 1 (small)
+"Empty your backpack into
+your bank
+Item List Title
+Remove 1
+ Remove 10
+Remove 5
+Remove All
+Search description text
+ [Lrs/l/K;
+ [Lrs/n/e;
+ bank/bank
+drops/sprite 3
+drops/sprite 4
+list/bg bottom
+list/bg foot
+list/bg top
+slayer/image 10
+wiki/button 1
+wiki/button 2
+
+### rs/n/c/V.class (34)
+4"replant" will occur and the game will auto-restart.
+55x2 (P1 host)
+55x2 (P2 host)
+J<col=8B88FF><img=6> Safety:@whi@ If you logout or DC during the game, your
+%@gra@NOTE: Prices are just estimates!
+Accept this offer
+3Are you sure you want to play this? Read carefully!
+BJ (P1 host)
+BJ (P2 host)
+:Both players will plant five flowers each. The player with
+Close Window
+Decline this offer
+ Dice duel
+Est. Value: N/A
+Flower poker
+Gambling with P1..
+8If anyone plants a white or black flower (rare chance) a
+Remove 1
+ Remove 10
+Remove 5
+Remove All
+Remove X
+Rules for "BJ (P1 hosting)"
+Select a game type..
+2The server will continue planting flowers for you.
+Their offer
+Waiting for other player..
+You'll be playing..
+Your offer
+ [Lrs/l/K;
+ [Lrs/n/e;
+ misc/warn
+6player will stay logged in until the game is complete.
+*the best pairs of colors will win the pot.
+
+### rs/n/c/aw.class (33)
+<img=84>@yel@$10
+<img=84>@yel@$100
+<img=84>@yel@$20
+<img=84>@yel@$30
+<img=84>@yel@$45
+<img=84>@yel@$5
+<img=84>@yel@$500
+<img=84>@yel@$75
+<img=88><tab=20>OSRS GP
+$<img=90><tab=20>PayPal (Card / Bank)
+@or1@Donation Shopping Cart
+@or1@Subtotal: @yel@$0.00
+4@whi@Earn one grand promo package, and get one FREE!
+8@whi@Seasonal fuse boxes obtainable from seasonal packs!
+Checkout @yel@($0.00)
+Daily Offer
+Exclusive Offers
+Increase quantity
+*No other promotions available at this time
+(Offer expires in: @cya@<img=37> 24:00:00
+PPulls remaining: <item=24238> @red@0/3 <item=24050>@yel@2/3 <item=25425>@gre@3/3
+Purchase Options
+Reduce quantity
+Shopping Cart
+ [Lrs/n/e;
+misc/cart 0
+misc/cart 1
+misc/donor 10
+misc/donor 11
+misc/donor 12
+misc/donor 9
+misc/login 2
+misc/login 3
+
+### rs/l/c/f.class (33)
+ @gre@
+::selectperk 
+::selectperk 0
+Blood dark bow
+Blood pool
+Blood ring
+Blood rune c'bow
+Blood staff
+Blood vengeance I
+Blood vengeance II
+Blood whip
+ Bloodlust
+Bloodthirsty I
+Bloodthirsty II
+Diamonds are forever
+Emblem snatcher
+Eternal blood cape
+Eternal recoil
+ Excavator
+ Killjoy I
+Killjoy II
+Treasure buddy
+Treasure hunter I
+Treasure hunter II
+Unholy smite
+Vampiric damage
+Vampiric defence
+War diamonds
+ [Lrs/l/F;
+fountain/sprite 1
+fountain/sprite 2
+fountain/sprite 3
+ rs/Client
+
+### rs/s/o/d.class (32)
+Border Width
+1Color of the NPC highlight border, menu, and text
+Color of the NPC highlight fill
+AConfigures whether or not NPC names should be drawn above the NPC
+;Configures whether or not NPC should be highlighted by hull
+IConfigures whether or not NPC should be highlighted by south western tile
+NConfigures whether or not NPC should be highlighted by south western true tile
+;Configures whether or not NPC should be highlighted by tile
+@Configures whether or not NPC should be highlighted by true tile
+OConfigures whether or not the model of the NPC should be highlighted by outline
+Draw names above NPC
+$Excludes pets from being highlighted
+Extend clickbox to hull
+OExtends the clickbox to the hull of the NPC (when hull highlighting is enabled)
+Fill Color
+Highlight Color
+Highlight hull
+Highlight outline
+Highlight south west tile
+Highlight south west true tile
+Highlight tile
+Highlight true tile
+Ignore pets
+4List of NPC names to highlight. Format: (NPC), (NPC)
+NPCs to Highlight
+Outline feather
+Render style
+ASpecify between 0-4 how much of the model outline should be faded
+$The render style of NPC highlighting
+#Width of the highlighted NPC border
+ drawNames
+ fillColor
+
+### rs/s/h/b.class (32)
+Anti-venom timer
+Antifire timer
+Antipoison timer
+Blood slayer task duration
+Buff change timer
+Combat buffs / debuffs
+-Configures the size of each infobox in pixels
+Counter Expiry
+Display infobox hover tooltips
+Display infoboxes vertically
+.Display this counter as an infobox when active
+-Display this status as an infobox when active
+,Display this timer as an infobox when active
+Dragonfire shield timer
+?Draw a full outline instead of a simple shadow for infobox text
+Freeze timer
+Info boxes for counters
+Info boxes for statuses
+Info boxes for timers
+Infobox size
+Outline infobox text
+Raid afflictions
+,Set the time until counter info boxes expire
+Slayer task progress
+Soul hunter progress
+Task scroll progress
+Teleblock duration
+The appearence of infoboxes
++Toggles the infoboxes to display vertically
+Wanderer's task progress
+DWhether to display the tooltips of infoboxes when hovering over them
+ infoBoxes
+
+### rs/n/c/G.class (32)
+ (IIIIII)V
+0<img=24> @dgr@Success! Congratulations! <img=24>
+@bla@Enchantment failed!
+@bla@Preparing enchantment..
+@or1@Item Enchantment Chest
+@yel@Armor
+@yel@Capes
+@yel@Cosmetics
+@yel@Miscellaneous
+@yel@Pets/Accessories
+@yel@Trinkets & Tools
+@yel@Weapons
+Attempt Enchantment
+Back @yel@(Categories)
+Category #
+"Ingredients @yel@(cost to attempt)
+ Item name
+Search by name
+Search item
+Select a category
+Select category
+Select enchantment
+Select item
+Success chance: @gre@N/A
+ [Lrs/l/K;
+ [Lrs/n/e;
+fountain/sprite 29
+fountain/sprite 30
+ rs/Client
+teleport/sprite 13
+teleport/sprite 17
+teleport/sprite 18
+
+### rs/cache/osrs/util/OsrsMapDependencyScannerTest.class (32)
+0 incomplete checks
+/2 regions, 2 spawns, 1 distinct spawned objects
+INCOMPLETE region=12853
+OSRS filtering/counts
++OSRS map dependency regression tests passed
+ [Lrs/d/a;
+animation:3 MISSING_SEQUENCE
+extended object-ID smart
+land -1 is empty
+loose files excluded
+ maps.yaml
+missing frame archive
+missing individual frame
+missing map is incomplete
+missing morph model
+missing sequence
+missing skeletal archive
+morph provenance
+object=0 dependencyObject=1
+"osrs.idx1:43 MISSING_OR_UNREADABLE
+'osrs.idx2:7/0 MISSING_FRAME animation=2
+!osrs.idx2:8 MISSING_OR_UNREADABLE
+7osrs.idx2:9 MISSING_OR_UNREADABLE keyframes animation=2
+ osrs_idx1
+out-of-range plane
+packed frame enumeration
+present packed model
+Mregion=12850 yaml=2000 land=5 group= object=0 dependencyObject=1 osrs.idx1:43
+ singleton
+trailing landscape bytes
+truncated spawn
+write fixture
+
+### rs/n/c/ab.class (31)
+<col=C0981F>
+<img=24>
+ <img=24> 
+<img=24> 
+<img=39> Search for an item
+ ANIMATION
+Attack bonus
+Close preview
+ Crush: +0
+Defence bonus
+ Magic: +0
+Official SpawnPK Item Library
+Other bonuses
+Prayer: +0
+Range strength: +0
+ Range: +0
+Search by item
+Select option
+Selected Item Guide Title Text
+ Slash: +0
+Stab: +0
+Strength: +0
+View equipment bonuses
+[ERROR] OVERFLOW CATEGORY
+[ERROR] OVERFLOW DESCRIPTION
+ [Lrs/l/K;
+ [Lrs/n/e;
+wiki/guide 
+ wiki/item
+wiki/item 1
+wiki/item 8
+
+### rs/n/c/C.class (31)
+1x @whi@$10.00 Bond
+1x @whi@$100.00 Bond
+1x @whi@$20.00 Bond
+1x @whi@$30.00 Bond
+1x @whi@$45.00 Bond
+1x @whi@$5.00 Bond
+1x @whi@$75.00 Bond
+<img=84>@yel@$10
+<img=84>@yel@$100
+<img=84>@yel@$20
+<img=84>@yel@$30
+<img=84>@yel@$45
+<img=84>@yel@$5
+<img=84>@yel@$500
+<img=84>@yel@$75
+<tab=20>                     
+<tab=20><img=9> OSRS GP
+%@or1@Donation Shopping Cart Interface
+@or1@Purchase Options
+@or1@Shopping Cart
+7@whi@You'll receive a free @gre@$20 bond@whi@ with each
+$@whi@claimed promotional item below!
+Checkout cart
+Increase quantity
+Reduce quantity
+Select OSRS GP
+Select PayPal
+Shopping cart
+Subtotal: @yel@$285.00
+ [Lrs/l/K;
+ [Lrs/n/e;
+
+### rs/l/d/c.class (30)
+<col=@or1@>|
+@yel@|
+ (Lrs/Client;Lrs/l/F;Lrs/l/F;II)V
+ /assets/
+<col=@or1@>Invitation code:
+<img=286> 
+,<img=291> Attempting to login to game server
+<img=291> Loading..
+@or1@<img=144> 5-digit PIN:
+@or1@<img=144> Password
+@or1@<img=179> Username:
+ @or1@Exit
+@or1@Log in
+@or2@<u=16742912>Latest Update
+,@or2@<u=16742912>Latest Update</u> <img=329>
+@yel@Invalid Recovery PIN!
+7@yel@Please enter your Recovery PIN to verify ownership
+6If you do not remember it, request help on our forums!
+1It will be your account's PIN before October 2024
+#Please try again in a few minutes..
+Please try again..
+Please wait..
+2This username registered before SPK's Fresh Start!
+&You have exceeded the maximum attempts
+button 2
+ loadframe
+new players
+ rs/Client
+ textbox 2
+ updatebar
+
+### rs/l/b/a/d.class (30)
+ (IIIIII)V
+ @red@Could not find BG color '
+:@whi@<img=24> @gre@Entity #
+@whi@ animation set to @gre@
+@whi@Background color set to: 
+@whi@Camera curve: @yel@
+@whi@Camera pos: @yel@
+@whi@Camera zoom: @yel@
+@whi@Sample texture ID: @gre@
+@whi@Selected entities: @yel@
+@whi@Total entities: @yel@
+ @yel@-> 
+Added @gre@NPC @cya@(index 
+ Added @gre@Player @cya@(index 
+Camera position reset
+Camera reset!
+Deleted @red@Entity #
+Entities cleared!
+Entity indices reversed!
+)Graphics and definitions have been reset!
+HUD has been 
+Lite mode toggled: 
+Loading - please wait.
+Oldschool graphics toggled: 
+Set the active item to: @gre@
+ [Lrs/r/K;
+bg gray
+ getHeight
+ rs/Client
+ substring
+
+### rs/s/j/a.class (29)
+Camera Down key
+Camera Left key
+Camera Remapping
+Camera Right key
+Camera Up key
+,Configures whether f-keys use remapped keys.
+9Configures whether the camera movement uses remapped keys
+F-key remapping
+Remap Camera
+Remap F-keys
+"Settings for remapping the F-keys.
+!Settings for remapping the camera
+The key which will replace F1.
+The key which will replace F10.
+The key which will replace F11.
+The key which will replace F12.
+The key which will replace F2.
+The key which will replace F3.
+The key which will replace F4.
+The key which will replace F5.
+The key which will replace F6.
+The key which will replace F7.
+The key which will replace F8.
+The key which will replace F9.
+ The key which will replace down.
+ The key which will replace left.
+!The key which will replace right.
+The key which will replace up.
+ fkeyRemap
+
+### rs/s/h/a.class (29)
+ boost
+@lre@Next buff change
+ Antivenom
+Attack boost
+Blood slayer
+Blood slayer task
+Combat boosts
+DFS Cooldown
+Defence boost
+Freeze timer
+Magic boost
+Next buff change
+Ranged boost
+Slayer task
+Slayer task (normal)
+Soul hunter task
+Strength boost
+Task scroll (primary)
+Task scroll (req. #1)
+Task scroll (req. #2)
+Task scroll (secondary)
+Teleport block
+Timers / Info Boxes
+ infoBoxes
+ newKeySet
+ raid_affs
+ rs/Client
+ rs/runelite/events/ConfigChanged
+ substring
+
+### rs/n/c/s.class (29)
+ 100 kills
+ 200 kills
+25 kills
+50 kills
+ 500 kills
+All allowed
+All spellbooks
+Binding only
+Clan Cup Arena
+!Clan Wars Setup: Challenging xxxx
+EdgePvP mode
+Forsaken Quarry
+Ghastly Swamp
+Ignore 5
+Ignore freezing
+Kill 'em all
+Last team standing
+No Staff of the Dead
+Northleach Quell
+PJ timer
+Single spells
+Standard prayers
+Standard spells
+Sylvan Glade
+ Wasteland
+ [Lrs/l/K;
+clan/sprite 12
+clan/sprite 13
+clan/sprite 9
+
+### rs/n/c/w.class (26)
+ (III[F)[F
+::compcolors 
+ <col=
+>Sample on chat background
+<img=24> Confirm
+<img=25> Cancel
+><col=
+<tab=20>Background color 1
+<tab=20>Background color 2
+<tab=20>Detail color 1
+<tab=20>Detail color 2
+<tab=20>Font color
+<tab=20>Particle color
+<tab=20>Shadow color
+<tab=20>Trim color
+Cancel colors
+Cape Color Selection Menu
+Confirm colors
+Select color
+Select color type
+Text Color Selection Menu
+ [Lrs/l/K;
+ [Lrs/n/e;
+gambling/sprite 1
+gambling/sprite 2
+ rs/Client
+
+### rs/l/e/a/o.class (26)
+ (IIIIII)V
+ <img=121>
+ <img=233>
+J<img=244> @gr1@(There must be 5-15 players for a match to start) <img=244>
+'<img=246> @gre@Players can open chests!
+,<img=247> @lre@Players can't open chests yet
+4<img=247> @yel@Chests unlock in 
+ seconds! <img=247>
+'<img=49> @gre@Safety Countdown <img=49>
+0<img=50> @or1@PvP enables in 
+ seconds! <img=50>
+T<img=50> You're in the fog! Go to the <img=73> Safe Zone, south of the map! <img=50>
+&<img=73> @gre@Ceasefire Stage <img=73>
+0<img=79> @gre@H'ween Hunger Games Lobby <img=79>
+%<img=91> @lre@Players can't fight yet
+@cya@Safety Countdown: <img=37>
+@gre@Ceasefire time: <img=37>
+@or1@Match Type:
+@or1@Next event: @whi@<img=230>
+"@or1@Next power-up: @whi@<img=231>
+%@whi@Wins: 0 | Matches: 0 | Points: 0
+,@yel@Contestants can now safely loot chests!
+-Contestants can not fight or open chests yet!
+Match Style: @gre@N/A
+ [Lrs/n/e;
+ rs/Client
+
+### rs/s/n/a.class (25)
+GAlert the client when a superior boss or slayer mosnter appears for you
+5Alert the client when someone sends a private message
+)Configure things that alert notifications
+8Configures the window focus request type on notification
+De-aggro timer
+|Disabling this may limit your ability to receive tray notifications.
+Please restart your client after changing this setting.
+Enable tray icon
+Enable tray notifications
+Enables icon in system tray
+DEnables the playing of a beep sound when notifications are displayed
+Enables tray notifications
+(Flashes the game frame as a notification
+yHow long notification will be shown in milliseconds. A value of 0 will make it use the system configuration. (Linux only)
+Notification Flash
+Notification sound
+Notification timeout
+;Notify / alert the client when you reach the de-aggro timer
+Private messages
+Request focus
+Send notifications when focused
++Sets the color of the notification flashes.
+Superior slayer / bosses
+0The general settings for all notification alerts
+8Toggles all notifications for when the client is focused
+
+### rs/s/d/a.class (25)
+;Configures whether or not other player mini-pets are hidden
+6Configures whether or not other player pets are hidden
+lConfigures whether or not other players HP bars, prayers, hitsplats, etc. are hidden in non-wilderness areas
+JConfigures whether or not other players are hidden in non-wilderness areas
+0Configures whether or not projectiles are hidden
+4Configures whether or not the local player is hidden
+WConfigures whether or not the local player's hitpoints, prayers, HP bar, etc. is hidden
+:Configures whether or not to hide the PK bots in edgeville
+@Configures whether or not to hide treasure fairy pets everywhere
+7Configures whether or not to hide yoshi pets everywhere
+,Configures whether or not your pet is hidden
+Hide edgeville bots
+Hide local 2D (Non-wild)
+Hide local pet
+Hide local player
+Hide other 2D (Non-wild)
+Hide other mini-pets
+Hide other pets (Non-wild)
+Hide others (Non-wild)
+Hide projectiles
+!Hide standard fairy pets (others)
+!Hide standard yoshi pets (others)
+Local player (You)
+Other players
+ hideYoshi
+
+### rs/n/c/z.class (25)
+<img=9> 
+Bedroom: Lvl 20
+Boss portal room: Lvl 50
+Chapel: Lvl 45
+Combat room: Lvl 32
+Costume room: Lvl 42
+Dining room: lvl 10
+Dungeon - corridor: Lvl 70
+Dungeon - junction: Lvl 70
+Dungeon - pit: Lvl 70
+Dungeon - stairs: Lvl 70
+Formal garden: Lvl 55
+Games Room: Lvl 30
+Garden: Lvl 1
+Hall - Quest trophies: Lvl 35
+Hall - Skill Trophies: Lvl 25
+Kitchen: lvl 5
+Menagerie: Lvl 37
+Parlour: Lvl 1
+Study: Lvl 40
+Superior garden: Lvl 65
+Throne room: Lvl 60
+Treasure room: Lvl 75
+Workshop: lvl 15
+ [Lrs/n/e;
+
+### rs/n/c/g.class (25)
+A single attack surge spell
+ Air surge
+Earth surge
+Fire surge
+Level 50: Iban Blast
+Level 60: Claws of guthix
+Level 60: Flames of Zamorak
+Level 60: Saradomin strike
+Summons the power\nof Guthix
+Summons the power\nof Saradomin
+Summons the power\nof Zamorak
+Summons the wrath of Iban
+Water surge
+ [Lrs/l/K;
+ [Lrs/n/e;
+magic/off 
+magic/off 1
+magic/off 2
+magic/off 3
+magic/off 4
+magic/on 
+magic/on 1
+magic/on 2
+magic/on 3
+magic/on 4
+
+### rs/n/c/c/a.class (25)
+<img=209> Items / Rewards
+0<img=37> Sent 'x' time ago (Expires in 'x' time)
+Delete this message
+Deposit items to bank
+Deposit items to inventory
+Inbox (35 / 35)
+Mail Subject
+"No items attached to this message!
+No mail message selected!
+Test message #
+bank/bank 17
+bank/bank 18
+bank/bank 31
+bank/bank 32
+misc/mail 1
+misc/mail 10
+misc/mail 11
+misc/mail 12
+misc/mail 2
+misc/mail 3
+misc/mail 4
+misc/mail 5
+misc/mail 6
+misc/refresh 1
+misc/refresh 2
+
+### rs/gui/b/e.class (25)
+/assets/gui/icons/cash 1.png
+/assets/gui/icons/cash 2.png
+/assets/gui/icons/emoji 1.png
+/assets/gui/icons/emoji 2.png
+/assets/gui/icons/emoji 3.png
+/assets/gui/icons/emoji 4.png
+/assets/gui/icons/emoji 5.png
+/assets/gui/icons/emoji 6.png
+/assets/gui/icons/emoji 7.png
+/assets/gui/icons/orb 3.png
+/assets/gui/icons/orb 4.png
+/assets/gui/icons/raids 2.png
+Blood Slayer
+Cash 2
+Cursed Orb
+Emoji 2
+Emoji 3
+Emoji 4
+Emoji 5
+Emoji 6
+Emoji 7
+Master Orb
+ RED_SKULL
+Raids 2
+ Red Skull
+
+### rs/u.class (24)
+ [Lrs/d/x;
+[Model Checker] 
+ used models: 
+,[Model Checker] Checking 
+ models from [
+,[Model Checker] Could not find directory "
++[Model Checker] Found model ID 
+ for GFX: 
+?[Model Checker] Found model ID 
+ for ITEM: 
+) (femaleEquip1)
+) (femaleEquip2)
+=[Model Checker] Found model ID 
+) (maleEquip1)
+) (maleEquip2)
+:[Model Checker] Found model ID 
+) (modelID)
+/[Model Checker] Found model ID 
+ for NPC: 
+2[Model Checker] Found model ID 
+ for OBJECT: 
+E[Model Checker] Model scan complete! Found a total of 
+ used models..
+ listFiles
+
+### rs/s/r/a.class (24)
+Border width
+.Configures the fill color of current true tile
+-Configures the fill color of destination tile
+)Configures the fill color of hovered tile
+5Configures the highlight color of current destination
+3Configures the highlight color of current true tile
+.Configures the highlight color of hovered tile
+Current Tile
+Current tile configuration
+Destination Tile
+Destination tile configuration
+Fill color
+Highlight color
+Highlight destination tile
+Highlight hovered tile
+Highlight true tile
+-Highlights tile player is hovering with mouse
+$Highlights tile player is walking to
+3Highlights true tile player is on as seen by server
+Hovered Tile
+Hovered tile configuration
++Width of the destination tile marker border
+'Width of the hovered tile marker border
+$Width of the true tile marker border
+
+### rs/s/i/a.class (24)
+Border Width
+NPC attack
+NPC attack hover
+ NPC hover
+NPC interact
+Object hover
+Object interact
+Outline NPCs when hovered
+Outline NPCs when interacted
+Outline feather
+Outline objects when hovered
+Outline objects when interacted
+Settings for NPC highlight
+Settings for object highlight
+Show on hover
+Show on interact
+ASpecify between 0-4 how much of the model outline should be faded
+.The color of the attack hover outline for NPCs
+'The color of the hover outline for NPCs
+*The color of the hover outline for objects
+)The color of the outline on attacked NPCs
+(The color of the target outline for NPCs
++The color of the target outline for objects
+Width of the outlined border
+
+### rs/s/g.class (24)
+3Class {} has plugin descriptor, but is not a plugin
+2Class {} is a plugin, but has no plugin descriptor
+Disabling {} due to safe mode
+(Error during starting/stopping plugin {}
+Error instantiating plugin!
+Graph has at least one cycle
+Loaded plugin {}
+)Plugin dependency graph contains a cycle!
+Plugin {} is now running
+Plugin {} is now stopped
+Removing scheduled task {}
+Scheduled task {}
+%Unable to create lambda for method {}
+Unable to get plugin config
+$Unable to reset plugin configuration
+Unable to start plugin {}
+Unmet dependency for 
+ [Lrs/s/d;
+ configure
+ findFirst
+ getLogger
+ getTarget
+ isPresent
+ rs/runelite/events/PluginChanged
+
+### rs/s/c/a.class (24)
+Always on top
+Builder child ID
+Dev settings for interfaces
+Dev tools for interfaces
+Display widget types
+ General dev settings and toggles
+%Include IDs in the name of the entity
+Interface Builder
+Interface Tools
+Label NPC IDs
+Label object IDs
+Label the ID of parent widgets
+Label widget IDs
+Label widget types
+Mouse tool
+Render scene info graphics
+Set window to always on top
+Show children IDs
+Show color options
+9Show color options when right-clicking items/objects/npcs
+Show parent IDs
+Show scene info
+ builderId
+ showTypes
+
+### rs/n/c/U.class (24)
+.<col=0xB9B855>Test
+ <tab=360>@lre@(
+ logins)
+<img=39>@yel@ Search new name
+!<tab=17>@yel@Order by most recent
+#<tab=17>@yel@Order by total matches
+ @gre@[ONLINE (Non-match)]</col> 
+@gre@[ONLINE]</col> 
+@red@[BANNED]</col> 
+@whi@Geolocation: @gre@N/A
+ @whi@IP Address: @gre@Not banned
+@whi@UID: @gre@Not banned
+Ban *this* IP/UID
+Ban ALL
+Ban all
+Ban this IP/UID
+Go back
+Order by recent matches
+Order by total matches
+Player IP / UID Matcher
+Search a new name
+ [Lrs/l/K;
+misc/matcher 1
+ rs/Client
+
+### rs/ui/f.class (23)
+ - [BETA TEST WORLD]
+Close SideBar
++Graphics device {}: bounds {} transform: {}
+ Lrs/ui/a;
+ Lrs/ui/b;
+ Lrs/ui/c;
+ Lrs/ui/l;
+ Lrs/ui/m;
+Open SideBar
+RuneLite Shutdown
+Showing frame {}
+ getBounds
+ getButton
+ getCursor
+ getLayout
+ getLogger
+ getParent
+ isFocused
+ isVisible
+ ofSeconds
+ rs/Client
+ setCursor
+ setLayout
+
+### rs/n/c/av.class (22)
+<img=53> @or2@Singles <img=53>
+!<img=8> @or2@Lvl. 46 wild <img=8>
+@or1@Activity name
+"@or1@Daily Money Making Activities
+@or1@Daily reward bonus
+ @or1@Easy
+ @or1@Hard
+ @or1@Med.
+Easy money making tasks
+Fill up the bar for rewards!
+Hard money making tasks
+Kill 100 green dragons
+Medium money making tasks
+Teleport to this activity
+Track this activity
+ [Lrs/l/K;
+ [Lrs/n/e;
+achievements/sprite 5
+achievements/sprite 6
+teleport/icon 1
+teleport/icon 2
+teleport/sprite 13
+
+### rs/s/o/e.class (21)
+<img=138> Reset
+#<img=360> <img=25> Untag-All @yel@
+<img=360> <img=326> Tag color
+<img=360> <img=327> Tag style
+<img=360> Tag-All @yel@
+<img=78> Reset
+@yel@Yellow
+Change color
+Change style
+Highlight NPCs on-screen
+NPC Indicators
+South-west tile
+South-west true tile
+ True tile
+ [Lrs/a/j;
+ emptyList
+ getLogger
+ getMenuId
+ highlight
+ rs/Client
+ rs/runelite/events/ConfigChanged
+
+### rs/n/c/aI.class (21)
+<img=24> Open donator shop
+<img=25>
+*<img=37>  Teleport to sponsor donator zone
+!<img=3>  Teleport to donator zone
+'<img=5>  Teleport to elite donator zone
+%<img=6> View donator perks & benefits
+$<img=7> Teleport to vip donator zone
+T<img=83> @yel@Reach the total amount in bond purchase, before the promotion expires!
+<img=9> Donate for rewards
+@or1@Donor options and features
+@or1@Main Donor Panel
+@or1@Promotional rewards
+F@or2@NOTE: @yel@This is only counted from payments, not opening bonds!
+@yel@$0
+@yel@Next promo
+@yel@will be @gre@10% OFF
+Select this option
+ [Lrs/l/K;
+ [Lrs/n/e;
+misc/donor 3
+misc/donor 6
+
+### rs/eventbus/EventBus.class (21)
+'@Subscribed method "
+" cannot be static
+,@Subscribed method "
+" cannot return a value
+Y@Subscribed method "
+" cannot subscribe to class which inherits from subscribed class "
+>@Subscribed method "
+" cannot subscribe to polymorphic classes
+5@Subscribed method "
+" cannot subscribe to primitives
+3@Subscribed method "
+" must take exactly 1 argument
+Registering {} - {}
+%Subscribed method 
+ should be named 
+%Unable to create lambda for method {}
+&Uncaught exception in event subscriber
+ getLogger
+ getMarker
+ getObject
+ getTarget
+
+### rs/cache/d.class (21)
+"-> Failed to find region map data!
+-> Region dump (ID 
+-Error: file is missing  [ type = 
+GError: model is incomplete or missing  [ type = 
+]  [rev = 
+Loading extra files - 
+[FILE] [FOUND MATCH FOR FILE 
+[IDX] [FOUND MATCH FOR IDX 
+-[MAP TOOL] Found unused region .GZ FILE id: 
+-[Map warning] Capped map file 
+ (reached max)
+#[REGION] [FOUND MATCH FOR REGION 
+'[Regions] Attempting to dump region 
+ [dataType=
+] [fileID=
+] [osrs=
+ available
+missing start of file
+missing: type: 
+ model_crc
+ rs/Client
+
+### rs/s/f/d.class (20)
+<img=25> Unmark
+<img=283> Label
+<img=288> <img=138> Reset all
+<img=326> Color
+8Are you sure you want to reset all markers in this area?
++Enable marking of tiles using the Shift key
+Ground Markers
+Loading points for region {}
+Pick color
+Reset color
+Tile label
+Tile marker color
+Updating point: {} - {}
+ emptyList
+ findFirst
+ getLogger
+ getMenuId
+ isPresent
+ mapToLong
+ rs/Client
+
+### rs/l/f/a/c/c.class (20)
+<img=303> <yoff=1>
+Hide/show task
+Kills: @whi@
+Receive task
+Risk: 
+ Searching
+Skip bounty hunter task
+Skip target
+ Task info
+Time Left: @whi@
+ [Lrs/l/F;
+ [Lrs/n/e;
+popups/bh combat
+popups/bh maximimize
+popups/bh record bg
+popups/bh skull
+popups/bh target bg
+popups/bh target bg cursed
+ popups/t
+ rs/Client
+
+### rs/n/c/d/e.class (19)
+<@whi@Buy a random modifier
+It be added to your coffer above.
+]@whi@Buy x10 random modifiers @gre@(10% discount)
+They'll will be added to your coffer above.
+C@whi@Buy x5 random modifiers
+They'll be added to your coffer above.
+Affliction Tomes
+Click here to learn more
+Close interface
+Deposit all tomes from bank
+ Deposit all tomes from inventory
+:Roll x10\n\n@cya@<img=469>@gre@ 9,000\n@gre@(10% Discount)
+Roll x1: @cya@<img=469> 1,000
+Roll x5: @cya@<img=469> 5,000
+What are Modifier tomes?
+bank/bank 17
+bank/bank 18
+bank/bank 35
+bank/bank 46
+
+### rs/n/c/ai.class (19)
+Always right-click
+Control Options Menu
+Depends on combat lvl
+ Item Drag
+Left-click where avail.
+NPC/Bot 'attack' options
+Player 'attack' options
+Restore default
+Restore to default key bindings
+Select dropdown
+Select key binding
+Select option
+ [Lrs/l/K;
+ [Lrs/n/e;
+options/dropdown 3
+options/dropdown 6
+options/keybind 1
+options/keybind 2
+ rs/Client
+
+### rs/n/c/O.class (19)
+<img=100> View Active Events
+<img=100> View all events
+<img=128> Dharok PK Tournament
+<img=245>Golden HG
+<img=261>Blood LMS
+(<img=82> Event Brawl:@yel@ <img=37> None
+.<img=82> Event Global Boss:@yel@ <img=37> None
+-<img=82> Event Wildy Boss:@yel@ <img=37> None
+@gre@<img=24> Active
+@yel@0 / 55
+@yel@<img=37> 26:57
+@yel@N/A
+!@yel@Starts in.. <img=37> 4:47:17
+Event Global Boss
+Event Wildy Boss
+Hotspot: @or2@N/A
+Vote to skip hotspot
+ [Lrs/l/K;
+ [Lrs/n/e;
+
+### rs/l/b/a/c.class (19)
++@whi@<img=24> Entity transformed to female!
+)@whi@<img=24> Entity transformed to male!
+@whi@<img=24> Set chest piece!
+ @whi@<img=24> Set player amulet!
+@whi@<img=24> Set player boots!
+@whi@<img=24> Set player cape!
+ @whi@<img=24> Set player gloves!
+ @whi@<img=24> Set player helmet!
+@whi@<img=24> Set player legs!
+ @whi@<img=24> Set player shield!
+ @whi@<img=24> Set player weapon!
+'@whi@<img=24> Toggled full body flag: 
+&@whi@<img=24> Toggled full hat flag: 
+'@whi@<img=24> Toggled full helm flag: 
+'@whi@<img=24> Toggled full mask flag: 
+ full_body
+ full_helm
+ full_mask
+ fullchest
+
+### rs/ui/a/f.class (18)
+Adding InfoBox {}
+Default Group
+Delete InfoBox Group "
+Deleted layer: {}
+Detach InfoBox
+Flip InfoBox Group "
+InfoBox Group
+,Merging InfoBoxes from {} into {} ({} boxes)
+8Moving infobox named {} (layer {}) to layer {}: {} boxes
+Removed InfoBox {}
+'Removed InfoBoxes for filter {} from {}
+Unmerge InfoBox Group "
+ drawImage
+ findFirst
+ getHeight
+ getLogger
+ removeAll
+ rs/Client
+
+### rs/s/t/m.class (18)
+ days ago
+ hours ago
+ minutes ago
+ months ago
+ seconds ago
+ years ago
+! <font color='#2FFF9F'>(
+! <font color='yellow'>(x
+<font color='#6EE16E'>
+Q<html><body style = 'color:white'>
+<span style = 'color:
+Very recent
+ getBorder
+ ofPattern
+ setBorder
+ setLayout
+ toMinutes
+yyyy-MM-dd HH:mm:ss.SSSSSS
+
+### rs/s/e/d.class (18)
+,Adjusts colors to account for colorblindness
+3Allows you to stretch the game screen in fixed mode
+Anisotropic Filtering
+Anti Aliasing
+Colorblindness Correction
++Configures the anisotropic filtering level.
+!Configures the anti-aliasing mode
+Maintain aspect ratio
+2Method to synchronize frame rate with refresh rate
+5Sampling function to use for the UI in stretched mode
+Smooth banding
+ASmooths out the color banding that is present in the CPU renderer
+Stretched Mode
+UI scaling mode
+Vsync Mode
+"Whether GPU is enabled or disabled
+9Whether or not to maintain aspect ratio in stretched mode
+ vsyncMode
+
+### rs/n/c/l.class (18)
+<img=24> Get a task
+<tab=20>Boss hunter @yel@(PvM)
+<tab=20>Bounty hunter @yel@(PK)
+!<tab=20>Monster hunter @yel@(PvM)
+<tab=20>Slaughter @yel@(PK)
+<u=16776960>Reward points
+&@yel@5 <col=FF9B00>Blood slayer points
+ @yel@5 <col=FF9B00>Slayer points
+Blood Slayer
+Choose a Task
+Easy task monsters
+Get a blood slayer task
+Select boss hunter task
+Select man hunter task
+Select man slaughter task
+Select timed task
+ [Lrs/l/K;
+skills/image 7
+
+### rs/C.class (18)
+ Helvetica
+Mac OS X
+ [Lrs/l/a;
+ [Lrs/n/e;
+ deltime:
+ mindel:
+ focusLost
+ ratio:
+ count:
+ getDevice
+ getHeight
+ getInsets
+ getStroke
+hull has more points than graph
+ opos:
+ rs/Client
+ setCursor
+ setStroke
+
+### rs/v/a.class (17)
+CScript Error
+Couldn't find cache directory!
+Couldn't find data directory!
+Error: 
+WINDOWS InstallDate  
+ c:/winnt/
+could not open socket
+could not open: 
+ d:/winnt/
+ e:/winnt/
+ f:/winnt/
+ getByName
+ getFormat
+ separator
+ setDaemon
+ urlstream
+ user.home
+
+### rs/ui/c/a.class (17)
+RuneLite Active
+RuneLite Border
+RuneLite Decorations Separator
+RuneLite Decorations Watermark
+RuneLite Enabled
+RuneLite Header Border
+RuneLite Header Watermark
+RuneLite Highlight
+RuneLite Inner
+RuneLite Mark Active
+!RuneLite Selected Disabled Border
+RuneLite Separator
+RuneLite Tab Border
+RuneLite Watermark
+ SEPARATOR
+ transform
+ watermark
+
+### rs/s/c/d.class (17)
+ - Model ID: 
+::itemdef reset
+Color inverse
+Color string added to keyboard!
+Copy selected
+Hide modified
+Models for NPC id 
+No models found for NPC 
+Recoloring Item
+Recoloring N/A
+Recoloring NPC
+Recoloring Object
+Repack cache
+Reset Item Defs
+Reset NPC Defs
+ getSource
+ rs/Client
+
+### rs/s/a/a.class (17)
+GAnimate health loss on the overlay (or disable to keep changes instant)
+Animate overlay health bar
+Boss overlay style
+Bounty hunter overlay style
+7Display damage at a 10X multiple (e.g. 10 instead of 1)
+-Display the overlay with opponent information
+Health bars
+Hits and health
+ Hitsplats
+Multiplied 10x hits
+Opponent overlay style
+Opponent overlays
+Show opponent overlay
+$The style of boss overlay to display
+-The style of bounty hunter overlay to display
+"The style of health bar to display
+(The style of opponent overlay to display
+
+### rs/n/c/v.class (17)
+3@yel@15M coins + 25,000 RX points + 150 boss points
+Collection Log <img=321>
+Collection name
+&Complete this collection and receive..
+Kill count: @whi@0
+ Minigames
+Obtained: @red@0/0
+Select collection log
+ [Lrs/l/F;
+ [Lrs/l/K;
+ [Lrs/n/e;
+drops/collection 1
+drops/collection 2
+drops/collection 3
+drops/collection 4
+drops/collection 5
+drops/collection 6
+
+### rs/n/c/p.class (17)
+,Add co-owner privileges\nto the General rank
+Any friends
+Clan name:
+ Corporal
+ Corporal+
+Enter Name
+Not ranked
+Only me
+.Right click on\nwhite text to\nchange options.
+ Sergeant
+ Sergeant+
+Set name
+Who can ban on chat?
+Who can enter chat?
+Who can kick/mute?
+Who can talk on chat?
+ [Lrs/l/K;
+
+### rs/n/c/aj.class (17)
+<img=14> Vote for us
+<img=153> View mail inbox
+<img=16> Donate to us
+#<img=321> Collection log milestones
+<img=321> View collection logs
+<img=39> Search drops by item
+ <img=39> Search drops by monster
+<img=39> Search item guide
+<img=39> View all item guides
+<img=40> Discord
+<img=40> Forums
+!@yel@<u=16776960>Features / Tools
+@yel@<u=16776960>Item Guides
+@yel@<u=16776960>Miscellaneous
+ [Lrs/l/K;
+ [Lrs/n/e;
+gameframe/sprite 6
+
+### rs/n/c/af.class (17)
+  axe head
+ pick head
+/clan/sprite 4
+<img=25> <str=16711680>
+Click the search button
+Clue scroll
+Pet cat
+3Please have at least 3 letters in your search term!
+Results for: "@whi@
+Spawn this item
+ [Lrs/l/K;
+ [Lrs/n/e;
+ bank/BANK
+flask (
+nothing that exists
+ rs/Client
+ substring
+
+### rs/n/c/aX.class (17)
+-<img=128> SpawnPK World Tournaments <img=128>
+ @yel@Previous Tournament Winners
+@yel@Tournament point shop
+Enter Tournament <img=51>
+Enter tournament
+0Next world tournament: @yel@Dharok PK Tournament
+%Random player won @yel@x1 $10.00 bond
+1Receive points for placing\ntop 5 in a tournament
+Spectate Tournament
+Spectate tournament
+!This tournament's prize will be..
+View tournament shop
+ [Lrs/l/K;
+ [Lrs/n/e;
+/from @or2@Dharok PK Tournament @yel@
+ hours ago
+tournament/sprite 0
+
+### rs/gui/e.class (17)
+)::barrage (Spawns a set of barrage runes)
+ ::brew (Spawns a saradomin brew)
++::entangle (Spawns a set of entangle runes)
+!::food (Spawns x28 un-noted food)
+%::mage (Spawns a set of mage pot set)
+#::pots (Spawns a set of melee pots)
+!::range (Spawns a ranger pot set)
+::rest (Spawns a restore pot)
+)::switch (Switches your magic spell book)
+&::tb (Spawns a set of teleblock runes)
+#::veng (Spawns a set of veng runes)
+-Check these pages out for server information!
+Latest updates
+Price guide
+Server rules
+)These commands will aid your PKing needs!
+ setLayout
+
+### rs/n/c/b/a.class (16)
+                                                                                                                                                    </str>
+<str=8683352>                                                                                                                                                    </str>
+Button 1
+Button 2
+Button 3
+-Event duration ends in: @yel@<img=37> 14 days
+%Gladiator's Vindication (World Event)
+Go back
+Progress bar description
+Select button
+Select this option
+ [Lrs/l/K;
+ [Lrs/n/e;
+event/task 1
+event/task 2
+event/task 3
+
+### rs/n/c/N.class (16)
+@or1@Tier I
+@or1@Tier II
+*@yel@0 / 25 rolls @or1@(0 / 50,000 tokens)
+@yel@Event Guide
+Enter next tier
+Event Chest Tier I
+Event Chest Tier II
+Reset event items
+Reset exchange
+/Roll all of the items in\nthe tier for a prize!
+"Tier I - @yel@Halloween Event 2020
+Tier I Prize
+ [Lrs/l/K;
+ [Lrs/n/e;
+fountain/event 1
+fountain/icon 3
+
+### rs/i/a.class (16)
+ has killed 
+ received 
+ successfully enchanted 
+4<img=2><shad=FFFF3F><col=FE610C> News: </shad></col>
+Clan Chat channel-mate
+Please wait at least
+each yell message!
+has encountered
+is full
+just captured
+not enough
+players online
+you can
+you do
+you must
+you need
+
+### rs/gui/u.class (16)
+Chosen device: {} bounds {}
+Current bounds: {}
+Device: {} bounds {} insets {}
+Final bounds: {}
+Transformed bounds {}
+error checking java version
+ getBounds
+ getHeight
+ getLayout
+ getLogger
+ getScaleX
+ getScaleY
+ orElseGet
+#scaled insets without scaled bounds
+ setBounds
+ substring
+
+### rs/gui/b.class (16)
+RuneLite Active
+RuneLite Border
+RuneLite Decorations Separator
+RuneLite Decorations Watermark
+RuneLite Enabled
+RuneLite Header Border
+RuneLite Header Watermark
+RuneLite Inner
+RuneLite Mark Active
+!RuneLite Selected Disabled Border
+RuneLite Separator
+RuneLite Tab Border
+RuneLite Watermark
+ SEPARATOR
+ transform
+ watermark
+
+### rs/s/o/a.class (15)
+, highlightColor=
+, fillColor=
+, hull=
+, tile=
+, trueTile=
+, swTile=
+, swTrueTile=
+, outline=
+, name=
+, nameOnMinimap=
+, borderWidth=
+, outlineFeather=
+, render=
+-highlightColor is marked non-null but is null
+"npc is marked non-null but is null
+
+### rs/s/o/a$a.class (15)
+, highlightColor=
+, fillColor$value=
+, hull=
+, tile=
+, trueTile=
+, swTile=
+, swTrueTile=
+, outline=
+, name=
+, nameOnMinimap=
+, borderWidth$value=
+, outlineFeather=
+, render=
+-highlightColor is marked non-null but is null
+"npc is marked non-null but is null
+
+### rs/n/c/u.class (15)
+7(Especially if you were offline when you received them)
+8<img=131> Coffer of Unclaimed Rewards & Prizes <img=131>
+E<img=9> This coffer usually holds contest prizes, event rewards, etc.
+Deposit items to your bank
+Deposit items to your inventory
+"Empty your backpack into
+your bank
+Remove 1
+ Remove 10
+Remove 5
+Remove All
+ [Lrs/l/K;
+ [Lrs/n/e;
+ bank/bank
+bank/bank 30
+
+### rs/n/c/i.class (15)
+<img=116> Blood shard store
+<img=117> Blood diamond store
+<img=118> Blood pool store
+%<img=186> Blood perk tree (abilities)
+<img=67> Blood diamond fuser
+<img=68> Blood shard salvaging
+@or1@The Blood Fountain
+Close Window
+Select blood perk tree
+Select blood pool shop
+Select diamond fusing
+Select diamond shop
+Select shard salvaging
+Select shard shop
+ [Lrs/l/K;
+
+### rs/n/c/ag.class (15)
+At the moment nearly all
+Close Window
+If you are red-skulled,
+Items I will auto-keep...
+Items I will keep...
+Items I will lose...
+Items kept on death
+ [Lrs/l/K;
+ [Lrs/n/e;
+and can be lost on death.
+items are tradeable
+items regardless of
+ newKeySet
+what you are praying.
+you will lose all your
+
+### rs/n/c/aZ.class (15)
+<img=9> Contribute
+$<u=16776960>Server wide progress</u>
+@yel@5x Goodwill Points
+@yel@Divine spirit shields
+:@yel@Double chance for artifacts & statuettes @or1@(2 hrs)
+Donate to well of goodwill
+7For each @yel@Divine spirit shield<col=FF9B00> that you
+@Once the server-wide goal is reached, ALL players will receive..
+The well of goodwill seeks..
+Well of Good Will
+ [Lrs/l/K;
+ [Lrs/n/e;
++contribute, you will individually receive..
+fountain/sprite 23
+teleport/sprite 13
+
+### rs/n/c/Y.class (15)
+<img=253> PK Ratings
+Account Information
+Open account information
+Open achievement tab
+Open events
+Open guides
+Open pk ratings
+Title placeholder
+World Events
+ [Lrs/l/K;
+ [Lrs/n/e;
+gameframe/tab/sprite 1
+gameframe/tab/sprite 2
+gameframe/tab/sprite 3
+ rs/Client
+
+### rs/i/b.class (15)
+ Adventure Book   
+ Adventure book   
+ Bank all items
+ Donate
+ Epic bosses
+ Refill potions
+ Side panel
+ View item guides  
+ (III[F)[F
+ [Lrs/l/F;
+ [Lrs/n/e;
+gameframe/icons/icon 
+gameframe/redstone 
+ rs/Client
+ setStroke
+
+### rs/gui/a/a.class (15)
+j<html><p style='font-size: 9px'><font style='bold' color='rgb(150,150,255)'>GPU Settings</font></p></html>
+u<html><p style='font-size: 9px'><font style='bold' color='rgb(150,150,255)'>Stretched Mode Settings</font></p></html>
+Anisotropic filtering
+Anti Aliasing:
+Bicubic (Catmull-Rom)
+Bicubic (Mitchell)
+Colorblind Mode:
+GPU Mode
+Maintain aspect ratio
+Smooth banding
+Stretched Mode
+UI Scaling:
+VSync Mode:
+ rs/Client
+ setLayout
+
+### rs/gui/Launcher.class (15)
+Hide/show side panel
+ Lrs/ui/f;
+Mac OS X
+ No image!
+SPK Editor Kit
+SpawnPK - [BETA TEST WORLD]
+SpawnPK RSPS
+![Error] Tray icons not supported.
+dd-MM-yyyy HH mm ss
+ getLayout
+ getSource
+ listFiles
+ rs/Client
+ setCursor
+ setLayout
+
+### rs/s/l/c.class (14)
+ left click
+ shift click
+FChange the default option that is displayed when hovering over objects
+Menu Entry Swapper
+Swap left click
+Swap left click @lre@
+Swap left click @yel@
+Swap shift click
+Swap shift click @lre@
+Swap shift click @yel@
+ Walk here
+ inventory
+ rs/Client
+ wornitem_
+
+### rs/n/c/m.class (14)
+-<img=180> Bloodcore Token Synthesis <img=180>
+Bloodcore lottery
+Bloodcore token shop
+Remove 1
+ Remove 10
+Remove 5
+Remove All
+Remove X
+Synthesis item guide
+Synthesize items
+ [Lrs/l/K;
+ [Lrs/n/e;
+fountain/icon 1
+fountain/sprite 21
+
+### rs/n/c/as.class (14)
+,<img=152> @or1@SpawnPK Marketplace <img=152>
+Close Window
+Most recent
+Search by item
+Search by player
+Search item
+Search user
+ Sell item
+View item's history
+View listings
+View recent sales
+View your history
+Your sales
+ [Lrs/l/K;
+
+### rs/n/c/am.class (14)
+?<img=209> Welcome back to SpawnPK! Limited Time Event <img=209>
+</u> <img=82>
+,And, for a limited time only, you'll receive
++Check out this year's latest holiday event!
+Event expires on: @yel@
+May 15th, 2026
+Play now
+Solar Event: Summer 2026
+Welcome back, Username!
+&Your next daily reward: @yel@24h 0m 0s
+ [Lrs/l/K;
+ [Lrs/n/e;
+misc/login 5
+.one of the rewards below for logging in daily!
+
+### rs/n/c/ad.class (14)
+:@yel@Scrolls will auto-repair\n@yel@over shards and coins!
+Auto-repair (gold)
+Auto-repair (shard)
+Blood shards stored: @yel@0
+Gold stored: @yel@0 gp
+Item repairing coffer
+Repair scrolls stored: @yel@0
+Store gold
+Store shards
+Toggle gold auto repair
+Toggle shard auto repair
+Withdraw gold
+Withdraw shards
+ [Lrs/l/K;
+
+### rs/l/b/d.class (14)
+ (IIIIII)V
+ (Lrs/Client;Lrs/n/e;Lrs/n/e;II)V
+<img=24>
+<img=39> 
+Click here to continue
+Hunger games loot chest
+Nulled child of I
+ Nulled: 
+Please wait...
+ [Lrs/d/a;
+ [Lrs/l/F;
+ [Lrs/n/e;
+ rs/Client
+ substring
+
+### rs/d/k.class (14)
+ (IIIIII)V
+ (IIIIIZ)V
+ (J)Lrs/a;
+Debugging 
+Dwarf remains
+Primal platebody
+Primal platelegs
+Torva platebody
+Torva platelegs
+ [Lrs/d/k;
+ arraycopy
+ rs/Client
+ substring
+ token (20
+
+### rs/a/k.class (14)
+ @red@
+  ---> compColors=
+  ---> cosmetic=
+G  ---> gender=
+  ---> hasCompColors=
+  ---> name=
+ (IIIIII)V
+ (IIIIIZ)V
+ (J)Lrs/a;
+ [Lrs/a/h;
+ [Lrs/d/a;
+ [Lrs/d/j;
+ [Lrs/d/x;
+ rs/Client
+
+### rs/s/t/l.class (13)
+EHere you can search for an item by its name to find its sale history.
+5No items were found with that name, please try again.
+No results found.
+Page 1
+Please login!
+)There has been an issue with your search!
+Trading Post Search
+7You must be logged into the server to use this feature.
+ item_name
+ removeAll
+ rs/Client
+ setBorder
+ setLayout
+
+### rs/n/c/au.class (13)
+ 100M bags
+)@or1@SpawnPK Marketplace Listing <img=84>
+0@or1@TIP:@yel@ Item history\n@yel@helps pricing!
+Close Window
+Go back
+Item history
+Select a currency..
+ Set price
+Set price (ea)
+Set quantity
+View item history
+ [Lrs/l/K;
+ [Lrs/n/e;
+
+### rs/n/c/at.class (13)
+0@or1@SpawnPK Marketplace Search Results <img=39>
+Close Window
+Go back
+ Last page
+ Next page
+Previous page
+Price (each) <img=23>
+Select option
+Select this market listing
+Toggle ascending/descending
+Total offers: 0
+ [Lrs/l/K;
+ [Lrs/n/e;
+
+### rs/n/c/aS.class (13)
+  @yel@Track<img=39>
+@or1@Completion Progress
+@or1@Potential Rewards
+@or1@Task Information
+@or1@Task Scroll Title
+@yel@Collect
+c@yel@This meter indicates your progress for the objective.\nOnce complete, you'll receive a casket.
+Collect reward
+Description 
+Track progress
+ [Lrs/l/K;
+ [Lrs/n/e;
+tasks/SPRITE 2
+
+### rs/n/c/a.class (13)
+@or1@Completed (0/100)
+@or1@SpawnPK Achievement Diary
+@or2@Bonuses you'll receive..
+@or2@Items you'll receive..
+@or2@Title of the achievement
+@whi@Progress: @gre@0% (0/1)
+Close Window
+Collect all rewards
+Collect reward
+Description 
+Select achievement
+ [Lrs/l/K;
+ [Lrs/n/e;
+
+### rs/n/c/T.class (13)
+<img=57> Activate @gre@(x5)
+Close Window
+Monster Selections
+Monster Spawner
+NPC IDX @yel@
+Spawn distanced
+Spawn this NPC
+Spawn x3
++This spawner will provide you with 5 spawns
+Toggle spawner
+ You have selected: @yel@NPC Name
+ [Lrs/l/K;
+-before requiring you to re-activate it again.
+
+### rs/n/c/F.class (13)
+ Blow kiss
+Climb Rope
+ Glass Box
+Glass Wall
+Goblin Bow
+Goblin Salute
+Jump for Joy
+Lean On Air
+Rabbit Hop
+ Raspberry
+Skillcape Emote
+Zombie Dance
+Zombie Walk
+
+### rs/gui/b/h.class (13)
+<html>Loadout folders</html>
+Create a new loadout
+ Delete 
+Delete this loadout
+Loadout Error 120
+Main folder
+Move loadout down in the list
+Move loadout up in the list
+No, Nevermind.
+Rename the active loadout
+Yes, delete "
+ rs/Client
+ setLayout
+
+### rs/t/a/d.class (12)
+(ID {} '{}') Unknown config: {}
+ droppable
+ fullClone
+ fullclone
+ getLogger
+ malemodel
+ retexture
+ rotations
+ separator
+ srccolors
+ stackable
+ tradeable
+
+### rs/n/c/k.class (12)
+@or1@Blood Shard Salvaging Kit
+Close Window
+Item guide
+"Items you'll salvage into shards..
+Read guide
+Remove 1
+ Remove 10
+Remove 5
+Remove All
+Remove X
+ [Lrs/l/K;
+ [Lrs/n/e;
+
+### rs/n/c/ba.class (12)
+ <img=39> 
+Category List
+Go back
+Official SpawnPK Knowledgebase
+Select option
+Selected Article Title Text
+[ERROR] OVERFLOW CATEGORY
+[ERROR] OVERFLOW DESCRIPTION
+ [Lrs/l/K;
+ [Lrs/n/e;
+wiki/guide 
+wiki/sprite 0
+
+### rs/n/c/aq.class (12)
+0Choose a quantity, then click an image to begin.
+ How many would you like to make?
+Select quantity
+ [Lrs/l/F;
+ [Lrs/l/K;
+ [Lrs/n/e;
+options/make/sprite 2
+options/make/sprite 3
+options/make/sprite 4
+options/make/sprite 6
+ rs/Client
+ substring
+
+### rs/n/c/al.class (12)
+::cld1 
+::cld2 
+@yel@Reset to default
+@yel@Save loadout
+#Item Loadout Modification Interface
+LMS Loadout
+Save loadout
+Set as default
+ [Lrs/l/K;
+ [Lrs/n/e;
+equipment/loadout 1
+ rs/Client
+
+### rs/n/c/aY.class (12)
+Attack XP
+Ranged XP
+Strength XP
+Auto Retaliate
+Shared XP
+Defence XP
+Long range
+ Longrange
+;When active, you will
+automatically fight back if
+ [Lrs/l/K;
+ [Lrs/n/e;
+
+### rs/n/c/J.class (12)
+ token limit
+U<img=50> To prevent excessive farming, activities have timed limits on token earnings
+W<img=78> @cya@The limit on an activity resets once its timer reaches <img=37> @whi@0:00
+<img=81>
+"<img=81> Activity locked! <img=81>
+R@whi@<shad=1>Limit reached! Token earnings are locked until the limit timer ends..
+Event Activity Viewer
+No token limit!
+ [Lrs/l/K;
+ [Lrs/n/e;
+popups/activities 1
+popups/activities 2
+
+### rs/n/c/H.class (12)
+Attack bonus
+Blood money bonus:
+Defence bonus
+Drop rate bonus:
+Equip Your Character...
+Magic damage:
+Other bonuses
+Range strength:
+Risk value: 
+View bonuses / unlocks
+ [Lrs/l/K;
+ [Lrs/n/e;
+
+### rs/A/l.class (12)
+ Failed to open Desktop#browse {}
+Failed to open Desktop#open {}
+4Interrupted while waiting for xdg-open {} to execute
++Opened directory through Desktop#open to {}
+'Opened directory through xdg-open to {}
+'Opened url through Desktop#browse to {}
+!Opened url through xdg-open to {}
+\Unable to open folder. Press 'OK' and the folder directory will be copied to your clipboard.
+NUnable to open link. Press 'OK' and the link will be copied to your clipboard.
+ exitValue
+ getLogger
+'xdg-open {} returned with error code {}
+
+### rs/u/b.class (11)
+HAnimKeyFrameSet size mismatch! keyframe 
+, frame size: 
+, actual read: 
+$Error1 unpacking base for keyframe 
+5Error1 unpacking keyframes 
+ file size from cache = 
+Error2 unpacking keyframes 
+Not a keyframe file!
+ [Lrs/u/b;
+ [Lrs/u/g;
+ rs/Client
+
+### rs/secure/c.class (11)
+Install date not found.
+MM/dd/yyyy, hh:mm:ss a
+Original Install Date
+System Info command timed out.
+WINDOWS 
+cmd /c systeminfo
+dd/MM/yyyy, HH:mm:ss
+ getOffset
+opowershell.exe -Command "(Get-CimInstance Win32_OperatingSystem).InstallDate.ToString('yyyyMMddHHmmss.ffffff')"
+ substring
+yyyy-MM-dd, HH:mm:ss
+
+### rs/s/t/d.class (11)
+ <font color='
+Z<html><body style = 'color:
+'>Progress: <span style = 'color:white'>
+Q<html><body style = 'color:white'>
+<span style = 'color:
+ FACE_CARD
+Price each: 
+Received: 
+Sold: 
+ setBorder
+ setLayout
+
+### rs/s/n/c.class (11)
+ /icon.png
+ Lrs/ui/f;
+'display notification "
+" with title "
+error sending notification
+ exitValue
+ getHeight
+ getLogger
+ osascript
+ rs/Client
+terminal-notifier -help
+
+### rs/s/b/q.class (11)
+Error when starting plugin {}
+Error when stopping plugin {}
+ Lrs/ui/k;
+Plugin Hub
+ comparing
+ emptyList
+ getLogger
+ getParent
+ removeAll
+ setBorder
+ setLayout
+
+### rs/n/c/n.class (11)
+:@or1@(There are @gre@23@or1@ participants in this lottery)
+@yel@5 hours 18 mins 48 secs
+%@yel@Latest Bloodcore Lottery Winners
+Bloodcore Token Lottery
+Enter bloodcore lottery
+ The lottery's pot is currently..
+$Time until the winner is announced..
+ [Lrs/l/K;
+ [Lrs/n/e;
+fountain/icon 1
+fountain/sprite 22
+
+### rs/n/c/b.class (11)
+::claimchallenge 
+::infochallenge 
+*<col=FF9B00>You don't have any challenges!
+&<img=217> <u=16754944>Daily Challenges
+Collect reward
+Deep wild pking
+"Kill 50 players in\nlevel 30+ wild
+View information
+ [Lrs/l/K;
+ [Lrs/n/e;
+ rs/Client
+
+### rs/n/c/ao.class (11)
+ <img=291>
+:@or1@(There are @gre@23@or1@ participants in this lottery)
+@yel@5 hours 18 mins 48 secs
+#@yel@The winning pot is currently..
+Enter lottery
+Latest Raffle Winners
+Lottery title
+$Time until the winner is announced..
+ [Lrs/l/K;
+ [Lrs/n/e;
+fountain/icon 1
+
+### rs/n/c/aF.class (11)
+Close Window
+ LOGS/ICON
+Mahogony\n10,000gp each
+Make-all @cya@Mahogony
+Make-all @cya@Oak
+Make-all @cya@Teak
+Make-all @cya@Wood
+Oak\n1,500gp each
+Teak\n4,000gp each
+Wood\n500gp each
+ [Lrs/l/K;
+
+### rs/e/i.class (11)
+CNon-public configuration classes can't have default methods invoked
+Not a config group
+Saving profile (patch size: {})
+3Setting default configuration value for {}.{} to {}
+Unable to load section {}::{}
+ getLogger
+ isDefault
+ parseLong
+ rs/runelite/events/ConfigChanged
+ separator
+$value is marked non-null but is null
+
+### rs/t/b/b.class (10)
+  vs. (old) 
+..Dump completed!
+..Test completed!
+Dwarf remains
+Found differences in item 
+Running test..
+ rotations
+ separator
+ srcColors
+ stackable
+
+### rs/s/l/b.class (10)
+&All options that swap NPC menu entries
+'All options that swap item menu entries
++Allows customization of left-clicks on NPCs
+,Allows customization of left-clicks on items
+-Allows customization of shift-clicks on items
+!Customizable left and shift click
+Customizable left-click
+Customizable shift-click
+Item Swaps
+ NPC Swaps
+
+### rs/s/f/b.class (10)
+Border Width
+:Configures whether marked tiles should be drawn on minimap
+Draw tiles on minimap
+Fill Opacity
+Opacity of the tile fill color
+ Show Import/Export/Clear options
+LShow the Import, Export, and Clear options on the world map right-click menu
+"The default color for marked tiles
+Tile color
+Width of the marked tile border
+
+### rs/s/b/a.class (10)
+;Are you sure you want to reset this plugin's configuration?
+Are you sure?
+Pick a color
+ getEditor
+ getLogger
+invalid selected item
+ isVisible
+ removeAll
+ setBorder
+ setLayout
+
+### rs/q/b/d.class (10)
+Connected to the server!
+Don't know about host 
+Login request @
+Receiver has stopped!
+Receiver thread started!
+Unregistered (logout)
+ getLogger
+ ofPattern
+ parseLong
+yyyy-MM-dd hh:mm:ss a
+
+### rs/q/a/a/a/d.class (10)
+ @whi@
+'<img=128> Match style: @cya@
+ <img=128>
+"<img=233> Players in lobby: @or1@
+(<img=24> Starting a match, please wait..
+<img=37> Starting in: @or1@
++<img=73> Waiting for @or1@
++@whi@ players..
+Kills: @yel@
+Survivors: @yel@
+
+### rs/n/c/az.class (10)
+ @or1@Item
+@or1@Monster item drop search
+d@yel@Note:@whi@ Boosted rate display does NOT include dynamic boosts (monster specific boosts, etc.)
+Go back
+Search by item
+Search by monster
+Search item
+Search npc
+Select this monster
+ [Lrs/l/K;
+
+### rs/l/e/a/q.class (10)
+I@gre@X: 
+   @cya@Y: 
+        @yel@Hovered: 
+     @mag@(ID: 
+ - Parent: 
+1[ERROR] Could not find child ID 
+ in interface 
+)[ERROR] No opened interface to reference!
+ [Lrs/n/e;
+ rs/Client
+
+### rs/l/e/a/h.class (10)
+ <img=81> Locked!
+ (IIIIII)V
+?<img=46> @gre@You've completed this tier of the event! <img=46>
+E<img=81> You must roll all the items from the previous tier! <img=81>
+8@gre@Congratulations! You've completed the entire event!
+@yel@?
+ [Lrs/n/e;
+fountain/event 3
+fountain/event 4
+ rs/Client
+
+### rs/l/b/a/a.class (10)
+ @cya@[
+Item definitions reset!
+Selected colors: @gre@
+Textures opened
+[ITEM 
+ modelID=
+ offset1=
+ offset2=
+ rs/Client
+ substring
+
+### rs/k/o.class (10)
+: no data
+ (III[F)[F
+Blend must be <= 13 (
+Blend must be >=0 (
+Coordinate out of bounds (
+Expected bounds (
+Expected number (
+'First coord must be before second (
+Unexpected: "
+ substring
+
+### rs/gui/c/a.class (10)
+*<html><font style='bold'>N/A</font></html>
+{<html><p style='font-size: 10px'><font style='bold' color='rgb(255,100,100)'><u>Most Recent 1v1 Fight</u></font></p></html>
+x<html><p style='font-size: 10px'><font style='bold' color='rgb(255,100,100)'><u>Previous 1v1 Fight</u></font></p></html>
+<html><p style='font-size: 9px'><font style='bold' color='rgb(150,150,255)'>Type ::pvptracker to view overlay in-game</font></p></html>
+D<html>Correct overheads: <font color='35FFA6'>0/0 (0%)</font></html>
+<<html>Damage Dealt: <font color='FF6C3A'>0 (0)</font></html>
+><html>Spell casts: <font color='5AA8FF'>0/0 (0%)</font></html>
+ removeAll
+ rs/Client
+ setLayout
+
+### rs/a/h.class (10)
+ (I)Lrs/S;
+ (IIIIII)V
+ (IIIIIZ)V
+ (I[IIII)V
+Total colors: 
+ [Lrs/a/h;
+ [Lrs/d/a;
+ [Lrs/r/c;
+ arraycopy
+ rs/Client
+
+### rs/ui/l.class (9)
+ Lrs/ui/m;
+, tab=
+, tooltip=
+, selected=
+, onClick=
+, onSelect=
+, panel=
+, priority=
+, popup=
+
+### rs/ui/l$a.class (9)
+ Lrs/ui/m;
+, tab$value=
+, tooltip$value=
+, selected=
+, onClick=
+, onSelect=
+, panel=
+, priority=
+, popup=
+
+### rs/t/a/b.class (9)
+(ID {} '{}') Unknown config: {}
+ byteValue
+ clickable
+ getLogger
+ healthbar
+ retexture
+ separator
+ srccolors
+ standanim
+
+### rs/t/a/a.class (9)
+(ID {}) Unknown config: {}
+&Could not find clone ID {} for Anim {}
+ [Lrs/d/a;
+ durations
+ framestep
+ getLogger
+ secondary
+ separator
+ stretches
+
+### rs/s/q/b/b.class (9)
+MAre you sure you want to reset all fight history data? This cannot be undone.
+Copy Fight History Data
+0Enter the fight history data you wish to import:
+Import Fight History
+Import Fight History Data
+Remove All Fights
+ getHeight
+ setBorder
+ setLayout
+
+### rs/s/e/c.class (9)
+0Enhance the graphics and performance of the game
+GPU Mode
+GPU Mode (Beta)
+ Lrs/ui/e;
+ Lrs/ui/l;
+ getLogger
+ rs/Client
+ rs/runelite/events/ConfigChanged
+ vsyncMode
+
+### rs/runelite/events/MenuHover.class (9)
+, row=
+, menuId=
+, menuCmd1=
+, menuCmd2=
+, menuCmd3=
+, menuCmd4=
+ SINGLETON
+ getMenuId
+ setMenuId
+
+### rs/runelite/events/MenuBuild.class (9)
+, row=
+, menuId=
+, menuCmd1=
+, menuCmd2=
+, menuCmd3=
+, menuCmd4=
+ SINGLETON
+ getMenuId
+ setMenuId
+
+### rs/q/a/a/a/a.class (9)
+Blood barrage
+Infernal barrage
+Infernal blitz
+Level 80 : Blood blitz
+Level 80 : Infernal blitz
+Level 92 : Blood barrage
+Level 92 : Infernal barrage
+ [Lrs/n/e;
+ rs/Client
+
+### rs/n/c/an.class (9)
+ Deposit 1
+Deposit 10
+ Deposit 5
+Deposit All
+Deposit all to bank
+Looting bag
+This bag is empty.
+ [Lrs/l/K;
+ [Lrs/n/e;
+
+### rs/n/c/ae.class (9)
+@whi@Price: @gre@500 VP
+Description Line
+Item Sale Listings
+Item Title
+Select item 
+Teleport to boss
+ [Lrs/l/K;
+ [Lrs/n/e;
+vote/sprite 
+
+### rs/n/c/aW.class (9)
+<img=14> Top Players
+<img=16> Top Clans
+All time
+ This week
+View all time leaderboard
+View weekly leaderboard
+World Tournament Leaderboards
+ [Lrs/l/K;
+ misc/hs 5
+
+### rs/l/F.class (9)
+ ([IIIII)V
+Error converting jpg
+ arraycopy
+ drawImage
+ getHeight
+ getSource
+ index.dat
+ rs/Client
+ separator
+
+### rs/gui/b/d.class (9)
+)You already have a folder with this name!
+*You already have a loadout with this name!
+*You already have that name in this folder!
+:You can only have letters and numbers in your folder name!
+1You can't delete the only loadout on your folder!
+"You can't delete your only folder!
+ Your folder name can't be empty!
+!Your loadout name can't be empty!
+ showPopup
+
+### rs/gui/J.class (9)
+5By the way, I'm going to theme this whole side panel.
+GPU (Beta)
+It'll look nice as fuck, nigga.
+Item Search
+PvP Tracker
+This is the panel for tab #
+ This was added as a placeholder.
+ setBorder
+ setLayout
+
+### rs/g/a/b.class (9)
+,Consuming key pressed {} for key listener {}
+)Consuming key released {} for listener {}
+*Consuming key typed {} for key listener {}
+-Processing key pressed {} for key listener {}
+.Processing key released {} for key listener {}
++Processing key typed {} for key listener {}
+Registering key listener: {}
+Unregistered key listener: {}
+ getLogger
+
+### rs/ui/components/a/q.class (8)
+  Current 
+Color Picker - 
+ Hex color
+ getBounds
+ getLength
+ gridwidth
+ setBorder
+ setLayout
+
+### rs/t/a/c.class (8)
+(ID {}) Unknown config: {}
+%Could not find clone ID {} for GFX {}
+ [Lrs/d/a;
+ [Lrs/d/x;
+ animation
+ getLogger
+ separator
+ srccolors
+
+### rs/s/p/a.class (8)
+Border Width
+6Display the player outline for your active pet as well
+Outline Color
+Outline Feather
+Outline your pet
+?Specify between 0-4 how much the player outline should be faded
+!The color for the players outline
+"Width of the player outline border
+
+### rs/s/n/b.class (8)
+1<img=163> A superior slayer monster has appeared!
+B@red@You've reached the de-aggro timer (anti-afk) for this region!
+A superior boss has appeared!
+De-aggro timer reached!
+PM from 
+Superior spawned!
+ getSender
+ isFocused
+
+### rs/s/g/a.class (8)
+No results found for "
+3Please have at least 3 letters in your search term!
+$Please login before searching items!
+:Please wait until the client has loaded the item database!
+ getParent
+ rs/Client
+ setBorder
+ setLayout
+
+### rs/n/c/q.class (8)
+<img=17> Ryan 
+Clan Chat (0/100)
+Clan Setup
+ Join Chat
+Manage clan member
+Owner: @whi@None
+Talking in: @yel@Not in chat
+ [Lrs/l/K;
+
+### rs/n/c/d/b.class (8)
+ ---<tab=150>--<tab=225>---------
+-<img=291><tab=150><img=291><tab=225><img=291>
+Close interface
+Join party
+1Party<tab=150>Size<tab=225>Raid Type & Difficulty
+Refresh party list
+raids/refresh 1
+raids/refresh 2
+
+### rs/n/c/aa.class (8)
+@yel@N/A
+Achievement Diary
+Hotspot: @or2@N/A
+Monster drop tables
+Open achievements
+Open monster drop tables
+ [Lrs/l/K;
+ [Lrs/n/e;
+
+### rs/n/c/aQ.class (8)
+Next Lvl:
+ Fletching
+ Hitpoints
+ Summoning
+Total Level: 0
+ Guide
+ [Lrs/l/K;
+ [Lrs/n/e;
+
+### rs/l/f/i.class (8)
+ Configure
+ Lrs/ui/f;
+ getLogger
+ getStroke
+ isFocused
+ rs/Client
+ setStroke
+ translate
+
+### rs/l/d/e.class (8)
+<a href=
+<span itemprop="name headline">
+@yel@[
+Runex: Economy Server
+] <col=FFFFFF>
+] @whi@
+7https://spawnpk.net/forums/index.php?/forum/10-updates/
+ substring
+
+### rs/e/f.class (8)
++Configuration method {} has no @ConfigItem!
+1Configuration proxy class {} has no @ConfigGroup!
+3Invalid number of arguments to configuration method
+Unable to unmarshal {}.{} 
+cache invalidate
+)cache miss (size: {}, group: {}, key: {})
+ getLogger
+ isDefault
+
+### rs/d/c.class (8)
+blow job
+butt pirate
+hard on
+his cock
+jerk off
+my cock
+porch monkey
+suck my
+
+### rs/tools/c.class (7)
+ IP address
+IP address
+ Logged in
+ Login #
+Login #
+ (Potential DC?)
+ getLength
+
+### rs/s/t/i.class (7)
+Enable the Notes panel
+ Lrs/ui/e;
+ Lrs/ui/l;
+Trading Post
+Trading post
+ rs/Client
+ tradepost
+
+### rs/s/q/b/a.class (7)
+ dealt 
+ damage (
+ vs opponent)
+HH:mm:ss 'on' yyyy/MM/dd
+ getHeight
+ setBorder
+ setLayout
+
+### rs/s/q/b.class (7)
+Current Fight
+$Fight History (Filter by Usernames):
+Filter Usernames:
+ getHeight
+ removeAll
+ setBorder
+ setLayout
+
+### rs/s/m/b.class (7)
+ control Y
+ control Z
+ getLogger
+ getParent
+ setBorder
+ setLayout
+ setOpaque
+
+### rs/s/b/o.class (7)
+ Configure
+Edit plugin configuration
+Pin plugin
+Unpin plugin
+ pluginhub
+ setBorder
+ setLayout
+
+### rs/q/a/a/a/l.class (7)
+<img=288> View
+<img=9> Claim
+ [Lrs/l/F;
+misc/mail 7
+misc/mail 8
+misc/treasure 2
+ rs/Client
+
+### rs/n/c/aU.class (7)
+ blahblahblahblahblahblahblah
+Close Window
+Select this teleport
+Teleport <img=149>
+Teleport @yel@#
+Title of Location
+ [Lrs/l/K;
+
+### rs/n/c/aE.class (7)
+@gre@Limited time pet fusion!
+@or1@Legendary Pet Fusing
+Close Window
+ Fuse pets
+New pet ETA: @whi@10/26/2016
+ [Lrs/l/K;
+ [Lrs/n/e;
+
+### rs/n/c/Z.class (7)
+Daily PK Leaderboards
+Daily PK leaderboards
+Leaderboard Selection Menu
+Tournament Leaderboard
+Tournament PK leaderboard
+ [Lrs/l/K;
+ misc/hs 3
+
+### rs/n/c/Q.class (7)
+<img=37> @yel@
+<img=82> 
+<img=82> Event Brawl: 
+@gre@<img=24> Active
+Starts in.. <img=37> @yel@
+ [Lrs/n/e;
+ rs/Client
+
+### rs/l/f/c.class (7)
+, topCenter=
+, topRight=
+, bottomLeft=
+, bottomRight=
+, aboveChatboxRight=
+, canvasTopRight=
+ translate
+
+### rs/l/e/q.class (7)
+icons/infinite white
+popups/timer 0
+popups/timer 1
+popups/timer 2
+popups/timer 3
+ rs/Client
+ substring
+
+### rs/l/e/a/i.class (7)
+ tokens left)
+ Pay @yel@
+x <col=FFBD5C>
+$@yel@
+ rolls @or1@(
+ tokens)
+ [Lrs/n/e;
+
+### rs/k/l.class (7)
+..attempting reload
+..checking reload validity
+..reset attempt counter
+/Objects loaded: 
+ (reloadAttempts=
+ obj_type=
+ rs/Client
+
+### rs/k/b/e.class (7)
+9defaulting model cache to 512MiB due to non 64-bit client
+'failed to check physical memory size: 
+$failed to make room for float buffer
+"failed to make room for int buffer
+ getLogger
+klimiting the cache to 
+ since the selected amount exceeds half of the total physical memory for the system.
+
+### rs/k.class (7)
+Anim error for file: 
+ [osrs=
+Loading OSRS: 
+1[Animations] Could not find OSRS animation file 
+ [Lrs/d/a;
+ rs/Client
+ substring
+
+### rs/gui/b/b/d.class (7)
+ .settings
+R[WARNING!] [Loadouts] Attempted to load an invalid folder "
+" from order.settings!
+P[WARNING!] [Loadouts] Folder "
+" missing from the order config! Adding to list..
+ listFiles
+ separator
+
+### rs/gui/M.class (7)
+ TabbedPane.borderHightlightColor
+Unable to add system tray icon
+Unable to set look and feel
+ getHeight
+ getLogger
+ setMargin
+ setOpaque
+
+### rs/f/e.class (7)
+ Fletching
+ Hitpoints
+ Summoning
+ fletching
+ hitpoints
+ runecraft
+ summoning
+
+### rs/d/g.class (7)
+#Error! Detected mismatch at line: 
+ getLogger
+ rotation1
+ rotation2
+ rotationx
+ rotationy
+ stackable
+
+### rs/d/d.class (7)
+ (IIIIIZ)V
+ (J)Lrs/a;
+ [Lrs/a/h;
+ [Lrs/d/a;
+ [Lrs/d/d;
+ [Lrs/d/y;
+ rs/Client
+
+### rs/V.class (7)
+ (IIIIII)V
+ (IIIIII)Z
+ (IILrs/a/a;ILrs/a/a;Lrs/a/a;II)V
+ ([IIIII)V
+Warning unsupported wall type
+ [[[Lrs/H;
+ rs/Client
+
+### rs/t/b/a.class (6)
+..Dump completed!
+Found differences in NPC 
+ clickable
+ separator
+ srcColors
+ standAnim
+
+### rs/s/q/a.class (6)
+Exact Name Filter
+KHidden config used to save user's selected name filter for the panel views.
+tMakes the username filter look for an exact match (case-insensitive), rather than any name starting with the filter.
+Max Rendered Fights
+Maximum number of previous fights to be displayed in the fight history side-panel.<br>WILL cause lag spikes at very high numbers. This should be small if you have low RAM
+Name Filter
+
+### rs/s/b/n.class (6)
+, description=
+, tags=
+, plugin=
+, config=
+, configDescriptor=
+, conflicts=
+
+### rs/q/b/a.class (6)
+ Find Text
+Match results: 
+Match results: N/A
+Report Request Results
+Waiting for results..
+ setLayout
+
+### rs/n/c/f.class (6)
+0<tab=20><img=14> Always right-click clan members
+<u>NPC/Bot attack options
+<u>Player attack options
+Select option
+ [Lrs/l/K;
+ [Lrs/n/e;
+
+### rs/n/c/d/a.class (6)
+Public / Join
+Select tab
+raids/sprite 1
+raids/sprite 2
+raids/sprite 3
+raids/sprite 4
+
+### rs/n/c/d.class (6)
+ @yel@CLAIM!
+- Complete the chapter\n to claim these items.
+(@gre@You've claimed\n@gre@these rewards!
+ [Lrs/l/K;
+ [Lrs/n/e;
+ rs/Client
+
+### rs/n/c/b/b.class (6)
+>                                                                                                                                                    </str>
+<str=8683352>                                                                                                                                                    </str>
+Select option
+ [Lrs/n/e;
+ rs/Client
+ substring
+
+### rs/n/c/ak.class (6)
+Bounty teleport
+Close Window
+Edgeville teleport
+Home teleport
+ LOGS/ICON
+ [Lrs/n/e;
+
+### rs/n/c/M.class (6)
+%@or1@Vote for us and receive rewards!
+Vote for us on Moparscape
+Vote for us on RSPS-List
+Vote for us on RuneLocus
+Vote for us on TopG
+ [Lrs/l/K;
+
+### rs/n/c/E.class (6)
+Close Window
+Select a duel type..
+Standard duel
+Whip + dds only
+ Whip only
+ [Lrs/l/K;
+
+### rs/n/a/a/c.class (6)
+ (IIIIII)V
+ (Lrs/Client;Lrs/n/e;Lrs/n/e;II)V
+/The interface ID 
+ is not a drop down component
+ [Lrs/n/e;
+ rs/Client
+
+### rs/l/f/a/c/d.class (6)
+ @yel@
+ (IIIIII)V
+ [Lrs/a/j;
+ [Lrs/a/k;
+ rs/Client
+ substring
+
+### rs/k/q.class (6)
+ (IIIIII)V
+No pixels for texture 
+Uploaded textures {}
+ [Lrs/l/a;
+ getLogger
+ rs/Client
+
+### rs/eventbus/EventBus$Subscriber.class (6)
+, method=
+, priority=
+, lambda=
+ getLambda
+ getMethod
+ getObject
+
+### rs/cache/osrs/b.class (6)
+*Packed new assets into {} index ({} files)
+;Scanning assets in pack directory {} index (file count: {})
+Unable to locate index {}.
+ getLogger
+ listFiles
+ rs/Client
+
+### rs/cache/b/c.class (6)
+!Error with configuration updater!
+Error with the cache updater!
+Error with the sprite updater!
+Please wait, checking assets..
+Updating outdated game asset: 
+ rs/Client
+
+### rs/cache/b/a/a.class (6)
+Downloading main game assets..
+Making directory: 
+Making parent directory: 
+ cache.zip
+ listFiles
+ separator
+
+### rs/y/c.class (5)
+Scheduled task triggered: {}
+ compareTo
+error during scheduled task
+error invoking scheduled task
+ getLogger
+
+### rs/ui/components/k.class (5)
+ getHeight
+ selectAll
+ setBorder
+ setLayout
+ setOpaque
+
+### rs/ui/a/j.class (5)
+, endTime=
+, duration=
+negative duration
+negative period!
+ toMinutes
+
+### rs/secure/HardwareValidator.class (5)
+This is Mac
+This is Solaris
+This is Unix or Linux
+This is Windows
+Your OS is not support!!
+
+### rs/s/t/g.class (5)
+No listings detected
+4No trading post listings were found on your account.
+ removeAll
+ setBorder
+ setLayout
+
+### rs/s/s/b.class (5)
+Hover Descriptions
+ [Lrs/a/j;
+ [Lrs/a/k;
+ hoverdesc
+ rs/Client
+
+### rs/s/c/c.class (5)
+Developer Tools
+ Lrs/ui/e;
+ Lrs/ui/l;
+ rs/Client
+ rs/runelite/events/ConfigChanged
+
+### rs/runelite/events/ConfigChanged.class (5)
+, profile=
+, key=
+, oldValue=
+, newValue=
+ rs/runelite/events/ConfigChanged
+
+### rs/q/b.class (5)
+Error closing stream
+Error in writer thread
+ available
+buffer overflow
+ ioerror:
+
+### rs/q/a/a/b.class (5)
+!Could not find ScriptPacket ID 
+!ScriptPacket ID 
+ already in use!
+ configure
+ rs/Client
+
+### rs/n/c/j.class (5)
+@or1@Blood Diamond Fuser
+6@or1@Fuse items to sacrifice them into blood diamonds!
+Close Window
+Cycle items
+ [Lrs/l/K;
+
+### rs/n/c/c/b.class (5)
+<img=50>
+ <img=50> 
+<img=50> 
+View inbox message
+ rs/Client
+
+### rs/n/c/ap$b.class (5)
+ AIR_SURGE
+ FIRE_BOLT
+ FIRE_WAVE
+ TELEBLOCK
+ WIND_BOLT
+
+### rs/n/c/aO.class (5)
+Main stock
+Right-click on shop
+Select shop tab
+ [Lrs/l/K;
+ [Lrs/n/e;
+
+### rs/n/c/aK.class (5)
+Party invitations
+Raiding party invitations
+Selected invitation
+ [Lrs/l/K;
+raids/sprite 5
+
+### rs/n/c/D.class (5)
+Load last duel
+Load last rules
+ [Lrs/l/K;
+ [Lrs/n/e;
+misc/duel load
+
+### rs/n/c/A.class (5)
+ (IIIIIZ)V
+<img=25> Close window
+Please confirm your choice.
+ [Lrs/l/K;
+ [Lrs/n/e;
+
+### rs/l/h.class (5)
+ ([IIIII)V
+ [Lrs/l/F;
+ index.dat
+ rs/Client
+ substring
+
+### rs/l/f/a/j/b.class (5)
+ @gre@
+ @red@
+ [Lrs/l/F;
+ rs/Client
+ substring
+
+### rs/l/e/c.class (5)
+ (IIIIII)V
+@yel@[
+]:@whi@ 
+ rs/Client
+ substring
+
+### rs/l/e/a/f.class (5)
+ (IIIIII)V
+2You have a @gre@
+% @whi@chance to save ingredients
++on failed attempts @or2@(consumes on save!)
+ rs/Client
+
+### rs/l/b/a/a/d.class (5)
+Deleted @red@Player entity #
+Selected @gre@Player entity #
+ [Lrs/d/a;
+ arraycopy
+ rs/Client
+
+### rs/l/b/a/a/c.class (5)
+Deleted @red@NPC entity #
+Selected @gre@NPC entity #
+ [Lrs/d/a;
+ getHeight
+ rs/Client
+
+### rs/l/b/a/a/a.class (5)
+Default color map:  
+Final color map:  
+Selected colors:  
+ [Lrs/d/a;
+ rs/Client
+
+### rs/l/E.class (5)
+ ([IIIII)V
+Q[!!!] Invalid texture size (too big) for ID 
+ (replacing it to texture ID 0)
+ [Lrs/l/a;
+ rs/Client
+
+### rs/gui/c/c.class (5)
+</font><font color='red'>
+7<html><font style='bold' color='yellow'>
+=<html>Correct overheads: <font color='35FFA6'>
+8<html>Damage Dealt: <font color='FF6C3A'>
+5<html>Magic RNG: <font color='5AA8FF'>
+
+### rs/gui/c/b.class (5)
+</font><font color='red'>
+7<html><font style='bold' color='yellow'>
+=<html>Correct overheads: <font color='35FFA6'>
+8<html>Damage Dealt: <font color='FF6C3A'>
+5<html>Magic RNG: <font color='5AA8FF'>
+
+### rs/gui/b/a/n.class (5)
+Create new folder
+Loadout folders
+ Move down
+Move up
+ rs/Client
+
+### rs/e/n.class (5)
+Flash for 2 seconds
+Flash until cancelled
+Solid for 2 seconds
+Solid until cancelled
+ [Lrs/e/n;
+
+### rs/e/c.class (5)
+RL configurations
+atomic move not supported
+config file {} does not exist
+ getLogger
+!unable to save configuration file
+
+### rs/d/x.class (5)
+ (J)Lrs/a;
+*Error unrecognised spotanim config code: 
+ [Lrs/d/a;
+ [Lrs/d/x;
+ substring
+
+### rs/d/t.class (5)
+"Error unrecognised overlay code: 
+ [Lrs/d/t;
+%[OverlayFloor] Missing AttributeId: 
+ rs/Client
+ separator
+
+### rs/cache/b/b.class (5)
+Error in version check!
+Could not retrieve remote version file. Server is either offline or the remote file is corrupt.
+Please try again in a few minutes.
+There has been an issue downloading a game asset!
+If the issue continues, post a ticket on our website!
+
+### rs/y/b.class (4)
+, method=
+, object=
+, lambda=
+, last=
+
+### rs/x.class (4)
+ (ZIIIII)V
+ [Lrs/d/h;
+ [Lrs/d/t;
+ rs/Client
+
+### rs/ui/components/u.class (4)
+7<html><body style = 'text-align:center'>
+ setBorder
+ setLayout
+ setOpaque
+
+### rs/ui/components/g.class (4)
+DDragAndDropReorderPane only supports DragAndDropReorderLayoutManager
+ getBounds
+ getHeight
+ setLayout
+
+### rs/ui/b/b.class (4)
+ (IIIIII)V
+ (IIIIII)Z
+ getRaster
+ rs/Client
+
+### rs/tools/TextPopupWindow$a.class (4)
+ (Lrs/tools/TextPopupWindow$a;I)I
+Search for text
+ isVisible
+ setLayout
+
+### rs/t/a/f.class (4)
+ animation
+ destcolor
+ separator
+ srccolors
+
+### rs/s/t/h.class (4)
+Your Listings
+ isShowing
+ setBorder
+ setLayout
+
+### rs/s/q/d.class (4)
+ Lrs/ui/e;
+ Lrs/ui/l;
+PvP Tracker
+ serialize
+
+### rs/s/p/d.class (4)
+WA simple plugin that outlines the player allowing you to see the player behind objects.
+Player Outline
+!highlight, player, outline, color
+ rs/runelite/events/ConfigChanged
+
+### rs/s/k/a.class (4)
+ Lrs/ui/e;
+ Lrs/ui/l;
+"Set up and switch between loadouts
+ getLogger
+
+### rs/s/j/c.class (4)
+FAllows use of WASD keys for camera movement with 'Press Enter to Chat'
+Key Remapping
+Press Enter to Chat...
+ rs/Client
+
+### rs/s/i/b.class (4)
+ [Lrs/a/j;
+ [[[Lrs/H;
+ getEntity
+ rs/Client
+
+### rs/s/g/b.class (4)
+Enable the Item ID Search Panel
+Item ID Search
+ Lrs/ui/e;
+ Lrs/ui/l;
+
+### rs/s/f/f.class (4)
+, regionX=
+, regionY=
+, color=
+, label=
+
+### rs/s/d/b.class (4)
+Entity Hider
+&Hide players, NPCs, and/or projectiles
+ rs/Client
+ rs/runelite/events/ConfigChanged
+
+### rs/s/c/g.class (4)
+ Lrs/ui/m;
+Recolor models
+ setBorder
+ setLayout
+
+### rs/runelite/events/EntityInteraction.class (4)
+, combat=
+ getEntity
+ setCombat
+ setEntity
+
+### rs/runelite/a/m.class (4)
+ ([I[III)V
+ arraycopy
+ getBounds
+ getHeight
+
+### rs/p/b.class (4)
+Deferred EventBus
+ configure
+ newSingleThreadScheduledExecutor
+ rs/Client
+
+### rs/n/c/d/d.class (4)
+Adept (Req. 10+ 
+Expert (Req. 50+ 
+Master (Req. 100+ 
+ rs/Client
+
+### rs/n/c/ar.class (4)
+0Choose a quantity, then click an image to begin.
+ How many would you like to make?
+ [Lrs/n/e;
+ substring
+
+### rs/n/c/aT.class (4)
+Close Window
+Select option
+ [Lrs/l/K;
+ [Lrs/n/e;
+
+### rs/n/c/aJ.class (4)
+Confirm Selection
+Select your quick curses:
+Select your quick prayers:
+ [Lrs/l/K;
+
+### rs/n/c/aA.class (4)
+Select option
+Selecting this option Toggle 
+ [Lrs/l/K;
+ [Lrs/n/e;
+
+### rs/n/c/S.class (4)
+o<img=158> PvP Hotspot
+Chance to receive @yel@wild caskets@whi@ from PKs!
+(Blood orbs earn you better caskets)
+ rs/Client
+
+### rs/n/c/R.class (4)
+] <img=25> Vote to skip
+If enough players vote to skip, the
+hotspot will automatically change.
+ rs/Client
+
+### rs/n/a/a/b.class (4)
+ (IIIIII)V
+ [Lrs/l/K;
+ [Lrs/n/e;
+ rs/Client
+
+### rs/l/j.class (4)
+Scooby Doo
+ [Lrs/l/F;
+popups/bh skull
+ rs/Client
+
+### rs/l/e/h.class (4)
+popups/block drop
+popups/drop bar
+popups/hit drop
+ rs/Client
+
+### rs/l/e/a/v.class (4)
+Drop rate: @gre@+
+Essence bonus: @gre@+
+Killcount: @yel@
+ rs/Client
+
+### rs/l/e/a/r.class (4)
+ <img=288> View
+misc/mail 7
+misc/mail 8
+ rs/Client
+
+### rs/l/e/a/c.class (4)
+ (IIIIII)V
+Correct F3:
+ [Lrs/l/F;
+ rs/Client
+
+### rs/l/e/a/a.class (4)
+Drop rate: @gre@+
+Essence bonus: @gre@+
+Killcount: @yel@
+ rs/Client
+
+### rs/l/J.class (4)
+popups/hp 0
+popups/hp 1
+popups/hp 2
+popups/hp 3
+
+### rs/k/a/a.class (4)
+MSAA x16
+MSAA x2
+MSAA x4
+MSAA x8
+
+### rs/gui/b/a/v.class (4)
+ Delete 
+No, Nevermind.
+Yes, delete "
+ setLayout
+
+### rs/gui/b/a/e.class (4)
++colors.length does not equal strings.length
+ setOpaque
+use setColors first.
+use setStrings first.
+
+### rs/gui/b/a/c.class (4)
+sYou're not currently logged in to a character! 
+Please log in, wear and have what you want to clone, and try again.
+ [Lrs/n/e;
+ rs/Client
+
+### rs/gui/b/a/C.class (4)
+::equip_loadout 
+::pet_loadout 
+"You don't have a loadout selected!
+ rs/Client
+
+### rs/gui/G.class (4)
+No results found for "
+3Please have at least 3 letters in your search term!
+:Please wait until the client has loaded the item database!
+ setLayout
+
+### rs/e/k.class (4)
+, name=
+, sync=
+, active=
+, rev=
+
+### rs/e/h.class (4)
+, type=
+, range=
+, alpha=
+, units=
+
+### rs/e.class (4)
+%Cleared saved map and position cache!
+Dump successful!
+Dumping 
+ regions..
+
+### rs/d/y.class (4)
+ [Lrs/d/y;
+ [Lrs/d/z;
+([VARB] Error unrecognised config code: 
+varbit load mismatch
+
+### rs/d/p$a.class (4)
+<col=65BFFF>
+<col=BD73FF><shad=773494>
+<col=FFC81A><shad=9A7705>
+ LEGENDARY
+
+### rs/d/h.class (4)
+'[FLO] Error unrecognised config code: 
+ [Lrs/d/h;
+ rs/Client
+ separator
+
+### rs/a/j.class (4)
+ (IIIIIZ)V
+ [Lrs/a/k;
+ [Lrs/d/x;
+ rs/Client
+
+### rs/A/o.class (4)
+Enabled fullscreen on macOS
+Forced focus on macOS
+!Requested user attention on macOS
+ getLogger
+
+### rs/A/j.class (4)
+-Failed to load image from class: {}, path: {}
+ drawImage
+ getHeight
+ getLogger
+
+### rs/A/f.class (4)
+The color 
+ has no value!
+ is not an object!
+ serialize
+
+### rs/z.class (3)
+ [Lrs/d/a;
+ [Lrs/d/x;
+graphic 
+
+### rs/x/f.class (3)
+ Could not completely read file 
+ arraycopy
+ readFully
+
+### rs/w/e.class (3)
+ [Lrs/w/d;
+ [Lrs/w/e;
+ arraycopy
+
+### rs/ui/k.class (3)
+Cannot pop last component
+ Lrs/ui/m;
+ setLayout
+
+### rs/ui/j.class (3)
+ getHeight
+ getInsets
+ setBounds
+
+### rs/ui/h.class (3)
+ Lrs/ui/f;
+ getHeight
+ setBounds
+
+### rs/ui/g.class (3)
+Are you sure you want to exit?
+ Lrs/ui/f;
+>Unexpected exception occurred while check for confirm required
+
+### rs/ui/components/x.class (3)
+<col=([0-9a-fA-F]{2,6})>
+ getHeight
+ substring
+
+### rs/ui/components/v.class (3)
+ emptyList
+ setBorder
+ setLayout
+
+### rs/ui/components/i.class (3)
+ setBorder
+ setLayout
+ setOpaque
+
+### rs/ui/components/b/e.class (3)
+ removeAll
+ setLayout
+ setOpaque
+
+### rs/ui/a/g.class (3)
+*orientation is marked non-null but is null
+ rs/Client
+ translate
+
+### rs/ui/a/d.class (3)
+ drawImage
+ getHeight
+ setBounds
+
+### rs/u/d.class (3)
+5parent 
+, parent parent: 
+, bone_pose_transform: 
+
+### rs/t/a/e.class (3)
+ forceroof
+ rs/Client
+ separator
+
+### rs/secure/a.class (3)
+Serial Number:
+dmidecode -t system
+system.hardware.serial =
+
+### rs/s/r/c.class (3)
+.Highlight the tile you are currently moving to
+Tile Indicators
+ highlight
+
+### rs/s/m/f.class (3)
+Enable the Notes panel
+ Lrs/ui/e;
+ Lrs/ui/l;
+
+### rs/s/m/e.class (3)
+Notes Document Bad Location: 
+ focusLost
+ getLength
+
+### rs/s/e/e.class (3)
+Bicubic (Catmull-Rom)
+Bicubic (Mitchell)
+Nearest Neighbor
+
+### rs/s/b/w.class (3)
+ Lrs/ui/m;
+ setBorder
+ setLayout
+
+### rs/s/b/u.class (3)
+<br>Plugin conflicts: 
+<html>Enable plugin
+Disable plugin
+
+### rs/runelite/events/SkillLevelChanged.class (3)
+, experience=
+, currentLevel=
+, maximumLevel=
+
+### rs/runelite/events/PrivateChatMessage.class (3)
+, message=
+ getSender
+ setSender
+
+### rs/runelite/events/PluginChanged.class (3)
+, loaded=
+ getPlugin
+ rs/runelite/events/PluginChanged
+
+### rs/runelite/events/ClientShutdown.class (3)
+Error during shutdown: 
+%Timed out waiting for task completion
+ getLogger
+
+### rs/runelite/a/p.class (3)
+, plane=
+ rs/Client
+ singleton
+
+### rs/r/c.class (3)
+ (F)Lrs/R;
+ (I)Lrs/R;
+ [Lrs/r/c;
+
+### rs/p/a.class (3)
+ Lrs/ui/f;
+ getLogger
+ user.home
+
+### rs/n/c/b/d.class (3)
+ [Lrs/n/e;
+event/task 2
+ rs/Client
+
+### rs/n/c/ay.class (3)
+ (IIIIII)V
+ [Lrs/n/e;
+ rs/Client
+
+### rs/n/c/aV.class (3)
+gameframe/info/sprite 2
+gameframe/info/sprite 3
+gameframe/info/sprite 4
+
+### rs/n/c/X.class (3)
+@or2@The rules
+@or2@have been
+ rs/Client
+
+### rs/n/c/J$a.class (3)
+ @yel@
+ <img=46> <img=37> @or1@
+<img=82>
+
+### rs/n/c/I.class (3)
+Show Equipment Stats
+Show Items Kept on Death
+ [Lrs/n/e;
+
+### rs/n/a/f.class (3)
+Select option
+ [Lrs/l/K;
+ [Lrs/n/e;
+
+### rs/n/a/a/e.class (3)
+ (IIIIII)V
+ [Lrs/n/e;
+ rs/Client
+
+### rs/n/a/a/a.class (3)
+ [Lrs/l/K;
+ [Lrs/n/e;
+ rs/Client
+
+### rs/l/f/a/g/b.class (3)
+ @yel@(
+ (IIIIII)V
+ rs/Client
+
+### rs/l/f/a/g/a.class (3)
+ (IIIIII)V
+Your points:
+ rs/Client
+
+### rs/l/f/a/d/b.class (3)
+ (recolored)
+ (texture)
+ (texturized)
+
+### rs/l/e/a/w.class (3)
+<img=121> Killcount: @yel@
+<img=130> Drop rate: @gre@+
+ <img=281> Ticket bonus: @gre@+
+
+### rs/l/e/a/u.class (3)
+ @gre@ID 
+ [Lrs/l/a;
+ rs/Client
+
+### rs/l/e/a/t.class (3)
+ <img=9> Claim
+misc/treasure 2
+ rs/Client
+
+### rs/l/e/a/s.class (3)
+ (IIIIII)V
+ [Lrs/l/F;
+ rs/Client
+
+### rs/l/e/a/e.class (3)
+Coords: @gre@
+Region ID: @whi@
+ rs/Client
+
+### rs/l/e/a/b.class (3)
+<img=121> Killcount: @yel@
+<img=130> Drop rate: @gre@+
+!<img=275> Essence bonus: @gre@+
+
+### rs/l/c.class (3)
+ (IIIIII)V
+ (IIIIIZ)V
+ ([IIIII)V
+
+### rs/l/b/c.class (3)
+ (IIIIII)V
+ [Lrs/r/K;
+ rs/Client
+
+### rs/l/b/a.class (3)
+Loading, please wait..
+ [Lrs/n/e;
+ rs/Client
+
+### rs/l/a.class (3)
+ ([IIIII)V
+Blocked background: 
+ index.dat
+
+### rs/l/K.class (3)
+ ([IIIII)V
+ index.dat
+ substring
+
+### rs/k/b.class (3)
+Disabling GPU - please wait.
+Initializing GPU - please wait.
+ rs/Client
+
+### rs/j/b/d.class (3)
+ <img=46>
+Choose Sub-Option
+ rs/Client
+
+### rs/i.class (3)
+Write Error: 
+ getParent
+ readFully
+
+### rs/h/f.class (3)
+ [Lrs/a/j;
+ [Lrs/d/d;
+ rs/Client
+
+### rs/gui/b/a/y.class (3)
+Color: 
+Icon: 
+None (Default)
+
+### rs/gui/b/a/b.class (3)
+Clone to 
+"You don't have a loadout selected!
+ setLayout
+
+### rs/gui/b/a/B.class (3)
+Spawn Loadout
+Spawn this loadout in-game
+ rs/Client
+
+### rs/f.class (3)
+ (IIIIII)Z
+ (IIIIIZ)V
+ (ZIIIII)V
+
+### rs/d/z.class (3)
+ [Lrs/d/z;
+([VARP] Error unrecognised config code: 
+varptype load mismatch
+
+### rs/d/j.class (3)
+'[IDK] Error unrecognised config code: 
+ [Lrs/a/h;
+ [Lrs/d/j;
+
+### rs/d/e.class (3)
+ (IIIIII)V
+ (IIIIIZ)V
+ (J)Lrs/a;
+
+### rs/d/a.class (3)
+%Error unrecognised seq config code: 
+#Unrecognized seq.dat config code: 
+ [Lrs/d/a;
+
+### rs/cache/b/e.class (3)
+<html><body style="
+ getFamily
+ text/html
+
+### rs/a/m.class (3)
+ [Lrs/d/a;
+ [Lrs/d/y;
+ rs/Client
+
+### rs/a/l.class (3)
+ (IIIIIZ)V
+ (J)Lrs/a;
+ [Lrs/d/x;
+
+### rs/a/c.class (3)
+ [Lrs/a/j;
+ [Lrs/d/a;
+ rs/Client
+
+### rs/L.class (3)
+ ::soundon
+ getFormat
+ isRunning
+
+### rs/K.class (3)
+QTried to load base because there was extra base data but skeletal failed to load.
+&base data size mismatch: 
+, expected 
+
+### rs/A/p.class (3)
+ does not resemble a properly formatted stack.
+Invalid Suffix: 
+ substring
+
+### rs/A/n.class (3)
+<Window entered fullscreen mode--setting extended state to {}
+;Window exited fullscreen mode--setting extended state to {}
+ getLogger
+
+### rs/A/a.class (3)
+ drawImage
+ getHeight
+ rs/Client
+
+### rs/ui/m.class (2)
+ setBorder
+ setLayout
+
+### rs/ui/d.class (2)
+ Lrs/ui/c;
+ setBounds
+
+### rs/ui/components/y.class (2)
+ getHeight
+ setOpaque
+
+### rs/ui/components/b/a.class (2)
+ setBorder
+ setOpaque
+
+### rs/ui/components/a/o.class (2)
+ gridwidth
+ setOpaque
+
+### rs/ui/components/a/e.class (2)
+ setBorder
+ setLayout
+
+### rs/ui/components/a/a.class (2)
+ (III[F)[F
+ drawImage
+
+### rs/ui/c.class (2)
+ removeAll
+ setLayout
+
+### rs/ui/a/c.class (2)
+ compareTo
+ ofMinutes
+
+### rs/tools/g.class (2)
+ (Lrs/tools/TextPopupWindow$a;I)I
+ getLength
+
+### rs/tools/TextPopupWindow$b.class (2)
+ getParent
+ getScrollableTracksViewportWidth
+
+### rs/t/a/g.class (2)
+ readValue
+ separator
+
+### rs/t/a.class (2)
+ FlowStyle
+ readValue
+
+### rs/secure/b.class (2)
+MACOSX 
+Serial Number
+
+### rs/s/i/c.class (2)
+Interact Highlight
+9Outlines npcs and objects you interact with or hover over
+
+### rs/s/f/a.class (2)
+, color=
+, label=
+
+### rs/s/e/b.class (2)
+ getLogger
+ removeAll
+
+### rs/s/e/a.class (2)
+ PROTANOPE
+ TRITANOPE
+
+### rs/s/c/f.class (2)
+ rs/Client
+ setStroke
+
+### rs/s/b/x.class (2)
+ is not an integer.
+ substring
+
+### rs/s/b/t.class (2)
+ comparing
+ nullsLast
+
+### rs/s/b/g.class (2)
+ Lrs/ui/e;
+ Lrs/ui/l;
+
+### rs/s/a/e.class (2)
+ NEWSCHOOL
+ OLDSCHOOL
+
+### rs/s/a/d.class (2)
+ NEWSCHOOL
+ OLDSCHOOL
+
+### rs/runelite/events/NavigationButtonRemoved.class (2)
+ Lrs/ui/l;
+ getButton
+
+### rs/runelite/events/NavigationButtonAdded.class (2)
+ Lrs/ui/l;
+ getButton
+
+### rs/runelite/a/g.class (2)
+ [Lrs/a/j;
+ rs/Client
+
+### rs/r/K.class (2)
+ ([IIIII)V
+ rs/Client
+
+### rs/q/a/a/a/p.class (2)
+ rs/Client
+ substring
+
+### rs/q/a/a/a/k.class (2)
+ (IIIIII)V
+ rs/Client
+
+### rs/q/a/a/a/c.class (2)
+ [Lrs/a/j;
+ rs/Client
+
+### rs/n/d.class (2)
+ [Lrs/l/K;
+ rs/Client
+
+### rs/n/c/x.class (2)
+ [Lrs/l/K;
+construction/sprite 1
+
+### rs/n/c/t.class (2)
+ [Lrs/l/K;
+ [Lrs/n/e;
+
+### rs/n/c/r.class (2)
+ [Lrs/l/K;
+clan/sprite 11
+
+### rs/n/c/d/f.class (2)
+<col=FF00FF><shad=pu2>
+ rs/Client
+
+### rs/n/c/aN.class (2)
+ [Lrs/l/K;
+ [Lrs/n/e;
+
+### rs/n/c/aM.class (2)
+ [Lrs/l/K;
+ [Lrs/n/e;
+
+### rs/n/c/B.class (2)
+ (IIIIIZ)V
+ [Lrs/n/e;
+
+### rs/l/t.class (2)
+ longValue
+ rs/Client
+
+### rs/l/q.class (2)
+ rs/Client
+ substring
+
+### rs/l/g.class (2)
+ (Lrs/Client;Lrs/l/F;Lrs/l/F;II)V
+ rs/Client
+
+### rs/l/f/m.class (2)
+ getStroke
+ setStroke
+
+### rs/l/f/g.class (2)
+ffffg 
+ rs/Client
+
+### rs/l/f/f.class (2)
+, option=
+, target=
+
+### rs/l/f/e.class (2)
+ getLogger
+ rs/Client
+
+### rs/l/f/b.class (2)
+ (IIIIII)V
+ rs/Client
+
+### rs/l/f/a/k/a.class (2)
+ rs/Client
+ setStroke
+
+### rs/l/f/a/i/g.class (2)
+ EQUIPMENT
+ INVENTORY
+
+### rs/l/f/a/i/b.class (2)
+ [Lrs/n/e;
+ rs/Client
+
+### rs/l/f/a/f/a.class (2)
+ (IIIIII)V
+ rs/Client
+
+### rs/l/f/a/e/a.class (2)
+ [Lrs/l/F;
+ rs/Client
+
+### rs/l/f/a/c/b.class (2)
+ @yel@(
+<img=381>
+
+### rs/l/f/a/c/a.class (2)
+ (IIIIII)V
+ rs/Client
+
+### rs/l/f/a/b/a.class (2)
+ (IIIIII)V
+ rs/Client
+
+### rs/l/f/a/a/a.class (2)
+ (IIIIII)V
+ rs/Client
+
+### rs/l/e/g.class (2)
+popups/block drop
+popups/hit drop
+
+### rs/l/e/e.class (2)
+ [Lrs/l/F;
+ rs/Client
+
+### rs/l/e/a/n.class (2)
+ @yel@(
+<img=305>
+
+### rs/l/e/a/m.class (2)
+ (IIIIII)V
+ rs/Client
+
+### rs/l/e/a/k.class (2)
+ (IIIIII)V
+ rs/Client
+
+### rs/l/e.class (2)
+ drawImage
+ getRaster
+
+### rs/l/d/d.class (2)
+7https://spawnpk.net/forums/index.php?/forum/10-updates/
+ rs/Client
+
+### rs/l/d/a.class (2)
+ (IIIIIZ)V
+ rs/Client
+
+### rs/l/b/a/e.class (2)
+ compareTo
+ rs/Client
+
+### rs/l/b/a/b/a.class (2)
+@yel@[!] @whi@
+ rs/Client
+
+### rs/l/b/a/a/b.class (2)
+ getHeight
+ rs/Client
+
+### rs/k/d/a.class (2)
+ #include 
+ substring
+
+### rs/k/c/b.class (2)
+ (IIIII)[I
+ ([IIIII)V
+
+### rs/k/a/b.class (2)
+ PROTANOPE
+ TRITANOPE
+
+### rs/j/b/b.class (2)
+ CustomMenuEntry(text=
+, event=
+
+### rs/j/a/d.class (2)
+Enter text:
+ rs/Client
+
+### rs/i/b$a.class (2)
+ EQUIPMENT
+ INVENTORY
+
+### rs/h/d.class (2)
+ rs/Client
+ substring
+
+### rs/gui/x.class (2)
+ drawImage
+ rs/Client
+
+### rs/gui/w.class (2)
+Font file not found.
+"Font loaded, but format incorrect.
+
+### rs/gui/v.class (2)
+Keep game size
+Keep window size
+
+### rs/gui/s.class (2)
+ ::barrage
+ rs/Client
+
+### rs/gui/o.class (2)
+[https://spawnpk.net/forums/index.php?/topic/5710-the-official-spawnpk-price-guide-for-2017/
+ rs/Client
+
+### rs/gui/n.class (2)
+7https://spawnpk.net/forums/index.php?/forum/10-updates/
+ rs/Client
+
+### rs/gui/b/a/r.class (2)
+Re-name Your Folder
+ setLayout
+
+### rs/gui/b/a/p.class (2)
+Name Your Folder
+ setLayout
+
+### rs/gui/b/a/a.class (2)
+d<html>Take the items you're equipping in game, and<br>set them as the current active loadout.</html>
+ rs/Client
+
+### rs/gui/b/a/A.class (2)
+ Hitpoints
+ level
+
+### rs/gui/A.class (2)
+ getHeight
+ setBounds
+
+### rs/f/a.class (2)
+ item_drag
+ rs/Client
+
+### rs/e/m.class (2)
+)ConfigSectionDescriptor(key=
+, section=
+
+### rs/d/w.class (2)
+ @cya@(<img=
+ separator
+
+### rs/d/s.class (2)
+ (IIIIII)V
+ rs/Client
+
+### rs/d/p.class (2)
+ legendary
+ separator
+
+### rs/d/n.class (2)
+ [Lrs/l/F;
+ rs/Client
+
+### rs/d/n$a.class (2)
+ ITEM_ICON
+ TEXT_ICON
+
+### rs/cache/b/f.class (2)
+ ACTIVATED
+ EventType
+
+### rs/cache/b/d.class (2)
+Making directory: 
+Making parent directory: 
+
+### rs/cache/b/a/d.class (2)
+Downloading sprites..
+ separator
+
+### rs/cache/b/a/c.class (2)
+Downloading game configs..
+ separator
+
+### rs/cache/a/a.class (2)
+@yel@Current progress - 
+ rs/Client
+
+### rs/a/f.class (2)
+ [Lrs/l/F;
+ rs/Client
+
+### rs/a/e.class (2)
+ [Lrs/a/f;
+ rs/Client
+
+### rs/a/b.class (2)
+ (IIIIIZ)V
+ [Lrs/d/x;
+
+### rs/a/a/a.class (2)
+ (I)Lrs/S;
+ (J)Lrs/a;
+
+### rs/F.class (2)
+ (J)Lrs/a;
+ (J)Lrs/t;
+
+### rs/Client$a.class (2)
+ [Lrs/n/e;
+ rs/Client
+
+### rs/A/s.class (2)
+ noneMatch
+ substring
+
+### rs/A/r.class (2)
+!Uncaught exception in runnable {}
+ getLogger
+
+### rs/A/q.class (2)
+ getLogger
+unable to install lookup helper
+
+### rs/A/h.class (2)
+ invokeAll
+ invokeAny
+
+### rs/A/e.class (2)
+!Uncaught exception in callable {}
+ getLogger
+
+### rs/A/a$a.class (2)
+, itemQuantity=
+, size=
+

@@ -1,0 +1,94 @@
+  public void a();
+    Code:
+       0: aload_0
+       1: invokevirtual #39                 // Method c:()I
+       4: istore_1
+       5: aload_0
+       6: invokevirtual #40                 // Method e:()I
+       9: iconst_1
+      10: if_icmpne     17
+      13: iconst_1
+      14: goto          18
+      17: iconst_0
+      18: istore_2
+      19: aconst_null
+      20: astore_3
+      21: iload_1
+      22: lookupswitch  { // 2
+                     1: 48
+                     2: 56
+               default: 61
+          }
+      48: aload_0
+      49: getfield      #23                 // Field d:Lrs/l/f/a/b/a;
+      52: astore_3
+      53: goto          61
+      56: aload_0
+      57: getfield      #24                 // Field e:Lrs/l/f/a/b/a;
+      60: astore_3
+      61: aload_3
+      62: ifnull        99
+      65: iload_2
+      66: ifeq          91
+      69: aload_0
+      70: getfield      #25                 // Field f:Lrs/l/f/e;
+      73: aload_3
+      74: invokevirtual #33                 // Method rs/l/f/e.c:(Lrs/l/f/b;)Z
+      77: ifne          99
+      80: aload_0
+      81: getfield      #25                 // Field f:Lrs/l/f/e;
+      84: aload_3
+      85: invokevirtual #31                 // Method rs/l/f/e.a:(Lrs/l/f/b;)V
+      88: goto          99
+      91: aload_0
+      92: getfield      #25                 // Field f:Lrs/l/f/e;
+      95: aload_3
+      96: invokevirtual #32                 // Method rs/l/f/e.b:(Lrs/l/f/b;)V
+      99: return
+
+  private static void b();
+    Code:
+       0: ldc           #5                  // String ::mail
+       2: invokestatic  #34                 // Method rs/n/a.a:(Ljava/lang/String;)V
+       5: return
+
+  private static void a(int, int, int, boolean);
+    Code:
+       0: getstatic     #22                 // Field rs/Client.fE:[Lrs/l/F;
+       3: bipush        106
+       5: aaload
+       6: iload_0
+       7: bipush        21
+       9: iadd
+      10: iload_1
+      11: bipush        21
+      13: iadd
+      14: iload_2
+      15: bipush        25
+      17: isub
+      18: invokevirtual #27                 // Method rs/l/F.g:(III)V
+      21: return
+
+  private static void j();
+    Code:
+       0: ldc           #4                  // String ::claimcoffer
+       2: invokestatic  #34                 // Method rs/n/a.a:(Ljava/lang/String;)V
+       5: return
+
+  private static void b(int, int, int, boolean);
+    Code:
+       0: getstatic     #22                 // Field rs/Client.fE:[Lrs/l/F;
+       3: bipush        106
+       5: aaload
+       6: iload_0
+       7: bipush        21
+       9: iadd
+      10: iload_1
+      11: bipush        21
+      13: iadd
+      14: iload_2
+      15: bipush        25
+      17: isub
+      18: invokevirtual #27                 // Method rs/l/F.g:(III)V
+      21: return
+}

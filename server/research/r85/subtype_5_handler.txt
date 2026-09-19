@@ -1,0 +1,29 @@
+  public void a();
+    Code:
+       0: aload_0
+       1: invokevirtual #9                  // Method e:()I
+       4: istore_1
+       5: aload_0
+       6: invokevirtual #10                 // Method g:()I
+       9: istore_2
+      10: aload_0
+      11: invokevirtual #8                  // Method c:()I
+      14: istore_3
+      15: iload_1
+      16: iconst_1
+      17: if_icmpne     29
+      20: getstatic     #4                  // Field rs/n/e.H:[Lrs/n/e;
+      23: iload_2
+      24: aaload
+      25: iload_3
+      26: putfield      #5                  // Field rs/n/e.V:I
+      29: iload_1
+      30: iconst_2
+      31: if_icmpne     43
+      34: getstatic     #4                  // Field rs/n/e.H:[Lrs/n/e;
+      37: iload_2
+      38: aaload
+      39: iload_3
+      40: putfield      #6                  // Field rs/n/e.aH:I
+      43: return
+}

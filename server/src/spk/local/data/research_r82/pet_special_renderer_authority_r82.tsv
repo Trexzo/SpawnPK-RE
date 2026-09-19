@@ -1,0 +1,10 @@
+family	itemIds	npcIds	mechanism	authority	serverBinding
+Yoshiganger	22825	1334	owner-player-copy renderer; alpha 150; temporary aI=319770; intrinsic selector3; Switch-effect action	EXACT_CURRENT_CLIENT	Switch-effect transition UNKNOWN_SERVER_AUTHORITY
+Regular Doppelganger	3241	1335	owner-player-copy renderer; alpha 100; intrinsic selector6	EXACT_CURRENT_CLIENT	base renderer exact
+Wondrous/Dyed Doppelganger	28807	8210	special owner-copy renderer; intrinsic selector3; dynamic body color treatment; Remove-dye action	EXACT_CURRENT_CLIENT	renderer exact; normal gameplay selector state partly server-owned
+Evil Wolper / Resvano Evil Wolper	24238,27340,27341,27342	6991,8124,8125,8126	forced overhead text values 0..3 consumed into hidden pet-state; native sprite53 activation indicator	EXACT_CURRENT_CLIENT	which state/timing server emits is server authority
+Unholy/Solar Behemoth family	25415,25425	5159..5164	hidden pet-state values; native sprite22 rendered 1/2/3 times above pet for charge state	EXACT_CURRENT_CLIENT	charge accumulation/reset semantics from official server updates
+Scopesight Vasa	28888	8330	forced NPC text exactly SNIPE enters bespoke native client visual state	EXACT_CURRENT_CLIENT	proc chance/timing server authority
+Ancient Hydra (historical/stale charge renderer)	22947	6049	forced overhead text 0..3 consumed into az; native sprite22 rendered 1/2/3 times	EXACT_CURRENT_CLIENT	STALE: official Aug-2023 removed charge system
+Krampmare / Evil Krampmare	24210,24211	3962,3965	forced overhead text 0..3 consumed into az; state>0 renders native sprite53	EXACT_CURRENT_CLIENT	state/timing server-owned; official semantics say icon appears above pet
+Tidal/Tsunami/Infernal Tempoross	27690,27691,28692	8184,8185,8186	forced overhead text 0..3 consumed into az; states 1/2/3 render native sprites 59/58/369	EXACT_CURRENT_CLIENT	state-to-debuff semantic mapping unresolved

@@ -1,0 +1,252 @@
+  public void a();
+    Code:
+       0: aload_0
+       1: invokevirtual #48                 // Method e:()I
+       4: istore_1
+       5: aload_0
+       6: iload_1
+       7: invokespecial #47                 // Method b:(I)V
+      10: return
+
+  private void b(int);
+    Code:
+       0: aload_0
+       1: invokevirtual #48                 // Method e:()I
+       4: istore_2
+       5: aload_0
+       6: invokevirtual #50                 // Method h:()Ljava/lang/String;
+       9: astore_3
+      10: iload_2
+      11: ifne          23
+      14: aload_0
+      15: getfield      #32                 // Field h:Lrs/ui/a/f;
+      18: aload_3
+      19: invokevirtual #57                 // Method rs/ui/a/f.b:(Ljava/lang/String;)V
+      22: return
+      23: iload_2
+      24: iconst_2
+      25: if_icmpne     73
+      28: aload_0
+      29: invokevirtual #49                 // Method g:()I
+      32: istore        4
+      34: aload_0
+      35: getfield      #32                 // Field h:Lrs/ui/a/f;
+      38: aload_3
+      39: invokevirtual #56                 // Method rs/ui/a/f.a:(Ljava/lang/String;)Lrs/ui/a/c;
+      42: astore        5
+      44: aload         5
+      46: ifnull        57
+      49: aload         5
+      51: instanceof    #24                 // class rs/ui/a/b
+      54: ifne          58
+      57: return
+      58: aload         5
+      60: checkcast     #24                 // class rs/ui/a/b
+      63: astore        6
+      65: aload         6
+      67: iload         4
+      69: invokevirtual #52                 // Method rs/ui/a/b.a:(I)V
+      72: return
+      73: aload_0
+      74: invokevirtual #50                 // Method h:()Ljava/lang/String;
+      77: astore        4
+      79: aload         4
+      81: ldc           #10                 // String def
+      83: invokevirtual #35                 // Method java/lang/String.equalsIgnoreCase:(Ljava/lang/String;)Z
+      86: ifeq          93
+      89: ldc           #8                  // String InfoBoxOverlay
+      91: astore        4
+      93: iconst_0
+      94: istore        5
+      96: iload_1
+      97: iconst_3
+      98: if_icmpeq     107
+     101: aload_0
+     102: invokevirtual #49                 // Method g:()I
+     105: istore        5
+     107: aload_0
+     108: invokevirtual #48                 // Method e:()I
+     111: istore        6
+     113: aconst_null
+     114: astore        7
+     116: iconst_1
+     117: istore        8
+     119: iload         6
+     121: lookupswitch  { // 2
+                     1: 148
+                     2: 157
+               default: 163
+          }
+     148: aload_0
+     149: invokevirtual #50                 // Method h:()Ljava/lang/String;
+     152: astore        7
+     154: goto          163
+     157: aload_0
+     158: invokevirtual #49                 // Method g:()I
+     161: istore        8
+     163: aload_0
+     164: invokevirtual #48                 // Method e:()I
+     167: iconst_1
+     168: if_icmpne     175
+     171: iconst_1
+     172: goto          176
+     175: iconst_0
+     176: istore        9
+     178: aconst_null
+     179: astore        10
+     181: iload         9
+     183: ifeq          209
+     186: aload_0
+     187: invokevirtual #50                 // Method h:()Ljava/lang/String;
+     190: astore        10
+     192: aload_3
+     193: aload         10
+     195: ldc           #9                  // String [br]
+     197: ldc           #5                  // String \n
+     199: invokevirtual #36                 // Method java/lang/String.replace:(Ljava/lang/CharSequence;Ljava/lang/CharSequence;)Ljava/lang/String;
+     202: invokedynamic #62,  0             // InvokeDynamic #0:makeConcatWithConstants:(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;
+     207: astore        10
+     209: aload_0
+     210: getfield      #32                 // Field h:Lrs/ui/a/f;
+     213: aload_3
+     214: invokevirtual #56                 // Method rs/ui/a/f.a:(Ljava/lang/String;)Lrs/ui/a/c;
+     217: astore        11
+     219: aload         11
+     221: ifnull        338
+     224: iload_1
+     225: tableswitch   { // 1 to 3
+                     1: 252
+                     2: 289
+                     3: 337
+               default: 338
+          }
+     252: aload         11
+     254: instanceof    #29                 // class rs/ui/a/j
+     257: ifeq          278
+     260: aload         11
+     262: checkcast     #29                 // class rs/ui/a/j
+     265: iload         5
+     267: i2l
+     268: getstatic     #30                 // Field java/time/temporal/ChronoUnit.SECONDS:Ljava/time/temporal/ChronoUnit;
+     271: invokestatic  #39                 // Method java/time/Duration.of:(JLjava/time/temporal/TemporalUnit;)Ljava/time/Duration;
+     274: invokevirtual #61                 // Method rs/ui/a/j.b:(Ljava/time/Duration;)V
+     277: return
+     278: aload_0
+     279: getfield      #32                 // Field h:Lrs/ui/a/f;
+     282: aload_3
+     283: invokevirtual #57                 // Method rs/ui/a/f.b:(Ljava/lang/String;)V
+     286: goto          338
+     289: aload         11
+     291: instanceof    #24                 // class rs/ui/a/b
+     294: ifeq          326
+     297: aload         11
+     299: checkcast     #24                 // class rs/ui/a/b
+     302: iload         5
+     304: invokevirtual #52                 // Method rs/ui/a/b.a:(I)V
+     307: aload         11
+     309: invokestatic  #40                 // Method java/time/Instant.now:()Ljava/time/Instant;
+     312: invokevirtual #54                 // Method rs/ui/a/c.a:(Ljava/time/Instant;)V
+     315: aload_0
+     316: getfield      #32                 // Field h:Lrs/ui/a/f;
+     319: aload_3
+     320: invokevirtual #57                 // Method rs/ui/a/f.b:(Ljava/lang/String;)V
+     323: goto          338
+     326: aload_0
+     327: getfield      #32                 // Field h:Lrs/ui/a/f;
+     330: aload_3
+     331: invokevirtual #57                 // Method rs/ui/a/f.b:(Ljava/lang/String;)V
+     334: goto          338
+     337: return
+     338: aload_0
+     339: aload         7
+     341: iload         8
+     343: invokespecial #46                 // Method a:(Ljava/lang/String;I)Lrs/A/d;
+     346: astore        12
+     348: aconst_null
+     349: astore        13
+     351: iload_1
+     352: tableswitch   { // 1 to 3
+                     1: 380
+                     2: 409
+                     3: 428
+               default: 442
+          }
+     380: iload         5
+     382: ifgt          386
+     385: return
+     386: new           #29                 // class rs/ui/a/j
+     389: dup
+     390: iload         5
+     392: i2l
+     393: getstatic     #30                 // Field java/time/temporal/ChronoUnit.SECONDS:Ljava/time/temporal/ChronoUnit;
+     396: aload         12
+     398: aload         4
+     400: aload_3
+     401: invokespecial #60                 // Method rs/ui/a/j."<init>":(JLjava/time/temporal/ChronoUnit;Ljava/awt/image/BufferedImage;Ljava/lang/String;Ljava/lang/String;)V
+     404: astore        13
+     406: goto          442
+     409: new           #24                 // class rs/ui/a/b
+     412: dup
+     413: aload         12
+     415: aload         4
+     417: aload_3
+     418: iload         5
+     420: invokespecial #51                 // Method rs/ui/a/b."<init>":(Ljava/awt/image/BufferedImage;Ljava/lang/String;Ljava/lang/String;I)V
+     423: astore        13
+     425: goto          442
+     428: new           #28                 // class rs/ui/a/i
+     431: dup
+     432: aload         12
+     434: aload         4
+     436: aload_3
+     437: invokespecial #59                 // Method rs/ui/a/i."<init>":(Ljava/awt/image/BufferedImage;Ljava/lang/String;Ljava/lang/String;)V
+     440: astore        13
+     442: aload         13
+     444: ifnonnull     448
+     447: return
+     448: aload         7
+     450: ifnull        464
+     453: aload         13
+     455: getstatic     #34                 // Field rs/ui/a/e.b:Lrs/ui/a/e;
+     458: invokevirtual #55                 // Method rs/ui/a/c.a:(Lrs/ui/a/e;)V
+     461: goto          472
+     464: aload         13
+     466: getstatic     #33                 // Field rs/ui/a/e.a:Lrs/ui/a/e;
+     469: invokevirtual #55                 // Method rs/ui/a/c.a:(Lrs/ui/a/e;)V
+     472: aload         13
+     474: aload         10
+     476: aload_3
+     477: invokedynamic #63,  0             // InvokeDynamic #1:get:(Ljava/lang/String;)Ljava/util/function/Supplier;
+     482: invokestatic  #41                 // Method java/util/Objects.requireNonNullElseGet:(Ljava/lang/Object;Ljava/util/function/Supplier;)Ljava/lang/Object;
+     485: checkcast     #11                 // class java/lang/String
+     488: invokevirtual #53                 // Method rs/ui/a/c.a:(Ljava/lang/String;)V
+     491: aload_0
+     492: getfield      #32                 // Field h:Lrs/ui/a/f;
+     495: aload         13
+     497: invokevirtual #58                 // Method rs/ui/a/f.b:(Lrs/ui/a/c;)V
+     500: return
+
+  private rs.A.d a(java.lang.String, int);
+    Code:
+       0: aload_1
+       1: ifnull        14
+       4: aload_0
+       5: getfield      #31                 // Field g:Lrs/A/a;
+       8: aload_1
+       9: iconst_m1
+      10: invokevirtual #43                 // Method rs/A/a.a:(Ljava/lang/String;I)Lrs/A/d;
+      13: areturn
+      14: aload_0
+      15: getfield      #31                 // Field g:Lrs/A/a;
+      18: iload_2
+      19: ldc           #4                  // int 2147483647
+      21: bipush        32
+      23: invokevirtual #42                 // Method rs/A/a.a:(III)Lrs/A/d;
+      26: areturn
+
+  private static java.lang.String a(java.lang.String);
+    Code:
+       0: aload_0
+       1: invokedynamic #64,  0             // InvokeDynamic #2:makeConcatWithConstants:(Ljava/lang/String;)Ljava/lang/String;
+       6: areturn
+}

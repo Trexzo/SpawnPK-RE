@@ -1,0 +1,367 @@
+public class rs.n.c.l extends rs.n.c {
+  public rs.n.c.l(rs.l.K[]);
+    Code:
+       0: aload_0
+       1: aload_1
+       2: invokespecial #52                 // Method rs/n/c."<init>":([Lrs/l/K;)V
+       5: return
+
+  public void a();
+    Code:
+       0: ldc           #1                  // int 54100
+       2: invokestatic  #58                 // Method d:(I)Lrs/n/e;
+       5: astore_1
+       6: ldc           #2                  // int 54101
+       8: ldc           #45                 // String skills/image 7
+      10: invokestatic  #59                 // Method h:(ILjava/lang/String;)V
+      13: ldc           #3                  // int 54102
+      15: ldc           #35                 // String Blood Slayer
+      17: aload_0
+      18: getfield      #49                 // Field a:[Lrs/l/K;
+      21: iconst_2
+      22: ldc           #24                 // int 16750623
+      24: iconst_1
+      25: iconst_1
+      26: invokestatic  #56                 // Method a:(ILjava/lang/String;[Lrs/l/K;IIZZ)V
+      29: ldc           #4                  // int 54103
+      31: ldc           #36                 // String Choose a Task
+      33: aload_0
+      34: getfield      #49                 // Field a:[Lrs/l/K;
+      37: iconst_2
+      38: ldc           #24                 // int 16750623
+      40: iconst_1
+      41: iconst_1
+      42: invokestatic  #56                 // Method a:(ILjava/lang/String;[Lrs/l/K;IIZZ)V
+      45: ldc           #5                  // int 54104
+      47: ldc           #37                 // String Easy task monsters
+      49: aload_0
+      50: getfield      #49                 // Field a:[Lrs/l/K;
+      53: iconst_2
+      54: ldc           #24                 // int 16750623
+      56: iconst_0
+      57: iconst_1
+      58: invokestatic  #56                 // Method a:(ILjava/lang/String;[Lrs/l/K;IIZZ)V
+      61: ldc           #6                  // int 54105
+      63: iconst_1
+      64: ldc           #43                 // String gambling/SPRITE
+      66: invokestatic  #57                 // Method c:(IILjava/lang/String;)V
+      69: ldc           #7                  // int 54106
+      71: iconst_1
+      72: ldc           #43                 // String gambling/SPRITE
+      74: invokestatic  #57                 // Method c:(IILjava/lang/String;)V
+      77: ldc           #8                  // int 54107
+      79: iconst_1
+      80: ldc           #43                 // String gambling/SPRITE
+      82: invokestatic  #57                 // Method c:(IILjava/lang/String;)V
+      85: ldc           #9                  // int 54108
+      87: iconst_1
+      88: ldc           #43                 // String gambling/SPRITE
+      90: invokestatic  #57                 // Method c:(IILjava/lang/String;)V
+      93: ldc           #10                 // int 54109
+      95: ldc           #30                 // String <tab=20>Monster hunter @yel@(PvM)
+      97: ldc           #42                 // String Select timed task
+      99: aload_0
+     100: getfield      #49                 // Field a:[Lrs/l/K;
+     103: iconst_0
+     104: ldc           #24                 // int 16750623
+     106: iconst_0
+     107: iconst_1
+     108: sipush        150
+     111: invokestatic  #55                 // Method a:(ILjava/lang/String;Ljava/lang/String;[Lrs/l/K;IIZZI)V
+     114: ldc           #11                 // int 54110
+     116: ldc           #28                 // String <tab=20>Boss hunter @yel@(PvM)
+     118: ldc           #39                 // String Select boss hunter task
+     120: aload_0
+     121: getfield      #49                 // Field a:[Lrs/l/K;
+     124: iconst_0
+     125: ldc           #24                 // int 16750623
+     127: iconst_0
+     128: iconst_1
+     129: sipush        150
+     132: invokestatic  #55                 // Method a:(ILjava/lang/String;Ljava/lang/String;[Lrs/l/K;IIZZI)V
+     135: ldc           #12                 // int 54111
+     137: ldc           #29                 // String <tab=20>Bounty hunter @yel@(PK)
+     139: ldc           #40                 // String Select man hunter task
+     141: aload_0
+     142: getfield      #49                 // Field a:[Lrs/l/K;
+     145: iconst_0
+     146: ldc           #24                 // int 16750623
+     148: iconst_0
+     149: iconst_1
+     150: sipush        150
+     153: invokestatic  #55                 // Method a:(ILjava/lang/String;Ljava/lang/String;[Lrs/l/K;IIZZI)V
+     156: ldc           #13                 // int 54112
+     158: ldc           #31                 // String <tab=20>Slaughter @yel@(PK)
+     160: ldc           #41                 // String Select man slaughter task
+     162: aload_0
+     163: getfield      #49                 // Field a:[Lrs/l/K;
+     166: iconst_0
+     167: ldc           #24                 // int 16750623
+     169: iconst_0
+     170: iconst_1
+     171: sipush        150
+     174: invokestatic  #55                 // Method a:(ILjava/lang/String;Ljava/lang/String;[Lrs/l/K;IIZZI)V
+     177: ldc           #14                 // int 54113
+     179: ldc           #44                 // String skills/button
+     181: iconst_1
+     182: bipush        120
+     184: bipush        41
+     186: ldc           #38                 // String Get a blood slayer task
+     188: iconst_m1
+     189: ldc           #15                 // int 54114
+     191: iconst_1
+     192: invokestatic  #54                 // Method a:(ILjava/lang/String;IIILjava/lang/String;III)V
+     195: ldc           #15                 // int 54114
+     197: ldc           #44                 // String skills/button
+     199: iconst_2
+     200: bipush        120
+     202: bipush        41
+     204: ldc           #16                 // int 54115
+     206: invokestatic  #53                 // Method a:(ILjava/lang/String;IIII)V
+     209: ldc           #17                 // int 54116
+     211: ldc           #27                 // String <img=24> Get a task
+     213: aload_0
+     214: getfield      #49                 // Field a:[Lrs/l/K;
+     217: iconst_1
+     218: ldc           #25                 // int 16751360
+     220: iconst_1
+     221: iconst_1
+     222: invokestatic  #56                 // Method a:(ILjava/lang/String;[Lrs/l/K;IIZZ)V
+     225: ldc           #18                 // int 54117
+     227: ldc           #32                 // String <u=16776960>Reward points
+     229: aload_0
+     230: getfield      #49                 // Field a:[Lrs/l/K;
+     233: iconst_0
+     234: ldc           #24                 // int 16750623
+     236: iconst_1
+     237: iconst_1
+     238: invokestatic  #56                 // Method a:(ILjava/lang/String;[Lrs/l/K;IIZZ)V
+     241: ldc           #19                 // int 54118
+     243: ldc           #33                 // String @yel@5 <col=FF9B00>Blood slayer points
+     245: aload_0
+     246: getfield      #49                 // Field a:[Lrs/l/K;
+     249: iconst_0
+     250: ldc           #25                 // int 16751360
+     252: iconst_1
+     253: iconst_1
+     254: invokestatic  #56                 // Method a:(ILjava/lang/String;[Lrs/l/K;IIZZ)V
+     257: ldc           #20                 // int 54119
+     259: ldc           #34                 // String @yel@5 <col=FF9B00>Slayer points
+     261: aload_0
+     262: getfield      #49                 // Field a:[Lrs/l/K;
+     265: iconst_0
+     266: ldc           #25                 // int 16751360
+     268: iconst_1
+     269: iconst_1
+     270: invokestatic  #56                 // Method a:(ILjava/lang/String;[Lrs/l/K;IIZZ)V
+     273: ldc           #21                 // int 54120
+     275: ldc           #26                 // String
+     277: aload_0
+     278: getfield      #49                 // Field a:[Lrs/l/K;
+     281: iconst_0
+     282: ldc           #25                 // int 16751360
+     284: iconst_1
+     285: iconst_1
+     286: invokestatic  #56                 // Method a:(ILjava/lang/String;[Lrs/l/K;IIZZ)V
+     289: sipush        170
+     292: istore_2
+     293: aload_1
+     294: bipush        20
+     296: invokevirtual #61                 // Method rs/n/e.k:(I)V
+     299: aload_1
+     300: iconst_0
+     301: ldc           #2                  // int 54101
+     303: bipush        16
+     305: iload_2
+     306: iadd
+     307: bipush        42
+     309: invokevirtual #60                 // Method rs/n/e.b:(IIII)V
+     312: aload_1
+     313: iconst_1
+     314: ldc           #3                  // int 54102
+     316: bipush        106
+     318: iload_2
+     319: iadd
+     320: bipush        51
+     322: invokevirtual #60                 // Method rs/n/e.b:(IIII)V
+     325: aload_1
+     326: iconst_2
+     327: ldc           #22                 // int 63740
+     329: sipush        172
+     332: iload_2
+     333: iadd
+     334: bipush        50
+     336: invokevirtual #60                 // Method rs/n/e.b:(IIII)V
+     339: aload_1
+     340: iconst_3
+     341: ldc           #23                 // int 63741
+     343: sipush        170
+     346: iload_2
+     347: iadd
+     348: bipush        50
+     350: invokevirtual #60                 // Method rs/n/e.b:(IIII)V
+     353: aload_1
+     354: iconst_4
+     355: ldc           #4                  // int 54103
+     357: bipush        102
+     359: iload_2
+     360: iadd
+     361: bipush        82
+     363: invokevirtual #60                 // Method rs/n/e.b:(IIII)V
+     366: aload_1
+     367: iconst_5
+     368: ldc           #18                 // int 54117
+     370: bipush        106
+     372: iload_2
+     373: iadd
+     374: sipush        211
+     377: invokevirtual #60                 // Method rs/n/e.b:(IIII)V
+     380: iconst_4
+     381: istore_3
+     382: aload_1
+     383: bipush        6
+     385: ldc           #6                  // int 54105
+     387: bipush        30
+     389: iload_2
+     390: iadd
+     391: bipush        110
+     393: iload_3
+     394: iadd
+     395: invokevirtual #60                 // Method rs/n/e.b:(IIII)V
+     398: aload_1
+     399: bipush        7
+     401: ldc           #10                 // int 54109
+     403: bipush        29
+     405: iload_2
+     406: iadd
+     407: bipush        112
+     409: iload_3
+     410: iadd
+     411: invokevirtual #60                 // Method rs/n/e.b:(IIII)V
+     414: aload_1
+     415: bipush        8
+     417: ldc           #7                  // int 54106
+     419: bipush        30
+     421: iload_2
+     422: iadd
+     423: sipush        130
+     426: iload_3
+     427: iadd
+     428: invokevirtual #60                 // Method rs/n/e.b:(IIII)V
+     431: aload_1
+     432: bipush        9
+     434: ldc           #11                 // int 54110
+     436: bipush        29
+     438: iload_2
+     439: iadd
+     440: sipush        132
+     443: iload_3
+     444: iadd
+     445: invokevirtual #60                 // Method rs/n/e.b:(IIII)V
+     448: aload_1
+     449: bipush        10
+     451: ldc           #8                  // int 54107
+     453: bipush        30
+     455: iload_2
+     456: iadd
+     457: sipush        150
+     460: iload_3
+     461: iadd
+     462: invokevirtual #60                 // Method rs/n/e.b:(IIII)V
+     465: aload_1
+     466: bipush        11
+     468: ldc           #12                 // int 54111
+     470: bipush        29
+     472: iload_2
+     473: iadd
+     474: sipush        152
+     477: iload_3
+     478: iadd
+     479: invokevirtual #60                 // Method rs/n/e.b:(IIII)V
+     482: aload_1
+     483: bipush        12
+     485: ldc           #9                  // int 54108
+     487: bipush        30
+     489: iload_2
+     490: iadd
+     491: sipush        170
+     494: iload_3
+     495: iadd
+     496: invokevirtual #60                 // Method rs/n/e.b:(IIII)V
+     499: aload_1
+     500: bipush        13
+     502: ldc           #13                 // int 54112
+     504: bipush        29
+     506: iload_2
+     507: iadd
+     508: sipush        172
+     511: iload_3
+     512: iadd
+     513: invokevirtual #60                 // Method rs/n/e.b:(IIII)V
+     516: aload_1
+     517: bipush        14
+     519: ldc           #14                 // int 54113
+     521: bipush        46
+     523: iload_2
+     524: iadd
+     525: sipush        263
+     528: invokevirtual #60                 // Method rs/n/e.b:(IIII)V
+     531: aload_1
+     532: bipush        15
+     534: ldc           #15                 // int 54114
+     536: bipush        46
+     538: iload_2
+     539: iadd
+     540: sipush        263
+     543: invokevirtual #60                 // Method rs/n/e.b:(IIII)V
+     546: aload_1
+     547: bipush        16
+     549: ldc           #17                 // int 54116
+     551: bipush        102
+     553: iload_2
+     554: iadd
+     555: sipush        275
+     558: invokevirtual #60                 // Method rs/n/e.b:(IIII)V
+     561: aload_1
+     562: bipush        17
+     564: ldc           #19                 // int 54118
+     566: bipush        106
+     568: iload_2
+     569: iadd
+     570: sipush        227
+     573: invokevirtual #60                 // Method rs/n/e.b:(IIII)V
+     576: aload_1
+     577: bipush        18
+     579: ldc           #20                 // int 54119
+     581: bipush        106
+     583: iload_2
+     584: iadd
+     585: sipush        240
+     588: invokevirtual #60                 // Method rs/n/e.b:(IIII)V
+     591: aload_1
+     592: bipush        19
+     594: ldc           #21                 // int 54120
+     596: bipush        106
+     598: iload_2
+     599: iadd
+     600: sipush        253
+     603: invokevirtual #60                 // Method rs/n/e.b:(IIII)V
+     606: iconst_0
+     607: istore        4
+     609: iload         4
+     611: aload_1
+     612: getfield      #50                 // Field rs/n/e.al:[I
+     615: arraylength
+     616: if_icmpge     637
+     619: aload_1
+     620: getfield      #51                 // Field rs/n/e.bc:[I
+     623: iload         4
+     625: dup2
+     626: iaload
+     627: bipush        15
+     629: isub
+     630: iastore
+     631: iinc          4, 1
+     634: goto          609
+     637: return
+}

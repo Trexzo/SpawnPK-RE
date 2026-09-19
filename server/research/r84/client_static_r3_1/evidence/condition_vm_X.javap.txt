@@ -1,0 +1,576 @@
+  public int a(rs.n.e, int);
+    Code:
+       0: aload_1
+       1: getfield      #3655               // Field rs/n/e.X:[[I
+       4: ifnull        16
+       7: iload_2
+       8: aload_1
+       9: getfield      #3655               // Field rs/n/e.X:[[I
+      12: arraylength
+      13: if_icmplt     19
+      16: bipush        -2
+      18: ireturn
+      19: aload_1
+      20: getfield      #3655               // Field rs/n/e.X:[[I
+      23: iload_2
+      24: aaload
+      25: astore_3
+      26: iconst_0
+      27: istore        4
+      29: iconst_0
+      30: istore        5
+      32: iconst_0
+      33: istore        6
+      35: aload_3
+      36: iload         5
+      38: iinc          5, 1
+      41: iaload
+      42: istore        7
+      44: iconst_0
+      45: istore        8
+      47: iconst_0
+      48: istore        9
+      50: iload         7
+      52: ifne          58
+      55: iload         4
+      57: ireturn
+      58: iload         7
+      60: iconst_1
+      61: if_icmpne     78
+      64: aload_0
+      65: getfield      #2706               // Field kN:[I
+      68: aload_3
+      69: iload         5
+      71: iinc          5, 1
+      74: iaload
+      75: iaload
+      76: istore        8
+      78: iload         7
+      80: iconst_2
+      81: if_icmpne     98
+      84: aload_0
+      85: getfield      #2485               // Field eo:[I
+      88: aload_3
+      89: iload         5
+      91: iinc          5, 1
+      94: iaload
+      95: iaload
+      96: istore        8
+      98: iload         7
+     100: iconst_3
+     101: if_icmpne     118
+     104: aload_0
+     105: getfield      #2719               // Field ka:[I
+     108: aload_3
+     109: iload         5
+     111: iinc          5, 1
+     114: iaload
+     115: iaload
+     116: istore        8
+     118: iload         7
+     120: iconst_4
+     121: if_icmpne     492
+     124: getstatic     #3642               // Field rs/n/e.H:[Lrs/n/e;
+     127: aload_3
+     128: iload         5
+     130: iinc          5, 1
+     133: iaload
+     134: aaload
+     135: astore        10
+     137: aload_3
+     138: iload         5
+     140: iinc          5, 1
+     143: iaload
+     144: istore        11
+     146: iload         11
+     148: sipush        20987
+     151: if_icmpeq     167
+     154: iload         11
+     156: iflt          492
+     159: iload         11
+     161: getstatic     #3291               // Field rs/d/k.ad:I
+     164: if_icmpge     492
+     167: iconst_0
+     168: istore        12
+     170: iload         12
+     172: aload         10
+     174: getfield      #3693               // Field rs/n/e.az:[I
+     177: arraylength
+     178: if_icmpge     492
+     181: aload         10
+     183: getfield      #3691               // Field rs/n/e.aw:I
+     186: sipush        3214
+     189: if_icmpne     304
+     192: aload_1
+     193: getfield      #3679               // Field rs/n/e.ah:I
+     196: sipush        1151
+     199: if_icmpeq     242
+     202: aload_1
+     203: getfield      #3679               // Field rs/n/e.ah:I
+     206: sipush        12855
+     209: if_icmpeq     242
+     212: aload_1
+     213: getfield      #3679               // Field rs/n/e.ah:I
+     216: sipush        1689
+     219: if_icmpeq     242
+     222: aload_1
+     223: getfield      #3679               // Field rs/n/e.ah:I
+     226: sipush        1829
+     229: if_icmpeq     242
+     232: aload_1
+     233: getfield      #3679               // Field rs/n/e.ah:I
+     236: sipush        12050
+     239: if_icmpne     304
+     242: aload         10
+     244: getfield      #3693               // Field rs/n/e.az:[I
+     247: iload         12
+     249: iaload
+     250: sipush        6820
+     253: if_icmpeq     270
+     256: aload         10
+     258: getfield      #3693               // Field rs/n/e.az:[I
+     261: iload         12
+     263: iaload
+     264: sipush        23112
+     267: if_icmpne     275
+     270: ldc_w         #426                // int 100000000
+     273: istore        8
+     275: aload_1
+     276: getfield      #3691               // Field rs/n/e.aw:I
+     279: sipush        30306
+     282: if_icmpne     304
+     285: aload         10
+     287: getfield      #3693               // Field rs/n/e.az:[I
+     290: iload         12
+     292: iaload
+     293: sipush        966
+     296: if_icmpne     304
+     299: ldc_w         #426                // int 100000000
+     302: istore        8
+     304: aload         10
+     306: getfield      #3693               // Field rs/n/e.az:[I
+     309: iload         12
+     311: iaload
+     312: iload         11
+     314: iconst_1
+     315: iadd
+     316: if_icmpne     332
+     319: iload         8
+     321: aload         10
+     323: getfield      #3692               // Field rs/n/e.ax:[I
+     326: iload         12
+     328: iaload
+     329: iadd
+     330: istore        8
+     332: iload         11
+     334: sipush        2417
+     337: if_icmpne     381
+     340: aload         10
+     342: getfield      #3693               // Field rs/n/e.az:[I
+     345: iload         12
+     347: iaload
+     348: sipush        11792
+     351: if_icmpeq     368
+     354: aload         10
+     356: getfield      #3693               // Field rs/n/e.az:[I
+     359: iload         12
+     361: iaload
+     362: sipush        12905
+     365: if_icmpne     381
+     368: iload         8
+     370: aload         10
+     372: getfield      #3692               // Field rs/n/e.ax:[I
+     375: iload         12
+     377: iaload
+     378: iadd
+     379: istore        8
+     381: iload         11
+     383: sipush        2415
+     386: if_icmpne     486
+     389: aload         10
+     391: getfield      #3693               // Field rs/n/e.az:[I
+     394: iload         12
+     396: iaload
+     397: sipush        21033
+     400: if_icmpeq     473
+     403: aload         10
+     405: getfield      #3693               // Field rs/n/e.az:[I
+     408: iload         12
+     410: iaload
+     411: sipush        21034
+     414: if_icmpeq     473
+     417: aload         10
+     419: getfield      #3693               // Field rs/n/e.az:[I
+     422: iload         12
+     424: iaload
+     425: sipush        21035
+     428: if_icmpeq     473
+     431: aload         10
+     433: getfield      #3693               // Field rs/n/e.az:[I
+     436: iload         12
+     438: iaload
+     439: sipush        21036
+     442: if_icmpeq     473
+     445: aload         10
+     447: getfield      #3693               // Field rs/n/e.az:[I
+     450: iload         12
+     452: iaload
+     453: sipush        25423
+     456: if_icmpeq     473
+     459: aload         10
+     461: getfield      #3693               // Field rs/n/e.az:[I
+     464: iload         12
+     466: iaload
+     467: sipush        25424
+     470: if_icmpne     486
+     473: iload         8
+     475: aload         10
+     477: getfield      #3692               // Field rs/n/e.ax:[I
+     480: iload         12
+     482: iaload
+     483: iadd
+     484: istore        8
+     486: iinc          12, 1
+     489: goto          170
+     492: iload         7
+     494: iconst_5
+     495: if_icmpne     512
+     498: aload_0
+     499: getfield      #2410               // Field dP:[I
+     502: aload_3
+     503: iload         5
+     505: iinc          5, 1
+     508: iaload
+     509: iaload
+     510: istore        8
+     512: iload         7
+     514: bipush        6
+     516: if_icmpne     539
+     519: getstatic     #2765               // Field lU:[I
+     522: aload_0
+     523: getfield      #2485               // Field eo:[I
+     526: aload_3
+     527: iload         5
+     529: iinc          5, 1
+     532: iaload
+     533: iaload
+     534: iconst_1
+     535: isub
+     536: iaload
+     537: istore        8
+     539: iload         7
+     541: bipush        7
+     543: if_icmpne     566
+     546: aload_0
+     547: getfield      #2410               // Field dP:[I
+     550: aload_3
+     551: iload         5
+     553: iinc          5, 1
+     556: iaload
+     557: iaload
+     558: bipush        100
+     560: imul
+     561: ldc           #129                // int 46875
+     563: idiv
+     564: istore        8
+     566: iload         7
+     568: bipush        8
+     570: if_icmpne     581
+     573: getstatic     #2463               // Field eR:Lrs/a/k;
+     576: getfield      #3166               // Field rs/a/k.bc:I
+     579: istore        8
+     581: iload         7
+     583: bipush        9
+     585: if_icmpne     626
+     588: iconst_0
+     589: istore        10
+     591: iload         10
+     593: getstatic     #3426               // Field rs/f/e.a:I
+     596: if_icmpge     626
+     599: getstatic     #3428               // Field rs/f/e.d:[Z
+     602: iload         10
+     604: baload
+     605: ifeq          620
+     608: iload         8
+     610: aload_0
+     611: getfield      #2485               // Field eo:[I
+     614: iload         10
+     616: iaload
+     617: iadd
+     618: istore        8
+     620: iinc          10, 1
+     623: goto          591
+     626: iload         7
+     628: bipush        10
+     630: if_icmpne     891
+     633: getstatic     #3642               // Field rs/n/e.H:[Lrs/n/e;
+     636: aload_3
+     637: iload         5
+     639: iinc          5, 1
+     642: iaload
+     643: aaload
+     644: astore        10
+     646: aload_3
+     647: iload         5
+     649: iinc          5, 1
+     652: iaload
+     653: iconst_1
+     654: iadd
+     655: istore        11
+     657: iload         11
+     659: iflt          891
+     662: iload         11
+     664: getstatic     #3291               // Field rs/d/k.ad:I
+     667: if_icmpge     891
+     670: iconst_0
+     671: istore        12
+     673: iload         12
+     675: aload         10
+     677: getfield      #3693               // Field rs/n/e.az:[I
+     680: arraylength
+     681: if_icmpge     891
+     684: iload         11
+     686: sipush        1388
+     689: if_icmpne     714
+     692: aload         10
+     694: getfield      #3693               // Field rs/n/e.az:[I
+     697: iload         12
+     699: iaload
+     700: sipush        20450
+     703: if_icmpne     714
+     706: ldc_w         #428                // int 999999999
+     709: istore        8
+     711: goto          891
+     714: iload         11
+     716: sipush        1388
+     719: if_icmpne     744
+     722: aload         10
+     724: getfield      #3693               // Field rs/n/e.az:[I
+     727: iload         12
+     729: iaload
+     730: sipush        22853
+     733: if_icmpne     744
+     736: ldc_w         #428                // int 999999999
+     739: istore        8
+     741: goto          891
+     744: iload         11
+     746: sipush        1384
+     749: if_icmpne     774
+     752: aload         10
+     754: getfield      #3693               // Field rs/n/e.az:[I
+     757: iload         12
+     759: iaload
+     760: sipush        20691
+     763: if_icmpne     774
+     766: ldc_w         #428                // int 999999999
+     769: istore        8
+     771: goto          891
+     774: iload         11
+     776: sipush        1384
+     779: if_icmpne     804
+     782: aload         10
+     784: getfield      #3693               // Field rs/n/e.az:[I
+     787: iload         12
+     789: iaload
+     790: sipush        22854
+     793: if_icmpne     804
+     796: ldc_w         #428                // int 999999999
+     799: istore        8
+     801: goto          891
+     804: iload         11
+     806: sipush        1384
+     809: if_icmpne     834
+     812: aload         10
+     814: getfield      #3693               // Field rs/n/e.az:[I
+     817: iload         12
+     819: iaload
+     820: sipush        20487
+     823: if_icmpne     834
+     826: ldc_w         #428                // int 999999999
+     829: istore        8
+     831: goto          891
+     834: iload         11
+     836: sipush        1384
+     839: if_icmpne     864
+     842: aload         10
+     844: getfield      #3693               // Field rs/n/e.az:[I
+     847: iload         12
+     849: iaload
+     850: sipush        20811
+     853: if_icmpne     864
+     856: ldc_w         #428                // int 999999999
+     859: istore        8
+     861: goto          891
+     864: aload         10
+     866: getfield      #3693               // Field rs/n/e.az:[I
+     869: iload         12
+     871: iaload
+     872: iload         11
+     874: if_icmpne     885
+     877: ldc_w         #428                // int 999999999
+     880: istore        8
+     882: goto          891
+     885: iinc          12, 1
+     888: goto          673
+     891: iload         7
+     893: bipush        11
+     895: if_icmpne     904
+     898: aload_0
+     899: getfield      #2469               // Field eY:I
+     902: istore        8
+     904: iload         7
+     906: bipush        12
+     908: if_icmpne     917
+     911: aload_0
+     912: getfield      #2733               // Field ko:I
+     915: istore        8
+     917: iload         7
+     919: bipush        13
+     921: if_icmpne     964
+     924: aload_0
+     925: getfield      #2410               // Field dP:[I
+     928: aload_3
+     929: iload         5
+     931: iinc          5, 1
+     934: iaload
+     935: iaload
+     936: istore        10
+     938: aload_3
+     939: iload         5
+     941: iinc          5, 1
+     944: iaload
+     945: istore        11
+     947: iload         10
+     949: iconst_1
+     950: iload         11
+     952: ishl
+     953: iand
+     954: ifne          961
+     957: iconst_0
+     958: goto          962
+     961: iconst_1
+     962: istore        8
+     964: iload         7
+     966: bipush        14
+     968: if_icmpne     1035
+     971: aload_3
+     972: iload         5
+     974: iinc          5, 1
+     977: iaload
+     978: istore        10
+     980: getstatic     #3344               // Field rs/d/y.a:[Lrs/d/y;
+     983: iload         10
+     985: aaload
+     986: astore        11
+     988: aload         11
+     990: getfield      #3345               // Field rs/d/y.b:I
+     993: istore        12
+     995: aload         11
+     997: getfield      #3346               // Field rs/d/y.c:I
+    1000: istore        13
+    1002: aload         11
+    1004: getfield      #3347               // Field rs/d/y.d:I
+    1007: istore        14
+    1009: getstatic     #2514               // Field fQ:[I
+    1012: iload         14
+    1014: iload         13
+    1016: isub
+    1017: iaload
+    1018: istore        15
+    1020: aload_0
+    1021: getfield      #2410               // Field dP:[I
+    1024: iload         12
+    1026: iaload
+    1027: iload         13
+    1029: ishr
+    1030: iload         15
+    1032: iand
+    1033: istore        8
+    1035: iload         7
+    1037: bipush        15
+    1039: if_icmpne     1045
+    1042: iconst_1
+    1043: istore        9
+    1045: iload         7
+    1047: bipush        16
+    1049: if_icmpne     1055
+    1052: iconst_2
+    1053: istore        9
+    1055: iload         7
+    1057: bipush        17
+    1059: if_icmpne     1065
+    1062: iconst_3
+    1063: istore        9
+    1065: iload         7
+    1067: bipush        18
+    1069: if_icmpne     1087
+    1072: getstatic     #2463               // Field eR:Lrs/a/k;
+    1075: getfield      #3161               // Field rs/a/k.ac:I
+    1078: bipush        7
+    1080: ishr
+    1081: getstatic     #2478               // Field eh:I
+    1084: iadd
+    1085: istore        8
+    1087: iload         7
+    1089: bipush        19
+    1091: if_icmpne     1109
+    1094: getstatic     #2463               // Field eR:Lrs/a/k;
+    1097: getfield      #3162               // Field rs/a/k.ad:I
+    1100: bipush        7
+    1102: ishr
+    1103: getstatic     #2479               // Field ei:I
+    1106: iadd
+    1107: istore        8
+    1109: iload         7
+    1111: bipush        20
+    1113: if_icmpne     1125
+    1116: aload_3
+    1117: iload         5
+    1119: iinc          5, 1
+    1122: iaload
+    1123: istore        8
+    1125: iload         9
+    1127: ifne          1192
+    1130: iload         6
+    1132: ifne          1142
+    1135: iload         4
+    1137: iload         8
+    1139: iadd
+    1140: istore        4
+    1142: iload         6
+    1144: iconst_1
+    1145: if_icmpne     1155
+    1148: iload         4
+    1150: iload         8
+    1152: isub
+    1153: istore        4
+    1155: iload         6
+    1157: iconst_2
+    1158: if_icmpne     1173
+    1161: iload         8
+    1163: ifeq          1173
+    1166: iload         4
+    1168: iload         8
+    1170: idiv
+    1171: istore        4
+    1173: iload         6
+    1175: iconst_3
+    1176: if_icmpne     1186
+    1179: iload         4
+    1181: iload         8
+    1183: imul
+    1184: istore        4
+    1186: iconst_0
+    1187: istore        6
+    1189: goto          1196
+    1192: iload         9
+    1194: istore        6
+    1196: goto          35
+    1199: astore_3
+    1200: iconst_m1
+    1201: ireturn
+    Exception table:
+       from    to  target type
+          19    57  1199   Class java/lang/Exception
+          58  1199  1199   Class java/lang/Exception
+

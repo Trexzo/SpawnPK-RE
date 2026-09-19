@@ -1,0 +1,11 @@
+lane	count	status	boundary
+ITEMS_CURRENT	30000	implemented	ItemAuthorityRepository; 1729 effect-text rows; 723 mechanics rows; 33 relations
+PET_NAMED_ITEMS	339	implemented	PetResearchAuthorityRepository; 235 recovered descriptions
+EQUIPMENT_RELATIONSHIPS	33	implemented_r8	exact text same-stats/same-bonuses graph; no fake 14-field profiles
+TELEPORT_ITEM_CANDIDATES	21	implemented_r8	5 have static custom-region candidates; exact landing tiles remain server-owned
+WORLD_TRANSITION_CANDIDATES	32	implemented_r8	source placement exact; destination often unknown
+PET_PROC_TRANSCRIPT_ROWS	16	implemented_r8_preview_only	transcript-recovered exact/strong/unresolved facts; missing original 23-row archive is not fabricated
+ASSET_RUNTIME_SUMMARY	36	implemented_r8_read_only	R6/R7 asset-runtime transcript facts; no semantic auto-binding
+WEAPON_RUNTIME_PROFILES	11	implemented_r72	10 direct-basic preview profiles; projectile cycle delays still gated
+WORLD_REGIONS	1279	implemented	region/collision authority
+STATIC_WORLD_PLACEMENTS	2162982	implemented_data_boundary	world authority count; runtime overlays server-owned

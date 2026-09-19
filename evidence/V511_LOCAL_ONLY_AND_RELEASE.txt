@@ -1,0 +1,16 @@
+V511_LOCAL_ONLY_SOURCE_SCAN_PASS
+- loopback-only server/client guards retained
+- airgap/local client binaries unchanged from v5/v5.1
+- v5.1.1 changes are server pose data/source/tests/docs only
+- no remote host or production mutation added
+
+V511_RELEASE_STATE
+- M4 world bootstrap certified baseline retained
+- M5 walking/running/minimap live-certified baseline retained
+- v5 generic item/Spawn Tab path retained
+- v5.1 conservative equipment-slot metadata retained
+- v5.1 raw stand 8057 LIVE-DISPROVEN
+- v5.1.1 stand 15692 recovered as current SpawnPK-local scythe_stand id
+- attack local id 15552 recorded but not wired into packet81
+- V511_OFFLINE_VALIDATION_ALL_PASS tests=29
+- LIVE_CERTIFICATION=15692 visual pose pending

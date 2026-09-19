@@ -1,0 +1,7 @@
+task,type,duration,objective_text,larran_key_text,failure_rule,other_exact_client_text
+Monster hunter,PvM,25 min,Slay an amount of wildy monsters in 25 mins.,1/35 Larran keys during task,Fails if not completed on time,
+Boss hunter,PvM,25 min,Slay an amount of wildy bosses in 25 mins.,1/10 Larran keys during task,Fails if not completed on time,
+Bounty hunter,PK,15 min,Kill 3-6 bounty hunter targets in 15 minutes.,1/5 Larran keys during task,Fails if not completed on time,Flat +5 bonus for each Cursed Bounty kill
+Slaughter,PK,20 min,Kill as many players as you can in 20 minutes!,1/8 Larran keys during task,Fails if fewer than 3 kills,Cursed orb kills count as 2 KC; 20-KC cap ends task early; higher killcount improves reward
+Blood Slayer,PvM/task,,Task selector entry; exact detailed rule text not recovered in this pass,,,UI shows 5 Blood slayer points in selector context
+Easy task monsters,PvM,,Task selector entry,,,

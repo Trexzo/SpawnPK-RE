@@ -1,0 +1,2 @@
+BOOTSTRAP_STATIC_ENCODING_PASS idle81=00-7F-F0 teleport81_bits=5 appearance=55 packet81_withAppearance=62 region73=4 packet249=3
+APPEARANCE_CLIENT_PARSER_PARITY_PASS bytes=55 consumed=55 displayName=localtest

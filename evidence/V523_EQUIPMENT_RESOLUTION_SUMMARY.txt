@@ -1,0 +1,72 @@
+SpawnPK LocalLab v5.2.3 — Equipment Reconciliation Summary
+
+CURRENT LOCAL/CURRENT-CONFIG ACTION CORPUS
+  effective Wear/Wield/Equip candidates : 1833
+  resolved                              : 1833
+  unresolved                            : 0
+
+RESOLVED SLOT COUNTS
+  HEAD    399
+  CAPE    160
+  AMULET   44
+  WEAPON  436
+  CHEST   217
+  SHIELD  107
+  LEGS    186
+  HANDS    91
+  FEET     77
+  RING     53
+  AMMO     63
+
+PRIMARY PROVENANCE OF THE 1833 CURRENT REPORT ROWS
+  clone/equipClone/fullClone lineage : 1059
+  conservative semantic roots        : 549
+  direct production appearance        : 177
+  exact ambiguity overrides            : 29
+  explicit current anchors              : 15
+  other strong current evidence          : 4
+
+DIRECT PRODUCTION APPEARANCE MAP
+  distinct equipable item IDs with one consistent observed packet81 appearance position : 188
+  (188 is the resolver's production map size; 177 of those IDs are members of the current 1833 action-report rows.)
+
+V5.2.2 LIVE FAILURES NOW RESOLVED
+  21701 Phantom scythe            -> WEAPON, two-handed, scythe pose
+  28021 Corrupted scythe of vitur -> WEAPON, two-handed, scythe pose
+  23984 Wanderer's amulet (i)     -> AMULET
+  23630 Wanderer's ring (i)       -> RING
+
+BASE-CACHE OPCODE41 FALLBACK FIXTURES
+  4081 Salve amulet       -> AMULET
+  6737 Berserker ring     -> RING
+  1127 Rune platebody     -> CHEST
+  1079 Rune platelegs     -> LEGS
+  1163 Rune full helm     -> HEAD
+  1201 Rune kiteshield    -> SHIELD
+  4131 Rune boots         -> FEET
+  7462 Barrows gloves     -> HANDS
+  6570 Fire cape          -> CAPE
+  892  Rune arrow         -> AMMO
+  4718 Dharok greataxe    -> WEAPON
+  4726 Guthan warspear    -> WEAPON
+  4747 Torag hammers      -> WEAPON
+  4732 Karil coif         -> HEAD
+  4734 Karil crossbow     -> WEAPON
+  4736 Karil leathertop   -> CHEST
+  4738 Karil leatherskirt -> LEGS
+
+RUNTIME TRANSACTION REGRESSION
+  23984 equip -> AMULET
+  23630 equip -> RING
+  21701 equip -> WEAPON; displaced Bloodrend returns to clicked inventory slot
+  28021 equip -> WEAPON; displaced Phantom returns to clicked inventory slot
+  6737 base-cache opcode41 equip -> RING; same-slot displaced item returns to inventory
+  equipment widget 1688 packet53 sync -> PASS
+
+OFFLINE SUITE
+  V523_ALL_TESTS_PASS count=37 fail=0
+
+EVIDENCE BOUNDARY
+  This does not claim recovery of SpawnPK production's private universal item-slot database.
+  V9.02 decoded the runtime client item-definition corpus, while the production Item Library can receive server-fed slot metadata separately.
+  v5.2.3 certifies complete resolution of the effective current LocalLab/current-config equipment-action corpus plus a conservative trusted opcode41 base-cache fallback.

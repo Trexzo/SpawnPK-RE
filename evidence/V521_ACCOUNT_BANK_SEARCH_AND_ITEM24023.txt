@@ -1,0 +1,34 @@
+V5.2.1 ACCOUNT / BANK / SEARCH / ITEM 24023 CERTIFICATION
+
+Canonical localhost account: opensrc
+Historical alias localtest -> opensrc
+Runtime state file: server/data/accounts/opensrc.properties
+Patch payload intentionally contains no account state file.
+
+Persisted:
+- bank slots, quantities, tab metadata
+- inventory slots, quantities, tab metadata
+- bank placeholder toggle
+- 14 equipment slots
+- persistent run toggle
+- run-energy value
+
+Bank close regression:
+- withdraw mutates authoritative inventory
+- bank overlay inventory widget is 5064
+- normal inventory widget is 3214
+- close opcode130 now emits packet53 for widget3214
+- regression asserts withdrawn item remains visible after bank UI closes
+
+Native Spawn search retained:
+- shortcut wire root 0 on tab10
+- client-resolved native root 67027
+- server accepts ::tabitem valid IDs under local dev authority
+
+Current catalogue rows:
+24023 Scythe of vitur (dyed) -> clone 21566
+24024 Blood reaper scythe (dyed) -> clone 23202
+
+24023 metadata resolution:
+WEAPON + two-handed + inherited SCYTHE_SPAWNPK_FAMILY pose
+pose7=[15692,823,1146,820,821,822,1210]

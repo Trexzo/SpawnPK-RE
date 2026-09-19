@@ -1,0 +1,10 @@
+index,render_type,render_id,task_text,subtext,reward_pairs,initial_progress,goal,claimed
+0,ITEM,1464,Vote for SPK @or1@(::vote)@whi@ then @or1@(::redeem)@whi@ your vote points!,"Then, swap the vote points for @or1@vote tickets@whi@ (via shop)",1464x1,0,1,False
+1,OBJ,12110,List vote ticket(s) for sale via @or1@Trading Post,,20808x1,0,1,False
+2,NPC_HEAD,2831,Complete the @or1@Undead PKer@whi@ daily activity,,4278x25;10834x10,0,1,False
+3,ITEM,12926,Purchase a @or1@Toxic Blowpipe@whi@ from the Trading Post.,This is a great starter item for PvM!,4278x25;10834x10,0,1,False
+4,ITEM,24263,Earn 50 @or1@Vintage tickets@whi@ at the @or1@Vintage cave,,4278x50;24260x3,0,50,False
+5,OBJ,2654,Unlock the @or1@Blood Vengeance I@whi@ perk,,10877x1,0,1,False
+6,ITEM,23912,Kill {prog} blood-revenants,,4278x50,0,10,False
+7,OBJ,2654,Unlock the @or1@Blood Whip@whi@ perk,,10834x25,0,1,False
+8,OBJ,2654,Dip an abyssal whip in the blood fountain,to create a Blood whip (perk required),20808x1,0,1,False

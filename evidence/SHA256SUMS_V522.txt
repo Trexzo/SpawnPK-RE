@@ -1,0 +1,3 @@
+9041e4771e69dcdf6598d7dd18078762085f7fb4a3b4c516cb0f7495ed99bd68  /mnt/data/SpawnPK-LocalLab-v4-v5-v5.1-v5.1.1-v5.2-v5.2.1-to-v5.2.2-PATCH/payload/server/build/SpawnPKLocalServer.jar
+6702365bca5ea70c84409d7bdb01f7432c7925c611d8556a2b07dad21893b316  /mnt/data/SpawnPK-LocalLab-v4-v5-v5.1-v5.1.1-v5.2-v5.2.1-to-v5.2.2-PATCH/payload/server/data/equipment_slots.tsv
+0985a6a202e1d408587dd2d798db265c4118bba8c044633e3f26ece0c0138b6e  /mnt/data/SpawnPK-LocalLab-v4-v5-v5.1-v5.1.1-v5.2-v5.2.1-to-v5.2.2-PATCH/payload/VERIFY_OFFLINE_READY.ps1

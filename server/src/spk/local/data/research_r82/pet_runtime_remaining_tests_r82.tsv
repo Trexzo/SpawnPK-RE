@@ -1,0 +1,15 @@
+priority	family	test	capture	resolves	alreadySolved
+P0	Ancient/Volcanic Hydra	Observe one confirmed spit proc	pet NPC F/z; packet117 projectile id/geometry/timing; impact GFX; target burn+disease hit/status	8248/1667/4108 binding and exact sequencing	base NPC/animations; mechanic semantics; Ancient stale charge renderer
+P0	Blood/Vigorous Hydra	Observe one lightning proc	pet F/z; projectile117; owner HP/prayer delta; target stat/disease status	8241/1664 binding and whether Blood/Vigorous differ visually	mechanic semantics + base family
+P0	Midnight Tiger	Observe one Tiger Strike	which of GFX4101/4102 fires, placement/order, any pet body animation and extra hit timing	two exact pet-spec GFX roles	mechanics and exact named assets
+P0	Kephri	Observe one dung fling	GFX/projectile sequence 4128/4129/5047/5048; packet117 geometry; impact timing	start/travel/impact assignment	complete named asset family
+P0	Tsunami Tempoross	Observe each debuff if feasible	hidden state 1/2/3, animation15562, GFX4104, target debuff name	state->Storm/Whirlpool/Lightning mapping and activation composition	exact client states + named pet activation animation/GFX
+P1	Magma/Molten Geyser	Observe Steam Ward activation	GFX4123 actor/owner placement, duration/start/end, any body anim	server binding/placement	mechanics + exact steam_ward asset
+P1	Araxxor/Dark Araxxor	Observe one disease proc	whether any pet F/z/projectile changes or only disease status/hitmark	status-only vs Araxxor-family projectile presentation	disease semantics; family assets known
+P1	Evil Wolper	Only if physical pet-body motion is still desired	NPC6991 action animation F around style-switch proc	remembered extra body animation ID	sprite53 state + generic owner stat-boost GFX1310
+P1	Unholy Behemoth	Only if extra temporary GFX is a distinct production effect	NPC5159 z change with timestamp/state	unidentified extra GFX ID	sprite22 charge display/current mechanics
+NONE	Scopesight Vasa	No presentation probe needed		only exact server proc timing/chance if desired	native SNIPE client trigger and working LocalLab presentation
+NONE	Olmlet / normal Vasa	Do not test merely to bind boss-family assets			descriptions are passive; no proc semantic exists
+P0	Mad/Psychotic Mad Hatter	Observe named emote procs	NPC726/790 F animation and which semantic roll occurred (Dance/Jig/Spin/Headbang)	866/2106/2107/2108 exact server mapping	semantic names + exact current candidate animations + timing
+P0	Icelord/Mystical Icelord	Observe one icicle shot	NPC5453/5454 F/z + packet117 projectile ID/geometry + impact	body animation/projectile/impact tuple	item->NPC and explicit shoot-icicle mechanic
+P1	Ripper Demon	Observe one Demon aura proc only if visual parity desired	NPC6335 F/z + owner and target presentation	whether Demon aura has dedicated visible asset or is stat-only	mechanics + item/NPC mapping

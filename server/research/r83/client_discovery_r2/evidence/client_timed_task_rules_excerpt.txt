@@ -1,0 +1,60 @@
+     277: if_icmpne     370
+     280: getstatic     #2585               // Field hQ:I
+     283: bipush        10
+     285: isub
+     286: istore_2
+     287: getstatic     #2584               // Field hP:I
+     290: bipush        10
+     292: isub
+     293: istore_3
+     294: aload_1
+     295: ldc_w         #1159               // String Select timed task
+     298: invokevirtual #3854               // Method java/lang/String.contains:(Ljava/lang/CharSequence;)Z
+     301: ifeq          313
+     304: aload_0
+     305: iload_3
+     306: iload_2
+     307: ldc_w         #594                // String  Monster hunter\nSlay an amount of wildy monsters in 25 mins.\n<item=23132>@or1@@yel@1/35@or1@ to receive @yel@Larran\'s keys@or1@ during task!\n@or2@Task is failed if not completed on time!
+     310: invokevirtual #4029               // Method b:(IILjava/lang/String;)V
+     313: aload_1
+     314: ldc_w         #1152               // String Select boss hunter task
+     317: invokevirtual #3854               // Method java/lang/String.contains:(Ljava/lang/CharSequence;)Z
+     320: ifeq          332
+     323: aload_0
+     324: iload_3
+     325: iload_2
+     326: ldc_w         #582                // String  Boss hunter\nSlay an amount of wildy bosses in 25 mins.\n<item=23132>@or1@@yel@1/10@or1@ to receive @yel@Larran\'s keys@or1@ during task!\n@or2@Task is failed if not completed on time!
+     329: invokevirtual #4029               // Method b:(IILjava/lang/String;)V
+     332: aload_1
+     333: ldc_w         #1154               // String Select man hunter
+     336: invokevirtual #3854               // Method java/lang/String.contains:(Ljava/lang/CharSequence;)Z
+     339: ifeq          351
+     342: aload_0
+     343: iload_3
+     344: iload_2
+     345: ldc_w         #583                // String  Bounty hunter\nKill 3-6 bounty hunter targets in 15 minutes.\nEarn a flat <img=125>@gre@+5@whi@ bonus for each Cursed Bounty kill\n<item=23132>@yel@1/5@or1@ to receive @yel@Larran\'s keys@or1@ during task!\n@or2@Task is failed if not completed on time!
+     348: invokevirtual #4029               // Method b:(IILjava/lang/String;)V
+     351: aload_1
+     352: ldc_w         #1155               // String Select man slaughter task
+     355: invokevirtual #3854               // Method java/lang/String.contains:(Ljava/lang/CharSequence;)Z
+     358: ifeq          370
+     361: aload_0
+     362: iload_3
+     363: iload_2
+     364: ldc_w         #605                // String  Slaughter\nKill as many players as you can in 20 minutes!\n- The higher your killcount, the better your reward!\n- Kills while risking a <item=1484>Cursed orb count as 2 KC.\n- Reaching the kill cap (20) ends the task early.\n<item=23132>@yel@@yel@1/8@or1@ to receive @yel@Larran\'s keys@or1@ during task!\n@or2@Task is failed if you kill less than 3!
+     367: invokevirtual #4029               // Method b:(IILjava/lang/String;)V
+     370: aload_1
+     371: ifnull        415
+     374: getstatic     #2354               // Field cH:I
+     377: ldc           #142                // int 47500
+     379: if_icmpne     415
+     382: aload_1
+     383: ldc_w         #1223               // String View equipment bonuses
+     386: invokevirtual #3854               // Method java/lang/String.contains:(Ljava/lang/CharSequence;)Z
+     389: ifeq          415
+     392: getstatic     #2585               // Field hQ:I
+     395: bipush        10
+     397: isub
+     398: istore_2
+     399: getstatic     #2584               // Field hP:I
+     402: bipush        10

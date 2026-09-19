@@ -1,0 +1,46 @@
+V511 SCYTHE ANIMATION RECOVERY
+
+LIVE FAILURE
+- v5.1 runtime log sent Bloodrend pose7=[8057,823,819,820,821,822,824].
+- user screenshot showed the pose was visually invalid.
+- packet framing/movement remained active; failure is isolated to pose data.
+
+CURRENT SPAWNPK CONFIG SOURCE
+archive SHA256:
+3c32c4babdb19b020dfdd76e6fcbdd4f85c3cb7359868f6bda82ad5030bdac25  .spawnpk (2).zip
+
+embedded config SHA256:
+81dabed5d25e168d5da2f6fb193d3d9e11df59cf3f2174078d4d007d447d55ff  .spawnpk/configs/a.bin
+
+MessagePack records:
+15692:
+  ref=scythe_stand
+  osid=8057
+  frames=12
+  durations=20,20,20,20,20,20,20,20,20,20,20,20
+
+15552:
+  ref=scythe_attack
+  osid=8056
+  frames=22
+  priority=6
+  stretches=true
+
+PINNED CLIENT LOADER SEMANTICS
+- rs.t.a.a.b(int, Map) constructs rs.d.a and stores the supplied map key/id as definition field r.
+- the `osid` property branch marks rs.d.a.w=true; it does not substitute the integer osid as the local definition id.
+- conclusion: 15692 is the SpawnPK-local scythe stand sequence. 8057 is source/provenance.
+
+V5.1.1 RESULT
+pose7=[15692,823,819,820,821,822,824]
+profile=SCYTHE_SPAWNPK_FAMILY
+weaponSpecificMask=0x1
+attackLocalId=15552 (recorded only; not packet81)
+
+OFFLINE
+V511_EQUIPMENT_METADATA_PASS
+V511_EQUIPMENT_APPEARANCE_CLIENT_PARITY_PASS
+V511_OFFLINE_VALIDATION_ALL_PASS tests=29
+
+LIVE
+15692 visual certification pending.

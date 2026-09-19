@@ -1,0 +1,10 @@
+SpawnPK Local Lab v0.3.4 offline validation
+
+CLIENT_PACKET_PROBE_V034_PASS decoded=7 aligned=true command103+zero0+zero121+focus3+telemetry77+walk164
+BOOTSTRAP_STATIC_ENCODING_PASS idle81=00-7F-F0 teleport81_bits=5 appearance=62 packet81_withAppearance=69 region73=4 packet249=3
+LOCAL_M4_BOOTSTRAP_INTEGRATION_PASS bootstrap=249,73,81 appearanceMask=0x10 idle81_ticks=2 cadence~600ms certification=OFFLINE_COMPONENT_PASS
+APPEARANCE_CLIENT_PARSER_PARITY_PASS bytes=62 consumed=62 displayName=localtest
+PACKET81_FULL_CLIENT_DECODER_PARITY_PASS payload=69 consumed=69 displayName=localtest plane=0
+
+Server JAR SHA-256:
+f1bd4663a9ea28d4611db01e7686fe9535afcd4239d12130debb30b9bfec6807

@@ -1,0 +1,666 @@
+public class rs.n.c.z extends rs.n.c {
+  public rs.n.c.z(rs.l.K[]);
+    Code:
+       0: aload_0
+       1: aload_1
+       2: invokespecial #73                 // Method rs/n/c."<init>":([Lrs/l/K;)V
+       5: return
+
+  public void a();
+    Code:
+       0: sipush        19993
+       3: invokestatic  #79                 // Method d:(I)Lrs/n/e;
+       6: astore_1
+       7: iconst_4
+       8: aload_1
+       9: invokestatic  #77                 // Method a:(ILrs/n/e;)V
+      12: ldc           #3                  // int 39985
+      14: iconst_2
+      15: ldc           #54                 // String construction/sprite
+      17: invokestatic  #78                 // Method c:(IILjava/lang/String;)V
+      20: bipush        35
+      22: istore_2
+      23: bipush        15
+      25: istore_3
+      26: iconst_0
+      27: ldc           #3                  // int 39985
+      29: iload_2
+      30: iconst_0
+      31: iadd
+      32: iload_3
+      33: iconst_0
+      34: iadd
+      35: aload_1
+      36: invokestatic  #74                 // Method a:(IIIILrs/n/e;)V
+      39: iconst_1
+      40: ldc           #6                  // int 65418
+      42: iload_2
+      43: sipush        429
+      46: iadd
+      47: iload_3
+      48: iconst_4
+      49: iadd
+      50: aload_1
+      51: invokestatic  #74                 // Method a:(IIIILrs/n/e;)V
+      54: iconst_2
+      55: ldc           #7                  // int 65419
+      57: iload_2
+      58: sipush        429
+      61: iadd
+      62: iload_3
+      63: iconst_4
+      64: iadd
+      65: aload_1
+      66: invokestatic  #74                 // Method a:(IIIILrs/n/e;)V
+      69: iconst_3
+      70: sipush        19992
+      73: iload_2
+      74: bipush        51
+      76: iadd
+      77: iload_3
+      78: bipush        60
+      80: iadd
+      81: aload_1
+      82: invokestatic  #74                 // Method a:(IIIILrs/n/e;)V
+      85: sipush        19992
+      88: invokestatic  #81                 // Method j:(I)Lrs/n/e;
+      91: astore        4
+      93: bipush        23
+      95: istore        5
+      97: aload         4
+      99: iload         5
+     101: bipush        65
+     103: imul
+     104: putfield      #67                 // Field rs/n/e.aH:I
+     107: aload         4
+     109: sipush        330
+     112: putfield      #65                 // Field rs/n/e.P:I
+     115: aload         4
+     117: sipush        220
+     120: putfield      #68                 // Field rs/n/e.aR:I
+     123: bipush        23
+     125: anewarray     #57                 // class java/lang/String
+     128: dup
+     129: iconst_0
+     130: ldc           #47                 // String Parlour: Lvl 1
+     132: aastore
+     133: dup
+     134: iconst_1
+     135: ldc           #42                 // String Garden: Lvl 1
+     137: aastore
+     138: dup
+     139: iconst_2
+     140: ldc           #45                 // String Kitchen: lvl 5
+     142: aastore
+     143: dup
+     144: iconst_3
+     145: ldc           #35                 // String Dining room: lvl 10
+     147: aastore
+     148: dup
+     149: iconst_4
+     150: ldc           #52                 // String Workshop: lvl 15
+     152: aastore
+     153: dup
+     154: iconst_5
+     155: ldc           #30                 // String Bedroom: Lvl 20
+     157: aastore
+     158: dup
+     159: bipush        6
+     161: ldc           #44                 // String Hall - Skill Trophies: Lvl 25
+     163: aastore
+     164: dup
+     165: bipush        7
+     167: ldc           #41                 // String Games Room: Lvl 30
+     169: aastore
+     170: dup
+     171: bipush        8
+     173: ldc           #33                 // String Combat room: Lvl 32
+     175: aastore
+     176: dup
+     177: bipush        9
+     179: ldc           #43                 // String Hall - Quest trophies: Lvl 35
+     181: aastore
+     182: dup
+     183: bipush        10
+     185: ldc           #46                 // String Menagerie: Lvl 37
+     187: aastore
+     188: dup
+     189: bipush        11
+     191: ldc           #48                 // String Study: Lvl 40
+     193: aastore
+     194: dup
+     195: bipush        12
+     197: ldc           #34                 // String Costume room: Lvl 42
+     199: aastore
+     200: dup
+     201: bipush        13
+     203: ldc           #32                 // String Chapel: Lvl 45
+     205: aastore
+     206: dup
+     207: bipush        14
+     209: ldc           #31                 // String Boss portal room: Lvl 50
+     211: aastore
+     212: dup
+     213: bipush        15
+     215: ldc           #40                 // String Formal garden: Lvl 55
+     217: aastore
+     218: dup
+     219: bipush        16
+     221: ldc           #50                 // String Throne room: Lvl 60
+     223: aastore
+     224: dup
+     225: bipush        17
+     227: ldc           #49                 // String Superior garden: Lvl 65
+     229: aastore
+     230: dup
+     231: bipush        18
+     233: ldc           #36                 // String Dungeon - corridor: Lvl 70
+     235: aastore
+     236: dup
+     237: bipush        19
+     239: ldc           #37                 // String Dungeon - junction: Lvl 70
+     241: aastore
+     242: dup
+     243: bipush        20
+     245: ldc           #39                 // String Dungeon - stairs: Lvl 70
+     247: aastore
+     248: dup
+     249: bipush        21
+     251: ldc           #38                 // String Dungeon - pit: Lvl 70
+     253: aastore
+     254: dup
+     255: bipush        22
+     257: ldc           #51                 // String Treasure room: Lvl 75
+     259: aastore
+     260: astore        6
+     262: bipush        23
+     264: newarray       int
+     266: dup
+     267: iconst_0
+     268: sipush        1000
+     271: iastore
+     272: dup
+     273: iconst_1
+     274: sipush        1000
+     277: iastore
+     278: dup
+     279: iconst_2
+     280: sipush        5000
+     283: iastore
+     284: dup
+     285: iconst_3
+     286: sipush        5000
+     289: iastore
+     290: dup
+     291: iconst_4
+     292: sipush        10000
+     295: iastore
+     296: dup
+     297: iconst_5
+     298: sipush        10000
+     301: iastore
+     302: dup
+     303: bipush        6
+     305: sipush        15000
+     308: iastore
+     309: dup
+     310: bipush        7
+     312: sipush        25000
+     315: iastore
+     316: dup
+     317: bipush        8
+     319: sipush        25000
+     322: iastore
+     323: dup
+     324: bipush        9
+     326: sipush        25000
+     329: iastore
+     330: dup
+     331: bipush        10
+     333: sipush        30000
+     336: iastore
+     337: dup
+     338: bipush        11
+     340: ldc           #5                  // int 50000
+     342: iastore
+     343: dup
+     344: bipush        12
+     346: ldc           #5                  // int 50000
+     348: iastore
+     349: dup
+     350: bipush        13
+     352: ldc           #5                  // int 50000
+     354: iastore
+     355: dup
+     356: bipush        14
+     358: ldc           #9                  // int 100000
+     360: iastore
+     361: dup
+     362: bipush        15
+     364: ldc           #8                  // int 75000
+     366: iastore
+     367: dup
+     368: bipush        16
+     370: ldc           #10                 // int 150000
+     372: iastore
+     373: dup
+     374: bipush        17
+     376: ldc           #10                 // int 150000
+     378: iastore
+     379: dup
+     380: bipush        18
+     382: sipush        7500
+     385: iastore
+     386: dup
+     387: bipush        19
+     389: sipush        7500
+     392: iastore
+     393: dup
+     394: bipush        20
+     396: sipush        7500
+     399: iastore
+     400: dup
+     401: bipush        21
+     403: sipush        10000
+     406: iastore
+     407: dup
+     408: bipush        22
+     410: ldc           #11                 // int 250000
+     412: iastore
+     413: astore        7
+     415: bipush        23
+     417: anewarray     #57                 // class java/lang/String
+     420: dup
+     421: iconst_0
+     422: ldc           #21                 // String 30k
+     424: aastore
+     425: dup
+     426: iconst_1
+     427: ldc           #21                 // String 30k
+     429: aastore
+     430: dup
+     431: iconst_2
+     432: ldc           #17                 // String 150k
+     434: aastore
+     435: dup
+     436: iconst_3
+     437: ldc           #17                 // String 150k
+     439: aastore
+     440: dup
+     441: iconst_4
+     442: ldc           #20                 // String 300k
+     444: aastore
+     445: dup
+     446: iconst_5
+     447: ldc           #20                 // String 300k
+     449: aastore
+     450: dup
+     451: bipush        6
+     453: ldc           #24                 // String 450k
+     455: aastore
+     456: dup
+     457: bipush        7
+     459: ldc           #26                 // String 750k
+     461: aastore
+     462: dup
+     463: bipush        8
+     465: ldc           #26                 // String 750k
+     467: aastore
+     468: dup
+     469: bipush        9
+     471: ldc           #26                 // String 750k
+     473: aastore
+     474: dup
+     475: bipush        10
+     477: ldc           #27                 // String 900k
+     479: aastore
+     480: dup
+     481: bipush        11
+     483: ldc           #16                 // String 1500k
+     485: aastore
+     486: dup
+     487: bipush        12
+     489: ldc           #16                 // String 1500k
+     491: aastore
+     492: dup
+     493: bipush        13
+     495: ldc           #16                 // String 1500k
+     497: aastore
+     498: dup
+     499: bipush        14
+     501: ldc           #19                 // String 300M
+     503: aastore
+     504: dup
+     505: bipush        15
+     507: ldc           #18                 // String 2250k
+     509: aastore
+     510: dup
+     511: bipush        16
+     513: ldc           #23                 // String 4500k
+     515: aastore
+     516: dup
+     517: bipush        17
+     519: ldc           #25                 // String 500M
+     521: aastore
+     522: dup
+     523: bipush        18
+     525: ldc           #20                 // String 300k
+     527: aastore
+     528: dup
+     529: bipush        19
+     531: ldc           #20                 // String 300k
+     533: aastore
+     534: dup
+     535: bipush        20
+     537: ldc           #20                 // String 300k
+     539: aastore
+     540: dup
+     541: bipush        21
+     543: ldc           #22                 // String 350k
+     545: aastore
+     546: dup
+     547: bipush        22
+     549: ldc           #15                 // String 1000k
+     551: aastore
+     552: astore        8
+     554: bipush        8
+     556: istore        9
+     558: iconst_4
+     559: istore        10
+     561: iconst_0
+     562: istore        11
+     564: ldc           #1                  // int 39879
+     566: istore        12
+     568: iload         5
+     570: iconst_4
+     571: imul
+     572: aload         4
+     574: invokestatic  #77                 // Method a:(ILrs/n/e;)V
+     577: iconst_0
+     578: istore        13
+     580: iload         13
+     582: aload         6
+     584: arraylength
+     585: if_icmpge     1144
+     588: iload         12
+     590: ldc           #2                  // int 39967
+     592: if_icmpne     599
+     595: ldc           #4                  // int 40300
+     597: istore        12
+     599: aload         6
+     601: iload         13
+     603: aaload
+     604: astore        14
+     606: aload         14
+     608: ldc           #28                 // String :
+     610: invokevirtual #71                 // Method java/lang/String.split:(Ljava/lang/String;)[Ljava/lang/String;
+     613: iconst_0
+     614: aaload
+     615: astore        14
+     617: iload         12
+     619: iconst_0
+     620: ldc           #12                 // int 3355443
+     622: iconst_0
+     623: sipush        238
+     626: bipush        61
+     628: aload         14
+     630: invokestatic  #75                 // Method a:(IIIZIILjava/lang/String;)V
+     633: iload         11
+     635: iinc          11, 1
+     638: iload         12
+     640: iinc          12, 1
+     643: iload         10
+     645: iload         9
+     647: aload         4
+     649: invokestatic  #74                 // Method a:(IIIILrs/n/e;)V
+     652: iload         12
+     654: iload         13
+     656: iconst_4
+     657: iadd
+     658: invokedynamic #82,  0             // InvokeDynamic #0:makeConcatWithConstants:(I)Ljava/lang/String;
+     663: invokestatic  #80                 // Method h:(ILjava/lang/String;)V
+     666: bipush        13
+     668: istore        15
+     670: iconst_5
+     671: istore        16
+     673: iload         13
+     675: ifne          682
+     678: bipush        23
+     680: istore        15
+     682: iload         13
+     684: iconst_1
+     685: if_icmpne     696
+     688: bipush        8
+     690: istore        15
+     692: bipush        7
+     694: istore        16
+     696: iload         13
+     698: iconst_2
+     699: if_icmpne     710
+     702: bipush        11
+     704: istore        15
+     706: bipush        7
+     708: istore        16
+     710: iload         13
+     712: iconst_3
+     713: if_icmpne     720
+     716: bipush        17
+     718: istore        16
+     720: iload         13
+     722: bipush        7
+     724: if_icmpne     731
+     727: bipush        11
+     729: istore        16
+     731: iload         13
+     733: bipush        8
+     735: if_icmpne     742
+     738: bipush        11
+     740: istore        15
+     742: iload         13
+     744: bipush        10
+     746: if_icmpne     753
+     749: bipush        9
+     751: istore        15
+     753: iload         13
+     755: bipush        11
+     757: if_icmpne     767
+     760: bipush        12
+     762: istore        15
+     764: iconst_1
+     765: istore        16
+     767: iload         13
+     769: bipush        12
+     771: if_icmpne     778
+     774: bipush        25
+     776: istore        15
+     778: iload         13
+     780: bipush        14
+     782: if_icmpne     793
+     785: bipush        9
+     787: istore        15
+     789: bipush        7
+     791: istore        16
+     793: iload         13
+     795: bipush        15
+     797: if_icmpne     804
+     800: bipush        7
+     802: istore        15
+     804: iload         13
+     806: bipush        16
+     808: if_icmpne     818
+     811: bipush        19
+     813: istore        15
+     815: iconst_0
+     816: istore        16
+     818: iload         13
+     820: bipush        17
+     822: if_icmpne     831
+     825: iconst_5
+     826: istore        15
+     828: iconst_3
+     829: istore        16
+     831: iload         13
+     833: bipush        18
+     835: if_icmplt     845
+     838: bipush        6
+     840: istore        15
+     842: iconst_3
+     843: istore        16
+     845: iload         13
+     847: bipush        8
+     849: if_icmpne     856
+     852: bipush        11
+     854: istore        15
+     856: iload         11
+     858: iinc          11, 1
+     861: iload         12
+     863: iinc          12, 1
+     866: iload         10
+     868: iload         15
+     870: iadd
+     871: iload         9
+     873: iload         16
+     875: iadd
+     876: aload         4
+     878: invokestatic  #74                 // Method a:(IIIILrs/n/e;)V
+     881: iload         12
+     883: aload         6
+     885: iload         13
+     887: aaload
+     888: aload         6
+     890: iload         13
+     892: aaload
+     893: ldc           #14                 // int 16777215
+     895: ldc           #14                 // int 16777215
+     897: iconst_0
+     898: iconst_1
+     899: iconst_0
+     900: iconst_1
+     901: invokestatic  #76                 // Method a:(ILjava/lang/String;Ljava/lang/String;IIZZII)V
+     904: iload         11
+     906: iinc          11, 1
+     909: iload         12
+     911: iinc          12, 1
+     914: iload         10
+     916: iload         13
+     918: bipush        9
+     920: if_icmpne     928
+     923: bipush        75
+     925: goto          930
+     928: bipush        82
+     930: iadd
+     931: iload         9
+     933: bipush        22
+     935: iadd
+     936: aload         4
+     938: invokestatic  #74                 // Method a:(IIIILrs/n/e;)V
+     941: iload         12
+     943: aload         8
+     945: iload         13
+     947: aaload
+     948: invokedynamic #83,  0             // InvokeDynamic #1:makeConcatWithConstants:(Ljava/lang/String;)Ljava/lang/String;
+     953: aload         8
+     955: iload         13
+     957: aaload
+     958: ldc           #13                 // int 16769316
+     960: ldc           #13                 // int 16769316
+     962: iconst_0
+     963: iconst_1
+     964: iconst_0
+     965: iconst_1
+     966: invokestatic  #76                 // Method a:(ILjava/lang/String;Ljava/lang/String;IIZZII)V
+     969: getstatic     #64                 // Field H:[Lrs/n/e;
+     972: iload         12
+     974: aaload
+     975: iconst_1
+     976: anewarray     #55                 // class "[I"
+     979: putfield      #66                 // Field rs/n/e.X:[[I
+     982: getstatic     #64                 // Field H:[Lrs/n/e;
+     985: iload         12
+     987: aaload
+     988: iconst_1
+     989: newarray       int
+     991: putfield      #69                 // Field rs/n/e.bk:[I
+     994: getstatic     #64                 // Field H:[Lrs/n/e;
+     997: iload         12
+     999: aaload
+    1000: iconst_1
+    1001: newarray       int
+    1003: putfield      #70                 // Field rs/n/e.bl:[I
+    1006: getstatic     #64                 // Field H:[Lrs/n/e;
+    1009: iload         12
+    1011: aaload
+    1012: getfield      #66                 // Field rs/n/e.X:[[I
+    1015: iconst_0
+    1016: iconst_4
+    1017: newarray       int
+    1019: aastore
+    1020: getstatic     #64                 // Field H:[Lrs/n/e;
+    1023: iload         12
+    1025: aaload
+    1026: getfield      #66                 // Field rs/n/e.X:[[I
+    1029: iconst_0
+    1030: aaload
+    1031: iconst_0
+    1032: iconst_4
+    1033: iastore
+    1034: getstatic     #64                 // Field H:[Lrs/n/e;
+    1037: iload         12
+    1039: aaload
+    1040: getfield      #66                 // Field rs/n/e.X:[[I
+    1043: iconst_0
+    1044: aaload
+    1045: iconst_1
+    1046: sipush        3214
+    1049: iastore
+    1050: getstatic     #64                 // Field H:[Lrs/n/e;
+    1053: iload         12
+    1055: aaload
+    1056: getfield      #66                 // Field rs/n/e.X:[[I
+    1059: iconst_0
+    1060: aaload
+    1061: iconst_2
+    1062: sipush        995
+    1065: iastore
+    1066: getstatic     #64                 // Field H:[Lrs/n/e;
+    1069: iload         12
+    1071: aaload
+    1072: getfield      #66                 // Field rs/n/e.X:[[I
+    1075: iconst_0
+    1076: aaload
+    1077: iconst_3
+    1078: iconst_0
+    1079: iastore
+    1080: getstatic     #64                 // Field H:[Lrs/n/e;
+    1083: iload         12
+    1085: aaload
+    1086: getfield      #69                 // Field rs/n/e.bk:[I
+    1089: iconst_0
+    1090: aload         7
+    1092: iload         13
+    1094: iaload
+    1095: iastore
+    1096: getstatic     #64                 // Field H:[Lrs/n/e;
+    1099: iload         12
+    1101: aaload
+    1102: getfield      #70                 // Field rs/n/e.bl:[I
+    1105: iconst_0
+    1106: bipush        10
+    1108: iastore
+    1109: iload         11
+    1111: iinc          11, 1
+    1114: iload         12
+    1116: iinc          12, 1
+    1119: iload         10
+    1121: sipush        243
+    1124: iadd
+    1125: iload         9
+    1127: bipush        25
+    1129: iadd
+    1130: aload         4
+    1132: invokestatic  #74                 // Method a:(IIIILrs/n/e;)V
+    1135: iinc          9, 64
+    1138: iinc          13, 1
+    1141: goto          580
+    1144: return
+}

@@ -1,0 +1,27 @@
+SPAWNPK LOCALLAB V5.2 EQUIPMENT / SIDEBAR CERTIFICATION
+
+STATUS: OFFLINE PASS
+
+Certified in the v5.2 test corpus:
+- local login response code 2 + cT 205 + flag 0
+- native sidebar packet-71 set: Skills/Achievements/Inventory/Equipment/Prayer/Magic/Spawn
+- native Spawn shortcut 0@10 resolves to root 67027 in pinned client parity test
+- 28,673 valid current client-known item IDs remain addressable by LocalLab item repository
+- item spawn command path remains opcode103 -> ::item/::tabitem -> fixed inventory -> packet53
+- 14-slot equipment container widget 1688
+- semantic slot projection into packet81 appearance
+- opcode41 Wear/Wield/Equip path
+- equipment Remove path from widget1688
+- requested simultaneous set: Ultimate slayer helmet 27034 + Bloodrend 28526 + Wanderer's boots 27486
+- Ultimate slayer helmet resolves HEAD via equipClone 21724
+- Wanderer's boots resolves FEET via clone 22830
+- full-helm hair/beard suppression in appearance projection
+- two-handed weapon/shield exclusion policy
+- scythe family pose7=[15692,823,1146,820,821,822,1210]
+- movement/bank/NPC/ISAAC prior regressions retained
+
+FAIL-CLOSED POLICY:
+An item whose equipment slot cannot be established by an explicit anchor or a clone/equipClone path is rejected rather than assigned a guessed slot from Wear/Wield text.
+
+NOT CLAIMED:
+Full prayer mechanics, full magic mechanics, XP/level server mechanics, weapon-specific combat tab, special-attack mechanics, every per-item custom effect, or complete slot coverage for every custom item.

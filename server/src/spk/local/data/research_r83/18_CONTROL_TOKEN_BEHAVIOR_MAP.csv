@@ -1,0 +1,36 @@
+token,client_behavior,authority
+HG_LOBBY_OVERLAY_ON/OFF,toggles Hunger Games lobby overlay boolean,exact client state toggle
+LMS_LOBBY_OVERLAY_ON/OFF,toggles LMS lobby overlay boolean,exact client state toggle
+CONSTRUCTION_BUILD_ON/OFF,toggles construction build-mode boolean rs/f/a.ae,exact client state toggle
+CLEAR_VERZIK_REGION_ON/OFF,toggles special Verzik-region clear behavior boolean,exact client state toggle
+RAID_INSTANCE_ON/OFF,toggles raid-instance state; OFF may force region reload/clear,exact client state transition
+TOGGLE_EXTENDED_ZOOM,toggles extended zoom and persists client option,exact client-side behavior
+SPEC_RESTORE_TICK,sets special-restore timestamp to current time,exact client-side presentation timer hook
+HEALTH_RESTORE_TICK,sets health-restore timestamp to current time,exact client-side presentation timer hook
+ITEM_GUIDE_RESET_PREVIEW,resets Item Library preview model state,exact Item Library control token
+ITEM_GUIDE_REFRESH_PREVIEW,refreshes Item Library preview,exact Item Library control token
+ITEM_GUIDE_SELECTED_<id>,selects Item Library category/entry by encoded id,exact Item Library control token
+ITEM_GUIDE_RESET_CATEGORY_ATTRIBUTES,resets Item Library category builder state,exact Item Library control token
+ITEM_GUIDE_FLUSH_CATEGORIES,flushes Item Library category entries,exact Item Library control token
+ITEM_GUIDE_FLUSH_DESCRIPTION,flushes Item Library description entries,exact Item Library control token
+ITEM_GUIDE_RESET_DESCRIPTION_ATTRIBUTES,resets Item Library description builder state,exact Item Library control token
+ITEM_GUIDE_SET_ITEM_SPRITE,switches preview display to wiki/item 0 and hides condition coords,exact Item Library control token
+ITEM_GUIDE_SET_REVERSE_ROTATION,sets Item Library reverse-rotation flag,exact Item Library control token
+ITEM_GUIDE_RESET_CAT_SCROLL,resets Item Library category scroll to zero,exact Item Library control token
+ITEM_GUIDE_BONUS_WIDGET <ON|...>,shows/hides Item Library bonus widgets,exact Item Library control token
+CLEAR_ACHIEVEMENT_TAB,clears Daily Challenge/Achievement list backing state,exact client control token
+BUILD_ACHIEVEMENT_TAB,rebuilds challenge/achievement tab,exact client control token
+CLEAR_DROP_SEARCH,clears Monster Drop Search result widget range,exact client control token
+CLEAR_DROP_INTERFACE,clears drop-interface 43-row result area,exact client control token
+RESET_BLOOD_POOL_SHOP_SLOTS,clears client blood-pool shop slot list,exact client control token
+RESET_BLOOD_TREE_SCROLL,resets Blood Fountain perk-tree scroll position,exact client control token
+WIKI_SELECTED_<id>,selects Knowledgebase entry,exact knowledgebase control token
+WIKI_RESET_CATEGORY_ATTRIBUTES,resets Knowledgebase category builder state,exact knowledgebase control token
+WIKI_FLUSH_CATEGORIES,flushes Knowledgebase categories,exact knowledgebase control token
+WIKI_RESET_DESCRIPTION_ATTRIBUTES,resets Knowledgebase description builder state,exact knowledgebase control token
+WIKI_FLUSH_DESCRIPTION,flushes Knowledgebase description,exact knowledgebase control token
+BEGIN_TUTORIAL,sets adventure/tutorial client mode=2,exact client mode token
+BEGIN_ADVENTURE,sets adventure/tutorial client mode=5,exact client mode token
+BEGIN_ADVENTURE_ORB,sets adventure/tutorial client mode=6,exact client mode token
+BEGIN_ADVENTURE_BOOK,sets adventure/tutorial client mode=7,exact client mode token
+END_ADVENTURE,sets adventure/tutorial client mode=0,exact client mode token

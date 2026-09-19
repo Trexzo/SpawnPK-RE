@@ -1,0 +1,23 @@
+raw_varp_id,internal_config_index,control_widget,client_label,state_field,static_default,settings_property_key,exact_client_side_effect_or_boundary
+174,10,12470,Toggle/show roofs,ax,False,show_roofs,Updates roof rendering/cache policy
+175,11,12480,Fog distance,aw,False,show_fog,Fog rendering toggle
+176,12,12482,Left-click attack,ay,False,left_click_attack,Client attack-menu behavior
+177,13,39975,Particle/glow effects,az,True,particle_system_1,Forced off in Lite mode; may redraw scene
+178,14,39973,Show news broadcasts,aA,True,show_broadcasts_1,Client broadcast visibility
+179,15,19099,Show combat overlay,aB,True,,No rs.f.a save/load key found for aB in exact client
+180,16,19097,Shift dropping,aC,False,shift_drop,
+181,17,19095,Oldschool 07 ticks,aE,False,oldschool_ticks,Queues ::newticks when 0; ::oldticks when nonzero
+182,18,19093,Instant switching,aF,True,instant_switching,Queues ::instantswitching when 0; ::queuedswitching when nonzero
+183,19,19091,Prayer adjustments,aG,True,prayer_adjustments,
+184,20,19089,Swap rigour/augury,aI,False,rigour_augury_swapped,
+185,21,19087,Left click attack target only,aJ,False,left_click_target_only,
+186,22,12472,Resizable mode,ai,FIXED,screen_mode,Toggles screen-mode enum and applies display mode
+187,23,12474,Lite mode,ah,False,lite_version,Toggles Lite mode; reloads/lower graphics; particle effects forced disabled
+188,24,19085,Extended zoom & distance,aO,True,extended_zoom,Calls rs.V.a(boolean); control click also has ::extended route
+189,25,19083,Desktop notifications,aP,False,desktop_notifications,
+190,26,19081,Player lighting,aQ,True,player_lighting,May trigger client redraw
+191,27,19079,Hide other pets (non-wild),aT,False,hide_non_wild_pets,
+192,28,19077,"Toggle pets for ""bank all""",aZ,False,bank_all_pet,
+193,29,19075,"Cosmetic ""icons"" visibility",bb,True,show_icon_equip,May trigger client redraw
+194,30,19073,Left click magic target only,aK,False,left_click_magic_only,LOAD key exists but exact rs.f.a save writer does not emit it (persistence asymmetry)
+195,31,19071,Lock spawnable item dropping,aL,False,lock_spawnable_drop,

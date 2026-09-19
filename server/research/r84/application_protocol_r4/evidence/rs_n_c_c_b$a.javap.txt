@@ -1,0 +1,75 @@
+public final class rs.n.c.c.b$a extends java.lang.Enum<rs.n.c.c.b$a> {
+  public static final rs.n.c.c.b$a a;
+
+  public static final rs.n.c.c.b$a b;
+
+  private final int c;
+
+  private static final rs.n.c.c.b$a[] d;
+
+  public static rs.n.c.c.b$a[] values();
+    Code:
+       0: getstatic     #12                 // Field d:[Lrs/n/c/c/b$a;
+       3: invokevirtual #13                 // Method "[Lrs/n/c/c/b$a;".clone:()Ljava/lang/Object;
+       6: checkcast     #5                  // class "[Lrs/n/c/c/b$a;"
+       9: areturn
+
+  public static rs.n.c.c.b$a valueOf(java.lang.String);
+    Code:
+       0: ldc           #8                  // class rs/n/c/c/b$a
+       2: aload_0
+       3: invokestatic  #15                 // Method java/lang/Enum.valueOf:(Ljava/lang/Class;Ljava/lang/String;)Ljava/lang/Enum;
+       6: checkcast     #8                  // class rs/n/c/c/b$a
+       9: areturn
+
+  public int a();
+    Code:
+       0: aload_0
+       1: getfield      #11                 // Field c:I
+       4: ireturn
+
+  private rs.n.c.c.b$a(int);
+    Code:
+       0: aload_0
+       1: aload_1
+       2: iload_2
+       3: invokespecial #14                 // Method java/lang/Enum."<init>":(Ljava/lang/String;I)V
+       6: aload_0
+       7: iload_3
+       8: putfield      #11                 // Field c:I
+      11: return
+
+  private static rs.n.c.c.b$a[] b();
+    Code:
+       0: iconst_2
+       1: anewarray     #8                  // class rs/n/c/c/b$a
+       4: dup
+       5: iconst_0
+       6: getstatic     #9                  // Field a:Lrs/n/c/c/b$a;
+       9: aastore
+      10: dup
+      11: iconst_1
+      12: getstatic     #10                 // Field b:Lrs/n/c/c/b$a;
+      15: aastore
+      16: areturn
+
+  static {};
+    Code:
+       0: new           #8                  // class rs/n/c/c/b$a
+       3: dup
+       4: ldc           #4                  // String UNREAD
+       6: iconst_0
+       7: ldc           #1                  // int 3145498
+       9: invokespecial #16                 // Method "<init>":(Ljava/lang/String;II)V
+      12: putstatic     #9                  // Field a:Lrs/n/c/c/b$a;
+      15: new           #8                  // class rs/n/c/c/b$a
+      18: dup
+      19: ldc           #3                  // String READ
+      21: iconst_1
+      22: ldc           #2                  // int 12171349
+      24: invokespecial #16                 // Method "<init>":(Ljava/lang/String;II)V
+      27: putstatic     #10                 // Field b:Lrs/n/c/c/b$a;
+      30: invokestatic  #17                 // Method b:()[Lrs/n/c/c/b$a;
+      33: putstatic     #12                 // Field d:[Lrs/n/c/c/b$a;
+      36: return
+}

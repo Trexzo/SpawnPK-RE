@@ -1,0 +1,15 @@
+metric	v5.4	v5.5	delta
+mapped_pet_items	260	288	+28
+ambiguous_pet_items	49	21	-28
+
+Notable v5.5 promotions:
+25425	5159	Unholy behemoth pet	V55_INFERRED_PREFERRED_5159+V902_PRODUCTION_NPC_SEEN
+24238	6991	Evil wolper pet	V55_INFERRED_NON_RESVANO_EVIL_WOLPER_NAME_DISAMBIGUATION
+27340	8124	Resvano's evil wolper pet #1	V55_INFERRED_SEQUENTIAL_RESVANO_VARIANT_FAMILY
+27341	8125	Resvano's evil wolper pet #2	V55_INFERRED_SEQUENTIAL_RESVANO_VARIANT_FAMILY
+27342	8126	Resvano's evil wolper pet #3	V55_INFERRED_SEQUENTIAL_RESVANO_VARIANT_FAMILY
+27343	8127	Resvano's ethereal pet #1	V55_INFERRED_SEQUENTIAL_RESVANO_VARIANT_FAMILY
+27344	8128	Resvano's ethereal pet #2	V55_INFERRED_SEQUENTIAL_RESVANO_VARIANT_FAMILY
+27345	8129	Resvano's ethereal pet #3	V55_INFERRED_SEQUENTIAL_RESVANO_VARIANT_FAMILY
+
+The remaining 21 are intentionally fail-closed because supplied evidence does not uniquely select the production NPC definition (notably kitten/cat variants and duplicate puppy definitions).

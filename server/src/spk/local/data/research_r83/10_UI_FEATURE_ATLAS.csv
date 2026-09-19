@@ -1,0 +1,24 @@
+class_or_group,feature,static_authority_grade,what_is_recoverable
+rs/n/c/ap.class,Magic book,data-rich,41-entry standard spell filter + custom surge/miasmic builders + spell filter controls
+rs/l/e/q$a.class,Timed popup/effect catalog,data-rich,64 enum entries with exact client-visible descriptions/assets/raw constructor params
+rs/n/c/c.class,Achievement chapter,data-rich,"9 embedded bootstrap tasks with render IDs, rewards, progress goals and claimed state"
+rs/n/c/z.class,Construction rooms,data-rich,"23 room names/levels, raw coin condition values, visible gp costs"
+rs/n/c/aF.class,Construction plank conversion,data-rich,Wood/Oak/Teak/Mahogony visible gp-each prices and Make-all controls
+rs/n/c/l.class + rs/Client.class,Timed task system,data-rich,Blood Slayer/Boss Hunter/Bounty Hunter/Monster Hunter/Slaughter/Easy task selection; four exact rule descriptions
+rs/n/c/aC.class,Client settings,data-rich,graphics/input/pet/combat/UI setting surface
+rs/n/c/ab.class,Official Item Library,contract-rich,client-side slot/animation contract; equipment model slot mapping; stat display shell
+rs/n/c/az.class,Monster item drop search,contract-rich,search-by-item/search-by-monster and boosted-rate caveat; result content server-fed
+rs/n/c/o.class,Boss Teleportation Network,shell,placeholder boss/drop strings; do not treat embedded boss content as production authority
+rs/n/c/G.class,Item Enchantment Chest,contract-rich,categories/search/ingredients/result states; recipes/chances server-owned
+rs/n/c/aO.class,Tabbed shops,contract-rich,5-tab shop UI infrastructure; stock/prices server-owned
+rs/n/c/c/a.class,Mailbox,contract-rich,"35-slot inbox, expiry, attachments, bank/inventory delivery controls"
+rs/n/c/aL.class + rs/n/c/d/*,Raids/party,data+contract,party invitations/join/public tabs and exact difficulty text; encounter formulas remain server-owned
+rs/n/c/J.class,Event Activity Viewer,contract-rich,token-limit timer/lock/reset presentation
+rs/l/e/a/o.class,Hunger Games,data+contract,"5-15 player lobby, ceasefire/safety/fog/chest/power-up/event state presentation"
+rs/n/c/T.class,Monster Spawner,data+contract,"5 spawns per activation, x3/distanced controls, selection state"
+rs/n/c/s.class,Clan Wars setup,data-rich,"kill targets, arenas, spellbook/prayer/staff/PJ/freezing rule choices"
+rs/n/c/V.class,Gambling,data+contract,Flower poker/Dice duel/BJ host variants and safety/replant presentation
+rs/n/c/b.class,Daily Challenges,contract-rich,entry/update/claim/info UI; example bootstrap text only
+rs/n/c/aS.class,Task Scroll,contract-rich,task info/progress/reward/track/collect surface
+rs/n/c/S.class + rs/n/c/R.class,PvP Hotspot,data+contract,wild casket description + vote-to-skip UI; active hotspot server-fed
+rs/n/c/aE.class,Legendary Pet Fusing,likely stale shell,contains 2016 ETA; not current mechanics authority

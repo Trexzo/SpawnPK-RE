@@ -1,0 +1,214 @@
+public class rs.q.a.a.a.d extends rs.q.a.a.a {
+  public rs.q.a.a.a.d();
+    Code:
+       0: aload_0
+       1: invokespecial #36                 // Method rs/q/a/a/a."<init>":()V
+       4: return
+
+  public void a();
+    Code:
+       0: aload_0
+       1: invokevirtual #38                 // Method e:()I
+       4: istore_1
+       5: iload_1
+       6: iconst_1
+       7: if_icmpne     165
+      10: aload_0
+      11: invokevirtual #38                 // Method e:()I
+      14: istore_2
+      15: iload_2
+      16: ifeq          165
+      19: iload_2
+      20: iconst_1
+      21: if_icmpne     55
+      24: aload_0
+      25: invokevirtual #37                 // Method c:()I
+      28: istore_3
+      29: iload_3
+      30: invokedynamic #40,  0             // InvokeDynamic #0:makeConcatWithConstants:(I)Ljava/lang/String;
+      35: putstatic     #25                 // Field rs/l/e/a/o.q:Ljava/lang/String;
+      38: getstatic     #24                 // Field rs/l/e/a/o.p:Ljava/lang/String;
+      41: getstatic     #25                 // Field rs/l/e/a/o.q:Ljava/lang/String;
+      44: invokedynamic #41,  0             // InvokeDynamic #1:makeConcatWithConstants:(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;
+      49: putstatic     #26                 // Field rs/l/e/a/o.r:Ljava/lang/String;
+      52: goto          157
+      55: iload_2
+      56: iconst_2
+      57: if_icmpne     91
+      60: aload_0
+      61: invokevirtual #39                 // Method h:()Ljava/lang/String;
+      64: astore_3
+      65: aload_3
+      66: invokedynamic #42,  0             // InvokeDynamic #2:makeConcatWithConstants:(Ljava/lang/String;)Ljava/lang/String;
+      71: putstatic     #24                 // Field rs/l/e/a/o.p:Ljava/lang/String;
+      74: getstatic     #24                 // Field rs/l/e/a/o.p:Ljava/lang/String;
+      77: getstatic     #25                 // Field rs/l/e/a/o.q:Ljava/lang/String;
+      80: invokedynamic #41,  0             // InvokeDynamic #1:makeConcatWithConstants:(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;
+      85: putstatic     #26                 // Field rs/l/e/a/o.r:Ljava/lang/String;
+      88: goto          157
+      91: iload_2
+      92: iconst_3
+      93: if_icmpne     127
+      96: aload_0
+      97: invokevirtual #38                 // Method e:()I
+     100: istore_3
+     101: iload_3
+     102: invokedynamic #43,  0             // InvokeDynamic #3:makeConcatWithConstants:(I)Ljava/lang/String;
+     107: putstatic     #24                 // Field rs/l/e/a/o.p:Ljava/lang/String;
+     110: getstatic     #24                 // Field rs/l/e/a/o.p:Ljava/lang/String;
+     113: getstatic     #25                 // Field rs/l/e/a/o.q:Ljava/lang/String;
+     116: invokedynamic #41,  0             // InvokeDynamic #1:makeConcatWithConstants:(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;
+     121: putstatic     #26                 // Field rs/l/e/a/o.r:Ljava/lang/String;
+     124: goto          157
+     127: iload_2
+     128: iconst_4
+     129: if_icmpne     140
+     132: ldc           #4                  // String <img=24> Starting a match, please wait..
+     134: putstatic     #26                 // Field rs/l/e/a/o.r:Ljava/lang/String;
+     137: goto          157
+     140: iload_2
+     141: iconst_5
+     142: if_icmpne     157
+     145: aload_0
+     146: invokevirtual #39                 // Method h:()Ljava/lang/String;
+     149: astore_3
+     150: aload_3
+     151: invokevirtual #33                 // Method java/lang/String.toString:()Ljava/lang/String;
+     154: putstatic     #27                 // Field rs/l/e/a/o.s:Ljava/lang/String;
+     157: aload_0
+     158: invokevirtual #38                 // Method e:()I
+     161: istore_2
+     162: goto          15
+     165: iload_1
+     166: iconst_2
+     167: if_icmpne     421
+     170: aload_0
+     171: invokevirtual #38                 // Method e:()I
+     174: istore_2
+     175: iload_2
+     176: ifeq          421
+     179: iload_2
+     180: iconst_1
+     181: if_icmpne     198
+     184: aload_0
+     185: invokevirtual #38                 // Method e:()I
+     188: istore_3
+     189: iload_3
+     190: invokedynamic #44,  0             // InvokeDynamic #4:makeConcatWithConstants:(I)Ljava/lang/String;
+     195: putstatic     #28                 // Field rs/l/e/a/o.t:Ljava/lang/String;
+     198: iload_2
+     199: iconst_2
+     200: if_icmpne     217
+     203: aload_0
+     204: invokevirtual #38                 // Method e:()I
+     207: istore_3
+     208: iload_3
+     209: invokedynamic #45,  0             // InvokeDynamic #5:makeConcatWithConstants:(I)Ljava/lang/String;
+     214: putstatic     #29                 // Field rs/l/e/a/o.u:Ljava/lang/String;
+     217: iload_2
+     218: iconst_3
+     219: if_icmplt     231
+     222: iload_2
+     223: iconst_5
+     224: if_icmpgt     231
+     227: iconst_1
+     228: putstatic     #19                 // Field rs/l/e/a/o.A:Z
+     231: iload_2
+     232: iconst_3
+     233: if_icmpne     267
+     236: aload_0
+     237: invokevirtual #37                 // Method c:()I
+     240: i2l
+     241: lstore_3
+     242: lload_3
+     243: lconst_0
+     244: lcmp
+     245: ifle          263
+     248: invokestatic  #34                 // Method java/lang/System.currentTimeMillis:()J
+     251: lload_3
+     252: ldc2_w        #17                 // long 1000l
+     255: lmul
+     256: ladd
+     257: putstatic     #30                 // Field rs/l/e/a/o.x:J
+     260: goto          267
+     263: lconst_0
+     264: putstatic     #30                 // Field rs/l/e/a/o.x:J
+     267: iload_2
+     268: iconst_4
+     269: if_icmpne     303
+     272: aload_0
+     273: invokevirtual #37                 // Method c:()I
+     276: i2l
+     277: lstore_3
+     278: lload_3
+     279: lconst_0
+     280: lcmp
+     281: ifle          299
+     284: invokestatic  #34                 // Method java/lang/System.currentTimeMillis:()J
+     287: lload_3
+     288: ldc2_w        #17                 // long 1000l
+     291: lmul
+     292: ladd
+     293: putstatic     #31                 // Field rs/l/e/a/o.y:J
+     296: goto          303
+     299: lconst_0
+     300: putstatic     #31                 // Field rs/l/e/a/o.y:J
+     303: iload_2
+     304: iconst_5
+     305: if_icmpne     363
+     308: aload_0
+     309: invokevirtual #38                 // Method e:()I
+     312: putstatic     #21                 // Field rs/l/e/a/o.C:I
+     315: aload_0
+     316: invokevirtual #37                 // Method c:()I
+     319: i2l
+     320: lstore_3
+     321: lload_3
+     322: lconst_0
+     323: lcmp
+     324: ifle          348
+     327: invokestatic  #34                 // Method java/lang/System.currentTimeMillis:()J
+     330: lload_3
+     331: ldc2_w        #17                 // long 1000l
+     334: lmul
+     335: ladd
+     336: putstatic     #32                 // Field rs/l/e/a/o.z:J
+     339: getstatic     #21                 // Field rs/l/e/a/o.C:I
+     342: putstatic     #22                 // Field rs/l/e/a/o.F:I
+     345: goto          363
+     348: getstatic     #21                 // Field rs/l/e/a/o.C:I
+     351: iconst_1
+     352: if_icmpne     359
+     355: iconst_2
+     356: putstatic     #21                 // Field rs/l/e/a/o.C:I
+     359: lconst_0
+     360: putstatic     #32                 // Field rs/l/e/a/o.z:J
+     363: iload_2
+     364: bipush        6
+     366: if_icmpne     373
+     369: iconst_0
+     370: putstatic     #19                 // Field rs/l/e/a/o.A:Z
+     373: iload_2
+     374: bipush        7
+     376: if_icmpne     391
+     379: aload_0
+     380: invokevirtual #39                 // Method h:()Ljava/lang/String;
+     383: invokedynamic #46,  0             // InvokeDynamic #6:makeConcatWithConstants:(Ljava/lang/String;)Ljava/lang/String;
+     388: putstatic     #23                 // Field rs/l/e/a/o.J:Ljava/lang/String;
+     391: iload_2
+     392: bipush        8
+     394: if_icmpne     413
+     397: aload_0
+     398: invokevirtual #38                 // Method e:()I
+     401: iconst_1
+     402: if_icmpne     409
+     405: iconst_1
+     406: goto          410
+     409: iconst_0
+     410: putstatic     #20                 // Field rs/l/e/a/o.B:Z
+     413: aload_0
+     414: invokevirtual #38                 // Method e:()I
+     417: istore_2
+     418: goto          175
+     421: return
+}

@@ -1,0 +1,174 @@
+public class rs.q.a.a.a.k extends rs.q.a.a.a {
+  public rs.q.a.a.a.k();
+    Code:
+       0: aload_0
+       1: invokespecial #28                 // Method rs/q/a/a/a."<init>":()V
+       4: return
+
+  public void a();
+    Code:
+       0: aload_0
+       1: invokevirtual #30                 // Method e:()I
+       4: istore_1
+       5: iload_1
+       6: ifne          68
+       9: aload_0
+      10: invokevirtual #29                 // Method c:()I
+      13: istore_2
+      14: aload_0
+      15: invokevirtual #29                 // Method c:()I
+      18: istore_3
+      19: aload_0
+      20: invokevirtual #30                 // Method e:()I
+      23: istore        4
+      25: aload_0
+      26: invokevirtual #30                 // Method e:()I
+      29: istore        5
+      31: iload_2
+      32: iload_3
+      33: iload         4
+      35: invokedynamic #41,  0             // InvokeDynamic #0:makeConcatWithConstants:(III)Ljava/lang/String;
+      40: astore        6
+      42: getstatic     #16                 // Field rs/d/s.a:Ljava/util/Map;
+      45: aload         6
+      47: invokeinterface #39,  2           // InterfaceMethod java/util/Map.remove:(Ljava/lang/Object;)Ljava/lang/Object;
+      52: pop
+      53: aload_0
+      54: getfield      #23                 // Field c:Lrs/Client;
+      57: iload_2
+      58: iload_3
+      59: iconst_m1
+      60: iconst_0
+      61: bipush        10
+      63: iload         4
+      65: invokevirtual #26                 // Method rs/Client.a:(IIIIII)V
+      68: iload_1
+      69: iconst_1
+      70: if_icmpne     189
+      73: new           #13                 // class rs/d/s$a
+      76: dup
+      77: invokespecial #27                 // Method rs/d/s$a."<init>":()V
+      80: astore_2
+      81: aload_2
+      82: aload_0
+      83: invokevirtual #31                 // Method g:()I
+      86: putfield      #17                 // Field rs/d/s$a.a:I
+      89: aload_2
+      90: aload_0
+      91: invokevirtual #29                 // Method c:()I
+      94: putfield      #18                 // Field rs/d/s$a.b:I
+      97: aload_2
+      98: aload_0
+      99: invokevirtual #29                 // Method c:()I
+     102: putfield      #19                 // Field rs/d/s$a.c:I
+     105: aload_2
+     106: aload_0
+     107: invokevirtual #30                 // Method e:()I
+     110: putfield      #20                 // Field rs/d/s$a.d:I
+     113: aload_2
+     114: aload_0
+     115: invokevirtual #30                 // Method e:()I
+     118: putfield      #22                 // Field rs/d/s$a.f:I
+     121: aload_2
+     122: aload_0
+     123: invokevirtual #30                 // Method e:()I
+     126: putfield      #21                 // Field rs/d/s$a.e:I
+     129: aload_2
+     130: getfield      #18                 // Field rs/d/s$a.b:I
+     133: aload_2
+     134: getfield      #19                 // Field rs/d/s$a.c:I
+     137: aload_2
+     138: getfield      #20                 // Field rs/d/s$a.d:I
+     141: invokedynamic #41,  0             // InvokeDynamic #0:makeConcatWithConstants:(III)Ljava/lang/String;
+     146: astore_3
+     147: getstatic     #16                 // Field rs/d/s.a:Ljava/util/Map;
+     150: aload_3
+     151: aload_2
+     152: invokeinterface #38,  3           // InterfaceMethod java/util/Map.put:(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;
+     157: pop
+     158: aload_0
+     159: getfield      #23                 // Field c:Lrs/Client;
+     162: aload_2
+     163: getfield      #18                 // Field rs/d/s$a.b:I
+     166: aload_2
+     167: getfield      #19                 // Field rs/d/s$a.c:I
+     170: aload_2
+     171: getfield      #17                 // Field rs/d/s$a.a:I
+     174: aload_2
+     175: getfield      #21                 // Field rs/d/s$a.e:I
+     178: aload_2
+     179: getfield      #22                 // Field rs/d/s$a.f:I
+     182: aload_2
+     183: getfield      #20                 // Field rs/d/s$a.d:I
+     186: invokevirtual #26                 // Method rs/Client.a:(IIIIII)V
+     189: iload_1
+     190: iconst_2
+     191: if_icmpne     379
+     194: aload_0
+     195: invokevirtual #31                 // Method g:()I
+     198: istore_2
+     199: new           #6                  // class java/util/ArrayList
+     202: dup
+     203: invokespecial #25                 // Method java/util/ArrayList."<init>":()V
+     206: astore_3
+     207: getstatic     #16                 // Field rs/d/s.a:Ljava/util/Map;
+     210: invokeinterface #37,  1           // InterfaceMethod java/util/Map.keySet:()Ljava/util/Set;
+     215: invokeinterface #40,  1           // InterfaceMethod java/util/Set.iterator:()Ljava/util/Iterator;
+     220: astore        4
+     222: aload         4
+     224: invokeinterface #32,  1           // InterfaceMethod java/util/Iterator.hasNext:()Z
+     229: ifeq          335
+     232: aload         4
+     234: invokeinterface #33,  1           // InterfaceMethod java/util/Iterator.next:()Ljava/lang/Object;
+     239: checkcast     #2                  // class java/lang/String
+     242: astore        5
+     244: getstatic     #16                 // Field rs/d/s.a:Ljava/util/Map;
+     247: aload         5
+     249: invokeinterface #36,  2           // InterfaceMethod java/util/Map.get:(Ljava/lang/Object;)Ljava/lang/Object;
+     254: checkcast     #13                 // class rs/d/s$a
+     257: getfield      #17                 // Field rs/d/s$a.a:I
+     260: iload_2
+     261: if_icmpne     332
+     264: aload_3
+     265: aload         5
+     267: invokeinterface #34,  2           // InterfaceMethod java/util/List.add:(Ljava/lang/Object;)Z
+     272: pop
+     273: aload_0
+     274: getfield      #23                 // Field c:Lrs/Client;
+     277: getstatic     #16                 // Field rs/d/s.a:Ljava/util/Map;
+     280: aload         5
+     282: invokeinterface #36,  2           // InterfaceMethod java/util/Map.get:(Ljava/lang/Object;)Ljava/lang/Object;
+     287: checkcast     #13                 // class rs/d/s$a
+     290: getfield      #18                 // Field rs/d/s$a.b:I
+     293: getstatic     #16                 // Field rs/d/s.a:Ljava/util/Map;
+     296: aload         5
+     298: invokeinterface #36,  2           // InterfaceMethod java/util/Map.get:(Ljava/lang/Object;)Ljava/lang/Object;
+     303: checkcast     #13                 // class rs/d/s$a
+     306: getfield      #19                 // Field rs/d/s$a.c:I
+     309: iconst_m1
+     310: iconst_0
+     311: bipush        10
+     313: getstatic     #16                 // Field rs/d/s.a:Ljava/util/Map;
+     316: aload         5
+     318: invokeinterface #36,  2           // InterfaceMethod java/util/Map.get:(Ljava/lang/Object;)Ljava/lang/Object;
+     323: checkcast     #13                 // class rs/d/s$a
+     326: getfield      #20                 // Field rs/d/s$a.d:I
+     329: invokevirtual #26                 // Method rs/Client.a:(IIIIII)V
+     332: goto          222
+     335: aload_3
+     336: invokeinterface #35,  1           // InterfaceMethod java/util/List.iterator:()Ljava/util/Iterator;
+     341: astore        4
+     343: aload         4
+     345: invokeinterface #32,  1           // InterfaceMethod java/util/Iterator.hasNext:()Z
+     350: ifeq          379
+     353: aload         4
+     355: invokeinterface #33,  1           // InterfaceMethod java/util/Iterator.next:()Ljava/lang/Object;
+     360: checkcast     #2                  // class java/lang/String
+     363: astore        5
+     365: getstatic     #16                 // Field rs/d/s.a:Ljava/util/Map;
+     368: aload         5
+     370: invokeinterface #39,  2           // InterfaceMethod java/util/Map.remove:(Ljava/lang/Object;)Ljava/lang/Object;
+     375: pop
+     376: goto          343
+     379: return
+}

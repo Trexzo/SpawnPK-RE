@@ -1,0 +1,1038 @@
+public class rs.n.c.d.c {
+  static final java.lang.String a;
+
+  static final java.lang.String b;
+
+  static final int c;
+
+  static final int d;
+
+  static final int e;
+
+  static final int f;
+
+  static final int g;
+
+  public rs.n.c.d.c();
+    Code:
+       0: aload_0
+       1: invokespecial #124                // Method java/lang/Object."<init>":()V
+       4: return
+
+  public static void a(int);
+    Code:
+       0: iload_0
+       1: tableswitch   { // 0 to 4
+                     0: 36
+                     1: 61
+                     2: 86
+                     3: 111
+                     4: 136
+               default: 158
+          }
+      36: sipush        32425
+      39: invokestatic  #161                // Method rs/n/c/d/a.l:(I)Lrs/n/e;
+      42: ldc           #22                 // String <img=375> Ready
+      44: putfield      #122                // Field rs/n/e.at:Ljava/lang/String;
+      47: sipush        32419
+      50: invokestatic  #161                // Method rs/n/c/d/a.l:(I)Lrs/n/e;
+      53: ldc           #51                 // String Mark yourself as ready for the raid!
+      55: putfield      #121                // Field rs/n/e.Q:Ljava/lang/String;
+      58: goto          158
+      61: sipush        32425
+      64: invokestatic  #161                // Method rs/n/c/d/a.l:(I)Lrs/n/e;
+      67: ldc           #23                 // String <img=376> Cancel
+      69: putfield      #122                // Field rs/n/e.at:Ljava/lang/String;
+      72: sipush        32419
+      75: invokestatic  #161                // Method rs/n/c/d/a.l:(I)Lrs/n/e;
+      78: ldc           #39                 // String Cancel your ready status
+      80: putfield      #121                // Field rs/n/e.Q:Ljava/lang/String;
+      83: goto          158
+      86: sipush        32425
+      89: invokestatic  #161                // Method rs/n/c/d/a.l:(I)Lrs/n/e;
+      92: ldc           #25                 // String <img=378> Enter Raid
+      94: putfield      #122                // Field rs/n/e.at:Ljava/lang/String;
+      97: sipush        32419
+     100: invokestatic  #161                // Method rs/n/c/d/a.l:(I)Lrs/n/e;
+     103: ldc           #45                 // String Enter the raid instance lobby
+     105: putfield      #121                // Field rs/n/e.Q:Ljava/lang/String;
+     108: goto          158
+     111: sipush        32425
+     114: invokestatic  #161                // Method rs/n/c/d/a.l:(I)Lrs/n/e;
+     117: ldc           #26                 // String <img=378> Start Mass
+     119: putfield      #122                // Field rs/n/e.at:Ljava/lang/String;
+     122: sipush        32419
+     125: invokestatic  #161                // Method rs/n/c/d/a.l:(I)Lrs/n/e;
+     128: ldc           #63                 // String Start the raid mass (lobby stage)
+     130: putfield      #121                // Field rs/n/e.Q:Ljava/lang/String;
+     133: goto          158
+     136: sipush        32425
+     139: invokestatic  #161                // Method rs/n/c/d/a.l:(I)Lrs/n/e;
+     142: ldc           #19                 // String <img=291> Waiting
+     144: putfield      #122                // Field rs/n/e.at:Ljava/lang/String;
+     147: sipush        32419
+     150: invokestatic  #161                // Method rs/n/c/d/a.l:(I)Lrs/n/e;
+     153: ldc           #65                 // String Waiting for leader..\nYou will be able to join once the\nleader of the mass starts the raid!
+     155: putfield      #121                // Field rs/n/e.Q:Ljava/lang/String;
+     158: return
+
+  public static void a(int, java.lang.String, java.lang.String);
+    Code:
+       0: sipush        32318
+       3: istore_3
+       4: iload_0
+       5: ifne          14
+       8: iinc          3, 1
+      11: goto          120
+      14: iload_3
+      15: iconst_3
+      16: iload_0
+      17: iconst_1
+      18: isub
+      19: iconst_5
+      20: imul
+      21: iadd
+      22: iadd
+      23: istore_3
+      24: iload_3
+      25: invokestatic  #161                // Method rs/n/c/d/a.l:(I)Lrs/n/e;
+      28: getfield      #120                // Field rs/n/e.E:Lrs/l/F;
+      31: getfield      #109                // Field rs/l/F.t:Ljava/lang/String;
+      34: getstatic     #118                // Field rs/n/c/d/a.dy:Lrs/l/F;
+      37: getfield      #109                // Field rs/l/F.t:Ljava/lang/String;
+      40: invokevirtual #126                // Method java/lang/String.equalsIgnoreCase:(Ljava/lang/String;)Z
+      43: ifne          50
+      46: iload_3
+      47: invokestatic  #163                // Method c:(I)V
+      50: aload_2
+      51: getstatic     #108                // Field java/util/Locale.ROOT:Ljava/util/Locale;
+      54: invokevirtual #128                // Method java/lang/String.toLowerCase:(Ljava/util/Locale;)Ljava/lang/String;
+      57: ldc           #74                 // String max
+      59: invokevirtual #125                // Method java/lang/String.contains:(Ljava/lang/CharSequence;)Z
+      62: ifeq          76
+      65: iload_3
+      66: invokestatic  #161                // Method rs/n/c/d/a.l:(I)Lrs/n/e;
+      69: iconst_0
+      70: putfield      #123                // Field rs/n/e.bf:Z
+      73: goto          117
+      76: aload_2
+      77: invokevirtual #127                // Method java/lang/String.toLowerCase:()Ljava/lang/String;
+      80: ldc           #73                 // String invit
+      82: invokevirtual #125                // Method java/lang/String.contains:(Ljava/lang/CharSequence;)Z
+      85: ifeq          100
+      88: iload_3
+      89: invokestatic  #161                // Method rs/n/c/d/a.l:(I)Lrs/n/e;
+      92: ldc           #38                 // String Cancel invitation
+      94: putfield      #121                // Field rs/n/e.Q:Ljava/lang/String;
+      97: goto          109
+     100: iload_3
+     101: invokestatic  #161                // Method rs/n/c/d/a.l:(I)Lrs/n/e;
+     104: ldc           #49                 // String Kick player
+     106: putfield      #121                // Field rs/n/e.Q:Ljava/lang/String;
+     109: iload_3
+     110: invokestatic  #161                // Method rs/n/c/d/a.l:(I)Lrs/n/e;
+     113: iconst_1
+     114: putfield      #123                // Field rs/n/e.bf:Z
+     117: iinc          3, 3
+     120: iload_3
+     121: invokestatic  #161                // Method rs/n/c/d/a.l:(I)Lrs/n/e;
+     124: aload_1
+     125: putfield      #122                // Field rs/n/e.at:Ljava/lang/String;
+     128: aload_2
+     129: getstatic     #108                // Field java/util/Locale.ROOT:Ljava/util/Locale;
+     132: invokevirtual #128                // Method java/lang/String.toLowerCase:(Ljava/util/Locale;)Ljava/lang/String;
+     135: ldc           #74                 // String max
+     137: invokevirtual #125                // Method java/lang/String.contains:(Ljava/lang/CharSequence;)Z
+     140: ifeq          156
+     143: iload_3
+     144: iconst_1
+     145: iadd
+     146: invokestatic  #161                // Method rs/n/c/d/a.l:(I)Lrs/n/e;
+     149: iconst_0
+     150: putfield      #123                // Field rs/n/e.bf:Z
+     153: goto          176
+     156: iload_3
+     157: iconst_1
+     158: iadd
+     159: invokestatic  #161                // Method rs/n/c/d/a.l:(I)Lrs/n/e;
+     162: iconst_1
+     163: putfield      #123                // Field rs/n/e.bf:Z
+     166: iload_3
+     167: iconst_1
+     168: iadd
+     169: invokestatic  #161                // Method rs/n/c/d/a.l:(I)Lrs/n/e;
+     172: aload_2
+     173: putfield      #122                // Field rs/n/e.at:Ljava/lang/String;
+     176: return
+
+  public static void a();
+    Code:
+       0: sipush        32318
+       3: istore_0
+       4: iconst_0
+       5: istore_1
+       6: iload_1
+       7: bipush        20
+       9: if_icmpge     77
+      12: iload_1
+      13: ifne          22
+      16: iinc          0, 1
+      19: goto          37
+      22: iload_0
+      23: invokestatic  #162                // Method b:(I)V
+      26: iload_0
+      27: invokestatic  #161                // Method rs/n/c/d/a.l:(I)Lrs/n/e;
+      30: iconst_1
+      31: putfield      #123                // Field rs/n/e.bf:Z
+      34: iinc          0, 3
+      37: iload_0
+      38: iinc          0, 1
+      41: invokestatic  #161                // Method rs/n/c/d/a.l:(I)Lrs/n/e;
+      44: ldc           #13                 // String ---
+      46: putfield      #122                // Field rs/n/e.at:Ljava/lang/String;
+      49: iload_0
+      50: iinc          0, 1
+      53: invokestatic  #161                // Method rs/n/c/d/a.l:(I)Lrs/n/e;
+      56: ldc           #14                 // String --------
+      58: putfield      #122                // Field rs/n/e.at:Ljava/lang/String;
+      61: iload_0
+      62: iconst_1
+      63: isub
+      64: invokestatic  #161                // Method rs/n/c/d/a.l:(I)Lrs/n/e;
+      67: iconst_1
+      68: putfield      #123                // Field rs/n/e.bf:Z
+      71: iinc          1, 1
+      74: goto          6
+      77: return
+
+  public static void b(int);
+    Code:
+       0: iload_0
+       1: iinc          0, 1
+       4: getstatic     #116                // Field rs/n/c/d/a.dw:Lrs/l/F;
+       7: ldc           #48                 // String Invite a player
+       9: invokestatic  #131                // Method rs/n/a/a.a:(ILrs/l/F;Ljava/lang/String;)Lrs/n/a/a;
+      12: invokevirtual #129                // Method rs/n/a/a.a:()Lrs/n/a/a;
+      15: iload_0
+      16: getstatic     #117                // Field rs/n/c/d/a.dx:Lrs/l/F;
+      19: invokevirtual #134                // Method rs/n/a/a.b:(ILrs/l/F;)Lrs/n/a/b;
+      22: pop
+      23: return
+
+  public static void c(int);
+    Code:
+       0: iload_0
+       1: iinc          0, 1
+       4: getstatic     #118                // Field rs/n/c/d/a.dy:Lrs/l/F;
+       7: ldc           #49                 // String Kick player
+       9: invokestatic  #131                // Method rs/n/a/a.a:(ILrs/l/F;Ljava/lang/String;)Lrs/n/a/a;
+      12: invokevirtual #129                // Method rs/n/a/a.a:()Lrs/n/a/a;
+      15: iload_0
+      16: getstatic     #119                // Field rs/n/c/d/a.dz:Lrs/l/F;
+      19: invokevirtual #134                // Method rs/n/a/a.b:(ILrs/l/F;)Lrs/n/a/b;
+      22: pop
+      23: return
+
+  public static void a(rs.n.d.c);
+    Code:
+       0: aload_0
+       1: sipush        32309
+       4: ldc           #80                 // String raids/bgparty
+       6: invokestatic  #149                // Method rs/n/a/e.a:(ILjava/lang/String;)Lrs/n/a/e;
+       9: invokevirtual #168                // Method rs/n/d/c.a:(Lrs/n/e;)Lrs/n/d/b;
+      12: sipush        32301
+      15: bipush        7
+      17: bipush        43
+      19: invokevirtual #165                // Method rs/n/d/b.a:(III)Lrs/n/d/b;
+      22: pop
+      23: aload_0
+      24: sipush        32310
+      27: ldc           #57                 // String Raid Selection
+      29: invokestatic  #153                // Method rs/n/a/f.a:(ILjava/lang/String;)Lrs/n/a/f;
+      32: invokevirtual #160                // Method rs/n/a/f.o:()Lrs/n/a/f;
+      35: invokevirtual #158                // Method rs/n/a/f.m:()Lrs/n/a/f;
+      38: invokevirtual #168                // Method rs/n/d/c.a:(Lrs/n/e;)Lrs/n/d/b;
+      41: sipush        32309
+      44: bipush        88
+      46: bipush        55
+      48: invokevirtual #165                // Method rs/n/d/b.a:(III)Lrs/n/d/b;
+      51: pop
+      52: aload_0
+      53: sipush        32311
+      56: ldc           #56                 // String Raid Difficulty
+      58: invokestatic  #153                // Method rs/n/a/f.a:(ILjava/lang/String;)Lrs/n/a/f;
+      61: invokevirtual #160                // Method rs/n/a/f.o:()Lrs/n/a/f;
+      64: invokevirtual #158                // Method rs/n/a/f.m:()Lrs/n/a/f;
+      67: invokevirtual #168                // Method rs/n/d/c.a:(Lrs/n/e;)Lrs/n/d/b;
+      70: sipush        32309
+      73: sipush        246
+      76: bipush        55
+      78: invokevirtual #165                // Method rs/n/d/b.a:(III)Lrs/n/d/b;
+      81: pop
+      82: aload_0
+      83: sipush        32312
+      86: ldc           #35                 // String Aff. Tome Coffer
+      88: invokestatic  #153                // Method rs/n/a/f.a:(ILjava/lang/String;)Lrs/n/a/f;
+      91: invokevirtual #160                // Method rs/n/a/f.o:()Lrs/n/a/f;
+      94: invokevirtual #158                // Method rs/n/a/f.m:()Lrs/n/a/f;
+      97: invokevirtual #168                // Method rs/n/d/c.a:(Lrs/n/e;)Lrs/n/d/b;
+     100: sipush        32309
+     103: sipush        419
+     106: bipush        55
+     108: invokevirtual #165                // Method rs/n/d/b.a:(III)Lrs/n/d/b;
+     111: pop
+     112: aload_0
+     113: sipush        32313
+     116: ldc           #55                 // String Party Afflictions
+     118: invokestatic  #153                // Method rs/n/a/f.a:(ILjava/lang/String;)Lrs/n/a/f;
+     121: invokevirtual #160                // Method rs/n/a/f.o:()Lrs/n/a/f;
+     124: invokevirtual #158                // Method rs/n/a/f.m:()Lrs/n/a/f;
+     127: invokevirtual #168                // Method rs/n/d/c.a:(Lrs/n/e;)Lrs/n/d/b;
+     130: sipush        32309
+     133: sipush        439
+     136: sipush        225
+     139: invokevirtual #165                // Method rs/n/d/b.a:(III)Lrs/n/d/b;
+     142: pop
+     143: aload_0
+     144: sipush        32314
+     147: ldc           #53                 // String Members (1/5)
+     149: invokestatic  #153                // Method rs/n/a/f.a:(ILjava/lang/String;)Lrs/n/a/f;
+     152: invokevirtual #155                // Method rs/n/a/f.i:()Lrs/n/a/f;
+     155: invokevirtual #158                // Method rs/n/a/f.m:()Lrs/n/a/f;
+     158: invokevirtual #168                // Method rs/n/d/c.a:(Lrs/n/e;)Lrs/n/d/b;
+     161: sipush        32309
+     164: bipush        14
+     166: bipush        108
+     168: invokevirtual #165                // Method rs/n/d/b.a:(III)Lrs/n/d/b;
+     171: pop
+     172: aload_0
+     173: sipush        32315
+     176: ldc           #42                 // String Current Status
+     178: invokestatic  #153                // Method rs/n/a/f.a:(ILjava/lang/String;)Lrs/n/a/f;
+     181: invokevirtual #155                // Method rs/n/a/f.i:()Lrs/n/a/f;
+     184: invokevirtual #154                // Method rs/n/a/f.c:()Lrs/n/a/f;
+     187: invokevirtual #158                // Method rs/n/a/f.m:()Lrs/n/a/f;
+     190: invokevirtual #168                // Method rs/n/d/c.a:(Lrs/n/e;)Lrs/n/d/b;
+     193: sipush        32309
+     196: sipush        312
+     199: bipush        108
+     201: invokevirtual #165                // Method rs/n/d/b.a:(III)Lrs/n/d/b;
+     204: pop
+     205: aload_0
+     206: sipush        32308
+     209: ldc           #58                 // String Raid: @yel@Grandmaster ToB @gre@(4A)
+     211: invokestatic  #153                // Method rs/n/a/f.a:(ILjava/lang/String;)Lrs/n/a/f;
+     214: invokevirtual #156                // Method rs/n/a/f.j:()Lrs/n/a/f;
+     217: invokevirtual #158                // Method rs/n/a/f.m:()Lrs/n/a/f;
+     220: invokevirtual #168                // Method rs/n/d/c.a:(Lrs/n/e;)Lrs/n/d/b;
+     223: sipush        32309
+     226: bipush        11
+     228: sipush        289
+     231: invokevirtual #165                // Method rs/n/d/b.a:(III)Lrs/n/d/b;
+     234: pop
+     235: aload_0
+     236: sipush        32418
+     239: ldc           #32                 // String <img=88> Public
+     241: invokestatic  #153                // Method rs/n/a/f.a:(ILjava/lang/String;)Lrs/n/a/f;
+     244: invokevirtual #151                // Method rs/n/a/f.a:()Lrs/n/a/f;
+     247: invokevirtual #157                // Method rs/n/a/f.l:()Lrs/n/a/f;
+     250: bipush        51
+     252: invokevirtual #152                // Method rs/n/a/f.a:(I)Lrs/n/a/f;
+     255: invokevirtual #168                // Method rs/n/d/c.a:(Lrs/n/e;)Lrs/n/d/b;
+     258: sipush        32309
+     261: bipush        11
+     263: sipush        307
+     266: invokevirtual #165                // Method rs/n/d/b.a:(III)Lrs/n/d/b;
+     269: pop
+     270: aload_0
+     271: sipush        32585
+     274: ldc           #30                 // String <img=88> Friends only
+     276: invokestatic  #153                // Method rs/n/a/f.a:(ILjava/lang/String;)Lrs/n/a/f;
+     279: invokevirtual #151                // Method rs/n/a/f.a:()Lrs/n/a/f;
+     282: invokevirtual #157                // Method rs/n/a/f.l:()Lrs/n/a/f;
+     285: bipush        100
+     287: invokevirtual #152                // Method rs/n/a/f.a:(I)Lrs/n/a/f;
+     290: invokevirtual #168                // Method rs/n/d/c.a:(Lrs/n/e;)Lrs/n/d/b;
+     293: sipush        32309
+     296: bipush        67
+     298: sipush        307
+     301: invokevirtual #165                // Method rs/n/d/b.a:(III)Lrs/n/d/b;
+     304: pop
+     305: aload_0
+     306: sipush        32586
+     309: ldc           #31                 // String <img=88> Invite only
+     311: invokestatic  #153                // Method rs/n/a/f.a:(ILjava/lang/String;)Lrs/n/a/f;
+     314: invokevirtual #151                // Method rs/n/a/f.a:()Lrs/n/a/f;
+     317: invokevirtual #157                // Method rs/n/a/f.l:()Lrs/n/a/f;
+     320: bipush        100
+     322: invokevirtual #152                // Method rs/n/a/f.a:(I)Lrs/n/a/f;
+     325: invokevirtual #168                // Method rs/n/d/c.a:(Lrs/n/e;)Lrs/n/d/b;
+     328: sipush        32309
+     331: sipush        154
+     334: sipush        307
+     337: invokevirtual #165                // Method rs/n/d/b.a:(III)Lrs/n/d/b;
+     340: pop
+     341: sipush        32316
+     344: invokestatic  #145                // Method rs/n/a/d.a:(I)Lrs/n/a/d;
+     347: sipush        299
+     350: sipush        147
+     353: invokevirtual #146                // Method rs/n/a/d.g:(II)Lrs/n/a/d;
+     356: astore_1
+     357: aload_1
+     358: sipush        364
+     361: invokevirtual #147                // Method rs/n/a/d.m:(I)Lrs/n/a/d;
+     364: pop
+     365: sipush        32317
+     368: istore_2
+     369: aload_1
+     370: iload_2
+     371: iinc          2, 1
+     374: ldc           #8                  // String
+     376: invokestatic  #153                // Method rs/n/a/f.a:(ILjava/lang/String;)Lrs/n/a/f;
+     379: getfield      #114                // Field rs/n/a/f.aw:I
+     382: invokevirtual #148                // Method rs/n/a/d.n:(I)Lrs/n/d/b;
+     385: iconst_0
+     386: iconst_0
+     387: invokevirtual #164                // Method rs/n/d/b.a:(II)Lrs/n/d/b;
+     390: pop
+     391: iconst_0
+     392: istore_3
+     393: iload_3
+     394: bipush        20
+     396: if_icmpge     551
+     399: iload_3
+     400: ifne          430
+     403: iload_2
+     404: getstatic     #115                // Field rs/n/c/d/a.dA:Lrs/l/F;
+     407: invokestatic  #150                // Method rs/n/a/e.b:(ILrs/l/F;)Lrs/n/a/e;
+     410: pop
+     411: aload_1
+     412: iload_2
+     413: iinc          2, 1
+     416: invokevirtual #148                // Method rs/n/a/d.n:(I)Lrs/n/d/b;
+     419: iconst_2
+     420: iload_3
+     421: iconst_4
+     422: iadd
+     423: invokevirtual #164                // Method rs/n/d/b.a:(II)Lrs/n/d/b;
+     426: pop
+     427: goto          471
+     430: iload_2
+     431: invokestatic  #162                // Method b:(I)V
+     434: aload_1
+     435: iload_2
+     436: invokevirtual #148                // Method rs/n/a/d.n:(I)Lrs/n/d/b;
+     439: iconst_1
+     440: iload_3
+     441: bipush        18
+     443: imul
+     444: iconst_4
+     445: iadd
+     446: invokevirtual #164                // Method rs/n/d/b.a:(II)Lrs/n/d/b;
+     449: pop
+     450: aload_1
+     451: iload_2
+     452: iconst_1
+     453: iadd
+     454: invokevirtual #148                // Method rs/n/a/d.n:(I)Lrs/n/d/b;
+     457: iconst_1
+     458: iload_3
+     459: bipush        18
+     461: imul
+     462: iconst_4
+     463: iadd
+     464: invokevirtual #164                // Method rs/n/d/b.a:(II)Lrs/n/d/b;
+     467: pop
+     468: iinc          2, 3
+     471: iload_2
+     472: iinc          2, 1
+     475: ldc           #13                 // String ---
+     477: invokestatic  #153                // Method rs/n/a/f.a:(ILjava/lang/String;)Lrs/n/a/f;
+     480: invokevirtual #151                // Method rs/n/a/f.a:()Lrs/n/a/f;
+     483: invokevirtual #157                // Method rs/n/a/f.l:()Lrs/n/a/f;
+     486: pop
+     487: aload_1
+     488: iload_2
+     489: iconst_1
+     490: isub
+     491: invokevirtual #148                // Method rs/n/a/d.n:(I)Lrs/n/d/b;
+     494: bipush        18
+     496: iload_3
+     497: bipush        18
+     499: imul
+     500: iconst_5
+     501: iadd
+     502: invokevirtual #164                // Method rs/n/d/b.a:(II)Lrs/n/d/b;
+     505: pop
+     506: iload_2
+     507: iinc          2, 1
+     510: ldc           #14                 // String --------
+     512: invokestatic  #153                // Method rs/n/a/f.a:(ILjava/lang/String;)Lrs/n/a/f;
+     515: invokevirtual #151                // Method rs/n/a/f.a:()Lrs/n/a/f;
+     518: invokevirtual #157                // Method rs/n/a/f.l:()Lrs/n/a/f;
+     521: invokevirtual #154                // Method rs/n/a/f.c:()Lrs/n/a/f;
+     524: pop
+     525: aload_1
+     526: iload_2
+     527: iconst_1
+     528: isub
+     529: invokevirtual #148                // Method rs/n/a/d.n:(I)Lrs/n/d/b;
+     532: sipush        296
+     535: iload_3
+     536: bipush        18
+     538: imul
+     539: iconst_5
+     540: iadd
+     541: invokevirtual #164                // Method rs/n/d/b.a:(II)Lrs/n/d/b;
+     544: pop
+     545: iinc          3, 1
+     548: goto          393
+     551: aload_0
+     552: aload_1
+     553: invokevirtual #168                // Method rs/n/d/c.a:(Lrs/n/e;)Lrs/n/d/b;
+     556: sipush        32309
+     559: bipush        13
+     561: bipush        126
+     563: invokevirtual #165                // Method rs/n/d/b.a:(III)Lrs/n/d/b;
+     566: pop
+     567: sipush        32419
+     570: ldc           #89                 // String raids/sprite 8
+     572: ldc           #45                 // String Enter the raid instance lobby
+     574: invokestatic  #133                // Method rs/n/a/a.b:(ILjava/lang/String;Ljava/lang/String;)Lrs/n/a/a;
+     577: invokevirtual #129                // Method rs/n/a/a.a:()Lrs/n/a/a;
+     580: sipush        32420
+     583: ldc           #90                 // String raids/sprite 9
+     585: invokevirtual #130                // Method rs/n/a/a.a:(ILjava/lang/String;)Lrs/n/a/b;
+     588: pop
+     589: sipush        32425
+     592: ldc           #27                 // String <img=401> Enter Raid
+     594: invokestatic  #153                // Method rs/n/a/f.a:(ILjava/lang/String;)Lrs/n/a/f;
+     597: invokevirtual #159                // Method rs/n/a/f.n:()Lrs/n/a/f;
+     600: invokevirtual #158                // Method rs/n/a/f.m:()Lrs/n/a/f;
+     603: pop
+     604: aload_0
+     605: sipush        32419
+     608: invokevirtual #167                // Method rs/n/d/c.a:(I)Lrs/n/d/b;
+     611: sipush        32301
+     614: sipush        261
+     617: sipush        292
+     620: invokevirtual #165                // Method rs/n/d/b.a:(III)Lrs/n/d/b;
+     623: pop
+     624: aload_0
+     625: sipush        32420
+     628: invokevirtual #167                // Method rs/n/d/c.a:(I)Lrs/n/d/b;
+     631: sipush        32301
+     634: sipush        261
+     637: sipush        292
+     640: invokevirtual #165                // Method rs/n/d/b.a:(III)Lrs/n/d/b;
+     643: pop
+     644: aload_0
+     645: sipush        32425
+     648: invokevirtual #167                // Method rs/n/d/c.a:(I)Lrs/n/d/b;
+     651: sipush        32301
+     654: sipush        315
+     657: sipush        297
+     660: invokevirtual #165                // Method rs/n/d/b.a:(III)Lrs/n/d/b;
+     663: pop
+     664: sipush        32422
+     667: ldc           #89                 // String raids/sprite 8
+     669: ldc           #50                 // String Leave the party (disbands if empty)
+     671: invokestatic  #133                // Method rs/n/a/a.b:(ILjava/lang/String;Ljava/lang/String;)Lrs/n/a/a;
+     674: invokevirtual #129                // Method rs/n/a/a.a:()Lrs/n/a/a;
+     677: sipush        32423
+     680: ldc           #90                 // String raids/sprite 9
+     682: invokevirtual #130                // Method rs/n/a/a.a:(ILjava/lang/String;)Lrs/n/a/b;
+     685: pop
+     686: sipush        32426
+     689: ldc           #24                 // String <img=377> Leave
+     691: invokestatic  #153                // Method rs/n/a/f.a:(ILjava/lang/String;)Lrs/n/a/f;
+     694: invokevirtual #159                // Method rs/n/a/f.n:()Lrs/n/a/f;
+     697: invokevirtual #158                // Method rs/n/a/f.m:()Lrs/n/a/f;
+     700: pop
+     701: aload_0
+     702: sipush        32422
+     705: invokevirtual #167                // Method rs/n/d/c.a:(I)Lrs/n/d/b;
+     708: sipush        32301
+     711: sipush        383
+     714: sipush        292
+     717: invokevirtual #165                // Method rs/n/d/b.a:(III)Lrs/n/d/b;
+     720: pop
+     721: aload_0
+     722: sipush        32423
+     725: invokevirtual #167                // Method rs/n/d/c.a:(I)Lrs/n/d/b;
+     728: sipush        32301
+     731: sipush        383
+     734: sipush        292
+     737: invokevirtual #165                // Method rs/n/d/b.a:(III)Lrs/n/d/b;
+     740: pop
+     741: aload_0
+     742: sipush        32426
+     745: invokevirtual #167                // Method rs/n/d/c.a:(I)Lrs/n/d/b;
+     748: sipush        32301
+     751: sipush        437
+     754: sipush        297
+     757: invokevirtual #165                // Method rs/n/d/b.a:(III)Lrs/n/d/b;
+     760: pop
+     761: aload_0
+     762: sipush        32429
+     765: iconst_2
+     766: anewarray     #92                 // class java/lang/String
+     769: dup
+     770: iconst_0
+     771: ldc           #40                 // String Chambers of Xeric <img=185>
+     773: aastore
+     774: dup
+     775: iconst_1
+     776: ldc           #64                 // String Theatre of Blood <img=184>
+     778: aastore
+     779: invokestatic  #138                // Method rs/n/a/a/a.a:(I[Ljava/lang/String;)Lrs/n/a/a/a;
+     782: sipush        155
+     785: iconst_0
+     786: invokevirtual #140                // Method rs/n/a/a/a.h:(II)Lrs/n/a/a/a;
+     789: ldc           #7                  // int 16777215
+     791: ldc           #6                  // int 16750623
+     793: invokevirtual #139                // Method rs/n/a/a/a.g:(II)Lrs/n/a/a/a;
+     796: invokevirtual #168                // Method rs/n/d/c.a:(Lrs/n/e;)Lrs/n/d/b;
+     799: sipush        32309
+     802: bipush        12
+     804: bipush        74
+     806: invokevirtual #165                // Method rs/n/d/b.a:(III)Lrs/n/d/b;
+     809: pop
+     810: aload_0
+     811: sipush        32430
+     814: iconst_5
+     815: anewarray     #92                 // class java/lang/String
+     818: dup
+     819: iconst_0
+     820: ldc           #54                 // String Normal (No reqs.)
+     822: aastore
+     823: dup
+     824: iconst_1
+     825: ldc           #34                 // String Adept (Req. 10+ raids)
+     827: aastore
+     828: dup
+     829: iconst_2
+     830: ldc           #46                 // String Expert (Req. 50+ raids)
+     832: aastore
+     833: dup
+     834: iconst_3
+     835: ldc           #52                 // String Master (Req. 100+ raids)
+     837: aastore
+     838: dup
+     839: iconst_4
+     840: ldc           #47                 // String Grandmaster (Req. 250+)
+     842: aastore
+     843: invokestatic  #138                // Method rs/n/a/a/a.a:(I[Ljava/lang/String;)Lrs/n/a/a/a;
+     846: sipush        155
+     849: iconst_0
+     850: invokevirtual #140                // Method rs/n/a/a/a.h:(II)Lrs/n/a/a/a;
+     853: ldc           #7                  // int 16777215
+     855: ldc           #6                  // int 16750623
+     857: invokevirtual #139                // Method rs/n/a/a/a.g:(II)Lrs/n/a/a/a;
+     860: invokevirtual #168                // Method rs/n/d/c.a:(Lrs/n/e;)Lrs/n/d/b;
+     863: sipush        32309
+     866: sipush        171
+     869: bipush        74
+     871: invokevirtual #165                // Method rs/n/d/b.a:(III)Lrs/n/d/b;
+     874: pop
+     875: sipush        32430
+     878: invokestatic  #161                // Method rs/n/c/d/a.l:(I)Lrs/n/e;
+     881: checkcast     #97                 // class rs/n/a/a/a
+     884: astore_3
+     885: aload_3
+     886: invokevirtual #141                // Method rs/n/a/a/a.i:()Ljava/util/List;
+     889: iconst_1
+     890: invokeinterface #169,  2          // InterfaceMethod java/util/List.get:(I)Ljava/lang/Object;
+     895: checkcast     #98                 // class rs/n/a/a/d
+     898: ldc           #9                  // String  Adept difficulty\n- +5% rare reward chance\n- Bosses have 50% more HP\n- Bosses have 10% more defence\n- Bosses deal 5% more damage\n- You deal 5% less damage
+     900: invokevirtual #142                // Method rs/n/a/a/d.b:(Ljava/lang/String;)V
+     903: aload_3
+     904: invokevirtual #141                // Method rs/n/a/a/a.i:()Ljava/util/List;
+     907: iconst_2
+     908: invokeinterface #169,  2          // InterfaceMethod java/util/List.get:(I)Ljava/lang/Object;
+     913: checkcast     #98                 // class rs/n/a/a/d
+     916: ldc           #10                 // String  Expert difficulty\n- +25% rare reward chance\n- Bosses have 200% more HP\n- Bosses have 20% more defence\n- Bosses deal 7.5% more damage\n- You deal 7.5% less damage
+     918: invokevirtual #142                // Method rs/n/a/a/d.b:(Ljava/lang/String;)V
+     921: aload_3
+     922: invokevirtual #141                // Method rs/n/a/a/a.i:()Ljava/util/List;
+     925: iconst_3
+     926: invokeinterface #169,  2          // InterfaceMethod java/util/List.get:(I)Ljava/lang/Object;
+     931: checkcast     #98                 // class rs/n/a/a/d
+     934: ldc           #12                 // String  Master difficulty\n- Receive +2 common rewards\n- +50% rare reward chance\n- Bosses have 300% more HP\n- Bosses have 30% more defence\n- Bosses deal 10% more damage\n- You deal 10% less damage
+     936: invokevirtual #142                // Method rs/n/a/a/d.b:(Ljava/lang/String;)V
+     939: aload_3
+     940: invokevirtual #141                // Method rs/n/a/a/a.i:()Ljava/util/List;
+     943: iconst_4
+     944: invokeinterface #169,  2          // InterfaceMethod java/util/List.get:(I)Ljava/lang/Object;
+     949: checkcast     #98                 // class rs/n/a/a/d
+     952: ldc           #11                 // String  Grandmaster difficulty\n- Receive +3 common rewards\n- +75% rare reward chance\n- Bosses have 400% more HP\n- Bosses have 50% more defence\n- Bosses deal 15% more damage\n- You deal 15% less damage
+     954: invokevirtual #142                // Method rs/n/a/a/d.b:(Ljava/lang/String;)V
+     957: sipush        32427
+     960: iconst_1
+     961: invokestatic  #144                // Method rs/n/a/c.g:(II)Lrs/n/a/c;
+     964: iconst_1
+     965: invokevirtual #143                // Method rs/n/a/c.a:(I)Lrs/n/a/c;
+     968: astore        4
+     970: aload         4
+     972: iconst_1
+     973: putfield      #112                // Field rs/n/a/c.bE:Z
+     976: aload         4
+     978: iconst_1
+     979: putfield      #113                // Field rs/n/a/c.bF:Z
+     982: aload         4
+     984: getfield      #111                // Field rs/n/a/c.az:[I
+     987: iconst_0
+     988: sipush        6750
+     991: iastore
+     992: aload         4
+     994: getfield      #110                // Field rs/n/a/c.ax:[I
+     997: iconst_0
+     998: iconst_0
+     999: iastore
+    1000: aload_0
+    1001: sipush        32427
+    1004: invokevirtual #167                // Method rs/n/d/c.a:(I)Lrs/n/d/b;
+    1007: sipush        32301
+    1010: sipush        383
+    1013: bipush        82
+    1015: invokevirtual #165                // Method rs/n/d/b.a:(III)Lrs/n/d/b;
+    1018: pop
+    1019: aload_0
+    1020: sipush        32531
+    1023: ldc           #69                 // String bank/bank 17
+    1025: ldc           #44                 // String Deposit all tomes from inventory
+    1027: invokestatic  #133                // Method rs/n/a/a.b:(ILjava/lang/String;Ljava/lang/String;)Lrs/n/a/a;
+    1030: invokevirtual #129                // Method rs/n/a/a.a:()Lrs/n/a/a;
+    1033: ldc           #70                 // String bank/bank 18
+    1035: invokevirtual #136                // Method rs/n/a/a.c:(Ljava/lang/String;)Lrs/n/a/a;
+    1038: invokevirtual #168                // Method rs/n/d/c.a:(Lrs/n/e;)Lrs/n/d/b;
+    1041: sipush        32301
+    1044: sipush        437
+    1047: bipush        73
+    1049: invokevirtual #165                // Method rs/n/d/b.a:(III)Lrs/n/d/b;
+    1052: pop
+    1053: aload_0
+    1054: sipush        32534
+    1057: ldc           #71                 // String bank/bank 31
+    1059: ldc           #43                 // String Deposit all tomes from bank
+    1061: invokestatic  #133                // Method rs/n/a/a.b:(ILjava/lang/String;Ljava/lang/String;)Lrs/n/a/a;
+    1064: invokevirtual #129                // Method rs/n/a/a.a:()Lrs/n/a/a;
+    1067: ldc           #72                 // String bank/bank 32
+    1069: invokevirtual #136                // Method rs/n/a/a.c:(Ljava/lang/String;)Lrs/n/a/a;
+    1072: invokevirtual #168                // Method rs/n/d/c.a:(Lrs/n/e;)Lrs/n/d/b;
+    1075: sipush        32301
+    1078: sipush        437
+    1081: bipush        98
+    1083: invokevirtual #165                // Method rs/n/d/b.a:(III)Lrs/n/d/b;
+    1086: pop
+    1087: aload_0
+    1088: sipush        32546
+    1091: ldc           #81                 // String raids/btn1a
+    1093: ldc           #62                 // String Select
+    1095: invokestatic  #133                // Method rs/n/a/a.b:(ILjava/lang/String;Ljava/lang/String;)Lrs/n/a/a;
+    1098: ldc           #82                 // String raids/btn1b
+    1100: invokevirtual #136                // Method rs/n/a/a.c:(Ljava/lang/String;)Lrs/n/a/a;
+    1103: invokevirtual #168                // Method rs/n/d/c.a:(Lrs/n/e;)Lrs/n/d/b;
+    1106: sipush        32301
+    1109: sipush        356
+    1112: sipush        130
+    1115: invokevirtual #165                // Method rs/n/d/b.a:(III)Lrs/n/d/b;
+    1118: pop
+    1119: aload_0
+    1120: sipush        32561
+    1123: ldc           #36                 // String Buy x25:@gre@ <tab=55><item=10834>2,500
+    1125: invokestatic  #153                // Method rs/n/a/f.a:(ILjava/lang/String;)Lrs/n/a/f;
+    1128: invokevirtual #151                // Method rs/n/a/f.a:()Lrs/n/a/f;
+    1131: invokevirtual #158                // Method rs/n/a/f.m:()Lrs/n/a/f;
+    1134: invokevirtual #168                // Method rs/n/d/c.a:(Lrs/n/e;)Lrs/n/d/b;
+    1137: sipush        32546
+    1140: bipush        7
+    1142: bipush        7
+    1144: invokevirtual #166                // Method rs/n/d/b.b:(III)Lrs/n/d/b;
+    1147: pop
+    1148: aload_0
+    1149: sipush        32549
+    1152: ldc           #81                 // String raids/btn1a
+    1154: ldc           #62                 // String Select
+    1156: invokestatic  #133                // Method rs/n/a/a.b:(ILjava/lang/String;Ljava/lang/String;)Lrs/n/a/a;
+    1159: ldc           #82                 // String raids/btn1b
+    1161: invokevirtual #136                // Method rs/n/a/a.c:(Ljava/lang/String;)Lrs/n/a/a;
+    1164: invokevirtual #168                // Method rs/n/d/c.a:(Lrs/n/e;)Lrs/n/d/b;
+    1167: sipush        32301
+    1170: sipush        356
+    1173: sipush        158
+    1176: invokevirtual #165                // Method rs/n/d/b.a:(III)Lrs/n/d/b;
+    1179: pop
+    1180: aload_0
+    1181: sipush        32562
+    1184: ldc           #37                 // String Buy x50:@gre@ <tab=55><item=10834>4,500
+    1186: invokestatic  #153                // Method rs/n/a/f.a:(ILjava/lang/String;)Lrs/n/a/f;
+    1189: invokevirtual #151                // Method rs/n/a/f.a:()Lrs/n/a/f;
+    1192: invokevirtual #158                // Method rs/n/a/f.m:()Lrs/n/a/f;
+    1195: invokevirtual #168                // Method rs/n/d/c.a:(Lrs/n/e;)Lrs/n/d/b;
+    1198: sipush        32549
+    1201: bipush        7
+    1203: bipush        7
+    1205: invokevirtual #166                // Method rs/n/d/b.b:(III)Lrs/n/d/b;
+    1208: pop
+    1209: aload_0
+    1210: sipush        32564
+    1213: ldc           #66                 // String What are Afflictions?
+    1215: invokestatic  #153                // Method rs/n/a/f.a:(ILjava/lang/String;)Lrs/n/a/f;
+    1218: sipush        133
+    1221: invokevirtual #152                // Method rs/n/a/f.a:(I)Lrs/n/a/f;
+    1224: invokevirtual #160                // Method rs/n/a/f.o:()Lrs/n/a/f;
+    1227: invokevirtual #157                // Method rs/n/a/f.l:()Lrs/n/a/f;
+    1230: invokevirtual #168                // Method rs/n/d/c.a:(Lrs/n/e;)Lrs/n/d/b;
+    1233: sipush        32301
+    1236: sipush        352
+    1239: sipush        192
+    1242: invokevirtual #165                // Method rs/n/d/b.a:(III)Lrs/n/d/b;
+    1245: pop
+    1246: aload_0
+    1247: sipush        32596
+    1250: ldc           #87                 // String raids/refresh 1
+    1252: ldc           #59                 // String Reload last settings
+    1254: invokestatic  #133                // Method rs/n/a/a.b:(ILjava/lang/String;Ljava/lang/String;)Lrs/n/a/a;
+    1257: ldc           #60                 // String Reload last settings\nApply the same raid type and\ndifficulty as your last instance
+    1259: invokevirtual #137                // Method rs/n/a/a.d:(Ljava/lang/String;)Lrs/n/a/a;
+    1262: ldc           #88                 // String raids/refresh 2
+    1264: invokevirtual #132                // Method rs/n/a/a.a:(Ljava/lang/String;)Lrs/n/e;
+    1267: invokevirtual #168                // Method rs/n/d/c.a:(Lrs/n/e;)Lrs/n/d/b;
+    1270: sipush        32301
+    1273: sipush        487
+    1276: bipush        43
+    1278: invokevirtual #166                // Method rs/n/d/b.b:(III)Lrs/n/d/b;
+    1281: pop
+    1282: sipush        32458
+    1285: iconst_1
+    1286: invokestatic  #144                // Method rs/n/a/c.g:(II)Lrs/n/a/c;
+    1289: iconst_1
+    1290: invokevirtual #143                // Method rs/n/a/c.a:(I)Lrs/n/a/c;
+    1293: astore        5
+    1295: aload         5
+    1297: iconst_1
+    1298: putfield      #112                // Field rs/n/a/c.bE:Z
+    1301: aload         5
+    1303: iconst_1
+    1304: putfield      #113                // Field rs/n/a/c.bF:Z
+    1307: aload         5
+    1309: getfield      #111                // Field rs/n/a/c.az:[I
+    1312: iconst_0
+    1313: sipush        6750
+    1316: iastore
+    1317: aload         5
+    1319: getfield      #110                // Field rs/n/a/c.ax:[I
+    1322: iconst_0
+    1323: iconst_0
+    1324: iastore
+    1325: aload_0
+    1326: sipush        32458
+    1329: invokevirtual #167                // Method rs/n/d/c.a:(I)Lrs/n/d/b;
+    1332: sipush        32301
+    1335: sipush        341
+    1338: sipush        227
+    1341: invokevirtual #165                // Method rs/n/d/b.a:(III)Lrs/n/d/b;
+    1344: pop
+    1345: aload_0
+    1346: sipush        32459
+    1349: ldc           #76                 // String misc/donor 11
+    1351: ldc           #61                 // String Remove affliction tome(s)
+    1353: invokestatic  #133                // Method rs/n/a/a.b:(ILjava/lang/String;Ljava/lang/String;)Lrs/n/a/a;
+    1356: invokevirtual #129                // Method rs/n/a/a.a:()Lrs/n/a/a;
+    1359: ldc           #77                 // String misc/donor 12
+    1361: invokevirtual #136                // Method rs/n/a/a.c:(Ljava/lang/String;)Lrs/n/a/a;
+    1364: invokevirtual #168                // Method rs/n/d/c.a:(Lrs/n/e;)Lrs/n/d/b;
+    1367: sipush        32458
+    1370: bipush        -2
+    1372: bipush        32
+    1374: invokevirtual #166                // Method rs/n/d/b.b:(III)Lrs/n/d/b;
+    1377: pop
+    1378: aload_0
+    1379: sipush        32462
+    1382: ldc           #78                 // String misc/donor 9
+    1384: ldc           #33                 // String Add affliction tome(s)
+    1386: invokestatic  #133                // Method rs/n/a/a.b:(ILjava/lang/String;Ljava/lang/String;)Lrs/n/a/a;
+    1389: invokevirtual #129                // Method rs/n/a/a.a:()Lrs/n/a/a;
+    1392: ldc           #75                 // String misc/donor 10
+    1394: invokevirtual #136                // Method rs/n/a/a.c:(Ljava/lang/String;)Lrs/n/a/a;
+    1397: invokevirtual #168                // Method rs/n/d/c.a:(Lrs/n/e;)Lrs/n/d/b;
+    1400: sipush        32458
+    1403: bipush        19
+    1405: bipush        32
+    1407: invokevirtual #166                // Method rs/n/d/b.b:(III)Lrs/n/d/b;
+    1410: pop
+    1411: aload_0
+    1412: sipush        32465
+    1415: ldc           #79                 // String raids/affbar1
+    1417: invokestatic  #149                // Method rs/n/a/e.a:(ILjava/lang/String;)Lrs/n/a/e;
+    1420: invokevirtual #168                // Method rs/n/d/c.a:(Lrs/n/e;)Lrs/n/d/b;
+    1423: sipush        32458
+    1426: bipush        42
+    1428: bipush        16
+    1430: invokevirtual #166                // Method rs/n/d/b.b:(III)Lrs/n/d/b;
+    1433: pop
+    1434: aload_0
+    1435: sipush        32595
+    1438: ldc           #85                 // String raids/close1
+    1440: ldc           #41                 // String Close interface
+    1442: invokestatic  #133                // Method rs/n/a/a.b:(ILjava/lang/String;Ljava/lang/String;)Lrs/n/a/a;
+    1445: ldc           #86                 // String raids/close2
+    1447: invokevirtual #135                // Method rs/n/a/a.b:(Ljava/lang/String;)Lrs/n/a/a;
+    1450: invokevirtual #168                // Method rs/n/d/c.a:(Lrs/n/e;)Lrs/n/d/b;
+    1453: sipush        32301
+    1456: sipush        493
+    1459: iconst_3
+    1460: invokevirtual #166                // Method rs/n/d/b.b:(III)Lrs/n/d/b;
+    1463: pop
+    1464: return
+
+  public static void b(rs.n.d.c);
+    Code:
+       0: aload_0
+       1: sipush        32570
+       4: ldc           #68                 // String You\'re not currently in a raid party!
+       6: invokestatic  #153                // Method rs/n/a/f.a:(ILjava/lang/String;)Lrs/n/a/f;
+       9: invokevirtual #159                // Method rs/n/a/f.n:()Lrs/n/a/f;
+      12: invokevirtual #157                // Method rs/n/a/f.l:()Lrs/n/a/f;
+      15: invokevirtual #168                // Method rs/n/d/c.a:(Lrs/n/e;)Lrs/n/d/b;
+      18: sipush        32301
+      21: sipush        250
+      24: bipush        116
+      26: invokevirtual #166                // Method rs/n/d/b.b:(III)Lrs/n/d/b;
+      29: pop
+      30: aload_0
+      31: sipush        32571
+      34: ldc           #67                 // String Would you like to create your own party? Or join an existing one..
+      36: invokestatic  #153                // Method rs/n/a/f.a:(ILjava/lang/String;)Lrs/n/a/f;
+      39: invokevirtual #160                // Method rs/n/a/f.o:()Lrs/n/a/f;
+      42: invokevirtual #157                // Method rs/n/a/f.l:()Lrs/n/a/f;
+      45: invokevirtual #168                // Method rs/n/d/c.a:(Lrs/n/e;)Lrs/n/d/b;
+      48: sipush        32570
+      51: iconst_0
+      52: bipush        21
+      54: invokevirtual #166                // Method rs/n/d/b.b:(III)Lrs/n/d/b;
+      57: pop
+      58: aload_0
+      59: sipush        32574
+      62: ldc           #83                 // String raids/btn3a
+      64: ldc           #62                 // String Select
+      66: invokestatic  #133                // Method rs/n/a/a.b:(ILjava/lang/String;Ljava/lang/String;)Lrs/n/a/a;
+      69: ldc           #18                 // String <img=17> Create Public\nYour party will be publicly listed and\navailable to players via the \"Join\" tab.
+      71: invokevirtual #137                // Method rs/n/a/a.d:(Ljava/lang/String;)Lrs/n/a/a;
+      74: ldc           #84                 // String raids/btn3b
+      76: invokevirtual #136                // Method rs/n/a/a.c:(Ljava/lang/String;)Lrs/n/a/a;
+      79: invokevirtual #168                // Method rs/n/d/c.a:(Lrs/n/e;)Lrs/n/d/b;
+      82: sipush        32570
+      85: sipush        -212
+      88: bipush        51
+      90: invokevirtual #166                // Method rs/n/d/b.b:(III)Lrs/n/d/b;
+      93: pop
+      94: aload_0
+      95: sipush        32572
+      98: ldc           #15                 // String <img=17> Create @gre@(Public)
+     100: invokestatic  #153                // Method rs/n/a/f.a:(ILjava/lang/String;)Lrs/n/a/f;
+     103: invokevirtual #160                // Method rs/n/a/f.o:()Lrs/n/a/f;
+     106: invokevirtual #158                // Method rs/n/a/f.m:()Lrs/n/a/f;
+     109: invokevirtual #168                // Method rs/n/d/c.a:(Lrs/n/e;)Lrs/n/d/b;
+     112: sipush        32574
+     115: bipush        69
+     117: bipush        17
+     119: invokevirtual #166                // Method rs/n/d/b.b:(III)Lrs/n/d/b;
+     122: pop
+     123: aload_0
+     124: sipush        32577
+     127: ldc           #83                 // String raids/btn3a
+     129: ldc           #62                 // String Select
+     131: invokestatic  #133                // Method rs/n/a/a.b:(ILjava/lang/String;Ljava/lang/String;)Lrs/n/a/a;
+     134: ldc           #17                 // String <img=17> Create Private\nYour party will only be joinable by\nplayers in your friend\'s list
+     136: invokevirtual #137                // Method rs/n/a/a.d:(Ljava/lang/String;)Lrs/n/a/a;
+     139: ldc           #84                 // String raids/btn3b
+     141: invokevirtual #136                // Method rs/n/a/a.c:(Ljava/lang/String;)Lrs/n/a/a;
+     144: invokevirtual #168                // Method rs/n/d/c.a:(Lrs/n/e;)Lrs/n/d/b;
+     147: sipush        32570
+     150: bipush        -67
+     152: bipush        51
+     154: invokevirtual #166                // Method rs/n/d/b.b:(III)Lrs/n/d/b;
+     157: pop
+     158: aload_0
+     159: sipush        32573
+     162: ldc           #16                 // String <img=17> Create @or3@(Private)
+     164: invokestatic  #153                // Method rs/n/a/f.a:(ILjava/lang/String;)Lrs/n/a/f;
+     167: invokevirtual #160                // Method rs/n/a/f.o:()Lrs/n/a/f;
+     170: invokevirtual #158                // Method rs/n/a/f.m:()Lrs/n/a/f;
+     173: invokevirtual #168                // Method rs/n/d/c.a:(Lrs/n/e;)Lrs/n/d/b;
+     176: sipush        32577
+     179: bipush        69
+     181: bipush        17
+     183: invokevirtual #166                // Method rs/n/d/b.b:(III)Lrs/n/d/b;
+     186: pop
+     187: aload_0
+     188: sipush        32580
+     191: ldc           #83                 // String raids/btn3a
+     193: ldc           #62                 // String Select
+     195: invokestatic  #133                // Method rs/n/a/a.b:(ILjava/lang/String;Ljava/lang/String;)Lrs/n/a/a;
+     198: ldc           #29                 // String <img=80> Join Private\nEnter the username of a friend\nto join their private raid party
+     200: invokevirtual #137                // Method rs/n/a/a.d:(Ljava/lang/String;)Lrs/n/a/a;
+     203: ldc           #84                 // String raids/btn3b
+     205: invokevirtual #136                // Method rs/n/a/a.c:(Ljava/lang/String;)Lrs/n/a/a;
+     208: invokevirtual #168                // Method rs/n/d/c.a:(Lrs/n/e;)Lrs/n/d/b;
+     211: sipush        32570
+     214: bipush        78
+     216: bipush        51
+     218: invokevirtual #166                // Method rs/n/d/b.b:(III)Lrs/n/d/b;
+     221: pop
+     222: aload_0
+     223: sipush        32583
+     226: ldc           #28                 // String <img=80> Join Private
+     228: invokestatic  #153                // Method rs/n/a/f.a:(ILjava/lang/String;)Lrs/n/a/f;
+     231: invokevirtual #160                // Method rs/n/a/f.o:()Lrs/n/a/f;
+     234: invokevirtual #158                // Method rs/n/a/f.m:()Lrs/n/a/f;
+     237: invokevirtual #168                // Method rs/n/d/c.a:(Lrs/n/e;)Lrs/n/d/b;
+     240: sipush        32580
+     243: bipush        69
+     245: bipush        17
+     247: invokevirtual #166                // Method rs/n/d/b.b:(III)Lrs/n/d/b;
+     250: pop
+     251: aload_0
+     252: sipush        19611
+     255: ldc           #83                 // String raids/btn3a
+     257: ldc           #62                 // String Select
+     259: invokestatic  #133                // Method rs/n/a/a.b:(ILjava/lang/String;Ljava/lang/String;)Lrs/n/a/a;
+     262: ldc           #21                 // String <img=2> Start Mass\nCreate a special public party with a huge capacity!\nIn addition, mass raids let all players\nparticipate in any difficulty (req. bypass)\n\nNOTE: This button is only visible\nto accounts with authorization
+     264: invokevirtual #137                // Method rs/n/a/a.d:(Ljava/lang/String;)Lrs/n/a/a;
+     267: ldc           #84                 // String raids/btn3b
+     269: invokevirtual #136                // Method rs/n/a/a.c:(Ljava/lang/String;)Lrs/n/a/a;
+     272: invokevirtual #168                // Method rs/n/d/c.a:(Lrs/n/e;)Lrs/n/d/b;
+     275: sipush        32570
+     278: bipush        -67
+     280: bipush        116
+     282: invokevirtual #166                // Method rs/n/d/b.b:(III)Lrs/n/d/b;
+     285: pop
+     286: aload_0
+     287: sipush        32587
+     290: ldc           #20                 // String <img=2> Create @mag@(Mass)
+     292: invokestatic  #153                // Method rs/n/a/f.a:(ILjava/lang/String;)Lrs/n/a/f;
+     295: invokevirtual #160                // Method rs/n/a/f.o:()Lrs/n/a/f;
+     298: invokevirtual #158                // Method rs/n/a/f.m:()Lrs/n/a/f;
+     301: invokevirtual #168                // Method rs/n/d/c.a:(Lrs/n/e;)Lrs/n/d/b;
+     304: sipush        19611
+     307: bipush        69
+     309: bipush        17
+     311: invokevirtual #166                // Method rs/n/d/b.b:(III)Lrs/n/d/b;
+     314: pop
+     315: aload_0
+     316: sipush        32595
+     319: ldc           #85                 // String raids/close1
+     321: ldc           #41                 // String Close interface
+     323: invokestatic  #133                // Method rs/n/a/a.b:(ILjava/lang/String;Ljava/lang/String;)Lrs/n/a/a;
+     326: ldc           #86                 // String raids/close2
+     328: invokevirtual #135                // Method rs/n/a/a.b:(Ljava/lang/String;)Lrs/n/a/a;
+     331: invokevirtual #168                // Method rs/n/d/c.a:(Lrs/n/e;)Lrs/n/d/b;
+     334: sipush        32301
+     337: sipush        493
+     340: iconst_3
+     341: invokevirtual #166                // Method rs/n/d/b.b:(III)Lrs/n/d/b;
+     344: pop
+     345: return
+}

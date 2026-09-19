@@ -1,0 +1,26 @@
+V4.1 LIVE DECODER FORENSIC REPLAY
+=================================
+
+Source: user-supplied v4 localhost runtime log (2026-09-14)
+Pinned client: 6232bae206846a4ba8d09766a2dee886b69016066a3f50f83b201bf705f93662
+Login ISAAC seeds: [8044414,81717801,19088743,-1985229329]
+
+Observed first failure:
+CLIENT_PACKET_UNKNOWN seq=81 opcode=226 encoded=185 payloadLen=UNKNOWN decoder=PAUSED
+
+Captured bytes after that event: 601
+First raw bytes:
+0F E5 62 F0 1E 06 9C 02 3C A8 1B DA E5 FA F0 D9 ...
+
+Current-client static reconciliation:
+- C2S 226 = VARBYTE opaque periodic telemetry.
+- C2S 36  = FIXED4 opaque periodic movement/checksum telemetry.
+
+Replay result:
+- after framing 226 exactly, replay remains aligned until a later opcode 36;
+- after framing opcode 36 as exact fixed-4, the entire remaining captured byte tail decodes to its end;
+- later decoded traffic includes focus changes, movement 164/98, bank object 132, close 130, 77/226 telemetry and zero-length keepalives;
+- no additional unknown opcode occurs in the captured tail.
+
+Conclusion:
+The v4 freeze captured in this run is explained by missing framing support for 226, followed by 36. v4.1 adds both schemas and keeps them state-observing only.

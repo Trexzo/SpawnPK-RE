@@ -1,0 +1,47 @@
+group	regions	regionIds	minWorldX	maxWorldX	minWorldY	maxWorldY	names	sourceTypes
+xeric	10	12889 13137 13138 13139 13140 13141 13393 13394 13395 13397	3200	3391	5184	5759	Xeric | Xeric olm	osrs
+osrs_falador	4	16190 16191 16446 16447	4032	4159	3968	4095	Falador chunk	osrs
+white_portal	4	13130 13131 13386 13387	3264	3391	4736	4863		
+bs_cave	2	12946 13202	3200	3327	9344	9407	Blood slayer cave	
+clan_wars_4	2	12622 12623	3136	3199	4992	5119	cwars4a | cwars4b	
+clan_wars_8	2	13641 13642	3392	3455	4672	4799	cwars8a | cwars8b	osrs
+mythic_zone	2	16175 16176	4032	4095	3008	3135	Mythic Dzone	osrs
+tob_maiden	2	12613 12869	3136	3263	4416	4479	tob_maiden	osrs
+vintage_dungeon	2	12693 12949	3136	3263	9536	9599	Vintage dungeon 2	osrs
+araxxor_lair	1	16193	4032	4095	4160	4223	araxxor_lair	osrs
+c_mimic_lair	1	16187	4032	4095	3776	3839	Cursed lair	osrs
+c_mimic_lobby	1	16189	4032	4095	3904	3967	Cursed lobby	osrs
+callisto	1	16172	4032	4095	2816	2879	Callisto's den	osrs
+clan_wars_1	1	13644	3392	3455	4864	4927	cwars1	osrs
+clan_wars_2	1	13645	3392	3455	4928	4991	cwars2	osrs
+clan_wars_3	1	12621	3136	3199	4928	4991	cwars3	osrs
+clan_wars_5	1	13647	3392	3455	5056	5119	cwars5	osrs
+clan_wars_6	1	13646	3392	3455	4992	5055	cwars6	osrs
+clan_wars_7	1	13133	3264	3327	4928	4991	cwars7	osrs
+cosmic_zone	1	16174	4032	4095	2944	3007	Cosmic Dzone	osrs
+dzone	1	16177	4032	4095	3136	3199	Regular Dzone	osrs
+esc_cave	1	15911	3968	4031	2496	2559	Escape cave	osrs
+ezone	1	16178	4032	4095	3200	3263	Elite Dzone	osrs
+gamble	1	16185	4032	4095	3648	3711	Gamble	osrs
+mage_bank	1	10057	2496	2559	4672	4735		
+mimic_lair	1	16183	4032	4095	3520	3583	Mimic lair	osrs
+nex_lair	1	11601	2880	2943	5184	5247		
+sponsorzone	1	16180	4032	4095	3328	3391	Sponsor Dzone	osrs
+toa_akkha	1	16224	4032	4095	6144	6207	toa_akkha	osrs
+toa_baba	1	16228	4032	4095	6400	6463	toa_baba	osrs
+toa_eldinis	1	16234	4032	4095	6784	6847	toa_eldinis	osrs
+toa_kephri	1	16230	4032	4095	6528	6591	toa_kephri	osrs
+toa_lobby1	1	16226	4032	4095	6272	6335	toa_lobby1	osrs
+toa_reward	1	16238	4032	4095	7040	7103	toa_reward	osrs
+toa_tumeken	1	16236	4032	4095	6912	6975	toa_tumeken	osrs
+toa_zebak	1	16232	4032	4095	6656	6719	toa_zebak	osrs
+tob_bloat	1	13125	3264	3327	4416	4479	tob_bloat	osrs
+tob_nylocas	1	13122	3264	3327	4224	4287	tob_nylocas	osrs
+tob_reward	1	12867	3200	3263	4288	4351	tob_reward	osrs
+tob_verzik	1	12611	3136	3199	4288	4351	tob_verzik	osrs
+tob_xarpus	1	12612	3136	3199	4352	4415	tob_xarpus	osrs
+venenatis	1	16170	4032	4095	2688	2751	Silk chasm	osrs
+vetion	1	16168	4032	4095	2560	2623	Vetion's Rest	osrs
+vintage_dungeon_exit	1	11166	2752	2815	10112	10175		
+vipzone	1	16179	4032	4095	3264	3327	VIP Dzone	osrs
+votelair	1	16181	4032	4095	3392	3455	Vote boss	osrs

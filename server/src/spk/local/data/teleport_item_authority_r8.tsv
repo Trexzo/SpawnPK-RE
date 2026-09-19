@@ -1,0 +1,22 @@
+item_id	name	actions	hover	source	candidate_count	custom_region_candidates
+6804	Kharazi teleport	Inspect | Drop		bulk_item_definition_census	0	
+8013	Teleport to house			bulk_item_definition_census	0	
+20473	Wilderness cloak	Wear | Teleport		bulk_item_definition_census	0	
+20993	Shilo village teletab	Break		bulk_item_definition_census	0	
+20994	Demon island teletab	Break		bulk_item_definition_census	0	
+21016	Saradomin max cape	Wear | Teleports | Features		bulk_item_definition_census	0	
+21146	Vorkath max cape	Wear | Teleports | Disassemble		bulk_item_definition_census	0	
+21149	Vorkath teleport	Teleport | Drop		bulk_item_definition_census	0	
+21589	Revenant cave teleport	Teleport		bulk_item_definition_census	0	
+21631	Bounty teleport tablet	Break | Warn		bulk_item_definition_census	0	
+21632	Edgeville teleport	Break		bulk_item_definition_census	0	
+21827	Larran's teleport tablet	Break | Warn		bulk_item_definition_census	0	
+24250	Vintage dungeon teleport (u)			bulk_item_definition_census	3	11166:vintage_dungeon_exit[vintage];12693:vintage_dungeon[vintage];12949:Vintage dungeon 2[vintage]
+24264	Vintage dungeon teleport			bulk_item_definition_census	3	11166:vintage_dungeon_exit[vintage];12693:vintage_dungeon[vintage];12949:Vintage dungeon 2[vintage]
+25429	Summer totem	Teleport | Drop		bulk_item_definition_census	0	
+27015	Mythic dragon sigil	Check | Teleport | Drop		bulk_item_definition_census	2	16175:Mythic Dzone[mythic];16176:Mythic Dzone[mythic]
+27027	Cosmicwyrm sigil	Check | Teleport | Drop		bulk_item_definition_census	0	
+28001	Ring of shadows	Wear | Teleport | Check | Charge | Uncharge		bulk_item_definition_census	0	
+28031	Amulet of the eye	Wear | Teleport | Destroy		bulk_item_definition_census	0	
+28580	Araxxor teleport	Teleport | Drop	- Teleports you to Araxxor's lair / - Consumed only after successfully entering / - All Araxxor loot is automatically banked	bulk_item_definition_census	1	16193:araxxor_lair[araxxor]
+28606	Araxxor teleport pack (50)	Open | Drop	Opens for 50 araxxor teleport scrolls	bulk_item_definition_census	1	16193:araxxor_lair[araxxor]

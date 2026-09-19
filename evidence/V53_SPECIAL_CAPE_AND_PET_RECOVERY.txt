@@ -1,0 +1,23 @@
+SpawnPK LocalLab v5.3 evidence summary
+
+GRAND COMP CAPE / SPECIAL CAPE
+- Latest v5.2.3 runtime: item23063 opcode41 EQUIP_OK, CAPE position1, production appearance observations=155.
+- After equip, server continued packet81 ticks while client stopped emitting packets.
+- Exact pinned client rs.a.k.b(int) special IDs: 23063, 21963, 21964 only.
+- Exact model path for those IDs dereferences player aS[] and aI.
+- Exact player appearance parser initializes aS/aI only when final optional appearance extension flag is 1.
+- Previous LocalLab serializer always emitted flag=0.
+- Native default Completionist colour selectors recovered from rs.n.c.w / rs.a.k:
+  13,9,7,9,7,5 -> 6015,924,62575,924,62575,0.
+- V53_GRAND_COMP_CAPE_APPEARANCE_CLIENT_PARITY_PASS.
+
+PETS
+- C2S 87 exact Drop: itemId (BE short-A), widget (BE short), slot (BE short-A).
+- C2S 155 exact first NPC option: scene NPC index (LE short).
+- S2C 65 exact NPC synchronization used for follower spawn/movement/removal.
+- NPC target mask bit 0x20 sets rs.a.j.m from A() unsigned short.
+- owner target = 32768 + playerIndex.
+- V9.02 mapped candidates imported: 260 unique exact-name candidates; 49 ambiguous/weak fail-closed.
+- Ancient Guardian item20776 -> NPC3098 has stronger passive production Drop correlation.
+- V53_NPC65_DYNAMIC_CLIENT_PARITY_PASS.
+- V53_PET_RUNTIME_INTEGRATION_PASS.

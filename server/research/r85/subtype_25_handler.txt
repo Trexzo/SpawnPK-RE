@@ -1,0 +1,17 @@
+  public void a();
+    Code:
+       0: aload_0
+       1: invokevirtual #7                  // Method c:()I
+       4: putstatic     #4                  // Field rs/l/e/a/f.p:I
+       7: getstatic     #4                  // Field rs/l/e/a/f.p:I
+      10: ifle          23
+      13: aload_0
+      14: invokevirtual #7                  // Method c:()I
+      17: putstatic     #5                  // Field rs/l/e/a/f.q:I
+      20: goto          27
+      23: iconst_0
+      24: putstatic     #5                  // Field rs/l/e/a/f.q:I
+      27: aconst_null
+      28: putstatic     #6                  // Field rs/l/e/a/f.r:Ljava/lang/String;
+      31: return
+}

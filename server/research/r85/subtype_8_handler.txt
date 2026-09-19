@@ -1,0 +1,420 @@
+  public void a();
+    Code:
+       0: aload_0
+       1: invokevirtual #84                 // Method e:()I
+       4: istore_1
+       5: iload_1
+       6: tableswitch   { // 1 to 8
+                     1: 52
+                     2: 149
+                     3: 188
+                     4: 316
+                     5: 486
+                     6: 656
+                     7: 815
+                     8: 894
+               default: 916
+          }
+      52: aload_0
+      53: invokevirtual #84                 // Method e:()I
+      56: istore_2
+      57: aload_0
+      58: invokevirtual #84                 // Method e:()I
+      61: istore_3
+      62: iload_2
+      63: iconst_1
+      64: if_icmpne     83
+      67: iload_3
+      68: iconst_1
+      69: if_icmpne     76
+      72: iconst_1
+      73: goto          77
+      76: iconst_0
+      77: putstatic     #27                 // Field rs/f/a.bk:Z
+      80: goto          916
+      83: iload_2
+      84: iconst_2
+      85: if_icmpne     105
+      88: iload_3
+      89: iconst_1
+      90: if_icmpne     97
+      93: iconst_1
+      94: goto          98
+      97: iconst_0
+      98: invokestatic  #40                 // Method rs/l/e/a/c.b:(Z)Z
+     101: pop
+     102: goto          916
+     105: iload_2
+     106: iconst_3
+     107: if_icmpne     127
+     110: iload_3
+     111: iconst_1
+     112: if_icmpne     119
+     115: iconst_1
+     116: goto          120
+     119: iconst_0
+     120: invokestatic  #43                 // Method rs/l/e/a/c.c:(Z)Z
+     123: pop
+     124: goto          916
+     127: iload_2
+     128: iconst_4
+     129: if_icmpne     916
+     132: iload_3
+     133: iconst_1
+     134: if_icmpne     141
+     137: iconst_1
+     138: goto          142
+     141: iconst_0
+     142: invokestatic  #46                 // Method rs/l/e/a/c.d:(Z)Z
+     145: pop
+     146: goto          916
+     149: aload_0
+     150: invokevirtual #85                 // Method h:()Ljava/lang/String;
+     153: astore        4
+     155: aload_0
+     156: invokevirtual #85                 // Method h:()Ljava/lang/String;
+     159: astore        5
+     161: aload         4
+     163: aload         5
+     165: invokedynamic #103,  0            // InvokeDynamic #0:run:(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/Runnable;
+     170: invokestatic  #35                 // Method javax/swing/SwingUtilities.invokeLater:(Ljava/lang/Runnable;)V
+     173: aload         4
+     175: invokestatic  #37                 // Method rs/l/e/a/c.a:(Ljava/lang/String;)Ljava/lang/String;
+     178: pop
+     179: aload         5
+     181: invokestatic  #39                 // Method rs/l/e/a/c.b:(Ljava/lang/String;)Ljava/lang/String;
+     184: pop
+     185: goto          916
+     188: aload_0
+     189: invokevirtual #84                 // Method e:()I
+     192: istore        6
+     194: iload         6
+     196: iconst_1
+     197: if_icmpne     234
+     200: aload_0
+     201: invokevirtual #83                 // Method c:()I
+     204: invokestatic  #36                 // Method rs/l/e/a/c.a:(I)I
+     207: pop
+     208: aload_0
+     209: invokevirtual #83                 // Method c:()I
+     212: invokestatic  #38                 // Method rs/l/e/a/c.b:(I)I
+     215: pop
+     216: invokestatic  #53                 // Method rs/l/e/a/c.h:()I
+     219: invokestatic  #56                 // Method rs/l/e/a/c.i:()I
+     222: invokedynamic #104,  0            // InvokeDynamic #1:makeConcatWithConstants:(II)Ljava/lang/String;
+     227: invokestatic  #42                 // Method rs/l/e/a/c.c:(Ljava/lang/String;)Ljava/lang/String;
+     230: pop
+     231: goto          265
+     234: aload_0
+     235: invokevirtual #83                 // Method c:()I
+     238: invokestatic  #41                 // Method rs/l/e/a/c.c:(I)I
+     241: pop
+     242: aload_0
+     243: invokevirtual #83                 // Method c:()I
+     246: invokestatic  #44                 // Method rs/l/e/a/c.d:(I)I
+     249: pop
+     250: invokestatic  #59                 // Method rs/l/e/a/c.j:()I
+     253: invokestatic  #62                 // Method rs/l/e/a/c.k:()I
+     256: invokedynamic #104,  0            // InvokeDynamic #1:makeConcatWithConstants:(II)Ljava/lang/String;
+     261: invokestatic  #45                 // Method rs/l/e/a/c.d:(Ljava/lang/String;)Ljava/lang/String;
+     264: pop
+     265: invokestatic  #53                 // Method rs/l/e/a/c.h:()I
+     268: ifgt          275
+     271: iconst_1
+     272: goto          276
+     275: iconst_0
+     276: istore        7
+     278: invokestatic  #59                 // Method rs/l/e/a/c.j:()I
+     281: ifgt          288
+     284: iconst_1
+     285: goto          289
+     288: iconst_0
+     289: istore        8
+     291: iload         7
+     293: ifne          301
+     296: iload         8
+     298: ifeq          916
+     301: iload         7
+     303: iload         8
+     305: invokedynamic #105,  0            // InvokeDynamic #2:run:(ZZ)Ljava/lang/Runnable;
+     310: invokestatic  #35                 // Method javax/swing/SwingUtilities.invokeLater:(Ljava/lang/Runnable;)V
+     313: goto          916
+     316: aload_0
+     317: invokevirtual #84                 // Method e:()I
+     320: istore        9
+     322: iload         9
+     324: iconst_1
+     325: if_icmpne     403
+     328: aload_0
+     329: invokevirtual #83                 // Method c:()I
+     332: invokestatic  #47                 // Method rs/l/e/a/c.e:(I)I
+     335: pop
+     336: aload_0
+     337: invokevirtual #83                 // Method c:()I
+     340: invokestatic  #49                 // Method rs/l/e/a/c.f:(I)I
+     343: pop
+     344: invokestatic  #65                 // Method rs/l/e/a/c.l:()I
+     347: ifne          360
+     350: invokestatic  #68                 // Method rs/l/e/a/c.m:()I
+     353: ifne          360
+     356: fconst_1
+     357: goto          369
+     360: invokestatic  #65                 // Method rs/l/e/a/c.l:()I
+     363: i2f
+     364: invokestatic  #68                 // Method rs/l/e/a/c.m:()I
+     367: i2f
+     368: fdiv
+     369: fstore        10
+     371: fload         10
+     373: ldc           #1                  // float 100.0f
+     375: fmul
+     376: f2d
+     377: invokestatic  #30                 // Method java/lang/Math.ceil:(D)D
+     380: d2i
+     381: istore        11
+     383: invokestatic  #65                 // Method rs/l/e/a/c.l:()I
+     386: invokestatic  #68                 // Method rs/l/e/a/c.m:()I
+     389: iload         11
+     391: invokedynamic #106,  0            // InvokeDynamic #3:makeConcatWithConstants:(III)Ljava/lang/String;
+     396: invokestatic  #48                 // Method rs/l/e/a/c.e:(Ljava/lang/String;)Ljava/lang/String;
+     399: pop
+     400: goto          475
+     403: aload_0
+     404: invokevirtual #83                 // Method c:()I
+     407: invokestatic  #51                 // Method rs/l/e/a/c.g:(I)I
+     410: pop
+     411: aload_0
+     412: invokevirtual #83                 // Method c:()I
+     415: invokestatic  #54                 // Method rs/l/e/a/c.h:(I)I
+     418: pop
+     419: invokestatic  #70                 // Method rs/l/e/a/c.n:()I
+     422: ifne          435
+     425: invokestatic  #72                 // Method rs/l/e/a/c.o:()I
+     428: ifne          435
+     431: fconst_1
+     432: goto          444
+     435: invokestatic  #70                 // Method rs/l/e/a/c.n:()I
+     438: i2f
+     439: invokestatic  #72                 // Method rs/l/e/a/c.o:()I
+     442: i2f
+     443: fdiv
+     444: fstore        10
+     446: fload         10
+     448: ldc           #1                  // float 100.0f
+     450: fmul
+     451: f2d
+     452: invokestatic  #30                 // Method java/lang/Math.ceil:(D)D
+     455: d2i
+     456: istore        11
+     458: invokestatic  #70                 // Method rs/l/e/a/c.n:()I
+     461: invokestatic  #72                 // Method rs/l/e/a/c.o:()I
+     464: iload         11
+     466: invokedynamic #106,  0            // InvokeDynamic #3:makeConcatWithConstants:(III)Ljava/lang/String;
+     471: invokestatic  #50                 // Method rs/l/e/a/c.f:(Ljava/lang/String;)Ljava/lang/String;
+     474: pop
+     475: invokedynamic #107,  0            // InvokeDynamic #4:run:()Ljava/lang/Runnable;
+     480: invokestatic  #35                 // Method javax/swing/SwingUtilities.invokeLater:(Ljava/lang/Runnable;)V
+     483: goto          916
+     486: aload_0
+     487: invokevirtual #84                 // Method e:()I
+     490: istore        10
+     492: iload         10
+     494: iconst_1
+     495: if_icmpne     573
+     498: aload_0
+     499: invokevirtual #83                 // Method c:()I
+     502: invokestatic  #57                 // Method rs/l/e/a/c.i:(I)I
+     505: pop
+     506: aload_0
+     507: invokevirtual #83                 // Method c:()I
+     510: invokestatic  #60                 // Method rs/l/e/a/c.j:(I)I
+     513: pop
+     514: invokestatic  #73                 // Method rs/l/e/a/c.p:()I
+     517: ifne          530
+     520: invokestatic  #74                 // Method rs/l/e/a/c.q:()I
+     523: ifne          530
+     526: fconst_1
+     527: goto          539
+     530: invokestatic  #73                 // Method rs/l/e/a/c.p:()I
+     533: i2f
+     534: invokestatic  #74                 // Method rs/l/e/a/c.q:()I
+     537: i2f
+     538: fdiv
+     539: fstore        11
+     541: fload         11
+     543: ldc           #1                  // float 100.0f
+     545: fmul
+     546: f2d
+     547: invokestatic  #30                 // Method java/lang/Math.ceil:(D)D
+     550: d2i
+     551: istore        12
+     553: invokestatic  #73                 // Method rs/l/e/a/c.p:()I
+     556: invokestatic  #74                 // Method rs/l/e/a/c.q:()I
+     559: iload         12
+     561: invokedynamic #106,  0            // InvokeDynamic #3:makeConcatWithConstants:(III)Ljava/lang/String;
+     566: invokestatic  #52                 // Method rs/l/e/a/c.g:(Ljava/lang/String;)Ljava/lang/String;
+     569: pop
+     570: goto          645
+     573: aload_0
+     574: invokevirtual #83                 // Method c:()I
+     577: invokestatic  #63                 // Method rs/l/e/a/c.k:(I)I
+     580: pop
+     581: aload_0
+     582: invokevirtual #83                 // Method c:()I
+     585: invokestatic  #66                 // Method rs/l/e/a/c.l:(I)I
+     588: pop
+     589: invokestatic  #75                 // Method rs/l/e/a/c.r:()I
+     592: ifne          605
+     595: invokestatic  #76                 // Method rs/l/e/a/c.s:()I
+     598: ifne          605
+     601: fconst_1
+     602: goto          614
+     605: invokestatic  #75                 // Method rs/l/e/a/c.r:()I
+     608: i2f
+     609: invokestatic  #76                 // Method rs/l/e/a/c.s:()I
+     612: i2f
+     613: fdiv
+     614: fstore        11
+     616: fload         11
+     618: ldc           #1                  // float 100.0f
+     620: fmul
+     621: f2d
+     622: invokestatic  #30                 // Method java/lang/Math.ceil:(D)D
+     625: d2i
+     626: istore        12
+     628: invokestatic  #75                 // Method rs/l/e/a/c.r:()I
+     631: invokestatic  #76                 // Method rs/l/e/a/c.s:()I
+     634: iload         12
+     636: invokedynamic #106,  0            // InvokeDynamic #3:makeConcatWithConstants:(III)Ljava/lang/String;
+     641: invokestatic  #55                 // Method rs/l/e/a/c.h:(Ljava/lang/String;)Ljava/lang/String;
+     644: pop
+     645: invokedynamic #108,  0            // InvokeDynamic #5:run:()Ljava/lang/Runnable;
+     650: invokestatic  #35                 // Method javax/swing/SwingUtilities.invokeLater:(Ljava/lang/Runnable;)V
+     653: goto          916
+     656: aload_0
+     657: invokevirtual #84                 // Method e:()I
+     660: iconst_1
+     661: if_icmpne     675
+     664: aload_0
+     665: invokevirtual #83                 // Method c:()I
+     668: invokestatic  #69                 // Method rs/l/e/a/c.m:(I)I
+     671: pop
+     672: goto          683
+     675: aload_0
+     676: invokevirtual #83                 // Method c:()I
+     679: invokestatic  #71                 // Method rs/l/e/a/c.n:(I)I
+     682: pop
+     683: invokestatic  #77                 // Method rs/l/e/a/c.t:()I
+     686: invokestatic  #78                 // Method rs/l/e/a/c.u:()I
+     689: isub
+     690: istore        11
+     692: iload         11
+     694: ifne          728
+     697: invokestatic  #77                 // Method rs/l/e/a/c.t:()I
+     700: iload         11
+     702: invokedynamic #109,  0            // InvokeDynamic #6:makeConcatWithConstants:(II)Ljava/lang/String;
+     707: invokestatic  #58                 // Method rs/l/e/a/c.i:(Ljava/lang/String;)Ljava/lang/String;
+     710: pop
+     711: invokestatic  #78                 // Method rs/l/e/a/c.u:()I
+     714: iload         11
+     716: invokedynamic #109,  0            // InvokeDynamic #6:makeConcatWithConstants:(II)Ljava/lang/String;
+     721: invokestatic  #61                 // Method rs/l/e/a/c.j:(Ljava/lang/String;)Ljava/lang/String;
+     724: pop
+     725: goto          804
+     728: iload         11
+     730: iflt          770
+     733: invokestatic  #77                 // Method rs/l/e/a/c.t:()I
+     736: iload         11
+     738: invokestatic  #29                 // Method java/lang/Math.abs:(I)I
+     741: invokedynamic #109,  0            // InvokeDynamic #6:makeConcatWithConstants:(II)Ljava/lang/String;
+     746: invokestatic  #58                 // Method rs/l/e/a/c.i:(Ljava/lang/String;)Ljava/lang/String;
+     749: pop
+     750: invokestatic  #78                 // Method rs/l/e/a/c.u:()I
+     753: iload         11
+     755: invokestatic  #29                 // Method java/lang/Math.abs:(I)I
+     758: invokedynamic #110,  0            // InvokeDynamic #7:makeConcatWithConstants:(II)Ljava/lang/String;
+     763: invokestatic  #61                 // Method rs/l/e/a/c.j:(Ljava/lang/String;)Ljava/lang/String;
+     766: pop
+     767: goto          804
+     770: invokestatic  #77                 // Method rs/l/e/a/c.t:()I
+     773: iload         11
+     775: invokestatic  #29                 // Method java/lang/Math.abs:(I)I
+     778: invokedynamic #110,  0            // InvokeDynamic #7:makeConcatWithConstants:(II)Ljava/lang/String;
+     783: invokestatic  #58                 // Method rs/l/e/a/c.i:(Ljava/lang/String;)Ljava/lang/String;
+     786: pop
+     787: invokestatic  #78                 // Method rs/l/e/a/c.u:()I
+     790: iload         11
+     792: invokestatic  #29                 // Method java/lang/Math.abs:(I)I
+     795: invokedynamic #109,  0            // InvokeDynamic #6:makeConcatWithConstants:(II)Ljava/lang/String;
+     800: invokestatic  #61                 // Method rs/l/e/a/c.j:(Ljava/lang/String;)Ljava/lang/String;
+     803: pop
+     804: invokedynamic #111,  0            // InvokeDynamic #8:run:()Ljava/lang/Runnable;
+     809: invokestatic  #35                 // Method javax/swing/SwingUtilities.invokeLater:(Ljava/lang/Runnable;)V
+     812: goto          916
+     815: aload_0
+     816: invokevirtual #84                 // Method e:()I
+     819: istore        12
+     821: aload_0
+     822: invokevirtual #84                 // Method e:()I
+     825: istore        13
+     827: aload_0
+     828: invokevirtual #84                 // Method e:()I
+     831: iconst_1
+     832: if_icmpne     839
+     835: iconst_1
+     836: goto          840
+     839: iconst_0
+     840: istore        14
+     842: iload         14
+     844: ifeq          852
+     847: ldc           #7                  // String <col=4028718>
+     849: goto          854
+     852: ldc           #8                  // String @red@
+     854: astore        15
+     856: iload         12
+     858: iconst_1
+     859: if_icmpne     878
+     862: aload         15
+     864: iload         13
+     866: invokedynamic #112,  0            // InvokeDynamic #9:makeConcatWithConstants:(Ljava/lang/String;I)Ljava/lang/String;
+     871: invokestatic  #64                 // Method rs/l/e/a/c.k:(Ljava/lang/String;)Ljava/lang/String;
+     874: pop
+     875: goto          916
+     878: aload         15
+     880: iload         13
+     882: invokedynamic #112,  0            // InvokeDynamic #9:makeConcatWithConstants:(Ljava/lang/String;I)Ljava/lang/String;
+     887: invokestatic  #67                 // Method rs/l/e/a/c.l:(Ljava/lang/String;)Ljava/lang/String;
+     890: pop
+     891: goto          916
+     894: invokestatic  #79                 // Method rs/l/e/a/c.v:()Ljava/lang/String;
+     897: ldc           #10                 // String N/A
+     899: invokevirtual #32                 // Method java/lang/String.equalsIgnoreCase:(Ljava/lang/String;)Z
+     902: ifne          916
+     905: invokestatic  #79                 // Method rs/l/e/a/c.v:()Ljava/lang/String;
+     908: ldc           #8                  // String @red@
+     910: invokevirtual #31                 // Method java/lang/String.contains:(Ljava/lang/CharSequence;)Z
+     913: ifeq          916
+     916: return
+
+  private static void b();
+    Code:
+       0: getstatic     #28                 // Field rs/s/q/d.e:Lrs/s/q/d;
+       3: invokevirtual #101                // Method rs/s/q/d.i:()Lrs/s/q/a/a;
+       6: invokestatic  #77                 // Method rs/l/e/a/c.t:()I
+       9: invokestatic  #78                 // Method rs/l/e/a/c.u:()I
+      12: iadd
+      13: invokevirtual #89                 // Method rs/s/q/a/a.a:(I)V
+      16: getstatic     #28                 // Field rs/s/q/d.e:Lrs/s/q/d;
+      19: invokevirtual #101                // Method rs/s/q/d.i:()Lrs/s/q/a/a;
+      22: invokevirtual #91                 // Method rs/s/q/a/a.d:()Lrs/s/q/a/b;
+      25: invokestatic  #77                 // Method rs/l/e/a/c.t:()I
+      28: invokevirtual #97                 // Method rs/s/q/a/b.e:(I)V
+      31: getstatic     #28                 // Field rs/s/q/d.e:Lrs/s/q/d;
+      34: invokevirtual #101                // Method rs/s/q/d.i:()Lrs/s/q/a/a;
+      37: invokevirtual #92                 // Method rs/s/q/a/a.e:()Lrs/s/q/a/b;
+      40: invokestatic  #78                 // Method rs/l/e/a/c.u:()I
+      43: invokevirtual #97                 // Method rs/s/q/a/b.e:(I)V
+      46: getstatic     #28                 // Field rs/s/q/d.e:Lrs/s/q/d;
+      49: invokevirtual #102                // Method rs/s/q/d.k:()Lrs/s/q/b;
+      52: invokevirtual #98                 // Method rs/s/q/b.c:()Lrs/s/q/b/a;
+      55: invokevirtual #99                 // Method rs/s/q/b/a.a:()V

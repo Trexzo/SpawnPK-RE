@@ -1,0 +1,21 @@
+widget_id,role,exact_or_structural_note
+36000,root,Item List interface root
+36002,text,description
+36003,text,small description
+36004,control,inventory/deposit presentation control
+36005,control,paired 36004 visual
+36006,control,deposit-all-to-inventory tooltip/control
+36008,control,deposit-all-to-bank presentation control
+36009,control,paired 36008 visual
+36010,control,deposit-all-to-bank tooltip/control
+36012,control,Search by item
+36013,control,paired search control
+36015,text/control,<img=39> Search for an item
+36016,control,Go back
+36019,text,search description
+36025,item_grid,main 700-slot item grid
+36026,scroll,main scroll/container
+36027,text_base,row text base; 700 generated rows
+36804,tab_base,up to five Select tab controls
+36809,tab_label_base,up to five tab labels
+30074,secondary_item_target,secondary action-target item widget; uses bL action override

@@ -1,0 +1,31 @@
+SpawnPK LocalLab v5.4 OFFLINE VALIDATION
+
+V54_ALL_TESTS_PASS count=48 fail=0
+
+Batch A: 24/24 PASS
+Batch B: 24/24 PASS
+
+Key proofs:
+V54_ACCOUNT_PERSISTENCE_PASS hp99=true prayer99=true compSelectors=true
+V54_PLAYER_STATE_CLIENT_PARITY_PASS skills0to6=99 xp=13034431 hitpoints=99 prayer=99 combat=126 packet134Exact=true
+V54_WEAPON_POSE_REPOSITORY_PASS directObserved=80 elder20485=true ethereal21005Clone=true elderOr28030Family=true whip4151=true
+V54_PET_REPLACEMENT_RUNTIME_PASS first22519Returned=true second23484Active=true oldFollowerRemoved=true newFollowerSpawned=true persisted=23484->3845
+V54_PET_FOLLOW_ADJACENCY_PASS ownerRun2Tiles=true petTwoStepCatchup=true finalDistance=1
+V54_COMP_CAPE_CUSTOMIZATION_PASS item23063 opcode75=true nativeRoot63036=true compcolors=true persisted=true
+
+Retained regressions:
+- 86/86 exact-current-client C2S framing
+- native Spawn/Search tab 13 / root 67027
+- 1833/1833 current Wear/Wield/Equip slot resolution
+- generic packet65 NPC/pet lifecycle
+- bank close normal-inventory refresh
+- authoritative movement/run/minimap path
+- local-only network guard
+
+Live status:
+- v5.3 special-comp-cape render fix is live-certified from the user's run.
+- v5.4 player state / pose expansion / pet replacement+follow / customization backend are offline-certified and need live retest.
+- pet owner Drop/Pick-up animation/GFX unresolved; not guessed.
+- collection-icon extra world/player presentation unresolved; not guessed.
+
+Server SHA-256: 15adba7f72c6f69edc1e8d0b49c33c4ac69f83da60c1c79eebc1c5dd0de6015b

@@ -1,0 +1,1 @@
+AIRGAP_JAVAP_PARSE_PASS classes=rs.f.a,rs.Client,rs.s.t.l

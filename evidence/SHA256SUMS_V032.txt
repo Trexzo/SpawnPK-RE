@@ -1,0 +1,4 @@
+6232bae206846a4ba8d09766a2dee886b69016066a3f50f83b201bf705f93662  evidence/client(6).jar
+aabca3605421337e81ab96da0de5669b94b2db8471c0157ad3f7ac9a84d031a2  local-client/client-localhost.jar
+981eb3607802fcd892fd465d62a6f1ba9d8afffcbfd410045b5cc170ae06e71e  local-client/client-airgap.jar
+5c413c96eae3061f948fc635b38c84178e760d11e472b230aadaf5e174648e7a  server/build/SpawnPKLocalServer.jar

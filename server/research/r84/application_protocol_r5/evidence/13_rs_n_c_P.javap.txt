@@ -1,0 +1,84 @@
+class rs.n.c.P extends rs.q.a.a.a {
+  rs.n.c.P();
+    Code:
+       0: aload_0
+       1: invokespecial #23                 // Method rs/q/a/a/a."<init>":()V
+       4: return
+
+  public void a();
+    Code:
+       0: aload_0
+       1: invokevirtual #20                 // Method e:()I
+       4: istore_1
+       5: iload_1
+       6: tableswitch   { // 1 to 7
+                     1: 48
+                     2: 69
+                     3: 104
+                     4: 118
+                     5: 132
+                     6: 153
+                     7: 174
+               default: 185
+          }
+      48: aload_0
+      49: invokevirtual #19                 // Method d:()J
+      52: invokestatic  #18                 // Method java/lang/System.currentTimeMillis:()J
+      55: ladd
+      56: putstatic     #16                 // Field rs/n/c/O.f:J
+      59: aload_0
+      60: invokevirtual #22                 // Method h:()Ljava/lang/String;
+      63: putstatic     #17                 // Field rs/n/c/O.g:Ljava/lang/String;
+      66: goto          185
+      69: aload_0
+      70: invokevirtual #19                 // Method d:()J
+      73: invokestatic  #18                 // Method java/lang/System.currentTimeMillis:()J
+      76: ladd
+      77: putstatic     #5                  // Field rs/n/c/O.bI:J
+      80: aload_0
+      81: invokevirtual #21                 // Method g:()I
+      84: putstatic     #6                  // Field rs/n/c/O.bJ:I
+      87: aload_0
+      88: invokevirtual #21                 // Method g:()I
+      91: putstatic     #7                  // Field rs/n/c/O.bK:I
+      94: aload_0
+      95: invokevirtual #22                 // Method h:()Ljava/lang/String;
+      98: putstatic     #8                  // Field rs/n/c/O.bL:Ljava/lang/String;
+     101: goto          185
+     104: aload_0
+     105: invokevirtual #19                 // Method d:()J
+     108: invokestatic  #18                 // Method java/lang/System.currentTimeMillis:()J
+     111: ladd
+     112: putstatic     #9                  // Field rs/n/c/O.bM:J
+     115: goto          185
+     118: aload_0
+     119: invokevirtual #19                 // Method d:()J
+     122: invokestatic  #18                 // Method java/lang/System.currentTimeMillis:()J
+     125: ladd
+     126: putstatic     #10                 // Field rs/n/c/O.bN:J
+     129: goto          185
+     132: aload_0
+     133: invokevirtual #22                 // Method h:()Ljava/lang/String;
+     136: putstatic     #11                 // Field rs/n/c/O.bO:Ljava/lang/String;
+     139: aload_0
+     140: invokevirtual #19                 // Method d:()J
+     143: invokestatic  #18                 // Method java/lang/System.currentTimeMillis:()J
+     146: ladd
+     147: putstatic     #12                 // Field rs/n/c/O.bP:J
+     150: goto          185
+     153: aload_0
+     154: invokevirtual #22                 // Method h:()Ljava/lang/String;
+     157: putstatic     #13                 // Field rs/n/c/O.bQ:Ljava/lang/String;
+     160: aload_0
+     161: invokevirtual #19                 // Method d:()J
+     164: invokestatic  #18                 // Method java/lang/System.currentTimeMillis:()J
+     167: ladd
+     168: putstatic     #14                 // Field rs/n/c/O.bR:J
+     171: goto          185
+     174: aload_0
+     175: invokevirtual #19                 // Method d:()J
+     178: invokestatic  #18                 // Method java/lang/System.currentTimeMillis:()J
+     181: ladd
+     182: putstatic     #15                 // Field rs/n/c/O.bS:J
+     185: return
+}

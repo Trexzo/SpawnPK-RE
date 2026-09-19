@@ -1,0 +1,217 @@
+  public void a();
+    Code:
+       0: iconst_0
+       1: istore_1
+       2: aload_0
+       3: invokevirtual #52                 // Method e:()I
+       6: dup
+       7: istore_1
+       8: ifeq          464
+      11: iload_1
+      12: tableswitch   { // 1 to 4
+                     1: 44
+                     2: 85
+                     3: 280
+                     4: 445
+               default: 461
+          }
+      44: getstatic     #30                 // Field rs/l/e/a/h.C:Ljava/util/Map;
+      47: invokeinterface #55,  1           // InterfaceMethod java/util/Map.clear:()V
+      52: iconst_0
+      53: istore_2
+      54: aload_0
+      55: invokevirtual #51                 // Method c:()I
+      58: dup
+      59: istore_2
+      60: ifle          461
+      63: getstatic     #30                 // Field rs/l/e/a/h.C:Ljava/util/Map;
+      66: iload_2
+      67: iconst_1
+      68: isub
+      69: invokestatic  #43                 // Method java/lang/Integer.valueOf:(I)Ljava/lang/Integer;
+      72: iconst_1
+      73: invokestatic  #42                 // Method java/lang/Boolean.valueOf:(Z)Ljava/lang/Boolean;
+      76: invokeinterface #56,  3           // InterfaceMethod java/util/Map.put:(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;
+      81: pop
+      82: goto          54
+      85: aload_0
+      86: invokevirtual #52                 // Method e:()I
+      89: iconst_1
+      90: if_icmpne     97
+      93: iconst_1
+      94: goto          98
+      97: iconst_0
+      98: istore_3
+      99: aload_0
+     100: invokevirtual #51                 // Method c:()I
+     103: istore        4
+     105: aload_0
+     106: invokevirtual #51                 // Method c:()I
+     109: istore        5
+     111: aload_0
+     112: invokevirtual #53                 // Method g:()I
+     115: istore        6
+     117: iload         4
+     119: iload         6
+     121: imul
+     122: istore        7
+     124: iload         6
+     126: iload         5
+     128: imul
+     129: istore        8
+     131: iload         8
+     133: iload         7
+     135: isub
+     136: istore        9
+     138: iload         7
+     140: i2f
+     141: iload         8
+     143: i2f
+     144: fdiv
+     145: f2d
+     146: ldc2_w        #25                 // double 100.0d
+     149: dmul
+     150: d2i
+     151: invokestatic  #47                 // Method java/text/NumberFormat.getIntegerInstance:()Ljava/text/NumberFormat;
+     154: iload         9
+     156: i2l
+     157: invokevirtual #46                 // Method java/text/NumberFormat.format:(J)Ljava/lang/String;
+     160: invokedynamic #57,  0             // InvokeDynamic #0:makeConcatWithConstants:(ILjava/lang/String;)Ljava/lang/String;
+     165: putstatic     #28                 // Field rs/l/e/a/h.A:Ljava/lang/String;
+     168: getstatic     #38                 // Field rs/n/e.H:[Lrs/n/e;
+     171: ldc           #5                  // int 60625
+     173: aaload
+     174: iload         4
+     176: iload         5
+     178: invokestatic  #47                 // Method java/text/NumberFormat.getIntegerInstance:()Ljava/text/NumberFormat;
+     181: iload         7
+     183: i2l
+     184: invokevirtual #46                 // Method java/text/NumberFormat.format:(J)Ljava/lang/String;
+     187: invokestatic  #47                 // Method java/text/NumberFormat.getIntegerInstance:()Ljava/text/NumberFormat;
+     190: iload         8
+     192: i2l
+     193: invokevirtual #46                 // Method java/text/NumberFormat.format:(J)Ljava/lang/String;
+     196: invokedynamic #58,  0             // InvokeDynamic #1:makeConcatWithConstants:(IILjava/lang/String;Ljava/lang/String;)Ljava/lang/String;
+     201: putfield      #39                 // Field rs/n/e.at:Ljava/lang/String;
+     204: iload         8
+     206: ifle          461
+     209: iload_3
+     210: ifeq          257
+     213: getstatic     #35                 // Field rs/l/e/a/h.x:I
+     216: i2d
+     217: iload         7
+     219: i2d
+     220: iload         8
+     222: i2d
+     223: ddiv
+     224: dmul
+     225: d2i
+     226: putstatic     #34                 // Field rs/l/e/a/h.w:I
+     229: getstatic     #34                 // Field rs/l/e/a/h.w:I
+     232: getstatic     #35                 // Field rs/l/e/a/h.x:I
+     235: if_icmple     244
+     238: getstatic     #35                 // Field rs/l/e/a/h.x:I
+     241: putstatic     #34                 // Field rs/l/e/a/h.w:I
+     244: getstatic     #34                 // Field rs/l/e/a/h.w:I
+     247: ifge          461
+     250: iconst_0
+     251: putstatic     #34                 // Field rs/l/e/a/h.w:I
+     254: goto          461
+     257: getstatic     #35                 // Field rs/l/e/a/h.x:I
+     260: i2d
+     261: iload         7
+     263: i2d
+     264: iload         8
+     266: i2d
+     267: ddiv
+     268: dmul
+     269: d2i
+     270: dup
+     271: putstatic     #34                 // Field rs/l/e/a/h.w:I
+     274: putstatic     #36                 // Field rs/l/e/a/h.y:I
+     277: goto          461
+     280: aload_0
+     281: invokevirtual #52                 // Method e:()I
+     284: dup
+     285: putstatic     #33                 // Field rs/l/e/a/h.s:I
+     288: istore        10
+     290: aload_0
+     291: invokevirtual #52                 // Method e:()I
+     294: putstatic     #32                 // Field rs/l/e/a/h.r:I
+     297: iload         10
+     299: iconst_1
+     300: if_icmpne     340
+     303: getstatic     #38                 // Field rs/n/e.H:[Lrs/n/e;
+     306: ldc           #2                  // int 60617
+     308: aaload
+     309: getstatic     #38                 // Field rs/n/e.H:[Lrs/n/e;
+     312: ldc           #3                  // int 60618
+     314: aaload
+     315: invokestatic  #49                 // Method rs/l/e/a/h.f:()Lrs/l/F;
+     318: dup_x1
+     319: putfield      #37                 // Field rs/n/e.E:Lrs/l/F;
+     322: putfield      #37                 // Field rs/n/e.E:Lrs/l/F;
+     325: getstatic     #38                 // Field rs/n/e.H:[Lrs/n/e;
+     328: ldc           #4                  // int 60621
+     330: aaload
+     331: invokestatic  #50                 // Method rs/l/e/a/h.g:()Lrs/l/F;
+     334: putfield      #37                 // Field rs/n/e.E:Lrs/l/F;
+     337: goto          374
+     340: getstatic     #38                 // Field rs/n/e.H:[Lrs/n/e;
+     343: ldc           #2                  // int 60617
+     345: aaload
+     346: getstatic     #38                 // Field rs/n/e.H:[Lrs/n/e;
+     349: ldc           #3                  // int 60618
+     351: aaload
+     352: invokestatic  #50                 // Method rs/l/e/a/h.g:()Lrs/l/F;
+     355: dup_x1
+     356: putfield      #37                 // Field rs/n/e.E:Lrs/l/F;
+     359: putfield      #37                 // Field rs/n/e.E:Lrs/l/F;
+     362: getstatic     #38                 // Field rs/n/e.H:[Lrs/n/e;
+     365: ldc           #4                  // int 60621
+     367: aaload
+     368: invokestatic  #49                 // Method rs/l/e/a/h.f:()Lrs/l/F;
+     371: putfield      #37                 // Field rs/n/e.E:Lrs/l/F;
+     374: getstatic     #38                 // Field rs/n/e.H:[Lrs/n/e;
+     377: ldc           #1                  // int 60611
+     379: aaload
+     380: getfield      #41                 // Field rs/n/e.az:[I
+     383: iconst_0
+     384: iaload
+     385: ifle          461
+     388: getstatic     #38                 // Field rs/n/e.H:[Lrs/n/e;
+     391: ldc           #1                  // int 60611
+     393: aaload
+     394: getfield      #41                 // Field rs/n/e.az:[I
+     397: iconst_0
+     398: iaload
+     399: iconst_1
+     400: isub
+     401: invokestatic  #48                 // Method rs/d/k.f:(I)Lrs/d/k;
+     404: astore        11
+     406: getstatic     #38                 // Field rs/n/e.H:[Lrs/n/e;
+     409: ldc           #1                  // int 60611
+     411: aaload
+     412: getfield      #40                 // Field rs/n/e.ax:[I
+     415: iconst_0
+     416: iaload
+     417: aload         11
+     419: getfield      #27                 // Field rs/d/k.w:Ljava/lang/String;
+     422: invokedynamic #59,  0             // InvokeDynamic #2:makeConcatWithConstants:(Ljava/lang/String;)Ljava/lang/String;
+     427: ldc           #10                 // String @gre@
+     429: ldc           #6                  // String
+     431: invokevirtual #44                 // Method java/lang/String.replace:(Ljava/lang/CharSequence;Ljava/lang/CharSequence;)Ljava/lang/String;
+     434: invokedynamic #60,  0             // InvokeDynamic #3:makeConcatWithConstants:(ILjava/lang/String;)Ljava/lang/String;
+     439: putstatic     #29                 // Field rs/l/e/a/h.B:Ljava/lang/String;
+     442: goto          461
+     445: aload_0
+     446: invokevirtual #52                 // Method e:()I
+     449: iconst_1
+     450: if_icmpne     457
+     453: iconst_1
+     454: goto          458
+     457: iconst_0
+     458: putstatic     #31                 // Field rs/l/e/a/h.q:Z
+     461: goto          2
+     464: return
+}

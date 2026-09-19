@@ -1,0 +1,21 @@
+domain	offline_recoverable	authority	confidence	what_can_be_implemented_now	remaining_limit
+NPC definitions	YES	Base definition fields	EXACT_STATIC	Names/models/size/combat level/stand+walk+turn animations/actions/clickable/minimap/pet flags recoverable from client/cache definition layer.	Production can override effective identity/actions at runtime.
+NPC action routing	YES	NPC option1..5 -> 155/72/17/21/18	EXACT_CURRENT_BYTECODE	Generic option-slot routing is exact.	Semantic result after click is server-owned.
+NPC runtime override grammar	YES	S2C250 subtype42	EXACT_STRUCTURAL	Wire grammar and client consumer are known.	Meaning of each runtime value for every NPC/content case may need observation.
+Object definitions	YES	o.bin/base object definitions	EXACT_STATIC	Base names/actions/models/sizes/animations available.	Production-effective identity/actions may differ.
+Cached map/world placements	YES	m.bin/cache map scene	STATIC_CACHE	Baked map scenery can be reconstructed offline.	Server-added/replaced/removed scenery requires dynamic-scene evidence.
+Dynamic scene override grammar	YES	S2C250 subtype2 + scene packets	EXACT_STRUCTURAL	Client contract for dynamic scene overrides is known.	Exact production manifests/coordinates must come from observations/artifacts.
+Object action routing	YES	Object option1..5 -> 132/252/70/234/228	EXACT_CURRENT_BYTECODE	Generic option-slot routing is exact.	Server service result remains content authority.
+Scene add/remove/animate	YES	S2C151 / 101 / 160	EXACT_PROTOCOL	Can reproduce dynamic object publication once manifest is known.	Need production object manifest for exact SpawnPK placement.
+Shop UI root	YES	root 3824	EXACT_CURRENT_CLIENT	Native shop interface contract available.	Which service opens it is server content.
+Shop item actions	YES	Widget item options1..6 -> 145/117/43/129/135/176	EXACT_CURRENT_BYTECODE	Includes shop-specific option5/6 Buy 100/Buy 1000 behavior.	Price/currency/eligibility logic not static.
+Shop tabs	YES	S2C250 subtype17 SHOP_TAB_STATE	EXACT_CURRENT_BYTECODE	Reset/select/rebuild up to five tabs is reconstructable.	Production tab names/stock still server-fed.
+Shop stock transport	PARTIAL	Container/widget publication paths	STRUCTURAL_STATIC	Client can display server-fed item IDs/quantities; item names resolve locally.	Exact stocks/quantities require shop-open observation unless artifacts exist.
+Blood Fountain perk tree	YES	S2C126 keys10/11/12	EXACT_CURRENT_BYTECODE	Activate/secondary/deactivate widget states recoverable.	Offering costs, unlock requirements, effects and persistence server-owned.
+Blood Pool Shop UI state	YES	S2C126 key37 + RESET_BLOOD_POOL_SHOP_SLOTS command	EXACT_CURRENT_BYTECODE	Client slot-list mutation/reset recoverable.	Exact stock/prices require runtime/content artifacts.
+Blood Diamond Fuser	YES	S2C126 key13	EXACT_CURRENT_BYTECODE	Four-int client state contract recoverable.	Recipe/cost/output/chance semantics need runtime.
+Enchantment Chest response UI	YES	S2C126 key38 + key71	EXACT_CURRENT_BYTECODE	Result animation/state and 60-slot result selection/highlight recoverable.	Recipe costs, chances, inputs/outputs need runtime/content artifact.
+Make-X / quantity UI	YES	S2C250 subtype35	EXACT_CURRENT_BYTECODE	Native quantity/preview/title/action state recoverable.	Recipe/cost/validation content server-owned.
+Dialogue/interface plumbing	YES	S2C97/248/126/250/253 + widget/button routes	EXACT_STRUCTURAL	Generic interface lifecycle, text and selection plumbing reconstructable.	Exact per-NPC dialogue trees/options/outcomes need runtime/content data.
+Teleport service plumbing	YES	NPC/object action + region/player state publication	STRUCTURAL_STATIC	Request and resulting scene/player update protocols known.	Destination/rules/costs need observation.
+Repair/exchange/service plumbing	YES	Generic interaction + interface/control protocols	STRUCTURAL_STATIC	Can model generic services cleanly.	Prices, transforms, eligibility and cooldowns server-owned.

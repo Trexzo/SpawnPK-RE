@@ -1,0 +1,1 @@
+BOOTSTRAP_STATIC_ENCODING_PASS idle81=00-7F-F0 teleport81_len=5 region73_len=4

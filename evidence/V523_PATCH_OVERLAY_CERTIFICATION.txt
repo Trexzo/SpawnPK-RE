@@ -1,0 +1,21 @@
+SpawnPK LocalLab v5.2.3 — Cumulative Patch Overlay Certification
+
+Simulated source target: released v5.2.2 payload server
+Source server SHA-256:
+  9041e4771e69dcdf6598d7dd18078762085f7fb4a3b4c516cb0f7495ed99bd68
+
+Installed v5.2.3 server SHA-256:
+  b27e7dcfab705ee866ea0d1a1a1ae50027ebea23ca460218dde38395a2f9f792
+
+Checks performed:
+  - v5.2.2 source hash accepted by cumulative installer policy
+  - v5.2.3 payload overlay reaches exact final server hash
+  - dummy server/data/accounts/opensrc.properties survives byte-for-byte
+  - original/local/airgap client hashes remain unchanged
+  - BulkEquipmentResolutionTest passes after overlay
+  - AllItemEquipmentRuntimeTest passes after overlay
+
+Result:
+  V523_PATCH_OVERLAY_SIMULATION_PASS
+
+PowerShell itself was not executed in the Linux build container; the overlay/install invariants above were simulated file-for-file. Live Windows application remains pending.

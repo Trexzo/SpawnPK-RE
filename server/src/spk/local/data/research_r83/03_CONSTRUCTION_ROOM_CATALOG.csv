@@ -1,0 +1,24 @@
+index,room,display_level,raw_coin_condition_value,visible_gp_cost_text,condition_script,boundary_note
+0,Parlour,1,1000,30k,"X[0]=[4,3214,995,0]; bk[0]=raw_value; bl[0]=10",raw condition value and visible cost differ; do not equate without runtime/engine semantics
+1,Garden,1,1000,30k,"X[0]=[4,3214,995,0]; bk[0]=raw_value; bl[0]=10",raw condition value and visible cost differ; do not equate without runtime/engine semantics
+2,Kitchen,5,5000,150k,"X[0]=[4,3214,995,0]; bk[0]=raw_value; bl[0]=10",raw condition value and visible cost differ; do not equate without runtime/engine semantics
+3,Dining room,10,5000,150k,"X[0]=[4,3214,995,0]; bk[0]=raw_value; bl[0]=10",raw condition value and visible cost differ; do not equate without runtime/engine semantics
+4,Workshop,15,10000,300k,"X[0]=[4,3214,995,0]; bk[0]=raw_value; bl[0]=10",raw condition value and visible cost differ; do not equate without runtime/engine semantics
+5,Bedroom,20,10000,300k,"X[0]=[4,3214,995,0]; bk[0]=raw_value; bl[0]=10",raw condition value and visible cost differ; do not equate without runtime/engine semantics
+6,Hall - Skill Trophies,25,15000,450k,"X[0]=[4,3214,995,0]; bk[0]=raw_value; bl[0]=10",raw condition value and visible cost differ; do not equate without runtime/engine semantics
+7,Games Room,30,25000,750k,"X[0]=[4,3214,995,0]; bk[0]=raw_value; bl[0]=10",raw condition value and visible cost differ; do not equate without runtime/engine semantics
+8,Combat room,32,25000,750k,"X[0]=[4,3214,995,0]; bk[0]=raw_value; bl[0]=10",raw condition value and visible cost differ; do not equate without runtime/engine semantics
+9,Hall - Quest trophies,35,25000,750k,"X[0]=[4,3214,995,0]; bk[0]=raw_value; bl[0]=10",raw condition value and visible cost differ; do not equate without runtime/engine semantics
+10,Menagerie,37,30000,900k,"X[0]=[4,3214,995,0]; bk[0]=raw_value; bl[0]=10",raw condition value and visible cost differ; do not equate without runtime/engine semantics
+11,Study,40,50000,1500k,"X[0]=[4,3214,995,0]; bk[0]=raw_value; bl[0]=10",raw condition value and visible cost differ; do not equate without runtime/engine semantics
+12,Costume room,42,50000,1500k,"X[0]=[4,3214,995,0]; bk[0]=raw_value; bl[0]=10",raw condition value and visible cost differ; do not equate without runtime/engine semantics
+13,Chapel,45,50000,1500k,"X[0]=[4,3214,995,0]; bk[0]=raw_value; bl[0]=10",raw condition value and visible cost differ; do not equate without runtime/engine semantics
+14,Boss portal room,50,100000,300M,"X[0]=[4,3214,995,0]; bk[0]=raw_value; bl[0]=10",raw condition value and visible cost differ; do not equate without runtime/engine semantics
+15,Formal garden,55,75000,2250k,"X[0]=[4,3214,995,0]; bk[0]=raw_value; bl[0]=10",raw condition value and visible cost differ; do not equate without runtime/engine semantics
+16,Throne room,60,150000,4500k,"X[0]=[4,3214,995,0]; bk[0]=raw_value; bl[0]=10",raw condition value and visible cost differ; do not equate without runtime/engine semantics
+17,Superior garden,65,150000,500M,"X[0]=[4,3214,995,0]; bk[0]=raw_value; bl[0]=10",raw condition value and visible cost differ; do not equate without runtime/engine semantics
+18,Dungeon - corridor,70,7500,300k,"X[0]=[4,3214,995,0]; bk[0]=raw_value; bl[0]=10",raw condition value and visible cost differ; do not equate without runtime/engine semantics
+19,Dungeon - junction,70,7500,300k,"X[0]=[4,3214,995,0]; bk[0]=raw_value; bl[0]=10",raw condition value and visible cost differ; do not equate without runtime/engine semantics
+20,Dungeon - stairs,70,7500,300k,"X[0]=[4,3214,995,0]; bk[0]=raw_value; bl[0]=10",raw condition value and visible cost differ; do not equate without runtime/engine semantics
+21,Dungeon - pit,70,10000,350k,"X[0]=[4,3214,995,0]; bk[0]=raw_value; bl[0]=10",raw condition value and visible cost differ; do not equate without runtime/engine semantics
+22,Treasure room,75,250000,1000k,"X[0]=[4,3214,995,0]; bk[0]=raw_value; bl[0]=10",raw condition value and visible cost differ; do not equate without runtime/engine semantics

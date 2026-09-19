@@ -1,0 +1,10 @@
+index,render_type,render_id,task_text,definition_source,current_definition_name,current_actions,detail
+0,ITEM,1464,Vote for SPK @or1@(::vote)@whi@ then @or1@(::redeem)@whi@ your vote points!,configs v110 i.bin effective override,@gre@Vote ticket,,
+1,OBJ,12110,List vote ticket(s) for sale via @or1@Trading Post,configs v110 o.bin override over base,Trading post,"[""View-marketplace"", null, null, null, null]",base_name=G.A.G. banner
+2,NPC_HEAD,2831,Complete the @or1@Undead PKer@whi@ daily activity,base NPC cache definition required (no e.bin override),,,
+3,ITEM,12926,Purchase a @or1@Toxic Blowpipe@whi@ from the Trading Post.,configs v110 i.bin effective override,@gre@Toxic blowpipe,,
+4,ITEM,24263,Earn 50 @or1@Vintage tickets@whi@ at the @or1@Vintage cave,configs v110 i.bin effective override,@gre@Vintage point ticket,"[""Exchange"", null, null, null, ""Drop""]",clone=2996
+5,OBJ,2654,Unlock the @or1@Blood Vengeance I@whi@ perk,cache v67 main object definition,Sinclair family fountain,|Investigate|||,animationId=6023
+6,ITEM,23912,Kill {prog} blood-revenants,configs v110 i.bin effective override,@gre@Blood-revenant talisman,"[""Locate"", null, ""Grab"", null, ""Drop""]",clone=1450
+7,OBJ,2654,Unlock the @or1@Blood Whip@whi@ perk,cache v67 main object definition,Sinclair family fountain,|Investigate|||,animationId=6023
+8,OBJ,2654,Dip an abyssal whip in the blood fountain,cache v67 main object definition,Sinclair family fountain,|Investigate|||,animationId=6023

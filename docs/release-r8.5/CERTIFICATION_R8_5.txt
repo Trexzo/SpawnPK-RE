@@ -1,0 +1,38 @@
+SpawnPK LocalLab v5.18.5 / Engine R8.5 certification
+
+Candidate server SHA-256:
+589635cef6244f1282aee487fdb0649150ded5b60bdc7e3fefd28bba8a86372c
+
+Pinned exact current client SHA-256:
+6232bae206846a4ba8d09766a2dee886b69016066a3f50f83b201bf705f93662
+
+Binary seal:
+- 499/499 classes: Java 11 bytecode / major 55.
+- 146 R8.5-owned compiled class files matched candidate JAR entries byte-for-byte at seal time.
+- item29999 Voidglass Drop row present in JAR.
+- pet29999->12000 R3 compositor row present in JAR.
+- item29999 absent from opcode87 non-Drop corpus.
+- R6 remaining S2C250 operation table: 64 rows.
+
+Protocol / implementation:
+- S2C250: 43/43 subtypes operation-level decoded.
+- Subtype20 exact behavior understood; runtime emitter deliberately disabled because it starts an external TCP receiver.
+- Previous eight framing-only generic C2S interaction packets promoted to exact normalized decoding: 14,25,70,176,192,228,234,252.
+- Unknown server outcomes remain fail-closed.
+- Application presentation fixture service is LOCAL_DEV_ONLY.
+
+Voidglass R3 migration proof:
+- exact previous R2-shaped configs preflight PASS;
+- item32760 exact legacy record removed;
+- item29999 valid record installed;
+- NPC12000..12003 candidate records installed;
+- second patch byte-idempotent;
+- Hydra model36185/anims8233/8232/proc8236+4098 retired.
+
+Regression:
+- 179-test contract.
+- final candidate re-ran tests 1-90 clean;
+- tests 91-163 were re-run clean through 163 before outer runner timeout;
+- tests 164-179 re-ran clean;
+- earlier segmented final regression covered all 179 after expected assertion-drift corrections.
+- Windows installer reruns all 179 with per-test watchdog/retry and only certifies on complete pass.

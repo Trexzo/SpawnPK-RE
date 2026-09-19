@@ -1,0 +1,55 @@
+kind	region_id	detail	status
+REGION_ARCHIVE_MISSING	6483	store=main map=3662 land=3663 name= group=	STATIC_GAP
+REGION_ARCHIVE_MISSING	6738	store=main map=3609 land=3610 name= group=	STATIC_GAP
+REGION_ARCHIVE_MISSING	6994	store=main map=3649 land=3650 name= group=	STATIC_GAP
+REGION_ARCHIVE_MISSING	7250	store=main map=3643 land=3644 name= group=	STATIC_GAP
+REGION_ARCHIVE_MISSING	7510	store=main map=3599 land=3600 name= group=	STATIC_GAP
+REGION_ARCHIVE_MISSING	7511	store=main map=3605 land=3606 name= group=	STATIC_GAP
+REGION_ARCHIVE_MISSING	7769	store=main map=3617 land=3618 name= group=	STATIC_GAP
+REGION_ARCHIVE_MISSING	8004	store=main map=3641 land=3642 name= group=	STATIC_GAP
+REGION_ARCHIVE_MISSING	8025	store=main map=3666 land=3667 name= group=	STATIC_GAP
+REGION_ARCHIVE_MISSING	8260	store=main map=3631 land=3632 name= group=	STATIC_GAP
+REGION_ARCHIVE_MISSING	8282	store=main map=3670 land=3671 name= group=	STATIC_GAP
+REGION_ARCHIVE_MISSING	10073	store=main map=3627 land=3628 name= group=	STATIC_GAP
+REGION_ARCHIVE_MISSING	10074	store=main map=3655 land=3656 name= group=	STATIC_GAP
+REGION_ARCHIVE_MISSING	10075	store=main map=3653 land=3654 name= group=	STATIC_GAP
+REGION_ARCHIVE_MISSING	10329	store=main map=3625 land=3626 name= group=	STATIC_GAP
+REGION_ARCHIVE_MISSING	10330	store=main map=3629 land=3630 name= group=	STATIC_GAP
+REGION_ARCHIVE_MISSING	10331	store=main map=3639 land=3640 name= group=	STATIC_GAP
+REGION_ARCHIVE_MISSING	10579	store=main map=3565 land=3566 name= group=	STATIC_GAP
+REGION_ARCHIVE_MISSING	10819	store=main map=3583 land=3584 name= group=	STATIC_GAP
+REGION_ARCHIVE_MISSING	10820	store=main map=3587 land=3588 name= group=	STATIC_GAP
+REGION_ARCHIVE_MISSING	10836	store=main map=3569 land=3570 name= group=	STATIC_GAP
+REGION_ARCHIVE_MISSING	10838	store=main map=3551 land=3552 name= group=	STATIC_GAP
+REGION_ARCHIVE_MISSING	10839	store=main map=3571 land=3572 name= group=	STATIC_GAP
+REGION_ARCHIVE_MISSING	11090	store=main map=3567 land=3568 name= group=	STATIC_GAP
+REGION_ARCHIVE_MISSING	11091	store=main map=3563 land=3564 name= group=	STATIC_GAP
+REGION_ARCHIVE_MISSING	11094	store=main map=3545 land=3546 name= group=	STATIC_GAP
+REGION_ARCHIVE_MISSING	11095	store=main map=3579 land=3580 name= group=	STATIC_GAP
+REGION_ARCHIVE_MISSING	11350	store=main map=3559 land=3560 name= group=	STATIC_GAP
+REGION_ARCHIVE_MISSING	11351	store=main map=3575 land=3576 name= group=	STATIC_GAP
+REGION_ARCHIVE_MISSING	11356	store=main map=3557 land=3558 name= group=	STATIC_GAP
+REGION_ARCHIVE_MISSING	11606	store=main map=3547 land=3548 name= group=	STATIC_GAP
+REGION_ARCHIVE_MISSING	11608	store=main map=3553 land=3554 name= group=	STATIC_GAP
+REGION_ARCHIVE_MISSING	11609	store=main map=3647 land=3648 name= group=	STATIC_GAP
+REGION_ARCHIVE_MISSING	11612	store=main map=3543 land=3544 name= group=	STATIC_GAP
+REGION_ARCHIVE_MISSING	11862	store=main map=3555 land=3556 name= group=	STATIC_GAP
+REGION_ARCHIVE_MISSING	11863	store=main map=3573 land=3574 name= group=	STATIC_GAP
+REGION_ARCHIVE_MISSING	12118	store=main map=3539 land=3540 name= group=	STATIC_GAP
+REGION_ARCHIVE_MISSING	12119	store=main map=3577 land=3578 name= group=	STATIC_GAP
+REGION_ARCHIVE_MISSING	12186	store=main map=3601 land=3602 name= group=	STATIC_GAP
+REGION_ARCHIVE_MISSING	12188	store=main map=3645 land=3646 name= group=	STATIC_GAP
+REGION_ARCHIVE_MISSING	12189	store=main map=3637 land=3638 name= group=	STATIC_GAP
+M_BIN_SENTINEL_NO_ARCHIVES	12624	configs/m.bin explicitly defines mapArchive=-1 and landArchive=-1; treat as intentional no-archive/sentinel entry, not a missing custom map	INTENTIONAL_SENTINEL
+REGION_ARCHIVE_MISSING	12870	store=main map=3611 land=3612 name= group=	STATIC_GAP
+REGION_ARCHIVE_MISSING	12956	store=main map=3593 land=3594 name= group=	STATIC_GAP
+REGION_ARCHIVE_MISSING	13121	store=main map=3591 land=3592 name= group=	STATIC_GAP
+REGION_ARCHIVE_MISSING	13126	store=main map=3613 land=3614 name= group=	STATIC_GAP
+REGION_ARCHIVE_MISSING	14157	store=main map=3621 land=3622 name= group=	STATIC_GAP
+REGION_ARCHIVE_MISSING	14167	store=main map=3537 land=3538 name= group=	STATIC_GAP
+PROTECTED_OR_NONSTANDARD_LOCATION_BLOB	14170	120-byte location payload does not decode as ordinary location stream; old RuneScape cache/XTEA references independently list region 14170 among XTEA/missing-key regions. Not part of explicit SpawnPK m.bin custom set.	FORMAT_PROTECTED
+TELEPORT_EXACT_ARRIVAL_TILES		Destination identity/region can often be static; exact arrival tile remains server authority unless a client/runtime source proves it.	SERVER_AUTHORITY
+DYNAMIC_OBJECT_OVERLAYS		Server packet 101/151/160 mutations outside recovered HOME require production evidence or another static authority source.	SERVER_AUTHORITY
+NPC_POPULATIONS		Exact NPC spawn tiles/wander state outside surveyed areas are server-owned.	SERVER_AUTHORITY
+CONSTRUCTED_INSTANCE_RECIPES		Packet 241 source-chunk format is solved; production-selected 4x13x13 templates/layouts still require capture/rule recovery.	SERVER_AUTHORITY
+CONTENT_INTERACTIONS		Shops/dialogues/boss rules/restrictions/rewards are not map-cache authority.	SERVER_AUTHORITY

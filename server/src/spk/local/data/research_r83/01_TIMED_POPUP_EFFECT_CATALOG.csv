@@ -1,0 +1,65 @@
+ordinal,enum,description,popup_asset,raw_ints,constructor
+0,DYNAMIC,,,0,(Ljava/lang/String;ILjava/lang/String;I)V
+1,HUNTER_ELIXIR_BSLAY,Hunter elixir | Double blood slayer points | (Does not stack with streak bonus),,27456,(Ljava/lang/String;ILjava/lang/String;I)V
+2,HUNTER_ELIXIR_SOUL,Hunter elixir | Double soul shards,,27455,(Ljava/lang/String;ILjava/lang/String;I)V
+3,DFS,Dfs cooldown,,11284,(Ljava/lang/String;ILjava/lang/String;I)V
+4,TWISTED_HEART,Twisted heart | Cooldown duration,,21092,(Ljava/lang/String;ILjava/lang/String;I)V
+5,VOTE_BOOST_BOOK,Vote Boost | +10% PvM damage | +10% Drop rate bonus,,26982,(Ljava/lang/String;ILjava/lang/String;I)V
+6,VENGEANCE,Vengeance cooldown,popups/vengtimer,13|4,(Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;II)V
+7,ANTIFIRE,Antifire duration,popups/antitimer,13|2,(Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;II)V
+8,ANTIVENOM,Anti-venom duration,popups/venomtimer,13|2,(Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;II)V
+9,CHARGE,Charge duration,popups/chargetimer,12|4,(Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;II)V
+10,STAMINA,Stamina duration,popups/staminatimer,13|2,(Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;II)V
+11,TELEBLOCK,Teleblock duration,popups/teleblocktimer,9|2,(Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;II)V
+12,PETBLOCK,"Pet silence | While under silence, your  | pet\'s effects are disabled and  | you can\'t release other pets!",popups/petblocktimer,9|2,(Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;II)V
+13,BLOODLUST,Blood lust | Earn +10 blood money | from player kills.,popups/bloodlust,12|4,(Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;II)V
+14,JUNGLE_MINIGAME,"Survival timer | After this duration, you lose. | You can gain more time by | player kills and chest loots.",popups/minigame,12|5,(Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;II)V
+15,JUNGLE_AMNESTY,"Amnesty | While under amnesty,  | players can\'t harm you. | Attacking a player or the | jungle demon will cancel it.",popups/amnestyskull,11|2,(Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;II)V
+16,SICKNESS,"Magic sickness | You can\'t teleport in 20+ wild | with your spellbook, items, or | pets during sickness.",popups/sicknesstimer,9|2,(Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;II)V
+17,KHARAZI_BANK,Kharazi safe bank | After this duration | you will be removed | from the bank hut.,popups/banktimer,11|4,(Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;II)V
+18,FREEZE,Freeze duration,popups/freeze,11|4,(Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;II)V
+19,IMBUED_HEART,Imbued heart | Cooldown duration,popups/imbued,10|3,(Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;II)V
+20,ENCHANTED_HEART,Enchanted heart | Cooldown duration,popups/enchantedheart,10|3,(Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;II)V
+21,INFERNAL_HEART,Infernal heart | Cooldown duration,popups/infernal,10|3,(Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;II)V
+22,CHAOS_ELE_BONUS,Drop rate bonus | Chaos elemental,popups/drbonus,10|4,(Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;II)V
+23,BARRELCHEST_BONUS,Drop rate bonus | Barrelchest,popups/drbonus,10|4,(Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;II)V
+24,KRAKEN_BONUS,Drop rate bonus | Kraken,popups/drbonus,10|4,(Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;II)V
+25,VETION_BONUS,Drop rate bonus | Vet\'ion,popups/drbonus,10|4,(Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;II)V
+26,CRAZY_ARCH_BONUS,Drop rate bonus | Crazy archaeologist,popups/drbonus,10|4,(Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;II)V
+27,BLOOD_SLAYER,Blood slayer task | Complete the task in time!,popups/slayer,11|4,(Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;II)V
+28,DEMONIC_GORILLA_BONUS,Drop rate bonus | Demonic gorilla,popups/drbonus,10|4,(Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;II)V
+29,WILDY_WYRM_BONUS,Drop rate bonus | Wildywyrm,popups/drbonus,10|4,(Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;II)V
+30,THIEF_SCROLL_BONUS,Thief scroll | @gre@2x@whi@ loot from | thieving.,popups/drbonus,10|4,(Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;II)V
+31,LARRAN_SCROLL_BONUS,Larran\'s loot | @gre@2x@whi@ larrans keys from | blood slayer tasks.,popups/drbonus,10|4,(Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;II)V
+32,PVM_BONUS,Drop rate bonus | Drop rate increased by +5%,popups/drbonus,10|4,(Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;II)V
+33,EVENT_TIMER,Event booster | Gives @gre@25%@whi@ more @yel@event | @yel@currency@whi@ from @or1@World events!,popups/eventboost,10|4,(Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;II)V
+34,SEASONAL_EVENT_ELIXIR,Event booster | Gives @gre@25%@whi@ more @yel@event | @yel@currency@whi@ from @or1@World events!,popups/eventboost,10|4,(Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;II)V
+35,HUNGER_GAMES_POWERUP,Hunger games perk | Temporary power-up perk,popups/eventboost,10|4,(Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;II)V
+36,COIN_BONUS,Coin bonus | PvM GP increased by +25%,popups/drbonus,10|4,(Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;II)V
+37,LUCK_BONUS,Luck scroll | Drop rate bonus @gre@+10%,popups/drbonus,10|4,(Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;II)V
+38,SUPER_LUCK_BONUS,Super luck scroll | Drop rate bonus @gre@+15%,popups/drbonus,10|4,(Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;II)V
+39,MINI_SCROLL_BONUS,Minigame scroll | 2x minigame points & +25% | Kharazi drop rate,popups/drbonus,10|4,(Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;II)V
+40,BLOOD_DISCOUNT_BONUS,Blood discount | @gre@10%@whi@ cheaper purchases | from Blood fountain shops!,popups/drbonus,10|4,(Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;II)V
+41,HOTSPOT_BONUS,Hotspot bonus | @gre@2x@whi@ Hotspot Points <img=158> | from hotspots for limited time,popups/drbonus,10|4,(Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;II)V
+42,WELFARE_BONUS,Vintage bonus | 2X Vintage points and | +25% ticket drops,popups/drbonus,10|4,(Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;II)V
+43,RAID_BONUS,Raid scroll | Raids reward chance @gre@+10%,popups/drbonus,10|4,(Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;II)V
+44,SLAYER_CRYSTAL,Slayer crystal | Double slayer and | blood slayer points,popups/drbonus,10|4,(Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;II)V
+45,HOTSPOT_CRYSTAL,Hotspot crystal | Double chance for | hot spot caskets,popups/drbonus,10|4,(Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;II)V
+46,RAIDS_CHART,Raids chart | Increased chance for | raids chest rares!,popups/drbonus,10|4,(Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;II)V
+47,SEASONAL_DROP_BOOST,Seasonal boost | Gives @gre@+15%@whi@ more @yel@drop | @yel@rate bonus@whi@ during Seasonal event!,popups/eventboost,10|4,(Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;II)V
+48,SEASONAL_DROP_DOUBLE,Seasonal double | Gives @gre@+5%@whi@ chance for @yel@doubled | @yel@drops@whi@ during Seasonal event!,popups/eventboost,10|4,(Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;II)V
+49,SEASONAL_HOTSPOT,Seasonal hotspot | Gives @gre@25%@whi@ more @yel@hotspot | @yel@caskets@whi@ during Seasonal event!,popups/eventboost,10|4,(Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;II)V
+50,SEASONAL_BLOOD_REV,Seasonal revs | Gives @gre@25%@whi@ more @yel@superior | @yel@revenants@whi@ during Seasonal event!,popups/eventboost,10|4,(Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;II)V
+51,ADVENTURE_SCROLL,Adventure Scroll | +10 blood money from PKs | +15% PvM damage | +25% Drop rate bonus,popups/drbonus,11|4,(Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;II)V
+52,DRAGON_BOOST_BOOK,Dragon Boost | +10% PvM damage | against Dragons,popups/pvmboost,11|4,(Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;II)V
+53,REVENANT_BOOST_BOOK,Revenant Boost | +10% PvM damage | against Revenants,popups/pvmboost,11|4,(Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;II)V
+54,DEEP_WILD_BOOST_BOOK,Deep Wild Boost | +10% PvM damage | in Deep Wild,popups/pvmboost,11|4,(Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;II)V
+55,RAID_BOOST_BOOK,Raid Boost | +10% PvM damage | against Raid monsters,popups/pvmboost,11|4,(Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;II)V
+56,MALEDICTUS_BOOST,Maledictus Boost | +20% Superior Blood | Revenant chance,popups/drbonus,11|4,(Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;II)V
+57,SLAYER_SPEED_PASS,Slayer speed pass | Assigned slayer tasks | have kill requirements | reduced by 50%,popups/slayer,11|4,(Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;II)V
+58,DZONE_ELIXIR,Donator elixir | 2X zone tokens for |  all donator zones,popups/dzone_elixir,11|4,(Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;II)V
+59,COSMIC_GOLD,Cosmic gold | Receive @gre@+25%@whi@ more gold | from all PvM drops,popups/drbonus,10|4,(Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;II)V
+60,COSMIC_DROPS,Cosmic luck | Drop rate bonus @gre@+5%,popups/drbonus,10|4,(Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;II)V
+61,COSMIC_DAMAGE,Cosmic strength | Deal @gre@+5%@whi@ more PvM damage,popups/pvmboost,11|4,(Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;II)V
+62,WEREWOLF_FRENZY,Frenzy | Deal +10% melee damage in PvM | (+5% in PvP),popups/werewolf,9|2,(Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;II)V
+63,VAMPYRE_FOCUS,Blood Satiation | Grants +10% PvM damage & accuarcy | for magic and range (+5% in PvP),popups/vampyre,9|2,(Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;II)V

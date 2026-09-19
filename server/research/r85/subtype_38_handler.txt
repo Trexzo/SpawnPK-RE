@@ -1,0 +1,24 @@
+  public void a();
+    Code:
+       0: aload_0
+       1: invokevirtual #11                 // Method e:()I
+       4: istore_1
+       5: iload_1
+       6: iconst_1
+       7: if_icmpne     39
+      10: aload_0
+      11: invokevirtual #10                 // Method d:()J
+      14: lstore_2
+      15: aload_0
+      16: invokevirtual #12                 // Method h:()Ljava/lang/String;
+      19: astore        4
+      21: aload_0
+      22: getfield      #5                  // Field c:Lrs/Client;
+      25: aload         4
+      27: bipush        6
+      29: lload_2
+      30: invokestatic  #7                  // Method rs/O.a:(J)Ljava/lang/String;
+      33: invokestatic  #8                  // Method rs/O.c:(Ljava/lang/String;)Ljava/lang/String;
+      36: invokevirtual #6                  // Method rs/Client.a:(Ljava/lang/String;ILjava/lang/String;)V
+      39: return
+}

@@ -1,0 +1,1829 @@
+public class rs.n.c.ab extends rs.n.c {
+  public static final int c;
+
+  public static final int d;
+
+  public static final int e;
+
+  public static final int f;
+
+  public static final int g;
+
+  public static rs.a.h bI;
+
+  public static rs.a.h bJ;
+
+  public static java.util.Map<java.lang.String, java.lang.Integer> bK;
+
+  public static int bL;
+
+  public static boolean bM;
+
+  public static int bN;
+
+  public static int bO;
+
+  public static int bP;
+
+  public static int bQ;
+
+  public static int bR;
+
+  public static int bS;
+
+  public static boolean bT;
+
+  public static void a(boolean);
+    Code:
+       0: iload_0
+       1: ifeq          31
+       4: ldc           #25                 // int 47819
+       6: istore_1
+       7: iload_1
+       8: ldc           #43                 // int 47837
+      10: if_icmpgt     28
+      13: getstatic     #142                // Field rs/n/e.H:[Lrs/n/e;
+      16: iload_1
+      17: aaload
+      18: iconst_1
+      19: putfield      #162                // Field rs/n/e.bf:Z
+      22: iinc          1, 1
+      25: goto          7
+      28: goto          55
+      31: ldc           #25                 // int 47819
+      33: istore_1
+      34: iload_1
+      35: ldc           #43                 // int 47837
+      37: if_icmpgt     55
+      40: getstatic     #142                // Field rs/n/e.H:[Lrs/n/e;
+      43: iload_1
+      44: aaload
+      45: iconst_0
+      46: putfield      #162                // Field rs/n/e.bf:Z
+      49: iinc          1, 1
+      52: goto          34
+      55: iload_0
+      56: putstatic     #138                // Field bT:Z
+      59: return
+
+  public static void h();
+    Code:
+       0: ldc           #7                  // int 47505
+       2: istore_0
+       3: iload_0
+       4: ldc           #8                  // int 47704
+       6: if_icmpgt     29
+       9: iload_0
+      10: ldc           #51                 // String
+      12: getstatic     #139                // Field rs/n/d.b:[Lrs/l/K;
+      15: iconst_0
+      16: ldc           #50                 // int 16751360
+      18: iconst_0
+      19: iconst_1
+      20: invokestatic  #197                // Method rs/n/e.a:(ILjava/lang/String;[Lrs/l/K;IIZZ)V
+      23: iinc          0, 1
+      26: goto          3
+      29: ldc           #7                  // int 47505
+      31: putstatic     #132                // Field bN:I
+      34: iconst_3
+      35: putstatic     #133                // Field bO:I
+      38: iconst_3
+      39: putstatic     #134                // Field bP:I
+      42: return
+
+  public static void i();
+    Code:
+       0: getstatic     #135                // Field bQ:I
+       3: ldc           #14                 // int 47808
+       5: if_icmplt     9
+       8: return
+       9: getstatic     #135                // Field bQ:I
+      12: istore_0
+      13: iload_0
+      14: ldc           #14                 // int 47808
+      16: if_icmpge     65
+      19: getstatic     #142                // Field rs/n/e.H:[Lrs/n/e;
+      22: iload_0
+      23: aaload
+      24: ldc           #51                 // String
+      26: putfield      #159                // Field rs/n/e.at:Ljava/lang/String;
+      29: getstatic     #142                // Field rs/n/e.H:[Lrs/n/e;
+      32: iload_0
+      33: aaload
+      34: getfield      #149                // Field rs/n/e.aI:I
+      37: iconst_5
+      38: if_icmpne     59
+      41: getstatic     #142                // Field rs/n/e.H:[Lrs/n/e;
+      44: iload_0
+      45: aaload
+      46: aconst_null
+      47: putfield      #140                // Field rs/n/e.E:Lrs/l/F;
+      50: getstatic     #142                // Field rs/n/e.H:[Lrs/n/e;
+      53: iload_0
+      54: aaload
+      55: aconst_null
+      56: putfield      #147                // Field rs/n/e.aG:Lrs/l/F;
+      59: iinc          0, 1
+      62: goto          13
+      65: return
+
+  public static void j();
+    Code:
+       0: getstatic     #132                // Field bN:I
+       3: ldc           #8                  // int 47704
+       5: if_icmplt     9
+       8: return
+       9: getstatic     #132                // Field bN:I
+      12: istore_0
+      13: iload_0
+      14: ldc           #8                  // int 47704
+      16: if_icmpge     35
+      19: getstatic     #142                // Field rs/n/e.H:[Lrs/n/e;
+      22: iload_0
+      23: aaload
+      24: ldc           #51                 // String
+      26: putfield      #159                // Field rs/n/e.at:Ljava/lang/String;
+      29: iinc          0, 1
+      32: goto          13
+      35: return
+
+  public static void k();
+    Code:
+       0: ldc           #10                 // int 47706
+       2: ldc           #99                 // String wiki/item 1
+       4: invokestatic  #194                // Method h:(ILjava/lang/String;)V
+       7: getstatic     #142                // Field rs/n/e.H:[Lrs/n/e;
+      10: ldc           #12                 // int 47708
+      12: aaload
+      13: getfield      #156                // Field rs/n/e.am:[I
+      16: iconst_3
+      17: bipush        16
+      19: iastore
+      20: getstatic     #142                // Field rs/n/e.H:[Lrs/n/e;
+      23: ldc           #12                 // int 47708
+      25: aaload
+      26: getfield      #156                // Field rs/n/e.am:[I
+      29: iconst_4
+      30: bipush        16
+      32: iastore
+      33: getstatic     #142                // Field rs/n/e.H:[Lrs/n/e;
+      36: ldc           #12                 // int 47708
+      38: aaload
+      39: iconst_0
+      40: putfield      #144                // Field rs/n/e.V:I
+      43: ldc           #13                 // int 47709
+      45: putstatic     #135                // Field bQ:I
+      48: iconst_3
+      49: putstatic     #136                // Field bR:I
+      52: sipush        210
+      55: putstatic     #137                // Field bS:I
+      58: return
+
+  public static void l();
+    Code:
+       0: getstatic     #129                // Field bK:Ljava/util/Map;
+       3: invokeinterface #201,  1          // InterfaceMethod java/util/Map.clear:()V
+       8: iconst_0
+       9: putstatic     #131                // Field bM:Z
+      12: aconst_null
+      13: putstatic     #127                // Field bI:Lrs/a/h;
+      16: aconst_null
+      17: putstatic     #128                // Field bJ:Lrs/a/h;
+      20: sipush        808
+      23: putstatic     #130                // Field bL:I
+      26: iconst_0
+      27: istore_0
+      28: iload_0
+      29: bipush        15
+      31: if_icmpge     64
+      34: getstatic     #125                // Field H:[Lrs/n/e;
+      37: ldc           #11                 // int 47707
+      39: aaload
+      40: getfield      #161                // Field rs/n/e.az:[I
+      43: iload_0
+      44: iconst_0
+      45: iastore
+      46: getstatic     #125                // Field H:[Lrs/n/e;
+      49: ldc           #11                 // int 47707
+      51: aaload
+      52: getfield      #160                // Field rs/n/e.ax:[I
+      55: iload_0
+      56: iconst_0
+      57: iastore
+      58: iinc          0, 1
+      61: goto          28
+      64: return
+
+  public static void m();
+    Code:
+       0: aconst_null
+       1: putstatic     #127                // Field bI:Lrs/a/h;
+       4: aconst_null
+       5: putstatic     #128                // Field bJ:Lrs/a/h;
+       8: getstatic     #150                // Field rs/n/e.aO:Lrs/F;
+      11: invokevirtual #179                // Method rs/F.a:()V
+      14: return
+
+  public static void a(java.lang.String, boolean, boolean);
+    Code:
+       0: getstatic     #132                // Field bN:I
+       3: ifne          9
+       6: invokestatic  #193                // Method h:()V
+       9: getstatic     #132                // Field bN:I
+      12: ldc           #8                  // int 47704
+      14: if_icmplt     26
+      17: getstatic     #122                // Field java/lang/System.out:Ljava/io/PrintStream;
+      20: ldc           #93                 // String [ERROR] OVERFLOW CATEGORY
+      22: invokevirtual #164                // Method java/io/PrintStream.println:(Ljava/lang/String;)V
+      25: return
+      26: getstatic     #132                // Field bN:I
+      29: ldc           #7                  // int 47505
+      31: isub
+      32: istore_3
+      33: iload_1
+      34: ifeq          143
+      37: iload_2
+      38: ifeq          46
+      41: bipush        15
+      43: goto          47
+      46: iconst_3
+      47: putstatic     #133                // Field bO:I
+      50: iload_3
+      51: ifle          62
+      54: getstatic     #134                // Field bP:I
+      57: iconst_3
+      58: iadd
+      59: putstatic     #134                // Field bP:I
+      62: iload_2
+      63: ifne          76
+      66: aload_0
+      67: invokedynamic #204,  0            // InvokeDynamic #0:makeConcatWithConstants:(Ljava/lang/String;)Ljava/lang/String;
+      72: astore_0
+      73: goto          83
+      76: aload_0
+      77: invokedynamic #205,  0            // InvokeDynamic #1:makeConcatWithConstants:(Ljava/lang/String;)Ljava/lang/String;
+      82: astore_0
+      83: getstatic     #132                // Field bN:I
+      86: aload_0
+      87: getstatic     #139                // Field rs/n/d.b:[Lrs/l/K;
+      90: iconst_2
+      91: ldc           #50                 // int 16751360
+      93: iconst_0
+      94: iconst_1
+      95: invokestatic  #189                // Method a:(ILjava/lang/String;[Lrs/l/K;IIZZ)V
+      98: getstatic     #142                // Field rs/n/e.H:[Lrs/n/e;
+     101: ldc           #6                  // int 47504
+     103: aaload
+     104: iload_3
+     105: getstatic     #132                // Field bN:I
+     108: getstatic     #133                // Field bO:I
+     111: getstatic     #134                // Field bP:I
+     114: invokevirtual #198                // Method rs/n/e.b:(IIII)V
+     117: getstatic     #134                // Field bP:I
+     120: bipush        19
+     122: iadd
+     123: putstatic     #134                // Field bP:I
+     126: iload_2
+     127: ifeq          135
+     130: bipush        30
+     132: goto          137
+     135: bipush        15
+     137: putstatic     #133                // Field bO:I
+     140: goto          189
+     143: getstatic     #132                // Field bN:I
+     146: aload_0
+     147: aload_0
+     148: getstatic     #139                // Field rs/n/d.b:[Lrs/l/K;
+     151: iconst_0
+     152: ldc           #49                 // int 16750623
+     154: iconst_0
+     155: iconst_1
+     156: bipush        125
+     158: invokestatic  #188                // Method a:(ILjava/lang/String;Ljava/lang/String;[Lrs/l/K;IIZZI)V
+     161: getstatic     #142                // Field rs/n/e.H:[Lrs/n/e;
+     164: ldc           #6                  // int 47504
+     166: aaload
+     167: iload_3
+     168: getstatic     #132                // Field bN:I
+     171: getstatic     #133                // Field bO:I
+     174: getstatic     #134                // Field bP:I
+     177: invokevirtual #198                // Method rs/n/e.b:(IIII)V
+     180: getstatic     #134                // Field bP:I
+     183: bipush        15
+     185: iadd
+     186: putstatic     #134                // Field bP:I
+     189: getstatic     #132                // Field bN:I
+     192: iconst_1
+     193: iadd
+     194: putstatic     #132                // Field bN:I
+     197: return
+
+  public static void a(java.lang.String, boolean);
+    Code:
+       0: getstatic     #135                // Field bQ:I
+       3: ifne          9
+       6: invokestatic  #196                // Method k:()V
+       9: getstatic     #135                // Field bQ:I
+      12: ldc           #14                 // int 47808
+      14: if_icmplt     26
+      17: getstatic     #122                // Field java/lang/System.out:Ljava/io/PrintStream;
+      20: ldc           #94                 // String [ERROR] OVERFLOW DESCRIPTION
+      22: invokevirtual #164                // Method java/io/PrintStream.println:(Ljava/lang/String;)V
+      25: return
+      26: iconst_0
+      27: istore_2
+      28: iconst_0
+      29: istore_3
+      30: aload_0
+      31: ldc           #103                // String {C}
+      33: invokevirtual #175                // Method java/lang/String.startsWith:(Ljava/lang/String;)Z
+      36: ifeq          50
+      39: aload_0
+      40: ldc           #103                // String {C}
+      42: ldc           #51                 // String
+      44: invokevirtual #172                // Method java/lang/String.replace:(Ljava/lang/CharSequence;Ljava/lang/CharSequence;)Ljava/lang/String;
+      47: astore_0
+      48: iconst_1
+      49: istore_2
+      50: aload_0
+      51: ldc           #102                // String {B}
+      53: invokevirtual #169                // Method java/lang/String.contains:(Ljava/lang/CharSequence;)Z
+      56: ifeq          70
+      59: aload_0
+      60: ldc           #102                // String {B}
+      62: ldc           #51                 // String
+      64: invokevirtual #172                // Method java/lang/String.replace:(Ljava/lang/CharSequence;Ljava/lang/CharSequence;)Ljava/lang/String;
+      67: astore_0
+      68: iconst_1
+      69: istore_3
+      70: getstatic     #142                // Field rs/n/e.H:[Lrs/n/e;
+      73: getstatic     #135                // Field bQ:I
+      76: aaload
+      77: ifnull        116
+      80: getstatic     #142                // Field rs/n/e.H:[Lrs/n/e;
+      83: getstatic     #135                // Field bQ:I
+      86: aaload
+      87: getfield      #149                // Field rs/n/e.aI:I
+      90: iconst_5
+      91: if_icmpne     116
+      94: getstatic     #142                // Field rs/n/e.H:[Lrs/n/e;
+      97: getstatic     #135                // Field bQ:I
+     100: aaload
+     101: aconst_null
+     102: putfield      #140                // Field rs/n/e.E:Lrs/l/F;
+     105: getstatic     #142                // Field rs/n/e.H:[Lrs/n/e;
+     108: getstatic     #135                // Field bQ:I
+     111: aaload
+     112: aconst_null
+     113: putfield      #147                // Field rs/n/e.aG:Lrs/l/F;
+     116: iload_1
+     117: ifeq          143
+     120: getstatic     #135                // Field bQ:I
+     123: aload_0
+     124: ldc           #85                 // String Select option
+     126: getstatic     #139                // Field rs/n/d.b:[Lrs/l/K;
+     129: iconst_0
+     130: ldc           #49                 // int 16750623
+     132: iload_2
+     133: iconst_1
+     134: sipush        500
+     137: invokestatic  #188                // Method a:(ILjava/lang/String;Ljava/lang/String;[Lrs/l/K;IIZZI)V
+     140: goto          180
+     143: iload_3
+     144: ifeq          165
+     147: getstatic     #135                // Field bQ:I
+     150: aload_0
+     151: getstatic     #139                // Field rs/n/d.b:[Lrs/l/K;
+     154: iconst_2
+     155: ldc           #50                 // int 16751360
+     157: iload_2
+     158: iconst_1
+     159: invokestatic  #189                // Method a:(ILjava/lang/String;[Lrs/l/K;IIZZ)V
+     162: goto          180
+     165: getstatic     #135                // Field bQ:I
+     168: aload_0
+     169: getstatic     #139                // Field rs/n/d.b:[Lrs/l/K;
+     172: iconst_1
+     173: ldc           #50                 // int 16751360
+     175: iload_2
+     176: iconst_1
+     177: invokestatic  #189                // Method a:(ILjava/lang/String;[Lrs/l/K;IIZZ)V
+     180: getstatic     #135                // Field bQ:I
+     183: ldc           #13                 // int 47709
+     185: isub
+     186: bipush        7
+     188: iadd
+     189: istore        4
+     191: getstatic     #142                // Field rs/n/e.H:[Lrs/n/e;
+     194: ldc           #12                 // int 47708
+     196: aaload
+     197: iload         4
+     199: getstatic     #135                // Field bQ:I
+     202: getstatic     #136                // Field bR:I
+     205: iload_2
+     206: ifeq          228
+     209: iload_1
+     210: ifeq          218
+     213: bipush        -116
+     215: goto          221
+     218: sipush        134
+     221: sipush        150
+     224: iadd
+     225: goto          229
+     228: iconst_0
+     229: iadd
+     230: getstatic     #137                // Field bS:I
+     233: bipush        30
+     235: iadd
+     236: invokevirtual #198                // Method rs/n/e.b:(IIII)V
+     239: getstatic     #137                // Field bS:I
+     242: bipush        15
+     244: iload_3
+     245: ifeq          252
+     248: iconst_5
+     249: goto          253
+     252: iconst_0
+     253: iadd
+     254: iadd
+     255: putstatic     #137                // Field bS:I
+     258: getstatic     #135                // Field bQ:I
+     261: iconst_1
+     262: iadd
+     263: putstatic     #135                // Field bQ:I
+     266: return
+
+  public static void b(java.lang.String);
+    Code:
+       0: getstatic     #135                // Field bQ:I
+       3: ifne          9
+       6: invokestatic  #196                // Method k:()V
+       9: getstatic     #135                // Field bQ:I
+      12: ldc           #14                 // int 47808
+      14: if_icmplt     26
+      17: getstatic     #122                // Field java/lang/System.out:Ljava/io/PrintStream;
+      20: ldc           #94                 // String [ERROR] OVERFLOW DESCRIPTION
+      22: invokevirtual #164                // Method java/io/PrintStream.println:(Ljava/lang/String;)V
+      25: return
+      26: aload_0
+      27: ldc           #52                 // String ,
+      29: invokevirtual #174                // Method java/lang/String.split:(Ljava/lang/String;)[Ljava/lang/String;
+      32: astore_1
+      33: aload_1
+      34: iconst_0
+      35: aaload
+      36: invokestatic  #167                // Method java/lang/Integer.parseInt:(Ljava/lang/String;)I
+      39: istore_2
+      40: aload_1
+      41: iconst_1
+      42: aaload
+      43: invokestatic  #167                // Method java/lang/Integer.parseInt:(Ljava/lang/String;)I
+      46: istore_3
+      47: aload_1
+      48: iconst_2
+      49: aaload
+      50: invokestatic  #167                // Method java/lang/Integer.parseInt:(Ljava/lang/String;)I
+      53: istore        4
+      55: aload_1
+      56: iconst_3
+      57: aaload
+      58: invokestatic  #167                // Method java/lang/Integer.parseInt:(Ljava/lang/String;)I
+      61: istore        5
+      63: iload_2
+      64: iconst_m1
+      65: if_icmpne     78
+      68: getstatic     #137                // Field bS:I
+      71: iload         5
+      73: iadd
+      74: putstatic     #137                // Field bS:I
+      77: return
+      78: getstatic     #135                // Field bQ:I
+      81: ldc           #13                 // int 47709
+      83: isub
+      84: bipush        7
+      86: iadd
+      87: istore        6
+      89: getstatic     #135                // Field bQ:I
+      92: iload_2
+      93: invokedynamic #206,  0            // InvokeDynamic #2:makeConcatWithConstants:(I)Ljava/lang/String;
+      98: invokestatic  #194                // Method h:(ILjava/lang/String;)V
+     101: getstatic     #142                // Field rs/n/e.H:[Lrs/n/e;
+     104: getstatic     #135                // Field bQ:I
+     107: aaload
+     108: iconst_1
+     109: putfield      #163                // Field rs/n/e.l:Z
+     112: getstatic     #142                // Field rs/n/e.H:[Lrs/n/e;
+     115: ldc           #12                 // int 47708
+     117: aaload
+     118: iload         6
+     120: getstatic     #135                // Field bQ:I
+     123: getstatic     #136                // Field bR:I
+     126: iload_3
+     127: iadd
+     128: getstatic     #137                // Field bS:I
+     131: iload         4
+     133: iadd
+     134: invokevirtual #198                // Method rs/n/e.b:(IIII)V
+     137: getstatic     #137                // Field bS:I
+     140: iload         5
+     142: iadd
+     143: putstatic     #137                // Field bS:I
+     146: getstatic     #135                // Field bQ:I
+     149: iconst_1
+     150: iadd
+     151: putstatic     #135                // Field bQ:I
+     154: return
+
+  public static void c(java.lang.String);
+    Code:
+       0: aload_0
+       1: ldc           #74                 // String ITEM_GUIDE_SELECTED_
+       3: ldc           #51                 // String
+       5: invokevirtual #172                // Method java/lang/String.replace:(Ljava/lang/CharSequence;Ljava/lang/CharSequence;)Ljava/lang/String;
+       8: invokestatic  #167                // Method java/lang/Integer.parseInt:(Ljava/lang/String;)I
+      11: istore_1
+      12: ldc           #7                  // int 47505
+      14: istore_2
+      15: iload_2
+      16: ldc           #8                  // int 47704
+      18: if_icmpge     119
+      21: getstatic     #142                // Field rs/n/e.H:[Lrs/n/e;
+      24: iload_2
+      25: aaload
+      26: ifnonnull     32
+      29: goto          113
+      32: getstatic     #142                // Field rs/n/e.H:[Lrs/n/e;
+      35: iload_2
+      36: aaload
+      37: getfield      #159                // Field rs/n/e.at:Ljava/lang/String;
+      40: ifnonnull     46
+      43: goto          113
+      46: ldc           #54                 // String <img=24>
+      48: astore_3
+      49: getstatic     #142                // Field rs/n/e.H:[Lrs/n/e;
+      52: iload_2
+      53: aaload
+      54: getfield      #159                // Field rs/n/e.at:Ljava/lang/String;
+      57: aload_3
+      58: invokevirtual #169                // Method java/lang/String.contains:(Ljava/lang/CharSequence;)Z
+      61: ifeq          87
+      64: getstatic     #142                // Field rs/n/e.H:[Lrs/n/e;
+      67: iload_2
+      68: aaload
+      69: getstatic     #142                // Field rs/n/e.H:[Lrs/n/e;
+      72: iload_2
+      73: aaload
+      74: getfield      #159                // Field rs/n/e.at:Ljava/lang/String;
+      77: ldc           #55                 // String <img=24>
+      79: ldc           #51                 // String
+      81: invokevirtual #173                // Method java/lang/String.replaceAll:(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;
+      84: putfield      #159                // Field rs/n/e.at:Ljava/lang/String;
+      87: iload_2
+      88: iload_1
+      89: if_icmpne     113
+      92: getstatic     #142                // Field rs/n/e.H:[Lrs/n/e;
+      95: iload_2
+      96: aaload
+      97: getstatic     #142                // Field rs/n/e.H:[Lrs/n/e;
+     100: iload_2
+     101: aaload
+     102: getfield      #159                // Field rs/n/e.at:Ljava/lang/String;
+     105: invokedynamic #207,  0            // InvokeDynamic #3:makeConcatWithConstants:(Ljava/lang/String;)Ljava/lang/String;
+     110: putfield      #159                // Field rs/n/e.at:Ljava/lang/String;
+     113: iinc          2, 1
+     116: goto          15
+     119: return
+
+  public rs.n.c.ab(rs.l.K[]);
+    Code:
+       0: aload_0
+       1: aload_1
+       2: invokespecial #183                // Method rs/n/c."<init>":([Lrs/l/K;)V
+       5: return
+
+  public void a();
+    Code:
+       0: ldc           #2                  // int 47500
+       2: invokestatic  #192                // Method d:(I)Lrs/n/e;
+       5: astore_1
+       6: aload_1
+       7: invokevirtual #199                // Method rs/n/e.f:()V
+      10: ldc           #3                  // int 47501
+      12: ldc           #77                 // String Official SpawnPK Item Library
+      14: aload_0
+      15: getfield      #126                // Field a:[Lrs/l/K;
+      18: iconst_2
+      19: ldc           #50                 // int 16751360
+      21: iconst_1
+      22: iconst_1
+      23: invokestatic  #189                // Method a:(ILjava/lang/String;[Lrs/l/K;IIZZ)V
+      26: ldc           #4                  // int 47502
+      28: ldc           #51                 // String
+      30: aload_0
+      31: getfield      #126                // Field a:[Lrs/l/K;
+      34: iconst_2
+      35: ldc           #50                 // int 16751360
+      37: iconst_0
+      38: iconst_1
+      39: invokestatic  #189                // Method a:(ILjava/lang/String;[Lrs/l/K;IIZZ)V
+      42: ldc           #5                  // int 47503
+      44: ldc           #86                 // String Selected Item Guide Title Text
+      46: aload_0
+      47: getfield      #126                // Field a:[Lrs/l/K;
+      50: iconst_2
+      51: ldc           #50                 // int 16751360
+      53: iconst_0
+      54: iconst_1
+      55: invokestatic  #189                // Method a:(ILjava/lang/String;[Lrs/l/K;IIZZ)V
+      58: ldc           #6                  // int 47504
+      60: invokestatic  #192                // Method d:(I)Lrs/n/e;
+      63: astore_2
+      64: aload_2
+      65: sipush        2350
+      68: putfield      #148                // Field rs/n/e.aH:I
+      71: aload_2
+      72: sipush        168
+      75: putfield      #143                // Field rs/n/e.P:I
+      78: aload_2
+      79: sipush        436
+      82: putfield      #151                // Field rs/n/e.aR:I
+      85: aload_2
+      86: sipush        200
+      89: invokevirtual #200                // Method rs/n/e.k:(I)V
+      92: iconst_0
+      93: istore_3
+      94: iload_3
+      95: sipush        200
+      98: if_icmpge     143
+     101: ldc           #7                  // int 47505
+     103: iload_3
+     104: iadd
+     105: istore        4
+     107: iload         4
+     109: ldc           #51                 // String
+     111: aload_0
+     112: getfield      #126                // Field a:[Lrs/l/K;
+     115: iconst_0
+     116: ldc           #50                 // int 16751360
+     118: iconst_0
+     119: iconst_1
+     120: invokestatic  #189                // Method a:(ILjava/lang/String;[Lrs/l/K;IIZZ)V
+     123: aload_2
+     124: iload_3
+     125: iload         4
+     127: iconst_3
+     128: iconst_3
+     129: iload_3
+     130: bipush        15
+     132: imul
+     133: iadd
+     134: invokevirtual #198                // Method rs/n/e.b:(IIII)V
+     137: iinc          3, 1
+     140: goto          94
+     143: ldc           #9                  // int 47705
+     145: bipush        110
+     147: sipush        250
+     150: invokestatic  #184                // Method a:(III)V
+     153: sipush        4907
+     156: istore_3
+     157: getstatic     #142                // Field rs/n/e.H:[Lrs/n/e;
+     160: ldc           #9                  // int 47705
+     162: aaload
+     163: iload_3
+     164: putfield      #155                // Field rs/n/e.af:I
+     167: getstatic     #142                // Field rs/n/e.H:[Lrs/n/e;
+     170: ldc           #9                  // int 47705
+     172: aaload
+     173: sipush        750
+     176: putfield      #152                // Field rs/n/e.aT:I
+     179: getstatic     #142                // Field rs/n/e.H:[Lrs/n/e;
+     182: ldc           #9                  // int 47705
+     184: aaload
+     185: sipush        1550
+     188: putfield      #153                // Field rs/n/e.aV:I
+     191: getstatic     #142                // Field rs/n/e.H:[Lrs/n/e;
+     194: ldc           #9                  // int 47705
+     196: aaload
+     197: iconst_0
+     198: putfield      #158                // Field rs/n/e.ar:I
+     201: getstatic     #142                // Field rs/n/e.H:[Lrs/n/e;
+     204: ldc           #9                  // int 47705
+     206: aaload
+     207: iconst_0
+     208: putfield      #141                // Field rs/n/e.F:I
+     211: getstatic     #142                // Field rs/n/e.H:[Lrs/n/e;
+     214: ldc           #9                  // int 47705
+     216: aaload
+     217: iload_3
+     218: invokestatic  #181                // Method rs/d/d.c:(I)Lrs/d/d;
+     221: getfield      #123                // Field rs/d/d.w:I
+     224: putfield      #145                // Field rs/n/e.aD:I
+     227: getstatic     #142                // Field rs/n/e.H:[Lrs/n/e;
+     230: ldc           #9                  // int 47705
+     232: aaload
+     233: iload_3
+     234: invokestatic  #181                // Method rs/d/d.c:(I)Lrs/d/d;
+     237: getfield      #123                // Field rs/d/d.w:I
+     240: putfield      #146                // Field rs/n/e.aE:I
+     243: ldc           #19                 // int 47813
+     245: bipush        110
+     247: sipush        250
+     250: invokestatic  #184                // Method a:(III)V
+     253: sipush        4908
+     256: istore_3
+     257: getstatic     #142                // Field rs/n/e.H:[Lrs/n/e;
+     260: ldc           #19                 // int 47813
+     262: aaload
+     263: iload_3
+     264: putfield      #155                // Field rs/n/e.af:I
+     267: getstatic     #142                // Field rs/n/e.H:[Lrs/n/e;
+     270: ldc           #19                 // int 47813
+     272: aaload
+     273: sipush        750
+     276: putfield      #152                // Field rs/n/e.aT:I
+     279: getstatic     #142                // Field rs/n/e.H:[Lrs/n/e;
+     282: ldc           #19                 // int 47813
+     284: aaload
+     285: sipush        1550
+     288: putfield      #153                // Field rs/n/e.aV:I
+     291: getstatic     #142                // Field rs/n/e.H:[Lrs/n/e;
+     294: ldc           #19                 // int 47813
+     296: aaload
+     297: iconst_0
+     298: putfield      #158                // Field rs/n/e.ar:I
+     301: getstatic     #142                // Field rs/n/e.H:[Lrs/n/e;
+     304: ldc           #19                 // int 47813
+     306: aaload
+     307: iconst_0
+     308: putfield      #141                // Field rs/n/e.F:I
+     311: getstatic     #142                // Field rs/n/e.H:[Lrs/n/e;
+     314: ldc           #19                 // int 47813
+     316: aaload
+     317: iload_3
+     318: invokestatic  #181                // Method rs/d/d.c:(I)Lrs/d/d;
+     321: getfield      #123                // Field rs/d/d.w:I
+     324: putfield      #145                // Field rs/n/e.aD:I
+     327: getstatic     #142                // Field rs/n/e.H:[Lrs/n/e;
+     330: ldc           #19                 // int 47813
+     332: aaload
+     333: iload_3
+     334: invokestatic  #181                // Method rs/d/d.c:(I)Lrs/d/d;
+     337: getfield      #123                // Field rs/d/d.w:I
+     340: putfield      #146                // Field rs/n/e.aE:I
+     343: ldc           #10                 // int 47706
+     345: ldc           #99                 // String wiki/item 1
+     347: invokestatic  #194                // Method h:(ILjava/lang/String;)V
+     350: ldc           #45                 // int 47839
+     352: ldc           #100                // String wiki/item 8
+     354: invokestatic  #194                // Method h:(ILjava/lang/String;)V
+     357: ldc           #11                 // int 47707
+     359: iconst_0
+     360: invokestatic  #165                // Method java/lang/Boolean.valueOf:(Z)Ljava/lang/Boolean;
+     363: invokestatic  #185                // Method a:(ILjava/lang/Boolean;)V
+     366: getstatic     #125                // Field H:[Lrs/n/e;
+     369: ldc           #11                 // int 47707
+     371: aaload
+     372: iconst_3
+     373: putfield      #143                // Field rs/n/e.P:I
+     376: getstatic     #125                // Field H:[Lrs/n/e;
+     379: ldc           #11                 // int 47707
+     381: aaload
+     382: bipush        9
+     384: putfield      #154                // Field rs/n/e.ac:I
+     387: getstatic     #125                // Field H:[Lrs/n/e;
+     390: ldc           #11                 // int 47707
+     392: aaload
+     393: bipush        8
+     395: putfield      #157                // Field rs/n/e.ap:I
+     398: ldc           #12                 // int 47708
+     400: invokestatic  #192                // Method d:(I)Lrs/n/e;
+     403: astore        4
+     405: ldc           #22                 // int 47816
+     407: ldc           #98                 // String wiki/item
+     409: iconst_3
+     410: bipush        37
+     412: bipush        35
+     414: ldc           #90                 // String View equipment bonuses
+     416: iconst_m1
+     417: ldc           #23                 // int 47817
+     419: iconst_1
+     420: invokestatic  #187                // Method a:(ILjava/lang/String;IIILjava/lang/String;III)V
+     423: ldc           #23                 // int 47817
+     425: ldc           #98                 // String wiki/item
+     427: iconst_4
+     428: bipush        37
+     430: bipush        35
+     432: ldc           #24                 // int 47818
+     434: invokestatic  #186                // Method a:(ILjava/lang/String;IIII)V
+     437: aload         4
+     439: sipush        1000
+     442: putfield      #148                // Field rs/n/e.aH:I
+     445: aload         4
+     447: sipush        536
+     450: putfield      #143                // Field rs/n/e.P:I
+     453: aload         4
+     455: sipush        436
+     458: putfield      #151                // Field rs/n/e.aR:I
+     461: aload         4
+     463: bipush        107
+     465: invokevirtual #200                // Method rs/n/e.k:(I)V
+     468: bipush        20
+     470: istore        5
+     472: aload         4
+     474: iconst_0
+     475: ldc           #10                 // int 47706
+     477: bipush        10
+     479: iconst_5
+     480: iload         5
+     482: iadd
+     483: bipush        10
+     485: isub
+     486: invokevirtual #198                // Method rs/n/e.b:(IIII)V
+     489: aload         4
+     491: iconst_1
+     492: ldc           #11                 // int 47707
+     494: bipush        27
+     496: bipush        6
+     498: iload         5
+     500: iadd
+     501: bipush        10
+     503: isub
+     504: invokevirtual #198                // Method rs/n/e.b:(IIII)V
+     507: aload         4
+     509: iconst_2
+     510: ldc           #9                  // int 47705
+     512: sipush        215
+     515: iconst_0
+     516: iload         5
+     518: iadd
+     519: iconst_5
+     520: isub
+     521: invokevirtual #198                // Method rs/n/e.b:(IIII)V
+     524: aload         4
+     526: iconst_3
+     527: ldc           #22                 // int 47816
+     529: bipush        26
+     531: bipush        7
+     533: iload         5
+     535: iadd
+     536: bipush        10
+     538: isub
+     539: invokevirtual #198                // Method rs/n/e.b:(IIII)V
+     542: aload         4
+     544: iconst_4
+     545: ldc           #23                 // int 47817
+     547: bipush        26
+     549: bipush        7
+     551: iload         5
+     553: iadd
+     554: bipush        10
+     556: isub
+     557: invokevirtual #198                // Method rs/n/e.b:(IIII)V
+     560: aload         4
+     562: iconst_5
+     563: ldc           #19                 // int 47813
+     565: sipush        375
+     568: iconst_0
+     569: iload         5
+     571: iadd
+     572: iconst_5
+     573: isub
+     574: invokevirtual #198                // Method rs/n/e.b:(IIII)V
+     577: aload         4
+     579: bipush        6
+     581: ldc           #45                 // int 47839
+     583: iconst_0
+     584: sipush        230
+     587: invokevirtual #198                // Method rs/n/e.b:(IIII)V
+     590: iconst_0
+     591: istore        6
+     593: iload         6
+     595: bipush        100
+     597: if_icmpge     656
+     600: ldc           #13                 // int 47709
+     602: iload         6
+     604: iadd
+     605: istore        7
+     607: iload         7
+     609: ldc           #51                 // String
+     611: aload_0
+     612: getfield      #126                // Field a:[Lrs/l/K;
+     615: iconst_0
+     616: ldc           #50                 // int 16751360
+     618: iconst_0
+     619: iconst_1
+     620: invokestatic  #189                // Method a:(ILjava/lang/String;[Lrs/l/K;IIZZ)V
+     623: aload         4
+     625: bipush        7
+     627: iload         6
+     629: iadd
+     630: iload         7
+     632: sipush        253
+     635: sipush        210
+     638: iload         6
+     640: bipush        15
+     642: imul
+     643: iadd
+     644: bipush        25
+     646: iadd
+     647: invokevirtual #198                // Method rs/n/e.b:(IIII)V
+     650: iinc          6, 1
+     653: goto          593
+     656: ldc           #15                 // int 47809
+     658: ldc           #96                 // String wiki/button
+     660: iconst_1
+     661: sipush        185
+     664: bipush        32
+     666: ldc           #84                 // String Search by item
+     668: iconst_m1
+     669: ldc           #16                 // int 47810
+     671: iconst_1
+     672: invokestatic  #187                // Method a:(ILjava/lang/String;IIILjava/lang/String;III)V
+     675: ldc           #16                 // int 47810
+     677: ldc           #96                 // String wiki/button
+     679: iconst_2
+     680: sipush        185
+     683: bipush        25
+     685: ldc           #17                 // int 47811
+     687: invokestatic  #186                // Method a:(ILjava/lang/String;IIII)V
+     690: ldc           #18                 // int 47812
+     692: ldc           #57                 // String <img=39> Search for an item
+     694: aload_0
+     695: getfield      #126                // Field a:[Lrs/l/K;
+     698: iconst_0
+     699: ldc           #50                 // int 16751360
+     701: iconst_1
+     702: iconst_1
+     703: invokestatic  #189                // Method a:(ILjava/lang/String;[Lrs/l/K;IIZZ)V
+     706: ldc           #20                 // int 47814
+     708: iconst_1
+     709: ldc           #101                // String wiki/sprite
+     711: invokestatic  #191                // Method c:(IILjava/lang/String;)V
+     714: ldc           #21                 // int 47815
+     716: iconst_2
+     717: ldc           #101                // String wiki/sprite
+     719: invokestatic  #191                // Method c:(IILjava/lang/String;)V
+     722: ldc           #25                 // int 47819
+     724: iconst_5
+     725: ldc           #98                 // String wiki/item
+     727: invokestatic  #191                // Method c:(IILjava/lang/String;)V
+     730: ldc           #26                 // int 47820
+     732: ldc           #63                 // String Attack bonus
+     734: aload_0
+     735: getfield      #126                // Field a:[Lrs/l/K;
+     738: iconst_2
+     739: ldc           #48                 // int 14983494
+     741: iconst_0
+     742: iconst_1
+     743: invokestatic  #189                // Method a:(ILjava/lang/String;[Lrs/l/K;IIZZ)V
+     746: ldc           #27                 // int 47821
+     748: ldc           #88                 // String Stab: +0
+     750: aload_0
+     751: getfield      #126                // Field a:[Lrs/l/K;
+     754: iconst_1
+     755: ldc           #48                 // int 14983494
+     757: iconst_0
+     758: iconst_1
+     759: invokestatic  #189                // Method a:(ILjava/lang/String;[Lrs/l/K;IIZZ)V
+     762: ldc           #28                 // int 47822
+     764: ldc           #87                 // String Slash: +0
+     766: aload_0
+     767: getfield      #126                // Field a:[Lrs/l/K;
+     770: iconst_1
+     771: ldc           #48                 // int 14983494
+     773: iconst_0
+     774: iconst_1
+     775: invokestatic  #189                // Method a:(ILjava/lang/String;[Lrs/l/K;IIZZ)V
+     778: ldc           #29                 // int 47823
+     780: ldc           #68                 // String Crush: +0
+     782: aload_0
+     783: getfield      #126                // Field a:[Lrs/l/K;
+     786: iconst_1
+     787: ldc           #48                 // int 14983494
+     789: iconst_0
+     790: iconst_1
+     791: invokestatic  #189                // Method a:(ILjava/lang/String;[Lrs/l/K;IIZZ)V
+     794: ldc           #30                 // int 47824
+     796: ldc           #76                 // String Magic: +0
+     798: aload_0
+     799: getfield      #126                // Field a:[Lrs/l/K;
+     802: iconst_1
+     803: ldc           #48                 // int 14983494
+     805: iconst_0
+     806: iconst_1
+     807: invokestatic  #189                // Method a:(ILjava/lang/String;[Lrs/l/K;IIZZ)V
+     810: ldc           #31                 // int 47825
+     812: ldc           #82                 // String Range: +0
+     814: aload_0
+     815: getfield      #126                // Field a:[Lrs/l/K;
+     818: iconst_1
+     819: ldc           #48                 // int 14983494
+     821: iconst_0
+     822: iconst_1
+     823: invokestatic  #189                // Method a:(ILjava/lang/String;[Lrs/l/K;IIZZ)V
+     826: ldc           #32                 // int 47826
+     828: ldc           #69                 // String Defence bonus
+     830: aload_0
+     831: getfield      #126                // Field a:[Lrs/l/K;
+     834: iconst_2
+     835: ldc           #48                 // int 14983494
+     837: iconst_0
+     838: iconst_1
+     839: invokestatic  #189                // Method a:(ILjava/lang/String;[Lrs/l/K;IIZZ)V
+     842: ldc           #33                 // int 47827
+     844: ldc           #88                 // String Stab: +0
+     846: aload_0
+     847: getfield      #126                // Field a:[Lrs/l/K;
+     850: iconst_1
+     851: ldc           #48                 // int 14983494
+     853: iconst_0
+     854: iconst_1
+     855: invokestatic  #189                // Method a:(ILjava/lang/String;[Lrs/l/K;IIZZ)V
+     858: ldc           #34                 // int 47828
+     860: ldc           #87                 // String Slash: +0
+     862: aload_0
+     863: getfield      #126                // Field a:[Lrs/l/K;
+     866: iconst_1
+     867: ldc           #48                 // int 14983494
+     869: iconst_0
+     870: iconst_1
+     871: invokestatic  #189                // Method a:(ILjava/lang/String;[Lrs/l/K;IIZZ)V
+     874: ldc           #35                 // int 47829
+     876: ldc           #68                 // String Crush: +0
+     878: aload_0
+     879: getfield      #126                // Field a:[Lrs/l/K;
+     882: iconst_1
+     883: ldc           #48                 // int 14983494
+     885: iconst_0
+     886: iconst_1
+     887: invokestatic  #189                // Method a:(ILjava/lang/String;[Lrs/l/K;IIZZ)V
+     890: ldc           #36                 // int 47830
+     892: ldc           #76                 // String Magic: +0
+     894: aload_0
+     895: getfield      #126                // Field a:[Lrs/l/K;
+     898: iconst_1
+     899: ldc           #48                 // int 14983494
+     901: iconst_0
+     902: iconst_1
+     903: invokestatic  #189                // Method a:(ILjava/lang/String;[Lrs/l/K;IIZZ)V
+     906: ldc           #37                 // int 47831
+     908: ldc           #82                 // String Range: +0
+     910: aload_0
+     911: getfield      #126                // Field a:[Lrs/l/K;
+     914: iconst_1
+     915: ldc           #48                 // int 14983494
+     917: iconst_0
+     918: iconst_1
+     919: invokestatic  #189                // Method a:(ILjava/lang/String;[Lrs/l/K;IIZZ)V
+     922: ldc           #38                 // int 47832
+     924: ldc           #78                 // String Other bonuses
+     926: aload_0
+     927: getfield      #126                // Field a:[Lrs/l/K;
+     930: iconst_2
+     931: ldc           #48                 // int 14983494
+     933: iconst_0
+     934: iconst_1
+     935: invokestatic  #189                // Method a:(ILjava/lang/String;[Lrs/l/K;IIZZ)V
+     938: ldc           #39                 // int 47833
+     940: ldc           #89                 // String Strength: +0
+     942: aload_0
+     943: getfield      #126                // Field a:[Lrs/l/K;
+     946: iconst_1
+     947: ldc           #48                 // int 14983494
+     949: iconst_0
+     950: iconst_1
+     951: invokestatic  #189                // Method a:(ILjava/lang/String;[Lrs/l/K;IIZZ)V
+     954: ldc           #40                 // int 47834
+     956: ldc           #81                 // String Range strength: +0
+     958: aload_0
+     959: getfield      #126                // Field a:[Lrs/l/K;
+     962: iconst_1
+     963: ldc           #48                 // int 14983494
+     965: iconst_0
+     966: iconst_1
+     967: invokestatic  #189                // Method a:(ILjava/lang/String;[Lrs/l/K;IIZZ)V
+     970: ldc           #41                 // int 47835
+     972: ldc           #79                 // String Prayer: +0
+     974: aload_0
+     975: getfield      #126                // Field a:[Lrs/l/K;
+     978: iconst_1
+     979: ldc           #48                 // int 14983494
+     981: iconst_0
+     982: iconst_1
+     983: invokestatic  #189                // Method a:(ILjava/lang/String;[Lrs/l/K;IIZZ)V
+     986: ldc           #42                 // int 47836
+     988: ldc           #98                 // String wiki/item
+     990: bipush        6
+     992: bipush        24
+     994: bipush        23
+     996: ldc           #67                 // String Close preview
+     998: iconst_m1
+     999: ldc           #43                 // int 47837
+    1001: iconst_1
+    1002: invokestatic  #187                // Method a:(ILjava/lang/String;IIILjava/lang/String;III)V
+    1005: ldc           #43                 // int 47837
+    1007: ldc           #98                 // String wiki/item
+    1009: bipush        7
+    1011: bipush        24
+    1013: bipush        23
+    1015: ldc           #44                 // int 47838
+    1017: invokestatic  #186                // Method a:(ILjava/lang/String;IIII)V
+    1020: iconst_0
+    1021: invokestatic  #190                // Method a:(Z)V
+    1024: invokestatic  #193                // Method h:()V
+    1027: invokestatic  #195                // Method j:()V
+    1030: aload_1
+    1031: bipush        32
+    1033: invokevirtual #200                // Method rs/n/e.k:(I)V
+    1036: aload_1
+    1037: iconst_0
+    1038: ldc           #20                 // int 47814
+    1040: iconst_2
+    1041: iconst_2
+    1042: invokevirtual #198                // Method rs/n/e.b:(IIII)V
+    1045: aload_1
+    1046: iconst_1
+    1047: ldc           #46                 // int 65418
+    1049: sipush        746
+    1052: bipush        9
+    1054: invokevirtual #198                // Method rs/n/e.b:(IIII)V
+    1057: aload_1
+    1058: iconst_2
+    1059: ldc           #47                 // int 65419
+    1061: sipush        746
+    1064: bipush        9
+    1066: invokevirtual #198                // Method rs/n/e.b:(IIII)V
+    1069: aload_1
+    1070: iconst_3
+    1071: ldc           #3                  // int 47501
+    1073: sipush        395
+    1076: bipush        10
+    1078: invokevirtual #198                // Method rs/n/e.b:(IIII)V
+    1081: aload_1
+    1082: iconst_4
+    1083: ldc           #4                  // int 47502
+    1085: bipush        16
+    1087: bipush        40
+    1089: invokevirtual #198                // Method rs/n/e.b:(IIII)V
+    1092: aload_1
+    1093: iconst_5
+    1094: ldc           #6                  // int 47504
+    1096: bipush        13
+    1098: bipush        61
+    1100: invokevirtual #198                // Method rs/n/e.b:(IIII)V
+    1103: aload_1
+    1104: bipush        6
+    1106: ldc           #12                 // int 47708
+    1108: sipush        208
+    1111: bipush        61
+    1113: invokevirtual #198                // Method rs/n/e.b:(IIII)V
+    1116: aload_1
+    1117: bipush        7
+    1119: ldc           #15                 // int 47809
+    1121: bipush        11
+    1123: bipush        31
+    1125: invokevirtual #198                // Method rs/n/e.b:(IIII)V
+    1128: aload_1
+    1129: bipush        8
+    1131: ldc           #16                 // int 47810
+    1133: bipush        11
+    1135: bipush        31
+    1137: invokevirtual #198                // Method rs/n/e.b:(IIII)V
+    1140: aload_1
+    1141: bipush        9
+    1143: ldc           #18                 // int 47812
+    1145: bipush        100
+    1147: bipush        42
+    1149: invokevirtual #198                // Method rs/n/e.b:(IIII)V
+    1152: aload_1
+    1153: bipush        10
+    1155: ldc           #21                 // int 47815
+    1157: sipush        442
+    1160: bipush        26
+    1162: invokevirtual #198                // Method rs/n/e.b:(IIII)V
+    1165: aload_1
+    1166: bipush        11
+    1168: ldc           #21                 // int 47815
+    1170: sipush        242
+    1173: bipush        26
+    1175: invokevirtual #198                // Method rs/n/e.b:(IIII)V
+    1178: aload_1
+    1179: bipush        12
+    1181: ldc           #5                  // int 47503
+    1183: sipush        208
+    1186: bipush        40
+    1188: invokevirtual #198                // Method rs/n/e.b:(IIII)V
+    1191: aload_1
+    1192: bipush        13
+    1194: ldc           #25                 // int 47819
+    1196: bipush        11
+    1198: bipush        61
+    1200: invokevirtual #198                // Method rs/n/e.b:(IIII)V
+    1203: aload_1
+    1204: bipush        14
+    1206: ldc           #26                 // int 47820
+    1208: bipush        17
+    1210: bipush        64
+    1212: invokevirtual #198                // Method rs/n/e.b:(IIII)V
+    1215: aload_1
+    1216: bipush        15
+    1218: ldc           #27                 // int 47821
+    1220: bipush        22
+    1222: bipush        80
+    1224: invokevirtual #198                // Method rs/n/e.b:(IIII)V
+    1227: aload_1
+    1228: bipush        16
+    1230: ldc           #28                 // int 47822
+    1232: bipush        22
+    1234: bipush        95
+    1236: invokevirtual #198                // Method rs/n/e.b:(IIII)V
+    1239: aload_1
+    1240: bipush        17
+    1242: ldc           #29                 // int 47823
+    1244: bipush        22
+    1246: bipush        110
+    1248: invokevirtual #198                // Method rs/n/e.b:(IIII)V
+    1251: aload_1
+    1252: bipush        18
+    1254: ldc           #30                 // int 47824
+    1256: bipush        22
+    1258: bipush        125
+    1260: invokevirtual #198                // Method rs/n/e.b:(IIII)V
+    1263: aload_1
+    1264: bipush        19
+    1266: ldc           #31                 // int 47825
+    1268: bipush        22
+    1270: sipush        140
+    1273: invokevirtual #198                // Method rs/n/e.b:(IIII)V
+    1276: aload_1
+    1277: bipush        20
+    1279: ldc           #32                 // int 47826
+    1281: bipush        17
+    1283: sipush        162
+    1286: invokevirtual #198                // Method rs/n/e.b:(IIII)V
+    1289: aload_1
+    1290: bipush        21
+    1292: ldc           #33                 // int 47827
+    1294: bipush        22
+    1296: sipush        178
+    1299: invokevirtual #198                // Method rs/n/e.b:(IIII)V
+    1302: aload_1
+    1303: bipush        22
+    1305: ldc           #34                 // int 47828
+    1307: bipush        22
+    1309: sipush        193
+    1312: invokevirtual #198                // Method rs/n/e.b:(IIII)V
+    1315: aload_1
+    1316: bipush        23
+    1318: ldc           #35                 // int 47829
+    1320: bipush        22
+    1322: sipush        208
+    1325: invokevirtual #198                // Method rs/n/e.b:(IIII)V
+    1328: aload_1
+    1329: bipush        24
+    1331: ldc           #36                 // int 47830
+    1333: bipush        22
+    1335: sipush        223
+    1338: invokevirtual #198                // Method rs/n/e.b:(IIII)V
+    1341: aload_1
+    1342: bipush        25
+    1344: ldc           #37                 // int 47831
+    1346: bipush        22
+    1348: sipush        238
+    1351: invokevirtual #198                // Method rs/n/e.b:(IIII)V
+    1354: aload_1
+    1355: bipush        26
+    1357: ldc           #38                 // int 47832
+    1359: bipush        17
+    1361: sipush        260
+    1364: invokevirtual #198                // Method rs/n/e.b:(IIII)V
+    1367: aload_1
+    1368: bipush        27
+    1370: ldc           #39                 // int 47833
+    1372: bipush        22
+    1374: sipush        275
+    1377: invokevirtual #198                // Method rs/n/e.b:(IIII)V
+    1380: aload_1
+    1381: bipush        28
+    1383: ldc           #40                 // int 47834
+    1385: bipush        22
+    1387: sipush        289
+    1390: invokevirtual #198                // Method rs/n/e.b:(IIII)V
+    1393: aload_1
+    1394: bipush        29
+    1396: ldc           #41                 // int 47835
+    1398: bipush        22
+    1400: sipush        304
+    1403: invokevirtual #198                // Method rs/n/e.b:(IIII)V
+    1406: aload_1
+    1407: bipush        30
+    1409: ldc           #42                 // int 47836
+    1411: sipush        169
+    1414: bipush        64
+    1416: invokevirtual #198                // Method rs/n/e.b:(IIII)V
+    1419: aload_1
+    1420: bipush        31
+    1422: ldc           #43                 // int 47837
+    1424: sipush        169
+    1427: bipush        64
+    1429: invokevirtual #198                // Method rs/n/e.b:(IIII)V
+    1432: return
+
+  public static rs.a.h b(boolean);
+    Code:
+       0: iconst_0
+       1: istore_1
+       2: getstatic     #129                // Field bK:Ljava/util/Map;
+       5: ldc           #91                 // String WEAPON
+       7: invokeinterface #202,  2          // InterfaceMethod java/util/Map.get:(Ljava/lang/Object;)Ljava/lang/Object;
+      12: ifnull        36
+      15: getstatic     #129                // Field bK:Ljava/util/Map;
+      18: ldc           #91                 // String WEAPON
+      20: invokeinterface #202,  2          // InterfaceMethod java/util/Map.get:(Ljava/lang/Object;)Ljava/lang/Object;
+      25: checkcast     #106                // class java/lang/Integer
+      28: invokevirtual #166                // Method java/lang/Integer.intValue:()I
+      31: sipush        512
+      34: iadd
+      35: istore_1
+      36: iload_0
+      37: ifeq          46
+      40: sipush        313
+      43: goto          49
+      46: sipush        274
+      49: istore_2
+      50: getstatic     #129                // Field bK:Ljava/util/Map;
+      53: ldc           #66                 // String CHEST
+      55: invokeinterface #202,  2          // InterfaceMethod java/util/Map.get:(Ljava/lang/Object;)Ljava/lang/Object;
+      60: ifnull        84
+      63: getstatic     #129                // Field bK:Ljava/util/Map;
+      66: ldc           #66                 // String CHEST
+      68: invokeinterface #202,  2          // InterfaceMethod java/util/Map.get:(Ljava/lang/Object;)Ljava/lang/Object;
+      73: checkcast     #106                // class java/lang/Integer
+      76: invokevirtual #166                // Method java/lang/Integer.intValue:()I
+      79: sipush        512
+      82: iadd
+      83: istore_2
+      84: iconst_0
+      85: istore_3
+      86: getstatic     #129                // Field bK:Ljava/util/Map;
+      89: ldc           #61                 // String ARM
+      91: invokeinterface #202,  2          // InterfaceMethod java/util/Map.get:(Ljava/lang/Object;)Ljava/lang/Object;
+      96: ifnull        120
+      99: getstatic     #129                // Field bK:Ljava/util/Map;
+     102: ldc           #61                 // String ARM
+     104: invokeinterface #202,  2          // InterfaceMethod java/util/Map.get:(Ljava/lang/Object;)Ljava/lang/Object;
+     109: checkcast     #106                // class java/lang/Integer
+     112: invokevirtual #166                // Method java/lang/Integer.intValue:()I
+     115: sipush        512
+     118: iadd
+     119: istore_3
+     120: iload_0
+     121: ifeq          130
+     124: sipush        319
+     127: goto          133
+     130: sipush        282
+     133: istore        4
+     135: getstatic     #129                // Field bK:Ljava/util/Map;
+     138: ldc           #92                 // String WRIST
+     140: invokeinterface #202,  2          // InterfaceMethod java/util/Map.get:(Ljava/lang/Object;)Ljava/lang/Object;
+     145: ifnull        166
+     148: getstatic     #129                // Field bK:Ljava/util/Map;
+     151: ldc           #92                 // String WRIST
+     153: invokeinterface #202,  2          // InterfaceMethod java/util/Map.get:(Ljava/lang/Object;)Ljava/lang/Object;
+     158: checkcast     #106                // class java/lang/Integer
+     161: invokevirtual #166                // Method java/lang/Integer.intValue:()I
+     164: istore        4
+     166: iconst_0
+     167: istore        5
+     169: getstatic     #129                // Field bK:Ljava/util/Map;
+     172: ldc           #73                 // String HEAD
+     174: invokeinterface #202,  2          // InterfaceMethod java/util/Map.get:(Ljava/lang/Object;)Ljava/lang/Object;
+     179: ifnull        204
+     182: getstatic     #129                // Field bK:Ljava/util/Map;
+     185: ldc           #73                 // String HEAD
+     187: invokeinterface #202,  2          // InterfaceMethod java/util/Map.get:(Ljava/lang/Object;)Ljava/lang/Object;
+     192: checkcast     #106                // class java/lang/Integer
+     195: invokevirtual #166                // Method java/lang/Integer.intValue:()I
+     198: sipush        512
+     201: iadd
+     202: istore        5
+     204: iload_0
+     205: ifeq          214
+     208: sipush        306
+     211: goto          217
+     214: sipush        256
+     217: istore        6
+     219: getstatic     #129                // Field bK:Ljava/util/Map;
+     222: ldc           #71                 // String HAIR
+     224: invokeinterface #202,  2          // InterfaceMethod java/util/Map.get:(Ljava/lang/Object;)Ljava/lang/Object;
+     229: ifnull        250
+     232: getstatic     #129                // Field bK:Ljava/util/Map;
+     235: ldc           #71                 // String HAIR
+     237: invokeinterface #202,  2          // InterfaceMethod java/util/Map.get:(Ljava/lang/Object;)Ljava/lang/Object;
+     242: checkcast     #106                // class java/lang/Integer
+     245: invokevirtual #166                // Method java/lang/Integer.intValue:()I
+     248: istore        6
+     250: iload_0
+     251: ifeq          258
+     254: iconst_0
+     255: goto          261
+     258: sipush        266
+     261: istore        7
+     263: getstatic     #129                // Field bK:Ljava/util/Map;
+     266: ldc           #64                 // String BEARD
+     268: invokeinterface #202,  2          // InterfaceMethod java/util/Map.get:(Ljava/lang/Object;)Ljava/lang/Object;
+     273: ifnull        294
+     276: getstatic     #129                // Field bK:Ljava/util/Map;
+     279: ldc           #64                 // String BEARD
+     281: invokeinterface #202,  2          // InterfaceMethod java/util/Map.get:(Ljava/lang/Object;)Ljava/lang/Object;
+     286: checkcast     #106                // class java/lang/Integer
+     289: invokevirtual #166                // Method java/lang/Integer.intValue:()I
+     292: istore        7
+     294: sipush        298
+     297: istore        8
+     299: getstatic     #129                // Field bK:Ljava/util/Map;
+     302: ldc           #70                 // String FEET
+     304: invokeinterface #202,  2          // InterfaceMethod java/util/Map.get:(Ljava/lang/Object;)Ljava/lang/Object;
+     309: ifnull        334
+     312: getstatic     #129                // Field bK:Ljava/util/Map;
+     315: ldc           #70                 // String FEET
+     317: invokeinterface #202,  2          // InterfaceMethod java/util/Map.get:(Ljava/lang/Object;)Ljava/lang/Object;
+     322: checkcast     #106                // class java/lang/Integer
+     325: invokevirtual #166                // Method java/lang/Integer.intValue:()I
+     328: sipush        512
+     331: iadd
+     332: istore        8
+     334: iload_0
+     335: ifeq          344
+     338: sipush        330
+     341: goto          347
+     344: sipush        292
+     347: istore        9
+     349: getstatic     #129                // Field bK:Ljava/util/Map;
+     352: ldc           #75                 // String LEGS
+     354: invokeinterface #202,  2          // InterfaceMethod java/util/Map.get:(Ljava/lang/Object;)Ljava/lang/Object;
+     359: ifnull        384
+     362: getstatic     #129                // Field bK:Ljava/util/Map;
+     365: ldc           #75                 // String LEGS
+     367: invokeinterface #202,  2          // InterfaceMethod java/util/Map.get:(Ljava/lang/Object;)Ljava/lang/Object;
+     372: checkcast     #106                // class java/lang/Integer
+     375: invokevirtual #166                // Method java/lang/Integer.intValue:()I
+     378: sipush        512
+     381: iadd
+     382: istore        9
+     384: iload_0
+     385: ifeq          394
+     388: sipush        323
+     391: goto          397
+     394: sipush        289
+     397: istore        10
+     399: getstatic     #129                // Field bK:Ljava/util/Map;
+     402: ldc           #72                 // String HANDS
+     404: invokeinterface #202,  2          // InterfaceMethod java/util/Map.get:(Ljava/lang/Object;)Ljava/lang/Object;
+     409: ifnull        434
+     412: getstatic     #129                // Field bK:Ljava/util/Map;
+     415: ldc           #72                 // String HANDS
+     417: invokeinterface #202,  2          // InterfaceMethod java/util/Map.get:(Ljava/lang/Object;)Ljava/lang/Object;
+     422: checkcast     #106                // class java/lang/Integer
+     425: invokevirtual #166                // Method java/lang/Integer.intValue:()I
+     428: sipush        512
+     431: iadd
+     432: istore        10
+     434: iconst_0
+     435: istore        11
+     437: getstatic     #129                // Field bK:Ljava/util/Map;
+     440: ldc           #59                 // String AMULET
+     442: invokeinterface #202,  2          // InterfaceMethod java/util/Map.get:(Ljava/lang/Object;)Ljava/lang/Object;
+     447: ifnull        472
+     450: getstatic     #129                // Field bK:Ljava/util/Map;
+     453: ldc           #59                 // String AMULET
+     455: invokeinterface #202,  2          // InterfaceMethod java/util/Map.get:(Ljava/lang/Object;)Ljava/lang/Object;
+     460: checkcast     #106                // class java/lang/Integer
+     463: invokevirtual #166                // Method java/lang/Integer.intValue:()I
+     466: sipush        512
+     469: iadd
+     470: istore        11
+     472: iconst_0
+     473: istore        12
+     475: getstatic     #129                // Field bK:Ljava/util/Map;
+     478: ldc           #65                 // String CAPE
+     480: invokeinterface #202,  2          // InterfaceMethod java/util/Map.get:(Ljava/lang/Object;)Ljava/lang/Object;
+     485: ifnull        510
+     488: getstatic     #129                // Field bK:Ljava/util/Map;
+     491: ldc           #65                 // String CAPE
+     493: invokeinterface #202,  2          // InterfaceMethod java/util/Map.get:(Ljava/lang/Object;)Ljava/lang/Object;
+     498: checkcast     #106                // class java/lang/Integer
+     501: invokevirtual #166                // Method java/lang/Integer.intValue:()I
+     504: sipush        512
+     507: iadd
+     508: istore        12
+     510: getstatic     #142                // Field rs/n/e.H:[Lrs/n/e;
+     513: ldc           #9                  // int 47705
+     515: aaload
+     516: getstatic     #130                // Field bL:I
+     519: putfield      #145                // Field rs/n/e.aD:I
+     522: getstatic     #142                // Field rs/n/e.H:[Lrs/n/e;
+     525: ldc           #9                  // int 47705
+     527: aaload
+     528: getstatic     #130                // Field bL:I
+     531: putfield      #146                // Field rs/n/e.aE:I
+     534: getstatic     #142                // Field rs/n/e.H:[Lrs/n/e;
+     537: ldc           #19                 // int 47813
+     539: aaload
+     540: getstatic     #130                // Field bL:I
+     543: putfield      #145                // Field rs/n/e.aD:I
+     546: getstatic     #142                // Field rs/n/e.H:[Lrs/n/e;
+     549: ldc           #19                 // int 47813
+     551: aaload
+     552: getstatic     #130                // Field bL:I
+     555: putfield      #146                // Field rs/n/e.aE:I
+     558: iload_0
+     559: ifeq          588
+     562: iload_1
+     563: iload_2
+     564: iload_3
+     565: iload         4
+     567: iload         5
+     569: iload         6
+     571: iload         7
+     573: iload         8
+     575: iload         9
+     577: iload         10
+     579: iload         11
+     581: iload         12
+     583: iconst_1
+     584: invokestatic  #180                // Method rs/a/k.a:(IIIIIIIIIIIII)Lrs/a/h;
+     587: areturn
+     588: iload_1
+     589: iload_2
+     590: iload_3
+     591: iload         4
+     593: iload         5
+     595: iload         6
+     597: iload         7
+     599: iload         8
+     601: iload         9
+     603: iload         10
+     605: iload         11
+     607: iload         12
+     609: iconst_0
+     610: invokestatic  #180                // Method rs/a/k.a:(IIIIIIIIIIIII)Lrs/a/h;
+     613: areturn
+
+  public static void a(java.lang.String, int);
+    Code:
+       0: aload_0
+       1: ldc           #83                 // String SLOT_
+       3: invokevirtual #175                // Method java/lang/String.startsWith:(Ljava/lang/String;)Z
+       6: ifeq          50
+       9: aload_0
+      10: ldc           #83                 // String SLOT_
+      12: ldc           #51                 // String
+      14: invokevirtual #172                // Method java/lang/String.replace:(Ljava/lang/CharSequence;Ljava/lang/CharSequence;)Ljava/lang/String;
+      17: invokestatic  #167                // Method java/lang/Integer.parseInt:(Ljava/lang/String;)I
+      20: iconst_1
+      21: isub
+      22: istore_2
+      23: getstatic     #125                // Field H:[Lrs/n/e;
+      26: ldc           #11                 // int 47707
+      28: aaload
+      29: getfield      #161                // Field rs/n/e.az:[I
+      32: iload_2
+      33: iload_1
+      34: iconst_1
+      35: iadd
+      36: iastore
+      37: getstatic     #125                // Field H:[Lrs/n/e;
+      40: ldc           #11                 // int 47707
+      42: aaload
+      43: getfield      #160                // Field rs/n/e.ax:[I
+      46: iload_2
+      47: iconst_1
+      48: iastore
+      49: return
+      50: aload_0
+      51: ldc           #60                 // String ANIMATION
+      53: invokevirtual #170                // Method java/lang/String.equals:(Ljava/lang/Object;)Z
+      56: ifeq          64
+      59: iload_1
+      60: putstatic     #130                // Field bL:I
+      63: return
+      64: iconst_m1
+      65: istore_2
+      66: aload_0
+      67: astore_3
+      68: iconst_m1
+      69: istore        4
+      71: aload_3
+      72: invokevirtual #171                // Method java/lang/String.hashCode:()I
+      75: lookupswitch  { // 11
+           -1738492388: 187
+                 65084: 326
+               2061011: 278
+               2153902: 217
+               2213344: 172
+               2332709: 232
+               2515504: 294
+              64089825: 202
+              68507076: 247
+            1934613426: 262
+            1939145098: 310
+               default: 339
+          }
+     172: aload_3
+     173: ldc           #73                 // String HEAD
+     175: invokevirtual #170                // Method java/lang/String.equals:(Ljava/lang/Object;)Z
+     178: ifeq          339
+     181: iconst_0
+     182: istore        4
+     184: goto          339
+     187: aload_3
+     188: ldc           #91                 // String WEAPON
+     190: invokevirtual #170                // Method java/lang/String.equals:(Ljava/lang/Object;)Z
+     193: ifeq          339
+     196: iconst_1
+     197: istore        4
+     199: goto          339
+     202: aload_3
+     203: ldc           #66                 // String CHEST
+     205: invokevirtual #170                // Method java/lang/String.equals:(Ljava/lang/Object;)Z
+     208: ifeq          339
+     211: iconst_2
+     212: istore        4
+     214: goto          339
+     217: aload_3
+     218: ldc           #70                 // String FEET
+     220: invokevirtual #170                // Method java/lang/String.equals:(Ljava/lang/Object;)Z
+     223: ifeq          339
+     226: iconst_3
+     227: istore        4
+     229: goto          339
+     232: aload_3
+     233: ldc           #75                 // String LEGS
+     235: invokevirtual #170                // Method java/lang/String.equals:(Ljava/lang/Object;)Z
+     238: ifeq          339
+     241: iconst_4
+     242: istore        4
+     244: goto          339
+     247: aload_3
+     248: ldc           #72                 // String HANDS
+     250: invokevirtual #170                // Method java/lang/String.equals:(Ljava/lang/Object;)Z
+     253: ifeq          339
+     256: iconst_5
+     257: istore        4
+     259: goto          339
+     262: aload_3
+     263: ldc           #59                 // String AMULET
+     265: invokevirtual #170                // Method java/lang/String.equals:(Ljava/lang/Object;)Z
+     268: ifeq          339
+     271: bipush        6
+     273: istore        4
+     275: goto          339
+     278: aload_3
+     279: ldc           #65                 // String CAPE
+     281: invokevirtual #170                // Method java/lang/String.equals:(Ljava/lang/Object;)Z
+     284: ifeq          339
+     287: bipush        7
+     289: istore        4
+     291: goto          339
+     294: aload_3
+     295: ldc           #80                 // String RING
+     297: invokevirtual #170                // Method java/lang/String.equals:(Ljava/lang/Object;)Z
+     300: ifeq          339
+     303: bipush        8
+     305: istore        4
+     307: goto          339
+     310: aload_3
+     311: ldc           #62                 // String ARROWS
+     313: invokevirtual #170                // Method java/lang/String.equals:(Ljava/lang/Object;)Z
+     316: ifeq          339
+     319: bipush        9
+     321: istore        4
+     323: goto          339
+     326: aload_3
+     327: ldc           #61                 // String ARM
+     329: invokevirtual #170                // Method java/lang/String.equals:(Ljava/lang/Object;)Z
+     332: ifeq          339
+     335: bipush        10
+     337: istore        4
+     339: iload         4
+     341: tableswitch   { // 0 to 10
+                     0: 400
+                     1: 405
+                     2: 411
+                     3: 417
+                     4: 423
+                     5: 429
+                     6: 435
+                     7: 440
+                     8: 445
+                     9: 451
+                    10: 456
+               default: 459
+          }
+     400: iconst_1
+     401: istore_2
+     402: goto          459
+     405: bipush        6
+     407: istore_2
+     408: goto          459
+     411: bipush        7
+     413: istore_2
+     414: goto          459
+     417: bipush        13
+     419: istore_2
+     420: goto          459
+     423: bipush        10
+     425: istore_2
+     426: goto          459
+     429: bipush        12
+     431: istore_2
+     432: goto          459
+     435: iconst_4
+     436: istore_2
+     437: goto          459
+     440: iconst_3
+     441: istore_2
+     442: goto          459
+     445: bipush        14
+     447: istore_2
+     448: goto          459
+     451: iconst_5
+     452: istore_2
+     453: goto          459
+     456: bipush        8
+     458: istore_2
+     459: iload_2
+     460: iconst_m1
+     461: if_icmpeq     557
+     464: getstatic     #142                // Field rs/n/e.H:[Lrs/n/e;
+     467: ldc           #12                 // int 47708
+     469: aaload
+     470: getfield      #156                // Field rs/n/e.am:[I
+     473: iconst_3
+     474: iaload
+     475: sipush        -5000
+     478: if_icmpeq     557
+     481: getstatic     #125                // Field H:[Lrs/n/e;
+     484: ldc           #11                 // int 47707
+     486: aaload
+     487: getfield      #161                // Field rs/n/e.az:[I
+     490: iload_2
+     491: iload_1
+     492: iconst_1
+     493: iadd
+     494: iastore
+     495: getstatic     #125                // Field H:[Lrs/n/e;
+     498: ldc           #11                 // int 47707
+     500: aaload
+     501: getfield      #160                // Field rs/n/e.ax:[I
+     504: iload_2
+     505: iconst_1
+     506: iastore
+     507: iload_2
+     508: iconst_5
+     509: if_icmpne     557
+     512: iload_1
+     513: invokestatic  #182                // Method rs/d/k.f:(I)Lrs/d/k;
+     516: astore_3
+     517: aload_3
+     518: ifnull        557
+     521: aload_3
+     522: getfield      #124                // Field rs/d/k.w:Ljava/lang/String;
+     525: ifnull        557
+     528: aload_3
+     529: getfield      #124                // Field rs/d/k.w:Ljava/lang/String;
+     532: invokevirtual #176                // Method java/lang/String.toLowerCase:()Ljava/lang/String;
+     535: ldc           #95                 // String blessing
+     537: invokevirtual #169                // Method java/lang/String.contains:(Ljava/lang/CharSequence;)Z
+     540: ifne          557
+     543: getstatic     #125                // Field H:[Lrs/n/e;
+     546: ldc           #11                 // int 47707
+     548: aaload
+     549: getfield      #160                // Field rs/n/e.ax:[I
+     552: iload_2
+     553: sipush        1000
+     556: iastore
+     557: getstatic     #129                // Field bK:Ljava/util/Map;
+     560: aload_0
+     561: iload_1
+     562: invokestatic  #168                // Method java/lang/Integer.valueOf:(I)Ljava/lang/Integer;
+     565: invokeinterface #203,  3          // InterfaceMethod java/util/Map.put:(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;
+     570: pop
+     571: return
+
+  static {};
+    Code:
+       0: aconst_null
+       1: putstatic     #127                // Field bI:Lrs/a/h;
+       4: aconst_null
+       5: putstatic     #128                // Field bJ:Lrs/a/h;
+       8: new           #112                // class java/util/HashMap
+      11: dup
+      12: invokespecial #178                // Method java/util/HashMap."<init>":()V
+      15: putstatic     #129                // Field bK:Ljava/util/Map;
+      18: sipush        808
+      21: putstatic     #130                // Field bL:I
+      24: iconst_0
+      25: putstatic     #131                // Field bM:Z
+      28: return
+}

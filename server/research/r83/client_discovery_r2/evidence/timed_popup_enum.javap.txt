@@ -1,0 +1,1119 @@
+public final class rs.l.e.q$a extends java.lang.Enum<rs.l.e.q$a> {
+  public static final rs.l.e.q$a a;
+
+  public static final rs.l.e.q$a b;
+
+  public static final rs.l.e.q$a c;
+
+  public static final rs.l.e.q$a d;
+
+  public static final rs.l.e.q$a e;
+
+  public static final rs.l.e.q$a f;
+
+  public static final rs.l.e.q$a g;
+
+  public static final rs.l.e.q$a h;
+
+  public static final rs.l.e.q$a i;
+
+  public static final rs.l.e.q$a j;
+
+  public static final rs.l.e.q$a k;
+
+  public static final rs.l.e.q$a l;
+
+  public static final rs.l.e.q$a m;
+
+  public static final rs.l.e.q$a n;
+
+  public static final rs.l.e.q$a o;
+
+  public static final rs.l.e.q$a p;
+
+  public static final rs.l.e.q$a q;
+
+  public static final rs.l.e.q$a r;
+
+  public static final rs.l.e.q$a s;
+
+  public static final rs.l.e.q$a t;
+
+  public static final rs.l.e.q$a u;
+
+  public static final rs.l.e.q$a v;
+
+  public static final rs.l.e.q$a w;
+
+  public static final rs.l.e.q$a x;
+
+  public static final rs.l.e.q$a y;
+
+  public static final rs.l.e.q$a z;
+
+  public static final rs.l.e.q$a A;
+
+  public static final rs.l.e.q$a B;
+
+  public static final rs.l.e.q$a C;
+
+  public static final rs.l.e.q$a D;
+
+  public static final rs.l.e.q$a E;
+
+  public static final rs.l.e.q$a F;
+
+  public static final rs.l.e.q$a G;
+
+  public static final rs.l.e.q$a H;
+
+  public static final rs.l.e.q$a I;
+
+  public static final rs.l.e.q$a J;
+
+  public static final rs.l.e.q$a K;
+
+  public static final rs.l.e.q$a L;
+
+  public static final rs.l.e.q$a M;
+
+  public static final rs.l.e.q$a N;
+
+  public static final rs.l.e.q$a O;
+
+  public static final rs.l.e.q$a P;
+
+  public static final rs.l.e.q$a Q;
+
+  public static final rs.l.e.q$a R;
+
+  public static final rs.l.e.q$a S;
+
+  public static final rs.l.e.q$a T;
+
+  public static final rs.l.e.q$a U;
+
+  public static final rs.l.e.q$a V;
+
+  public static final rs.l.e.q$a W;
+
+  public static final rs.l.e.q$a X;
+
+  public static final rs.l.e.q$a Y;
+
+  public static final rs.l.e.q$a Z;
+
+  public static final rs.l.e.q$a aa;
+
+  public static final rs.l.e.q$a ab;
+
+  public static final rs.l.e.q$a ac;
+
+  public static final rs.l.e.q$a ad;
+
+  public static final rs.l.e.q$a ae;
+
+  public static final rs.l.e.q$a af;
+
+  public static final rs.l.e.q$a ag;
+
+  public static final rs.l.e.q$a ah;
+
+  public static final rs.l.e.q$a ai;
+
+  public static final rs.l.e.q$a aj;
+
+  public static final rs.l.e.q$a ak;
+
+  public static final rs.l.e.q$a al;
+
+  private java.lang.String am;
+
+  private java.lang.String an;
+
+  private int ao;
+
+  private int ap;
+
+  private int aq;
+
+  private static final rs.l.e.q$a[] ar;
+
+  public static rs.l.e.q$a[] values();
+    Code:
+       0: getstatic     #199                // Field ar:[Lrs/l/e/q$a;
+       3: invokevirtual #225                // Method "[Lrs/l/e/q$a;".clone:()Ljava/lang/Object;
+       6: checkcast     #151                // class "[Lrs/l/e/q$a;"
+       9: areturn
+
+  public static rs.l.e.q$a valueOf(java.lang.String);
+    Code:
+       0: ldc           #154                // class rs/l/e/q$a
+       2: aload_0
+       3: invokestatic  #227                // Method java/lang/Enum.valueOf:(Ljava/lang/Class;Ljava/lang/String;)Ljava/lang/Enum;
+       6: checkcast     #154                // class rs/l/e/q$a
+       9: areturn
+
+  private rs.l.e.q$a(java.lang.String, java.lang.String, int, int);
+    Code:
+       0: aload_0
+       1: aload_1
+       2: iload_2
+       3: invokespecial #226                // Method java/lang/Enum."<init>":(Ljava/lang/String;I)V
+       6: aload_0
+       7: aload_3
+       8: putfield      #195                // Field an:Ljava/lang/String;
+      11: aload_0
+      12: aload         4
+      14: putfield      #194                // Field am:Ljava/lang/String;
+      17: aload_0
+      18: iload         5
+      20: putfield      #196                // Field ao:I
+      23: aload_0
+      24: iload         6
+      26: putfield      #197                // Field ap:I
+      29: return
+
+  private rs.l.e.q$a(java.lang.String, int);
+    Code:
+       0: aload_0
+       1: aload_1
+       2: iload_2
+       3: invokespecial #226                // Method java/lang/Enum."<init>":(Ljava/lang/String;I)V
+       6: aload_0
+       7: aload_3
+       8: putfield      #195                // Field an:Ljava/lang/String;
+      11: aload_0
+      12: iload         4
+      14: putfield      #198                // Field aq:I
+      17: aload_0
+      18: iconst_4
+      19: putfield      #196                // Field ao:I
+      22: return
+
+  static int a(rs.l.e.q$a);
+    Code:
+       0: aload_0
+       1: getfield      #196                // Field ao:I
+       4: ireturn
+
+  static int b(rs.l.e.q$a);
+    Code:
+       0: aload_0
+       1: getfield      #197                // Field ap:I
+       4: ireturn
+
+  static java.lang.String c(rs.l.e.q$a);
+    Code:
+       0: aload_0
+       1: getfield      #195                // Field an:Ljava/lang/String;
+       4: areturn
+
+  static java.lang.String d(rs.l.e.q$a);
+    Code:
+       0: aload_0
+       1: getfield      #194                // Field am:Ljava/lang/String;
+       4: areturn
+
+  static int e(rs.l.e.q$a);
+    Code:
+       0: aload_0
+       1: getfield      #198                // Field aq:I
+       4: ireturn
+
+  private static rs.l.e.q$a[] a();
+    Code:
+       0: bipush        64
+       2: anewarray     #154                // class rs/l/e/q$a
+       5: dup
+       6: iconst_0
+       7: getstatic     #181                // Field a:Lrs/l/e/q$a;
+      10: aastore
+      11: dup
+      12: iconst_1
+      13: getstatic     #200                // Field b:Lrs/l/e/q$a;
+      16: aastore
+      17: dup
+      18: iconst_2
+      19: getstatic     #201                // Field c:Lrs/l/e/q$a;
+      22: aastore
+      23: dup
+      24: iconst_3
+      25: getstatic     #202                // Field d:Lrs/l/e/q$a;
+      28: aastore
+      29: dup
+      30: iconst_4
+      31: getstatic     #203                // Field e:Lrs/l/e/q$a;
+      34: aastore
+      35: dup
+      36: iconst_5
+      37: getstatic     #204                // Field f:Lrs/l/e/q$a;
+      40: aastore
+      41: dup
+      42: bipush        6
+      44: getstatic     #205                // Field g:Lrs/l/e/q$a;
+      47: aastore
+      48: dup
+      49: bipush        7
+      51: getstatic     #206                // Field h:Lrs/l/e/q$a;
+      54: aastore
+      55: dup
+      56: bipush        8
+      58: getstatic     #207                // Field i:Lrs/l/e/q$a;
+      61: aastore
+      62: dup
+      63: bipush        9
+      65: getstatic     #208                // Field j:Lrs/l/e/q$a;
+      68: aastore
+      69: dup
+      70: bipush        10
+      72: getstatic     #209                // Field k:Lrs/l/e/q$a;
+      75: aastore
+      76: dup
+      77: bipush        11
+      79: getstatic     #210                // Field l:Lrs/l/e/q$a;
+      82: aastore
+      83: dup
+      84: bipush        12
+      86: getstatic     #211                // Field m:Lrs/l/e/q$a;
+      89: aastore
+      90: dup
+      91: bipush        13
+      93: getstatic     #212                // Field n:Lrs/l/e/q$a;
+      96: aastore
+      97: dup
+      98: bipush        14
+     100: getstatic     #213                // Field o:Lrs/l/e/q$a;
+     103: aastore
+     104: dup
+     105: bipush        15
+     107: getstatic     #214                // Field p:Lrs/l/e/q$a;
+     110: aastore
+     111: dup
+     112: bipush        16
+     114: getstatic     #215                // Field q:Lrs/l/e/q$a;
+     117: aastore
+     118: dup
+     119: bipush        17
+     121: getstatic     #216                // Field r:Lrs/l/e/q$a;
+     124: aastore
+     125: dup
+     126: bipush        18
+     128: getstatic     #217                // Field s:Lrs/l/e/q$a;
+     131: aastore
+     132: dup
+     133: bipush        19
+     135: getstatic     #218                // Field t:Lrs/l/e/q$a;
+     138: aastore
+     139: dup
+     140: bipush        20
+     142: getstatic     #219                // Field u:Lrs/l/e/q$a;
+     145: aastore
+     146: dup
+     147: bipush        21
+     149: getstatic     #220                // Field v:Lrs/l/e/q$a;
+     152: aastore
+     153: dup
+     154: bipush        22
+     156: getstatic     #221                // Field w:Lrs/l/e/q$a;
+     159: aastore
+     160: dup
+     161: bipush        23
+     163: getstatic     #222                // Field x:Lrs/l/e/q$a;
+     166: aastore
+     167: dup
+     168: bipush        24
+     170: getstatic     #223                // Field y:Lrs/l/e/q$a;
+     173: aastore
+     174: dup
+     175: bipush        25
+     177: getstatic     #224                // Field z:Lrs/l/e/q$a;
+     180: aastore
+     181: dup
+     182: bipush        26
+     184: getstatic     #155                // Field A:Lrs/l/e/q$a;
+     187: aastore
+     188: dup
+     189: bipush        27
+     191: getstatic     #156                // Field B:Lrs/l/e/q$a;
+     194: aastore
+     195: dup
+     196: bipush        28
+     198: getstatic     #157                // Field C:Lrs/l/e/q$a;
+     201: aastore
+     202: dup
+     203: bipush        29
+     205: getstatic     #158                // Field D:Lrs/l/e/q$a;
+     208: aastore
+     209: dup
+     210: bipush        30
+     212: getstatic     #159                // Field E:Lrs/l/e/q$a;
+     215: aastore
+     216: dup
+     217: bipush        31
+     219: getstatic     #160                // Field F:Lrs/l/e/q$a;
+     222: aastore
+     223: dup
+     224: bipush        32
+     226: getstatic     #161                // Field G:Lrs/l/e/q$a;
+     229: aastore
+     230: dup
+     231: bipush        33
+     233: getstatic     #162                // Field H:Lrs/l/e/q$a;
+     236: aastore
+     237: dup
+     238: bipush        34
+     240: getstatic     #163                // Field I:Lrs/l/e/q$a;
+     243: aastore
+     244: dup
+     245: bipush        35
+     247: getstatic     #164                // Field J:Lrs/l/e/q$a;
+     250: aastore
+     251: dup
+     252: bipush        36
+     254: getstatic     #165                // Field K:Lrs/l/e/q$a;
+     257: aastore
+     258: dup
+     259: bipush        37
+     261: getstatic     #166                // Field L:Lrs/l/e/q$a;
+     264: aastore
+     265: dup
+     266: bipush        38
+     268: getstatic     #167                // Field M:Lrs/l/e/q$a;
+     271: aastore
+     272: dup
+     273: bipush        39
+     275: getstatic     #168                // Field N:Lrs/l/e/q$a;
+     278: aastore
+     279: dup
+     280: bipush        40
+     282: getstatic     #169                // Field O:Lrs/l/e/q$a;
+     285: aastore
+     286: dup
+     287: bipush        41
+     289: getstatic     #170                // Field P:Lrs/l/e/q$a;
+     292: aastore
+     293: dup
+     294: bipush        42
+     296: getstatic     #171                // Field Q:Lrs/l/e/q$a;
+     299: aastore
+     300: dup
+     301: bipush        43
+     303: getstatic     #172                // Field R:Lrs/l/e/q$a;
+     306: aastore
+     307: dup
+     308: bipush        44
+     310: getstatic     #173                // Field S:Lrs/l/e/q$a;
+     313: aastore
+     314: dup
+     315: bipush        45
+     317: getstatic     #174                // Field T:Lrs/l/e/q$a;
+     320: aastore
+     321: dup
+     322: bipush        46
+     324: getstatic     #175                // Field U:Lrs/l/e/q$a;
+     327: aastore
+     328: dup
+     329: bipush        47
+     331: getstatic     #176                // Field V:Lrs/l/e/q$a;
+     334: aastore
+     335: dup
+     336: bipush        48
+     338: getstatic     #177                // Field W:Lrs/l/e/q$a;
+     341: aastore
+     342: dup
+     343: bipush        49
+     345: getstatic     #178                // Field X:Lrs/l/e/q$a;
+     348: aastore
+     349: dup
+     350: bipush        50
+     352: getstatic     #179                // Field Y:Lrs/l/e/q$a;
+     355: aastore
+     356: dup
+     357: bipush        51
+     359: getstatic     #180                // Field Z:Lrs/l/e/q$a;
+     362: aastore
+     363: dup
+     364: bipush        52
+     366: getstatic     #182                // Field aa:Lrs/l/e/q$a;
+     369: aastore
+     370: dup
+     371: bipush        53
+     373: getstatic     #183                // Field ab:Lrs/l/e/q$a;
+     376: aastore
+     377: dup
+     378: bipush        54
+     380: getstatic     #184                // Field ac:Lrs/l/e/q$a;
+     383: aastore
+     384: dup
+     385: bipush        55
+     387: getstatic     #185                // Field ad:Lrs/l/e/q$a;
+     390: aastore
+     391: dup
+     392: bipush        56
+     394: getstatic     #186                // Field ae:Lrs/l/e/q$a;
+     397: aastore
+     398: dup
+     399: bipush        57
+     401: getstatic     #187                // Field af:Lrs/l/e/q$a;
+     404: aastore
+     405: dup
+     406: bipush        58
+     408: getstatic     #188                // Field ag:Lrs/l/e/q$a;
+     411: aastore
+     412: dup
+     413: bipush        59
+     415: getstatic     #189                // Field ah:Lrs/l/e/q$a;
+     418: aastore
+     419: dup
+     420: bipush        60
+     422: getstatic     #190                // Field ai:Lrs/l/e/q$a;
+     425: aastore
+     426: dup
+     427: bipush        61
+     429: getstatic     #191                // Field aj:Lrs/l/e/q$a;
+     432: aastore
+     433: dup
+     434: bipush        62
+     436: getstatic     #192                // Field ak:Lrs/l/e/q$a;
+     439: aastore
+     440: dup
+     441: bipush        63
+     443: getstatic     #193                // Field al:Lrs/l/e/q$a;
+     446: aastore
+     447: areturn
+
+  static {};
+    Code:
+       0: new           #154                // class rs/l/e/q$a
+       3: dup
+       4: ldc           #33                 // String DYNAMIC
+       6: iconst_0
+       7: ldc           #1                  // String
+       9: iconst_0
+      10: invokespecial #228                // Method "<init>":(Ljava/lang/String;ILjava/lang/String;I)V
+      13: putstatic     #181                // Field a:Lrs/l/e/q$a;
+      16: new           #154                // class rs/l/e/q$a
+      19: dup
+      20: ldc           #57                 // String HUNTER_ELIXIR_BSLAY
+      22: iconst_1
+      23: ldc           #62                 // String Hunter elixir\nDouble blood slayer points\n(Does not stack with streak bonus)
+      25: sipush        27456
+      28: invokespecial #228                // Method "<init>":(Ljava/lang/String;ILjava/lang/String;I)V
+      31: putstatic     #200                // Field b:Lrs/l/e/q$a;
+      34: new           #154                // class rs/l/e/q$a
+      37: dup
+      38: ldc           #58                 // String HUNTER_ELIXIR_SOUL
+      40: iconst_2
+      41: ldc           #63                 // String Hunter elixir\nDouble soul shards
+      43: sipush        27455
+      46: invokespecial #228                // Method "<init>":(Ljava/lang/String;ILjava/lang/String;I)V
+      49: putstatic     #201                // Field c:Lrs/l/e/q$a;
+      52: new           #154                // class rs/l/e/q$a
+      55: dup
+      56: ldc           #31                 // String DFS
+      58: iconst_3
+      59: ldc           #36                 // String Dfs cooldown
+      61: sipush        11284
+      64: invokespecial #228                // Method "<init>":(Ljava/lang/String;ILjava/lang/String;I)V
+      67: putstatic     #202                // Field d:Lrs/l/e/q$a;
+      70: new           #154                // class rs/l/e/q$a
+      73: dup
+      74: ldc           #114                // String TWISTED_HEART
+      76: iconst_4
+      77: ldc           #117                // String Twisted heart\nCooldown duration
+      79: sipush        21092
+      82: invokespecial #228                // Method "<init>":(Ljava/lang/String;ILjava/lang/String;I)V
+      85: putstatic     #203                // Field e:Lrs/l/e/q$a;
+      88: new           #154                // class rs/l/e/q$a
+      91: dup
+      92: ldc           #121                // String VOTE_BOOST_BOOK
+      94: iconst_5
+      95: ldc           #124                // String Vote Boost\n+10% PvM damage\n+10% Drop rate bonus
+      97: sipush        26982
+     100: invokespecial #228                // Method "<init>":(Ljava/lang/String;ILjava/lang/String;I)V
+     103: putstatic     #204                // Field f:Lrs/l/e/q$a;
+     106: new           #154                // class rs/l/e/q$a
+     109: dup
+     110: ldc           #119                // String VENGEANCE
+     112: bipush        6
+     114: ldc           #122                // String Vengeance cooldown
+     116: ldc           #148                // String popups/vengtimer
+     118: bipush        13
+     120: iconst_4
+     121: invokespecial #229                // Method "<init>":(Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;II)V
+     124: putstatic     #205                // Field g:Lrs/l/e/q$a;
+     127: new           #154                // class rs/l/e/q$a
+     130: dup
+     131: ldc           #3                  // String ANTIFIRE
+     133: bipush        7
+     135: ldc           #8                  // String Antifire duration
+     137: ldc           #129                // String popups/antitimer
+     139: bipush        13
+     141: iconst_2
+     142: invokespecial #229                // Method "<init>":(Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;II)V
+     145: putstatic     #206                // Field h:Lrs/l/e/q$a;
+     148: new           #154                // class rs/l/e/q$a
+     151: dup
+     152: ldc           #4                  // String ANTIVENOM
+     154: bipush        8
+     156: ldc           #7                  // String Anti-venom duration
+     158: ldc           #149                // String popups/venomtimer
+     160: bipush        13
+     162: iconst_2
+     163: invokespecial #229                // Method "<init>":(Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;II)V
+     166: putstatic     #207                // Field i:Lrs/l/e/q$a;
+     169: new           #154                // class rs/l/e/q$a
+     172: dup
+     173: ldc           #18                 // String CHARGE
+     175: bipush        9
+     177: ldc           #24                 // String Charge duration
+     179: ldc           #132                // String popups/chargetimer
+     181: bipush        12
+     183: iconst_4
+     184: invokespecial #229                // Method "<init>":(Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;II)V
+     187: putstatic     #208                // Field j:Lrs/l/e/q$a;
+     190: new           #154                // class rs/l/e/q$a
+     193: dup
+     194: ldc           #101                // String STAMINA
+     196: bipush        10
+     198: ldc           #109                // String Stamina duration
+     200: ldc           #145                // String popups/staminatimer
+     202: bipush        13
+     204: iconst_2
+     205: invokespecial #229                // Method "<init>":(Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;II)V
+     208: putstatic     #209                // Field k:Lrs/l/e/q$a;
+     211: new           #154                // class rs/l/e/q$a
+     214: dup
+     215: ldc           #112                // String TELEBLOCK
+     217: bipush        11
+     219: ldc           #115                // String Teleblock duration
+     221: ldc           #146                // String popups/teleblocktimer
+     223: bipush        9
+     225: iconst_2
+     226: invokespecial #229                // Method "<init>":(Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;II)V
+     229: putstatic     #210                // Field l:Lrs/l/e/q$a;
+     232: new           #154                // class rs/l/e/q$a
+     235: dup
+     236: ldc           #82                 // String PETBLOCK
+     238: bipush        12
+     240: ldc           #84                 // String Pet silence\nWhile under silence, your \npet\'s effects are disabled and \nyou can\'t release other pets!
+     242: ldc           #141                // String popups/petblocktimer
+     244: bipush        9
+     246: iconst_2
+     247: invokespecial #229                // Method "<init>":(Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;II)V
+     250: putstatic     #211                // Field m:Lrs/l/e/q$a;
+     253: new           #154                // class rs/l/e/q$a
+     256: dup
+     257: ldc           #10                 // String BLOODLUST
+     259: bipush        13
+     261: ldc           #15                 // String Blood lust\nEarn +10 blood money\nfrom player kills.
+     263: ldc           #131                // String popups/bloodlust
+     265: bipush        12
+     267: iconst_4
+     268: invokespecial #229                // Method "<init>":(Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;II)V
+     271: putstatic     #212                // Field n:Lrs/l/e/q$a;
+     274: new           #154                // class rs/l/e/q$a
+     277: dup
+     278: ldc           #69                 // String JUNGLE_MINIGAME
+     280: bipush        14
+     282: ldc           #111                // String Survival timer\nAfter this duration, you lose.\nYou can gain more time by\nplayer kills and chest loots.
+     284: ldc           #140                // String popups/minigame
+     286: bipush        12
+     288: iconst_5
+     289: invokespecial #229                // Method "<init>":(Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;II)V
+     292: putstatic     #213                // Field o:Lrs/l/e/q$a;
+     295: new           #154                // class rs/l/e/q$a
+     298: dup
+     299: ldc           #68                 // String JUNGLE_AMNESTY
+     301: bipush        15
+     303: ldc           #6                  // String Amnesty\nWhile under amnesty, \nplayers can\'t harm you.\nAttacking a player or the\njungle demon will cancel it.
+     305: ldc           #128                // String popups/amnestyskull
+     307: bipush        11
+     309: iconst_2
+     310: invokespecial #229                // Method "<init>":(Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;II)V
+     313: putstatic     #214                // Field p:Lrs/l/e/q$a;
+     316: new           #154                // class rs/l/e/q$a
+     319: dup
+     320: ldc           #98                 // String SICKNESS
+     322: bipush        16
+     324: ldc           #79                 // String Magic sickness\nYou can\'t teleport in 20+ wild\nwith your spellbook, items, or\npets during sickness.
+     326: ldc           #143                // String popups/sicknesstimer
+     328: bipush        9
+     330: iconst_2
+     331: invokespecial #229                // Method "<init>":(Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;II)V
+     334: putstatic     #215                // Field q:Lrs/l/e/q$a;
+     337: new           #154                // class rs/l/e/q$a
+     340: dup
+     341: ldc           #70                 // String KHARAZI_BANK
+     343: bipush        17
+     345: ldc           #72                 // String Kharazi safe bank\nAfter this duration\nyou will be removed\nfrom the bank hut.
+     347: ldc           #130                // String popups/banktimer
+     349: bipush        11
+     351: iconst_4
+     352: invokespecial #229                // Method "<init>":(Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;II)V
+     355: putstatic     #216                // Field r:Lrs/l/e/q$a;
+     358: new           #154                // class rs/l/e/q$a
+     361: dup
+     362: ldc           #51                 // String FREEZE
+     364: bipush        18
+     366: ldc           #52                 // String Freeze duration
+     368: ldc           #137                // String popups/freeze
+     370: bipush        11
+     372: iconst_4
+     373: invokespecial #229                // Method "<init>":(Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;II)V
+     376: putstatic     #217                // Field s:Lrs/l/e/q$a;
+     379: new           #154                // class rs/l/e/q$a
+     382: dup
+     383: ldc           #64                 // String IMBUED_HEART
+     385: bipush        19
+     387: ldc           #66                 // String Imbued heart\nCooldown duration
+     389: ldc           #138                // String popups/imbued
+     391: bipush        10
+     393: iconst_3
+     394: invokespecial #229                // Method "<init>":(Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;II)V
+     397: putstatic     #218                // Field t:Lrs/l/e/q$a;
+     400: new           #154                // class rs/l/e/q$a
+     403: dup
+     404: ldc           #47                 // String ENCHANTED_HEART
+     406: bipush        20
+     408: ldc           #49                 // String Enchanted heart\nCooldown duration
+     410: ldc           #135                // String popups/enchantedheart
+     412: bipush        10
+     414: iconst_3
+     415: invokespecial #229                // Method "<init>":(Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;II)V
+     418: putstatic     #219                // Field u:Lrs/l/e/q$a;
+     421: new           #154                // class rs/l/e/q$a
+     424: dup
+     425: ldc           #65                 // String INFERNAL_HEART
+     427: bipush        21
+     429: ldc           #67                 // String Infernal heart\nCooldown duration
+     431: ldc           #139                // String popups/infernal
+     433: bipush        10
+     435: iconst_3
+     436: invokespecial #229                // Method "<init>":(Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;II)V
+     439: putstatic     #220                // Field v:Lrs/l/e/q$a;
+     442: new           #154                // class rs/l/e/q$a
+     445: dup
+     446: ldc           #17                 // String CHAOS_ELE_BONUS
+     448: bipush        22
+     450: ldc           #40                 // String Drop rate bonus\nChaos elemental
+     452: ldc           #133                // String popups/drbonus
+     454: bipush        10
+     456: iconst_4
+     457: invokespecial #229                // Method "<init>":(Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;II)V
+     460: putstatic     #221                // Field w:Lrs/l/e/q$a;
+     463: new           #154                // class rs/l/e/q$a
+     466: dup
+     467: ldc           #9                  // String BARRELCHEST_BONUS
+     469: bipush        23
+     471: ldc           #39                 // String Drop rate bonus\nBarrelchest
+     473: ldc           #133                // String popups/drbonus
+     475: bipush        10
+     477: iconst_4
+     478: invokespecial #229                // Method "<init>":(Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;II)V
+     481: putstatic     #222                // Field x:Lrs/l/e/q$a;
+     484: new           #154                // class rs/l/e/q$a
+     487: dup
+     488: ldc           #71                 // String KRAKEN_BONUS
+     490: bipush        24
+     492: ldc           #44                 // String Drop rate bonus\nKraken
+     494: ldc           #133                // String popups/drbonus
+     496: bipush        10
+     498: iconst_4
+     499: invokespecial #229                // Method "<init>":(Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;II)V
+     502: putstatic     #223                // Field y:Lrs/l/e/q$a;
+     505: new           #154                // class rs/l/e/q$a
+     508: dup
+     509: ldc           #120                // String VETION_BONUS
+     511: bipush        25
+     513: ldc           #45                 // String Drop rate bonus\nVet\'ion
+     515: ldc           #133                // String popups/drbonus
+     517: bipush        10
+     519: iconst_4
+     520: invokespecial #229                // Method "<init>":(Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;II)V
+     523: putstatic     #224                // Field z:Lrs/l/e/q$a;
+     526: new           #154                // class rs/l/e/q$a
+     529: dup
+     530: ldc           #23                 // String CRAZY_ARCH_BONUS
+     532: bipush        26
+     534: ldc           #41                 // String Drop rate bonus\nCrazy archaeologist
+     536: ldc           #133                // String popups/drbonus
+     538: bipush        10
+     540: iconst_4
+     541: invokespecial #229                // Method "<init>":(Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;II)V
+     544: putstatic     #155                // Field A:Lrs/l/e/q$a;
+     547: new           #154                // class rs/l/e/q$a
+     550: dup
+     551: ldc           #12                 // String BLOOD_SLAYER
+     553: bipush        27
+     555: ldc           #16                 // String Blood slayer task\nComplete the task in time!
+     557: ldc           #144                // String popups/slayer
+     559: bipush        11
+     561: iconst_4
+     562: invokespecial #229                // Method "<init>":(Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;II)V
+     565: putstatic     #156                // Field B:Lrs/l/e/q$a;
+     568: new           #154                // class rs/l/e/q$a
+     571: dup
+     572: ldc           #30                 // String DEMONIC_GORILLA_BONUS
+     574: bipush        28
+     576: ldc           #42                 // String Drop rate bonus\nDemonic gorilla
+     578: ldc           #133                // String popups/drbonus
+     580: bipush        10
+     582: iconst_4
+     583: invokespecial #229                // Method "<init>":(Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;II)V
+     586: putstatic     #157                // Field C:Lrs/l/e/q$a;
+     589: new           #154                // class rs/l/e/q$a
+     592: dup
+     593: ldc           #127                // String WILDY_WYRM_BONUS
+     595: bipush        29
+     597: ldc           #46                 // String Drop rate bonus\nWildywyrm
+     599: ldc           #133                // String popups/drbonus
+     601: bipush        10
+     603: iconst_4
+     604: invokespecial #229                // Method "<init>":(Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;II)V
+     607: putstatic     #158                // Field D:Lrs/l/e/q$a;
+     610: new           #154                // class rs/l/e/q$a
+     613: dup
+     614: ldc           #113                // String THIEF_SCROLL_BONUS
+     616: bipush        30
+     618: ldc           #116                // String Thief scroll\n@gre@2x@whi@ loot from\nthieving.
+     620: ldc           #133                // String popups/drbonus
+     622: bipush        10
+     624: iconst_4
+     625: invokespecial #229                // Method "<init>":(Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;II)V
+     628: putstatic     #159                // Field E:Lrs/l/e/q$a;
+     631: new           #154                // class rs/l/e/q$a
+     634: dup
+     635: ldc           #73                 // String LARRAN_SCROLL_BONUS
+     637: bipush        31
+     639: ldc           #75                 // String Larran\'s loot\n@gre@2x@whi@ larrans keys from\nblood slayer tasks.
+     641: ldc           #133                // String popups/drbonus
+     643: bipush        10
+     645: iconst_4
+     646: invokespecial #229                // Method "<init>":(Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;II)V
+     649: putstatic     #160                // Field F:Lrs/l/e/q$a;
+     652: new           #154                // class rs/l/e/q$a
+     655: dup
+     656: ldc           #83                 // String PVM_BONUS
+     658: bipush        32
+     660: ldc           #43                 // String Drop rate bonus\nDrop rate increased by +5%
+     662: ldc           #133                // String popups/drbonus
+     664: bipush        10
+     666: iconst_4
+     667: invokespecial #229                // Method "<init>":(Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;II)V
+     670: putstatic     #161                // Field G:Lrs/l/e/q$a;
+     673: new           #154                // class rs/l/e/q$a
+     676: dup
+     677: ldc           #48                 // String EVENT_TIMER
+     679: bipush        33
+     681: ldc           #50                 // String Event booster\nGives @gre@25%@whi@ more @yel@event\n@yel@currency@whi@ from @or1@World events!
+     683: ldc           #136                // String popups/eventboost
+     685: bipush        10
+     687: iconst_4
+     688: invokespecial #229                // Method "<init>":(Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;II)V
+     691: putstatic     #162                // Field H:Lrs/l/e/q$a;
+     694: new           #154                // class rs/l/e/q$a
+     697: dup
+     698: ldc           #96                 // String SEASONAL_EVENT_ELIXIR
+     700: bipush        34
+     702: ldc           #50                 // String Event booster\nGives @gre@25%@whi@ more @yel@event\n@yel@currency@whi@ from @or1@World events!
+     704: ldc           #136                // String popups/eventboost
+     706: bipush        10
+     708: iconst_4
+     709: invokespecial #229                // Method "<init>":(Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;II)V
+     712: putstatic     #163                // Field I:Lrs/l/e/q$a;
+     715: new           #154                // class rs/l/e/q$a
+     718: dup
+     719: ldc           #56                 // String HUNGER_GAMES_POWERUP
+     721: bipush        35
+     723: ldc           #61                 // String Hunger games perk\nTemporary power-up perk
+     725: ldc           #136                // String popups/eventboost
+     727: bipush        10
+     729: iconst_4
+     730: invokespecial #229                // Method "<init>":(Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;II)V
+     733: putstatic     #164                // Field J:Lrs/l/e/q$a;
+     736: new           #154                // class rs/l/e/q$a
+     739: dup
+     740: ldc           #19                 // String COIN_BONUS
+     742: bipush        36
+     744: ldc           #25                 // String Coin bonus\nPvM GP increased by +25%
+     746: ldc           #133                // String popups/drbonus
+     748: bipush        10
+     750: iconst_4
+     751: invokespecial #229                // Method "<init>":(Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;II)V
+     754: putstatic     #165                // Field K:Lrs/l/e/q$a;
+     757: new           #154                // class rs/l/e/q$a
+     760: dup
+     761: ldc           #74                 // String LUCK_BONUS
+     763: bipush        37
+     765: ldc           #76                 // String Luck scroll\nDrop rate bonus @gre@+10%
+     767: ldc           #133                // String popups/drbonus
+     769: bipush        10
+     771: iconst_4
+     772: invokespecial #229                // Method "<init>":(Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;II)V
+     775: putstatic     #166                // Field L:Lrs/l/e/q$a;
+     778: new           #154                // class rs/l/e/q$a
+     781: dup
+     782: ldc           #102                // String SUPER_LUCK_BONUS
+     784: bipush        38
+     786: ldc           #110                // String Super luck scroll\nDrop rate bonus @gre@+15%
+     788: ldc           #133                // String popups/drbonus
+     790: bipush        10
+     792: iconst_4
+     793: invokespecial #229                // Method "<init>":(Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;II)V
+     796: putstatic     #167                // Field M:Lrs/l/e/q$a;
+     799: new           #154                // class rs/l/e/q$a
+     802: dup
+     803: ldc           #78                 // String MINI_SCROLL_BONUS
+     805: bipush        39
+     807: ldc           #81                 // String Minigame scroll\n2x minigame points & +25%\nKharazi drop rate
+     809: ldc           #133                // String popups/drbonus
+     811: bipush        10
+     813: iconst_4
+     814: invokespecial #229                // Method "<init>":(Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;II)V
+     817: putstatic     #168                // Field N:Lrs/l/e/q$a;
+     820: new           #154                // class rs/l/e/q$a
+     823: dup
+     824: ldc           #11                 // String BLOOD_DISCOUNT_BONUS
+     826: bipush        40
+     828: ldc           #14                 // String Blood discount\n@gre@10%@whi@ cheaper purchases\nfrom Blood fountain shops!
+     830: ldc           #133                // String popups/drbonus
+     832: bipush        10
+     834: iconst_4
+     835: invokespecial #229                // Method "<init>":(Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;II)V
+     838: putstatic     #169                // Field O:Lrs/l/e/q$a;
+     841: new           #154                // class rs/l/e/q$a
+     844: dup
+     845: ldc           #54                 // String HOTSPOT_BONUS
+     847: bipush        41
+     849: ldc           #59                 // String Hotspot bonus\n@gre@2x@whi@ Hotspot Points <img=158>\nfrom hotspots for limited time
+     851: ldc           #133                // String popups/drbonus
+     853: bipush        10
+     855: iconst_4
+     856: invokespecial #229                // Method "<init>":(Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;II)V
+     859: putstatic     #170                // Field P:Lrs/l/e/q$a;
+     862: new           #154                // class rs/l/e/q$a
+     865: dup
+     866: ldc           #125                // String WELFARE_BONUS
+     868: bipush        42
+     870: ldc           #123                // String Vintage bonus\n2X Vintage points and\n+25% ticket drops
+     872: ldc           #133                // String popups/drbonus
+     874: bipush        10
+     876: iconst_4
+     877: invokespecial #229                // Method "<init>":(Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;II)V
+     880: putstatic     #171                // Field Q:Lrs/l/e/q$a;
+     883: new           #154                // class rs/l/e/q$a
+     886: dup
+     887: ldc           #86                 // String RAID_BONUS
+     889: bipush        43
+     891: ldc           #90                 // String Raid scroll\nRaids reward chance @gre@+10%
+     893: ldc           #133                // String popups/drbonus
+     895: bipush        10
+     897: iconst_4
+     898: invokespecial #229                // Method "<init>":(Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;II)V
+     901: putstatic     #172                // Field R:Lrs/l/e/q$a;
+     904: new           #154                // class rs/l/e/q$a
+     907: dup
+     908: ldc           #99                 // String SLAYER_CRYSTAL
+     910: bipush        44
+     912: ldc           #107                // String Slayer crystal\nDouble slayer and\nblood slayer points
+     914: ldc           #133                // String popups/drbonus
+     916: bipush        10
+     918: iconst_4
+     919: invokespecial #229                // Method "<init>":(Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;II)V
+     922: putstatic     #173                // Field S:Lrs/l/e/q$a;
+     925: new           #154                // class rs/l/e/q$a
+     928: dup
+     929: ldc           #55                 // String HOTSPOT_CRYSTAL
+     931: bipush        45
+     933: ldc           #60                 // String Hotspot crystal\nDouble chance for\nhot spot caskets
+     935: ldc           #133                // String popups/drbonus
+     937: bipush        10
+     939: iconst_4
+     940: invokespecial #229                // Method "<init>":(Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;II)V
+     943: putstatic     #174                // Field T:Lrs/l/e/q$a;
+     946: new           #154                // class rs/l/e/q$a
+     949: dup
+     950: ldc           #85                 // String RAIDS_CHART
+     952: bipush        46
+     954: ldc           #91                 // String Raids chart\nIncreased chance for\nraids chest rares!
+     956: ldc           #133                // String popups/drbonus
+     958: bipush        10
+     960: iconst_4
+     961: invokespecial #229                // Method "<init>":(Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;II)V
+     964: putstatic     #175                // Field U:Lrs/l/e/q$a;
+     967: new           #154                // class rs/l/e/q$a
+     970: dup
+     971: ldc           #94                 // String SEASONAL_DROP_BOOST
+     973: bipush        47
+     975: ldc           #103                // String Seasonal boost\nGives @gre@+15%@whi@ more @yel@drop\n@yel@rate bonus@whi@ during Seasonal event!
+     977: ldc           #136                // String popups/eventboost
+     979: bipush        10
+     981: iconst_4
+     982: invokespecial #229                // Method "<init>":(Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;II)V
+     985: putstatic     #176                // Field V:Lrs/l/e/q$a;
+     988: new           #154                // class rs/l/e/q$a
+     991: dup
+     992: ldc           #95                 // String SEASONAL_DROP_DOUBLE
+     994: bipush        48
+     996: ldc           #104                // String Seasonal double\nGives @gre@+5%@whi@ chance for @yel@doubled\n@yel@drops@whi@ during Seasonal event!
+     998: ldc           #136                // String popups/eventboost
+    1000: bipush        10
+    1002: iconst_4
+    1003: invokespecial #229                // Method "<init>":(Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;II)V
+    1006: putstatic     #177                // Field W:Lrs/l/e/q$a;
+    1009: new           #154                // class rs/l/e/q$a
+    1012: dup
+    1013: ldc           #97                 // String SEASONAL_HOTSPOT
+    1015: bipush        49
+    1017: ldc           #105                // String Seasonal hotspot\nGives @gre@25%@whi@ more @yel@hotspot\n@yel@caskets@whi@ during Seasonal event!
+    1019: ldc           #136                // String popups/eventboost
+    1021: bipush        10
+    1023: iconst_4
+    1024: invokespecial #229                // Method "<init>":(Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;II)V
+    1027: putstatic     #178                // Field X:Lrs/l/e/q$a;
+    1030: new           #154                // class rs/l/e/q$a
+    1033: dup
+    1034: ldc           #93                 // String SEASONAL_BLOOD_REV
+    1036: bipush        50
+    1038: ldc           #106                // String Seasonal revs\nGives @gre@25%@whi@ more @yel@superior\n@yel@revenants@whi@ during Seasonal event!
+    1040: ldc           #136                // String popups/eventboost
+    1042: bipush        10
+    1044: iconst_4
+    1045: invokespecial #229                // Method "<init>":(Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;II)V
+    1048: putstatic     #179                // Field Y:Lrs/l/e/q$a;
+    1051: new           #154                // class rs/l/e/q$a
+    1054: dup
+    1055: ldc           #2                  // String ADVENTURE_SCROLL
+    1057: bipush        51
+    1059: ldc           #5                  // String Adventure Scroll\n+10 blood money from PKs\n+15% PvM damage\n+25% Drop rate bonus
+    1061: ldc           #133                // String popups/drbonus
+    1063: bipush        11
+    1065: iconst_4
+    1066: invokespecial #229                // Method "<init>":(Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;II)V
+    1069: putstatic     #180                // Field Z:Lrs/l/e/q$a;
+    1072: new           #154                // class rs/l/e/q$a
+    1075: dup
+    1076: ldc           #32                 // String DRAGON_BOOST_BOOK
+    1078: bipush        52
+    1080: ldc           #38                 // String Dragon Boost\n+10% PvM damage\nagainst Dragons
+    1082: ldc           #142                // String popups/pvmboost
+    1084: bipush        11
+    1086: iconst_4
+    1087: invokespecial #229                // Method "<init>":(Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;II)V
+    1090: putstatic     #182                // Field aa:Lrs/l/e/q$a;
+    1093: new           #154                // class rs/l/e/q$a
+    1096: dup
+    1097: ldc           #88                 // String REVENANT_BOOST_BOOK
+    1099: bipush        53
+    1101: ldc           #92                 // String Revenant Boost\n+10% PvM damage\nagainst Revenants
+    1103: ldc           #142                // String popups/pvmboost
+    1105: bipush        11
+    1107: iconst_4
+    1108: invokespecial #229                // Method "<init>":(Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;II)V
+    1111: putstatic     #183                // Field ab:Lrs/l/e/q$a;
+    1114: new           #154                // class rs/l/e/q$a
+    1117: dup
+    1118: ldc           #29                 // String DEEP_WILD_BOOST_BOOK
+    1120: bipush        54
+    1122: ldc           #35                 // String Deep Wild Boost\n+10% PvM damage\nin Deep Wild
+    1124: ldc           #142                // String popups/pvmboost
+    1126: bipush        11
+    1128: iconst_4
+    1129: invokespecial #229                // Method "<init>":(Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;II)V
+    1132: putstatic     #184                // Field ac:Lrs/l/e/q$a;
+    1135: new           #154                // class rs/l/e/q$a
+    1138: dup
+    1139: ldc           #87                 // String RAID_BOOST_BOOK
+    1141: bipush        55
+    1143: ldc           #89                 // String Raid Boost\n+10% PvM damage\nagainst Raid monsters
+    1145: ldc           #142                // String popups/pvmboost
+    1147: bipush        11
+    1149: iconst_4
+    1150: invokespecial #229                // Method "<init>":(Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;II)V
+    1153: putstatic     #185                // Field ad:Lrs/l/e/q$a;
+    1156: new           #154                // class rs/l/e/q$a
+    1159: dup
+    1160: ldc           #77                 // String MALEDICTUS_BOOST
+    1162: bipush        56
+    1164: ldc           #80                 // String Maledictus Boost\n+20% Superior Blood\nRevenant chance
+    1166: ldc           #133                // String popups/drbonus
+    1168: bipush        11
+    1170: iconst_4
+    1171: invokespecial #229                // Method "<init>":(Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;II)V
+    1174: putstatic     #186                // Field ae:Lrs/l/e/q$a;
+    1177: new           #154                // class rs/l/e/q$a
+    1180: dup
+    1181: ldc           #100                // String SLAYER_SPEED_PASS
+    1183: bipush        57
+    1185: ldc           #108                // String Slayer speed pass\nAssigned slayer tasks\nhave kill requirements\nreduced by 50%
+    1187: ldc           #144                // String popups/slayer
+    1189: bipush        11
+    1191: iconst_4
+    1192: invokespecial #229                // Method "<init>":(Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;II)V
+    1195: putstatic     #187                // Field af:Lrs/l/e/q$a;
+    1198: new           #154                // class rs/l/e/q$a
+    1201: dup
+    1202: ldc           #34                 // String DZONE_ELIXIR
+    1204: bipush        58
+    1206: ldc           #37                 // String Donator elixir\n2X zone tokens for\n all donator zones
+    1208: ldc           #134                // String popups/dzone_elixir
+    1210: bipush        11
+    1212: iconst_4
+    1213: invokespecial #229                // Method "<init>":(Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;II)V
+    1216: putstatic     #188                // Field ag:Lrs/l/e/q$a;
+    1219: new           #154                // class rs/l/e/q$a
+    1222: dup
+    1223: ldc           #22                 // String COSMIC_GOLD
+    1225: bipush        59
+    1227: ldc           #26                 // String Cosmic gold\nReceive @gre@+25%@whi@ more gold\nfrom all PvM drops
+    1229: ldc           #133                // String popups/drbonus
+    1231: bipush        10
+    1233: iconst_4
+    1234: invokespecial #229                // Method "<init>":(Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;II)V
+    1237: putstatic     #189                // Field ah:Lrs/l/e/q$a;
+    1240: new           #154                // class rs/l/e/q$a
+    1243: dup
+    1244: ldc           #21                 // String COSMIC_DROPS
+    1246: bipush        60
+    1248: ldc           #27                 // String Cosmic luck\nDrop rate bonus @gre@+5%
+    1250: ldc           #133                // String popups/drbonus
+    1252: bipush        10
+    1254: iconst_4
+    1255: invokespecial #229                // Method "<init>":(Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;II)V
+    1258: putstatic     #190                // Field ai:Lrs/l/e/q$a;
+    1261: new           #154                // class rs/l/e/q$a
+    1264: dup
+    1265: ldc           #20                 // String COSMIC_DAMAGE
+    1267: bipush        61
+    1269: ldc           #28                 // String Cosmic strength\nDeal @gre@+5%@whi@ more PvM damage
+    1271: ldc           #142                // String popups/pvmboost
+    1273: bipush        11
+    1275: iconst_4
+    1276: invokespecial #229                // Method "<init>":(Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;II)V
+    1279: putstatic     #191                // Field aj:Lrs/l/e/q$a;
+    1282: new           #154                // class rs/l/e/q$a
+    1285: dup
+    1286: ldc           #126                // String WEREWOLF_FRENZY
+    1288: bipush        62
+    1290: ldc           #53                 // String Frenzy\nDeal +10% melee damage in PvM\n(+5% in PvP)
+    1292: ldc           #150                // String popups/werewolf
+    1294: bipush        9
+    1296: iconst_2
+    1297: invokespecial #229                // Method "<init>":(Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;II)V
+    1300: putstatic     #192                // Field ak:Lrs/l/e/q$a;
+    1303: new           #154                // class rs/l/e/q$a
+    1306: dup
+    1307: ldc           #118                // String VAMPYRE_FOCUS
+    1309: bipush        63
+    1311: ldc           #13                 // String Blood Satiation\nGrants +10% PvM damage & accuarcy\nfor magic and range (+5% in PvP)
+    1313: ldc           #147                // String popups/vampyre
+    1315: bipush        9
+    1317: iconst_2
+    1318: invokespecial #229                // Method "<init>":(Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;II)V
+    1321: putstatic     #193                // Field al:Lrs/l/e/q$a;
+    1324: invokestatic  #230                // Method a:()[Lrs/l/e/q$a;
+    1327: putstatic     #199                // Field ar:[Lrs/l/e/q$a;
+    1330: return
+}

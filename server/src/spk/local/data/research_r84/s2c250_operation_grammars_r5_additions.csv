@@ -1,0 +1,70 @@
+subtype,operation,payload_grammar,exact_client_effect,confidence
+14,0,none,reset/rebuild default item-list layout,HIGH
+14,1,u8 layoutMode,switch item-list layout mode,HIGH
+14,2,u8 hiddenFlag,set search controls 36012/36013/36015 hidden state,HIGH
+14,3,u8 enabled,enable/disable main grid 36025 action strings,HIGH
+14,4,u8 mode; if mode!=0: i32 itemId; i32 amount; if mode==2: string rowText,mode0 clear all; otherwise append item row/item stack and optional row text,HIGH
+14,5,string searchText,client-side item-name filter over currently loaded rows,HIGH
+14,6,u8 value,set widget36026 bg boolean structurally,HIGH
+14,7,none,recompute scroll height,HIGH
+14,8,u8 hiddenFlag,set Go-back widget36016 hidden state,HIGH
+14,9,string,set description widget36002,HIGH
+14,10,string,set small-description widget36003,HIGH
+14,11,string,set search-description widget36019 and adjust vertical placement for newline,HIGH
+14,12,u8 count; count*string (max5),define main-grid action strings,HIGH
+14,13,string tabLabel,append tab (max5),HIGH
+14,14,u8 selectedTab,select tab,HIGH
+14,15,u8 hiddenFlag,set bottom/secondary panel hidden state and shift list geometry on transition,HIGH
+14,16,none,reset contents/text/tabs without base rebuild,HIGH
+14,17,none,reset widget36026 scroll offset V=0,HIGH
+14,18,u8 hiddenFlag,set top-background hidden state and shift list geometry 25px on transition,HIGH
+14,19,u8 gridSpacingX; u8 gridSpacingY,set main item-grid spacing/dimension pair and recompute layout,HIGH
+14,20,u8 enabled,toggle zero-quantity slot dim/disable rendering,HIGH
+14,21,u8 columns,set item-grid column count; recompute rows/layout; >=10 widens panel,HIGH
+14,22,u16 slot; i32 itemId; i32 amount,directly update one main-grid item slot,HIGH
+14,23,u8 count; count*string (max5),define and enable secondary widget30074 action strings,HIGH
+14,24,u16 actionCode,set main-grid menu-action override bK; default431,HIGH
+14,25,u16 actionCode,set secondary-widget30074 menu-action override bL; default431,HIGH
+10,0,none,reset task UI/list counter/current selection and root state,HIGH
+10,1,string rowMarkup,append formatted task row at next index,HIGH
+10,2,i32 percent,set 57222 progress graphic width = 367*percent/100,HIGH
+10,3,u8 hiddenFlag,set widget57223 hidden state,HIGH
+10,4,u8 value,"set root57220 bv boolean and reset hover state bP=149,bQ=-1",HIGH
+10,5,string rowMarkup; i32 rowIndex,update/define explicit task row,HIGH
+10,6,string selectionKey,select string-keyed task and restore saved scroll position,HIGH
+10,7,none,finalize/reflow dynamic task rows; clear unused rows; update scroll height,HIGH
+10,8,u16 scrollOffset,set paired scroll offsets 56997 and57016,HIGH
+10,9,none,reset paired scroll offsets and remove current selectionKey from saved-position map,HIGH
+10,10,u8 appendFlag; string actionText,enable current dynamic action; append with newline when flag>0 else replace,HIGH
+13,1,i64 delayMs; string hotspotName,set hotspot expiry=now+delay and hotspot name,HIGH
+13,2,i64 delayMs; i32 itemId; i32 amount; string label,"set tournament/event-card deadline, item stack and label",HIGH
+13,3,i64 delayMs,set Blood-LMS-side active/countdown deadline,HIGH
+13,4,i64 delayMs,set Golden-HG-side active/countdown deadline,HIGH
+13,5,string globalBossName; i64 delayMs,set Event Global Boss name/deadline,HIGH
+13,6,string wildyBossName; i64 delayMs,set Event Wildy Boss name/deadline,HIGH
+13,7,i64 delayMs,set Event Brawl deadline,HIGH
+2,0,u16 worldX; u16 worldY; u8 plane; u8 ignoredCurrentClientByte,"remove override at x,y,plane and scene-remove object",HIGH
+2,1,i32 objectId; u16 worldX; u16 worldY; u8 plane; u8 objectType; u8 orientation,store and immediately apply scene object override,HIGH
+2,2,i32 objectId,remove/apply removal for every stored override with matching objectId,HIGH
+12,0,u8 fillR;u8 fillG;u8 fillB;u8 fillA;u8 outlineR;u8 outlineG;u8 outlineB;u8 outlineA;u16 worldX;u16 worldY;u8 hasLabel;[string label],add/replace tile polygon/highlight with fill/outline colors and optional label,HIGH
+12,1,u16 worldX;u16 worldY,remove tile polygon/highlight,HIGH
+1,1,nested ops until u8 0,lobby-state command stream,HIGH
+1,2,nested ops until u8 0,live Hunger Games state command stream,HIGH
+1,1.1,u16 players,lobby players count,HIGH
+1,1.2,string countdownText,lobby starting-in text,HIGH
+1,1.3,u8 playersNeeded,waiting-for X+ players text,HIGH
+1,1.4,none,"Starting a match, please wait",HIGH
+1,1.5,string statsText,lobby Wins/Matches/Points line,HIGH
+1,2.1,u8 survivors,live survivors line,HIGH
+1,2.2,u8 kills,live kills line,HIGH
+1,2.3,u16 seconds,next-event deadline,HIGH
+1,2.4,u16 seconds,next-power-up deadline,HIGH
+1,2.5,u8 stage;u16 seconds,safety/ceasefire stage and deadline; enables live overlay,HIGH
+1,2.6,none,disable live overlay,HIGH
+1,2.7,string matchStyle,match-style line,HIGH
+1,2.8,u8 enabled,fog warning enabled,HIGH
+16,0,none,reset 50-row server selection list,HIGH
+16,1,u8 rowMode;u8 selectable;string label,append row; selectable rows get Select action; rowMode affects spacing,HIGH
+16,2,u16 rowIndex;string label,update existing row text,HIGH
+20,0,none,stop port-2456 external Login/Logout receiver thread,HIGH
+20,1,none,start port-2456 external Login/Logout receiver thread,HIGH

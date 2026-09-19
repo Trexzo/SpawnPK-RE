@@ -1,0 +1,217 @@
+public class rs.n.c.aM extends rs.n.c {
+  public static rs.q.a.a.a c;
+
+  public static final int d;
+
+  public static rs.l.K[] e;
+
+  public static rs.n.e f;
+
+  public static int g;
+
+  public static int bI;
+
+  public static int bJ;
+
+  public rs.n.c.aM(rs.l.K[]);
+    Code:
+       0: aload_0
+       1: aload_1
+       2: invokespecial #29                 // Method rs/n/c."<init>":([Lrs/l/K;)V
+       5: aload_1
+       6: putstatic     #20                 // Field e:[Lrs/l/K;
+       9: return
+
+  public static void k(int, java.lang.String);
+    Code:
+       0: getstatic     #23                 // Field rs/n/e.H:[Lrs/n/e;
+       3: ldc           #5                  // int 40405
+       5: iload_0
+       6: iadd
+       7: aaload
+       8: aload_1
+       9: putfield      #27                 // Field rs/n/e.at:Ljava/lang/String;
+      12: return
+
+  public static void b(int, java.lang.String, boolean);
+    Code:
+       0: getstatic     #22                 // Field g:I
+       3: dup
+       4: iconst_1
+       5: iadd
+       6: putstatic     #22                 // Field g:I
+       9: istore_3
+      10: bipush        19
+      12: istore        4
+      14: iload_2
+      15: ifeq          48
+      18: iload_3
+      19: aload_1
+      20: ldc           #10                 // String Select
+      22: getstatic     #20                 // Field e:[Lrs/l/K;
+      25: iload_0
+      26: ldc           #6                  // int 12171349
+      28: iconst_0
+      29: iconst_1
+      30: bipush        125
+      32: invokestatic  #30                 // Method a:(ILjava/lang/String;Ljava/lang/String;[Lrs/l/K;IIZZI)V
+      35: getstatic     #23                 // Field rs/n/e.H:[Lrs/n/e;
+      38: iload_3
+      39: aaload
+      40: ldc           #8                  // int 16777215
+      42: putfield      #28                 // Field rs/n/e.br:I
+      45: goto          59
+      48: iload_3
+      49: aload_1
+      50: getstatic     #20                 // Field e:[Lrs/l/K;
+      53: iload_0
+      54: ldc           #7                  // int 16750623
+      56: invokestatic  #31                 // Method a:(ILjava/lang/String;[Lrs/l/K;II)V
+      59: getstatic     #21                 // Field f:Lrs/n/e;
+      62: getstatic     #17                 // Field bI:I
+      65: dup
+      66: iconst_1
+      67: iadd
+      68: putstatic     #17                 // Field bI:I
+      71: iload_3
+      72: bipush        6
+      74: getstatic     #18                 // Field bJ:I
+      77: invokevirtual #37                 // Method rs/n/e.b:(IIII)V
+      80: getstatic     #18                 // Field bJ:I
+      83: bipush        17
+      85: iadd
+      86: putstatic     #18                 // Field bJ:I
+      89: iload_0
+      90: iconst_1
+      91: if_icmpne     102
+      94: getstatic     #18                 // Field bJ:I
+      97: iconst_3
+      98: iadd
+      99: putstatic     #18                 // Field bJ:I
+     102: iload_0
+     103: iconst_2
+     104: if_icmpne     115
+     107: getstatic     #18                 // Field bJ:I
+     110: iconst_5
+     111: iadd
+     112: putstatic     #18                 // Field bJ:I
+     115: return
+
+  public void a();
+    Code:
+       0: ldc           #3                  // int 40403
+       2: invokestatic  #34                 // Method d:(I)Lrs/n/e;
+       5: astore_1
+       6: ldc           #2                  // int 40402
+       8: bipush        8
+      10: ldc           #11                 // String gameframe/SPRITE
+      12: invokestatic  #33                 // Method c:(IILjava/lang/String;)V
+      15: bipush        24
+      17: istore_2
+      18: iconst_0
+      19: istore_3
+      20: iconst_0
+      21: istore        4
+      23: iconst_0
+      24: istore        5
+      26: ldc           #4                  // int 40404
+      28: invokestatic  #35                 // Method j:(I)Lrs/n/e;
+      31: putstatic     #21                 // Field f:Lrs/n/e;
+      34: getstatic     #21                 // Field f:Lrs/n/e;
+      37: bipush        50
+      39: invokevirtual #38                 // Method rs/n/e.k:(I)V
+      42: bipush        10
+      44: putstatic     #18                 // Field bJ:I
+      47: iconst_0
+      48: putstatic     #17                 // Field bI:I
+      51: ldc           #5                  // int 40405
+      53: putstatic     #22                 // Field g:I
+      56: bipush        50
+      58: getstatic     #17                 // Field bI:I
+      61: isub
+      62: istore        6
+      64: iconst_0
+      65: istore        7
+      67: iload         7
+      69: iload         6
+      71: if_icmpge     87
+      74: iconst_0
+      75: ldc           #9                  // String
+      77: iconst_0
+      78: invokestatic  #32                 // Method b:(ILjava/lang/String;Z)V
+      81: iinc          7, 1
+      84: goto          67
+      87: getstatic     #21                 // Field f:Lrs/n/e;
+      90: sipush        168
+      93: putfield      #24                 // Field rs/n/e.P:I
+      96: getstatic     #21                 // Field f:Lrs/n/e;
+      99: sipush        225
+     102: iload_2
+     103: isub
+     104: putfield      #26                 // Field rs/n/e.aR:I
+     107: getstatic     #21                 // Field f:Lrs/n/e;
+     110: sipush        1320
+     113: putfield      #25                 // Field rs/n/e.aH:I
+     116: iconst_0
+     117: istore        5
+     119: aload_1
+     120: bipush        6
+     122: invokevirtual #38                 // Method rs/n/e.k:(I)V
+     125: aload_1
+     126: iload         5
+     128: iinc          5, 1
+     131: ldc           #2                  // int 40402
+     133: iconst_0
+     134: bipush        31
+     136: iload_2
+     137: iadd
+     138: invokevirtual #37                 // Method rs/n/e.b:(IIII)V
+     141: aload_1
+     142: iload         5
+     144: iinc          5, 1
+     147: sipush        16022
+     150: iconst_0
+     151: bipush        28
+     153: iload_2
+     154: iadd
+     155: invokevirtual #37                 // Method rs/n/e.b:(IIII)V
+     158: aload_1
+     159: iload         5
+     161: iinc          5, 1
+     164: sipush        16022
+     167: iconst_0
+     168: sipush        255
+     171: invokevirtual #37                 // Method rs/n/e.b:(IIII)V
+     174: aload_1
+     175: iload         5
+     177: iinc          5, 1
+     180: sipush        16023
+     183: iconst_4
+     184: sipush        251
+     187: invokevirtual #37                 // Method rs/n/e.b:(IIII)V
+     190: aload_1
+     191: iload         5
+     193: iinc          5, 1
+     196: sipush        32000
+     199: iconst_0
+     200: iconst_0
+     201: invokevirtual #37                 // Method rs/n/e.b:(IIII)V
+     204: aload_1
+     205: iload         5
+     207: iinc          5, 1
+     210: ldc           #4                  // int 40404
+     212: bipush        6
+     214: bipush        30
+     216: iload_2
+     217: iadd
+     218: invokevirtual #37                 // Method rs/n/e.b:(IIII)V
+     221: return
+
+  static {};
+    Code:
+       0: new           #15                 // class rs/n/c/aN
+       3: dup
+       4: invokespecial #36                 // Method rs/n/c/aN."<init>":()V
+       7: putstatic     #19                 // Field c:Lrs/q/a/a/a;
+      10: return
+}

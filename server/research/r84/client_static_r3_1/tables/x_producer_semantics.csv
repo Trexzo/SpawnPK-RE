@@ -1,0 +1,19 @@
+producer_class,widget_id,feature,script_slot,raw_X_script,decoded_semantics
+rs.n.c.g,12053,Iban Blast,X[0],"[4,3214,554,0]",COUNT_ITEM inventory widget 3214: Fire rune (554)
+rs.n.c.g,12053,Iban Blast,X[1],"[4,3214,560,0]",COUNT_ITEM inventory widget 3214: Death rune (560)
+rs.n.c.g,12053,Iban Blast,X[2],"[4,1688,1409,0]",COUNT_ITEM equipment widget 1688: Iban's staff (1409)
+rs.n.c.g,12054,Saradomin strike,X[0],"[4,3214,554,0]",COUNT_ITEM inventory: Fire rune (554)
+rs.n.c.g,12054,Saradomin strike,X[1],"[4,3214,565,0]",COUNT_ITEM inventory: Blood rune (565)
+rs.n.c.g,12054,Saradomin strike,X[2],"[4,3214,556,0]",COUNT_ITEM inventory: Air rune (556)
+rs.n.c.g,12054,Saradomin strike,X[3],"[4,1688,2415,0]",COUNT_ITEM equipment: Saradomin staff (2415)
+rs.n.c.g,12055,Flames of Zamorak,X[0],"[4,3214,554,0]",COUNT_ITEM inventory: Fire rune (554)
+rs.n.c.g,12055,Flames of Zamorak,X[1],"[4,3214,565,0]",COUNT_ITEM inventory: Blood rune (565)
+rs.n.c.g,12055,Flames of Zamorak,X[2],"[4,3214,556,0]",COUNT_ITEM inventory: Air rune (556)
+rs.n.c.g,12055,Flames of Zamorak,X[3],"[4,1688,2417,0]",COUNT_ITEM equipment: Zamorak staff (2417)
+rs.n.c.g,12056,Claws of Guthix,X[0],"[4,3214,554,0]",COUNT_ITEM inventory: Fire rune (554)
+rs.n.c.g,12056,Claws of Guthix,X[1],"[4,3214,565,0]",COUNT_ITEM inventory: Blood rune (565)
+rs.n.c.g,12056,Claws of Guthix,X[2],"[4,3214,556,0]",COUNT_ITEM inventory: Air rune (556)
+rs.n.c.g,12056,Claws of Guthix,X[3],"[4,1688,2416,0]",COUNT_ITEM equipment: Guthix staff (2416)
+rs.n.c.z,dynamic room control,Construction room button,X[0],"[4,3214,995,0]",COUNT_ITEM inventory: Coins (995); accompanying bk/bl arrays are written but unread in this client
+rs.n.c.aQ,dynamic display widgets,skill display requirements,X[0],"[1,<skillIndex>,0]",CURRENT_SKILL_LEVEL; skill index comes from builder string-to-index mapping
+rs.n.c.aQ,dynamic display widgets,skill display requirements,X[0],"[2,<skillIndex>,0]",BASE_SKILL_LEVEL; skill index comes from builder string-to-index mapping

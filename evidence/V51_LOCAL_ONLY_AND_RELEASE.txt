@@ -1,0 +1,12 @@
+V51_LOCAL_ONLY_SOURCE_SCAN_PASS
+- server bind remains 127.0.0.1 only
+- airgap/local client binaries unchanged from v5 package
+- v5.1 changes are server source/metadata/tests/docs only
+
+V51_RELEASE_STATE
+server_jar_sha256=b0474e5f1b5978458d92160670fd389c66d0c1bfd8fd9c769c81f3e693ae909b
+airgap_client_sha256=981eb3607802fcd892fd465d62a6f1ba9d8afffcbfd410045b5cc170ae06e71e
+local_client_sha256=aabca3605421337e81ab96da0de5669b94b2db8471c0157ad3f7ac9a84d031a2
+pinned_original_client_sha256=6232bae206846a4ba8d09766a2dee886b69016066a3f50f83b201bf705f93662
+V51_OFFLINE_VALIDATION_ALL_PASS tests=29
+LIVE_CERTIFICATION=v5/v5.1 additions pending user run

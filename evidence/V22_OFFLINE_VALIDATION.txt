@@ -1,0 +1,32 @@
+SpawnPK Local Lab v2.2 offline validation
+
+Server jar SHA-256: d26c1e56812227021a3cbb94289bfe2e711c0161296ccecda11a1e898858e066
+Authority client SHA-256: 6232bae206846a4ba8d09766a2dee886b69016066a3f50f83b201bf705f93662
+
+PASS ISAAC_PARITY_WITH_CLIENT_RS_Q_A outputs=6144
+PASS LOCAL_HANDSHAKE_INTEGRATION
+PASS BOOTSTRAP_STATIC_ENCODING
+PASS LOCAL_M4_BOOTSTRAP_INTEGRATION
+PASS APPEARANCE_CLIENT_PARSER_PARITY
+PASS PACKET81_FULL_CLIENT_DECODER_PARITY
+PASS M5_PACKET81_CLIENT_PARITY
+PASS RUN_ORB_WIDGET126_CLIENT_PARITY widget=149 text=100%
+PASS RUN_TOGGLE_CONFIG36_CLIENT_PARITY setting=173 on=1 off=0 bytes=3
+PASS CLIENT_PACKET_PROBE_V22 decoded=10 aligned=true
+PASS MOVEMENT_STATE_V22 ctrlRunTiles=2 persistentRunTiles=2
+PASS M5_V22_AUTHORITATIVE_MOVEMENT_INTEGRATION
+     widget152 -> config173=1 -> ordinary run=0 path -> RUN two-tile packet81
+     widget152 -> config173=0 -> ordinary run=0 path -> WALK one-tile packet81
+     Ctrl run=1 -> RUN two-tile packet81
+     minimap248 -> authoritative movement
+     ISAAC alignment retained
+
+Live evidence carried forward:
+- M4 bootstrap certified
+- normal walking live-certified
+- run energy/orb displays 100 in v2.1
+- minimap opcode248 accepted and authoritative in v2.1
+
+Live v2.2 check pending:
+- one click on run orb enables persistent server run; second click disables it
+- packet36 config173 visual acknowledgement behaves correctly

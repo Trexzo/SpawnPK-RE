@@ -1,0 +1,42 @@
+  public void a();
+    Code:
+       0: aload_0
+       1: invokevirtual #14                 // Method e:()I
+       4: istore_1
+       5: iload_1
+       6: iconst_1
+       7: if_icmpne     35
+      10: aload_0
+      11: invokevirtual #15                 // Method g:()I
+      14: istore_2
+      15: aload_0
+      16: iload_2
+      17: invokespecial #13                 // Method b:(I)Lrs/a/j;
+      20: astore_3
+      21: aload_3
+      22: ifnull        35
+      25: aload_3
+      26: getfield      #8                  // Field rs/a/j.h:Lrs/a/e;
+      29: invokevirtual #11                 // Method rs/a/e.c:()Ljava/util/concurrent/CopyOnWriteArrayList;
+      32: invokevirtual #10                 // Method java/util/concurrent/CopyOnWriteArrayList.clear:()V
+      35: return
+
+  private rs.a.j b(int);
+    Code:
+       0: iload_1
+       1: iflt          26
+       4: iload_1
+       5: aload_0
+       6: getfield      #9                  // Field c:Lrs/Client;
+       9: getfield      #7                  // Field rs/Client.cA:[Lrs/a/j;
+      12: arraylength
+      13: if_icmpge     26
+      16: aload_0
+      17: getfield      #9                  // Field c:Lrs/Client;
+      20: getfield      #7                  // Field rs/Client.cA:[Lrs/a/j;
+      23: iload_1
+      24: aaload
+      25: areturn
+      26: aconst_null
+      27: areturn
+}

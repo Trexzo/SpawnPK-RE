@@ -1,0 +1,17 @@
+SpawnPK LocalLab v5.5 weapon pose coverage
+Scope: current Wear/Wield/Equip candidates that resolve to WEAPON (436 total).
+
+v5.4 non-default pose coverage: 76 / 436
+v5.5 non-default pose coverage: 171 / 436
+Delta: +95 weapons
+v5.5 remaining DEFAULT_HUMAN: 265 / 436
+
+New semantic fallback families are only production-consensus clusters:
+- whip / tentacle: 808,823,1660,820,821,822,1661
+- staff / wand / trident / sceptre: 809,823,1146,820,821,822,1210
+- ordinary maul: 1662,823,1663,820,821,822,1664
+- 2H sword / godsword: 7053,823,7052,7044,7044,7044,7043
+
+Evidence precedence:
+direct/canonical observation > scythe-specific recovery > compatible clone lineage > semantic consensus fallback > DEFAULT_HUMAN.
+This precedence preserves the production-backed Elder maul family for 21005/28030 instead of overwriting it with ordinary-maul inference.

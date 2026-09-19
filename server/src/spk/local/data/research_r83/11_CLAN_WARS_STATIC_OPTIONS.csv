@@ -1,0 +1,28 @@
+group,client_label
+kill_target,25 kills
+kill_target,50 kills
+kill_target,100 kills
+kill_target,200 kills
+kill_target,500 kills
+win_condition,Kill 'em all
+win_condition,Last team standing
+arena,Clan Cup Arena
+arena,Forsaken Quarry
+arena,Ghastly Swamp
+arena,Northleach Quell
+arena,Plateau
+arena,Sylvan Glade
+arena,Wasteland
+rule,All allowed
+rule,All spellbooks
+rule,Binding only
+rule,Single spells
+rule,Standard prayers
+rule,Standard spells
+rule,No Staff of the Dead
+rule,Ignore freezing
+rule,PJ timer
+rule,EdgePvP mode
+rule,Turrets
+rule,Gridlock
+rule,Ethereal

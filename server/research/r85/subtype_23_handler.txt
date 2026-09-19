@@ -1,0 +1,19 @@
+  public void a();
+    Code:
+       0: aload_0
+       1: invokevirtual #6                  // Method h:()Ljava/lang/String;
+       4: astore_1
+       5: aload_0
+       6: invokevirtual #6                  // Method h:()Ljava/lang/String;
+       9: astore_2
+      10: aload_0
+      11: invokevirtual #6                  // Method h:()Ljava/lang/String;
+      14: astore_3
+      15: invokestatic  #7                  // Method rs/l/f/e.d:()Lrs/l/f/e;
+      18: invokevirtual #8                  // Method rs/l/f/e.h:()Lrs/l/f/a/a/c;
+      21: aload_1
+      22: aload_2
+      23: aload_3
+      24: invokevirtual #5                  // Method rs/l/f/a/a/c.a:(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V
+      27: return
+}

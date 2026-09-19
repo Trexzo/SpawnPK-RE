@@ -1,0 +1,114 @@
+  public void a();
+    Code:
+       0: aload_0
+       1: invokevirtual #19                 // Method e:()I
+       4: istore_1
+       5: iload_1
+       6: ifne          19
+       9: invokestatic  #21                 // Method rs/l/f/e.d:()Lrs/l/f/e;
+      12: invokevirtual #22                 // Method rs/l/f/e.i:()Lrs/l/f/a/h/a;
+      15: invokevirtual #16                 // Method rs/l/f/a/h/a.k:()V
+      18: return
+      19: aload_0
+      20: invokevirtual #19                 // Method e:()I
+      23: istore_2
+      24: aload_0
+      25: invokevirtual #20                 // Method h:()Ljava/lang/String;
+      28: astore_3
+      29: iload_1
+      30: tableswitch   { // 1 to 4
+                     1: 60
+                     2: 108
+                     3: 156
+                     4: 204
+               default: 249
+          }
+      60: iload_2
+      61: iconst_1
+      62: if_icmpne     75
+      65: invokestatic  #21                 // Method rs/l/f/e.d:()Lrs/l/f/e;
+      68: invokevirtual #22                 // Method rs/l/f/e.i:()Lrs/l/f/a/h/a;
+      71: aload_3
+      72: invokevirtual #6                  // Method rs/l/f/a/h/a.a:(Ljava/lang/String;)V
+      75: iload_2
+      76: iconst_2
+      77: if_icmpne     90
+      80: invokestatic  #21                 // Method rs/l/f/e.d:()Lrs/l/f/e;
+      83: invokevirtual #22                 // Method rs/l/f/e.i:()Lrs/l/f/a/h/a;
+      86: aload_3
+      87: invokevirtual #7                  // Method rs/l/f/a/h/a.b:(Ljava/lang/String;)V
+      90: iload_2
+      91: iconst_3
+      92: if_icmpne     249
+      95: invokestatic  #21                 // Method rs/l/f/e.d:()Lrs/l/f/e;
+      98: invokevirtual #22                 // Method rs/l/f/e.i:()Lrs/l/f/a/h/a;
+     101: aload_3
+     102: invokevirtual #8                  // Method rs/l/f/a/h/a.c:(Ljava/lang/String;)V
+     105: goto          249
+     108: iload_2
+     109: iconst_1
+     110: if_icmpne     123
+     113: invokestatic  #21                 // Method rs/l/f/e.d:()Lrs/l/f/e;
+     116: invokevirtual #22                 // Method rs/l/f/e.i:()Lrs/l/f/a/h/a;
+     119: aload_3
+     120: invokevirtual #9                  // Method rs/l/f/a/h/a.d:(Ljava/lang/String;)V
+     123: iload_2
+     124: iconst_2
+     125: if_icmpne     138
+     128: invokestatic  #21                 // Method rs/l/f/e.d:()Lrs/l/f/e;
+     131: invokevirtual #22                 // Method rs/l/f/e.i:()Lrs/l/f/a/h/a;
+     134: aload_3
+     135: invokevirtual #10                 // Method rs/l/f/a/h/a.e:(Ljava/lang/String;)V
+     138: iload_2
+     139: iconst_3
+     140: if_icmpne     249
+     143: invokestatic  #21                 // Method rs/l/f/e.d:()Lrs/l/f/e;
+     146: invokevirtual #22                 // Method rs/l/f/e.i:()Lrs/l/f/a/h/a;
+     149: aload_3
+     150: invokevirtual #11                 // Method rs/l/f/a/h/a.f:(Ljava/lang/String;)V
+     153: goto          249
+     156: iload_2
+     157: iconst_1
+     158: if_icmpne     171
+     161: invokestatic  #21                 // Method rs/l/f/e.d:()Lrs/l/f/e;
+     164: invokevirtual #22                 // Method rs/l/f/e.i:()Lrs/l/f/a/h/a;
+     167: aload_3
+     168: invokevirtual #15                 // Method rs/l/f/a/h/a.j:(Ljava/lang/String;)V
+     171: iload_2
+     172: iconst_2
+     173: if_icmpne     186
+     176: invokestatic  #21                 // Method rs/l/f/e.d:()Lrs/l/f/e;
+     179: invokevirtual #22                 // Method rs/l/f/e.i:()Lrs/l/f/a/h/a;
+     182: aload_3
+     183: invokevirtual #17                 // Method rs/l/f/a/h/a.k:(Ljava/lang/String;)V
+     186: iload_2
+     187: iconst_3
+     188: if_icmpne     249
+     191: invokestatic  #21                 // Method rs/l/f/e.d:()Lrs/l/f/e;
+     194: invokevirtual #22                 // Method rs/l/f/e.i:()Lrs/l/f/a/h/a;
+     197: aload_3
+     198: invokevirtual #18                 // Method rs/l/f/a/h/a.l:(Ljava/lang/String;)V
+     201: goto          249
+     204: iload_2
+     205: iconst_1
+     206: if_icmpne     219
+     209: invokestatic  #21                 // Method rs/l/f/e.d:()Lrs/l/f/e;
+     212: invokevirtual #22                 // Method rs/l/f/e.i:()Lrs/l/f/a/h/a;
+     215: aload_3
+     216: invokevirtual #12                 // Method rs/l/f/a/h/a.g:(Ljava/lang/String;)V
+     219: iload_2
+     220: iconst_2
+     221: if_icmpne     234
+     224: invokestatic  #21                 // Method rs/l/f/e.d:()Lrs/l/f/e;
+     227: invokevirtual #22                 // Method rs/l/f/e.i:()Lrs/l/f/a/h/a;
+     230: aload_3
+     231: invokevirtual #13                 // Method rs/l/f/a/h/a.h:(Ljava/lang/String;)V
+     234: iload_2
+     235: iconst_3
+     236: if_icmpne     249
+     239: invokestatic  #21                 // Method rs/l/f/e.d:()Lrs/l/f/e;
+     242: invokevirtual #22                 // Method rs/l/f/e.i:()Lrs/l/f/a/h/a;
+     245: aload_3
+     246: invokevirtual #14                 // Method rs/l/f/a/h/a.i:(Ljava/lang/String;)V
+     249: return
+}

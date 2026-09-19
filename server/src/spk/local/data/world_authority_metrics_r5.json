@@ -1,0 +1,18 @@
+{
+  "effective_unique_regions": 1279,
+  "m_bin_custom_rows": 68,
+  "main_object_definitions": 27283,
+  "osrs_object_definitions": 60661,
+  "o_bin_overrides": 292,
+  "static_placements": 2162982,
+  "collidable_static_placements": 1316740,
+  "custom_override_static_placements": 27219,
+  "travel_object_static_placements": 11,
+  "placement_definition_missing": 0,
+  "teleport_item_candidates_refined": 21,
+  "unresolved_region_archive_missing": 47,
+  "unresolved_terrain_parse_exceptions": 0,
+  "unresolved_location_parse_exceptions": 0,
+  "intentional_mbin_no_archive_sentinel": 1,
+  "protected_or_nonstandard_location_blobs": 1
+}

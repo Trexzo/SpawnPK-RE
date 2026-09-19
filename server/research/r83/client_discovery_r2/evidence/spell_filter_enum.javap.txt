@@ -1,0 +1,695 @@
+public final class rs.n.c.ap$b extends java.lang.Enum<rs.n.c.ap$b> {
+  public static final rs.n.c.ap$b a;
+
+  public static final rs.n.c.ap$b b;
+
+  public static final rs.n.c.ap$b c;
+
+  public static final rs.n.c.ap$b d;
+
+  public static final rs.n.c.ap$b e;
+
+  public static final rs.n.c.ap$b f;
+
+  public static final rs.n.c.ap$b g;
+
+  public static final rs.n.c.ap$b h;
+
+  public static final rs.n.c.ap$b i;
+
+  public static final rs.n.c.ap$b j;
+
+  public static final rs.n.c.ap$b k;
+
+  public static final rs.n.c.ap$b l;
+
+  public static final rs.n.c.ap$b m;
+
+  public static final rs.n.c.ap$b n;
+
+  public static final rs.n.c.ap$b o;
+
+  public static final rs.n.c.ap$b p;
+
+  public static final rs.n.c.ap$b q;
+
+  public static final rs.n.c.ap$b r;
+
+  public static final rs.n.c.ap$b s;
+
+  public static final rs.n.c.ap$b t;
+
+  public static final rs.n.c.ap$b u;
+
+  public static final rs.n.c.ap$b v;
+
+  public static final rs.n.c.ap$b w;
+
+  public static final rs.n.c.ap$b x;
+
+  public static final rs.n.c.ap$b y;
+
+  public static final rs.n.c.ap$b z;
+
+  public static final rs.n.c.ap$b A;
+
+  public static final rs.n.c.ap$b B;
+
+  public static final rs.n.c.ap$b C;
+
+  public static final rs.n.c.ap$b D;
+
+  public static final rs.n.c.ap$b E;
+
+  public static final rs.n.c.ap$b F;
+
+  public static final rs.n.c.ap$b G;
+
+  public static final rs.n.c.ap$b H;
+
+  public static final rs.n.c.ap$b I;
+
+  public static final rs.n.c.ap$b J;
+
+  public static final rs.n.c.ap$b K;
+
+  public static final rs.n.c.ap$b L;
+
+  public static final rs.n.c.ap$b M;
+
+  public static final rs.n.c.ap$b N;
+
+  public static final rs.n.c.ap$b O;
+
+  public int P;
+
+  public int Q;
+
+  public rs.n.c.ap$a R;
+
+  private static final rs.n.c.ap$b[] S;
+
+  public static rs.n.c.ap$b[] values();
+    Code:
+       0: getstatic     #67                 // Field S:[Lrs/n/c/ap$b;
+       3: invokevirtual #94                 // Method "[Lrs/n/c/ap$b;".clone:()Ljava/lang/Object;
+       6: checkcast     #42                 // class "[Lrs/n/c/ap$b;"
+       9: areturn
+
+  public static rs.n.c.ap$b valueOf(java.lang.String);
+    Code:
+       0: ldc           #46                 // class rs/n/c/ap$b
+       2: aload_0
+       3: invokestatic  #96                 // Method java/lang/Enum.valueOf:(Ljava/lang/Class;Ljava/lang/String;)Ljava/lang/Enum;
+       6: checkcast     #46                 // class rs/n/c/ap$b
+       9: areturn
+
+  private rs.n.c.ap$b(int, int, rs.n.c.ap$a);
+    Code:
+       0: aload_0
+       1: aload_1
+       2: iload_2
+       3: invokespecial #95                 // Method java/lang/Enum."<init>":(Ljava/lang/String;I)V
+       6: aload_0
+       7: iload_3
+       8: putfield      #64                 // Field P:I
+      11: aload_0
+      12: iload         4
+      14: putfield      #65                 // Field Q:I
+      17: aload_0
+      18: aload         5
+      20: putfield      #66                 // Field R:Lrs/n/c/ap$a;
+      23: return
+
+  public static rs.n.c.ap$b a(int);
+    Code:
+       0: invokestatic  #99                 // Method values:()[Lrs/n/c/ap$b;
+       3: astore_1
+       4: aload_1
+       5: arraylength
+       6: istore_2
+       7: iconst_0
+       8: istore_3
+       9: iload_3
+      10: iload_2
+      11: if_icmpge     37
+      14: aload_1
+      15: iload_3
+      16: aaload
+      17: astore        4
+      19: aload         4
+      21: getfield      #64                 // Field P:I
+      24: iload_0
+      25: if_icmpne     31
+      28: aload         4
+      30: areturn
+      31: iinc          3, 1
+      34: goto          9
+      37: aconst_null
+      38: areturn
+
+  private static rs.n.c.ap$b[] a();
+    Code:
+       0: bipush        41
+       2: anewarray     #46                 // class rs/n/c/ap$b
+       5: dup
+       6: iconst_0
+       7: getstatic     #68                 // Field a:Lrs/n/c/ap$b;
+      10: aastore
+      11: dup
+      12: iconst_1
+      13: getstatic     #69                 // Field b:Lrs/n/c/ap$b;
+      16: aastore
+      17: dup
+      18: iconst_2
+      19: getstatic     #70                 // Field c:Lrs/n/c/ap$b;
+      22: aastore
+      23: dup
+      24: iconst_3
+      25: getstatic     #71                 // Field d:Lrs/n/c/ap$b;
+      28: aastore
+      29: dup
+      30: iconst_4
+      31: getstatic     #72                 // Field e:Lrs/n/c/ap$b;
+      34: aastore
+      35: dup
+      36: iconst_5
+      37: getstatic     #73                 // Field f:Lrs/n/c/ap$b;
+      40: aastore
+      41: dup
+      42: bipush        6
+      44: getstatic     #74                 // Field g:Lrs/n/c/ap$b;
+      47: aastore
+      48: dup
+      49: bipush        7
+      51: getstatic     #75                 // Field h:Lrs/n/c/ap$b;
+      54: aastore
+      55: dup
+      56: bipush        8
+      58: getstatic     #76                 // Field i:Lrs/n/c/ap$b;
+      61: aastore
+      62: dup
+      63: bipush        9
+      65: getstatic     #77                 // Field j:Lrs/n/c/ap$b;
+      68: aastore
+      69: dup
+      70: bipush        10
+      72: getstatic     #78                 // Field k:Lrs/n/c/ap$b;
+      75: aastore
+      76: dup
+      77: bipush        11
+      79: getstatic     #79                 // Field l:Lrs/n/c/ap$b;
+      82: aastore
+      83: dup
+      84: bipush        12
+      86: getstatic     #80                 // Field m:Lrs/n/c/ap$b;
+      89: aastore
+      90: dup
+      91: bipush        13
+      93: getstatic     #81                 // Field n:Lrs/n/c/ap$b;
+      96: aastore
+      97: dup
+      98: bipush        14
+     100: getstatic     #82                 // Field o:Lrs/n/c/ap$b;
+     103: aastore
+     104: dup
+     105: bipush        15
+     107: getstatic     #83                 // Field p:Lrs/n/c/ap$b;
+     110: aastore
+     111: dup
+     112: bipush        16
+     114: getstatic     #84                 // Field q:Lrs/n/c/ap$b;
+     117: aastore
+     118: dup
+     119: bipush        17
+     121: getstatic     #85                 // Field r:Lrs/n/c/ap$b;
+     124: aastore
+     125: dup
+     126: bipush        18
+     128: getstatic     #86                 // Field s:Lrs/n/c/ap$b;
+     131: aastore
+     132: dup
+     133: bipush        19
+     135: getstatic     #87                 // Field t:Lrs/n/c/ap$b;
+     138: aastore
+     139: dup
+     140: bipush        20
+     142: getstatic     #88                 // Field u:Lrs/n/c/ap$b;
+     145: aastore
+     146: dup
+     147: bipush        21
+     149: getstatic     #89                 // Field v:Lrs/n/c/ap$b;
+     152: aastore
+     153: dup
+     154: bipush        22
+     156: getstatic     #90                 // Field w:Lrs/n/c/ap$b;
+     159: aastore
+     160: dup
+     161: bipush        23
+     163: getstatic     #91                 // Field x:Lrs/n/c/ap$b;
+     166: aastore
+     167: dup
+     168: bipush        24
+     170: getstatic     #92                 // Field y:Lrs/n/c/ap$b;
+     173: aastore
+     174: dup
+     175: bipush        25
+     177: getstatic     #93                 // Field z:Lrs/n/c/ap$b;
+     180: aastore
+     181: dup
+     182: bipush        26
+     184: getstatic     #49                 // Field A:Lrs/n/c/ap$b;
+     187: aastore
+     188: dup
+     189: bipush        27
+     191: getstatic     #50                 // Field B:Lrs/n/c/ap$b;
+     194: aastore
+     195: dup
+     196: bipush        28
+     198: getstatic     #51                 // Field C:Lrs/n/c/ap$b;
+     201: aastore
+     202: dup
+     203: bipush        29
+     205: getstatic     #52                 // Field D:Lrs/n/c/ap$b;
+     208: aastore
+     209: dup
+     210: bipush        30
+     212: getstatic     #53                 // Field E:Lrs/n/c/ap$b;
+     215: aastore
+     216: dup
+     217: bipush        31
+     219: getstatic     #54                 // Field F:Lrs/n/c/ap$b;
+     222: aastore
+     223: dup
+     224: bipush        32
+     226: getstatic     #55                 // Field G:Lrs/n/c/ap$b;
+     229: aastore
+     230: dup
+     231: bipush        33
+     233: getstatic     #56                 // Field H:Lrs/n/c/ap$b;
+     236: aastore
+     237: dup
+     238: bipush        34
+     240: getstatic     #57                 // Field I:Lrs/n/c/ap$b;
+     243: aastore
+     244: dup
+     245: bipush        35
+     247: getstatic     #58                 // Field J:Lrs/n/c/ap$b;
+     250: aastore
+     251: dup
+     252: bipush        36
+     254: getstatic     #59                 // Field K:Lrs/n/c/ap$b;
+     257: aastore
+     258: dup
+     259: bipush        37
+     261: getstatic     #60                 // Field L:Lrs/n/c/ap$b;
+     264: aastore
+     265: dup
+     266: bipush        38
+     268: getstatic     #61                 // Field M:Lrs/n/c/ap$b;
+     271: aastore
+     272: dup
+     273: bipush        39
+     275: getstatic     #62                 // Field N:Lrs/n/c/ap$b;
+     278: aastore
+     279: dup
+     280: bipush        40
+     282: getstatic     #63                 // Field O:Lrs/n/c/ap$b;
+     285: aastore
+     286: areturn
+
+  static {};
+    Code:
+       0: new           #46                 // class rs/n/c/ap$b
+       3: dup
+       4: ldc           #1                  // String AIR_STRIKE
+       6: iconst_0
+       7: sipush        1152
+      10: iconst_1
+      11: getstatic     #47                 // Field rs/n/c/ap$a.a:Lrs/n/c/ap$a;
+      14: invokespecial #97                 // Method "<init>":(Ljava/lang/String;IIILrs/n/c/ap$a;)V
+      17: putstatic     #68                 // Field a:Lrs/n/c/ap$b;
+      20: new           #46                 // class rs/n/c/ap$b
+      23: dup
+      24: ldc           #8                  // String CONFUSE
+      26: iconst_1
+      27: sipush        1153
+      30: iconst_3
+      31: getstatic     #47                 // Field rs/n/c/ap$a.a:Lrs/n/c/ap$a;
+      34: invokespecial #97                 // Method "<init>":(Ljava/lang/String;IIILrs/n/c/ap$a;)V
+      37: putstatic     #69                 // Field b:Lrs/n/c/ap$b;
+      40: new           #46                 // class rs/n/c/ap$b
+      43: dup
+      44: ldc           #35                 // String WATER_STRIKE
+      46: iconst_2
+      47: sipush        1154
+      50: iconst_5
+      51: getstatic     #47                 // Field rs/n/c/ap$a.a:Lrs/n/c/ap$a;
+      54: invokespecial #97                 // Method "<init>":(Ljava/lang/String;IIILrs/n/c/ap$a;)V
+      57: putstatic     #70                 // Field c:Lrs/n/c/ap$b;
+      60: new           #46                 // class rs/n/c/ap$b
+      63: dup
+      64: ldc           #13                 // String EARTH_STRIKE
+      66: iconst_3
+      67: sipush        1156
+      70: bipush        9
+      72: getstatic     #47                 // Field rs/n/c/ap$a.a:Lrs/n/c/ap$a;
+      75: invokespecial #97                 // Method "<init>":(Ljava/lang/String;IIILrs/n/c/ap$a;)V
+      78: putstatic     #71                 // Field d:Lrs/n/c/ap$b;
+      81: new           #46                 // class rs/n/c/ap$b
+      84: dup
+      85: ldc           #38                 // String WEAKEN
+      87: iconst_4
+      88: sipush        1157
+      91: bipush        11
+      93: getstatic     #47                 // Field rs/n/c/ap$a.a:Lrs/n/c/ap$a;
+      96: invokespecial #97                 // Method "<init>":(Ljava/lang/String;IIILrs/n/c/ap$a;)V
+      99: putstatic     #72                 // Field e:Lrs/n/c/ap$b;
+     102: new           #46                 // class rs/n/c/ap$b
+     105: dup
+     106: ldc           #19                 // String FIRE_STRIKE
+     108: iconst_5
+     109: sipush        1158
+     112: bipush        13
+     114: getstatic     #47                 // Field rs/n/c/ap$a.a:Lrs/n/c/ap$a;
+     117: invokespecial #97                 // Method "<init>":(Ljava/lang/String;IIILrs/n/c/ap$a;)V
+     120: putstatic     #73                 // Field f:Lrs/n/c/ap$b;
+     123: new           #46                 // class rs/n/c/ap$b
+     126: dup
+     127: ldc           #40                 // String WIND_BOLT
+     129: bipush        6
+     131: sipush        1160
+     134: bipush        17
+     136: getstatic     #47                 // Field rs/n/c/ap$a.a:Lrs/n/c/ap$a;
+     139: invokespecial #97                 // Method "<init>":(Ljava/lang/String;IIILrs/n/c/ap$a;)V
+     142: putstatic     #74                 // Field g:Lrs/n/c/ap$b;
+     145: new           #46                 // class rs/n/c/ap$b
+     148: dup
+     149: ldc           #10                 // String CURSE
+     151: bipush        7
+     153: sipush        1161
+     156: bipush        19
+     158: getstatic     #47                 // Field rs/n/c/ap$a.a:Lrs/n/c/ap$a;
+     161: invokespecial #97                 // Method "<init>":(Ljava/lang/String;IIILrs/n/c/ap$a;)V
+     164: putstatic     #75                 // Field h:Lrs/n/c/ap$b;
+     167: new           #46                 // class rs/n/c/ap$b
+     170: dup
+     171: ldc           #34                 // String WATER_BOLT
+     173: bipush        8
+     175: sipush        1163
+     178: bipush        23
+     180: getstatic     #47                 // Field rs/n/c/ap$a.a:Lrs/n/c/ap$a;
+     183: invokespecial #97                 // Method "<init>":(Ljava/lang/String;IIILrs/n/c/ap$a;)V
+     186: putstatic     #76                 // Field i:Lrs/n/c/ap$b;
+     189: new           #46                 // class rs/n/c/ap$b
+     192: dup
+     193: ldc           #12                 // String EARTH_BOLT
+     195: bipush        9
+     197: sipush        1166
+     200: bipush        29
+     202: getstatic     #47                 // Field rs/n/c/ap$a.a:Lrs/n/c/ap$a;
+     205: invokespecial #97                 // Method "<init>":(Ljava/lang/String;IIILrs/n/c/ap$a;)V
+     208: putstatic     #77                 // Field j:Lrs/n/c/ap$b;
+     211: new           #46                 // class rs/n/c/ap$b
+     214: dup
+     215: ldc           #18                 // String FIRE_BOLT
+     217: bipush        10
+     219: sipush        1169
+     222: bipush        35
+     224: getstatic     #47                 // Field rs/n/c/ap$a.a:Lrs/n/c/ap$a;
+     227: invokespecial #97                 // Method "<init>":(Ljava/lang/String;IIILrs/n/c/ap$a;)V
+     230: putstatic     #78                 // Field k:Lrs/n/c/ap$b;
+     233: new           #46                 // class rs/n/c/ap$b
+     236: dup
+     237: ldc           #9                  // String CRUMBLE_UNDEAD
+     239: bipush        11
+     241: sipush        1171
+     244: bipush        39
+     246: getstatic     #47                 // Field rs/n/c/ap$a.a:Lrs/n/c/ap$a;
+     249: invokespecial #97                 // Method "<init>":(Ljava/lang/String;IIILrs/n/c/ap$a;)V
+     252: putstatic     #79                 // Field l:Lrs/n/c/ap$b;
+     255: new           #46                 // class rs/n/c/ap$b
+     258: dup
+     259: ldc           #39                 // String WIND_BLAST
+     261: bipush        12
+     263: sipush        1172
+     266: bipush        41
+     268: getstatic     #47                 // Field rs/n/c/ap$a.a:Lrs/n/c/ap$a;
+     271: invokespecial #97                 // Method "<init>":(Ljava/lang/String;IIILrs/n/c/ap$a;)V
+     274: putstatic     #80                 // Field m:Lrs/n/c/ap$b;
+     277: new           #46                 // class rs/n/c/ap$b
+     280: dup
+     281: ldc           #33                 // String WATER_BLAST
+     283: bipush        13
+     285: sipush        1175
+     288: bipush        47
+     290: getstatic     #47                 // Field rs/n/c/ap$a.a:Lrs/n/c/ap$a;
+     293: invokespecial #97                 // Method "<init>":(Ljava/lang/String;IIILrs/n/c/ap$a;)V
+     296: putstatic     #81                 // Field n:Lrs/n/c/ap$b;
+     299: new           #46                 // class rs/n/c/ap$b
+     302: dup
+     303: ldc           #11                 // String EARTH_BLAST
+     305: bipush        14
+     307: sipush        1177
+     310: bipush        53
+     312: getstatic     #47                 // Field rs/n/c/ap$a.a:Lrs/n/c/ap$a;
+     315: invokespecial #97                 // Method "<init>":(Ljava/lang/String;IIILrs/n/c/ap$a;)V
+     318: putstatic     #82                 // Field o:Lrs/n/c/ap$b;
+     321: new           #46                 // class rs/n/c/ap$b
+     324: dup
+     325: ldc           #17                 // String FIRE_BLAST
+     327: bipush        15
+     329: sipush        1181
+     332: bipush        59
+     334: getstatic     #47                 // Field rs/n/c/ap$a.a:Lrs/n/c/ap$a;
+     337: invokespecial #97                 // Method "<init>":(Ljava/lang/String;IIILrs/n/c/ap$a;)V
+     340: putstatic     #83                 // Field p:Lrs/n/c/ap$b;
+     343: new           #46                 // class rs/n/c/ap$b
+     346: dup
+     347: ldc           #3                  // String AIR_WAVE
+     349: bipush        16
+     351: sipush        1183
+     354: bipush        62
+     356: getstatic     #47                 // Field rs/n/c/ap$a.a:Lrs/n/c/ap$a;
+     359: invokespecial #97                 // Method "<init>":(Ljava/lang/String;IIILrs/n/c/ap$a;)V
+     362: putstatic     #84                 // Field q:Lrs/n/c/ap$b;
+     365: new           #46                 // class rs/n/c/ap$b
+     368: dup
+     369: ldc           #37                 // String WATER_WAVE
+     371: bipush        17
+     373: sipush        1185
+     376: bipush        65
+     378: getstatic     #47                 // Field rs/n/c/ap$a.a:Lrs/n/c/ap$a;
+     381: invokespecial #97                 // Method "<init>":(Ljava/lang/String;IIILrs/n/c/ap$a;)V
+     384: putstatic     #85                 // Field r:Lrs/n/c/ap$b;
+     387: new           #46                 // class rs/n/c/ap$b
+     390: dup
+     391: ldc           #15                 // String EARTH_WAVE
+     393: bipush        18
+     395: sipush        1188
+     398: bipush        70
+     400: getstatic     #47                 // Field rs/n/c/ap$a.a:Lrs/n/c/ap$a;
+     403: invokespecial #97                 // Method "<init>":(Ljava/lang/String;IIILrs/n/c/ap$a;)V
+     406: putstatic     #86                 // Field s:Lrs/n/c/ap$b;
+     409: new           #46                 // class rs/n/c/ap$b
+     412: dup
+     413: ldc           #21                 // String FIRE_WAVE
+     415: bipush        19
+     417: sipush        1189
+     420: bipush        75
+     422: getstatic     #47                 // Field rs/n/c/ap$a.a:Lrs/n/c/ap$a;
+     425: invokespecial #97                 // Method "<init>":(Ljava/lang/String;IIILrs/n/c/ap$a;)V
+     428: putstatic     #87                 // Field t:Lrs/n/c/ap$b;
+     431: new           #46                 // class rs/n/c/ap$b
+     434: dup
+     435: ldc           #28                 // String SARA_STRIKE
+     437: bipush        20
+     439: sipush        1190
+     442: bipush        60
+     444: getstatic     #47                 // Field rs/n/c/ap$a.a:Lrs/n/c/ap$a;
+     447: invokespecial #97                 // Method "<init>":(Ljava/lang/String;IIILrs/n/c/ap$a;)V
+     450: putstatic     #88                 // Field u:Lrs/n/c/ap$b;
+     453: new           #46                 // class rs/n/c/ap$b
+     456: dup
+     457: ldc           #22                 // String GUTHIX_CLAWS
+     459: bipush        21
+     461: sipush        1191
+     464: bipush        60
+     466: getstatic     #47                 // Field rs/n/c/ap$a.a:Lrs/n/c/ap$a;
+     469: invokespecial #97                 // Method "<init>":(Ljava/lang/String;IIILrs/n/c/ap$a;)V
+     472: putstatic     #89                 // Field v:Lrs/n/c/ap$b;
+     475: new           #46                 // class rs/n/c/ap$b
+     478: dup
+     479: ldc           #41                 // String ZAMMY_FLAMES
+     481: bipush        22
+     483: sipush        1192
+     486: bipush        60
+     488: getstatic     #47                 // Field rs/n/c/ap$a.a:Lrs/n/c/ap$a;
+     491: invokespecial #97                 // Method "<init>":(Ljava/lang/String;IIILrs/n/c/ap$a;)V
+     494: putstatic     #90                 // Field w:Lrs/n/c/ap$b;
+     497: new           #46                 // class rs/n/c/ap$b
+     500: dup
+     501: ldc           #7                  // String CHARGE
+     503: bipush        23
+     505: sipush        1193
+     508: bipush        80
+     510: getstatic     #47                 // Field rs/n/c/ap$a.a:Lrs/n/c/ap$a;
+     513: invokespecial #97                 // Method "<init>":(Ljava/lang/String;IIILrs/n/c/ap$a;)V
+     516: putstatic     #91                 // Field x:Lrs/n/c/ap$b;
+     519: new           #46                 // class rs/n/c/ap$b
+     522: dup
+     523: ldc           #31                 // String STUN
+     525: bipush        24
+     527: sipush        1562
+     530: bipush        80
+     532: getstatic     #47                 // Field rs/n/c/ap$a.a:Lrs/n/c/ap$a;
+     535: invokespecial #97                 // Method "<init>":(Ljava/lang/String;IIILrs/n/c/ap$a;)V
+     538: putstatic     #92                 // Field y:Lrs/n/c/ap$b;
+     541: new           #46                 // class rs/n/c/ap$b
+     544: dup
+     545: ldc           #4                  // String BIND
+     547: bipush        25
+     549: sipush        1572
+     552: bipush        20
+     554: getstatic     #47                 // Field rs/n/c/ap$a.a:Lrs/n/c/ap$a;
+     557: invokespecial #97                 // Method "<init>":(Ljava/lang/String;IIILrs/n/c/ap$a;)V
+     560: putstatic     #93                 // Field z:Lrs/n/c/ap$b;
+     563: new           #46                 // class rs/n/c/ap$b
+     566: dup
+     567: ldc           #30                 // String SNARE
+     569: bipush        26
+     571: sipush        1582
+     574: bipush        50
+     576: getstatic     #47                 // Field rs/n/c/ap$a.a:Lrs/n/c/ap$a;
+     579: invokespecial #97                 // Method "<init>":(Ljava/lang/String;IIILrs/n/c/ap$a;)V
+     582: putstatic     #49                 // Field A:Lrs/n/c/ap$b;
+     585: new           #46                 // class rs/n/c/ap$b
+     588: dup
+     589: ldc           #16                 // String ENTANGLE
+     591: bipush        27
+     593: sipush        1592
+     596: bipush        79
+     598: getstatic     #47                 // Field rs/n/c/ap$a.a:Lrs/n/c/ap$a;
+     601: invokespecial #97                 // Method "<init>":(Ljava/lang/String;IIILrs/n/c/ap$a;)V
+     604: putstatic     #50                 // Field B:Lrs/n/c/ap$b;
+     607: new           #46                 // class rs/n/c/ap$b
+     610: dup
+     611: ldc           #32                 // String TELEBLOCK
+     613: bipush        28
+     615: sipush        12445
+     618: bipush        85
+     620: getstatic     #47                 // Field rs/n/c/ap$a.a:Lrs/n/c/ap$a;
+     623: invokespecial #97                 // Method "<init>":(Ljava/lang/String;IIILrs/n/c/ap$a;)V
+     626: putstatic     #51                 // Field C:Lrs/n/c/ap$b;
+     629: new           #46                 // class rs/n/c/ap$b
+     632: dup
+     633: ldc           #2                  // String AIR_SURGE
+     635: bipush        29
+     637: sipush        19100
+     640: bipush        82
+     642: getstatic     #47                 // Field rs/n/c/ap$a.a:Lrs/n/c/ap$a;
+     645: invokespecial #97                 // Method "<init>":(Ljava/lang/String;IIILrs/n/c/ap$a;)V
+     648: putstatic     #52                 // Field D:Lrs/n/c/ap$b;
+     651: new           #46                 // class rs/n/c/ap$b
+     654: dup
+     655: ldc           #36                 // String WATER_SURGE
+     657: bipush        30
+     659: sipush        19110
+     662: bipush        86
+     664: getstatic     #47                 // Field rs/n/c/ap$a.a:Lrs/n/c/ap$a;
+     667: invokespecial #97                 // Method "<init>":(Ljava/lang/String;IIILrs/n/c/ap$a;)V
+     670: putstatic     #53                 // Field E:Lrs/n/c/ap$b;
+     673: new           #46                 // class rs/n/c/ap$b
+     676: dup
+     677: ldc           #14                 // String EARTH_SURGE
+     679: bipush        31
+     681: sipush        19150
+     684: bipush        91
+     686: getstatic     #47                 // Field rs/n/c/ap$a.a:Lrs/n/c/ap$a;
+     689: invokespecial #97                 // Method "<init>":(Ljava/lang/String;IIILrs/n/c/ap$a;)V
+     692: putstatic     #54                 // Field F:Lrs/n/c/ap$b;
+     695: new           #46                 // class rs/n/c/ap$b
+     698: dup
+     699: ldc           #20                 // String FIRE_SURGE
+     701: bipush        32
+     703: sipush        19130
+     706: bipush        96
+     708: getstatic     #47                 // Field rs/n/c/ap$a.a:Lrs/n/c/ap$a;
+     711: invokespecial #97                 // Method "<init>":(Ljava/lang/String;IIILrs/n/c/ap$a;)V
+     714: putstatic     #55                 // Field G:Lrs/n/c/ap$b;
+     717: new           #46                 // class rs/n/c/ap$b
+     720: dup
+     721: ldc           #23                 // String HOME_TELEPORT
+     723: bipush        33
+     725: sipush        1195
+     728: bipush        100
+     730: getstatic     #48                 // Field rs/n/c/ap$a.b:Lrs/n/c/ap$a;
+     733: invokespecial #97                 // Method "<init>":(Ljava/lang/String;IIILrs/n/c/ap$a;)V
+     736: putstatic     #56                 // Field H:Lrs/n/c/ap$b;
+     739: new           #46                 // class rs/n/c/ap$b
+     742: dup
+     743: ldc           #26                 // String MONEY_TELEPORT
+     745: bipush        34
+     747: sipush        1164
+     750: bipush        100
+     752: getstatic     #48                 // Field rs/n/c/ap$a.b:Lrs/n/c/ap$a;
+     755: invokespecial #97                 // Method "<init>":(Ljava/lang/String;IIILrs/n/c/ap$a;)V
+     758: putstatic     #57                 // Field I:Lrs/n/c/ap$b;
+     761: new           #46                 // class rs/n/c/ap$b
+     764: dup
+     765: ldc           #29                 // String SKILL_TELEPORT
+     767: bipush        35
+     769: sipush        1167
+     772: bipush        100
+     774: getstatic     #48                 // Field rs/n/c/ap$a.b:Lrs/n/c/ap$a;
+     777: invokespecial #97                 // Method "<init>":(Ljava/lang/String;IIILrs/n/c/ap$a;)V
+     780: putstatic     #58                 // Field J:Lrs/n/c/ap$b;
+     783: new           #46                 // class rs/n/c/ap$b
+     786: dup
+     787: ldc           #5                  // String BOSS_TELEPORT
+     789: bipush        36
+     791: sipush        1170
+     794: bipush        100
+     796: getstatic     #48                 // Field rs/n/c/ap$a.b:Lrs/n/c/ap$a;
+     799: invokespecial #97                 // Method "<init>":(Ljava/lang/String;IIILrs/n/c/ap$a;)V
+     802: putstatic     #59                 // Field K:Lrs/n/c/ap$b;
+     805: new           #46                 // class rs/n/c/ap$b
+     808: dup
+     809: ldc           #27                 // String PK_TELEPORT
+     811: bipush        37
+     813: sipush        1174
+     816: bipush        100
+     818: getstatic     #48                 // Field rs/n/c/ap$a.b:Lrs/n/c/ap$a;
+     821: invokespecial #97                 // Method "<init>":(Ljava/lang/String;IIILrs/n/c/ap$a;)V
+     824: putstatic     #60                 // Field L:Lrs/n/c/ap$b;
+     827: new           #46                 // class rs/n/c/ap$b
+     830: dup
+     831: ldc           #25                 // String MINIGAME_TELEPORT
+     833: bipush        38
+     835: sipush        1540
+     838: bipush        100
+     840: getstatic     #48                 // Field rs/n/c/ap$a.b:Lrs/n/c/ap$a;
+     843: invokespecial #97                 // Method "<init>":(Ljava/lang/String;IIILrs/n/c/ap$a;)V
+     846: putstatic     #61                 // Field M:Lrs/n/c/ap$b;
+     849: new           #46                 // class rs/n/c/ap$b
+     852: dup
+     853: ldc           #24                 // String HOUSE_TELEPORT
+     855: bipush        39
+     857: sipush        1541
+     860: bipush        100
+     862: getstatic     #48                 // Field rs/n/c/ap$a.b:Lrs/n/c/ap$a;
+     865: invokespecial #97                 // Method "<init>":(Ljava/lang/String;IIILrs/n/c/ap$a;)V
+     868: putstatic     #62                 // Field N:Lrs/n/c/ap$b;
+     871: new           #46                 // class rs/n/c/ap$b
+     874: dup
+     875: ldc           #6                  // String BOUNTY_TELEPORT
+     877: bipush        40
+     879: sipush        7455
+     882: bipush        100
+     884: getstatic     #48                 // Field rs/n/c/ap$a.b:Lrs/n/c/ap$a;
+     887: invokespecial #97                 // Method "<init>":(Ljava/lang/String;IIILrs/n/c/ap$a;)V
+     890: putstatic     #63                 // Field O:Lrs/n/c/ap$b;
+     893: invokestatic  #98                 // Method a:()[Lrs/n/c/ap$b;
+     896: putstatic     #67                 // Field S:[Lrs/n/c/ap$b;
+     899: return
+}

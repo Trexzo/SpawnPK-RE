@@ -1,0 +1,638 @@
+upstreamOsid	spawnpkLocalId	ref	isRemap	configClone	frameCount
+79	15629	walkAnim -> Black dragon (NPC 14146)	True		16
+90	15628	standAnim -> Black dragon (NPC 14146)	True		12
+180	15396	standAnim -> Cow (NPC 10598)	True		89
+229	15397	walkAnim -> Cow (NPC 10598)	True		16
+244	244	Chainmace stand	False		12
+245	245	Chainmace attack	False		17
+247	247	Chainmace walk	False		8
+248	248	Chainmace run	False		8
+366	15404	(Gfx Anim) Webweaver pullback (orange)	True		6
+390	15681	human_sword_slash	True		10
+426	15409	Bow attack	True		10
+465	16093	(Gfx Anim) Araxxor venom splat	True		10
+468	15568	Falador chunk (map object)	True		6
+470	15574	Falador chunk (map object)	True		8
+471	15470	Prifddinas (map object)	True		7
+473	15359	Falador chunk (map object)	True		2
+475	15352	Falador chunk (map object)	True		5
+478	15566	Falador chunk (map object)	True		4
+480	15357	Xeric (map object)	True		7
+481	15484	Falador chunk (map object)	True		5
+493	15536	Blood slayer cave (map object)	True		12
+494	15551	Blood slayer cave (map object)	True		5
+498	15579	Party balloon	True		17
+499	15580	Party balloon	True		7
+500	15581	Party balloon	True		7
+501	15582	Party balloon	True		7
+504	15410	cwars8b (map object)	True		39
+522	15363	Vintage dungeon 2 (map object)	True		9
+523	15358	Vintage dungeon 2 (map object)	True		9
+524	15412	cwars8b (map object)	True		7
+660	15510	(Gfx Anim) Araxyte explosion red	True		8
+661	16145	(Gfx Anim) baboon_proj_magic	True		8
+662	16069	(Gfx Anim) akkha_magic_impact	True		8
+663	16198	(Gfx Anim) tumeken_projectile	True		8
+664	16073	(Gfx Anim) tumeken_impact	True		12
+693	16070	(Gfx Anim) akkha_orb_impact	True		8
+703	15509	(Gfx Anim) Gold projectile	True		9
+808	15380	standAnim -> Jack Frost (NPC 6481)	True		12
+813	15421	standAnim -> Witch (NPC 4778)	True		12
+819	15381	walkAnim -> Jack Frost (NPC 6481)	True		8
+820	15382	rotateAnim180 -> Jack Frost (NPC 6481)	True		8
+821	15383	rotateAnim90CW -> Jack Frost (NPC 6481)	True		4
+822	15384	rotateAnim90CCW -> Jack Frost (NPC 6481)	True		4
+1027	15715	standAnim -> Fire elemental (NPC 1365)	True		7
+1028	15716	walkAnim -> Fire elemental (NPC 1365)	True		7
+1062	15596	Gladiator dagger spec	True		32
+1073	15569	Falador chunk (map object)	True		4
+1132	15691	sara_sword_anim	True		28
+1205	15422	walkAnim -> Witch (NPC 4778)	True		8
+1206	15423	rotateAnim180 -> Witch (NPC 4778)	True		8
+1207	15424	rotateAnim90CW -> Witch (NPC 4778)	True		4
+1208	15425	rotateAnim90CCW -> Witch (NPC 4778)	True		4
+1212	15463	Tirannwn (map object)	True		9
+1310	15635	standAnim -> Sand Crab (NPC 5935)	True		4
+1311	15636	walkAnim -> Sand Crab (NPC 5935)	True		8
+1363	15360	Isle of souls (map object)	True		2
+1421	15602	Banner stand animation	True		12
+1427	15523	Banner run animation	True		8
+1433	15354	Isle of souls (map object)	True		32
+1534	15669	walkAnim -> Greater abyssal demon (NPC 12451)	True		8
+1536	15668	standAnim -> Greater abyssal demon (NPC 12451)	True		12
+1571	16167	(Gfx Anim) warden_entomb_miss	True		3
+1629	15570	Falador chunk (map object)	True		7
+1630	15571	Falador chunk (map object)	True		6
+1726	15485	Falador chunk (map object)	True		8
+1727	15303	araxxor_lair (map object)	True		6
+1730	15567	Falador chunk (map object)	True		8
+1812	15427	Vintage dungeon 2 (map object)	True		9
+1868	15573	Falador chunk (map object)	True		10
+1908	15420	Portal	True		16
+1959	16074	(Gfx Anim) akkha_ice	True		18
+1967	15585	(Gfx Anim) hearts	True		14
+1980	16193	(Gfx Anim) warden_p2_charging_proj	True		16
+2036	16203	walkAnim -> Zebo (NPC 11843)	True		8
+2037	16202	standAnim -> Zebo (NPC 11843)	True		6
+2173	15532	Xeric (map object)	True		32
+2308	15686	walkAnim -> Strangled Bear (NPC 12288)	True		9
+2564	15419	Candle	True		4
+2657	15411	cwars8b (map object)	True		8
+2714	15564	Falador chunk (map object)	True		9
+2900	15486	Falador chunk (map object)	True		8
+2995	15533	Xeric (map object)	True		1
+3028	15488	'Mage training arena rooms' (map object)	True		12
+3030	15489	'Mage training arena rooms' (map object)	True		32
+3079	15443	standAnim -> Avatar of Destruction (NPC 10532)	True		32
+3082	15444	walkAnim -> Avatar of Destruction (NPC 10532)	True		32
+3105	15364	Isle of souls (map object)	True		6
+3107	15565	Falador chunk (map object)	True		6
+3172	15578	Falador chunk (map object)	True		1
+3173	15572	Falador chunk (map object)	True		11
+3174	15355	Falador chunk (map object)	True		26
+3217	15575	Falador chunk (map object)	True		13
+3218	15576	Falador chunk (map object)	True		46
+3219	15577	Falador chunk (map object)	True		17
+3237	15563	Falador chunk (map object)	True		52
+3354	15507	(Gfx Anim) Mimic blue projectile	True		8
+3396	15555	walkAnim -> Pirate Pete (NPC 4814)	True		9
+3445	16194	toa_reward (map object)	True		8
+3542	15490	toa_tumeken (map object)	True		14
+3743	15413	cwars1 (map object)	True		11
+3843	15487	Rangers guild (map object)	True		8
+3942	16144	(Gfx Anim) baba_skull	True		5
+4070	15642	walkAnim -> K'ril Tsutsaroth (NPC 6495)	True		16
+4131	15465	Prifddinas (map object)	True		12
+4133	15468	Prifddinas (map object)	True		108
+4217	15302	toa_zebak (map object)	True		74
+4218	15304	araxxor_lair (map object)	True		37
+4323	15491	'Cosmic entity's plane (map object)	True		16
+4324	15492	'Cosmic entity's plane (map object)	True		13
+4325	15493	'Cosmic entity's plane (map object)	True		4
+4484	15494	standAnim -> Cerberus (NPC 5862)	True		14
+4488	15495	walkAnim -> Cerberus (NPC 5862)	True		15
+4495	15496	Cerberus death	True		14
+4660	15631	walkAnim -> Fire giant (NPC 2075)	True		19
+4662	15630	standAnim -> Fire giant (NPC 2075)	True		14
+4674	15438	walkAnim -> Judge of Yama (NPC 14180)	True		20
+4675	15437	standAnim -> Judge of Yama (NPC 14180)	True		11
+4773	15688	walkAnim -> Spooky dog (NPC 11867)	True		8
+4778	15467	Prifddinas (map object)	True		8
+5061	884	blowpipe_attack	True		13
+5319	15323	Venenatis attack	True		12
+5320	15324	Venenatis block	True		16
+5321	15325	Venenatis death	True		22
+5322	15326	Venenatis webweave	True		10
+5339	15617	standAnim -> Goat (NPC 13760)	True		40
+5340	15618	walkAnim -> Goat (NPC 13760)	True		8
+5358	16013	(Gfx Anim) Muttadile GFX	True		8
+5530	16076	standAnim -> Osmumten (NPC 11689)	True		16
+5531	16077	walkAnim -> Osmumten (NPC 11689)	True		16
+5655	15557	walkAnim -> Captain Donnie (NPC 606)	True		16
+5656	15556	standAnim -> Captain Donnie (NPC 606)	True		70
+5720	15685	standAnim -> Strangled Bear (NPC 12288)	True		24
+5745	15537	Xeric (map object)	True		35
+5771	15534	Xeric (map object)	True		162
+5880	15559	Dread pirate captain attack	True		15
+5891	15558	Dread pirate captain death	True		27
+6118	15417	Osmumtem fang spec anim	True		14
+6119	15415	(Gfx Anim) Osmumtem fang spec gfx	True		17
+6247	15312	standAnim -> Venenatis' Spiderling (NPC 12000)	True		59
+6248	15313	walkAnim -> Venenatis' Spiderling (NPC 12000)	True		10
+6249	15314	Venenatis Spiderling attack anim	True		15
+6250	15315	Venenatis Spiderling block anim	True		16
+6251	15316	Venenatis Spiderling death anim	True		14
+6284	15305	walkAnim -> Skully (NPC 10382)	True		66
+6297	15712	hand_fan_stand	True		10
+6481	15471	Prifddinas (map object)	True		4
+6537	15543	Werewolf death	True		42
+6576	15337	Skeletal hellhound death	True		28
+6577	15334	walkAnim -> Greater Skeleton Hellhound (NPC 6614)	True		16
+6578	15335	Skeletal hellhound block	True		12
+6579	15336	Skeletal hellhound attack	True		12
+6580	15333	standAnim -> Greater Skeleton Hellhound (NPC 6614)	True		89
+6613	15545	standAnim -> Wandering impling (NPC 5737)	True		8
+6614	15546	walkAnim -> Wandering impling (NPC 5737)	True		8
+6646	15356	Fire	True		26
+6813	15599	standAnim -> Drake (NPC 2004)	True		16
+6819	15600	walkAnim -> Drake (NPC 2004)	True		8
+6822	15632	Dragon flight	True		11
+6853	15365	Isle of souls (map object)	True		20
+6864	15648	kril_attack	True		24
+6935	15641	standAnim -> K'ril Tsutsaroth (NPC 6495)	True		13
+6950	15653	kril_attack_magic	True		32
+6965	15640	walkAnim -> Commander Zilyana (NPC 2205)	True		16
+6966	15639	standAnim -> Commander Zilyana (NPC 2205)	True		14
+6968	15651	zily_death	True		30
+6970	15652	zily_attack	True		90
+6974	15655	(Gfx Anim) armadyl_proj	True		8
+6976	15643	standAnim -> Kree'arra (NPC 12443)	True		30
+6977	15644	walkAnim -> Kree'arra (NPC 12443)	True		30
+6979	15649	kree_death	True		43
+6980	15650	kree_attack	True		20
+6981	15660	kree_attack_claw	True		14
+7000	15414	cwars1 (map object)	True		25
+7002	15447	standAnim -> Colossal Hydra (NPC 10402)	True		16
+7006	15448	Hydra Walk	True		32
+7008	15450	Hydra attack	True		18
+7016	15638	walkAnim -> General Graardor (NPC 6494)	True		16
+7017	15637	standAnim -> General Graardor (NPC 6494)	True		12
+7020	15645	bandos_death	True		40
+7021	15646	bandos_range	True		16
+7022	15654	(Gfx Anim) bandos_proj	True		2
+7039	15657	(Gfx Anim) sara_lion_proj	True		6
+7082	15656	(Gfx Anim) kril_proj	True		4
+7156	15362	Falador chunk (map object)	True		8
+7200	15418	Chainmace block	True		6
+7218	7218	Ballista attack	False		17
+7219	7219	Ballista block	False		16
+7220	7220	Ballista stand	False		13
+7221	7221	Ballista run	False		16
+7222	7222	Ballista spec	False		18
+7223	7223	Ballista walk	False		16
+7268	15530	ringing crier bell	True		27
+7269	15528	standAnim -> Bloodhound (NPC 7232)	True		89
+7271	15399	walkAnim -> 1v1 Tournament Guide (NPC 11672)	True		20
+7280	15529	walkAnim -> Bloodhound (NPC 7232)	True		16
+7334	16030	Olm head intro object	True		1
+7335	16025	Olm head object rise	True		43
+7336	15540	Olm head	True		18
+7345	16023	Olm head object mouth open	True		23
+7348	16024	Olm head object go down	True		20
+7349	16031	Olm hand intro obj	True		1
+7350	16028	Olm hand intro anim	True		50
+7351	15542	Xeric olm	True		20
+7352	16026	Olm left hand go down	True		17
+7353	16029	Olm left hand intro obj	True		1
+7354	16027	Olm hand intro anim	True		38
+7355	15541	Xeric olm	True		20
+7370	16032	Olm right hand object crawl away	True		20
+7390	15538	Xeric (map object)	True		21
+7408	16000	Vasa nistirio rise	True		50
+7409	16001	Vasa nistirio raise hands	True		40
+7410	16002	Vasa nistirio barrage attack	True		20
+7411	15705	walkAnim -> Vasa Nistirio (NPC 7566)	True		32
+7415	16003	Vasa nistirio death	True		30
+7416	15704	standAnim -> Vasa Nistirio (NPC 7566)	True		20
+7417	16014	standAnim -> Muttadile (NPC 7562)	True		8
+7419	16009	walkAnim -> Muttadile (NPC 7561)	True		16
+7422	16012	Muttadile attack 2	True		23
+7424	16011	Muttadile attack 1	True		15
+7425	16008	standAnim -> Muttadile (NPC 7561)	True		8
+7426	16010	Muttadile death	True		22
+7432	16019	Vanguard death	True		30
+7434	16022	walkAnim -> Vanguard (NPC 7529)	True		15
+7436	16018	Vanguard magic attack	True		20
+7439	16015	walkAnim -> Vanguard (NPC 7527)	True		15
+7441	16016	Vanguard melee attack	True		20
+7444	16021	walkAnim -> Vanguard (NPC 7528)	True		15
+7446	16017	Vanguard range attack	True		21
+7453	15706	walkAnim -> Vespula (NPC 7530)	True		24
+7454	16007	Vespula attack 2	True		20
+7455	16004	Vespula attack	True		24
+7456	16006	Vespula block	True		10
+7459	16005	Vespula death	True		24
+7471	16020	(Gfx Anim) Olm lightning	True		15
+7499	15539	Xeric (map object)	True		32
+7503	15535	Xeric Olm	True		16
+7516	15516	maul attack	True		19
+7526	15601	Wielding animation	True		2
+7537	15583	Gangnam style	True		32
+7571	16087	(Gfx Anim) Araxxor blue projectile	True		12
+7629	15710	hand_fan_walk_forward	True		8
+7630	15711	hand_fan_walk_back	True		8
+7631	15713	hand_fan_cw	True		4
+7632	15714	hand_fan_ccw	True		4
+7633	15709	hand_fan_run	True		8
+7636	15511	(Gfx Anim) Fireworks	True		92
+7647	15531	standAnim -> Ceto (NPC 7783)	True		18
+7669	15497	standAnim -> Mairin (NPC 7784)	True		24
+7768	15603	walkAnim -> Dawn (NPC 7853)	True		27
+7781	15367	standAnim -> Dusk (NPC 7854)	True		14
+7782	15368	walkAnim -> Dusk (NPC 7854)	True		16
+7783	15604	Grotesque Guardian Boss	True		10
+7784	15605	Grotesque Guardian Boss	True		10
+7785	15606	Grotesque Guardian Attack	True		30
+7786	15607	Grotesque Guardian Attack	True		20
+7787	15608	Grotesque Guardian Attack	True		30
+7788	15375	Grotesque Guardian Test	True		20
+7789	15609	Grotesque Guardian Test	True		34
+7790	15373	Grotesque Guardian Test	True		45
+7791	15369	Grotesque Guardian Test	True		30
+7792	15372	Grotesque Guardian Effect	True		63
+7793	15374	Grotesque Guardian Effect	True		20
+7794	15371	Grotesque Guardian Death	True		20
+7795	15379	Grotesque Guardian Test	True		40
+7796	15610	Grotesque Guardian Test	True		120
+7797	15370	Guardian spread	True		18
+7798	15376	Guardian spread walk	True		42
+7800	15377	Guardian spread attack	True		22
+7801	15378	Guardian spread shotgun attack	True		28
+7816	16156	(Gfx Anim) warden_windmill_start	True		13
+7817	16192	(Gfx Anim) shadow_120	True		13
+7841	15693	Minotaur Magic	True		20
+7877	16079	walkAnim -> <col=00ffff>Wave</col> (NPC 11738)	True		8
+7884	16109	(Gfx Anim) vorkath_area_travel	True		8
+7901	15458	Galvek dfire	True		22
+7902	15456	walkAnim -> Galvek (NPC 8094)	True		10
+7903	15459	Galvek moving	True		8
+7915	15460	Galvek death	True		38
+7929	16033	tob_bloat (map object)	True		12
+7998	16039	nylocas death (range)	True		27
+8052	16037	Verzik pillar	True		18
+8056	15552	scythe_attack	True		22
+8057	15692	scythe_stand	True		12
+8067	16038	tob xarpus green	True		1
+8069	16041	(Gfx Anim) xarpus_splat	True		4
+8086	16036	tob_bloat (map object)	True		16
+8087	16035	tob_bloat (map object)	True		19
+8105	16034	teleport_crystal	True		27
+8111	16042	Verzik gets up	True		26
+8118	16043	Verzik p2 death	True		12
+8119	15434	Verzik p3 rise	True		24
+8120	15430	standAnim -> Nylocas Queen (NPC 11181)	True		24
+8121	15431	NyQueen Walk	True		72
+8123	15432	Verzik p3 melee attack	True		23
+8124	16044	Verzik p3 magic attack	True		22
+8128	15433	NyQueen Die	True		21
+8131	15508	(Gfx Anim) Mimic blue graphic	True		17
+8132	16169	(Gfx Anim) warden_spec_magic_impact	True		8
+8133	15319	(Gfx Anim) Araxxor venom projectile	True		36
+8134	15320	(Gfx Anim) Venantis range impact	True		5
+8136	15440	Sotetseg walk	True		18
+8137	15439	standAnim -> Sotetseg (NPC 10867)	True		14
+8139	15442	Sotetseg attack	True		16
+8140	15441	Sotetseg death	True		15
+8147	15626	Sarachnis attack	True		18
+8170	15428	Vintage dungeon (map object)	True		16
+8201	15395	walkAnim -> Tower Mage (NPC 7052)	True		16
+8202	15398	walkAnim -> Lord Trobin Arceuus (NPC 10962)	True		16
+8210	15613	standAnim -> Garbek quo Maten (NPC 8607)	True		16
+8211	15614	walkAnim -> Garbek quo Maten (NPC 8607)	True		24
+8222	15672	walkAnim -> Hespori (NPC 11192)	True		20
+8287	16040	xarpus_pool_splat	True		6
+8306	15503	walkAnim -> The Mimic (NPC 8633)	True		32
+8307	15502	standAnim -> The Mimic (NPC 8633)	True		16
+8308	15506	mimic spin attack	True		30
+8309	15504	mimic open mouth	True		30
+8310	15505	mimic death	True		30
+8318	15366	nylocas death	True		36
+8319	15339	walkAnim -> Sarachnis (NPC 8713)	True		12
+8320	15338	standAnim -> Sarachnis (NPC 8713)	True		12
+8370	15350	Seren inside pod	True		64
+8371	15349	Seren leaves pod	True		78
+8372	15340	walkAnim -> Fragment of Seren (NPC 8917)	True		20
+8373	15341	Seren jump up	True		10
+8374	15342	Seren jump up lean back	True		10
+8375	15343	Seren mid air attack?	True		56
+8376	15344	Seren jump attack	True		28
+8377	15345	Seren basic throw attack	True		36
+8378	15346	Seren crystal charge?	True		20
+8379	15347	Seren charge release?	True		46
+8380	15348	Seren charge attack	True		66
+8384	15351	Seren death	True		98
+8413	15469	Prifddinas (map object)	True		18
+8450	16092	(Gfx Anim) zebak_rock_fall	True		70
+8451	15518	(Gfx Anim) Blue meteor projectile	True		64
+8452	15519	(Gfx Anim) Blue meteor impact	True		10
+8454	15464	Prifddinas (map object)	True		58
+8455	15462	Prifddinas (map object)	True		14
+8456	15461	standAnim -> <col=00ffff>Portal</col> (NPC 12334)	True		15
+8460	15466	Prifddinas (map object)	True		19
+8489	15426	Adventurer jon stand anim	True		8
+8497	15451	standAnim -> Basilisk Knight (NPC 9293)	True		14
+8498	15452	Basilisk walk	True		18
+8499	15453	Basilisk attack	True		16
+8500	15454	Basilisk range attack	True		12
+8501	15455	Basilisk death	True		18
+8508	16166	(Gfx Anim) warden_entomb_end	True		16
+8680	16072	(Gfx Anim) warden_darkness_warn	True		15
+8750	15517	Blue portal	True		31
+8760	15449	Hydra death	True		37
+8775	15544	Magical pumpkin	True		32
+8842	15445	standAnim -> Avatar of Creation (NPC 10531)	True		16
+8843	15446	walkAnim -> Avatar of Creation (NPC 10531)	True		32
+8851	15361	Isle of souls (map object)	True		87
+8895	15560	walkAnim -> Tiny Tempor (NPC 10637)	True		18
+8900	15457	Galvek melee	True		30
+8905	15562	Tempoross pet activation	True		30
+8906	15561	Tempoross death	True		25
+9029	15520	(Gfx Anim) Blue souls flying in air	True		13
+9042	15647	kril_death	True		37
+9050	15390	standAnim -> Queen Zyanyi Arkan (NPC 11012)	True		8
+9051	15391	walkAnim -> Queen Zyanyi Arkan (NPC 11012)	True		8
+9052	15393	rotateAnim90CW -> Queen Zyanyi Arkan (NPC 11012)	True		4
+9053	15394	rotateAnim90CCW -> Queen Zyanyi Arkan (NPC 11012)	True		4
+9054	15392	rotateAnim180 -> Queen Zyanyi Arkan (NPC 11012)	True		8
+9063	15435	walkAnim -> Xamphur (NPC 10955)	True		32
+9068	15436	Xamphur spell	True		38
+9128	15524	ghommal's hilt teleport	True		36
+9132	15527	ghommal's hilt 6 teleport	True		36
+9134	15525	(Gfx Anim) Ghommal tele start	True		24
+9135	15526	(Gfx Anim) Ghommal tele start 2	True		11
+9136	15729	Araxyte run	True		12
+9137	15633	standAnim -> Araxyte (NPC 11174)	True		12
+9139	15634	walkAnim -> Araxyte (NPC 11174)	True		12
+9140	15912	Araxyte attack	True		18
+9158	15400	Knockback animation (Nex pull)	True		17
+9192	15387	Blood reaver death	True		30
+9193	15386	walkAnim -> Blood Reaver (NPC 11294)	True		16
+9194	15388	Blood reaver attack	True		34
+9195	15385	standAnim -> Blood Reaver (NPC 11294)	True		53
+9196	15389	Blood reaver block	True		20
+9227	15300	Callisto's den (map object)	True		16
+9258	15429	walkAnim -> The Sage (NPC 11232)	True		16
+9275	15499	walkAnim -> Revenant maledictus (NPC 11246)	True		20
+9276	15498	standAnim -> Revenant maledictus (NPC 11246)	True		12
+9277	15500	Maledictus melee	True		24
+9282	15501	Maledictus mage	True		23
+9369	15616	walkAnim -> The Great Guardian (NPC 11403)	True		24
+9370	15615	standAnim -> The Great Guardian (NPC 11403)	True		16
+9416	16071	(Gfx Anim) akkha_darkness	True		13
+9421	16200	rotateAnim90CCW -> Akkhito (NPC 11846)	True		0
+9459	15514	Colossal blade run	True		8
+9460	15512	Colossal blade stand	True		12
+9461	15513	Colossal blade walk and turn	True		8
+9463	15515	colossal blade block	True		16
+9471	15416	Osmumtem fang attack anim	True		14
+9493	16199	tumeken_shadow_attack	True		17
+9495	16046	toa_sarcophagus_glow_3	True		10
+9497	16049	toa_baba (map object)	True		4
+9498	16048	toa_akkha (map object)	True		22
+9499	16051	toa_zebak (map object)	True		8
+9500	16050	toa_zebak (map object)	True		80
+9501	16047	toa_zebak (map object)	True		8
+9504	16056	toa_reward (map object)	True		8
+9505	16195	toa_chest_reveal	True		31
+9506	16196	toa_chest_open	True		8
+9518	16126	walkAnim -> <col=00ffff>Boulder</col> (NPC 11783)	True		16
+9519	15682	(Gfx Anim) kephri_dung_drop	True		17
+9523	16055	toa_loot	True		35
+9525	16053	warden_obelisk4	True		5
+9527	16054	warden_obelisk1	True		8
+9543	16197	(Gfx Anim) tumeken_start	True		10
+9572	16095	walkAnim -> Kephri (NPC 11719)	True		0
+9576	16102	kephri_ranged_radial	True		0
+9577	16103	kephri_mage_radial	True		0
+9578	16104	kephri_spec_eggs	True		0
+9579	16100	kephri_stunned	True		0
+9580	16099	kephri_stunned_idle	True		0
+9581	16101	kephri_stunned_wakeup	True		0
+9582	16105	kephri_death	True		0
+9584	16097	rotateAnim90CCW -> Soldier Scarab (NPC 11724)	True		0
+9585	16098	rotateAnim180 -> Soldier Scarab (NPC 11724)	True		0
+9586	16096	standAnim -> Soldier Scarab (NPC 11724)	True		0
+9588	16107	scarab_attack	True		0
+9589	16106	scarab_death	True		0
+9592	16121	walkAnim -> Agile Scarab (NPC 11727)	True		0
+9594	16108	agile_scarab_attack	True		0
+9601	16117	(Gfx Anim) kephri_shield_alive	True		0
+9602	16119	(Gfx Anim) kephri_shield_dead	True		0
+9603	16118	(Gfx Anim) kephri_shield_death	True		0
+9604	16120	(Gfx Anim) kephri_shield_reform	True		0
+9609	16122	(Gfx Anim) kephri_dungball_explosion	True		0
+9610	16115	(Gfx Anim) sacarab_explosion01b	True		18
+9611	16110	(Gfx Anim) sacarab_explosion02b	True		18
+9612	16111	(Gfx Anim) sacarab_explosion03b	True		18
+9613	16112	(Gfx Anim) scarab_explosion04	True		18
+9614	16113	(Gfx Anim) scarab_explosion05	True		18
+9615	16114	(Gfx Anim) scarab_explosion06	True		18
+9618	16078	standAnim -> Zebak's Phantom (NPC 11774)	True		0
+9620	16083	zebak_melee	True		0
+9624	16084	zebak_range	True		0
+9628	16080	zebak_roar	True		0
+9632	16081	zebak_special	True		0
+9634	16082	zebak_death	True		0
+9638	16086	(Gfx Anim) zebak_mage_split	True		0
+9639	16088	(Gfx Anim) zebak_range_initial	True		0
+9641	16089	(Gfx Anim) zebak_range_split	True		0
+9642	16085	(Gfx Anim) zebak_proj_mage1	True		0
+9645	16090	(Gfx Anim) zebak_safespot_proj	True		0
+9646	16091	(Gfx Anim) zebak_boulder_break	True		0
+9649	16147	walkAnim -> Elidinis' Warden (NPC 11753)	True		0
+9653	16170	standAnim -> Elidinis' Warden (NPC 11753)	True		0
+9657	16173	walkAnim -> Tumeken's Warden (NPC 11762)	True		0
+9660	16172	warden_p2_range	True		0
+9661	16162	warden_p2_magic	True		0
+9662	16159	warden_p2_death	True		0
+9663	16171	warden_p2_wake01	True		0
+9665	16146	standAnim -> Elidinis' Warden (NPC 11746)	True		0
+9668	16161	warden_p2_launch	True		0
+9670	16163	warden_p2_kneel01	True		0
+9671	16149	warden_p2_kneeling01	True		0
+9672	16164	warden_p2_standup01	True		0
+9674	16175	warden_p2_attackleft01	True		0
+9675	16176	warden_p2_attackleft02	True		0
+9676	16177	warden_p2_attackright01	True		0
+9677	16178	warden_p2_attackright02	True		0
+9678	16179	warden_p2_attackcenter01	True		0
+9679	16180	warden_p2_attackcenter02	True		0
+9680	16185	warden_p2_stagger	True		0
+9682	16181	warden_p2_charge01	True		0
+9683	16182	warden_p2_charging01	True		0
+9684	16183	warden_p2_enraging01	True		0
+9685	16184	warden_p2_enraged01	True		0
+9690	16190	(Gfx Anim) warden_p2_idle_tiles	True		0
+9697	16186	(Gfx Anim) warden_p2_tile1	True		0
+9698	16187	(Gfx Anim) warden_p2_tile2	True		0
+9699	16188	(Gfx Anim) warden_p2_tile3	True		0
+9700	16189	(Gfx Anim) warden_p2_tile4	True		0
+9701	16168	(Gfx Anim) warden_spec_melee_proj	True		0
+9702	16160	(Gfx Anim) warden_range_proj_standard	True		0
+9703	16165	(Gfx Anim) warden_entomb_proj	True		0
+9704	16150	standAnim -> <col=00ffff>Core</col> (NPC 11771)	True		0
+9710	16157	(Gfx Anim) warden_windmill_end	True		0
+9711	16158	(Gfx Anim) warden_dronestrike	True		0
+9712	16052	toa_tumeken (map object)	True		64
+9720	16148	standAnim -> <col=00ffff>Obelisk</col> (NPC 11750)	True		4
+9722	16191	(Gfx Anim) warden_p2_warden_p3_tile_proj	True		10
+9727	16153	warden_obelisk_bomb	True		18
+9728	16151	warden_obelisk_open	True		8
+9729	16152	warden_obelisk_closer	True		8
+9732	16155	warden_obelisk_beam	True		16
+9733	16154	warden_obelisk_sweep	True		64
+9736	16174	standAnim -> <col=00ffff>Energy Siphon</col> (NPC 11772)	True		8
+9737	16124	rotateAnim90CCW -> Ba-Ba's Phantom (NPC 11775)	True		0
+9738	16125	rotateAnim180 -> Ba-Ba's Phantom (NPC 11775)	True		0
+9739	16127	rotateAnim90CCW -> Baboon (NPC 11781)	True		0
+9740	16128	rotateAnim180 -> Baboon (NPC 11781)	True		0
+9741	16123	standAnim -> Ba-Ba's Phantom (NPC 11775)	True		0
+9742	16129	baba_melee	True		0
+9744	16130	baba_range	True		0
+9746	16131	baba_magic	True		0
+9748	16132	baba_jump	True		0
+9749	16133	baba_spec_range	True		0
+9750	16134	baba_spec_idle	True		0
+9751	16135	bab_spec_end	True		0
+9752	16136	baba_spawn1	True		0
+9753	16137	baba_spawn2	True		0
+9754	16138	baba_despawn1	True		0
+9755	16139	baba_despawn2	True		0
+9756	16140	baba_explode	True		0
+9757	16143	(Gfx Anim) baba_explode	True		0
+9759	16075	toa_akkha_floor_fire	True		17
+9760	16057	standAnim -> Akkhito (NPC 11846)	True		0
+9764	16058	rotateAnim90CCW -> Akkha's Shadow (NPC 11797)	True		0
+9768	16059	rotateAnim180 -> Akkha's Shadow (NPC 11797)	True		0
+9770	16061	akkha_attack_melee_spear	True		0
+9772	16062	akkha_range_spear	True		0
+9774	16063	akkha_magic_spear	True		0
+9784	16066	akkha_spear_disappear	True		0
+9785	16065	akkha_spear_appear	True		0
+9788	16064	akkha_spear_stomp	True		0
+9790	16067	akkha_spear_spawn	True		0
+9792	16068	akkha_spear_death	True		0
+9794	16060	walkAnim -> <col=00ffff>Unstable Orb</col> (NPC 11804)	True		16
+9805	16141	(Gfx Anim) baba_rock_fall_fast	True		70
+9806	16142	(Gfx Anim) baba_rock_fall_faster	True		70
+9808	16045	toa_lobby1 (map object)	True		8
+9810	16201	rotateAnim180 -> Akkhito (NPC 11846)	True		0
+9836	15687	standAnim -> Spooky dog (NPC 11867)	True		40
+9845	15353	'Cosmic entity's plane (map object)	True		16
+9847	15588	Card stand	True		15
+9848	15589	Card attack	True		32
+9848	15595	Card custom attack	True		63
+9849	15590	Card walk	True		8
+9850	15591	Card run	True		8
+9851	15592	Card side step 1	True		4
+9852	15593	Card side step 2	True		4
+9853	15594	Card block	True		20
+9961	15408	Accursed sceptre spec	True		12
+9962	15406	Ursine spec slow	True		24
+9963	15407	Ursine spec quick	True		16
+9964	15405	Webweaver spec	True		12
+9982	15328	(Gfx Anim) Vetion orange start	True		16
+9983	15327	(Gfx Anim) Vetion orange lightning	True		44
+9984	15329	(Gfx Anim) Vetion cut down	True		16
+9994	15317	(Gfx Anim) Araxxor web projectile	True		15
+9995	15318	(Gfx Anim) Venantis web impact	True		20
+9996	15321	(Gfx Anim) Venantis mage projectile	True		31
+9997	15322	(Gfx Anim) Venantis mage impact	True		10
+9998	15306	(Gfx Anim) Callisto trap	True		5
+9999	15309	Callisto trap close (object anim)	True		6
+10000	15308	Callisto trap (object)	True		5
+10001	15307	(Gfx Anim) Accursed projectile no trail	True		6
+10002	15403	(Gfx Anim) Accursed spec start	True		11
+10003	15401	(Gfx Anim) Ursine chainmace swing	True		20
+10004	15402	(Gfx Anim) Ursine chainmace hit	True		12
+10005	15332	(Gfx Anim) wildy boss unknown 2	True		10
+10006	15331	(Gfx Anim) wildy boss unknown 1	True		12
+10024	15310	(Gfx Anim) Callisto range projectile	True		30
+10025	15311	(Gfx Anim) Callisto range start	True		30
+10026	15330	(Gfx Anim) Vetion unkown	True		31
+10028	15301	Vetion's Rest (map object)	True		8
+10031	15584	Birthday dance	True		45
+10037	15587	(Gfx Anim) dragon candle dagger spec	True		18
+10038	15586	(Gfx Anim) party	True		32
+10137	15661	(Gfx Anim) smoke_appear	True		25
+10169	15723	ancient_axe_stand	True		12
+10170	15724	ancient_axe_walk	True		8
+10171	15725	ancient_axe_slash	True		9
+10172	15726	ancient_axe_crush	True		10
+10173	15728	ancient_axe_spec	True		15
+10337	15683	vardorvis_stand	True		0
+10338	15684	vardorvis_walk	True		0
+10340	15690	Vardorvis melee attack	True		0
+10346	15689	Vardorvis death	True		0
+10417	15658	(Gfx Anim) breach_spawn	True		0
+10420	15659	(Gfx Anim) breach_boss_spawn	True		0
+10601	15627	Elder maul spec	True		17
+10840	15666	standAnim -> Minotaur (NPC 12812)	True		16
+10842	15667	walkAnim -> Minotaur (NPC 12812)	True		14
+10846	15673	Mino death	True		30
+10986	16116	(Gfx Anim) Black hole opening	True		13
+10991	15554	walkAnim -> Frost Nagua (NPC 13728)	True		0
+10999	15553	standAnim -> Frost Nagua (NPC 13728)	True		0
+11057	15717	atlatl_attack	True		15
+11058	15719	(Gfx Anim) atlatl_proj1	True		6
+11059	15720	(Gfx Anim) atlatl_proj2	True		6
+11060	15718	atlatl_spec	True		23
+11061	15721	(Gfx Anim) atlatl_fire	True		23
+11062	15722	(Gfx Anim) atlatl_fire2	True		21
+11092	15598	standAnim -> Minimus (NPC 12808)	True		12
+11124	15695	elder_maul_spec	True		21
+11125	15696	(Gfx Anim) elder_maul_spec_gfx	True		23
+11126	15697	(Gfx Anim) elder_maul_spec_impact	True		10
+11132	15701	(Gfx Anim) scorching_bow_1	True		11
+11133	15624	Bow slow draw attack	True		15
+11134	15702	(Gfx Anim) scorching_bow_proj	True		10
+11135	15703	(Gfx Anim) scorching_bow_2	True		37
+11137	15700	(Gfx Anim) burning_claws_1	True		32
+11139	15698	(Gfx Anim) emberlight_spec	True		44
+11140	15625	Burning claw spec	True		34
+11141	15699	(Gfx Anim) purging_staff_1	True		13
+11170	15727	ancient_axe_run	True		8
+11387	15622	Tormented demon gets angry	True		40
+11388	15619	Tormented demon attack 1	True		14
+11389	15621	Tormented demon attack 3	True		21
+11390	15612	Tormented demon walk 1	True		32
+11391	15611	standAnim -> Tormented Demon (NPC 13600)	True		32
+11392	15620	Tormented demon attack 2 (melee)	True		16
+11394	15623	Tormented demon death	True		33
+11463	15678	(Gfx Anim) khopesh_spec	True		16
+11473	15664	standAnim -> Nid (NPC 13683)	True		32
+11474	15665	walkAnim -> Nid (NPC 13683)	True		48
+11476	15877	Araxxor ranged attack	True		20
+11477	15878	Araxxor ranged attack faster	True		19
+11479	15879	Araxxor magic attack	True		19
+11480	15880	Araxxor melee attack	True		18
+11481	15881	Araxxor death	True		36
+11482	15882	Araxxor spawn	True		31
+11483	15883	Araxxor large melee	True		27
+11484	15884	Araxxor charged attack	True		28
+11488	15886	Araxxor start feed	True		20
+11489	15887	Araxxor finish feed	True		20
+11587	15694	Minotaur Death	True		30
+11596	16094	(Gfx Anim) zebak_wave_1	True		15
+11662	15670	standAnim -> Bone Squirrel (NPC 14032)	True		8
+11663	15671	walkAnim -> Bone Squirrel (NPC 14032)	True		8
+11810	15679	(Gfx Anim) khopesh_lightning_basic	True		15
+11811	15680	(Gfx Anim) khopesh_lightning_special	True		29
+11812	15677	khopesh_spec	True		14
+11935	15676	khopesh_ready	True		48
+11936	15674	khopesh_walk	True		35
+11937	15675	khopesh_run	True		48
+11945	15707	standAnim -> Fire elemental (NPC 14150)	True		6
+11946	15708	walkAnim -> Fire elemental (NPC 14150)	True		6
+12140	15662	standAnim -> Yama (NPC 14176)	True		0
+12141	15663	walkAnim -> Yama (NPC 14176)	True		0

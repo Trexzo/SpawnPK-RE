@@ -1,0 +1,6 @@
+subject	itemIds	clientCapability	serverSemantics	status
+Ancient hydra pet	22947	Exact current client: hidden az state 1..3 -> 1/2/3 sprite22 charge markers	Official Nov 29 2022 update: Spirit charge visually displayed above pet; defence-ignore scales with charge	CLIENT_AND_OFFICIAL_SEMANTIC_CORRELATION_STRONG
+Solar/Unholy behemoth	25415,25425	Exact current client: hidden az state 1..3 -> 1/2/3 sprite22 charge markers	Official Jul 24 2026: charges now accrue per 75 damage; Solar reset 10s, Unholy 20s	CLIENT_RENDERER_EXACT_SERVER_THRESHOLDS_CURRENT_OFFICIAL
+Tempoross family	27690,27691,28692	Exact current client retains az state 1..3 icons 59/58/369; named activation anim15562 and whirlpool gfx4104	Official Jul 24 2026 says current Tidal/Infernal were stripped of much pre-FSW debuff complexity; pre-FSW Storm/Whirlpool/Lightning system existed	EXACT_CLIENT_LEGACY_CAPABILITY_SERVER_VERSION_DEPENDENT
+Araxxor pets	28581,28582	Exact current cache has boss action/web/venom asset universe	Official Sep 8 2026: pet proc is 20% disease on successful primary hit; no pet projectile stated	STATUS_PROC_CONFIRMED_PRESENTATION_UNRESOLVED
+Magma/Molten Geyser	28890,28891	Exact current GFX 4123 is named steam_ward	Official pet text/update names Steam Ward defensive proc	DIRECT_NAME_CORRELATION_STRONG_RUNTIME_ATTACHMENT_NEEDED

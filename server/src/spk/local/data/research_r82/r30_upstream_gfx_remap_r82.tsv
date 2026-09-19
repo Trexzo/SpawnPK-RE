@@ -1,0 +1,187 @@
+upstreamOsid	spawnpkLocalId	ref	isRemap	configClone	model	animation
+68	5031	water_splash	True		2223	16093
+1183	4120	sara_lion_proj	True		28082	15657
+1199	4118	armadyl_proj	True		28078	15655
+1202	4117	bandos_proj	True		28083	15654
+1227	4119	kril_proj	True		28098	15656
+1301	1829	Drag javelin projectile	True		31497	-1
+1327	5002	Vasa nistirio barrage projectile	True		11221	3151
+1328	5003	Vasa nistirio barrage impact	True		20727	5422
+1329	5000	Vasa nistirio rock projectile	True		19162	5035
+1330	5001	Vasa nistirio rock impact	True		19163	5034
+1332	5007	Vanguard range projectile (small)	True		32686	-1
+1333	5006	Vanguard range projectile (med)	True		32686	-1
+1334	5005	Vanguard range projectile	True		32686	-1
+1354	5004	Muttadile GFX	True		20390	16013
+1356	5008	Olm lightning	True		32693	16020
+1388	4068	Fireworks	True		33199	15511
+1447	5081	shadow_120	True		34252	16192
+1481	5033	vorkath_area_travel	True		35034	16109
+1523	4067	Gold splat	True		3082	15510
+1552	5009	xarpus_splat	True		35394	16041
+1642	4066	Gold projectile	True		3127	15509
+1670	4058	Mimic pink projectile	True		37143	15507
+1671	4060	Mimic green projectile	True		37146	15507
+1672	4062	Mimic red projectile	True		37144	15507
+1673	4064	Mimic blue projectile	True		37145	15507
+1674	4059	Mimic pink graphic	True		37140	15508
+1675	4061	Mimic green graphic	True		37139	15508
+1676	4063	Mimic red graphic	True		37138	15508
+1677	4065	Mimic blue graphic	True		37141	15508
+1690	4025	Purple arrow pullback	True		3473	15404
+1691	4026	Purple arrow projectile	True		3473	-1
+1692	4023	Craw bow pullback	True		3473	15404
+1692	4080	Dread bow pullback	True		3473	15404
+1693	4024	Craw bow projectile	True		3473	-1
+1693	4079	Dread bow projectile	True		3473	-1
+1731	4074	Blue meteor projectile	True		37811	15518
+1732	4075	Blue meteor impact	True		37811	15519
+1887	4039	Bofa projectile	True		42604	-1
+1888	4038	Bofa pullback	True		42603	15404
+1902	4076	Blue souls flying in air	True		42282	15520
+1945	4081	Ghommal tele start	True		42716	15525
+1951	4082	Ghommal tele start 2	True		42716	15526
+2124	4037	Osmumtem fang spec gfx	True		24153	15415
+2125	5084	tumeken_start	True		45288	16197
+2125	5090	tumeken_i_start	True		45288	16197
+2125	5096	tumeken_i_dye_start	True		45288	16197
+2126	5086	tumeken_projectile	True		45244	16198
+2126	5092	tumeken_i_projectile	True		45244	16198
+2126	5094	tumeken_i_spec_projectile	True		45244	16198
+2126	5097	tumeken_i_dye_projectile	True		45244	16198
+2126	5099	tumeken_i_dye_spec_projectile	True		45244	16198
+2127	5085	tumeken_impact	True		45245	16073
+2127	5091	tumeken_i_impact	True		45245	16073
+2127	5095	tumeken_i_spec_impact	True		45245	16073
+2127	5098	tumeken_i_dye_impact	True		45245	16073
+2127	5100	tumeken_i_dye_spec_impact	True		45245	16073
+2141	5043	kephri_shield_alive	True		45312	16117
+2142	5045	kephri_shield_dead	True		45312	16119
+2143	5044	kephri_shield_death	True		45312	16118
+2144	5046	kephri_shield_reform	True		45312	16120
+2145	4128	kephri_dung_drop	True		45287	15682
+2157	5034	scarab_explosion02	True		46421	16110
+2158	5035	scarab_explosion03	True		46421	16111
+2159	5036	scarab_explosion04	True		46421	16112
+2160	5037	scarab_explosion05	True		46421	16113
+2161	5038	scarab_explosion06	True		46421	16114
+2164	4129	kephri_dungball_dark	True		46420	-1
+2165	5047	kephri_dungball_light	True		46419	-1
+2166	5048	kephri_dungball_explosion	True		46418	16122
+2168	5039	sacarab_explosion01b	True		46421	16115
+2169	5040	sacarab_explosion02b	True		46421	16110
+2170	5041	sacarab_explosion03b	True		46421	16111
+2172	5028	zebak_safespot_proj	True		46375	16090
+2176	5018	zebak_proj_mage1	True		46381	16085
+2178	5021	zebak_range_initial	True		46383	16088
+2181	5020	zebak_proj_mage2	True		33007	16087
+2185	5022	zebak_range_split	True		46379	16089
+2186	5019	zebak_mage_split	True		46396	16086
+2187	5023	zebak_range_proj2	True		46387	-1
+2188	5024	zebak_range_proj3	True		46386	-1
+2189	5025	zebak_range_proj3	True		46385	-1
+2190	5026	zebak_range_proj3	True		46392	-1
+2191	5029	zebak_boulder_break	True		46377	16091
+2194	5027	zebak_vomit_proj	True		35394	15319
+2195	5030	zebak_rock_fall	True		38987	16092
+2198	5057	warden_lightning_warn	True		40177	16072
+2199	5080	warden_darkness_warn	True		40177	16072
+2204	5067	warden_spec_melee_proj	True		45302	16168
+2205	5068	warden_spec_melee_impact	True		35343	16169
+2206	5069	warden_spec_range_proj	True		45301	16087
+2207	5070	warden_spec_range_impact	True		35343	16169
+2208	5071	warden_spec_magic_proj	True		33007	16087
+2209	5072	warden_spec_magic_impact	True		35343	16169
+2210	5064	warden_entomb_proj	True		45300	16165
+2211	5065	warden_entomb_end	True		38907	16166
+2212	5066	warden_entomb_miss	True		7412	16167
+2219	5078	warden_p2_idle_tiles	True		45289	16190
+2220	5074	warden_p2_tile1	True		45299	16186
+2221	5075	warden_p2_tile2	True		45299	16187
+2222	5076	warden_p2_tile3	True		45299	16188
+2223	5077	warden_p2_tile4	True		45299	16189
+2224	5063	warden_blue_skull	True		45241	16087
+2225	5060	warden_yellow_skull	True		45241	16087
+2226	5082	warden_skull_proj	True		45243	16087
+2227	5083	warden_p2_charging_proj	True		6402	16193
+2228	5079	warden_p2_warden_p3_tile_proj	True		45510	16191
+2234	5059	warden_windmill_end	True		45310	16157
+2235	5061	warden_dronestrike	True		45298	16158
+2236	5058	warden_windmill_start	True		34252	16156
+2240	5073	warden_core_proj	True		45292	-1
+2241	5062	warden_range_proj_standard	True		45294	16160
+2242	5055	baboon_proj_range	True		46350	-1
+2244	5049	baba_range	True		46350	-1
+2245	5050	baba_ball	True		46414	-1
+2246	5054	baba_skull	True		45240	16144
+2247	5056	baboon_proj_magic	True		3084	16145
+2249	5053	baba_explode	True		46355	16143
+2251	5051	baba_rock_fall_fast	True		38987	16141
+2252	5052	baba_rock_fall_faster	True		38987	16142
+2253	5011	akkha_magic_projectile	True		46366	-1
+2254	5012	akkha_magic_impact	True		3085	16069
+2255	5010	akkha_range_projectile	True		46358	-1
+2256	5015	akkha_lightning	True		40177	16072
+2257	5014	akkha_darkness	True		6389	16071
+2258	5016	akkha_fire	True		3088	16073
+2259	5017	akkha_ice	True		6387	16074
+2260	5013	akkha_orb_impact	True		3116	16070
+2282	4055	Webweaver projectile  (orange)	True		47410	-1
+2283	4054	Webweaver pullback (orange)	True		47410	15404
+2337	4022	Accursed projectile	True		47222	15307
+2338	4021	Accursed spec start	True		47221	15403
+2339	4020	Accursed projectile spec	True		47224	15307
+2340	4001	Accursed projectile (red)	True		47223	15307
+2341	4018	Ursine chainmace slow	True		47225	15401
+2342	4019	Ursine chainmace fast	True		47225	15402
+2343	4000	Callisto trap start	True		47366	15306
+2344	4012	Vetion blue start	True		47206	15328
+2345	4013	Vetion orange start	True		47205	15328
+2346	4010	Vetion blue lightning	True		47203	15327
+2347	4011	Vetion orange lightning	True		47204	15327
+2348	4014	Vetion cut down	True		47382	15329
+2349	4015	Vetion unkown	True		47397	15330
+2350	4002	Callisto range projectile	True		47397	15310
+2351	4003	Callisto range start	True		47397	15311
+2354	4016	Webweaver spec impact	True		47227	15331
+2354	5108	Webweaver green spec impact	True		47227	15331
+2355	4017	Webweaver spec start	True		47227	15332
+2355	5109	Webweaver green spec start	True		47227	15332
+2356	4006	Venantis range projectile	True		35394	15319
+2357	4007	Venantis range impact	True		35394	15320
+2358	4008	Venantis mage projectile	True		47395	15321
+2359	4009	Venantis mage impact	True		47395	15322
+2360	4004	Araxxor web projectile	True		47394	15317
+2361	4005	Venantis web impact	True		47394	15318
+2364	4111	dragon candle dagger spec	True		47475	15587
+2364	4112	gladiator dagger spec	True		47475	15587
+2365	4110	party	True		47477	15586
+2367	4109	hearts	True		48102	15585
+2418	4123	steam_ward	True		46970	15661
+2519	4121	breach_spawn	True		49487	15658
+2554	4122	breach_boss_spawn	True		49488	15659
+2776	5042	Black hole opening	True		34252	16116
+2795	4148	atlatl_proj1	True		51181	15719
+2796	4149	atlatl_proj2	True		51181	15720
+2797	4150	atlatl_fire	True		50024	15721
+2798	4151	atlatl_fire2	True		50024	15722
+2804	4130	elder_maul_spec_gfx	True		53145	15696
+2804	4138	glad_maul_spec_gfx	True		53145	15696
+2804	4139	glad_maul_spec_gfx	True		53145	15696
+2805	4131	elder_maul_spec_impact	True		51219	15697
+2806	4135	scorching_bow_1	True		53319	15701
+2807	4136	scorching_bow_proj	True		53319	15702
+2808	4137	scorching_bow_2	True		53320	15703
+2810	4132	emberlight_spec	True		53321	15698
+2811	4133	purging_staff_1	True		53323	15699
+2814	4134	burning_claws_1	True		53324	15700
+2953	5032	zebak_wave_1	True		46395	16094
+3027	5105	Araxxor blue projectile	True		33007	16087
+3029	5104	Araxxor venom projectile alternate	True		33007	16087
+3030	4124	khopesh_spec	True		44174	15678
+3031	4125	khopesh_lightning_extra	True		44174	15679
+3032	4126	khopesh_lightning_basic	True		44174	15679
+3033	4127	khopesh_lightning_special	True		44174	15680
+3034	5103	Araxxor venom projectile	True		35394	15319
+3035	5102	Araxxor venom splat	True		2223	16093
+3078	5106	Araxyte explosion red	True		55577	15510

@@ -1,0 +1,17 @@
+key	value
+evidence_sha256	3e3f493c8cb5f736cc796738c534658e2266f2551dbdc77ec2ee962832d4574f
+duration_ms	83070
+samples	5002
+high_resolution_samples	5002
+s2c65_events	414
+s2c81_events	414
+actor_movement_events	10317
+relation_events	64
+lifecycle_events	315
+candidate_reanchors	9
+definition_snapshots	38
+sample_tick_ms	20
+relationship_authority	PLAYER_TO_MAIN_PET_TO_MINI_PET
+settled_spacing	CHEBYSHEV_ONE_TILE_DOMINANT
+mini_target	EXACT_SELECTED_MAIN_PET
+reanchor_threshold	UNRESOLVED_RUNTIME_POLICY

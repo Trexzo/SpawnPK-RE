@@ -1,0 +1,8 @@
+base_object_id	base_identity	production_effective_identity	production_effective_actions	authority_class	notes
+10716	unnamed	Loot Chest	Loot	ALREADY_OBSERVED_RUNTIME	Production-effective menu differs from base cache
+6552	Altar	Spell-book altar	Switch-modern | Switch-ancients | Switch-lunar	ALREADY_OBSERVED_RUNTIME	Production-effective menu differs from base cache
+12110	G.A.G. banner	Trading post	View-marketplace	ALREADY_OBSERVED_RUNTIME	Production-effective menu differs from base cache
+2654	Sinclair fountain	Blood fountain	Make-offerings	ALREADY_OBSERVED_RUNTIME	Use as production-effective object evidence; offering rules still unresolved
+2879	Sparkling pool	Blood synthesis pool	Look-into	ALREADY_OBSERVED_RUNTIME	Service internals unresolved
+26938	Coffin	Equipment coffer	Open	ALREADY_OBSERVED_RUNTIME	Service internals unresolved
+21465	Torch	Well of Goodwill	Contribute | Point-shop	ALREADY_OBSERVED_RUNTIME	Service internals unresolved

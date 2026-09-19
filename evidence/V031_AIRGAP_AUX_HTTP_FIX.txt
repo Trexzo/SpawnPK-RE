@@ -1,0 +1,24 @@
+V0.3.1 AIRGAP AUX HTTP FIX
+
+Observed v0.3 failure:
+- airgap application endpoints correctly redirected to 127.0.0.1:43595
+- v0.3 server accepted those connections but closed them without HTTP
+- java.net.URL.openStream() reported Unexpected end of file from server
+- rs.cache.b.e entered its Swing connection-error path
+- Substance rejected JLabel creation off the Event Dispatch Thread
+
+Correction:
+- 43595 remains loopback-only
+- valid HTTP/1.1 replies are returned
+- /spk_live/versions.txt mirrors local ~/.spawnpk/versions.dat when present
+- fallback audited versions are cache=67.0, sprites=72.0, configs=110.0
+- forum/update URL gets a valid empty 200 response
+- generic rewritten application URLs receive harmless local placeholders
+- no remote dial path added
+
+Offline checks:
+- HTTP versions request: PASS
+- HTTP forum request: PASS
+- original client rs.cache.b.e.b() remote version parse against local responder: PASS (67.0)
+- server loopback bind: unchanged
+- M4 certification: unchanged PARTIAL / NOT CERTIFIED

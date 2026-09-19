@@ -1,0 +1,22 @@
+opcode,name,exact_behavior,operand_note
+0,RETURN,Return accumulator immediately,
+1,CURRENT_SKILL_LEVEL,kN[index],1 operand: skill index
+2,BASE_SKILL_LEVEL,eo[index],1 operand: skill index
+3,SKILL_XP,ka[index],1 operand: skill index
+4,COUNT_ITEM,Count matching item quantity in target interface/container,"2 operands: widget id, item id; contains SpawnPK item-equivalence special cases"
+5,VARP,dP[varpIndex],1 operand
+6,XP_FOR_BASE_LEVEL,lU[eo[skill]-1],1 operand: skill index
+7,VARP_PERCENT,dP[varp]*100/46875,1 operand
+8,COMBAT_LEVEL,local player rs.a.k.bc,0 operands
+9,TOTAL_LEVEL,Sum eo[] over client-selected skill mask,0 operands
+10,HAS_ITEM,Return sentinel 999999999 if item is present in target container,"2 operands: widget id, item id; SpawnPK equivalence special cases"
+11,CLIENT_FIELD_eY,Read Client.eY integer,Semantic label intentionally not guessed
+12,CLIENT_FIELD_ko,Read Client.ko integer,Semantic label intentionally not guessed
+13,VARP_BIT_TEST,(dP[varp] & (1<<bit)) != 0 ? 1 : 0,"2 operands: varp, bit"
+14,VARBIT,Resolve rs.d.y varbit definition against dP[],1 operand: varbit id
+15,SET_SUBTRACT,Next value is subtracted,operator control
+16,SET_DIVIDE,Next non-zero value divides accumulator,operator control
+17,SET_MULTIPLY,Next value multiplies accumulator,operator control
+18,WORLD_X,(localPlayer.ac >> 7) + sceneBaseX(eh),0 operands
+19,WORLD_Y,(localPlayer.ad >> 7) + sceneBaseY(ei),0 operands
+20,LITERAL,Immediate literal integer,1 operand

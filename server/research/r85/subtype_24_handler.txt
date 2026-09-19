@@ -1,0 +1,114 @@
+  public void a();
+    Code:
+       0: aload_0
+       1: invokevirtual #24                 // Method e:()I
+       4: istore_1
+       5: iload_1
+       6: ifne          12
+       9: invokestatic  #22                 // Method rs/l/f/a/i/b.m:()V
+      12: iload_1
+      13: iconst_1
+      14: if_icmpne     137
+      17: aload_0
+      18: invokevirtual #25                 // Method g:()I
+      21: istore_2
+      22: aload_0
+      23: invokevirtual #24                 // Method e:()I
+      26: istore_3
+      27: aload_0
+      28: invokevirtual #23                 // Method c:()I
+      31: istore        4
+      33: aload_0
+      34: invokevirtual #23                 // Method c:()I
+      37: istore        5
+      39: aload_0
+      40: invokevirtual #24                 // Method e:()I
+      43: iconst_1
+      44: if_icmpne     51
+      47: iconst_1
+      48: goto          52
+      51: iconst_0
+      52: istore        6
+      54: iload_3
+      55: tableswitch   { // 1 to 3
+                     1: 80
+                     2: 88
+                     3: 96
+               default: 104
+          }
+      80: getstatic     #8                  // Field rs/l/f/a/i/e.c:Lrs/l/f/a/i/e;
+      83: astore        7
+      85: goto          109
+      88: getstatic     #9                  // Field rs/l/f/a/i/e.d:Lrs/l/f/a/i/e;
+      91: astore        7
+      93: goto          109
+      96: getstatic     #6                  // Field rs/l/f/a/i/e.a:Lrs/l/f/a/i/e;
+      99: astore        7
+     101: goto          109
+     104: getstatic     #7                  // Field rs/l/f/a/i/e.b:Lrs/l/f/a/i/e;
+     107: astore        7
+     109: iload_2
+     110: aload         7
+     112: iload         4
+     114: iload         5
+     116: invokestatic  #17                 // Method rs/l/f/a/i/b.a:(ILrs/l/f/a/i/e;II)V
+     119: invokestatic  #21                 // Method rs/l/f/a/i/b.l:()Z
+     122: ifeq          137
+     125: iload         6
+     127: ifeq          137
+     130: invokestatic  #20                 // Method rs/l/f/a/i/b.k:()Lrs/l/f/a/i/b;
+     133: iconst_1
+     134: invokevirtual #19                 // Method rs/l/f/a/i/b.b:(Z)V
+     137: iload_1
+     138: iconst_3
+     139: if_icmpne     240
+     142: aload_0
+     143: invokevirtual #24                 // Method e:()I
+     146: istore_2
+     147: aconst_null
+     148: astore_3
+     149: iload_2
+     150: tableswitch   { // 0 to 6
+                     0: 192
+                     1: 197
+                     2: 204
+                     3: 211
+                     4: 218
+                     5: 225
+                     6: 232
+               default: 236
+          }
+     192: aconst_null
+     193: astore_3
+     194: goto          236
+     197: getstatic     #10                 // Field rs/l/f/a/i/g.a:Lrs/l/f/a/i/g;
+     200: astore_3
+     201: goto          236
+     204: getstatic     #11                 // Field rs/l/f/a/i/g.b:Lrs/l/f/a/i/g;
+     207: astore_3
+     208: goto          236
+     211: getstatic     #12                 // Field rs/l/f/a/i/g.c:Lrs/l/f/a/i/g;
+     214: astore_3
+     215: goto          236
+     218: getstatic     #13                 // Field rs/l/f/a/i/g.d:Lrs/l/f/a/i/g;
+     221: astore_3
+     222: goto          236
+     225: getstatic     #14                 // Field rs/l/f/a/i/g.e:Lrs/l/f/a/i/g;
+     228: astore_3
+     229: goto          236
+     232: getstatic     #15                 // Field rs/l/f/a/i/g.f:Lrs/l/f/a/i/g;
+     235: astore_3
+     236: aload_3
+     237: invokestatic  #18                 // Method rs/l/f/a/i/b.a:(Lrs/l/f/a/i/g;)V
+     240: iload_1
+     241: iconst_4
+     242: if_icmpne     258
+     245: aload_0
+     246: invokevirtual #25                 // Method g:()I
+     249: istore_2
+     250: invokestatic  #20                 // Method rs/l/f/a/i/b.k:()Lrs/l/f/a/i/b;
+     253: pop
+     254: iload_2
+     255: invokestatic  #16                 // Method rs/l/f/a/i/b.a:(I)V
+     258: return
+}

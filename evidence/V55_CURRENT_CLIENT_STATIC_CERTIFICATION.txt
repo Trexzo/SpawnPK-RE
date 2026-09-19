@@ -1,0 +1,16 @@
+SpawnPK LocalLab v5.5 — exact current-client static certification
+Pinned original client SHA-256: 6232bae206846a4ba8d09766a2dee886b69016066a3f50f83b201bf705f93662
+
+Source snapshots carried from the v5.4 fresh-GPT handoff:
+- rs_n_c_aY_COMBAT_INTERFACES.javap
+- comp_cape_client_class.javap
+
+Verified combat interface roots present in rs.n.c.aY:
+1698, 2276, 2423, 3796, 4679, 4705, 5570, 7762, 776, 1749, 1764, 4446, 5855, 6103, 8460, 12290
+
+Verified Grand Completionist customization controls:
+- root 63036
+- widget 63027 = "Confirm colors"
+- widget 63031 = "Cancel colors"
+
+LocalLab uses these exact current-client roots/widgets; weapon-name -> combat-root selection remains a LocalLab reconstruction layer and is not claimed to be recovered production server metadata.

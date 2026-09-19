@@ -1,0 +1,33 @@
+source_kind	source_id	source_label	source_region_id	source_world_x	source_world_y	source_plane	action	destination_kind	destination_region_ids	destination_group	confidence	evidence
+WORLD_OBJECT	26727	Exit portal	8790	2203	5506	0	Forfeit||||	UNKNOWN_SERVER_DESTINATION			SOURCE_PLACEMENT_EXACT_DESTINATION_UNKNOWN	static map placement + exact object definition/o.bin override
+WORLD_OBJECT	26727	Exit portal	9538	2398	4234	0	Forfeit||||	UNKNOWN_SERVER_DESTINATION			SOURCE_PLACEMENT_EXACT_DESTINATION_UNKNOWN	static map placement + exact object definition/o.bin override
+WORLD_OBJECT	26727	Exit portal	10840	2719	5685	0	Forfeit||||	UNKNOWN_SERVER_DESTINATION			SOURCE_PLACEMENT_EXACT_DESTINATION_UNKNOWN	static map placement + exact object definition/o.bin override
+WORLD_OBJECT	5014	Welfare dungeon exit	11166	2771	10161	0	Enter||||	UNKNOWN_SERVER_DESTINATION			SOURCE_PLACEMENT_EXACT_DESTINATION_UNKNOWN	static map placement + exact object definition/o.bin override
+WORLD_OBJECT	26727	Exit portal	13401	3357	5705	0	Forfeit||||	UNKNOWN_SERVER_DESTINATION			SOURCE_PLACEMENT_EXACT_DESTINATION_UNKNOWN	static map placement + exact object definition/o.bin override
+WORLD_OBJECT	26727	Exit portal	13134	3294	5002	0	Forfeit||||	UNKNOWN_SERVER_DESTINATION			SOURCE_PLACEMENT_EXACT_DESTINATION_UNKNOWN	static map placement + exact object definition/o.bin override
+WORLD_OBJECT	26727	Exit portal	14927	3739	5058	0	Forfeit||||	UNKNOWN_SERVER_DESTINATION			SOURCE_PLACEMENT_EXACT_DESTINATION_UNKNOWN	static map placement + exact object definition/o.bin override
+WORLD_OBJECT	26727	Exit portal	13133	3291	4930	0	Forfeit||||	UNKNOWN_SERVER_DESTINATION			SOURCE_PLACEMENT_EXACT_DESTINATION_UNKNOWN	static map placement + exact object definition/o.bin override
+WORLD_OBJECT	26727	Exit portal	13641	3421	4681	0	Forfeit||||	UNKNOWN_SERVER_DESTINATION			SOURCE_PLACEMENT_EXACT_DESTINATION_UNKNOWN	static map placement + exact object definition/o.bin override
+WORLD_OBJECT	26727	Exit portal	13642	3423	4789	0	Forfeit||||	UNKNOWN_SERVER_DESTINATION			SOURCE_PLACEMENT_EXACT_DESTINATION_UNKNOWN	static map placement + exact object definition/o.bin override
+WORLD_OBJECT	41807	Portal	15911	3998	2501	0	Escape||||	UNKNOWN_SERVER_DESTINATION			SOURCE_PLACEMENT_EXACT_DESTINATION_UNKNOWN	static map placement + exact object definition/o.bin override
+ITEM	6804	Kharazi teleport					Inspect | Drop	UNKNOWN_SERVER_DESTINATION			TELEPORT_IDENTITY_ONLY_DESTINATION_UNKNOWN	exact item definition + lexical join to configs/m.bin; no arrival tile inferred
+ITEM	8013	Teleport to house						UNKNOWN_SERVER_DESTINATION			TELEPORT_IDENTITY_ONLY_DESTINATION_UNKNOWN	exact item definition + lexical join to configs/m.bin; no arrival tile inferred
+ITEM	20473	Wilderness cloak					Wear | Teleport	UNKNOWN_SERVER_DESTINATION			TELEPORT_IDENTITY_ONLY_DESTINATION_UNKNOWN	exact item definition + lexical join to configs/m.bin; no arrival tile inferred
+ITEM	20993	Shilo village teletab					Break	UNKNOWN_SERVER_DESTINATION			TELEPORT_IDENTITY_ONLY_DESTINATION_UNKNOWN	exact item definition + lexical join to configs/m.bin; no arrival tile inferred
+ITEM	20994	Demon island teletab					Break	UNKNOWN_SERVER_DESTINATION			TELEPORT_IDENTITY_ONLY_DESTINATION_UNKNOWN	exact item definition + lexical join to configs/m.bin; no arrival tile inferred
+ITEM	21016	Saradomin max cape					Wear | Teleports | Features	UNKNOWN_SERVER_DESTINATION			TELEPORT_IDENTITY_ONLY_DESTINATION_UNKNOWN	exact item definition + lexical join to configs/m.bin; no arrival tile inferred
+ITEM	21146	Vorkath max cape					Wear | Teleports | Disassemble	UNKNOWN_SERVER_DESTINATION			TELEPORT_IDENTITY_ONLY_DESTINATION_UNKNOWN	exact item definition + lexical join to configs/m.bin; no arrival tile inferred
+ITEM	21149	Vorkath teleport					Teleport | Drop	UNKNOWN_SERVER_DESTINATION			TELEPORT_IDENTITY_ONLY_DESTINATION_UNKNOWN	exact item definition + lexical join to configs/m.bin; no arrival tile inferred
+ITEM	21589	Revenant cave teleport					Teleport	UNKNOWN_SERVER_DESTINATION			TELEPORT_IDENTITY_ONLY_DESTINATION_UNKNOWN	exact item definition + lexical join to configs/m.bin; no arrival tile inferred
+ITEM	21631	Bounty teleport tablet					Break | Warn	UNKNOWN_SERVER_DESTINATION			TELEPORT_IDENTITY_ONLY_DESTINATION_UNKNOWN	exact item definition + lexical join to configs/m.bin; no arrival tile inferred
+ITEM	21632	Edgeville teleport					Break	UNKNOWN_SERVER_DESTINATION			TELEPORT_IDENTITY_ONLY_DESTINATION_UNKNOWN	exact item definition + lexical join to configs/m.bin; no arrival tile inferred
+ITEM	21827	Larran's teleport tablet					Break | Warn	UNKNOWN_SERVER_DESTINATION			TELEPORT_IDENTITY_ONLY_DESTINATION_UNKNOWN	exact item definition + lexical join to configs/m.bin; no arrival tile inferred
+ITEM	24250	Vintage dungeon teleport (u)						CUSTOM_REGION_CANDIDATE	11166;12693;12949	vintage_dungeon_exit;vintage_dungeon;Vintage dungeon 2	STATIC_DESTINATION_NAME_MATCH	exact item definition + lexical join to configs/m.bin; no arrival tile inferred
+ITEM	24264	Vintage dungeon teleport						CUSTOM_REGION_CANDIDATE	11166;12693;12949	vintage_dungeon_exit;vintage_dungeon;Vintage dungeon 2	STATIC_DESTINATION_NAME_MATCH	exact item definition + lexical join to configs/m.bin; no arrival tile inferred
+ITEM	25429	Summer totem					Teleport | Drop	UNKNOWN_SERVER_DESTINATION			TELEPORT_IDENTITY_ONLY_DESTINATION_UNKNOWN	exact item definition + lexical join to configs/m.bin; no arrival tile inferred
+ITEM	27015	Mythic dragon sigil					Check | Teleport | Drop	CUSTOM_REGION_CANDIDATE	16175;16176	Mythic Dzone	STATIC_DESTINATION_NAME_MATCH	exact item definition + lexical join to configs/m.bin; no arrival tile inferred
+ITEM	27027	Cosmicwyrm sigil					Check | Teleport | Drop	UNKNOWN_SERVER_DESTINATION			TELEPORT_IDENTITY_ONLY_DESTINATION_UNKNOWN	exact item definition + lexical join to configs/m.bin; no arrival tile inferred
+ITEM	28001	Ring of shadows					Wear | Teleport | Check | Charge | Uncharge	UNKNOWN_SERVER_DESTINATION			TELEPORT_IDENTITY_ONLY_DESTINATION_UNKNOWN	exact item definition + lexical join to configs/m.bin; no arrival tile inferred
+ITEM	28031	Amulet of the eye					Wear | Teleport | Destroy	UNKNOWN_SERVER_DESTINATION			TELEPORT_IDENTITY_ONLY_DESTINATION_UNKNOWN	exact item definition + lexical join to configs/m.bin; no arrival tile inferred
+ITEM	28580	Araxxor teleport					Teleport | Drop	CUSTOM_REGION_CANDIDATE	16193	araxxor_lair	EXACT_ITEM_HOVER_PLUS_EXPLICIT_REGION_NAME_MATCH	exact item definition + lexical join to configs/m.bin; no arrival tile inferred
+ITEM	28606	Araxxor teleport pack (50)					Open | Drop	CUSTOM_REGION_CANDIDATE	16193	araxxor_lair	STATIC_DESTINATION_NAME_MATCH	exact item definition + lexical join to configs/m.bin; no arrival tile inferred

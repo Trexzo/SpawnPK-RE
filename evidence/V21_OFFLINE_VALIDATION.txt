@@ -1,0 +1,27 @@
+SpawnPK Local Lab v2.1 offline validation
+
+Authority client SHA-256:
+6232bae206846a4ba8d09766a2dee886b69016066a3f50f83b201bf705f93662
+
+Server JAR SHA-256:
+744259e978973a09730883b8bca62b7640bfff27c17b657e94c728a65bce902a
+
+PASS:
+BOOTSTRAP_STATIC_ENCODING_PASS ... runEnergy110=100 widget126_149=100%
+RUN_ORB_WIDGET126_CLIENT_PARITY_PASS widget=149 text=100% bytes=7 consumed=7
+APPEARANCE_CLIENT_PARSER_PARITY_PASS
+PACKET81_FULL_CLIENT_DECODER_PARITY_PASS
+M5_PACKET81_CLIENT_PARITY_PASS
+MOVEMENT_STATE_PASS
+CLIENT_PACKET_PROBE_V2_PASS decoded=10 aligned=true
+LOCAL_HANDSHAKE_INTEGRATION_PASS
+LOCAL_M4_BOOTSTRAP_INTEGRATION_PASS bootstrap=249,73,81,110,126 energy=100 widget149=100%
+M5_V21_AUTHORITATIVE_MOVEMENT_INTEGRATION_PASS energy110=100 widget126_149=100% walk164+widget185+run164+minimap248 aligned=true
+LOCAL_ONLY_STATIC_GUARDS_PASS_V21
+
+Correction proven statically against pinned client:
+- packet 110 -> Client.eY legacy run-energy field
+- custom run orb rs.i.b.n() reads rs.n.e.H[149].at instead
+- packet 126 generic widget/string update sets H[key].at
+- production runtime evidence previously observed packet126 key149 data="97%"
+- v2.1 sends packet126 key149 data="100%"

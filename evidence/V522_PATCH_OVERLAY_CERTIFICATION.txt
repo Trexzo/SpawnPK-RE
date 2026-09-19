@@ -1,0 +1,16 @@
+SpawnPK LocalLab v5.2.2 cumulative overlay certification
+
+Source baseline exercised: v5.2.1 overlay tree
+Target version: SpawnPK-LocalLab-v5.2.2
+Server SHA-256: 9041e4771e69dcdf6598d7dd18078762085f7fb4a3b4c516cb0f7495ed99bd68
+Airgap client SHA-256: 981eb3607802fcd892fd465d62a6f1ba9d8afffcbfd410045b5cc170ae06e71e
+Localhost client SHA-256: aabca3605421337e81ab96da0de5669b94b2db8471c0157ad3f7ac9a84d031a2
+Persistent opensrc account sentinel preserved: true
+
+Targeted post-overlay tests:
+V522_C2S_86_OF_86_FRAMING_PASS opcodes=86 blocker185_202_164=true outOfAuthority5FailClosed=true
+V522_CRESTBEARER_EQUIPMENT_PASS melee=23141_HEAD+23142_CHEST_FULLBODY+23143_LEGS mage=22105_22106_22107 dyed=28708_28707_28706 hide=28872_28871_28870 grandComp23063=CAPE appearanceBuilt=true
+V522_SPAWN_TAB_PACKET71_CLIENT_PARITY_PASS wireRoot=0 tab=13 staticHandlerResolvedRoot=67027 consumed=3
+
+Full source-tree validation before packaging:
+V522_ALL_TESTS_PASS count=34 fail=0

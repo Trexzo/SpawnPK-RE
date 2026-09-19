@@ -1,0 +1,263 @@
+=== AppearanceClientParityTest ===
+APPEARANCE_CLIENT_PARSER_PARITY_PASS bytes=62 consumed=62 displayName=localtest
+
+=== BankClientActionDecoderTest ===
+[bank-decoder-test] CLIENT_PACKET seq=1 opcode=145 len=6 itemContainerAction=true widget=5382 slot=2 itemId=565 semantic=WITHDRAW_1 schema=STATIC_EXACT
+[bank-decoder-test] CLIENT_PACKET seq=2 opcode=117 len=6 itemContainerAction=true widget=5382 slot=2 itemId=565 semantic=WITHDRAW_5 schema=STATIC_EXACT
+[bank-decoder-test] CLIENT_PACKET seq=3 opcode=43 len=6 itemContainerAction=true widget=5382 slot=2 itemId=565 semantic=WITHDRAW_10 schema=STATIC_EXACT
+[bank-decoder-test] CLIENT_PACKET seq=4 opcode=129 len=6 itemContainerAction=true widget=5382 slot=2 itemId=565 semantic=WITHDRAW_ALL schema=STATIC_EXACT
+[bank-decoder-test] CLIENT_PACKET seq=5 opcode=135 len=6 itemContainerAction=true widget=5382 slot=2 itemId=565 semantic=WITHDRAW_X schema=STATIC_EXACT
+[bank-decoder-test] CLIENT_PACKET seq=6 opcode=141 len=10 itemContainerAction=true widget=5382 slot=2 itemId=565 semantic=WITHDRAW_14 extra=14 schema=STATIC_EXACT
+[bank-decoder-test] CLIENT_PACKET seq=7 opcode=140 len=6 itemContainerAction=true widget=5382 slot=2 itemId=565 semantic=WITHDRAW_ALL_BUT_ONE schema=STATIC_EXACT
+V3_BANK_CLIENT_ACTION_DECODER_PASS opcodes=145,117,43,129,135,141,140 aligned=true
+
+=== BankOverlayClientParityTest ===
+V32_BANK_OVERLAY_CLIENT_PARITY_PASS packet248 main=5292 side=5063 inventoryWidget=5064 item=995 qty=1
+
+=== BankPacketClientParityTest ===
+V3_BANK_CLIENT_PARSER_PARITY_PASS root97=5292 container53=5382 slots=3 qty32=100000 consumed=21
+
+=== BankRuntimeIntegrationTest ===
+[session /127.0.0.1:47748] prelogin ok type=14 userHash5=7
+[session /127.0.0.1:47748] LoginFrame{type=16, revision=317, memoryFlag=0, checksums=[0, 0, 0, 0, 0, 0, 0, 0, 0], seeds=[16909060, 287454020, 19088743, -1985229329], config1=748878668, config2=307, username='local', password=<redacted>, deviceId='LOCAL-DEVICE', trailingClientId='LOCAL-CLIENT'}
+[session /127.0.0.1:47748] LOGIN_SUCCESS_LOCAL rank=0 flag=false at 2026-09-14T18:07:50.649359360Z
+[session /127.0.0.1:47748] CLIENT_PACKET seq=1 opcode=185 len=2 widget=912 expectedWidget=912
+[session /127.0.0.1:47748] V4_NPC_SPAWN opcode=65 npcIndex=1 definition=1799 name=Blood_fountain world=3090,3498 placement=LOCAL_DIAGNOSTIC_NOT_PRODUCTION_COORD
+[session /127.0.0.1:47748] M4_BOOTSTRAP_SENT packets=249,73,81 region=385,436 local=55,55 appearanceMask=0x10 appearanceBytes=59 status=M4_CERTIFIED
+[session /127.0.0.1:47748] M5_RUN_ENERGY_SENT opcode=110 value=100 schema=STATIC_EXACT_FIXED1
+[session /127.0.0.1:47748] M5_RUN_ORB_WIDGET_SENT opcode=126 widget=149 text="100%" schema=STATIC_EXACT_VARSHORT
+[session /127.0.0.1:47748] V41_EQUIPMENT_BOOTSTRAP weaponSlot=3 itemId=28526 item=Scythe_of_bloodrend appearanceValue=29038 stance=8057 profile=SCYTHE_VITUR_FAMILY inventoryRoot=3213 inventoryWidget=3214
+[session /127.0.0.1:47748] V41_ITEM_CATALOG loaded=28673 genericCommand=::item_<id>_[amount] source=items.json+SpawnPK_i.bin
+[session /127.0.0.1:47748] M5_AUTHORITY_ENABLED world=3087,3495 tickMs=600 collision=CLIENT_SUBMITTED_PATH regionPolicy=CURRENT_104x104 runEnergy=100 runToggleWidget=152 config173=ACK minimap248=ACCEPT_PATH_CORE
+[session /127.0.0.1:47748] CLIENT_PACKET seq=2 opcode=164 len=5 movementFamily=true steps=1 startX=3089 startY=3495 run=0 deltas=[] decodedWaypoints=true
+[session /127.0.0.1:47748] M5_MOVEMENT_REQUEST MovementRequest{opcode=164, run=false, waypoints=[3089,3495]} action=ACCEPTED queued=2 final=3089,3495 packetRun=0 persistentRun=0 effectiveRun=0 authorityWorld=3087,3495
+[session /127.0.0.1:47748] CLIENT_PACKET seq=3 opcode=132 len=6 objectAction=true objectId=26972 worldX=3090 worldY=3495 schema=STATIC_EXACT_FIXED6
+[session /127.0.0.1:47748] V41_BANK_INTERACTION ObjectInteraction{opcode=132, objectId=26972, worldX=3090, worldY=3495} authorityWorld=3087,3495 distance=3 action=DEFERRED_UNTIL_ADJACENT
+[session /127.0.0.1:47748] M5_AUTHORITATIVE_TICK mode=WALK tiles=1 from=3087,3495 to=3088,3495 dir=4 remaining=1 movementTick=1
+[session /127.0.0.1:47748] LOCAL_WORLD_TICK opcode=81 tick=1 world=3088,3495 queued=1 certification=M4_CERTIFIED M5=ACTIVE
+[session /127.0.0.1:47748] M5_AUTHORITATIVE_TICK mode=WALK tiles=1 from=3088,3495 to=3089,3495 dir=4 remaining=0 movementTick=2
+[session /127.0.0.1:47748] V41_BANK_OPEN ObjectInteraction{opcode=132, objectId=26972, worldX=3090, worldY=3495} authorityWorld=3089,3495 distance=1 root=5292 bankContainer=5382 bankInventoryRoot=5063 inventoryContainer=5064 bankOccupied=7/352 inventoryOccupied=0/28 placeholders=false action=OPENED_AFTER_AUTHORITATIVE_ARRIVAL
+[session /127.0.0.1:47748] CLIENT_PACKET seq=4 opcode=145 len=6 itemContainerAction=true widget=5382 slot=0 itemId=995 semantic=WITHDRAW_1 schema=STATIC_EXACT
+[session /127.0.0.1:47748] V4_BANK_ITEM_ACTION ItemContainerAction{opcode=145, widgetId=5382, slot=0, itemId=995, semantic=WITHDRAW_1} result=WITHDRAW_OK amount=1 requested=1 stackable=true bankOccupied=7 inventoryOccupied=1 decoderAligned=true
+[session /127.0.0.1:47748] CLIENT_PACKET seq=5 opcode=145 len=6 itemContainerAction=true widget=5064 slot=0 itemId=995 semantic=STORE_1 schema=STATIC_EXACT
+[session /127.0.0.1:47748] V4_BANK_ITEM_ACTION ItemContainerAction{opcode=145, widgetId=5064, slot=0, itemId=995, semantic=STORE_1} result=STORE_OK amount=1 stackable=true inventorySlotPreserved=true bankOccupied=7 inventoryOccupied=0 decoderAligned=true
+[session /127.0.0.1:47748] CLIENT_PACKET seq=6 opcode=130 len=0 interfaceClose=true schema=STATIC_EXACT_FIXED0
+[session /127.0.0.1:47748] V4_INTERFACE_CLOSE opcode=130 bankWasOpen=true bankOpen=false decoderAligned=true
+[session /127.0.0.1:47748] CLIENT_PACKET seq=7 opcode=132 len=6 objectAction=true objectId=26972 worldX=3090 worldY=3495 schema=STATIC_EXACT_FIXED6
+[session /127.0.0.1:47748] V41_BANK_OPEN ObjectInteraction{opcode=132, objectId=26972, worldX=3090, worldY=3495} authorityWorld=3089,3495 distance=1 root=5292 bankContainer=5382 bankInventoryRoot=5063 inventoryContainer=5064 bankOccupied=7/352 inventoryOccupied=0/28 placeholders=false action=OPENED_ADJACENT_IMMEDIATE
+[session /127.0.0.1:47748] CLIENT_PACKET seq=8 opcode=130 len=0 interfaceClose=true schema=STATIC_EXACT_FIXED0
+[session /127.0.0.1:47748] V4_INTERFACE_CLOSE opcode=130 bankWasOpen=true bankOpen=false decoderAligned=true
+[session /127.0.0.1:47748] CLIENT_PACKET seq=9 opcode=164 len=5 movementFamily=true steps=1 startX=3088 startY=3495 run=0 deltas=[] decodedWaypoints=true
+[session /127.0.0.1:47748] M5_MOVEMENT_REQUEST MovementRequest{opcode=164, run=false, waypoints=[3088,3495]} action=ACCEPTED queued=1 final=3088,3495 packetRun=0 persistentRun=0 effectiveRun=0 authorityWorld=3089,3495
+[session /127.0.0.1:47748] M5_AUTHORITATIVE_TICK mode=WALK tiles=1 from=3089,3495 to=3088,3495 dir=3 remaining=0 movementTick=3
+V41_BANK_RUNTIME_INTEGRATION_PASS bootstrap71+53+65 movement164->object132DeferredUntilAdjacent->248(5292,5063)->fixed53(5382/352)+fixed53(5064/28)->withdraw145->store145->close130->reopen->walk164 aligned=true
+
+=== BankV4AdvancedRuntimeIntegrationTest ===
+[session /127.0.0.1:35522] prelogin ok type=14 userHash5=7
+[session /127.0.0.1:35522] LoginFrame{type=16, revision=317, memoryFlag=0, checksums=[0, 0, 0, 0, 0, 0, 0, 0, 0], seeds=[16909060, 287454020, 19088743, -1985229329], config1=748878668, config2=307, username='local', password=<redacted>, deviceId='LOCAL-DEVICE', trailingClientId='LOCAL-CLIENT'}
+[session /127.0.0.1:35522] LOGIN_SUCCESS_LOCAL rank=0 flag=false at 2026-09-14T18:07:53.332943835Z
+[session /127.0.0.1:35522] CLIENT_PACKET seq=1 opcode=185 len=2 widget=912 expectedWidget=912
+[session /127.0.0.1:35522] V4_NPC_SPAWN opcode=65 npcIndex=1 definition=1799 name=Blood_fountain world=3090,3498 placement=LOCAL_DIAGNOSTIC_NOT_PRODUCTION_COORD
+[session /127.0.0.1:35522] M4_BOOTSTRAP_SENT packets=249,73,81 region=385,436 local=55,55 appearanceMask=0x10 appearanceBytes=59 status=M4_CERTIFIED
+[session /127.0.0.1:35522] M5_RUN_ENERGY_SENT opcode=110 value=100 schema=STATIC_EXACT_FIXED1
+[session /127.0.0.1:35522] M5_RUN_ORB_WIDGET_SENT opcode=126 widget=149 text="100%" schema=STATIC_EXACT_VARSHORT
+[session /127.0.0.1:35522] V41_EQUIPMENT_BOOTSTRAP weaponSlot=3 itemId=28526 item=Scythe_of_bloodrend appearanceValue=29038 stance=8057 profile=SCYTHE_VITUR_FAMILY inventoryRoot=3213 inventoryWidget=3214
+[session /127.0.0.1:35522] V41_ITEM_CATALOG loaded=28673 genericCommand=::item_<id>_[amount] source=items.json+SpawnPK_i.bin
+[session /127.0.0.1:35522] M5_AUTHORITY_ENABLED world=3087,3495 tickMs=600 collision=CLIENT_SUBMITTED_PATH regionPolicy=CURRENT_104x104 runEnergy=100 runToggleWidget=152 config173=ACK minimap248=ACCEPT_PATH_CORE
+[session /127.0.0.1:35522] CLIENT_PACKET seq=2 opcode=132 len=6 objectAction=true objectId=26972 worldX=3088 worldY=3495 schema=STATIC_EXACT_FIXED6
+[session /127.0.0.1:35522] V41_BANK_OPEN ObjectInteraction{opcode=132, objectId=26972, worldX=3088, worldY=3495} authorityWorld=3087,3495 distance=1 root=5292 bankContainer=5382 bankInventoryRoot=5063 inventoryContainer=5064 bankOccupied=7/352 inventoryOccupied=0/28 placeholders=false action=OPENED_ADJACENT_IMMEDIATE
+[session /127.0.0.1:35522] CLIENT_PACKET seq=3 opcode=185 len=2 widget=39971 schema=STATIC_EXACT_ALL_CALLSITES
+[session /127.0.0.1:35522] V4_BANK_WIDGET widget=39971 action=TOGGLE_PLACEHOLDERS result=PLACEHOLDERS_ENABLED occupied=7
+[session /127.0.0.1:35522] CLIENT_PACKET seq=4 opcode=129 len=6 itemContainerAction=true widget=5382 slot=4 itemId=4708 semantic=WITHDRAW_ALL schema=STATIC_EXACT
+[session /127.0.0.1:35522] V4_BANK_ITEM_ACTION ItemContainerAction{opcode=129, widgetId=5382, slot=4, itemId=4708, semantic=WITHDRAW_ALL} result=WITHDRAW_OK amount=1 requested=1 stackable=false bankOccupied=7 inventoryOccupied=1 decoderAligned=true
+[session /127.0.0.1:35522] CLIENT_PACKET seq=5 opcode=145 len=6 itemContainerAction=true widget=5064 slot=0 itemId=4708 semantic=STORE_1 schema=STATIC_EXACT
+[session /127.0.0.1:35522] V4_BANK_ITEM_ACTION ItemContainerAction{opcode=145, widgetId=5064, slot=0, itemId=4708, semantic=STORE_1} result=STORE_OK amount=1 stackable=false inventorySlotPreserved=true bankOccupied=7 inventoryOccupied=0 decoderAligned=true
+[session /127.0.0.1:35522] CLIENT_PACKET seq=6 opcode=135 len=6 itemContainerAction=true widget=5382 slot=0 itemId=995 semantic=WITHDRAW_X schema=STATIC_EXACT
+[session /127.0.0.1:35522] V4_BANK_ITEM_ACTION ItemContainerAction{opcode=135, widgetId=5382, slot=0, itemId=995, semantic=WITHDRAW_X} result=WITHDRAW_X_PROMPT_SENT opcode=27 pendingSlot=0 itemId=995 decoderAligned=true
+[session /127.0.0.1:35522] CLIENT_PACKET seq=7 opcode=208 len=4 amount=123 amountEntry=true schema=STATIC_EXACT_FIXED4_BE
+[session /127.0.0.1:35522] V4_BANK_AMOUNT opcode=208 amount=123 result=WITHDRAW_X_OK amount=123 requested=123 stackable=true bankOccupied=7 inventoryOccupied=1 decoderAligned=true
+[session /127.0.0.1:35522] CLIENT_PACKET seq=8 opcode=135 len=6 itemContainerAction=true widget=5064 slot=0 itemId=995 semantic=STORE_X schema=STATIC_EXACT
+[session /127.0.0.1:35522] V4_BANK_ITEM_ACTION ItemContainerAction{opcode=135, widgetId=5064, slot=0, itemId=995, semantic=STORE_X} result=STORE_X_PROMPT_SENT opcode=27 pendingSlot=0 itemId=995 decoderAligned=true
+[session /127.0.0.1:35522] CLIENT_PACKET seq=9 opcode=208 len=4 amount=23 amountEntry=true schema=STATIC_EXACT_FIXED4_BE
+[session /127.0.0.1:35522] V4_BANK_AMOUNT opcode=208 amount=23 result=STORE_X_OK amount=23 stackable=true inventorySlotPreserved=true bankOccupied=7 inventoryOccupied=1 decoderAligned=true
+[session /127.0.0.1:35522] CLIENT_PACKET seq=10 opcode=214 len=7 containerDrag=true widget=5064 mode=0 source=0 destination=5 schema=STATIC_EXACT_FIXED7
+[session /127.0.0.1:35522] V4_BANK_DRAG ContainerDrag{widgetId=5064, mode=0, sourceSlot=0, destinationSlot=5} result=DRAG_OK mode=0 source=0 destination=5 decoderAligned=true
+[session /127.0.0.1:35522] LOCAL_WORLD_TICK opcode=81 tick=1 world=3087,3495 queued=0 certification=M4_CERTIFIED M5=ACTIVE
+[session /127.0.0.1:35522] CLIENT_PACKET seq=11 opcode=103 len=15 command="setbanktab 1 1" newline=true
+[session /127.0.0.1:35522] V41_BANK_COMMAND command=setbanktab 1 1 result=SETBANKTAB_OK slot=1 tab=1 presentation=FULL_BANK_VIEW decoderAligned=true
+[session /127.0.0.1:35522] CLIENT_PACKET seq=12 opcode=130 len=0 interfaceClose=true schema=STATIC_EXACT_FIXED0
+[session /127.0.0.1:35522] V4_INTERFACE_CLOSE opcode=130 bankWasOpen=true bankOpen=false decoderAligned=true
+[session /127.0.0.1:35522] CLIENT_PACKET seq=13 opcode=164 len=5 movementFamily=true steps=1 startX=3088 startY=3495 run=0 deltas=[] decodedWaypoints=true
+[session /127.0.0.1:35522] M5_MOVEMENT_REQUEST MovementRequest{opcode=164, run=false, waypoints=[3088,3495]} action=ACCEPTED queued=1 final=3088,3495 packetRun=0 persistentRun=0 effectiveRun=0 authorityWorld=3087,3495
+[session /127.0.0.1:35522] M5_AUTHORITATIVE_TICK mode=WALK tiles=1 from=3087,3495 to=3088,3495 dir=4 remaining=0 movementTick=1
+V41_BANK_ADVANCED_RUNTIME_PASS placeholderWidget39971=true withdrawAllPlaceholder=true refillSameBankSlot=true withdrawX208=123 storeX208=23 drag214=true setbanktab103=true movementAfterBank=true aligned=true
+
+=== BankV4StateTest ===
+V4_BANK_STATE_PASS fixedInventory=28 fixedBank=352 nonStackableFood=20DistinctSlots noCompaction=true placeholders=true withdrawX=123 storeX=23 drag214=true
+
+=== BootstrapRuntimeIntegrationTest ===
+[session /127.0.0.1:56372] prelogin ok type=14 userHash5=7
+[session /127.0.0.1:56372] LoginFrame{type=16, revision=317, memoryFlag=0, checksums=[0, 0, 0, 0, 0, 0, 0, 0, 0], seeds=[16909060, 287454020, 19088743, -1985229329], config1=748878668, config2=307, username='local', password=<redacted>, deviceId='LOCAL-DEVICE', trailingClientId='LOCAL-CLIENT'}
+[session /127.0.0.1:56372] LOGIN_SUCCESS_LOCAL rank=0 flag=false at 2026-09-14T18:07:56.012384379Z
+[session /127.0.0.1:56372] CLIENT_PACKET seq=1 opcode=185 len=2 widget=912 expectedWidget=912
+[session /127.0.0.1:56372] V4_NPC_SPAWN opcode=65 npcIndex=1 definition=1799 name=Blood_fountain world=3090,3498 placement=LOCAL_DIAGNOSTIC_NOT_PRODUCTION_COORD
+[session /127.0.0.1:56372] M4_BOOTSTRAP_SENT packets=249,73,81 region=385,436 local=55,55 appearanceMask=0x10 appearanceBytes=59 status=M4_CERTIFIED
+[session /127.0.0.1:56372] M5_RUN_ENERGY_SENT opcode=110 value=100 schema=STATIC_EXACT_FIXED1
+[session /127.0.0.1:56372] M5_RUN_ORB_WIDGET_SENT opcode=126 widget=149 text="100%" schema=STATIC_EXACT_VARSHORT
+[session /127.0.0.1:56372] V41_EQUIPMENT_BOOTSTRAP weaponSlot=3 itemId=28526 item=Scythe_of_bloodrend appearanceValue=29038 stance=8057 profile=SCYTHE_VITUR_FAMILY inventoryRoot=3213 inventoryWidget=3214
+[session /127.0.0.1:56372] V41_ITEM_CATALOG loaded=28673 genericCommand=::item_<id>_[amount] source=items.json+SpawnPK_i.bin
+[session /127.0.0.1:56372] LOCAL_WORLD_TICK opcode=81 tick=1 world=3087,3495 queued=0 certification=M4_CERTIFIED M5=DISABLED
+LOCAL_V4_BOOTSTRAP_INTEGRATION_PASS bootstrap=249,73,81(Bloodrend),110,126,71,53,65(BloodFountainDiagnostic) energy=100 widget149=100% appearanceMask=0x10 idle81_ticks=2 cadence~600ms M4_CERTIFIED_BASELINE_RETAINED
+
+=== BootstrapStaticTest ===
+BOOTSTRAP_STATIC_ENCODING_PASS idle81=00-7F-F0 teleport81_bits=5 appearance=62 packet81_withAppearance=69 region73=4 packet249=3 runEnergy110=100 widget126_149=100%
+
+=== ClientPacketProbeTest ===
+[test] CLIENT_PACKET seq=1 opcode=185 len=2 widget=912 expectedWidget=912
+[test] CLIENT_PACKET seq=2 opcode=103 len=4 command="abc" newline=true
+[test] CLIENT_PACKET seq=3 opcode=0 len=0 count=1
+[test] CLIENT_PACKET seq=4 opcode=121 len=0 loadingAck=true
+[test] CLIENT_PACKET seq=5 opcode=3 len=1 focus=0 focused=false schema=STATIC_EXACT
+[test] CLIENT_PACKET seq=6 opcode=77 len=12 periodicTelemetry=true payload=24 65 E9 B0 24 63 40 26 5D D4 BC F6 schema=STATIC_EXACT_VARBYTE
+[test] CLIENT_PACKET seq=7 opcode=226 len=15 periodicTelemetry=true payload=E5 62 F0 1E 06 9C 02 3C A8 1B DA E5 FA F0 D9 schema=STATIC_EXACT_VARBYTE
+[test] CLIENT_PACKET seq=8 opcode=36 len=4 periodicMovementTelemetry=true payload=00 00 00 00 schema=STATIC_EXACT_FIXED4_BE
+[test] CLIENT_PACKET seq=9 opcode=164 len=5 movementFamily=true steps=1 startX=3087 startY=3495 run=0 deltas=[] decodedWaypoints=true
+[test] CLIENT_PACKET seq=10 opcode=185 len=2 widget=152 schema=STATIC_EXACT_ALL_CALLSITES
+[test] CLIENT_PACKET seq=11 opcode=132 len=6 objectAction=true objectId=26972 worldX=3095 worldY=3493 schema=STATIC_EXACT_FIXED6
+[test] CLIENT_PACKET seq=12 opcode=41 len=6 inventoryItemAction=true widget=3214 slot=0 itemId=4151 semantic=WIELD_EQUIP schema=STATIC_EXACT_FIXED6
+[test] CLIENT_PACKET seq=13 opcode=208 len=4 amount=123 amountEntry=true schema=STATIC_EXACT_FIXED4_BE
+[test] CLIENT_PACKET seq=14 opcode=214 len=7 containerDrag=true widget=5064 mode=0 source=0 destination=5 schema=STATIC_EXACT_FIXED7
+[test] CLIENT_PACKET seq=15 opcode=130 len=0 interfaceClose=true schema=STATIC_EXACT_FIXED0
+[test] CLIENT_PACKET seq=16 opcode=164 len=5 movementFamily=true steps=1 startX=3087 startY=3496 run=0 deltas=[] decodedWaypoints=true
+[test] CLIENT_PACKET seq=17 opcode=248 len=19 movementFamily=true steps=1 startX=3088 startY=3496 run=0 deltas=[] decodedWaypoints=true telemetry14=00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D minimapPath=ACCEPTABLE
+CLIENT_PACKET_PROBE_V41_PASS decoded=17 aligned=true opcode226Varbyte=true opcode36Fixed4=true walk164->widget185->object132->item41->amount208->drag214->close130->walk164->minimap248 telemetry14=preserved
+
+=== EquipmentAppearanceClientParityTest ===
+V41_EQUIPMENT_APPEARANCE_CLIENT_PARITY_PASS bloodrendItem=28526 weaponSlot=3 bloodrendAppearance=29038 stance=8057 maskOnlySwapItem=4151 maskOnlyAppearance=4663 login81=70 refresh81=68
+
+=== EquipmentRuntimeIntegrationTest ===
+[session /127.0.0.1:50042] prelogin ok type=14 userHash5=7
+[session /127.0.0.1:50042] LoginFrame{type=16, revision=317, memoryFlag=0, checksums=[0, 0, 0, 0, 0, 0, 0, 0, 0], seeds=[16909060, 287454020, 19088743, -1985229329], config1=748878668, config2=307, username='local', password=<redacted>, deviceId='LOCAL-DEVICE', trailingClientId='LOCAL-CLIENT'}
+[session /127.0.0.1:50042] LOGIN_SUCCESS_LOCAL rank=0 flag=false at 2026-09-14T18:07:59.092923744Z
+[session /127.0.0.1:50042] CLIENT_PACKET seq=1 opcode=185 len=2 widget=912 expectedWidget=912
+[session /127.0.0.1:50042] V4_NPC_SPAWN opcode=65 npcIndex=1 definition=1799 name=Blood_fountain world=3090,3498 placement=LOCAL_DIAGNOSTIC_NOT_PRODUCTION_COORD
+[session /127.0.0.1:50042] M4_BOOTSTRAP_SENT packets=249,73,81 region=385,436 local=55,55 appearanceMask=0x10 appearanceBytes=59 status=M4_CERTIFIED
+[session /127.0.0.1:50042] M5_RUN_ENERGY_SENT opcode=110 value=100 schema=STATIC_EXACT_FIXED1
+[session /127.0.0.1:50042] M5_RUN_ORB_WIDGET_SENT opcode=126 widget=149 text="100%" schema=STATIC_EXACT_VARSHORT
+[session /127.0.0.1:50042] V41_EQUIPMENT_BOOTSTRAP weaponSlot=3 itemId=28526 item=Scythe_of_bloodrend appearanceValue=29038 stance=8057 profile=SCYTHE_VITUR_FAMILY inventoryRoot=3213 inventoryWidget=3214
+[session /127.0.0.1:50042] V41_ITEM_CATALOG loaded=28673 genericCommand=::item_<id>_[amount] source=items.json+SpawnPK_i.bin
+[session /127.0.0.1:50042] M5_AUTHORITY_ENABLED world=3087,3495 tickMs=600 collision=CLIENT_SUBMITTED_PATH regionPolicy=CURRENT_104x104 runEnergy=100 runToggleWidget=152 config173=ACK minimap248=ACCEPT_PATH_CORE
+[session /127.0.0.1:50042] CLIENT_PACKET seq=2 opcode=132 len=6 objectAction=true objectId=26972 worldX=3088 worldY=3495 schema=STATIC_EXACT_FIXED6
+[session /127.0.0.1:50042] V41_BANK_OPEN ObjectInteraction{opcode=132, objectId=26972, worldX=3088, worldY=3495} authorityWorld=3087,3495 distance=1 root=5292 bankContainer=5382 bankInventoryRoot=5063 inventoryContainer=5064 bankOccupied=7/352 inventoryOccupied=0/28 placeholders=false action=OPENED_ADJACENT_IMMEDIATE
+[session /127.0.0.1:50042] CLIENT_PACKET seq=3 opcode=145 len=6 itemContainerAction=true widget=5382 slot=5 itemId=4151 semantic=WITHDRAW_1 schema=STATIC_EXACT
+[session /127.0.0.1:50042] V4_BANK_ITEM_ACTION ItemContainerAction{opcode=145, widgetId=5382, slot=5, itemId=4151, semantic=WITHDRAW_1} result=WITHDRAW_OK amount=1 requested=1 stackable=false bankOccupied=6 inventoryOccupied=1 decoderAligned=true
+[session /127.0.0.1:50042] CLIENT_PACKET seq=4 opcode=130 len=0 interfaceClose=true schema=STATIC_EXACT_FIXED0
+[session /127.0.0.1:50042] V4_INTERFACE_CLOSE opcode=130 bankWasOpen=true bankOpen=false decoderAligned=true
+[session /127.0.0.1:50042] CLIENT_PACKET seq=5 opcode=41 len=6 inventoryItemAction=true widget=3214 slot=0 itemId=4151 semantic=WIELD_EQUIP schema=STATIC_EXACT_FIXED6
+[session /127.0.0.1:50042] V4_EQUIPMENT_ITEM_ACTION ItemContainerAction{opcode=41, widgetId=3214, slot=0, itemId=4151, semantic=WIELD_EQUIP} result=EQUIP_OK weapon=4151 previousWeapon=28526 inventorySlot=0 weapon=4151 appearanceRefresh=true decoderAligned=true
+[session /127.0.0.1:50042] CLIENT_PACKET seq=6 opcode=164 len=5 movementFamily=true steps=1 startX=3088 startY=3495 run=0 deltas=[] decodedWaypoints=true
+[session /127.0.0.1:50042] M5_MOVEMENT_REQUEST MovementRequest{opcode=164, run=false, waypoints=[3088,3495]} action=ACCEPTED queued=1 final=3088,3495 packetRun=0 persistentRun=0 effectiveRun=0 authorityWorld=3087,3495
+[session /127.0.0.1:50042] M5_AUTHORITATIVE_TICK mode=WALK tiles=1 from=3087,3495 to=3088,3495 dir=4 remaining=0 movementTick=1
+[session /127.0.0.1:50042] LOCAL_WORLD_TICK opcode=81 tick=1 world=3088,3495 queued=0 certification=M4_CERTIFIED M5=ACTIVE
+V41_EQUIPMENT_RUNTIME_PASS loginWeapon=28526 withdrawWhip4151 bankSlot5->inventorySlot0 opcode41Wield=true oldBloodrendReturnsSameSlot=true appearance81Weapon4151=true movementAfterEquip=true aligned=true
+
+=== HandshakeIntegrationTest ===
+[session /127.0.0.1:53608] prelogin ok type=14 userHash5=7
+[session /127.0.0.1:53608] LoginFrame{type=16, revision=317, memoryFlag=0, checksums=[0, 0, 0, 0, 0, 0, 0, 0, 0], seeds=[16909060, 287454020, 19088743, -1985229329], config1=748878668, config2=307, username='local', password=<redacted>, deviceId='LOCAL-DEVICE', trailingClientId='LOCAL-CLIENT'}
+[session /127.0.0.1:53608] LOGIN_SUCCESS_LOCAL rank=0 flag=false at 2026-09-14T18:08:00.466152206Z
+[session /127.0.0.1:53608] CLIENT_PACKET seq=1 opcode=185 len=2 widget=912 expectedWidget=912
+LOCAL_HANDSHAKE_INTEGRATION_PASS prelogin+seed+login+success+isaac185/widget912
+
+=== InteractionDistanceTest ===
+V41_INTERACTION_DISTANCE_PASS far=8 adjacent=1 sameTile=0 bankOpenRadius=1
+
+=== InventorySidebarClientParityTest ===
+V31_INVENTORY_SIDEBAR_CLIENT_PARITY_PASS root71=3213 tab71=3 selected106=3 bytes=3+1
+
+=== ItemCatalogTest ===
+V41_ITEM_CATALOG_PASS count=28673 bloodrend=28526 wield=true scytheFamily=true genericInventoryIds=28673
+
+=== ItemSpawnTest ===
+V41_GENERIC_ITEM_SPAWN_PASS catalog=28673 anyKnownId=true bloodrend28526=true unknownRejected=true
+
+=== ItemCommandRuntimeIntegrationTest ===
+[session /127.0.0.1:60296] prelogin ok type=14 userHash5=7
+[session /127.0.0.1:60296] LoginFrame{type=16, revision=317, memoryFlag=0, checksums=[0, 0, 0, 0, 0, 0, 0, 0, 0], seeds=[16909060, 287454020, 19088743, -1985229329], config1=748878668, config2=307, username='local', password=<redacted>, deviceId='LOCAL-DEVICE', trailingClientId='LOCAL-CLIENT'}
+[session /127.0.0.1:60296] LOGIN_SUCCESS_LOCAL rank=0 flag=false at 2026-09-14T18:08:02.516982399Z
+[session /127.0.0.1:60296] CLIENT_PACKET seq=1 opcode=185 len=2 widget=912 expectedWidget=912
+[session /127.0.0.1:60296] V4_NPC_SPAWN opcode=65 npcIndex=1 definition=1799 name=Blood_fountain world=3090,3498 placement=LOCAL_DIAGNOSTIC_NOT_PRODUCTION_COORD
+[session /127.0.0.1:60296] M4_BOOTSTRAP_SENT packets=249,73,81 region=385,436 local=55,55 appearanceMask=0x10 appearanceBytes=59 status=M4_CERTIFIED
+[session /127.0.0.1:60296] M5_RUN_ENERGY_SENT opcode=110 value=100 schema=STATIC_EXACT_FIXED1
+[session /127.0.0.1:60296] M5_RUN_ORB_WIDGET_SENT opcode=126 widget=149 text="100%" schema=STATIC_EXACT_VARSHORT
+[session /127.0.0.1:60296] V41_EQUIPMENT_BOOTSTRAP weaponSlot=3 itemId=28526 item=Scythe_of_bloodrend appearanceValue=29038 stance=8057 profile=SCYTHE_VITUR_FAMILY inventoryRoot=3213 inventoryWidget=3214
+[session /127.0.0.1:60296] V41_ITEM_CATALOG loaded=28673 genericCommand=::item_<id>_[amount] source=items.json+SpawnPK_i.bin
+[session /127.0.0.1:60296] M5_AUTHORITY_ENABLED world=3087,3495 tickMs=600 collision=CLIENT_SUBMITTED_PATH regionPolicy=CURRENT_104x104 runEnergy=100 runToggleWidget=152 config173=ACK minimap248=ACCEPT_PATH_CORE
+[session /127.0.0.1:60296] CLIENT_PACKET seq=2 opcode=103 len=13 command="item 28536 1" newline=true
+[session /127.0.0.1:60296] V41_ITEM_COMMAND command=item 28536 1 result=ITEM_SPAWN_OK id=28536 name=Osmumten's_fang requested=1 moved=1 stackable=false stackabilityEvidence=UNKNOWN_DEFAULT_NONSTACKABLE inventoryOccupied=1/28 decoderAligned=true
+[session /127.0.0.1:60296] CLIENT_PACKET seq=3 opcode=164 len=5 movementFamily=true steps=1 startX=3088 startY=3495 run=0 deltas=[] decodedWaypoints=true
+[session /127.0.0.1:60296] M5_MOVEMENT_REQUEST MovementRequest{opcode=164, run=false, waypoints=[3088,3495]} action=ACCEPTED queued=1 final=3088,3495 packetRun=0 persistentRun=0 effectiveRun=0 authorityWorld=3087,3495
+[session /127.0.0.1:60296] M5_AUTHORITATIVE_TICK mode=WALK tiles=1 from=3087,3495 to=3088,3495 dir=4 remaining=0 movementTick=1
+[session /127.0.0.1:60296] LOCAL_WORLD_TICK opcode=81 tick=1 world=3088,3495 queued=0 certification=M4_CERTIFIED M5=ACTIVE
+V41_ITEM_COMMAND_RUNTIME_PASS command=item_28536_1 inventory3214=true movementAfterSpawn=true aligned=true
+
+=== MovementPacket81ClientParityTest ===
+M5_PACKET81_CLIENT_PARITY_PASS bootstrap=55,55 walk=56,55->56,56 run=57,54
+
+=== MovementRuntimeIntegrationTest ===
+[session /127.0.0.1:48634] prelogin ok type=14 userHash5=7
+[session /127.0.0.1:48634] LoginFrame{type=16, revision=317, memoryFlag=0, checksums=[0, 0, 0, 0, 0, 0, 0, 0, 0], seeds=[16909060, 287454020, 19088743, -1985229329], config1=748878668, config2=307, username='local', password=<redacted>, deviceId='LOCAL-DEVICE', trailingClientId='LOCAL-CLIENT'}
+[session /127.0.0.1:48634] LOGIN_SUCCESS_LOCAL rank=0 flag=false at 2026-09-14T18:08:04.587152197Z
+[session /127.0.0.1:48634] CLIENT_PACKET seq=1 opcode=185 len=2 widget=912 expectedWidget=912
+[session /127.0.0.1:48634] V4_NPC_SPAWN opcode=65 npcIndex=1 definition=1799 name=Blood_fountain world=3090,3498 placement=LOCAL_DIAGNOSTIC_NOT_PRODUCTION_COORD
+[session /127.0.0.1:48634] M4_BOOTSTRAP_SENT packets=249,73,81 region=385,436 local=55,55 appearanceMask=0x10 appearanceBytes=59 status=M4_CERTIFIED
+[session /127.0.0.1:48634] M5_RUN_ENERGY_SENT opcode=110 value=100 schema=STATIC_EXACT_FIXED1
+[session /127.0.0.1:48634] M5_RUN_ORB_WIDGET_SENT opcode=126 widget=149 text="100%" schema=STATIC_EXACT_VARSHORT
+[session /127.0.0.1:48634] V41_EQUIPMENT_BOOTSTRAP weaponSlot=3 itemId=28526 item=Scythe_of_bloodrend appearanceValue=29038 stance=8057 profile=SCYTHE_VITUR_FAMILY inventoryRoot=3213 inventoryWidget=3214
+[session /127.0.0.1:48634] V41_ITEM_CATALOG loaded=28673 genericCommand=::item_<id>_[amount] source=items.json+SpawnPK_i.bin
+[session /127.0.0.1:48634] M5_AUTHORITY_ENABLED world=3087,3495 tickMs=600 collision=CLIENT_SUBMITTED_PATH regionPolicy=CURRENT_104x104 runEnergy=100 runToggleWidget=152 config173=ACK minimap248=ACCEPT_PATH_CORE
+[session /127.0.0.1:48634] CLIENT_PACKET seq=2 opcode=164 len=5 movementFamily=true steps=1 startX=3088 startY=3495 run=0 deltas=[] decodedWaypoints=true
+[session /127.0.0.1:48634] M5_MOVEMENT_REQUEST MovementRequest{opcode=164, run=false, waypoints=[3088,3495]} action=ACCEPTED queued=1 final=3088,3495 packetRun=0 persistentRun=0 effectiveRun=0 authorityWorld=3087,3495
+[session /127.0.0.1:48634] M5_AUTHORITATIVE_TICK mode=WALK tiles=1 from=3087,3495 to=3088,3495 dir=4 remaining=0 movementTick=1
+[session /127.0.0.1:48634] LOCAL_WORLD_TICK opcode=81 tick=1 world=3088,3495 queued=0 certification=M4_CERTIFIED M5=ACTIVE
+[session /127.0.0.1:48634] CLIENT_PACKET seq=3 opcode=185 len=2 widget=152 schema=STATIC_EXACT_ALL_CALLSITES
+[session /127.0.0.1:48634] M5_RUN_TOGGLE widget=152 enabled=true opcode=36 setting=173 value=1 authority=PERSISTENT_SERVER_TOGGLE
+[session /127.0.0.1:48634] CLIENT_PACKET seq=4 opcode=164 len=5 movementFamily=true steps=1 startX=3090 startY=3495 run=0 deltas=[] decodedWaypoints=true
+[session /127.0.0.1:48634] M5_MOVEMENT_REQUEST MovementRequest{opcode=164, run=false, waypoints=[3090,3495]} action=ACCEPTED queued=2 final=3090,3495 packetRun=0 persistentRun=1 effectiveRun=1 authorityWorld=3088,3495
+[session /127.0.0.1:48634] M5_AUTHORITATIVE_TICK mode=RUN tiles=2 from=3088,3495 to=3090,3495 dirs=4,4 remaining=0 movementTick=2
+[session /127.0.0.1:48634] CLIENT_PACKET seq=5 opcode=185 len=2 widget=152 schema=STATIC_EXACT_ALL_CALLSITES
+[session /127.0.0.1:48634] M5_RUN_TOGGLE widget=152 enabled=false opcode=36 setting=173 value=0 authority=PERSISTENT_SERVER_TOGGLE
+[session /127.0.0.1:48634] CLIENT_PACKET seq=6 opcode=164 len=5 movementFamily=true steps=1 startX=3090 startY=3496 run=0 deltas=[] decodedWaypoints=true
+[session /127.0.0.1:48634] M5_MOVEMENT_REQUEST MovementRequest{opcode=164, run=false, waypoints=[3090,3496]} action=ACCEPTED queued=1 final=3090,3496 packetRun=0 persistentRun=0 effectiveRun=0 authorityWorld=3090,3495
+[session /127.0.0.1:48634] M5_AUTHORITATIVE_TICK mode=WALK tiles=1 from=3090,3495 to=3090,3496 dir=1 remaining=0 movementTick=3
+[session /127.0.0.1:48634] CLIENT_PACKET seq=7 opcode=164 len=5 movementFamily=true steps=1 startX=3092 startY=3496 run=1 deltas=[] decodedWaypoints=true
+[session /127.0.0.1:48634] M5_MOVEMENT_REQUEST MovementRequest{opcode=164, run=true, waypoints=[3092,3496]} action=ACCEPTED queued=2 final=3092,3496 packetRun=1 persistentRun=0 effectiveRun=1 authorityWorld=3090,3496
+[session /127.0.0.1:48634] M5_AUTHORITATIVE_TICK mode=RUN tiles=2 from=3090,3496 to=3092,3496 dirs=4,4 remaining=0 movementTick=4
+[session /127.0.0.1:48634] CLIENT_PACKET seq=8 opcode=132 len=6 objectAction=true objectId=26972 worldX=3093 worldY=3496 schema=STATIC_EXACT_FIXED6
+[session /127.0.0.1:48634] V41_BANK_OPEN ObjectInteraction{opcode=132, objectId=26972, worldX=3093, worldY=3496} authorityWorld=3092,3496 distance=1 root=5292 bankContainer=5382 bankInventoryRoot=5063 inventoryContainer=5064 bankOccupied=7/352 inventoryOccupied=0/28 placeholders=false action=OPENED_ADJACENT_IMMEDIATE
+[session /127.0.0.1:48634] CLIENT_PACKET seq=9 opcode=164 len=5 movementFamily=true steps=1 startX=3093 startY=3496 run=0 deltas=[] decodedWaypoints=true
+[session /127.0.0.1:48634] M5_MOVEMENT_REQUEST MovementRequest{opcode=164, run=false, waypoints=[3093,3496]} action=ACCEPTED queued=1 final=3093,3496 packetRun=0 persistentRun=0 effectiveRun=0 authorityWorld=3092,3496
+[session /127.0.0.1:48634] M5_AUTHORITATIVE_TICK mode=WALK tiles=1 from=3092,3496 to=3093,3496 dir=4 remaining=0 movementTick=5
+[session /127.0.0.1:48634] CLIENT_PACKET seq=10 opcode=248 len=19 movementFamily=true steps=1 startX=3093 startY=3497 run=0 deltas=[] decodedWaypoints=true telemetry14=A0 A1 A2 A3 A4 A5 A6 A7 A8 A9 AA AB AC AD minimapPath=ACCEPTABLE
+[session /127.0.0.1:48634] M5_MOVEMENT_REQUEST MovementRequest{opcode=248, run=false, waypoints=[3093,3497]} action=ACCEPTED queued=1 final=3093,3497 packetRun=0 persistentRun=0 effectiveRun=0 authorityWorld=3093,3496
+[session /127.0.0.1:48634] M5_AUTHORITATIVE_TICK mode=WALK tiles=1 from=3093,3496 to=3093,3497 dir=1 remaining=0 movementTick=6
+M5_V41_AUTHORITATIVE_MOVEMENT_INTEGRATION_PASS energy110=100 widget126_149=100% widget152_toggle=config173 object132->248+53+53->movement aligned=true persistentRun+ctrlRun+minimap248
+
+=== MovementStateTest ===
+MOVEMENT_STATE_V3_PASS walkExpanded=6 ctrlRunTiles=2 persistentRunTiles=2 final=3095,3493
+
+=== NpcPacket65ClientParityTest ===
+V4_NPC65_CLIENT_PARITY_PASS npcIndex=1 definition=1799 model=32999 local=58,58 world=3090,3498 payload=7 consumed=7
+
+=== Packet81ClientDecoderParityTest ===
+PACKET81_FULL_CLIENT_DECODER_PARITY_PASS payload=69 consumed=69 displayName=localtest plane=0
+
+=== RunOrbWidgetClientParityTest ===
+RUN_ORB_WIDGET126_CLIENT_PARITY_PASS widget=149 text=100% bytes=7 consumed=7
+
+=== RunToggleConfigClientParityTest ===
+RUN_TOGGLE_CONFIG36_CLIENT_PARITY_PASS setting=173 on=1 off=0 bytes=3
+
+=== IsaacParityTest ===
+ISAAC_PARITY_WITH_CLIENT_RS_Q_A_PASS outputs=6144
+
+V41_OFFLINE_VALIDATION_ALL_PASS

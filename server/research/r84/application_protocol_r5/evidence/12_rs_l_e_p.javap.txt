@@ -1,0 +1,93 @@
+class rs.l.e.p extends rs.q.a.a.a {
+  rs.l.e.p();
+    Code:
+       0: aload_0
+       1: invokespecial #20                 // Method rs/q/a/a/a."<init>":()V
+       4: return
+
+  public void a();
+    Code:
+       0: aload_0
+       1: invokevirtual #18                 // Method e:()I
+       4: istore_1
+       5: iload_1
+       6: ifne          137
+       9: aload_0
+      10: invokevirtual #18                 // Method e:()I
+      13: istore_2
+      14: aload_0
+      15: invokevirtual #18                 // Method e:()I
+      18: istore_3
+      19: aload_0
+      20: invokevirtual #18                 // Method e:()I
+      23: istore        4
+      25: aload_0
+      26: invokevirtual #18                 // Method e:()I
+      29: istore        5
+      31: new           #2                  // class java/awt/Color
+      34: dup
+      35: iload_2
+      36: iload_3
+      37: iload         4
+      39: iload         5
+      41: invokespecial #13                 // Method java/awt/Color."<init>":(IIII)V
+      44: astore        6
+      46: aload_0
+      47: invokevirtual #18                 // Method e:()I
+      50: istore_2
+      51: aload_0
+      52: invokevirtual #18                 // Method e:()I
+      55: istore_3
+      56: aload_0
+      57: invokevirtual #18                 // Method e:()I
+      60: istore        4
+      62: aload_0
+      63: invokevirtual #18                 // Method e:()I
+      66: istore        5
+      68: new           #2                  // class java/awt/Color
+      71: dup
+      72: iload_2
+      73: iload_3
+      74: iload         4
+      76: iload         5
+      78: invokespecial #13                 // Method java/awt/Color."<init>":(IIII)V
+      81: astore        7
+      83: aload_0
+      84: invokevirtual #17                 // Method c:()I
+      87: istore        8
+      89: aload_0
+      90: invokevirtual #17                 // Method c:()I
+      93: istore        9
+      95: getstatic     #11                 // Field rs/Client.aa:Lrs/l/e/o;
+      98: iload         8
+     100: iload         9
+     102: invokedynamic #21,  0             // InvokeDynamic #0:makeConcatWithConstants:(II)Ljava/lang/String;
+     107: iload         8
+     109: iload         9
+     111: aload         6
+     113: aload         7
+     115: invokevirtual #15                 // Method rs/l/e/o.a:(Ljava/lang/String;IILjava/awt/Color;Ljava/awt/Color;)Lrs/l/e/n;
+     118: astore        10
+     120: aload_0
+     121: invokevirtual #18                 // Method e:()I
+     124: iconst_1
+     125: if_icmpne     137
+     128: aload         10
+     130: aload_0
+     131: invokevirtual #19                 // Method h:()Ljava/lang/String;
+     134: putfield      #12                 // Field rs/l/e/n.d:Ljava/lang/String;
+     137: iload_1
+     138: iconst_1
+     139: if_icmpne     160
+     142: aload_0
+     143: invokevirtual #17                 // Method c:()I
+     146: istore_2
+     147: aload_0
+     148: invokevirtual #17                 // Method c:()I
+     151: istore_3
+     152: getstatic     #11                 // Field rs/Client.aa:Lrs/l/e/o;
+     155: iload_2
+     156: iload_3
+     157: invokevirtual #16                 // Method rs/l/e/o.b:(II)V
+     160: return
+}

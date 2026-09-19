@@ -1,0 +1,12 @@
+  public void a();
+    Code:
+       0: aload_0
+       1: invokevirtual #7                  // Method c:()I
+       4: istore_1
+       5: aload_0
+       6: getfield      #4                  // Field c:Lrs/Client;
+       9: iload_1
+      10: iconst_1
+      11: invokevirtual #5                  // Method rs/Client.a:(IZ)V
+      14: return
+}

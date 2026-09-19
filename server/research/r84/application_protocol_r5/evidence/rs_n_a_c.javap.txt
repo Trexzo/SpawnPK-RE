@@ -1,0 +1,165 @@
+public class rs.n.a.c extends rs.n.e {
+  public rs.n.a.c(int);
+    Code:
+       0: aload_0
+       1: invokespecial #30                 // Method rs/n/e."<init>":()V
+       4: aload_0
+       5: iconst_5
+       6: anewarray     #2                  // class java/lang/String
+       9: putfield      #8                  // Field W:[Ljava/lang/String;
+      12: aload_0
+      13: bipush        20
+      15: newarray       int
+      17: putfield      #6                  // Field K:[I
+      20: aload_0
+      21: bipush        30
+      23: newarray       int
+      25: putfield      #18                 // Field ax:[I
+      28: aload_0
+      29: bipush        30
+      31: newarray       int
+      33: putfield      #19                 // Field az:[I
+      36: aload_0
+      37: bipush        20
+      39: newarray       int
+      41: putfield      #16                 // Field as:[I
+      44: aload_0
+      45: iconst_0
+      46: newarray       int
+      48: putfield      #13                 // Field al:[I
+      51: aload_0
+      52: iconst_0
+      53: newarray       int
+      55: putfield      #14                 // Field am:[I
+      58: aload_0
+      59: iconst_0
+      60: newarray       int
+      62: putfield      #20                 // Field bc:[I
+      65: aload_0
+      66: iconst_0
+      67: putfield      #21                 // Field t:Z
+      70: aload_0
+      71: bipush        24
+      73: putfield      #11                 // Field ac:I
+      76: aload_0
+      77: bipush        24
+      79: putfield      #15                 // Field ap:I
+      82: aload_0
+      83: iconst_5
+      84: putfield      #10                 // Field aR:I
+      87: aload_0
+      88: bipush        6
+      90: putfield      #7                  // Field P:I
+      93: aload_0
+      94: sipush        5292
+      97: putfield      #12                 // Field ah:I
+     100: aload_0
+     101: iload_1
+     102: putfield      #17                 // Field aw:I
+     105: aload_0
+     106: iconst_2
+     107: putfield      #9                  // Field aI:I
+     110: getstatic     #5                  // Field H:[Lrs/n/e;
+     113: iload_1
+     114: aload_0
+     115: aastore
+     116: return
+
+  public static rs.n.a.c g(int, int);
+    Code:
+       0: new           #3                  // class rs/n/a/c
+       3: dup
+       4: iload_0
+       5: invokespecial #29                 // Method "<init>":(I)V
+       8: astore_2
+       9: getstatic     #5                  // Field H:[Lrs/n/e;
+      12: iload_0
+      13: aaload
+      14: iload_1
+      15: newarray       int
+      17: putfield      #27                 // Field rs/n/e.az:[I
+      20: getstatic     #5                  // Field H:[Lrs/n/e;
+      23: iload_0
+      24: aaload
+      25: iload_1
+      26: newarray       int
+      28: putfield      #26                 // Field rs/n/e.ax:[I
+      31: getstatic     #5                  // Field H:[Lrs/n/e;
+      34: iload_0
+      35: aaload
+      36: iload_1
+      37: newarray       int
+      39: putfield      #22                 // Field rs/n/e.K:[I
+      42: getstatic     #5                  // Field H:[Lrs/n/e;
+      45: iload_0
+      46: aaload
+      47: iload_1
+      48: newarray       int
+      50: putfield      #25                 // Field rs/n/e.as:[I
+      53: getstatic     #5                  // Field H:[Lrs/n/e;
+      56: iload_0
+      57: aaload
+      58: iconst_5
+      59: putfield      #23                 // Field rs/n/e.P:I
+      62: getstatic     #5                  // Field H:[Lrs/n/e;
+      65: iload_0
+      66: aaload
+      67: getstatic     #5                  // Field H:[Lrs/n/e;
+      70: iload_0
+      71: aaload
+      72: getfield      #23                 // Field rs/n/e.P:I
+      75: i2d
+      76: invokestatic  #28                 // Method java/lang/Math.ceil:(D)D
+      79: d2i
+      80: putfield      #24                 // Field rs/n/e.aR:I
+      83: aload_2
+      84: areturn
+
+  public rs.n.a.c a(int);
+    Code:
+       0: aload_0
+       1: iload_1
+       2: putfield      #7                  // Field P:I
+       5: aload_0
+       6: aload_0
+       7: getfield      #19                 // Field az:[I
+      10: arraylength
+      11: iload_1
+      12: idiv
+      13: i2d
+      14: invokestatic  #28                 // Method java/lang/Math.ceil:(D)D
+      17: d2i
+      18: putfield      #10                 // Field aR:I
+      21: getstatic     #5                  // Field H:[Lrs/n/e;
+      24: aload_0
+      25: getfield      #17                 // Field aw:I
+      28: aaload
+      29: iload_1
+      30: putfield      #23                 // Field rs/n/e.P:I
+      33: getstatic     #5                  // Field H:[Lrs/n/e;
+      36: aload_0
+      37: getfield      #17                 // Field aw:I
+      40: aaload
+      41: aload_0
+      42: getfield      #19                 // Field az:[I
+      45: arraylength
+      46: iload_1
+      47: idiv
+      48: i2d
+      49: invokestatic  #28                 // Method java/lang/Math.ceil:(D)D
+      52: d2i
+      53: putfield      #24                 // Field rs/n/e.aR:I
+      56: aload_0
+      57: areturn
+
+  public rs.n.a.c h(int, int);
+    Code:
+       0: aload_0
+       1: iload_1
+       2: putfield      #11                 // Field ac:I
+       5: aload_0
+       6: iload_2
+       7: putfield      #15                 // Field ap:I
+      10: aload_0
+      11: areturn
+}

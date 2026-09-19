@@ -1,0 +1,7 @@
+widget_id,label,client_outbound_contract
+59853,55x2 (P1 host),Generic interface-button menu action 315 -> C2S opcode 185 carrying widget id
+59854,55x2 (P2 host),Generic interface-button menu action 315 -> C2S opcode 185 carrying widget id
+59855,BJ (P1 host),Generic interface-button menu action 315 -> C2S opcode 185 carrying widget id
+59856,BJ (P2 host),Generic interface-button menu action 315 -> C2S opcode 185 carrying widget id
+59857,Dice duel,Generic interface-button menu action 315 -> C2S opcode 185 carrying widget id
+59858,Flower poker,Generic interface-button menu action 315 -> C2S opcode 185 carrying widget id

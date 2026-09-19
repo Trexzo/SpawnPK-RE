@@ -1,0 +1,22 @@
+SPAWNPK LOCALLAB V5.2 PATCH OVERLAY CERTIFICATION
+
+Baseline overlay used: released v5.1.1 LocalLab tree.
+Result: V52_PATCH_OVERLAY_FROM_V511_PASS
+Payload files at certification point: 143
+Mismatches after overlay: 0
+
+Preserved client SHA-256 values:
+original client(6).jar      6232bae206846a4ba8d09766a2dee886b69016066a3f50f83b201bf705f93662
+client-localhost.jar        aabca3605421337e81ab96da0de5669b94b2db8471c0157ad3f7ac9a84d031a2
+client-airgap.jar           981eb3607802fcd892fd465d62a6f1ba9d8afffcbfd410045b5cc170ae06e71e
+
+v5.2 server SHA-256:
+38cf25de6001a1b70b41fd6b9bb30aac44087b5f6fa79807eb97e450dc3cbd05
+
+Additional bytecode verification:
+- Java source compiles with javac --release 11.
+- java -Xverify:all passes V52 multi-slot exact-client appearance parity.
+- java -Xverify:all passes V52 multi-slot loopback runtime integration.
+- complete Java test corpus passes: V52_ALL_TESTS_PASS count=31.
+
+Client JARs are not patched by v5.2.

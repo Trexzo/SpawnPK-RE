@@ -1,0 +1,4 @@
+LOCAL_ONLY_STATIC_GUARDS_PASS
+server_has_no_spawnpk_game_host_literals=true
+client_endpoint_class_default_host=127.0.0.1
+client_original_untouched=true

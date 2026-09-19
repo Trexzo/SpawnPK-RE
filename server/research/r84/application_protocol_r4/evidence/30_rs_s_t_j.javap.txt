@@ -1,0 +1,71 @@
+class rs.s.t.j extends rs.q.a.a.a {
+  private static final int d;
+
+  private static final int e;
+
+  rs.s.t.j();
+    Code:
+       0: aload_0
+       1: invokespecial #18                 // Method rs/q/a/a/a."<init>":()V
+       4: return
+
+  public void a();
+    Code:
+       0: aload_0
+       1: invokevirtual #32                 // Method e:()I
+       4: istore_1
+       5: iload_1
+       6: lookupswitch  { // 2
+                     1: 32
+                     2: 121
+               default: 137
+          }
+      32: new           #9                  // class rs/s/t/c
+      35: dup
+      36: invokespecial #20                 // Method rs/s/t/c."<init>":()V
+      39: astore_2
+      40: aload_2
+      41: aload_0
+      42: invokevirtual #33                 // Method g:()I
+      45: invokevirtual #22                 // Method rs/s/t/c.b:(I)V
+      48: aload_2
+      49: aload_0
+      50: invokevirtual #33                 // Method g:()I
+      53: invokevirtual #25                 // Method rs/s/t/c.d:(I)V
+      56: aload_2
+      57: aload_0
+      58: invokevirtual #33                 // Method g:()I
+      61: invokevirtual #23                 // Method rs/s/t/c.c:(I)V
+      64: aload_2
+      65: aload_0
+      66: invokevirtual #33                 // Method g:()I
+      69: invokevirtual #26                 // Method rs/s/t/c.e:(I)V
+      72: aload_2
+      73: invokestatic  #19                 // Method rs/s/t/b.values:()[Lrs/s/t/b;
+      76: aload_0
+      77: invokevirtual #32                 // Method e:()I
+      80: aaload
+      81: invokevirtual #21                 // Method rs/s/t/c.a:(Lrs/s/t/b;)V
+      84: aload_2
+      85: aload_2
+      86: invokevirtual #27                 // Method rs/s/t/c.f:()I
+      89: invokestatic  #17                 // Method rs/d/k.f:(I)Lrs/d/k;
+      92: getfield      #14                 // Field rs/d/k.w:Ljava/lang/String;
+      95: ldc           #4                  // String @gre@
+      97: ldc           #3                  // String
+      99: invokevirtual #16                 // Method java/lang/String.replace:(Ljava/lang/CharSequence;Ljava/lang/CharSequence;)Ljava/lang/String;
+     102: invokevirtual #24                 // Method rs/s/t/c.c:(Ljava/lang/String;)V
+     105: getstatic     #15                 // Field rs/s/t/i.c:Lrs/s/t/i;
+     108: invokevirtual #31                 // Method rs/s/t/i.f:()Lrs/s/t/h;
+     111: invokevirtual #30                 // Method rs/s/t/h.e:()Lrs/s/t/g;
+     114: aload_2
+     115: invokevirtual #28                 // Method rs/s/t/g.a:(Lrs/s/t/c;)V
+     118: goto          137
+     121: getstatic     #15                 // Field rs/s/t/i.c:Lrs/s/t/i;
+     124: invokevirtual #31                 // Method rs/s/t/i.f:()Lrs/s/t/h;
+     127: invokevirtual #30                 // Method rs/s/t/h.e:()Lrs/s/t/g;
+     130: aload_0
+     131: invokevirtual #33                 // Method g:()I
+     134: invokevirtual #29                 // Method rs/s/t/g.b:(I)V
+     137: return
+}

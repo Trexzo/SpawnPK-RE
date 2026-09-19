@@ -1,0 +1,16 @@
+token,match,argument_shape,exact_client_effect
+clear_exchange,equalsIgnoreCase,no args,Clear rs.n.c.ae.c exchange list
+add_exchange,startsWith,"space then ""int,int""","Parse two ints and append Integer[]{a,b} to rs.n.c.ae.c"
+update_exchange,equalsIgnoreCase,no args,Call rs.n.c.ae.h() rebuild/update
+clearsellmarket,equalsIgnoreCase,no args,Call rs.n.c.au.h()
+clearbuymarket,equalsIgnoreCase,no args,Call rs.n.c.at.h(); set widget 65803 scroll V=0
+setsellitem,startsWith,"setsellitem,<itemId>","Parse itemId; rs.n.e.c(25342,itemId,32)"
+clearinvoverlay,equalsIgnoreCase,no args,If gp != -1 set gp=-1 and mark interface redraw
+cleardialog,equalsIgnoreCase,no args,gb=false; fN=0; mark interface redraw
+togglebh,equalsIgnoreCase,no args,Toggle rs.f.a.au; persist settings; print enabled/disabled client message
+clearcc,startsWith,clearcc <widgetStart>,Clamp start >=18144; clear text/actions across client clan-chat widget ranges
+LOGIN_REWARD_IDX,startsWith,LOGIN_REWARD_IDX <int>,Parse int into Client.P
+DISABLE_QUICK_PRAYERS,startsWith,prefix only,Set quick-prayer client state cp=false; refresh prayer UI
+ITEM_GUIDE_SELECTED_,startsWith,ITEM_GUIDE_SELECTED_<widgetId>,"Strip prefix, parse decimal widgetId; remove prior <img=24> marker from 47505..47703 and prepend marker to selected row"
+ITEM_GUIDE_BONUS_WIDGET,startsWith,ITEM_GUIDE_BONUS_WIDGET <ON|other>,"split on space; ON calls Item Library bonus-widget visibility true, any other token false"
+WIKI_SELECTED_,startsWith,WIKI_SELECTED_<widgetId>,"Strip prefix, parse decimal widgetId; remove prior <img=39> marker from 46506..46605 and prepend marker to selected row"

@@ -1,0 +1,606 @@
+item_id	name	classification	stackable_explicit_current_i_bin	stackable_raw_cache_decode	effective_stackability_authority	note	resolvedFamilyName	projectileId	pullbackOrActorGfx	presentationAuthority	presentationEvidence
+2	Cannonball	CANNONBALL		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+39	Bronze arrowtips	ARROW		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+40	Iron arrowtips	ARROW		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+41	Steel arrowtips	ARROW		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+42	Mithril arrowtips	ARROW		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+43	Adamant arrowtips	ARROW		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+44	Rune arrowtips	ARROW		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+45	Opal bolt tips	BOLT		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+46	Pearl bolt tips	BOLT		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+47	Barb bolttips	BOLT		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+52	Arrow shaft	ARROW		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+53	Headless arrow	ARROW		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+78	Ice arrows	ARROW		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+490	Rune pick head	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+491	Rune pick head	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+520	Rune axe head	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+521	Rune axe head	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+554	Fire rune	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+555	Water rune	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+556	Air rune	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+557	Earth rune	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+558	Mind rune	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+559	Body rune	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+560	Death rune	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+561	Nature rune	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+562	Chaos rune	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+563	Law rune	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+564	Cosmic rune	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+565	Blood rune	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+566	Soul rune	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+598	Bronze fire arrows	ARROW		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+687	Broken arrow	ARROW		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+800	Bronze thrownaxe	THROWNAXE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+801	Iron thrownaxe	THROWNAXE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+802	Steel thrownaxe	THROWNAXE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+803	Mithril thrownaxe	THROWNAXE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+804	Addy thrownaxe	THROWNAXE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+805	Rune thrownaxe	THROWNAXE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+806	Bronze dart	DART		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+807	Iron dart	DART		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+808	Steel dart	DART		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+809	Mithril dart	DART		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+810	Adamant dart	DART		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+811	Rune dart	DART		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+812	Bronze dart(p)	DART		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+813	Iron dart(p)	DART		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+814	Steel dart(p)	DART		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+815	Mithril dart(p)	DART		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+816	Adamant dart(p)	DART		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+817	Rune dart(p)	DART		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+818	Poisoned dart(p)	DART		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+819	Bronze dart tip	DART		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+820	Iron dart tip	DART		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+821	Steel dart tip	DART		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+822	Mithril dart tip	DART		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+823	Adamant dart tip	DART		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+824	Rune dart tip	DART		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+825	Bronze javelin	JAVELIN		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+826	Iron javelin	JAVELIN		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+827	Steel javelin	JAVELIN		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+828	Mithril javelin	JAVELIN		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+829	Adamant javelin	JAVELIN		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+830	Rune javelin	JAVELIN		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+831	Bronze javelin(p)	JAVELIN		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+832	Iron javelin(p)	JAVELIN		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+833	Steel javelin(p)	JAVELIN		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+834	Mithril javelin(p)	JAVELIN		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+835	Adamant javelin(p)	JAVELIN		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+836	Rune javelin(p)	JAVELIN		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+863	Iron knife	KNIFE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+864	Bronze knife	KNIFE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+865	Steel knife	KNIFE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+866	Mithril knife	KNIFE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+867	Adamant knife	KNIFE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+868	Rune knife	KNIFE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+869	Black knife	KNIFE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+870	Bronze knife(p)	KNIFE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+871	Iron knife(p)	KNIFE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+872	Steel knife(p)	KNIFE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+873	Mithril knife(p)	KNIFE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+874	Black knife(p)	KNIFE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+875	Adamant knife(p)	KNIFE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+876	Rune knife(p)	KNIFE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+877	Bronze bolts	BOLT		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+878	Bronze bolts(p)	BOLT		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+879	Opal bolts	BOLT		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+880	Pearl bolts	BOLT		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+881	Barbed bolts	BOLT		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+882	Bronze arrow	ARROW		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.	Bronze arrow	10	19	PUBLIC_CURRENT_OSRS_AMMO_FAMILY_CANDIDATE	Public OSRS ammo visual table; V9.11 independently confirms current SpawnPK for Adamant/Rune/Dragon rows
+883	Bronze arrow(p)	ARROW		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+884	Iron arrow	ARROW		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.	Iron arrow	9	18	PUBLIC_CURRENT_OSRS_AMMO_FAMILY_CANDIDATE	Public OSRS ammo visual table; V9.11 independently confirms current SpawnPK for Adamant/Rune/Dragon rows
+885	Iron arrow(p)	ARROW		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+886	Steel arrow	ARROW		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.	Steel arrow	11	20	PUBLIC_CURRENT_OSRS_AMMO_FAMILY_CANDIDATE	Public OSRS ammo visual table; V9.11 independently confirms current SpawnPK for Adamant/Rune/Dragon rows
+887	Steel arrow(p)	ARROW		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+888	Mithril arrow	ARROW		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.	Mithril arrow	12	21	PUBLIC_CURRENT_OSRS_AMMO_FAMILY_CANDIDATE	Public OSRS ammo visual table; V9.11 independently confirms current SpawnPK for Adamant/Rune/Dragon rows
+889	Mithril arrow(p)	ARROW		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+890	Adamant arrow	ARROW		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.	Adamant arrow	13	22;1108	CURRENT_PRODUCTION_PROVEN	Public OSRS ammo visual table; V9.11 independently confirms current SpawnPK for Adamant/Rune/Dragon rows
+891	Adamant arrow(p)	ARROW		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+892	Rune arrow	ARROW		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.	Rune arrow	15	24;1109	CURRENT_PRODUCTION_PROVEN	Public OSRS ammo visual table; V9.11 independently confirms current SpawnPK for Adamant/Rune/Dragon rows
+893	Rune arrow(p)	ARROW		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+942	Bronze fire arrows	ARROW		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+946	Knife	KNIFE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+947	Knife	KNIFE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+1079	Rune platelegs	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+1080	Rune platelegs	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+1093	Rune plateskirt	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+1094	Rune plateskirt	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+1113	Rune chainbody	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+1114	Rune chainbody	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+1127	Rune platebody	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+1128	Rune platebody	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+1147	Rune med helm	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+1148	Rune med helm	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+1163	Rune full helm	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+1164	Rune full helm	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+1185	Rune sq shield	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+1186	Rune sq shield	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+1201	Rune kiteshield	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+1202	Rune kiteshield	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+1213	Rune dagger	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+1214	Rune dagger	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+1229	Rune dagger(p)	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+1230	Rune dagger(p)	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+1247	Rune spear	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+1248	Rune spear	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+1261	Rune spear(p)	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+1262	Rune spear(p)	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+1275	Rune pickaxe	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+1276	Rune pickaxe	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+1289	Rune sword	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+1290	Rune sword	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+1303	Rune longsword	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+1304	Rune longsword	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+1319	Rune 2h sword	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+1320	Rune 2h sword	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+1333	Rune scimitar	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+1334	Rune scimitar	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+1347	Rune warhammer	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+1348	Rune warhammer	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+1359	Rune axe	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+1360	Rune axe	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+1373	Rune battleaxe	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+1374	Rune battleaxe	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+1417	Javelin	JAVELIN		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+1418	Javelin	JAVELIN		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+1432	Rune mace	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+1433	Rune mace	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+1436	Rune essence	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+1437	Rune essence	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+1849	Prototype dart	DART		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+1853	Prototype dart tip	DART		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+2425	Orbital knife	KNIFE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+2532	Iron fire arrows	ARROW		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+2533	Iron fire arrows	ARROW		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+2534	Steel fire arrows	ARROW		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+2535	Steel fire arrows	ARROW		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+2536	Mithril fire arrows	ARROW		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+2537	Mithril fire arrows	ARROW		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+2538	Addy fire arrows	ARROW		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+2539	Addy fire arrows	ARROW		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+2540	Rune fire arrows	ARROW		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+2541	Rune fire arrows	ARROW		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+2615	@gre@Rune platebody (g)	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+2616	@gre@Rune platebody (g)	RUNE		True	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+2617	@gre@Rune platelegs (g)	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+2618	@gre@Rune platelegs (g)	RUNE		True	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+2619	@gre@Rune full helm(g)	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+2620	@gre@Rune full helm(g)	RUNE		True	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+2621	@gre@Rune kiteshield (g)	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+2622	@gre@Rune kiteshield (g)	RUNE		True	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+2623	@gre@Rune platebody (t)	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+2624	@gre@Rune platebody (t)	RUNE		True	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+2625	@gre@Rune platelegs (t)	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+2626	@gre@Rune platelegs (t)	RUNE		True	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+2627	@gre@Rune full helm (t)	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+2628	@gre@Rune full helm (t)	RUNE		True	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+2629	@gre@Rune kiteshield (t)	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+2630	@gre@Rune kiteshield (t)	RUNE		True	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+2861	Wolfbone arrowtips	ARROW		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+2864	Ogre arrow shaft	ARROW		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+2865	Flighted ogre arrow	ARROW		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+2866	Ogre arrow	ARROW		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+3093	Black dart	DART		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+3094	Black dart(p)	DART		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+3101	Rune claws	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+3121	Rune claws	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+3175	Rune spear(kp)	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+3202	Rune halberd	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+3203	Rune halberd	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+3476	@gre@Rune plateskirt (g)	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+3477	@gre@Rune plateskirt (t)	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+3672	@gre@Rune plateskirt (g)	RUNE		True	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+3673	@gre@Rune plateskirt (t)	RUNE		True	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+4131	Rune boots	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+4132	Rune boots	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+4150	Broad arrows	ARROW		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+4160	Broad arrow	ARROW		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.	Broad arrows	11	20	PUBLIC_CURRENT_OSRS_AMMO_FAMILY_CANDIDATE	Public OSRS ammo visual table; V9.11 independently confirms current SpawnPK for Adamant/Rune/Dragon rows
+4172	Broad arrows	ARROW		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+4173	Broad arrows	ARROW		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+4174	Broad arrows	ARROW		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+4175	Broad arrows	ARROW		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+4694	Steam rune	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+4695	Mist rune	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+4696	Dust rune	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+4697	Smoke rune	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+4698	Mud rune	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+4699	Lava rune	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+4740	Bolt rack	BOLT		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+4803	Rune brutal	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+4824	Rune nails	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+5605	Knife	KNIFE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+5616	Bronze arrow(p+)	ARROW		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+5617	Iron arrow(p+)	ARROW		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+5618	Steel arrow(p+)	ARROW		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+5619	Mithril arrow(p+)	ARROW		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+5620	Adamant arrow(p+)	ARROW		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+5621	Rune arrow(p+)	ARROW		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+5622	Bronze arrow(p++)	ARROW		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+5623	Iron arrow(p++)	ARROW		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+5624	Steel arrow(p++)	ARROW		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+5625	Mithril arrow(p++)	ARROW		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+5626	Adam arrow(p++)	ARROW		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+5627	Rune arrow(p++)	ARROW		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+5628	Bronze dart(p+)	DART		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+5629	Iron dart(p+)	DART		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+5630	Steel dart(p+)	DART		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+5631	Black dart(p+)	DART		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+5632	Mithril dart(p+)	DART		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+5633	Adamant dart(p+)	DART		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+5634	Rune dart(p+)	DART		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+5635	Bronze dart(p++)	DART		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+5636	Iron dart(p++)	DART		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+5637	Steel dart(p++)	DART		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+5638	Black dart(p++)	DART		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+5639	Mithril dart(p++)	DART		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+5640	Adamant dart(p++)	DART		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+5641	Rune dart(p++)	DART		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+5642	Bronze javelin(p+)	JAVELIN		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+5643	Iron javelin(p+)	JAVELIN		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+5644	Steel javelin(p+)	JAVELIN		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+5645	Mithril javelin(p+)	JAVELIN		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+5646	Addy javelin(p+)	JAVELIN		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+5647	Rune javelin(p+)	JAVELIN		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+5649	Iron javelin(p++)	JAVELIN		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+5650	Steel javelin(p++)	JAVELIN		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+5651	Mithril javelin(p++)	JAVELIN		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+5652	Addy javelin(p++)	JAVELIN		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+5653	Rune javelin(p++)	JAVELIN		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+5654	Bronze knife(p+)	KNIFE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+5655	Iron knife(p+)	KNIFE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+5656	Steel knife(p+)	KNIFE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+5657	Mithril knife(p+)	KNIFE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+5658	Black knife(p+)	KNIFE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+5659	Adamant knife(p+)	KNIFE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+5660	Rune knife(p+)	KNIFE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+5661	Bronze knife(p++)	KNIFE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+5662	Iron knife(p++)	KNIFE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+5663	Steel knife(p++)	KNIFE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+5664	Mithril knife(p++)	KNIFE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+5665	Black knife(p++)	KNIFE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+5666	Addy knife(p++)	KNIFE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+5667	Rune knife(p++)	KNIFE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+5678	Rune dagger(p+)	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+5679	Rune dagger(p+)	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+5696	Rune dagger(p++)	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+5697	Rune dagger(p++)	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+5714	Rune spear(p+)	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+5715	Rune spear(p+)	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+5728	Rune spear(p++)	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+5729	Rune spear(p++)	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+6061	Bronze bolts(p+)	BOLT		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+6062	Bronze bolts(p++)	BOLT		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+6422	Air rune	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+6423	Air rune	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+6424	Water rune	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+6425	Water rune	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+6426	Earth rune	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+6427	Earth rune	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+6428	Fire rune	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+6429	Fire rune	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+6430	Chaos rune	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+6431	Chaos rune	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+6432	Death rune	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+6433	Death rune	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+6434	Law rune	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+6435	Law rune	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+6436	Mind rune	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+6437	Mind rune	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+6438	Body rune	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+6439	Body rune	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+6466	Rune shards	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+6467	Rune dust	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+6819	@gre@Rune pouch	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+6897	Rune longsword	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+7336	Rune shield(h1)	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+7337	Rune shield(h1)	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+7342	Rune shield(h2)	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+7343	Rune shield(h2)	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+7348	Rune shield(h3)	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+7349	Rune shield(h3)	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+7354	Rune shield(h4)	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+7355	Rune shield(h4)	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+7360	Rune shield(h5)	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+7361	Rune shield(h5)	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+7447	Kitchen knife	KNIFE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+7448	Kitchen knife	KNIFE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+7460	Rune gloves	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+7462	Barrows gloves	ARROW		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+7552	Mithril arrow	ARROW		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+7553	Mithril arrow	ARROW		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+7554	Fire rune	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+7555	Fire rune	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+7556	Water rune	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+7557	Water rune	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+7558	Air rune	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+7559	Air rune	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+7560	Chaos rune	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+7561	Chaos rune	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+7684	Dart	DART		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+7685	Dart	DART		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+7686	Bow and arrow	ARROW		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+7687	Bow and arrow	ARROW		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+8095	Rune display case	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+8163	Dartboard	DART		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+8276	Rune case 1	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+8277	Rune case 2	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+8278	Rune case 3	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+8464	@gre@Rune heraldic helm	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+8466	@gre@Rune heraldic helm	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+8468	@gre@Rune heraldic helm	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+8470	@gre@Rune heraldic helm	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+8472	@gre@Rune heraldic helm	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+8474	@gre@Rune heraldic helm	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+8476	@gre@Rune heraldic helm	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+8478	@gre@Rune heraldic helm	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+8480	@gre@Rune heraldic helm	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+8482	@gre@Rune heraldic helm	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+8484	@gre@Rune heraldic helm	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+8488	@gre@Rune heraldic helm	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+8490	@gre@Rune heraldic helm	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+8492	@gre@Rune heraldic helm	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+8494	@gre@Rune heraldic helm	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+8714	@gre@Rune kiteshield	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+8716	@gre@Rune kiteshield	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+8718	@gre@Rune kiteshield	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+8720	@gre@Rune kiteshield	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+8722	@gre@Rune kiteshield	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+8724	@gre@Rune kiteshield	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+8726	@gre@Rune kiteshield	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+8728	@gre@Rune kiteshield	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+8730	@gre@Rune kiteshield	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+8732	@gre@Rune kiteshield	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+8734	@gre@Rune kiteshield	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+8738	@gre@Rune kiteshield	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+8740	@gre@Rune kiteshield	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+8742	@gre@Rune kiteshield	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+8744	@gre@Rune kiteshield	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+8790	@gre@Bolt of cloth	BOLT		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+8791	@gre@Bolt of cloth	BOLT		True	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+8850	Rune defender	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+8882	Bone bolts	BOLT		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+9012	Runed sceptre	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+9075	Astral rune	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+9139	Blurite bolts	BOLT		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+9140	Iron bolts	BOLT		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+9141	Steel bolts	BOLT		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+9142	Mithril bolts	BOLT		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+9143	Adamant bolts	BOLT		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+9144	Runite bolts	BOLT		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+9145	Silver bolts	BOLT		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+9185	Rune c'bow	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+9186	Rune c'bow	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+9187	Jade bolt tips	BOLT		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+9188	Topaz bolt tips	BOLT		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+9189	Sapphire bolt tips	BOLT		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+9190	Emerald bolt tips	BOLT		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+9191	Ruby bolt tips	BOLT		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+9192	Diamond bolt tips	BOLT		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+9193	Dragon bolt tips	BOLT		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+9194	Onyx bolt tips	BOLT		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+9236	Opal bolts (e)	BOLT		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+9237	Jade bolts (e)	BOLT		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+9238	Pearl bolts (e)	BOLT		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+9239	Topaz bolts (e)	BOLT		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+9240	Sapphire bolts (e)	BOLT		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+9241	Emerald bolts (e)	BOLT		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+9242	Ruby bolts (e)	BOLT		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+9243	Diamond bolts (e)	BOLT		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+9244	Dragon bolts (e)	BOLT		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+9245	Onyx bolts (e)	BOLT		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+9286	Blurite bolts(p)	BOLT		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+9287	Iron bolts (p)	BOLT		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+9288	Steel bolts (p)	BOLT		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+9289	Mithril bolts (p)	BOLT		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+9290	Addy bolts (p)	BOLT		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+9291	Runite bolts (p)	BOLT		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+9292	Silver bolts (p)	BOLT		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+9293	Blurite bolts(p+)	BOLT		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+9294	Iron bolts(p+)	BOLT		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+9295	Steel bolts(p+)	BOLT		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+9296	Mithril bolts(p+)	BOLT		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+9297	Addy bolts(p+)	BOLT		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+9298	Runite bolts(p+)	BOLT		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+9299	Silver bolts(p+)	BOLT		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+9300	Blurite bolts(p++)	BOLT		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+9301	Iron bolts(p++)	BOLT		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+9302	Steel bolts(p++)	BOLT		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+9303	Mithril bolts(p++)	BOLT		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+9304	Addy bolts(p++)	BOLT		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+9305	Runite bolts(p++)	BOLT		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+9306	Silver bolts(p++)	BOLT		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+9335	Jade bolts	BOLT		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+9336	Topaz bolts	BOLT		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+9337	Sapphire bolts	BOLT		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+9338	Emerald bolts	BOLT		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+9339	Ruby bolts	BOLT		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+9340	Diamond bolts	BOLT		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+9341	Dragon bolts	BOLT		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+9342	Onyx bolts	BOLT		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+9375	Bronze bolts (unf)	BOLT		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+9376	Blurite bolts (unf)	BOLT		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+9377	Iron bolts (unf)	BOLT		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+9378	Steel bolts (unf)	BOLT		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+9379	Mithril bolts (unf)	BOLT		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+9380	Adamant bolts(unf)	BOLT		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+9381	Runite bolts (unf)	BOLT		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+9382	Silver bolts (unf)	BOLT		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+9433	Bolt pouch	BOLT		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+9434	Bolt mould	BOLT		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+9435	Bolt mould	BOLT		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+9594	Ground mud runes	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+9690	Blank water rune	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+9691	Water rune	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+9692	Blank air rune	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+9693	Air rune	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+9694	Blank earth rune	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+9695	Earth rune	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+9696	Blank mind rune	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+9697	Mind rune	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+9698	Blank fire rune	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+9699	Fire rune	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+9706	Training arrows	ARROW		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+9765	Runecraft cape	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+9766	Runecraft cape(t)	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+9767	Runecrafting hood	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+9976	Chinchompa	CHINCHOMPA		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+9977	Red chinchompa	CHINCHOMPA		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+10033	Chinchompa	CHINCHOMPA		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+10034	Red chinchompa	CHINCHOMPA		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+10158	Kebbit bolts	BOLT		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+10159	Long kebbit bolts	BOLT		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+10286	Rune helm (h1)	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+10287	Rune helm (h1)	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+10288	Rune helm (h2)	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+10289	Rune helm (h2)	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+10290	Rune helm (h3)	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+10291	Rune helm (h3)	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+10292	Rune helm (h4)	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+10293	Rune helm (h4)	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+10294	Rune helm (h5)	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+10295	Rune helm (h5)	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+10645	Runecraft cape	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+10667	Rune shield(h1)	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+10670	Rune shield(h2)	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+10673	Rune shield(h3)	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+10676	Rune shield(h4)	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+10679	Rune shield(h5)	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+10704	Rune helm (h1)	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+10705	Rune helm (h2)	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+10706	Rune helm (h3)	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+10707	Rune helm (h4)	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+10708	Rune helm (h5)	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+10798	@gre@Rune platebody (g)	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+10800	@gre@Rune platebody (t)	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+10882	Rune satchel	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+11155	Ground astral rune	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+11156	Astral rune shards	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+11176	Arrowheads	ARROW		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+11212	Dragon arrow	ARROW		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.	Dragon arrow	1120	1111	CURRENT_PRODUCTION_PROVEN_DARK_BOW	Public OSRS ammo visual table; V9.11 independently confirms current SpawnPK for Adamant/Rune/Dragon rows
+11217	Dragon fire arrows	ARROW		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+11222	Dragon fire arrows	ARROW		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+11227	Dragon arrow(p)	ARROW		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.	Dragon arrow(p)	1120	1111	PUBLIC_CURRENT_OSRS_AMMO_FAMILY_CANDIDATE	Public OSRS ammo visual table; V9.11 independently confirms current SpawnPK for Adamant/Rune/Dragon rows
+11228	Dragon arrow(p+)	ARROW		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.	Dragon arrow(p+)	1120	1111	PUBLIC_CURRENT_OSRS_AMMO_FAMILY_CANDIDATE	Public OSRS ammo visual table; V9.11 independently confirms current SpawnPK for Adamant/Rune/Dragon rows
+11229	Dragon arrow(p++)	ARROW		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.	Dragon arrow(p++)	1120	1111	PUBLIC_CURRENT_OSRS_AMMO_FAMILY_CANDIDATE	Public OSRS ammo visual table; V9.11 independently confirms current SpawnPK for Adamant/Rune/Dragon rows
+11230	Dragon dart	DART		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+11231	Dragon dart(p)	DART		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+11232	Dragon dart tip	DART		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+11233	Dragon dart(p+)	DART		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+11234	Dragon dart(p++)	DART		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+11237	Dragon arrowtips	ARROW		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+11377	Rune hasta	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+11378	Rune hasta	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+11414	Rune hasta(p)	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+11415	Rune hasta(p)	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+11416	Rune hasta(kp)	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+11417	Rune hasta(p+)	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+11418	Rune hasta(p+)	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+11419	Rune hasta(p++)	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+11420	Rune hasta(p++)	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+11838	Rune armour set (l)	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+11839	Rune armour set (l)	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+11840	Rune armour set (sk)	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+11841	Rune armour set (sk)	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+11846	Barrows - ahrim's set	ARROW		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+11847	Barrows - ahrim's set	ARROW		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+11848	@gre@Barrows - dharok's set	ARROW		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+11849	@gre@Barrows - dharok's set	ARROW		True	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+11850	Barrows - guthan's set	ARROW		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+11851	Barrows - guthan's set	ARROW		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+11852	Barrows - karil's set	ARROW		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+11853	Barrows - karil's set	ARROW		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+11854	Barrows - torag's set	ARROW		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+11855	Barrows - torag's set	ARROW		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+11856	Barrows - verac's set	ARROW		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+11857	Barrows - verac's set	ARROW		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+11894	Rune trimmed armour set (l)	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+11895	Rune trimmed armour set (l)	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+11896	Rune trimmed armour set (sk)	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+11897	Rune trimmed armour set (sk)	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+11898	Rune gold-trimmed armour set (l)	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+11899	Rune gold-trimmed armour set (l)	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+11900	Rune gold-trimmed armour set (sk)	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+11901	Rune gold-trimmed armour set (sk)	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+12083	Rune minotaur pouch	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+12084	Rune minotaur pouch	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+12466	Rune bull rush scroll	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+12664	Rune full helm (e)	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+12665	Rune full helm (charged)	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+12800	Giant chinchompa pouch	CHINCHOMPA		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+12801	Giant chinchompa pouch	CHINCHOMPA		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+12850	Elemental rune	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+12851	Catalytic rune	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+12863	Air runecrafting gloves	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+12864	Water runecrafting gloves	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+12865	Earth runecrafting gloves	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+12922	Rune spikeshield 100	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+12923	Rune spikeshield 80	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+12924	Rune spikeshield 60	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+12925	Rune spikeshield 40	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+12927	Rune spikeshield 0	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+12928	Rune spikeshield 0	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+12929	Rune berserker shield 100	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+12930	Rune berserker shield 80	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+12934	Rune berserker shield 0	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+12935	Rune berserker shield 0	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+13003	Rune gauntlets	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+13004	Worn-out rune gauntlets	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+13005	Worn-out rune gauntlets	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+13083	Black bolts	BOLT		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+13084	Black bolts(p)	BOLT		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+13085	Black bolts(p+)	BOLT		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+13086	Black bolts(p++)	BOLT		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+13099	@gre@Rune cane	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+13100	@gre@Rune cane	RUNE		True	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+13165	@gre@Rune cane	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+13879	@gre@Morrigan's javelin	JAVELIN	True	True	PROVEN_CURRENT_I_BIN_EXPLICIT	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+14492	@gre@Fire element bolts	BOLT	True	True	PROVEN_CURRENT_I_BIN_EXPLICIT	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+14493	@gre@Fire element bolts	BOLT		True	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+14494	@gre@Fire element bolts	BOLT		True	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+14495	@gre@Fire element bolts	BOLT		True	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+14496	@gre@Fire element bolts	BOLT		True	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+14497	@gre@Ice element bolts	BOLT	True	True	PROVEN_CURRENT_I_BIN_EXPLICIT	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+14498	@gre@Ice element bolts	BOLT		True	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+14499	@gre@Ice element bolts	BOLT		True	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+14500	@gre@Ice element bolts	BOLT		True	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+14501	@gre@Ice element bolts	BOLT		True	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+14502	@gre@Earth element bolts	BOLT	True	True	PROVEN_CURRENT_I_BIN_EXPLICIT	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+14503	@gre@Earth element bolts	BOLT		True	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+14504	@gre@Earth element bolts	BOLT		True	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+14505	@gre@Earth element bolts	BOLT		True	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+14506	@gre@Earth element bolts	BOLT		True	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+15034	@gre@Elemental javelin	JAVELIN	True	True	PROVEN_CURRENT_I_BIN_EXPLICIT	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+19484	@gre@Dragon javelin	JAVELIN	True	True	PROVEN_CURRENT_I_BIN_EXPLICIT	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+20482	@gre@Dragon thrownaxe	THROWNAXE	True	True	PROVEN_CURRENT_I_BIN_EXPLICIT	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+20987	@gre@Wrath rune	RUNE	True	True	PROVEN_CURRENT_I_BIN_EXPLICIT	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+21254	@gre@Onyx dragon bolts (e)	BOLT	True	True	PROVEN_CURRENT_I_BIN_EXPLICIT	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+21277	@gre@Kharazi bolts	BOLT	True	True	PROVEN_CURRENT_I_BIN_EXPLICIT	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+21761	@gre@Barrows dye	ARROW		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+22081	@gre@Blood rune c'bow	RUNE		True	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+22126	@gre@Blunt dragon arrow	ARROW	True	True	PROVEN_CURRENT_I_BIN_EXPLICIT	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+22127	@gre@Blunt dragon arrow pack (500)	ARROW		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+22815	@gre@Dragonstone dragon bolts (e)	BOLT	True	True	PROVEN_CURRENT_I_BIN_EXPLICIT	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+22820	@gre@Amethyst arrow	ARROW	True	True	PROVEN_CURRENT_I_BIN_EXPLICIT	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+22821	@gre@Amethyst arrow	ARROW		True	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+22822	@gre@Amethyst arrow	ARROW		True	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+22823	@gre@Amethyst arrow	ARROW		True	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+22824	@gre@Amethyst arrow	ARROW		True	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+22829	@gre@Dragon knife	KNIFE	True	True	PROVEN_CURRENT_I_BIN_EXPLICIT	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+23033	@gre@Black chinchompa	CHINCHOMPA	True	True	PROVEN_CURRENT_I_BIN_EXPLICIT	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+23080	@gre@Bound rune pouch (broken)	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+23111	@gre@Bound rune pouch	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+23113	@gre@Sapphire dragon bolts (e)	BOLT	True	True	PROVEN_CURRENT_I_BIN_EXPLICIT	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+23139	@gre@Runes cape	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+23222	@gre@Spectre dart	DART	True	True	PROVEN_CURRENT_I_BIN_EXPLICIT	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+23223	@gre@Spectre dart pack (10)	DART		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+24126	@gre@Easter chinchompa (t1)	CHINCHOMPA		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+24127	@gre@Easter chinchompa (t2)	CHINCHOMPA		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+24128	@gre@Easter chinchompa (t3)	CHINCHOMPA		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+25001	@gre@Blood rune c'bow	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+25392	@gre@Runescroll of splitcestral	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+25564	@gre@Blood slayer javelin	JAVELIN	True	True	PROVEN_CURRENT_I_BIN_EXPLICIT	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+27475	@gre@Exotic rune pouch	RUNE		False	UNRESOLVED_EFFECTIVE_POST_LOOKUP	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+28202	@gre@Cursed eclipse atlatl dart	DART	True	True	PROVEN_CURRENT_I_BIN_EXPLICIT	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+28567	@gre@Cursed eclipse atlatl darts (100)	DART	True	True	PROVEN_CURRENT_I_BIN_EXPLICIT	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	
+28837	@gre@Cursed morrigan's javelin	JAVELIN	False	False	PROVEN_CURRENT_I_BIN_EXPLICIT	Raw V9.02 cache decode is not promoted because post-lookup client corrections were not applied.				UNRESOLVED_AMMO_PRESENTATION	

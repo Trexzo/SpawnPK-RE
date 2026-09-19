@@ -1,0 +1,200 @@
+public class rs.q.a.a.a.a extends rs.q.a.a.a {
+  public rs.q.a.a.a.a();
+    Code:
+       0: aload_0
+       1: invokespecial #38                 // Method rs/q/a/a/a."<init>":()V
+       4: return
+
+  public void a();
+    Code:
+       0: aload_0
+       1: invokevirtual #40                 // Method e:()I
+       4: istore_1
+       5: iload_1
+       6: iconst_1
+       7: if_icmpne     25
+      10: aload_0
+      11: getfield      #36                 // Field c:Lrs/Client;
+      14: pop
+      15: aload_0
+      16: invokevirtual #39                 // Method c:()I
+      19: putstatic     #22                 // Field rs/Client.cT:I
+      22: goto          412
+      25: iload_1
+      26: iconst_2
+      27: if_icmpne     218
+      30: aload_0
+      31: invokevirtual #40                 // Method e:()I
+      34: iconst_1
+      35: if_icmpne     42
+      38: iconst_1
+      39: goto          43
+      42: iconst_0
+      43: istore_2
+      44: iload_2
+      45: ifeq          133
+      48: getstatic     #32                 // Field rs/n/e.H:[Lrs/n/e;
+      51: sipush        12929
+      54: aaload
+      55: bipush        14
+      57: ldc           #9                  // String magic/on
+      59: invokestatic  #37                 // Method rs/n/e.j:(ILjava/lang/String;)Lrs/l/F;
+      62: putfield      #34                 // Field rs/n/e.aG:Lrs/l/F;
+      65: getstatic     #32                 // Field rs/n/e.H:[Lrs/n/e;
+      68: sipush        12929
+      71: aaload
+      72: ldc           #3                  // String Infernal barrage
+      74: putfield      #33                 // Field rs/n/e.N:Ljava/lang/String;
+      77: getstatic     #32                 // Field rs/n/e.H:[Lrs/n/e;
+      80: sipush        12931
+      83: aaload
+      84: ldc           #8                  // String Level 92 : Infernal barrage
+      86: putfield      #35                 // Field rs/n/e.at:Ljava/lang/String;
+      89: getstatic     #32                 // Field rs/n/e.H:[Lrs/n/e;
+      92: sipush        12911
+      95: aaload
+      96: bipush        16
+      98: ldc           #9                  // String magic/on
+     100: invokestatic  #37                 // Method rs/n/e.j:(ILjava/lang/String;)Lrs/l/F;
+     103: putfield      #34                 // Field rs/n/e.aG:Lrs/l/F;
+     106: getstatic     #32                 // Field rs/n/e.H:[Lrs/n/e;
+     109: sipush        12911
+     112: aaload
+     113: ldc           #4                  // String Infernal blitz
+     115: putfield      #33                 // Field rs/n/e.N:Ljava/lang/String;
+     118: getstatic     #32                 // Field rs/n/e.H:[Lrs/n/e;
+     121: sipush        12913
+     124: aaload
+     125: ldc           #6                  // String Level 80 : Infernal blitz
+     127: putfield      #35                 // Field rs/n/e.at:Ljava/lang/String;
+     130: goto          215
+     133: getstatic     #32                 // Field rs/n/e.H:[Lrs/n/e;
+     136: sipush        12929
+     139: aaload
+     140: bipush        13
+     142: ldc           #9                  // String magic/on
+     144: invokestatic  #37                 // Method rs/n/e.j:(ILjava/lang/String;)Lrs/l/F;
+     147: putfield      #34                 // Field rs/n/e.aG:Lrs/l/F;
+     150: getstatic     #32                 // Field rs/n/e.H:[Lrs/n/e;
+     153: sipush        12929
+     156: aaload
+     157: ldc           #2                  // String Blood barrage
+     159: putfield      #33                 // Field rs/n/e.N:Ljava/lang/String;
+     162: getstatic     #32                 // Field rs/n/e.H:[Lrs/n/e;
+     165: sipush        12931
+     168: aaload
+     169: ldc           #7                  // String Level 92 : Blood barrage
+     171: putfield      #35                 // Field rs/n/e.at:Ljava/lang/String;
+     174: getstatic     #32                 // Field rs/n/e.H:[Lrs/n/e;
+     177: sipush        12911
+     180: aaload
+     181: bipush        15
+     183: ldc           #9                  // String magic/on
+     185: invokestatic  #37                 // Method rs/n/e.j:(ILjava/lang/String;)Lrs/l/F;
+     188: putfield      #34                 // Field rs/n/e.aG:Lrs/l/F;
+     191: getstatic     #32                 // Field rs/n/e.H:[Lrs/n/e;
+     194: sipush        12911
+     197: aaload
+     198: ldc           #4                  // String Infernal blitz
+     200: putfield      #33                 // Field rs/n/e.N:Ljava/lang/String;
+     203: getstatic     #32                 // Field rs/n/e.H:[Lrs/n/e;
+     206: sipush        12913
+     209: aaload
+     210: ldc           #5                  // String Level 80 : Blood blitz
+     212: putfield      #35                 // Field rs/n/e.at:Ljava/lang/String;
+     215: goto          412
+     218: iload_1
+     219: iconst_3
+     220: if_icmpne     233
+     223: aload_0
+     224: invokevirtual #39                 // Method c:()I
+     227: putstatic     #25                 // Field rs/Client.dx:I
+     230: goto          412
+     233: iload_1
+     234: iconst_4
+     235: if_icmpne     286
+     238: aload_0
+     239: getfield      #36                 // Field c:Lrs/Client;
+     242: aload_0
+     243: invokevirtual #41                 // Method h:()Ljava/lang/String;
+     246: putfield      #23                 // Field rs/Client.dW:Ljava/lang/String;
+     249: aload_0
+     250: getfield      #36                 // Field c:Lrs/Client;
+     253: iconst_0
+     254: putfield      #28                 // Field rs/Client.gb:Z
+     257: aload_0
+     258: getfield      #36                 // Field c:Lrs/Client;
+     261: iconst_1
+     262: putfield      #27                 // Field rs/Client.fN:I
+     265: aload_0
+     266: getfield      #36                 // Field c:Lrs/Client;
+     269: ldc           #1                  // String
+     271: putfield      #24                 // Field rs/Client.dY:Ljava/lang/String;
+     274: aload_0
+     275: getfield      #36                 // Field c:Lrs/Client;
+     278: pop
+     279: iconst_1
+     280: putstatic     #26                 // Field rs/Client.fM:Z
+     283: goto          412
+     286: iload_1
+     287: iconst_5
+     288: if_icmpne     310
+     291: aload_0
+     292: invokevirtual #40                 // Method e:()I
+     295: istore_2
+     296: aload_0
+     297: invokevirtual #40                 // Method e:()I
+     300: istore_3
+     301: aload_0
+     302: invokevirtual #40                 // Method e:()I
+     305: istore        4
+     307: goto          412
+     310: iload_1
+     311: bipush        6
+     313: if_icmpne     342
+     316: aload_0
+     317: getfield      #36                 // Field c:Lrs/Client;
+     320: getfield      #29                 // Field rs/Client.v:Lrs/i/b;
+     323: aload_0
+     324: invokevirtual #40                 // Method e:()I
+     327: iconst_1
+     328: if_icmpne     335
+     331: iconst_1
+     332: goto          336
+     335: iconst_0
+     336: putfield      #30                 // Field rs/i/b.i:Z
+     339: goto          412
+     342: iload_1
+     343: bipush        7
+     345: if_icmpne     390
+     348: aload_0
+     349: invokevirtual #39                 // Method c:()I
+     352: putstatic     #16                 // Field rs/Client.bC:I
+     355: aload_0
+     356: invokevirtual #39                 // Method c:()I
+     359: putstatic     #18                 // Field rs/Client.bE:I
+     362: aload_0
+     363: invokevirtual #39                 // Method c:()I
+     366: putstatic     #20                 // Field rs/Client.bG:I
+     369: aload_0
+     370: invokevirtual #39                 // Method c:()I
+     373: putstatic     #19                 // Field rs/Client.bF:I
+     376: aload_0
+     377: invokevirtual #39                 // Method c:()I
+     380: putstatic     #21                 // Field rs/Client.bH:I
+     383: iconst_0
+     384: putstatic     #17                 // Field rs/Client.bD:Z
+     387: goto          412
+     390: iload_1
+     391: bipush        8
+     393: if_icmpne     412
+     396: aload_0
+     397: invokevirtual #40                 // Method e:()I
+     400: iconst_1
+     401: if_icmpne     408
+     404: iconst_1
+     405: goto          409
+     408: iconst_0
+     409: putstatic     #31                 // Field rs/n/c/aG.c:Z
+     412: return
+}

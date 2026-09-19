@@ -1,0 +1,5 @@
+[session /127.0.0.1:47018] prelogin ok type=14 userHash5=7
+[session /127.0.0.1:47018] LoginFrame{type=16, revision=317, memoryFlag=0, checksums=[0, 0, 0, 0, 0, 0, 0, 0, 0], seeds=[16909060, 287454020, 19088743, -1985229329], config1=748878668, config2=307, username='local', password=<redacted>, deviceId='LOCAL-DEVICE', trailingClientId='LOCAL-CLIENT'}
+[session /127.0.0.1:47018] LOGIN_SUCCESS_LOCAL rank=0 flag=false at 2026-09-13T23:24:38.227357564Z
+[session /127.0.0.1:47018] first post-login packet opcode=185 widget=912 (expected 912)
+LOCAL_HANDSHAKE_INTEGRATION_PASS prelogin+seed+login+success+isaac185/widget912

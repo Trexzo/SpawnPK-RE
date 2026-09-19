@@ -1,0 +1,83 @@
+class rs.n.c.B extends rs.q.a.a.a {
+  rs.n.c.B();
+    Code:
+       0: aload_0
+       1: invokespecial #12                 // Method rs/q/a/a/a."<init>":()V
+       4: return
+
+  public void a();
+    Code:
+       0: aload_0
+       1: invokevirtual #10                 // Method e:()I
+       4: istore_1
+       5: iload_1
+       6: ifne          27
+       9: aload_0
+      10: invokevirtual #10                 // Method e:()I
+      13: iconst_1
+      14: if_icmpne     21
+      17: iconst_1
+      18: goto          22
+      21: iconst_0
+      22: istore_2
+      23: iload_2
+      24: invokestatic  #8                  // Method rs/n/c/A.a:(Z)V
+      27: iload_1
+      28: iconst_1
+      29: if_icmpne     35
+      32: invokestatic  #9                  // Method rs/n/c/A.h:()V
+      35: iload_1
+      36: iconst_2
+      37: if_icmpne     80
+      40: aload_0
+      41: invokevirtual #11                 // Method g:()I
+      44: istore_2
+      45: aload_0
+      46: invokevirtual #11                 // Method g:()I
+      49: istore_3
+      50: aload_0
+      51: invokevirtual #10                 // Method e:()I
+      54: iconst_1
+      55: if_icmpne     62
+      58: iconst_1
+      59: goto          63
+      62: iconst_0
+      63: istore        4
+      65: sipush        14171
+      68: iload_2
+      69: iload_3
+      70: sipush        167
+      73: bipush        123
+      75: iload         4
+      77: invokestatic  #7                  // Method rs/n/c/A.a:(IIIIIZ)V
+      80: iload_1
+      81: iconst_3
+      82: if_icmpne     137
+      85: aload_0
+      86: invokevirtual #11                 // Method g:()I
+      89: istore_2
+      90: aload_0
+      91: invokevirtual #11                 // Method g:()I
+      94: istore_3
+      95: aload_0
+      96: invokevirtual #10                 // Method e:()I
+      99: iconst_1
+     100: if_icmpne     107
+     103: iconst_1
+     104: goto          108
+     107: iconst_0
+     108: istore        4
+     110: sipush        14172
+     113: iload_2
+     114: iload_3
+     115: bipush        32
+     117: bipush        32
+     119: iload         4
+     121: invokestatic  #7                  // Method rs/n/c/A.a:(IIIIIZ)V
+     124: getstatic     #5                  // Field rs/n/e.H:[Lrs/n/e;
+     127: sipush        14172
+     130: aaload
+     131: sipush        1000
+     134: putfield      #6                  // Field rs/n/e.aT:I
+     137: return
+}

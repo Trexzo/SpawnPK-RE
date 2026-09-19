@@ -1,0 +1,79 @@
+# ==============================================================
+# SpawnPK LocalLab - local/generated/private material
+# ==============================================================
+
+# Historical patch backups
+.v*-backup*/
+.world-*-backup*/
+.freebuff/
+
+# Java build output
+server/build/
+*.class
+
+# Runtime account / mutable state
+server/data/accounts/
+server/data/dev_pet_visual.properties
+
+# Client binaries / proprietary evidence
+local-client/*.jar
+evidence/*.jar
+**/client.jar
+**/client-*.jar
+
+# Raw imported research archives
+server/research/r82/
+server/research/r83/source_archives/
+
+# Packages / logs / temp
+*.zip
+*.7z
+*.rar
+*.log
+tmp/
+temp/
+dist/
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Git prep/runtime
+.github-prep-backup-*/
+.runtime-backups/
+
+# External runtime
+local-client/
+evidence/*.jar
+
+# User cache/config
+.spawnpk/
+configs/
+
+# Generated output
+server/build/
+*.class
+*.zip
+*.7z
+*.rar
+*.log
+tmp/
+temp/
+dist/
+
+# Runtime mutable state
+server/data/accounts/
+server/data/dev_pet_visual.properties
+
+# LocalLab-owned sealed baseline server artifact is intentionally tracked.
+!server/certified/
+!server/certified/*.jar# SpawnPK LocalLab generated/runtime state
+*.tmp
+*.bak
+*~
+desktop.ini

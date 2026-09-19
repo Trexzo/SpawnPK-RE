@@ -1,0 +1,37 @@
+SpawnPK LocalLab MAINLINE v5.5 OFFLINE VALIDATION
+
+V55_SERVER_TESTS_PASS count=33 fail=0
+CLIENT_JAR_DEPENDENT_LEGACY_TESTS=17 not rerun in handoff container (pinned client JAR bytes are not embedded in this handoff).
+V54_BASELINE_ALL_TESTS_PASS count=48 fail=0 retained from certified baseline.
+
+V55_CURRENT_CLIENT_STATIC_CERT_PASS combatRoots=16 compRoot63036=true confirm63027=true cancel63031=true
+V55_COMBAT_INTERFACE_REPOSITORY_PASS scythe=776 maul=425 whip=12290 staff=328 godsword=4705 unarmed=5855 tab=0
+V55_COMP_CAPE_CUSTOMIZATION_PASS confirm63027=close219 cancel63031=close219 persisted=true
+V55_PET_DEFINITION_REPOSITORY_PASS mapped=288 ambiguous=21 evilWolper24238=6991 unholy25425=5159 resvano27340-27345=8124-8129
+V55_PET_FOLLOW_BREADCRUMB_PASS delayed250msPolicy=true collisionAuthority=OWNER_TRAVERSED_PATH farTeleportAuthority=OWNER_BREADCRUMB
+V55_WEAPON_POSE_SEMANTIC_FAMILY_PASS productionConsensusOnly=true
+V54_WEAPON_POSE_REPOSITORY_PASS retained elder20485/21005/28030 precedence=true
+V523_BULK_EQUIPMENT_RECONCILIATION_PASS candidates=1833 resolved=1833 unresolved=0
+V522_C2S_86_OF_86_FRAMING_PASS retained
+
+Weapon pose current-action WEAPON coverage:
+- v5.4 non-default: 76 / 436
+- v5.5 non-default: 171 / 436
+- delta: +95
+
+Pet mapping:
+- v5.4 mapped/ambiguous: 260 / 49
+- v5.5 mapped/ambiguous: 288 / 21
+- delta: +28 mappings
+
+Explicitly not claimed fixed:
+- owner-side pet Drop/Pick-up animation/GFX
+- collection-icon extra presentation
+- Doppel dye/accessory particle relationship
+- remaining 21 ambiguous pet mappings
+- attack-style effects/spec-energy/damage semantics
+- WORLD/home placement
+
+Server SHA-256: 50d15e2a7a5a63294b28b58611466459c9c203a4d6ea2b8891d037ff36911db0
+Lane: MAIN
+Live certification: pending user runtime test.

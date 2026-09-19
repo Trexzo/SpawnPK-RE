@@ -1,0 +1,3528 @@
+Compiled from "ClientPacketProbe.java"
+final class spk.local.ClientPacketProbe {
+  private final java.io.InputStream in;
+
+  private final spk.local.IsaacCipher cipher;
+
+  private final java.lang.String tag;
+
+  private boolean aligned;
+
+  private long decodedCount;
+
+  private long opcode0Count;
+
+  private spk.local.MovementRequest pendingMovement;
+
+  private java.lang.Integer pendingWidgetAction;
+
+  private spk.local.ObjectInteraction pendingObjectInteraction;
+
+  private spk.local.ItemContainerAction pendingItemAction;
+
+  private java.lang.Integer pendingAmount;
+
+  private spk.local.ContainerDrag pendingContainerDrag;
+
+  private java.lang.String pendingCommand;
+
+  private spk.local.DropItemAction pendingDropItem;
+
+  private spk.local.NpcAction pendingNpcAction;
+
+  private spk.local.PlayerAction pendingPlayerAction;
+
+  private spk.local.ItemOnItemAction pendingItemOnItem;
+
+  private spk.local.SpellTargetRequest pendingSpellTarget;
+
+  private spk.local.GroundItemInteraction pendingGroundItemInteraction;
+
+  private spk.local.ItemOnNpcAction pendingItemOnNpc;
+
+  private boolean pendingInterfaceClose;
+
+  spk.local.ClientPacketProbe(java.io.InputStream, spk.local.IsaacCipher, java.lang.String);
+    Code:
+       0: aload_0
+       1: invokespecial #1                  // Method java/lang/Object."<init>":()V
+       4: aload_0
+       5: iconst_1
+       6: putfield      #7                  // Field aligned:Z
+       9: aload_0
+      10: aload_1
+      11: putfield      #13                 // Field in:Ljava/io/InputStream;
+      14: aload_0
+      15: aload_2
+      16: putfield      #17                 // Field cipher:Lspk/local/IsaacCipher;
+      19: aload_0
+      20: aload_3
+      21: putfield      #21                 // Field tag:Ljava/lang/String;
+      24: return
+
+  boolean isAligned();
+    Code:
+       0: aload_0
+       1: getfield      #7                  // Field aligned:Z
+       4: ireturn
+
+  long decodedCount();
+    Code:
+       0: aload_0
+       1: getfield      #25                 // Field decodedCount:J
+       4: lreturn
+
+  spk.local.MovementRequest takeMovement();
+    Code:
+       0: aload_0
+       1: getfield      #29                 // Field pendingMovement:Lspk/local/MovementRequest;
+       4: astore_1
+       5: aload_0
+       6: aconst_null
+       7: putfield      #29                 // Field pendingMovement:Lspk/local/MovementRequest;
+      10: aload_1
+      11: areturn
+
+  java.lang.Integer takeWidgetAction();
+    Code:
+       0: aload_0
+       1: getfield      #33                 // Field pendingWidgetAction:Ljava/lang/Integer;
+       4: astore_1
+       5: aload_0
+       6: aconst_null
+       7: putfield      #33                 // Field pendingWidgetAction:Ljava/lang/Integer;
+      10: aload_1
+      11: areturn
+
+  spk.local.ObjectInteraction takeObjectInteraction();
+    Code:
+       0: aload_0
+       1: getfield      #37                 // Field pendingObjectInteraction:Lspk/local/ObjectInteraction;
+       4: astore_1
+       5: aload_0
+       6: aconst_null
+       7: putfield      #37                 // Field pendingObjectInteraction:Lspk/local/ObjectInteraction;
+      10: aload_1
+      11: areturn
+
+  spk.local.ItemContainerAction takeItemAction();
+    Code:
+       0: aload_0
+       1: getfield      #41                 // Field pendingItemAction:Lspk/local/ItemContainerAction;
+       4: astore_1
+       5: aload_0
+       6: aconst_null
+       7: putfield      #41                 // Field pendingItemAction:Lspk/local/ItemContainerAction;
+      10: aload_1
+      11: areturn
+
+  java.lang.Integer takeAmount();
+    Code:
+       0: aload_0
+       1: getfield      #45                 // Field pendingAmount:Ljava/lang/Integer;
+       4: astore_1
+       5: aload_0
+       6: aconst_null
+       7: putfield      #45                 // Field pendingAmount:Ljava/lang/Integer;
+      10: aload_1
+      11: areturn
+
+  spk.local.ContainerDrag takeContainerDrag();
+    Code:
+       0: aload_0
+       1: getfield      #48                 // Field pendingContainerDrag:Lspk/local/ContainerDrag;
+       4: astore_1
+       5: aload_0
+       6: aconst_null
+       7: putfield      #48                 // Field pendingContainerDrag:Lspk/local/ContainerDrag;
+      10: aload_1
+      11: areturn
+
+  java.lang.String takeCommand();
+    Code:
+       0: aload_0
+       1: getfield      #52                 // Field pendingCommand:Ljava/lang/String;
+       4: astore_1
+       5: aload_0
+       6: aconst_null
+       7: putfield      #52                 // Field pendingCommand:Ljava/lang/String;
+      10: aload_1
+      11: areturn
+
+  spk.local.DropItemAction takeDropItem();
+    Code:
+       0: aload_0
+       1: getfield      #55                 // Field pendingDropItem:Lspk/local/DropItemAction;
+       4: astore_1
+       5: aload_0
+       6: aconst_null
+       7: putfield      #55                 // Field pendingDropItem:Lspk/local/DropItemAction;
+      10: aload_1
+      11: areturn
+
+  spk.local.NpcAction takeNpcAction();
+    Code:
+       0: aload_0
+       1: getfield      #59                 // Field pendingNpcAction:Lspk/local/NpcAction;
+       4: astore_1
+       5: aload_0
+       6: aconst_null
+       7: putfield      #59                 // Field pendingNpcAction:Lspk/local/NpcAction;
+      10: aload_1
+      11: areturn
+
+  spk.local.PlayerAction takePlayerAction();
+    Code:
+       0: aload_0
+       1: getfield      #63                 // Field pendingPlayerAction:Lspk/local/PlayerAction;
+       4: astore_1
+       5: aload_0
+       6: aconst_null
+       7: putfield      #63                 // Field pendingPlayerAction:Lspk/local/PlayerAction;
+      10: aload_1
+      11: areturn
+
+  spk.local.ItemOnItemAction takeItemOnItem();
+    Code:
+       0: aload_0
+       1: getfield      #67                 // Field pendingItemOnItem:Lspk/local/ItemOnItemAction;
+       4: astore_1
+       5: aload_0
+       6: aconst_null
+       7: putfield      #67                 // Field pendingItemOnItem:Lspk/local/ItemOnItemAction;
+      10: aload_1
+      11: areturn
+
+  spk.local.SpellTargetRequest takeSpellTarget();
+    Code:
+       0: aload_0
+       1: getfield      #71                 // Field pendingSpellTarget:Lspk/local/SpellTargetRequest;
+       4: astore_1
+       5: aload_0
+       6: aconst_null
+       7: putfield      #71                 // Field pendingSpellTarget:Lspk/local/SpellTargetRequest;
+      10: aload_1
+      11: areturn
+
+  spk.local.GroundItemInteraction takeGroundItemInteraction();
+    Code:
+       0: aload_0
+       1: getfield      #75                 // Field pendingGroundItemInteraction:Lspk/local/GroundItemInteraction;
+       4: astore_1
+       5: aload_0
+       6: aconst_null
+       7: putfield      #75                 // Field pendingGroundItemInteraction:Lspk/local/GroundItemInteraction;
+      10: aload_1
+      11: areturn
+
+  spk.local.ItemOnNpcAction takeItemOnNpc();
+    Code:
+       0: aload_0
+       1: getfield      #79                 // Field pendingItemOnNpc:Lspk/local/ItemOnNpcAction;
+       4: astore_1
+       5: aload_0
+       6: aconst_null
+       7: putfield      #79                 // Field pendingItemOnNpc:Lspk/local/ItemOnNpcAction;
+      10: aload_1
+      11: areturn
+
+  boolean takeInterfaceClose();
+    Code:
+       0: aload_0
+       1: getfield      #83                 // Field pendingInterfaceClose:Z
+       4: istore_1
+       5: aload_0
+       6: iconst_0
+       7: putfield      #83                 // Field pendingInterfaceClose:Z
+      10: iload_1
+      11: ireturn
+
+  int readFirst185() throws java.io.IOException;
+    Code:
+       0: aload_0
+       1: getfield      #13                 // Field in:Ljava/io/InputStream;
+       4: invokevirtual #86                 // Method java/io/InputStream.read:()I
+       7: istore_1
+       8: iload_1
+       9: ifge          14
+      12: iconst_m1
+      13: ireturn
+      14: iload_1
+      15: aload_0
+      16: getfield      #17                 // Field cipher:Lspk/local/IsaacCipher;
+      19: invokevirtual #92                 // Method spk/local/IsaacCipher.nextInt:()I
+      22: isub
+      23: sipush        255
+      26: iand
+      27: istore_2
+      28: aload_0
+      29: dup
+      30: getfield      #25                 // Field decodedCount:J
+      33: lconst_1
+      34: ladd
+      35: putfield      #25                 // Field decodedCount:J
+      38: iload_2
+      39: sipush        185
+      42: if_icmpeq     96
+      45: getstatic     #97                 // Field java/lang/System.out:Ljava/io/PrintStream;
+      48: ldc           #103                // String %sCLIENT_PACKET seq=%d opcode=%d encoded=%d expectedFirst=185; decoder paused%n
+      50: iconst_4
+      51: anewarray     #2                  // class java/lang/Object
+      54: dup
+      55: iconst_0
+      56: aload_0
+      57: getfield      #21                 // Field tag:Ljava/lang/String;
+      60: aastore
+      61: dup
+      62: iconst_1
+      63: aload_0
+      64: getfield      #25                 // Field decodedCount:J
+      67: invokestatic  #105                // Method java/lang/Long.valueOf:(J)Ljava/lang/Long;
+      70: aastore
+      71: dup
+      72: iconst_2
+      73: iload_2
+      74: invokestatic  #111                // Method java/lang/Integer.valueOf:(I)Ljava/lang/Integer;
+      77: aastore
+      78: dup
+      79: iconst_3
+      80: iload_1
+      81: invokestatic  #111                // Method java/lang/Integer.valueOf:(I)Ljava/lang/Integer;
+      84: aastore
+      85: invokevirtual #116                // Method java/io/PrintStream.printf:(Ljava/lang/String;[Ljava/lang/Object;)Ljava/io/PrintStream;
+      88: pop
+      89: aload_0
+      90: iconst_0
+      91: putfield      #7                  // Field aligned:Z
+      94: iload_2
+      95: ireturn
+      96: aload_0
+      97: getfield      #13                 // Field in:Ljava/io/InputStream;
+     100: iconst_2
+     101: invokestatic  #122                // Method spk/local/Binary.readExactly:(Ljava/io/InputStream;I)[B
+     104: astore_3
+     105: aload_3
+     106: iconst_0
+     107: invokestatic  #128                // Method spk/local/Binary.u16:([BI)I
+     110: istore        4
+     112: getstatic     #97                 // Field java/lang/System.out:Ljava/io/PrintStream;
+     115: ldc           #132                // String %sCLIENT_PACKET seq=%d opcode=185 len=2 widget=%d expectedWidget=912%n
+     117: iconst_3
+     118: anewarray     #2                  // class java/lang/Object
+     121: dup
+     122: iconst_0
+     123: aload_0
+     124: getfield      #21                 // Field tag:Ljava/lang/String;
+     127: aastore
+     128: dup
+     129: iconst_1
+     130: aload_0
+     131: getfield      #25                 // Field decodedCount:J
+     134: invokestatic  #105                // Method java/lang/Long.valueOf:(J)Ljava/lang/Long;
+     137: aastore
+     138: dup
+     139: iconst_2
+     140: iload         4
+     142: invokestatic  #111                // Method java/lang/Integer.valueOf:(I)Ljava/lang/Integer;
+     145: aastore
+     146: invokevirtual #116                // Method java/io/PrintStream.printf:(Ljava/lang/String;[Ljava/lang/Object;)Ljava/io/PrintStream;
+     149: pop
+     150: iload_2
+     151: ireturn
+
+  boolean readNextKnownPacket() throws java.io.IOException;
+    Code:
+       0: aload_0
+       1: getfield      #7                  // Field aligned:Z
+       4: ifne          9
+       7: iconst_0
+       8: ireturn
+       9: aload_0
+      10: getfield      #13                 // Field in:Ljava/io/InputStream;
+      13: invokevirtual #86                 // Method java/io/InputStream.read:()I
+      16: istore_1
+      17: iload_1
+      18: ifge          23
+      21: iconst_0
+      22: ireturn
+      23: iload_1
+      24: aload_0
+      25: getfield      #17                 // Field cipher:Lspk/local/IsaacCipher;
+      28: invokevirtual #92                 // Method spk/local/IsaacCipher.nextInt:()I
+      31: isub
+      32: sipush        255
+      35: iand
+      36: istore_2
+      37: aload_0
+      38: dup
+      39: getfield      #25                 // Field decodedCount:J
+      42: lconst_1
+      43: ladd
+      44: putfield      #25                 // Field decodedCount:J
+      47: iload_2
+      48: lookupswitch  { // 49
+                     0: 561
+                     3: 452
+                    17: 2418
+                    18: 2418
+                    21: 2418
+                    23: 2538
+                    35: 2190
+                    36: 511
+                    39: 3345
+                    41: 1046
+                    43: 1341
+                    53: 2028
+                    57: 734
+                    72: 2801
+                    73: 3345
+                    75: 1186
+                    77: 3182
+                    79: 2538
+                    87: 2872
+                    98: 3615
+                   103: 3048
+                   117: 1341
+                   121: 637
+                   122: 2285
+                   128: 3345
+                   129: 1341
+                   130: 849
+                   131: 2190
+                   132: 886
+                   135: 1341
+                   139: 3345
+                   140: 1341
+                   141: 1341
+                   145: 1341
+                   153: 3345
+                   155: 2977
+                   156: 2538
+                   164: 3615
+                   181: 2190
+                   185: 669
+                   202: 3247
+                   208: 1832
+                   214: 1898
+                   226: 3280
+                   236: 2538
+                   237: 2190
+                   248: 3615
+                   249: 2190
+                   253: 2538
+               default: 3639
+          }
+     452: aload_0
+     453: invokevirtual #134                // Method readU8:()I
+     456: istore_3
+     457: getstatic     #97                 // Field java/lang/System.out:Ljava/io/PrintStream;
+     460: ldc           #137                // String %sCLIENT_PACKET seq=%d opcode=3 len=1 focus=%d focused=%s schema=STATIC_EXACT%n
+     462: iconst_4
+     463: anewarray     #2                  // class java/lang/Object
+     466: dup
+     467: iconst_0
+     468: aload_0
+     469: getfield      #21                 // Field tag:Ljava/lang/String;
+     472: aastore
+     473: dup
+     474: iconst_1
+     475: aload_0
+     476: getfield      #25                 // Field decodedCount:J
+     479: invokestatic  #105                // Method java/lang/Long.valueOf:(J)Ljava/lang/Long;
+     482: aastore
+     483: dup
+     484: iconst_2
+     485: iload_3
+     486: invokestatic  #111                // Method java/lang/Integer.valueOf:(I)Ljava/lang/Integer;
+     489: aastore
+     490: dup
+     491: iconst_3
+     492: iload_3
+     493: ifeq          500
+     496: iconst_1
+     497: goto          501
+     500: iconst_0
+     501: invokestatic  #139                // Method java/lang/Boolean.valueOf:(Z)Ljava/lang/Boolean;
+     504: aastore
+     505: invokevirtual #116                // Method java/io/PrintStream.printf:(Ljava/lang/String;[Ljava/lang/Object;)Ljava/io/PrintStream;
+     508: pop
+     509: iconst_1
+     510: ireturn
+     511: aload_0
+     512: getfield      #13                 // Field in:Ljava/io/InputStream;
+     515: iconst_4
+     516: invokestatic  #122                // Method spk/local/Binary.readExactly:(Ljava/io/InputStream;I)[B
+     519: astore_3
+     520: getstatic     #97                 // Field java/lang/System.out:Ljava/io/PrintStream;
+     523: ldc           #144                // String %sCLIENT_PACKET seq=%d opcode=36 len=4 periodicMovementTelemetry=true payload=%s schema=STATIC_EXACT_FIXED4_BE%n
+     525: iconst_3
+     526: anewarray     #2                  // class java/lang/Object
+     529: dup
+     530: iconst_0
+     531: aload_0
+     532: getfield      #21                 // Field tag:Ljava/lang/String;
+     535: aastore
+     536: dup
+     537: iconst_1
+     538: aload_0
+     539: getfield      #25                 // Field decodedCount:J
+     542: invokestatic  #105                // Method java/lang/Long.valueOf:(J)Ljava/lang/Long;
+     545: aastore
+     546: dup
+     547: iconst_2
+     548: aload_3
+     549: bipush        16
+     551: invokestatic  #146                // Method hex:([BI)Ljava/lang/String;
+     554: aastore
+     555: invokevirtual #116                // Method java/io/PrintStream.printf:(Ljava/lang/String;[Ljava/lang/Object;)Ljava/io/PrintStream;
+     558: pop
+     559: iconst_1
+     560: ireturn
+     561: aload_0
+     562: dup
+     563: getfield      #150                // Field opcode0Count:J
+     566: lconst_1
+     567: ladd
+     568: putfield      #150                // Field opcode0Count:J
+     571: aload_0
+     572: getfield      #150                // Field opcode0Count:J
+     575: ldc2_w        #153                // long 4l
+     578: lcmp
+     579: ifle          595
+     582: aload_0
+     583: getfield      #150                // Field opcode0Count:J
+     586: ldc2_w        #155                // long 25l
+     589: lrem
+     590: lconst_0
+     591: lcmp
+     592: ifne          635
+     595: getstatic     #97                 // Field java/lang/System.out:Ljava/io/PrintStream;
+     598: ldc           #157                // String %sCLIENT_PACKET seq=%d opcode=0 len=0 count=%d%n
+     600: iconst_3
+     601: anewarray     #2                  // class java/lang/Object
+     604: dup
+     605: iconst_0
+     606: aload_0
+     607: getfield      #21                 // Field tag:Ljava/lang/String;
+     610: aastore
+     611: dup
+     612: iconst_1
+     613: aload_0
+     614: getfield      #25                 // Field decodedCount:J
+     617: invokestatic  #105                // Method java/lang/Long.valueOf:(J)Ljava/lang/Long;
+     620: aastore
+     621: dup
+     622: iconst_2
+     623: aload_0
+     624: getfield      #150                // Field opcode0Count:J
+     627: invokestatic  #105                // Method java/lang/Long.valueOf:(J)Ljava/lang/Long;
+     630: aastore
+     631: invokevirtual #116                // Method java/io/PrintStream.printf:(Ljava/lang/String;[Ljava/lang/Object;)Ljava/io/PrintStream;
+     634: pop
+     635: iconst_1
+     636: ireturn
+     637: getstatic     #97                 // Field java/lang/System.out:Ljava/io/PrintStream;
+     640: ldc           #159                // String %sCLIENT_PACKET seq=%d opcode=121 len=0 loadingAck=true%n
+     642: iconst_2
+     643: anewarray     #2                  // class java/lang/Object
+     646: dup
+     647: iconst_0
+     648: aload_0
+     649: getfield      #21                 // Field tag:Ljava/lang/String;
+     652: aastore
+     653: dup
+     654: iconst_1
+     655: aload_0
+     656: getfield      #25                 // Field decodedCount:J
+     659: invokestatic  #105                // Method java/lang/Long.valueOf:(J)Ljava/lang/Long;
+     662: aastore
+     663: invokevirtual #116                // Method java/io/PrintStream.printf:(Ljava/lang/String;[Ljava/lang/Object;)Ljava/io/PrintStream;
+     666: pop
+     667: iconst_1
+     668: ireturn
+     669: aload_0
+     670: getfield      #13                 // Field in:Ljava/io/InputStream;
+     673: iconst_2
+     674: invokestatic  #122                // Method spk/local/Binary.readExactly:(Ljava/io/InputStream;I)[B
+     677: astore_3
+     678: aload_3
+     679: iconst_0
+     680: invokestatic  #128                // Method spk/local/Binary.u16:([BI)I
+     683: istore        4
+     685: aload_0
+     686: iload         4
+     688: invokestatic  #111                // Method java/lang/Integer.valueOf:(I)Ljava/lang/Integer;
+     691: putfield      #33                 // Field pendingWidgetAction:Ljava/lang/Integer;
+     694: getstatic     #97                 // Field java/lang/System.out:Ljava/io/PrintStream;
+     697: ldc           #161                // String %sCLIENT_PACKET seq=%d opcode=185 len=2 widget=%d schema=STATIC_EXACT_ALL_CALLSITES%n
+     699: iconst_3
+     700: anewarray     #2                  // class java/lang/Object
+     703: dup
+     704: iconst_0
+     705: aload_0
+     706: getfield      #21                 // Field tag:Ljava/lang/String;
+     709: aastore
+     710: dup
+     711: iconst_1
+     712: aload_0
+     713: getfield      #25                 // Field decodedCount:J
+     716: invokestatic  #105                // Method java/lang/Long.valueOf:(J)Ljava/lang/Long;
+     719: aastore
+     720: dup
+     721: iconst_2
+     722: iload         4
+     724: invokestatic  #111                // Method java/lang/Integer.valueOf:(I)Ljava/lang/Integer;
+     727: aastore
+     728: invokevirtual #116                // Method java/io/PrintStream.printf:(Ljava/lang/String;[Ljava/lang/Object;)Ljava/io/PrintStream;
+     731: pop
+     732: iconst_1
+     733: ireturn
+     734: aload_0
+     735: getfield      #13                 // Field in:Ljava/io/InputStream;
+     738: bipush        8
+     740: invokestatic  #122                // Method spk/local/Binary.readExactly:(Ljava/io/InputStream;I)[B
+     743: astore_3
+     744: aload_3
+     745: invokestatic  #163                // Method decodeItemOnNpc:([B)Lspk/local/ItemOnNpcAction;
+     748: astore        4
+     750: aload         4
+     752: getfield      #167                // Field spk/local/ItemOnNpcAction.itemId:I
+     755: istore        5
+     757: aload         4
+     759: getfield      #173                // Field spk/local/ItemOnNpcAction.targetNpcIndex:I
+     762: istore        6
+     764: aload         4
+     766: getfield      #176                // Field spk/local/ItemOnNpcAction.slot:I
+     769: istore        7
+     771: aload         4
+     773: getfield      #179                // Field spk/local/ItemOnNpcAction.widgetId:I
+     776: istore        8
+     778: aload_0
+     779: aload         4
+     781: putfield      #79                 // Field pendingItemOnNpc:Lspk/local/ItemOnNpcAction;
+     784: getstatic     #97                 // Field java/lang/System.out:Ljava/io/PrintStream;
+     787: ldc           #182                // String %sCLIENT_PACKET seq=%d opcode=57 len=8 itemOnNpc=true itemId=%d slot=%d widget=%d targetNpc=%d schema=STATIC_EXACT_FIXED8%n
+     789: bipush        6
+     791: anewarray     #2                  // class java/lang/Object
+     794: dup
+     795: iconst_0
+     796: aload_0
+     797: getfield      #21                 // Field tag:Ljava/lang/String;
+     800: aastore
+     801: dup
+     802: iconst_1
+     803: aload_0
+     804: getfield      #25                 // Field decodedCount:J
+     807: invokestatic  #105                // Method java/lang/Long.valueOf:(J)Ljava/lang/Long;
+     810: aastore
+     811: dup
+     812: iconst_2
+     813: iload         5
+     815: invokestatic  #111                // Method java/lang/Integer.valueOf:(I)Ljava/lang/Integer;
+     818: aastore
+     819: dup
+     820: iconst_3
+     821: iload         7
+     823: invokestatic  #111                // Method java/lang/Integer.valueOf:(I)Ljava/lang/Integer;
+     826: aastore
+     827: dup
+     828: iconst_4
+     829: iload         8
+     831: invokestatic  #111                // Method java/lang/Integer.valueOf:(I)Ljava/lang/Integer;
+     834: aastore
+     835: dup
+     836: iconst_5
+     837: iload         6
+     839: invokestatic  #111                // Method java/lang/Integer.valueOf:(I)Ljava/lang/Integer;
+     842: aastore
+     843: invokevirtual #116                // Method java/io/PrintStream.printf:(Ljava/lang/String;[Ljava/lang/Object;)Ljava/io/PrintStream;
+     846: pop
+     847: iconst_1
+     848: ireturn
+     849: aload_0
+     850: iconst_1
+     851: putfield      #83                 // Field pendingInterfaceClose:Z
+     854: getstatic     #97                 // Field java/lang/System.out:Ljava/io/PrintStream;
+     857: ldc           #184                // String %sCLIENT_PACKET seq=%d opcode=130 len=0 interfaceClose=true schema=STATIC_EXACT_FIXED0%n
+     859: iconst_2
+     860: anewarray     #2                  // class java/lang/Object
+     863: dup
+     864: iconst_0
+     865: aload_0
+     866: getfield      #21                 // Field tag:Ljava/lang/String;
+     869: aastore
+     870: dup
+     871: iconst_1
+     872: aload_0
+     873: getfield      #25                 // Field decodedCount:J
+     876: invokestatic  #105                // Method java/lang/Long.valueOf:(J)Ljava/lang/Long;
+     879: aastore
+     880: invokevirtual #116                // Method java/io/PrintStream.printf:(Ljava/lang/String;[Ljava/lang/Object;)Ljava/io/PrintStream;
+     883: pop
+     884: iconst_1
+     885: ireturn
+     886: aload_0
+     887: getfield      #13                 // Field in:Ljava/io/InputStream;
+     890: bipush        6
+     892: invokestatic  #122                // Method spk/local/Binary.readExactly:(Ljava/io/InputStream;I)[B
+     895: astore_3
+     896: aload_3
+     897: iconst_0
+     898: baload
+     899: sipush        255
+     902: iand
+     903: sipush        128
+     906: isub
+     907: sipush        255
+     910: iand
+     911: aload_3
+     912: iconst_1
+     913: baload
+     914: sipush        255
+     917: iand
+     918: bipush        8
+     920: ishl
+     921: ior
+     922: istore        4
+     924: aload_3
+     925: iconst_2
+     926: baload
+     927: sipush        255
+     930: iand
+     931: bipush        8
+     933: ishl
+     934: aload_3
+     935: iconst_3
+     936: baload
+     937: sipush        255
+     940: iand
+     941: ior
+     942: istore        5
+     944: aload_3
+     945: iconst_4
+     946: baload
+     947: sipush        255
+     950: iand
+     951: bipush        8
+     953: ishl
+     954: aload_3
+     955: iconst_5
+     956: baload
+     957: sipush        255
+     960: iand
+     961: sipush        128
+     964: isub
+     965: sipush        255
+     968: iand
+     969: ior
+     970: istore        6
+     972: aload_0
+     973: new           #186                // class spk/local/ObjectInteraction
+     976: dup
+     977: iload_2
+     978: iload         5
+     980: iload         4
+     982: iload         6
+     984: invokespecial #188                // Method spk/local/ObjectInteraction."<init>":(IIII)V
+     987: putfield      #37                 // Field pendingObjectInteraction:Lspk/local/ObjectInteraction;
+     990: getstatic     #97                 // Field java/lang/System.out:Ljava/io/PrintStream;
+     993: ldc           #191                // String %sCLIENT_PACKET seq=%d opcode=132 len=6 objectAction=true objectId=%d worldX=%d worldY=%d schema=STATIC_EXACT_FIXED6%n
+     995: iconst_5
+     996: anewarray     #2                  // class java/lang/Object
+     999: dup
+    1000: iconst_0
+    1001: aload_0
+    1002: getfield      #21                 // Field tag:Ljava/lang/String;
+    1005: aastore
+    1006: dup
+    1007: iconst_1
+    1008: aload_0
+    1009: getfield      #25                 // Field decodedCount:J
+    1012: invokestatic  #105                // Method java/lang/Long.valueOf:(J)Ljava/lang/Long;
+    1015: aastore
+    1016: dup
+    1017: iconst_2
+    1018: iload         5
+    1020: invokestatic  #111                // Method java/lang/Integer.valueOf:(I)Ljava/lang/Integer;
+    1023: aastore
+    1024: dup
+    1025: iconst_3
+    1026: iload         4
+    1028: invokestatic  #111                // Method java/lang/Integer.valueOf:(I)Ljava/lang/Integer;
+    1031: aastore
+    1032: dup
+    1033: iconst_4
+    1034: iload         6
+    1036: invokestatic  #111                // Method java/lang/Integer.valueOf:(I)Ljava/lang/Integer;
+    1039: aastore
+    1040: invokevirtual #116                // Method java/io/PrintStream.printf:(Ljava/lang/String;[Ljava/lang/Object;)Ljava/io/PrintStream;
+    1043: pop
+    1044: iconst_1
+    1045: ireturn
+    1046: aload_0
+    1047: getfield      #13                 // Field in:Ljava/io/InputStream;
+    1050: bipush        6
+    1052: invokestatic  #122                // Method spk/local/Binary.readExactly:(Ljava/io/InputStream;I)[B
+    1055: astore_3
+    1056: aload_3
+    1057: iconst_0
+    1058: invokestatic  #193                // Method be:([BI)I
+    1061: istore        4
+    1063: aload_3
+    1064: iconst_2
+    1065: invokestatic  #196                // Method beA:([BI)I
+    1068: istore        5
+    1070: aload_3
+    1071: iconst_4
+    1072: invokestatic  #196                // Method beA:([BI)I
+    1075: istore        6
+    1077: aload_0
+    1078: new           #199                // class spk/local/ItemContainerAction
+    1081: dup
+    1082: iload_2
+    1083: iload         6
+    1085: iload         5
+    1087: iload         4
+    1089: iconst_0
+    1090: iload         6
+    1092: sipush        3214
+    1095: if_icmpne     1103
+    1098: ldc           #203                // String WEAR_WIELD_EQUIP
+    1100: goto          1105
+    1103: ldc           #205                // String ITEM_OPTION_2
+    1105: invokespecial #207                // Method spk/local/ItemContainerAction."<init>":(IIIIILjava/lang/String;)V
+    1108: putfield      #41                 // Field pendingItemAction:Lspk/local/ItemContainerAction;
+    1111: getstatic     #97                 // Field java/lang/System.out:Ljava/io/PrintStream;
+    1114: ldc           #210                // String %sCLIENT_PACKET seq=%d opcode=41 len=6 inventoryItemAction=true widget=%d slot=%d itemId=%d semantic=%s schema=STATIC_EXACT_FIXED6%n
+    1116: bipush        6
+    1118: anewarray     #2                  // class java/lang/Object
+    1121: dup
+    1122: iconst_0
+    1123: aload_0
+    1124: getfield      #21                 // Field tag:Ljava/lang/String;
+    1127: aastore
+    1128: dup
+    1129: iconst_1
+    1130: aload_0
+    1131: getfield      #25                 // Field decodedCount:J
+    1134: invokestatic  #105                // Method java/lang/Long.valueOf:(J)Ljava/lang/Long;
+    1137: aastore
+    1138: dup
+    1139: iconst_2
+    1140: iload         6
+    1142: invokestatic  #111                // Method java/lang/Integer.valueOf:(I)Ljava/lang/Integer;
+    1145: aastore
+    1146: dup
+    1147: iconst_3
+    1148: iload         5
+    1150: invokestatic  #111                // Method java/lang/Integer.valueOf:(I)Ljava/lang/Integer;
+    1153: aastore
+    1154: dup
+    1155: iconst_4
+    1156: iload         4
+    1158: invokestatic  #111                // Method java/lang/Integer.valueOf:(I)Ljava/lang/Integer;
+    1161: aastore
+    1162: dup
+    1163: iconst_5
+    1164: iload         6
+    1166: sipush        3214
+    1169: if_icmpne     1177
+    1172: ldc           #203                // String WEAR_WIELD_EQUIP
+    1174: goto          1179
+    1177: ldc           #205                // String ITEM_OPTION_2
+    1179: aastore
+    1180: invokevirtual #116                // Method java/io/PrintStream.printf:(Ljava/lang/String;[Ljava/lang/Object;)Ljava/io/PrintStream;
+    1183: pop
+    1184: iconst_1
+    1185: ireturn
+    1186: aload_0
+    1187: getfield      #13                 // Field in:Ljava/io/InputStream;
+    1190: bipush        6
+    1192: invokestatic  #122                // Method spk/local/Binary.readExactly:(Ljava/io/InputStream;I)[B
+    1195: astore_3
+    1196: aload_3
+    1197: iconst_0
+    1198: invokestatic  #212                // Method leA:([BI)I
+    1201: istore        4
+    1203: aload_3
+    1204: iconst_2
+    1205: invokestatic  #215                // Method le:([BI)I
+    1208: istore        5
+    1210: aload_3
+    1211: iconst_4
+    1212: invokestatic  #196                // Method beA:([BI)I
+    1215: istore        6
+    1217: iload         4
+    1219: sipush        3214
+    1222: if_icmpne     1254
+    1225: iload         6
+    1227: sipush        23063
+    1230: if_icmpeq     1249
+    1233: iload         6
+    1235: sipush        21963
+    1238: if_icmpeq     1249
+    1241: iload         6
+    1243: sipush        21964
+    1246: if_icmpne     1254
+    1249: ldc           #218                // String CUSTOMIZE_COMP_CAPE
+    1251: goto          1256
+    1254: ldc           #220                // String ITEM_OPTION_4
+    1256: astore        7
+    1258: aload_0
+    1259: new           #199                // class spk/local/ItemContainerAction
+    1262: dup
+    1263: iload_2
+    1264: iload         4
+    1266: iload         5
+    1268: iload         6
+    1270: iconst_0
+    1271: aload         7
+    1273: invokespecial #207                // Method spk/local/ItemContainerAction."<init>":(IIIIILjava/lang/String;)V
+    1276: putfield      #41                 // Field pendingItemAction:Lspk/local/ItemContainerAction;
+    1279: getstatic     #97                 // Field java/lang/System.out:Ljava/io/PrintStream;
+    1282: ldc           #222                // String %sCLIENT_PACKET seq=%d opcode=75 len=6 inventoryItemAction=true widget=%d slot=%d itemId=%d semantic=%s schema=STATIC_EXACT_FIXED6%n
+    1284: bipush        6
+    1286: anewarray     #2                  // class java/lang/Object
+    1289: dup
+    1290: iconst_0
+    1291: aload_0
+    1292: getfield      #21                 // Field tag:Ljava/lang/String;
+    1295: aastore
+    1296: dup
+    1297: iconst_1
+    1298: aload_0
+    1299: getfield      #25                 // Field decodedCount:J
+    1302: invokestatic  #105                // Method java/lang/Long.valueOf:(J)Ljava/lang/Long;
+    1305: aastore
+    1306: dup
+    1307: iconst_2
+    1308: iload         4
+    1310: invokestatic  #111                // Method java/lang/Integer.valueOf:(I)Ljava/lang/Integer;
+    1313: aastore
+    1314: dup
+    1315: iconst_3
+    1316: iload         5
+    1318: invokestatic  #111                // Method java/lang/Integer.valueOf:(I)Ljava/lang/Integer;
+    1321: aastore
+    1322: dup
+    1323: iconst_4
+    1324: iload         6
+    1326: invokestatic  #111                // Method java/lang/Integer.valueOf:(I)Ljava/lang/Integer;
+    1329: aastore
+    1330: dup
+    1331: iconst_5
+    1332: aload         7
+    1334: aastore
+    1335: invokevirtual #116                // Method java/io/PrintStream.printf:(Ljava/lang/String;[Ljava/lang/Object;)Ljava/io/PrintStream;
+    1338: pop
+    1339: iconst_1
+    1340: ireturn
+    1341: iload_2
+    1342: sipush        141
+    1345: if_icmpne     1353
+    1348: bipush        10
+    1350: goto          1355
+    1353: bipush        6
+    1355: istore_3
+    1356: aload_0
+    1357: getfield      #13                 // Field in:Ljava/io/InputStream;
+    1360: iload_3
+    1361: invokestatic  #122                // Method spk/local/Binary.readExactly:(Ljava/io/InputStream;I)[B
+    1364: astore        4
+    1366: iconst_0
+    1367: istore        8
+    1369: iload_2
+    1370: lookupswitch  { // 7
+                    43: 1508
+                   117: 1472
+                   129: 1544
+                   135: 1580
+                   140: 1616
+                   141: 1660
+                   145: 1436
+               default: 1700
+          }
+    1436: aload         4
+    1438: iconst_0
+    1439: invokestatic  #196                // Method beA:([BI)I
+    1442: istore        5
+    1444: aload         4
+    1446: iconst_2
+    1447: invokestatic  #196                // Method beA:([BI)I
+    1450: istore        6
+    1452: aload         4
+    1454: iconst_4
+    1455: invokestatic  #196                // Method beA:([BI)I
+    1458: istore        7
+    1460: iload         5
+    1462: ldc           #224                // String 1
+    1464: invokestatic  #226                // Method itemSemantic:(ILjava/lang/String;)Ljava/lang/String;
+    1467: astore        9
+    1469: goto          1708
+    1472: aload         4
+    1474: iconst_0
+    1475: invokestatic  #212                // Method leA:([BI)I
+    1478: istore        5
+    1480: aload         4
+    1482: iconst_2
+    1483: invokestatic  #212                // Method leA:([BI)I
+    1486: istore        7
+    1488: aload         4
+    1490: iconst_4
+    1491: invokestatic  #215                // Method le:([BI)I
+    1494: istore        6
+    1496: iload         5
+    1498: ldc           #230                // String 5
+    1500: invokestatic  #226                // Method itemSemantic:(ILjava/lang/String;)Ljava/lang/String;
+    1503: astore        9
+    1505: goto          1708
+    1508: aload         4
+    1510: iconst_0
+    1511: invokestatic  #215                // Method le:([BI)I
+    1514: istore        5
+    1516: aload         4
+    1518: iconst_2
+    1519: invokestatic  #196                // Method beA:([BI)I
+    1522: istore        7
+    1524: aload         4
+    1526: iconst_4
+    1527: invokestatic  #196                // Method beA:([BI)I
+    1530: istore        6
+    1532: iload         5
+    1534: ldc           #232                // String 10
+    1536: invokestatic  #226                // Method itemSemantic:(ILjava/lang/String;)Ljava/lang/String;
+    1539: astore        9
+    1541: goto          1708
+    1544: aload         4
+    1546: iconst_0
+    1547: invokestatic  #196                // Method beA:([BI)I
+    1550: istore        6
+    1552: aload         4
+    1554: iconst_2
+    1555: invokestatic  #193                // Method be:([BI)I
+    1558: istore        5
+    1560: aload         4
+    1562: iconst_4
+    1563: invokestatic  #196                // Method beA:([BI)I
+    1566: istore        7
+    1568: iload         5
+    1570: ldc           #234                // String ALL
+    1572: invokestatic  #226                // Method itemSemantic:(ILjava/lang/String;)Ljava/lang/String;
+    1575: astore        9
+    1577: goto          1708
+    1580: aload         4
+    1582: iconst_0
+    1583: invokestatic  #215                // Method le:([BI)I
+    1586: istore        6
+    1588: aload         4
+    1590: iconst_2
+    1591: invokestatic  #196                // Method beA:([BI)I
+    1594: istore        5
+    1596: aload         4
+    1598: iconst_4
+    1599: invokestatic  #215                // Method le:([BI)I
+    1602: istore        7
+    1604: iload         5
+    1606: ldc           #236                // String X
+    1608: invokestatic  #226                // Method itemSemantic:(ILjava/lang/String;)Ljava/lang/String;
+    1611: astore        9
+    1613: goto          1708
+    1616: aload         4
+    1618: iconst_0
+    1619: invokestatic  #196                // Method beA:([BI)I
+    1622: istore        6
+    1624: aload         4
+    1626: iconst_2
+    1627: invokestatic  #193                // Method be:([BI)I
+    1630: istore        5
+    1632: aload         4
+    1634: iconst_4
+    1635: invokestatic  #196                // Method beA:([BI)I
+    1638: istore        7
+    1640: iload         7
+    1642: sipush        995
+    1645: if_icmpne     1653
+    1648: ldc           #238                // String BAG_EXCHANGE_REQUEST
+    1650: goto          1655
+    1653: ldc           #240                // String WITHDRAW_ALL_BUT_ONE
+    1655: astore        9
+    1657: goto          1708
+    1660: aload         4
+    1662: iconst_0
+    1663: invokestatic  #196                // Method beA:([BI)I
+    1666: istore        6
+    1668: aload         4
+    1670: iconst_2
+    1671: invokestatic  #193                // Method be:([BI)I
+    1674: istore        5
+    1676: aload         4
+    1678: iconst_4
+    1679: invokestatic  #196                // Method beA:([BI)I
+    1682: istore        7
+    1684: aload         4
+    1686: bipush        6
+    1688: invokestatic  #242                // Method be32:([BI)I
+    1691: istore        8
+    1693: ldc           #245                // String WITHDRAW_CONFIGURED_AMOUNT
+    1695: astore        9
+    1697: goto          1708
+    1700: new           #247                // class java/lang/AssertionError
+    1703: dup
+    1704: invokespecial #249                // Method java/lang/AssertionError."<init>":()V
+    1707: athrow
+    1708: aload_0
+    1709: new           #199                // class spk/local/ItemContainerAction
+    1712: dup
+    1713: iload_2
+    1714: iload         5
+    1716: iload         6
+    1718: iload         7
+    1720: iload         8
+    1722: aload         9
+    1724: invokespecial #207                // Method spk/local/ItemContainerAction."<init>":(IIIIILjava/lang/String;)V
+    1727: putfield      #41                 // Field pendingItemAction:Lspk/local/ItemContainerAction;
+    1730: getstatic     #97                 // Field java/lang/System.out:Ljava/io/PrintStream;
+    1733: ldc           #250                // String %sCLIENT_PACKET seq=%d opcode=%d len=%d itemContainerAction=true widget=%d slot=%d itemId=%d semantic=%s%s schema=STATIC_EXACT%n
+    1735: bipush        9
+    1737: anewarray     #2                  // class java/lang/Object
+    1740: dup
+    1741: iconst_0
+    1742: aload_0
+    1743: getfield      #21                 // Field tag:Ljava/lang/String;
+    1746: aastore
+    1747: dup
+    1748: iconst_1
+    1749: aload_0
+    1750: getfield      #25                 // Field decodedCount:J
+    1753: invokestatic  #105                // Method java/lang/Long.valueOf:(J)Ljava/lang/Long;
+    1756: aastore
+    1757: dup
+    1758: iconst_2
+    1759: iload_2
+    1760: invokestatic  #111                // Method java/lang/Integer.valueOf:(I)Ljava/lang/Integer;
+    1763: aastore
+    1764: dup
+    1765: iconst_3
+    1766: iload_3
+    1767: invokestatic  #111                // Method java/lang/Integer.valueOf:(I)Ljava/lang/Integer;
+    1770: aastore
+    1771: dup
+    1772: iconst_4
+    1773: iload         5
+    1775: invokestatic  #111                // Method java/lang/Integer.valueOf:(I)Ljava/lang/Integer;
+    1778: aastore
+    1779: dup
+    1780: iconst_5
+    1781: iload         6
+    1783: invokestatic  #111                // Method java/lang/Integer.valueOf:(I)Ljava/lang/Integer;
+    1786: aastore
+    1787: dup
+    1788: bipush        6
+    1790: iload         7
+    1792: invokestatic  #111                // Method java/lang/Integer.valueOf:(I)Ljava/lang/Integer;
+    1795: aastore
+    1796: dup
+    1797: bipush        7
+    1799: aload         9
+    1801: aastore
+    1802: dup
+    1803: bipush        8
+    1805: iload_2
+    1806: sipush        141
+    1809: if_icmpne     1822
+    1812: iload         8
+    1814: invokedynamic #252,  0            // InvokeDynamic #0:makeConcatWithConstants:(I)Ljava/lang/String;
+    1819: goto          1825
+    1822: ldc_w         #256                // String
+    1825: aastore
+    1826: invokevirtual #116                // Method java/io/PrintStream.printf:(Ljava/lang/String;[Ljava/lang/Object;)Ljava/io/PrintStream;
+    1829: pop
+    1830: iconst_1
+    1831: ireturn
+    1832: aload_0
+    1833: getfield      #13                 // Field in:Ljava/io/InputStream;
+    1836: iconst_4
+    1837: invokestatic  #122                // Method spk/local/Binary.readExactly:(Ljava/io/InputStream;I)[B
+    1840: astore_3
+    1841: aload_3
+    1842: iconst_0
+    1843: invokestatic  #242                // Method be32:([BI)I
+    1846: istore        4
+    1848: aload_0
+    1849: iload         4
+    1851: invokestatic  #111                // Method java/lang/Integer.valueOf:(I)Ljava/lang/Integer;
+    1854: putfield      #45                 // Field pendingAmount:Ljava/lang/Integer;
+    1857: getstatic     #97                 // Field java/lang/System.out:Ljava/io/PrintStream;
+    1860: ldc_w         #258                // String %sCLIENT_PACKET seq=%d opcode=208 len=4 amount=%d amountEntry=true schema=STATIC_EXACT_FIXED4_BE%n
+    1863: iconst_3
+    1864: anewarray     #2                  // class java/lang/Object
+    1867: dup
+    1868: iconst_0
+    1869: aload_0
+    1870: getfield      #21                 // Field tag:Ljava/lang/String;
+    1873: aastore
+    1874: dup
+    1875: iconst_1
+    1876: aload_0
+    1877: getfield      #25                 // Field decodedCount:J
+    1880: invokestatic  #105                // Method java/lang/Long.valueOf:(J)Ljava/lang/Long;
+    1883: aastore
+    1884: dup
+    1885: iconst_2
+    1886: iload         4
+    1888: invokestatic  #111                // Method java/lang/Integer.valueOf:(I)Ljava/lang/Integer;
+    1891: aastore
+    1892: invokevirtual #116                // Method java/io/PrintStream.printf:(Ljava/lang/String;[Ljava/lang/Object;)Ljava/io/PrintStream;
+    1895: pop
+    1896: iconst_1
+    1897: ireturn
+    1898: aload_0
+    1899: getfield      #13                 // Field in:Ljava/io/InputStream;
+    1902: bipush        7
+    1904: invokestatic  #122                // Method spk/local/Binary.readExactly:(Ljava/io/InputStream;I)[B
+    1907: astore_3
+    1908: aload_3
+    1909: iconst_0
+    1910: invokestatic  #212                // Method leA:([BI)I
+    1913: istore        4
+    1915: aload_3
+    1916: iconst_2
+    1917: baload
+    1918: sipush        255
+    1921: iand
+    1922: ineg
+    1923: sipush        255
+    1926: iand
+    1927: istore        5
+    1929: aload_3
+    1930: iconst_3
+    1931: invokestatic  #212                // Method leA:([BI)I
+    1934: istore        6
+    1936: aload_3
+    1937: iconst_5
+    1938: invokestatic  #215                // Method le:([BI)I
+    1941: istore        7
+    1943: aload_0
+    1944: new           #260                // class spk/local/ContainerDrag
+    1947: dup
+    1948: iload         4
+    1950: iload         5
+    1952: iload         6
+    1954: iload         7
+    1956: invokespecial #262                // Method spk/local/ContainerDrag."<init>":(IIII)V
+    1959: putfield      #48                 // Field pendingContainerDrag:Lspk/local/ContainerDrag;
+    1962: getstatic     #97                 // Field java/lang/System.out:Ljava/io/PrintStream;
+    1965: ldc_w         #263                // String %sCLIENT_PACKET seq=%d opcode=214 len=7 containerDrag=true widget=%d mode=%d source=%d destination=%d schema=STATIC_EXACT_FIXED7%n
+    1968: bipush        6
+    1970: anewarray     #2                  // class java/lang/Object
+    1973: dup
+    1974: iconst_0
+    1975: aload_0
+    1976: getfield      #21                 // Field tag:Ljava/lang/String;
+    1979: aastore
+    1980: dup
+    1981: iconst_1
+    1982: aload_0
+    1983: getfield      #25                 // Field decodedCount:J
+    1986: invokestatic  #105                // Method java/lang/Long.valueOf:(J)Ljava/lang/Long;
+    1989: aastore
+    1990: dup
+    1991: iconst_2
+    1992: iload         4
+    1994: invokestatic  #111                // Method java/lang/Integer.valueOf:(I)Ljava/lang/Integer;
+    1997: aastore
+    1998: dup
+    1999: iconst_3
+    2000: iload         5
+    2002: invokestatic  #111                // Method java/lang/Integer.valueOf:(I)Ljava/lang/Integer;
+    2005: aastore
+    2006: dup
+    2007: iconst_4
+    2008: iload         6
+    2010: invokestatic  #111                // Method java/lang/Integer.valueOf:(I)Ljava/lang/Integer;
+    2013: aastore
+    2014: dup
+    2015: iconst_5
+    2016: iload         7
+    2018: invokestatic  #111                // Method java/lang/Integer.valueOf:(I)Ljava/lang/Integer;
+    2021: aastore
+    2022: invokevirtual #116                // Method java/io/PrintStream.printf:(Ljava/lang/String;[Ljava/lang/Object;)Ljava/io/PrintStream;
+    2025: pop
+    2026: iconst_1
+    2027: ireturn
+    2028: aload_0
+    2029: getfield      #13                 // Field in:Ljava/io/InputStream;
+    2032: bipush        12
+    2034: invokestatic  #122                // Method spk/local/Binary.readExactly:(Ljava/io/InputStream;I)[B
+    2037: astore_3
+    2038: aload_3
+    2039: iconst_0
+    2040: invokestatic  #193                // Method be:([BI)I
+    2043: istore        4
+    2045: aload_3
+    2046: iconst_2
+    2047: invokestatic  #196                // Method beA:([BI)I
+    2050: istore        5
+    2052: aload_3
+    2053: iconst_4
+    2054: invokestatic  #212                // Method leA:([BI)I
+    2057: istore        6
+    2059: aload_3
+    2060: bipush        6
+    2062: invokestatic  #193                // Method be:([BI)I
+    2065: istore        7
+    2067: aload_3
+    2068: bipush        8
+    2070: invokestatic  #215                // Method le:([BI)I
+    2073: istore        8
+    2075: aload_3
+    2076: bipush        10
+    2078: invokestatic  #193                // Method be:([BI)I
+    2081: istore        9
+    2083: aload_0
+    2084: new           #265                // class spk/local/ItemOnItemAction
+    2087: dup
+    2088: iload         4
+    2090: iload         5
+    2092: iload         6
+    2094: iload         7
+    2096: iload         8
+    2098: iload         9
+    2100: invokespecial #267                // Method spk/local/ItemOnItemAction."<init>":(IIIIII)V
+    2103: putfield      #67                 // Field pendingItemOnItem:Lspk/local/ItemOnItemAction;
+    2106: getstatic     #97                 // Field java/lang/System.out:Ljava/io/PrintStream;
+    2109: ldc_w         #270                // String %sCLIENT_PACKET seq=%d opcode=53 len=12 itemOnItem=true selected=%d@%d/%d target=%d@%d/%d schema=STATIC_EXACT_FIXED12%n
+    2112: bipush        8
+    2114: anewarray     #2                  // class java/lang/Object
+    2117: dup
+    2118: iconst_0
+    2119: aload_0
+    2120: getfield      #21                 // Field tag:Ljava/lang/String;
+    2123: aastore
+    2124: dup
+    2125: iconst_1
+    2126: aload_0
+    2127: getfield      #25                 // Field decodedCount:J
+    2130: invokestatic  #105                // Method java/lang/Long.valueOf:(J)Ljava/lang/Long;
+    2133: aastore
+    2134: dup
+    2135: iconst_2
+    2136: iload         8
+    2138: invokestatic  #111                // Method java/lang/Integer.valueOf:(I)Ljava/lang/Integer;
+    2141: aastore
+    2142: dup
+    2143: iconst_3
+    2144: iload         5
+    2146: invokestatic  #111                // Method java/lang/Integer.valueOf:(I)Ljava/lang/Integer;
+    2149: aastore
+    2150: dup
+    2151: iconst_4
+    2152: iload         7
+    2154: invokestatic  #111                // Method java/lang/Integer.valueOf:(I)Ljava/lang/Integer;
+    2157: aastore
+    2158: dup
+    2159: iconst_5
+    2160: iload         6
+    2162: invokestatic  #111                // Method java/lang/Integer.valueOf:(I)Ljava/lang/Integer;
+    2165: aastore
+    2166: dup
+    2167: bipush        6
+    2169: iload         4
+    2171: invokestatic  #111                // Method java/lang/Integer.valueOf:(I)Ljava/lang/Integer;
+    2174: aastore
+    2175: dup
+    2176: bipush        7
+    2178: iload         9
+    2180: invokestatic  #111                // Method java/lang/Integer.valueOf:(I)Ljava/lang/Integer;
+    2183: aastore
+    2184: invokevirtual #116                // Method java/io/PrintStream.printf:(Ljava/lang/String;[Ljava/lang/Object;)Ljava/io/PrintStream;
+    2187: pop
+    2188: iconst_1
+    2189: ireturn
+    2190: iload_2
+    2191: sipush        249
+    2194: if_icmpeq     2204
+    2197: iload_2
+    2198: sipush        131
+    2201: if_icmpne     2208
+    2204: iconst_4
+    2205: goto          2210
+    2208: bipush        8
+    2210: istore_3
+    2211: aload_0
+    2212: getfield      #13                 // Field in:Ljava/io/InputStream;
+    2215: iload_3
+    2216: invokestatic  #122                // Method spk/local/Binary.readExactly:(Ljava/io/InputStream;I)[B
+    2219: astore        4
+    2221: aload_0
+    2222: iload_2
+    2223: aload         4
+    2225: invokestatic  #272                // Method decodeSpellTarget:(I[B)Lspk/local/SpellTargetRequest;
+    2228: putfield      #71                 // Field pendingSpellTarget:Lspk/local/SpellTargetRequest;
+    2231: getstatic     #97                 // Field java/lang/System.out:Ljava/io/PrintStream;
+    2234: ldc_w         #276                // String %sCLIENT_PACKET seq=%d opcode=%d len=%d spellTarget=%s schema=R25_EXACT_CURRENT%n
+    2237: iconst_5
+    2238: anewarray     #2                  // class java/lang/Object
+    2241: dup
+    2242: iconst_0
+    2243: aload_0
+    2244: getfield      #21                 // Field tag:Ljava/lang/String;
+    2247: aastore
+    2248: dup
+    2249: iconst_1
+    2250: aload_0
+    2251: getfield      #25                 // Field decodedCount:J
+    2254: invokestatic  #105                // Method java/lang/Long.valueOf:(J)Ljava/lang/Long;
+    2257: aastore
+    2258: dup
+    2259: iconst_2
+    2260: iload_2
+    2261: invokestatic  #111                // Method java/lang/Integer.valueOf:(I)Ljava/lang/Integer;
+    2264: aastore
+    2265: dup
+    2266: iconst_3
+    2267: iload_3
+    2268: invokestatic  #111                // Method java/lang/Integer.valueOf:(I)Ljava/lang/Integer;
+    2271: aastore
+    2272: dup
+    2273: iconst_4
+    2274: aload_0
+    2275: getfield      #71                 // Field pendingSpellTarget:Lspk/local/SpellTargetRequest;
+    2278: aastore
+    2279: invokevirtual #116                // Method java/io/PrintStream.printf:(Ljava/lang/String;[Ljava/lang/Object;)Ljava/io/PrintStream;
+    2282: pop
+    2283: iconst_1
+    2284: ireturn
+    2285: aload_0
+    2286: getfield      #13                 // Field in:Ljava/io/InputStream;
+    2289: bipush        6
+    2291: invokestatic  #122                // Method spk/local/Binary.readExactly:(Ljava/io/InputStream;I)[B
+    2294: astore_3
+    2295: aload_3
+    2296: iconst_0
+    2297: invokestatic  #212                // Method leA:([BI)I
+    2300: istore        4
+    2302: aload_3
+    2303: iconst_2
+    2304: invokestatic  #196                // Method beA:([BI)I
+    2307: istore        5
+    2309: aload_3
+    2310: iconst_4
+    2311: invokestatic  #215                // Method le:([BI)I
+    2314: istore        6
+    2316: iload         6
+    2318: invokestatic  #278                // Method spk/local/ItemActionResolver.inventoryOption1Semantic:(I)Ljava/lang/String;
+    2321: astore        7
+    2323: aload_0
+    2324: new           #199                // class spk/local/ItemContainerAction
+    2327: dup
+    2328: iload_2
+    2329: iload         4
+    2331: iload         5
+    2333: iload         6
+    2335: iconst_0
+    2336: aload         7
+    2338: ifnonnull     2347
+    2341: ldc_w         #283                // String ITEM_OPTION_1
+    2344: goto          2349
+    2347: aload         7
+    2349: invokespecial #207                // Method spk/local/ItemContainerAction."<init>":(IIIIILjava/lang/String;)V
+    2352: putfield      #41                 // Field pendingItemAction:Lspk/local/ItemContainerAction;
+    2355: getstatic     #97                 // Field java/lang/System.out:Ljava/io/PrintStream;
+    2358: ldc_w         #285                // String %sCLIENT_PACKET seq=%d opcode=122 len=6 itemOption1=true widget=%d slot=%d itemId=%d semantic=%s schema=STATIC_EXACT_FIXED6_LEA_BEA_LE%n
+    2361: bipush        6
+    2363: anewarray     #2                  // class java/lang/Object
+    2366: dup
+    2367: iconst_0
+    2368: aload_0
+    2369: getfield      #21                 // Field tag:Ljava/lang/String;
+    2372: aastore
+    2373: dup
+    2374: iconst_1
+    2375: aload_0
+    2376: getfield      #25                 // Field decodedCount:J
+    2379: invokestatic  #105                // Method java/lang/Long.valueOf:(J)Ljava/lang/Long;
+    2382: aastore
+    2383: dup
+    2384: iconst_2
+    2385: iload         4
+    2387: invokestatic  #111                // Method java/lang/Integer.valueOf:(I)Ljava/lang/Integer;
+    2390: aastore
+    2391: dup
+    2392: iconst_3
+    2393: iload         5
+    2395: invokestatic  #111                // Method java/lang/Integer.valueOf:(I)Ljava/lang/Integer;
+    2398: aastore
+    2399: dup
+    2400: iconst_4
+    2401: iload         6
+    2403: invokestatic  #111                // Method java/lang/Integer.valueOf:(I)Ljava/lang/Integer;
+    2406: aastore
+    2407: dup
+    2408: iconst_5
+    2409: aload         7
+    2411: aastore
+    2412: invokevirtual #116                // Method java/io/PrintStream.printf:(Ljava/lang/String;[Ljava/lang/Object;)Ljava/io/PrintStream;
+    2415: pop
+    2416: iconst_1
+    2417: ireturn
+    2418: aload_0
+    2419: getfield      #13                 // Field in:Ljava/io/InputStream;
+    2422: iconst_2
+    2423: invokestatic  #122                // Method spk/local/Binary.readExactly:(Ljava/io/InputStream;I)[B
+    2426: astore_3
+    2427: iload_2
+    2428: bipush        17
+    2430: if_icmpne     2443
+    2433: aload_3
+    2434: iconst_0
+    2435: invokestatic  #212                // Method leA:([BI)I
+    2438: istore        4
+    2440: goto          2466
+    2443: iload_2
+    2444: bipush        21
+    2446: if_icmpne     2459
+    2449: aload_3
+    2450: iconst_0
+    2451: invokestatic  #193                // Method be:([BI)I
+    2454: istore        4
+    2456: goto          2466
+    2459: aload_3
+    2460: iconst_0
+    2461: invokestatic  #215                // Method le:([BI)I
+    2464: istore        4
+    2466: aload_0
+    2467: new           #287                // class spk/local/NpcAction
+    2470: dup
+    2471: iload_2
+    2472: iload         4
+    2474: invokespecial #289                // Method spk/local/NpcAction."<init>":(II)V
+    2477: putfield      #59                 // Field pendingNpcAction:Lspk/local/NpcAction;
+    2480: getstatic     #97                 // Field java/lang/System.out:Ljava/io/PrintStream;
+    2483: ldc_w         #292                // String %sCLIENT_PACKET seq=%d opcode=%d len=2 npcOption=%d sceneIndex=%d schema=STATIC_EXACT%n
+    2486: iconst_5
+    2487: anewarray     #2                  // class java/lang/Object
+    2490: dup
+    2491: iconst_0
+    2492: aload_0
+    2493: getfield      #21                 // Field tag:Ljava/lang/String;
+    2496: aastore
+    2497: dup
+    2498: iconst_1
+    2499: aload_0
+    2500: getfield      #25                 // Field decodedCount:J
+    2503: invokestatic  #105                // Method java/lang/Long.valueOf:(J)Ljava/lang/Long;
+    2506: aastore
+    2507: dup
+    2508: iconst_2
+    2509: iload_2
+    2510: invokestatic  #111                // Method java/lang/Integer.valueOf:(I)Ljava/lang/Integer;
+    2513: aastore
+    2514: dup
+    2515: iconst_3
+    2516: iload_2
+    2517: invokestatic  #294                // Method spk/local/NpcInteractionRouter.optionForOpcode:(I)I
+    2520: invokestatic  #111                // Method java/lang/Integer.valueOf:(I)Ljava/lang/Integer;
+    2523: aastore
+    2524: dup
+    2525: iconst_4
+    2526: iload         4
+    2528: invokestatic  #111                // Method java/lang/Integer.valueOf:(I)Ljava/lang/Integer;
+    2531: aastore
+    2532: invokevirtual #116                // Method java/io/PrintStream.printf:(Ljava/lang/String;[Ljava/lang/Object;)Ljava/io/PrintStream;
+    2535: pop
+    2536: iconst_1
+    2537: ireturn
+    2538: aload_0
+    2539: getfield      #13                 // Field in:Ljava/io/InputStream;
+    2542: bipush        6
+    2544: invokestatic  #122                // Method spk/local/Binary.readExactly:(Ljava/io/InputStream;I)[B
+    2547: astore_3
+    2548: iload_2
+    2549: sipush        156
+    2552: if_icmpne     2582
+    2555: iconst_1
+    2556: istore        4
+    2558: aload_3
+    2559: iconst_0
+    2560: invokestatic  #196                // Method beA:([BI)I
+    2563: istore        5
+    2565: aload_3
+    2566: iconst_2
+    2567: invokestatic  #215                // Method le:([BI)I
+    2570: istore        6
+    2572: aload_3
+    2573: iconst_4
+    2574: invokestatic  #212                // Method leA:([BI)I
+    2577: istore        7
+    2579: goto          2707
+    2582: iload_2
+    2583: bipush        23
+    2585: if_icmpne     2615
+    2588: iconst_2
+    2589: istore        4
+    2591: aload_3
+    2592: iconst_0
+    2593: invokestatic  #215                // Method le:([BI)I
+    2596: istore        6
+    2598: aload_3
+    2599: iconst_2
+    2600: invokestatic  #215                // Method le:([BI)I
+    2603: istore        7
+    2605: aload_3
+    2606: iconst_4
+    2607: invokestatic  #215                // Method le:([BI)I
+    2610: istore        5
+    2612: goto          2707
+    2615: iload_2
+    2616: sipush        236
+    2619: if_icmpne     2649
+    2622: iconst_3
+    2623: istore        4
+    2625: aload_3
+    2626: iconst_0
+    2627: invokestatic  #215                // Method le:([BI)I
+    2630: istore        6
+    2632: aload_3
+    2633: iconst_2
+    2634: invokestatic  #193                // Method be:([BI)I
+    2637: istore        7
+    2639: aload_3
+    2640: iconst_4
+    2641: invokestatic  #215                // Method le:([BI)I
+    2644: istore        5
+    2646: goto          2707
+    2649: iload_2
+    2650: sipush        253
+    2653: if_icmpne     2683
+    2656: iconst_4
+    2657: istore        4
+    2659: aload_3
+    2660: iconst_0
+    2661: invokestatic  #215                // Method le:([BI)I
+    2664: istore        5
+    2666: aload_3
+    2667: iconst_2
+    2668: invokestatic  #212                // Method leA:([BI)I
+    2671: istore        6
+    2673: aload_3
+    2674: iconst_4
+    2675: invokestatic  #196                // Method beA:([BI)I
+    2678: istore        7
+    2680: goto          2707
+    2683: iconst_5
+    2684: istore        4
+    2686: aload_3
+    2687: iconst_0
+    2688: invokestatic  #215                // Method le:([BI)I
+    2691: istore        6
+    2693: aload_3
+    2694: iconst_2
+    2695: invokestatic  #193                // Method be:([BI)I
+    2698: istore        7
+    2700: aload_3
+    2701: iconst_4
+    2702: invokestatic  #196                // Method beA:([BI)I
+    2705: istore        5
+    2707: aload_0
+    2708: new           #300                // class spk/local/GroundItemInteraction
+    2711: dup
+    2712: iload_2
+    2713: iload         4
+    2715: iload         7
+    2717: iload         5
+    2719: iload         6
+    2721: invokespecial #302                // Method spk/local/GroundItemInteraction."<init>":(IIIII)V
+    2724: putfield      #75                 // Field pendingGroundItemInteraction:Lspk/local/GroundItemInteraction;
+    2727: getstatic     #97                 // Field java/lang/System.out:Ljava/io/PrintStream;
+    2730: ldc_w         #305                // String %sCLIENT_PACKET seq=%d opcode=%d len=6 groundOption=%d item=%d world=%d,%d schema=STATIC_EXACT%n
+    2733: bipush        7
+    2735: anewarray     #2                  // class java/lang/Object
+    2738: dup
+    2739: iconst_0
+    2740: aload_0
+    2741: getfield      #21                 // Field tag:Ljava/lang/String;
+    2744: aastore
+    2745: dup
+    2746: iconst_1
+    2747: aload_0
+    2748: getfield      #25                 // Field decodedCount:J
+    2751: invokestatic  #105                // Method java/lang/Long.valueOf:(J)Ljava/lang/Long;
+    2754: aastore
+    2755: dup
+    2756: iconst_2
+    2757: iload_2
+    2758: invokestatic  #111                // Method java/lang/Integer.valueOf:(I)Ljava/lang/Integer;
+    2761: aastore
+    2762: dup
+    2763: iconst_3
+    2764: iload         4
+    2766: invokestatic  #111                // Method java/lang/Integer.valueOf:(I)Ljava/lang/Integer;
+    2769: aastore
+    2770: dup
+    2771: iconst_4
+    2772: iload         7
+    2774: invokestatic  #111                // Method java/lang/Integer.valueOf:(I)Ljava/lang/Integer;
+    2777: aastore
+    2778: dup
+    2779: iconst_5
+    2780: iload         5
+    2782: invokestatic  #111                // Method java/lang/Integer.valueOf:(I)Ljava/lang/Integer;
+    2785: aastore
+    2786: dup
+    2787: bipush        6
+    2789: iload         6
+    2791: invokestatic  #111                // Method java/lang/Integer.valueOf:(I)Ljava/lang/Integer;
+    2794: aastore
+    2795: invokevirtual #116                // Method java/io/PrintStream.printf:(Ljava/lang/String;[Ljava/lang/Object;)Ljava/io/PrintStream;
+    2798: pop
+    2799: iconst_1
+    2800: ireturn
+    2801: aload_0
+    2802: getfield      #13                 // Field in:Ljava/io/InputStream;
+    2805: iconst_2
+    2806: invokestatic  #122                // Method spk/local/Binary.readExactly:(Ljava/io/InputStream;I)[B
+    2809: astore_3
+    2810: aload_3
+    2811: iconst_0
+    2812: invokestatic  #196                // Method beA:([BI)I
+    2815: istore        4
+    2817: aload_0
+    2818: new           #287                // class spk/local/NpcAction
+    2821: dup
+    2822: iload_2
+    2823: iload         4
+    2825: invokespecial #289                // Method spk/local/NpcAction."<init>":(II)V
+    2828: putfield      #59                 // Field pendingNpcAction:Lspk/local/NpcAction;
+    2831: getstatic     #97                 // Field java/lang/System.out:Ljava/io/PrintStream;
+    2834: ldc_w         #307                // String %sCLIENT_PACKET seq=%d opcode=72 len=2 npcAttack=true sceneIndex=%d schema=STATIC_EXACT_FIXED2_BE_A%n
+    2837: iconst_3
+    2838: anewarray     #2                  // class java/lang/Object
+    2841: dup
+    2842: iconst_0
+    2843: aload_0
+    2844: getfield      #21                 // Field tag:Ljava/lang/String;
+    2847: aastore
+    2848: dup
+    2849: iconst_1
+    2850: aload_0
+    2851: getfield      #25                 // Field decodedCount:J
+    2854: invokestatic  #105                // Method java/lang/Long.valueOf:(J)Ljava/lang/Long;
+    2857: aastore
+    2858: dup
+    2859: iconst_2
+    2860: iload         4
+    2862: invokestatic  #111                // Method java/lang/Integer.valueOf:(I)Ljava/lang/Integer;
+    2865: aastore
+    2866: invokevirtual #116                // Method java/io/PrintStream.printf:(Ljava/lang/String;[Ljava/lang/Object;)Ljava/io/PrintStream;
+    2869: pop
+    2870: iconst_1
+    2871: ireturn
+    2872: aload_0
+    2873: getfield      #13                 // Field in:Ljava/io/InputStream;
+    2876: bipush        6
+    2878: invokestatic  #122                // Method spk/local/Binary.readExactly:(Ljava/io/InputStream;I)[B
+    2881: astore_3
+    2882: aload_3
+    2883: iconst_0
+    2884: invokestatic  #196                // Method beA:([BI)I
+    2887: istore        4
+    2889: aload_3
+    2890: iconst_2
+    2891: invokestatic  #193                // Method be:([BI)I
+    2894: istore        5
+    2896: aload_3
+    2897: iconst_4
+    2898: invokestatic  #196                // Method beA:([BI)I
+    2901: istore        6
+    2903: aload_0
+    2904: new           #309                // class spk/local/DropItemAction
+    2907: dup
+    2908: iload         4
+    2910: iload         5
+    2912: iload         6
+    2914: invokespecial #311                // Method spk/local/DropItemAction."<init>":(III)V
+    2917: putfield      #55                 // Field pendingDropItem:Lspk/local/DropItemAction;
+    2920: getstatic     #97                 // Field java/lang/System.out:Ljava/io/PrintStream;
+    2923: ldc_w         #314                // String %sCLIENT_PACKET seq=%d opcode=87 len=6 inventoryDrop=true widget=%d slot=%d itemId=%d schema=STATIC_EXACT_FIXED6%n
+    2926: iconst_5
+    2927: anewarray     #2                  // class java/lang/Object
+    2930: dup
+    2931: iconst_0
+    2932: aload_0
+    2933: getfield      #21                 // Field tag:Ljava/lang/String;
+    2936: aastore
+    2937: dup
+    2938: iconst_1
+    2939: aload_0
+    2940: getfield      #25                 // Field decodedCount:J
+    2943: invokestatic  #105                // Method java/lang/Long.valueOf:(J)Ljava/lang/Long;
+    2946: aastore
+    2947: dup
+    2948: iconst_2
+    2949: iload         5
+    2951: invokestatic  #111                // Method java/lang/Integer.valueOf:(I)Ljava/lang/Integer;
+    2954: aastore
+    2955: dup
+    2956: iconst_3
+    2957: iload         6
+    2959: invokestatic  #111                // Method java/lang/Integer.valueOf:(I)Ljava/lang/Integer;
+    2962: aastore
+    2963: dup
+    2964: iconst_4
+    2965: iload         4
+    2967: invokestatic  #111                // Method java/lang/Integer.valueOf:(I)Ljava/lang/Integer;
+    2970: aastore
+    2971: invokevirtual #116                // Method java/io/PrintStream.printf:(Ljava/lang/String;[Ljava/lang/Object;)Ljava/io/PrintStream;
+    2974: pop
+    2975: iconst_1
+    2976: ireturn
+    2977: aload_0
+    2978: getfield      #13                 // Field in:Ljava/io/InputStream;
+    2981: iconst_2
+    2982: invokestatic  #122                // Method spk/local/Binary.readExactly:(Ljava/io/InputStream;I)[B
+    2985: astore_3
+    2986: aload_3
+    2987: iconst_0
+    2988: invokestatic  #215                // Method le:([BI)I
+    2991: istore        4
+    2993: aload_0
+    2994: new           #287                // class spk/local/NpcAction
+    2997: dup
+    2998: iload_2
+    2999: iload         4
+    3001: invokespecial #289                // Method spk/local/NpcAction."<init>":(II)V
+    3004: putfield      #59                 // Field pendingNpcAction:Lspk/local/NpcAction;
+    3007: getstatic     #97                 // Field java/lang/System.out:Ljava/io/PrintStream;
+    3010: ldc_w         #316                // String %sCLIENT_PACKET seq=%d opcode=155 len=2 npcFirstOption=true sceneIndex=%d schema=STATIC_EXACT_FIXED2_LE%n
+    3013: iconst_3
+    3014: anewarray     #2                  // class java/lang/Object
+    3017: dup
+    3018: iconst_0
+    3019: aload_0
+    3020: getfield      #21                 // Field tag:Ljava/lang/String;
+    3023: aastore
+    3024: dup
+    3025: iconst_1
+    3026: aload_0
+    3027: getfield      #25                 // Field decodedCount:J
+    3030: invokestatic  #105                // Method java/lang/Long.valueOf:(J)Ljava/lang/Long;
+    3033: aastore
+    3034: dup
+    3035: iconst_2
+    3036: iload         4
+    3038: invokestatic  #111                // Method java/lang/Integer.valueOf:(I)Ljava/lang/Integer;
+    3041: aastore
+    3042: invokevirtual #116                // Method java/io/PrintStream.printf:(Ljava/lang/String;[Ljava/lang/Object;)Ljava/io/PrintStream;
+    3045: pop
+    3046: iconst_1
+    3047: ireturn
+    3048: aload_0
+    3049: invokevirtual #134                // Method readU8:()I
+    3052: istore_3
+    3053: aload_0
+    3054: getfield      #13                 // Field in:Ljava/io/InputStream;
+    3057: iload_3
+    3058: invokestatic  #122                // Method spk/local/Binary.readExactly:(Ljava/io/InputStream;I)[B
+    3061: astore        4
+    3063: iload_3
+    3064: ifle          3086
+    3067: aload         4
+    3069: iload_3
+    3070: iconst_1
+    3071: isub
+    3072: baload
+    3073: sipush        255
+    3076: iand
+    3077: bipush        10
+    3079: if_icmpne     3086
+    3082: iconst_1
+    3083: goto          3087
+    3086: iconst_0
+    3087: istore        5
+    3089: iload         5
+    3091: ifeq          3100
+    3094: iload_3
+    3095: iconst_1
+    3096: isub
+    3097: goto          3101
+    3100: iload_3
+    3101: istore        6
+    3103: new           #318                // class java/lang/String
+    3106: dup
+    3107: aload         4
+    3109: iconst_0
+    3110: iload         6
+    3112: getstatic     #320                // Field java/nio/charset/StandardCharsets.ISO_8859_1:Ljava/nio/charset/Charset;
+    3115: invokespecial #326                // Method java/lang/String."<init>":([BIILjava/nio/charset/Charset;)V
+    3118: astore        7
+    3120: aload_0
+    3121: aload         7
+    3123: putfield      #52                 // Field pendingCommand:Ljava/lang/String;
+    3126: getstatic     #97                 // Field java/lang/System.out:Ljava/io/PrintStream;
+    3129: ldc_w         #329                // String %sCLIENT_PACKET seq=%d opcode=103 len=%d command=%s newline=%s%n
+    3132: iconst_5
+    3133: anewarray     #2                  // class java/lang/Object
+    3136: dup
+    3137: iconst_0
+    3138: aload_0
+    3139: getfield      #21                 // Field tag:Ljava/lang/String;
+    3142: aastore
+    3143: dup
+    3144: iconst_1
+    3145: aload_0
+    3146: getfield      #25                 // Field decodedCount:J
+    3149: invokestatic  #105                // Method java/lang/Long.valueOf:(J)Ljava/lang/Long;
+    3152: aastore
+    3153: dup
+    3154: iconst_2
+    3155: iload_3
+    3156: invokestatic  #111                // Method java/lang/Integer.valueOf:(I)Ljava/lang/Integer;
+    3159: aastore
+    3160: dup
+    3161: iconst_3
+    3162: aload         7
+    3164: invokestatic  #331                // Method quote:(Ljava/lang/String;)Ljava/lang/String;
+    3167: aastore
+    3168: dup
+    3169: iconst_4
+    3170: iload         5
+    3172: invokestatic  #139                // Method java/lang/Boolean.valueOf:(Z)Ljava/lang/Boolean;
+    3175: aastore
+    3176: invokevirtual #116                // Method java/io/PrintStream.printf:(Ljava/lang/String;[Ljava/lang/Object;)Ljava/io/PrintStream;
+    3179: pop
+    3180: iconst_1
+    3181: ireturn
+    3182: aload_0
+    3183: invokevirtual #134                // Method readU8:()I
+    3186: istore_3
+    3187: aload_0
+    3188: getfield      #13                 // Field in:Ljava/io/InputStream;
+    3191: iload_3
+    3192: invokestatic  #122                // Method spk/local/Binary.readExactly:(Ljava/io/InputStream;I)[B
+    3195: astore        4
+    3197: getstatic     #97                 // Field java/lang/System.out:Ljava/io/PrintStream;
+    3200: ldc_w         #335                // String %sCLIENT_PACKET seq=%d opcode=77 len=%d periodicTelemetry=true payload=%s schema=STATIC_EXACT_VARBYTE%n
+    3203: iconst_4
+    3204: anewarray     #2                  // class java/lang/Object
+    3207: dup
+    3208: iconst_0
+    3209: aload_0
+    3210: getfield      #21                 // Field tag:Ljava/lang/String;
+    3213: aastore
+    3214: dup
+    3215: iconst_1
+    3216: aload_0
+    3217: getfield      #25                 // Field decodedCount:J
+    3220: invokestatic  #105                // Method java/lang/Long.valueOf:(J)Ljava/lang/Long;
+    3223: aastore
+    3224: dup
+    3225: iconst_2
+    3226: iload_3
+    3227: invokestatic  #111                // Method java/lang/Integer.valueOf:(I)Ljava/lang/Integer;
+    3230: aastore
+    3231: dup
+    3232: iconst_3
+    3233: aload         4
+    3235: bipush        64
+    3237: invokestatic  #146                // Method hex:([BI)Ljava/lang/String;
+    3240: aastore
+    3241: invokevirtual #116                // Method java/io/PrintStream.printf:(Ljava/lang/String;[Ljava/lang/Object;)Ljava/io/PrintStream;
+    3244: pop
+    3245: iconst_1
+    3246: ireturn
+    3247: getstatic     #97                 // Field java/lang/System.out:Ljava/io/PrintStream;
+    3250: ldc_w         #337                // String %sCLIENT_PACKET seq=%d opcode=202 len=0 longSessionKeepalive=true schema=STATIC_EXACT_FIXED0%n
+    3253: iconst_2
+    3254: anewarray     #2                  // class java/lang/Object
+    3257: dup
+    3258: iconst_0
+    3259: aload_0
+    3260: getfield      #21                 // Field tag:Ljava/lang/String;
+    3263: aastore
+    3264: dup
+    3265: iconst_1
+    3266: aload_0
+    3267: getfield      #25                 // Field decodedCount:J
+    3270: invokestatic  #105                // Method java/lang/Long.valueOf:(J)Ljava/lang/Long;
+    3273: aastore
+    3274: invokevirtual #116                // Method java/io/PrintStream.printf:(Ljava/lang/String;[Ljava/lang/Object;)Ljava/io/PrintStream;
+    3277: pop
+    3278: iconst_1
+    3279: ireturn
+    3280: aload_0
+    3281: invokevirtual #134                // Method readU8:()I
+    3284: istore_3
+    3285: aload_0
+    3286: getfield      #13                 // Field in:Ljava/io/InputStream;
+    3289: iload_3
+    3290: invokestatic  #122                // Method spk/local/Binary.readExactly:(Ljava/io/InputStream;I)[B
+    3293: astore        4
+    3295: getstatic     #97                 // Field java/lang/System.out:Ljava/io/PrintStream;
+    3298: ldc_w         #339                // String %sCLIENT_PACKET seq=%d opcode=226 len=%d periodicTelemetry=true payload=%s schema=STATIC_EXACT_VARBYTE%n
+    3301: iconst_4
+    3302: anewarray     #2                  // class java/lang/Object
+    3305: dup
+    3306: iconst_0
+    3307: aload_0
+    3308: getfield      #21                 // Field tag:Ljava/lang/String;
+    3311: aastore
+    3312: dup
+    3313: iconst_1
+    3314: aload_0
+    3315: getfield      #25                 // Field decodedCount:J
+    3318: invokestatic  #105                // Method java/lang/Long.valueOf:(J)Ljava/lang/Long;
+    3321: aastore
+    3322: dup
+    3323: iconst_2
+    3324: iload_3
+    3325: invokestatic  #111                // Method java/lang/Integer.valueOf:(I)Ljava/lang/Integer;
+    3328: aastore
+    3329: dup
+    3330: iconst_3
+    3331: aload         4
+    3333: bipush        64
+    3335: invokestatic  #146                // Method hex:([BI)Ljava/lang/String;
+    3338: aastore
+    3339: invokevirtual #116                // Method java/io/PrintStream.printf:(Ljava/lang/String;[Ljava/lang/Object;)Ljava/io/PrintStream;
+    3342: pop
+    3343: iconst_1
+    3344: ireturn
+    3345: aload_0
+    3346: getfield      #13                 // Field in:Ljava/io/InputStream;
+    3349: iconst_2
+    3350: invokestatic  #122                // Method spk/local/Binary.readExactly:(Ljava/io/InputStream;I)[B
+    3353: astore_3
+    3354: iload_2
+    3355: lookupswitch  { // 4
+                    73: 3445
+                   128: 3396
+                   139: 3476
+                   153: 3414
+               default: 3507
+          }
+    3396: iconst_1
+    3397: istore        4
+    3399: aload_3
+    3400: iconst_0
+    3401: invokestatic  #128                // Method spk/local/Binary.u16:([BI)I
+    3404: istore        5
+    3406: ldc_w         #341                // String Attack
+    3409: astore        6
+    3411: goto          3535
+    3414: iconst_2
+    3415: istore        4
+    3417: aload_3
+    3418: iconst_0
+    3419: baload
+    3420: sipush        255
+    3423: iand
+    3424: aload_3
+    3425: iconst_1
+    3426: baload
+    3427: sipush        255
+    3430: iand
+    3431: bipush        8
+    3433: ishl
+    3434: ior
+    3435: istore        5
+    3437: ldc_w         #343                // String Follow
+    3440: astore        6
+    3442: goto          3535
+    3445: iconst_3
+    3446: istore        4
+    3448: aload_3
+    3449: iconst_0
+    3450: baload
+    3451: sipush        255
+    3454: iand
+    3455: aload_3
+    3456: iconst_1
+    3457: baload
+    3458: sipush        255
+    3461: iand
+    3462: bipush        8
+    3464: ishl
+    3465: ior
+    3466: istore        5
+    3468: ldc_w         #345                // String Trade with
+    3471: astore        6
+    3473: goto          3535
+    3476: iconst_4
+    3477: istore        4
+    3479: aload_3
+    3480: iconst_0
+    3481: baload
+    3482: sipush        255
+    3485: iand
+    3486: aload_3
+    3487: iconst_1
+    3488: baload
+    3489: sipush        255
+    3492: iand
+    3493: bipush        8
+    3495: ishl
+    3496: ior
+    3497: istore        5
+    3499: ldc_w         #347                // String Option 4
+    3502: astore        6
+    3504: goto          3535
+    3507: iconst_5
+    3508: istore        4
+    3510: aload_3
+    3511: iconst_0
+    3512: baload
+    3513: sipush        255
+    3516: iand
+    3517: aload_3
+    3518: iconst_1
+    3519: baload
+    3520: sipush        255
+    3523: iand
+    3524: bipush        8
+    3526: ishl
+    3527: ior
+    3528: istore        5
+    3530: ldc_w         #349                // String Option 5
+    3533: astore        6
+    3535: aload_0
+    3536: new           #351                // class spk/local/PlayerAction
+    3539: dup
+    3540: iload_2
+    3541: iload         4
+    3543: iload         5
+    3545: aload         6
+    3547: invokespecial #353                // Method spk/local/PlayerAction."<init>":(IIILjava/lang/String;)V
+    3550: putfield      #63                 // Field pendingPlayerAction:Lspk/local/PlayerAction;
+    3553: getstatic     #97                 // Field java/lang/System.out:Ljava/io/PrintStream;
+    3556: ldc_w         #356                // String %sCLIENT_PACKET seq=%d opcode=%d len=2 playerAction=true slot=%d playerIndex=%d semantic=%s schema=STATIC_EXACT_CURRENT_CLIENT%n
+    3559: bipush        6
+    3561: anewarray     #2                  // class java/lang/Object
+    3564: dup
+    3565: iconst_0
+    3566: aload_0
+    3567: getfield      #21                 // Field tag:Ljava/lang/String;
+    3570: aastore
+    3571: dup
+    3572: iconst_1
+    3573: aload_0
+    3574: getfield      #25                 // Field decodedCount:J
+    3577: invokestatic  #105                // Method java/lang/Long.valueOf:(J)Ljava/lang/Long;
+    3580: aastore
+    3581: dup
+    3582: iconst_2
+    3583: iload_2
+    3584: invokestatic  #111                // Method java/lang/Integer.valueOf:(I)Ljava/lang/Integer;
+    3587: aastore
+    3588: dup
+    3589: iconst_3
+    3590: iload         4
+    3592: invokestatic  #111                // Method java/lang/Integer.valueOf:(I)Ljava/lang/Integer;
+    3595: aastore
+    3596: dup
+    3597: iconst_4
+    3598: iload         5
+    3600: invokestatic  #111                // Method java/lang/Integer.valueOf:(I)Ljava/lang/Integer;
+    3603: aastore
+    3604: dup
+    3605: iconst_5
+    3606: aload         6
+    3608: aastore
+    3609: invokevirtual #116                // Method java/io/PrintStream.printf:(Ljava/lang/String;[Ljava/lang/Object;)Ljava/io/PrintStream;
+    3612: pop
+    3613: iconst_1
+    3614: ireturn
+    3615: aload_0
+    3616: invokevirtual #134                // Method readU8:()I
+    3619: istore_3
+    3620: aload_0
+    3621: getfield      #13                 // Field in:Ljava/io/InputStream;
+    3624: iload_3
+    3625: invokestatic  #122                // Method spk/local/Binary.readExactly:(Ljava/io/InputStream;I)[B
+    3628: astore        4
+    3630: aload_0
+    3631: iload_2
+    3632: aload         4
+    3634: invokevirtual #358                // Method logMovement:(I[B)V
+    3637: iconst_1
+    3638: ireturn
+    3639: aload_0
+    3640: iload_2
+    3641: invokevirtual #362                // Method consumeFramingOnly:(I)Z
+    3644: ifeq          3649
+    3647: iconst_1
+    3648: ireturn
+    3649: aload_0
+    3650: iconst_0
+    3651: putfield      #7                  // Field aligned:Z
+    3654: getstatic     #97                 // Field java/lang/System.out:Ljava/io/PrintStream;
+    3657: ldc_w         #366                // String %sCLIENT_PACKET_UNKNOWN seq=%d opcode=%d encoded=%d payloadLen=UNKNOWN decoder=PAUSED%n
+    3660: iconst_4
+    3661: anewarray     #2                  // class java/lang/Object
+    3664: dup
+    3665: iconst_0
+    3666: aload_0
+    3667: getfield      #21                 // Field tag:Ljava/lang/String;
+    3670: aastore
+    3671: dup
+    3672: iconst_1
+    3673: aload_0
+    3674: getfield      #25                 // Field decodedCount:J
+    3677: invokestatic  #105                // Method java/lang/Long.valueOf:(J)Ljava/lang/Long;
+    3680: aastore
+    3681: dup
+    3682: iconst_2
+    3683: iload_2
+    3684: invokestatic  #111                // Method java/lang/Integer.valueOf:(I)Ljava/lang/Integer;
+    3687: aastore
+    3688: dup
+    3689: iconst_3
+    3690: iload_1
+    3691: invokestatic  #111                // Method java/lang/Integer.valueOf:(I)Ljava/lang/Integer;
+    3694: aastore
+    3695: invokevirtual #116                // Method java/io/PrintStream.printf:(Ljava/lang/String;[Ljava/lang/Object;)Ljava/io/PrintStream;
+    3698: pop
+    3699: iconst_0
+    3700: ireturn
+
+  private boolean consumeFramingOnly(int) throws java.io.IOException;
+    Code:
+       0: iload_1
+       1: bipush        16
+       3: if_icmpne     135
+       6: aload_0
+       7: getfield      #13                 // Field in:Ljava/io/InputStream;
+      10: bipush        6
+      12: invokestatic  #122                // Method spk/local/Binary.readExactly:(Ljava/io/InputStream;I)[B
+      15: astore        10
+      17: aload         10
+      19: iconst_0
+      20: invokestatic  #196                // Method beA:([BI)I
+      23: istore        11
+      25: aload         10
+      27: iconst_2
+      28: invokestatic  #212                // Method leA:([BI)I
+      31: istore        12
+      33: aload         10
+      35: iconst_4
+      36: invokestatic  #212                // Method leA:([BI)I
+      39: istore        13
+      41: iload         13
+      43: ldc_w         #603                // String ITEM_OPTION_3
+      46: invokestatic  #226                // Method itemSemantic:(ILjava/lang/String;)Ljava/lang/String;
+      49: astore        14
+      51: aload_0
+      52: new           #199                // class spk/local/ItemContainerAction
+      55: dup
+      56: iload_1
+      57: iload         13
+      59: iload         12
+      61: iload         11
+      63: iconst_0
+      64: aload         14
+      66: invokespecial #207                // Method spk/local/ItemContainerAction."<init>":(IIIIILjava/lang/String;)V
+      69: putfield      #41                 // Field pendingItemAction:Lspk/local/ItemContainerAction;
+      72: getstatic     #97                 // Field java/lang/System.out:Ljava/io/PrintStream;
+      75: ldc_w         #605                // String %sCLIENT_PACKET seq=%d opcode=16 len=6 inventoryItemAction=true widget=%d slot=%d itemId=%d semantic=%s schema=STATIC_EXACT_FIXED6%n
+      78: bipush        6
+      80: anewarray     #2                  // class java/lang/Object
+      83: dup
+      84: iconst_0
+      85: aload_0
+      86: getfield      #21                 // Field tag:Ljava/lang/String;
+      89: aastore
+      90: dup
+      91: iconst_1
+      92: aload_0
+      93: getfield      #25                 // Field decodedCount:J
+      96: invokestatic  #105                // Method java/lang/Long.valueOf:(J)Ljava/lang/Long;
+      99: aastore
+     100: dup
+     101: iconst_2
+     102: iload         13
+     104: invokestatic  #111                // Method java/lang/Integer.valueOf:(I)Ljava/lang/Integer;
+     107: aastore
+     108: dup
+     109: iconst_3
+     110: iload         12
+     112: invokestatic  #111                // Method java/lang/Integer.valueOf:(I)Ljava/lang/Integer;
+     115: aastore
+     116: dup
+     117: iconst_4
+     118: iload         11
+     120: invokestatic  #111                // Method java/lang/Integer.valueOf:(I)Ljava/lang/Integer;
+     123: aastore
+     124: dup
+     125: iconst_5
+     126: aload         14
+     128: aastore
+     129: invokevirtual #116                // Method java/io/PrintStream.printf:(Ljava/lang/String;[Ljava/lang/Object;)Ljava/io/PrintStream;
+     132: pop
+     133: iconst_1
+     134: ireturn
+     135: iload_1
+     136: invokestatic  #368                // Method framingOnlyFixedLength:(I)I
+     139: istore_2
+     140: iload_2
+     141: iflt          217
+     144: aload_0
+     145: getfield      #13                 // Field in:Ljava/io/InputStream;
+     148: iload_2
+     149: invokestatic  #122                // Method spk/local/Binary.readExactly:(Ljava/io/InputStream;I)[B
+     152: astore_3
+     153: getstatic     #97                 // Field java/lang/System.out:Ljava/io/PrintStream;
+     156: ldc_w         #371                // String %sCLIENT_PACKET seq=%d opcode=%d len=%d framingOnly=true payload=%s schema=STATIC_EXACT_FIXED%d%n
+     159: bipush        6
+     161: anewarray     #2                  // class java/lang/Object
+     164: dup
+     165: iconst_0
+     166: aload_0
+     167: getfield      #21                 // Field tag:Ljava/lang/String;
+     170: aastore
+     171: dup
+     172: iconst_1
+     173: aload_0
+     174: getfield      #25                 // Field decodedCount:J
+     177: invokestatic  #105                // Method java/lang/Long.valueOf:(J)Ljava/lang/Long;
+     180: aastore
+     181: dup
+     182: iconst_2
+     183: iload_1
+     184: invokestatic  #111                // Method java/lang/Integer.valueOf:(I)Ljava/lang/Integer;
+     187: aastore
+     188: dup
+     189: iconst_3
+     190: iload_2
+     191: invokestatic  #111                // Method java/lang/Integer.valueOf:(I)Ljava/lang/Integer;
+     194: aastore
+     195: dup
+     196: iconst_4
+     197: aload_3
+     198: bipush        32
+     200: invokestatic  #146                // Method hex:([BI)Ljava/lang/String;
+     203: aastore
+     204: dup
+     205: iconst_5
+     206: iload_2
+     207: invokestatic  #111                // Method java/lang/Integer.valueOf:(I)Ljava/lang/Integer;
+     210: aastore
+     211: invokevirtual #116                // Method java/io/PrintStream.printf:(Ljava/lang/String;[Ljava/lang/Object;)Ljava/io/PrintStream;
+     214: pop
+     215: iconst_1
+     216: ireturn
+     217: iload_1
+     218: iconst_4
+     219: if_icmpeq     235
+     222: iload_1
+     223: bipush        126
+     225: if_icmpeq     235
+     228: iload_1
+     229: sipush        246
+     232: if_icmpne     307
+     235: aload_0
+     236: invokevirtual #134                // Method readU8:()I
+     239: istore_3
+     240: aload_0
+     241: getfield      #13                 // Field in:Ljava/io/InputStream;
+     244: iload_3
+     245: invokestatic  #122                // Method spk/local/Binary.readExactly:(Ljava/io/InputStream;I)[B
+     248: astore        4
+     250: getstatic     #97                 // Field java/lang/System.out:Ljava/io/PrintStream;
+     253: ldc_w         #373                // String %sCLIENT_PACKET seq=%d opcode=%d len=%d framingOnly=true payload=%s schema=STATIC_EXACT_VARBYTE%n
+     256: iconst_5
+     257: anewarray     #2                  // class java/lang/Object
+     260: dup
+     261: iconst_0
+     262: aload_0
+     263: getfield      #21                 // Field tag:Ljava/lang/String;
+     266: aastore
+     267: dup
+     268: iconst_1
+     269: aload_0
+     270: getfield      #25                 // Field decodedCount:J
+     273: invokestatic  #105                // Method java/lang/Long.valueOf:(J)Ljava/lang/Long;
+     276: aastore
+     277: dup
+     278: iconst_2
+     279: iload_1
+     280: invokestatic  #111                // Method java/lang/Integer.valueOf:(I)Ljava/lang/Integer;
+     283: aastore
+     284: dup
+     285: iconst_3
+     286: iload_3
+     287: invokestatic  #111                // Method java/lang/Integer.valueOf:(I)Ljava/lang/Integer;
+     290: aastore
+     291: dup
+     292: iconst_4
+     293: aload         4
+     295: bipush        32
+     297: invokestatic  #146                // Method hex:([BI)Ljava/lang/String;
+     300: aastore
+     301: invokevirtual #116                // Method java/io/PrintStream.printf:(Ljava/lang/String;[Ljava/lang/Object;)Ljava/io/PrintStream;
+     304: pop
+     305: iconst_1
+     306: ireturn
+     307: iconst_0
+     308: ireturn
+
+  static int framingOnlyFixedLength(int);
+    Code:
+       0: iload_0
+       1: tableswitch   { // 2 to 253
+                     2: 1028
+                     3: 1049
+                     4: 1049
+                     5: 1049
+                     6: 1028
+                     7: 1049
+                     8: 1049
+                     9: 1049
+                    10: 1049
+                    11: 1049
+                    12: 1049
+                    13: 1049
+                    14: 1037
+                    15: 1049
+                    16: 1034
+                    17: 1028
+                    18: 1028
+                    19: 1049
+                    20: 1049
+                    21: 1028
+                    22: 1049
+                    23: 1034
+                    24: 1049
+                    25: 1043
+                    26: 1049
+                    27: 1049
+                    28: 1049
+                    29: 1049
+                    30: 1049
+                    31: 1049
+                    32: 1049
+                    33: 1049
+                    34: 1049
+                    35: 1037
+                    36: 1049
+                    37: 1049
+                    38: 1049
+                    39: 1028
+                    40: 1028
+                    41: 1049
+                    42: 1049
+                    43: 1049
+                    44: 1049
+                    45: 1049
+                    46: 1049
+                    47: 1049
+                    48: 1049
+                    49: 1049
+                    50: 1049
+                    51: 1049
+                    52: 1049
+                    53: 1049
+                    54: 1049
+                    55: 1049
+                    56: 1049
+                    57: 1037
+                    58: 1049
+                    59: 1049
+                    60: 1037
+                    61: 1049
+                    62: 1049
+                    63: 1049
+                    64: 1049
+                    65: 1049
+                    66: 1049
+                    67: 1049
+                    68: 1049
+                    69: 1049
+                    70: 1034
+                    71: 1049
+                    72: 1049
+                    73: 1028
+                    74: 1037
+                    75: 1049
+                    76: 1049
+                    77: 1049
+                    78: 1024
+                    79: 1034
+                    80: 1049
+                    81: 1049
+                    82: 1049
+                    83: 1049
+                    84: 1049
+                    85: 1026
+                    86: 1032
+                    87: 1049
+                    88: 1049
+                    89: 1049
+                    90: 1049
+                    91: 1049
+                    92: 1049
+                    93: 1049
+                    94: 1049
+                    95: 1030
+                    96: 1049
+                    97: 1049
+                    98: 1049
+                    99: 1049
+                   100: 1049
+                   101: 1046
+                   102: 1049
+                   103: 1049
+                   104: 1049
+                   105: 1049
+                   106: 1049
+                   107: 1049
+                   108: 1049
+                   109: 1043
+                   110: 1049
+                   111: 1049
+                   112: 1049
+                   113: 1049
+                   114: 1049
+                   115: 1049
+                   116: 1049
+                   117: 1049
+                   118: 1049
+                   119: 1049
+                   120: 1026
+                   121: 1049
+                   122: 1034
+                   123: 1049
+                   124: 1049
+                   125: 1049
+                   126: 1049
+                   127: 1049
+                   128: 1028
+                   129: 1049
+                   130: 1049
+                   131: 1032
+                   132: 1049
+                   133: 1037
+                   134: 1049
+                   135: 1049
+                   136: 1024
+                   137: 1049
+                   138: 1049
+                   139: 1028
+                   140: 1049
+                   141: 1049
+                   142: 1049
+                   143: 1049
+                   144: 1049
+                   145: 1049
+                   146: 1049
+                   147: 1049
+                   148: 1024
+                   149: 1049
+                   150: 1024
+                   151: 1049
+                   152: 1026
+                   153: 1028
+                   154: 1049
+                   155: 1049
+                   156: 1034
+                   157: 1049
+                   158: 1049
+                   159: 1049
+                   160: 1049
+                   161: 1049
+                   162: 1049
+                   163: 1049
+                   164: 1049
+                   165: 1049
+                   166: 1049
+                   167: 1049
+                   168: 1049
+                   169: 1049
+                   170: 1049
+                   171: 1049
+                   172: 1049
+                   173: 1049
+                   174: 1049
+                   175: 1049
+                   176: 1034
+                   177: 1049
+                   178: 1049
+                   179: 1049
+                   180: 1049
+                   181: 1037
+                   182: 1049
+                   183: 1030
+                   184: 1049
+                   185: 1049
+                   186: 1049
+                   187: 1049
+                   188: 1037
+                   189: 1026
+                   190: 1049
+                   191: 1049
+                   192: 1043
+                   193: 1049
+                   194: 1049
+                   195: 1049
+                   196: 1049
+                   197: 1049
+                   198: 1049
+                   199: 1049
+                   200: 1028
+                   201: 1049
+                   202: 1049
+                   203: 1049
+                   204: 1049
+                   205: 1049
+                   206: 1049
+                   207: 1049
+                   208: 1049
+                   209: 1049
+                   210: 1032
+                   211: 1049
+                   212: 1049
+                   213: 1049
+                   214: 1049
+                   215: 1037
+                   216: 1049
+                   217: 1049
+                   218: 1040
+                   219: 1049
+                   220: 1049
+                   221: 1049
+                   222: 1049
+                   223: 1049
+                   224: 1049
+                   225: 1049
+                   226: 1049
+                   227: 1049
+                   228: 1034
+                   229: 1049
+                   230: 1026
+                   231: 1049
+                   232: 1049
+                   233: 1049
+                   234: 1034
+                   235: 1049
+                   236: 1034
+                   237: 1037
+                   238: 1049
+                   239: 1049
+                   240: 1049
+                   241: 1049
+                   242: 1049
+                   243: 1049
+                   244: 1049
+                   245: 1049
+                   246: 1049
+                   247: 1049
+                   248: 1049
+                   249: 1032
+                   250: 1049
+                   251: 1049
+                   252: 1034
+                   253: 1034
+               default: 1049
+          }
+    1024: iconst_0
+    1025: ireturn
+    1026: iconst_1
+    1027: ireturn
+    1028: iconst_2
+    1029: ireturn
+    1030: iconst_3
+    1031: ireturn
+    1032: iconst_4
+    1033: ireturn
+    1034: bipush        6
+    1036: ireturn
+    1037: bipush        8
+    1039: ireturn
+    1040: bipush        10
+    1042: ireturn
+    1043: bipush        12
+    1045: ireturn
+    1046: bipush        13
+    1048: ireturn
+    1049: iconst_m1
+    1050: ireturn
+
+  static boolean isFramingOnlyVarByte(int);
+    Code:
+       0: iload_0
+       1: iconst_4
+       2: if_icmpeq     18
+       5: iload_0
+       6: bipush        126
+       8: if_icmpeq     18
+      11: iload_0
+      12: sipush        246
+      15: if_icmpne     22
+      18: iconst_1
+      19: goto          23
+      22: iconst_0
+      23: ireturn
+
+  static spk.local.ItemOnNpcAction decodeItemOnNpc(byte[]);
+    Code:
+       0: aload_0
+       1: ifnull        11
+       4: aload_0
+       5: arraylength
+       6: bipush        8
+       8: if_icmpeq     34
+      11: new           #375                // class java/lang/IllegalArgumentException
+      14: dup
+      15: aload_0
+      16: ifnonnull     23
+      19: iconst_m1
+      20: goto          25
+      23: aload_0
+      24: arraylength
+      25: invokedynamic #377,  0            // InvokeDynamic #1:makeConcatWithConstants:(I)Ljava/lang/String;
+      30: invokespecial #378                // Method java/lang/IllegalArgumentException."<init>":(Ljava/lang/String;)V
+      33: athrow
+      34: new           #168                // class spk/local/ItemOnNpcAction
+      37: dup
+      38: aload_0
+      39: iconst_0
+      40: invokestatic  #196                // Method beA:([BI)I
+      43: aload_0
+      44: iconst_4
+      45: invokestatic  #215                // Method le:([BI)I
+      48: aload_0
+      49: bipush        6
+      51: invokestatic  #196                // Method beA:([BI)I
+      54: aload_0
+      55: iconst_2
+      56: invokestatic  #196                // Method beA:([BI)I
+      59: invokespecial #381                // Method spk/local/ItemOnNpcAction."<init>":(IIII)V
+      62: areturn
+
+  static spk.local.SpellTargetRequest decodeSpellTarget(int, byte[]);
+    Code:
+       0: aload_1
+       1: ifnonnull     15
+       4: new           #375                // class java/lang/IllegalArgumentException
+       7: dup
+       8: ldc_w         #382                // String body
+      11: invokespecial #378                // Method java/lang/IllegalArgumentException."<init>":(Ljava/lang/String;)V
+      14: athrow
+      15: iload_0
+      16: lookupswitch  { // 5
+                    35: 164
+                   131: 116
+                   181: 222
+                   237: 280
+                   249: 68
+               default: 338
+          }
+      68: aload_1
+      69: arraylength
+      70: iconst_4
+      71: if_icmpeq     89
+      74: new           #375                // class java/lang/IllegalArgumentException
+      77: dup
+      78: aload_1
+      79: arraylength
+      80: invokedynamic #384,  0            // InvokeDynamic #2:makeConcatWithConstants:(I)Ljava/lang/String;
+      85: invokespecial #378                // Method java/lang/IllegalArgumentException."<init>":(Ljava/lang/String;)V
+      88: athrow
+      89: new           #385                // class spk/local/SpellTargetRequest
+      92: dup
+      93: iload_0
+      94: getstatic     #387                // Field spk/local/SpellTargetRequest$Kind.PLAYER:Lspk/local/SpellTargetRequest$Kind;
+      97: aload_1
+      98: iconst_2
+      99: invokestatic  #215                // Method le:([BI)I
+     102: aload_1
+     103: iconst_0
+     104: invokestatic  #196                // Method beA:([BI)I
+     107: iconst_m1
+     108: iconst_m1
+     109: iconst_m1
+     110: iconst_m1
+     111: iconst_m1
+     112: invokespecial #393                // Method spk/local/SpellTargetRequest."<init>":(ILspk/local/SpellTargetRequest$Kind;IIIIIII)V
+     115: areturn
+     116: aload_1
+     117: arraylength
+     118: iconst_4
+     119: if_icmpeq     137
+     122: new           #375                // class java/lang/IllegalArgumentException
+     125: dup
+     126: aload_1
+     127: arraylength
+     128: invokedynamic #396,  0            // InvokeDynamic #3:makeConcatWithConstants:(I)Ljava/lang/String;
+     133: invokespecial #378                // Method java/lang/IllegalArgumentException."<init>":(Ljava/lang/String;)V
+     136: athrow
+     137: new           #385                // class spk/local/SpellTargetRequest
+     140: dup
+     141: iload_0
+     142: getstatic     #397                // Field spk/local/SpellTargetRequest$Kind.NPC:Lspk/local/SpellTargetRequest$Kind;
+     145: aload_1
+     146: iconst_2
+     147: invokestatic  #196                // Method beA:([BI)I
+     150: aload_1
+     151: iconst_0
+     152: invokestatic  #212                // Method leA:([BI)I
+     155: iconst_m1
+     156: iconst_m1
+     157: iconst_m1
+     158: iconst_m1
+     159: iconst_m1
+     160: invokespecial #393                // Method spk/local/SpellTargetRequest."<init>":(ILspk/local/SpellTargetRequest$Kind;IIIIIII)V
+     163: areturn
+     164: aload_1
+     165: arraylength
+     166: bipush        8
+     168: if_icmpeq     186
+     171: new           #375                // class java/lang/IllegalArgumentException
+     174: dup
+     175: aload_1
+     176: arraylength
+     177: invokedynamic #400,  0            // InvokeDynamic #4:makeConcatWithConstants:(I)Ljava/lang/String;
+     182: invokespecial #378                // Method java/lang/IllegalArgumentException."<init>":(Ljava/lang/String;)V
+     185: athrow
+     186: new           #385                // class spk/local/SpellTargetRequest
+     189: dup
+     190: iload_0
+     191: getstatic     #401                // Field spk/local/SpellTargetRequest$Kind.OBJECT:Lspk/local/SpellTargetRequest$Kind;
+     194: aload_1
+     195: iconst_2
+     196: invokestatic  #196                // Method beA:([BI)I
+     199: iconst_m1
+     200: aload_1
+     201: bipush        6
+     203: invokestatic  #215                // Method le:([BI)I
+     206: iconst_m1
+     207: iconst_m1
+     208: aload_1
+     209: iconst_0
+     210: invokestatic  #215                // Method le:([BI)I
+     213: aload_1
+     214: iconst_4
+     215: invokestatic  #196                // Method beA:([BI)I
+     218: invokespecial #393                // Method spk/local/SpellTargetRequest."<init>":(ILspk/local/SpellTargetRequest$Kind;IIIIIII)V
+     221: areturn
+     222: aload_1
+     223: arraylength
+     224: bipush        8
+     226: if_icmpeq     244
+     229: new           #375                // class java/lang/IllegalArgumentException
+     232: dup
+     233: aload_1
+     234: arraylength
+     235: invokedynamic #404,  0            // InvokeDynamic #5:makeConcatWithConstants:(I)Ljava/lang/String;
+     240: invokespecial #378                // Method java/lang/IllegalArgumentException."<init>":(Ljava/lang/String;)V
+     243: athrow
+     244: new           #385                // class spk/local/SpellTargetRequest
+     247: dup
+     248: iload_0
+     249: getstatic     #405                // Field spk/local/SpellTargetRequest$Kind.GROUND_ITEM:Lspk/local/SpellTargetRequest$Kind;
+     252: aload_1
+     253: bipush        6
+     255: invokestatic  #196                // Method beA:([BI)I
+     258: iconst_m1
+     259: aload_1
+     260: iconst_2
+     261: invokestatic  #193                // Method be:([BI)I
+     264: iconst_m1
+     265: iconst_m1
+     266: aload_1
+     267: iconst_4
+     268: invokestatic  #215                // Method le:([BI)I
+     271: aload_1
+     272: iconst_0
+     273: invokestatic  #215                // Method le:([BI)I
+     276: invokespecial #393                // Method spk/local/SpellTargetRequest."<init>":(ILspk/local/SpellTargetRequest$Kind;IIIIIII)V
+     279: areturn
+     280: aload_1
+     281: arraylength
+     282: bipush        8
+     284: if_icmpeq     302
+     287: new           #375                // class java/lang/IllegalArgumentException
+     290: dup
+     291: aload_1
+     292: arraylength
+     293: invokedynamic #408,  0            // InvokeDynamic #6:makeConcatWithConstants:(I)Ljava/lang/String;
+     298: invokespecial #378                // Method java/lang/IllegalArgumentException."<init>":(Ljava/lang/String;)V
+     301: athrow
+     302: new           #385                // class spk/local/SpellTargetRequest
+     305: dup
+     306: iload_0
+     307: getstatic     #409                // Field spk/local/SpellTargetRequest$Kind.INVENTORY_ITEM:Lspk/local/SpellTargetRequest$Kind;
+     310: aload_1
+     311: bipush        6
+     313: invokestatic  #196                // Method beA:([BI)I
+     316: iconst_m1
+     317: aload_1
+     318: iconst_2
+     319: invokestatic  #196                // Method beA:([BI)I
+     322: aload_1
+     323: iconst_4
+     324: invokestatic  #193                // Method be:([BI)I
+     327: aload_1
+     328: iconst_0
+     329: invokestatic  #193                // Method be:([BI)I
+     332: iconst_m1
+     333: iconst_m1
+     334: invokespecial #393                // Method spk/local/SpellTargetRequest."<init>":(ILspk/local/SpellTargetRequest$Kind;IIIIIII)V
+     337: areturn
+     338: new           #375                // class java/lang/IllegalArgumentException
+     341: dup
+     342: iload_0
+     343: invokedynamic #412,  0            // InvokeDynamic #7:makeConcatWithConstants:(I)Ljava/lang/String;
+     348: invokespecial #378                // Method java/lang/IllegalArgumentException."<init>":(Ljava/lang/String;)V
+     351: athrow
+
+  private static java.lang.String itemSemantic(int, java.lang.String);
+    Code:
+       0: iload_0
+       1: sipush        5382
+       4: if_icmpne     14
+       7: aload_1
+       8: invokedynamic #413,  0            // InvokeDynamic #8:makeConcatWithConstants:(Ljava/lang/String;)Ljava/lang/String;
+      13: areturn
+      14: iload_0
+      15: sipush        5064
+      18: if_icmpne     28
+      21: aload_1
+      22: invokedynamic #415,  0            // InvokeDynamic #9:makeConcatWithConstants:(Ljava/lang/String;)Ljava/lang/String;
+      27: areturn
+      28: iload_0
+      29: sipush        1688
+      32: if_icmpne     48
+      35: ldc           #224                // String 1
+      37: aload_1
+      38: invokevirtual #418                // Method java/lang/String.equals:(Ljava/lang/Object;)Z
+      41: ifeq          48
+      44: ldc_w         #422                // String REMOVE_EQUIPMENT
+      47: areturn
+      48: aload_1
+      49: invokedynamic #424,  0            // InvokeDynamic #10:makeConcatWithConstants:(Ljava/lang/String;)Ljava/lang/String;
+      54: areturn
+
+  private static int be(byte[], int);
+    Code:
+       0: aload_0
+       1: iload_1
+       2: baload
+       3: sipush        255
+       6: iand
+       7: bipush        8
+       9: ishl
+      10: aload_0
+      11: iload_1
+      12: iconst_1
+      13: iadd
+      14: baload
+      15: sipush        255
+      18: iand
+      19: ior
+      20: ireturn
+
+  private static int le(byte[], int);
+    Code:
+       0: aload_0
+       1: iload_1
+       2: baload
+       3: sipush        255
+       6: iand
+       7: aload_0
+       8: iload_1
+       9: iconst_1
+      10: iadd
+      11: baload
+      12: sipush        255
+      15: iand
+      16: bipush        8
+      18: ishl
+      19: ior
+      20: ireturn
+
+  private static int beA(byte[], int);
+    Code:
+       0: aload_0
+       1: iload_1
+       2: baload
+       3: sipush        255
+       6: iand
+       7: bipush        8
+       9: ishl
+      10: aload_0
+      11: iload_1
+      12: iconst_1
+      13: iadd
+      14: baload
+      15: sipush        255
+      18: iand
+      19: sipush        128
+      22: isub
+      23: sipush        255
+      26: iand
+      27: ior
+      28: ireturn
+
+  private static int leA(byte[], int);
+    Code:
+       0: aload_0
+       1: iload_1
+       2: baload
+       3: sipush        255
+       6: iand
+       7: sipush        128
+      10: isub
+      11: sipush        255
+      14: iand
+      15: aload_0
+      16: iload_1
+      17: iconst_1
+      18: iadd
+      19: baload
+      20: sipush        255
+      23: iand
+      24: bipush        8
+      26: ishl
+      27: ior
+      28: ireturn
+
+  private static int be32(byte[], int);
+    Code:
+       0: aload_0
+       1: iload_1
+       2: baload
+       3: sipush        255
+       6: iand
+       7: bipush        24
+       9: ishl
+      10: aload_0
+      11: iload_1
+      12: iconst_1
+      13: iadd
+      14: baload
+      15: sipush        255
+      18: iand
+      19: bipush        16
+      21: ishl
+      22: ior
+      23: aload_0
+      24: iload_1
+      25: iconst_2
+      26: iadd
+      27: baload
+      28: sipush        255
+      31: iand
+      32: bipush        8
+      34: ishl
+      35: ior
+      36: aload_0
+      37: iload_1
+      38: iconst_3
+      39: iadd
+      40: baload
+      41: sipush        255
+      44: iand
+      45: ior
+      46: ireturn
+
+  private int readU8() throws java.io.IOException;
+    Code:
+       0: aload_0
+       1: getfield      #13                 // Field in:Ljava/io/InputStream;
+       4: invokevirtual #86                 // Method java/io/InputStream.read:()I
+       7: istore_1
+       8: iload_1
+       9: ifge          23
+      12: new           #425                // class java/io/EOFException
+      15: dup
+      16: ldc_w         #427                // String EOF reading packet length
+      19: invokespecial #429                // Method java/io/EOFException."<init>":(Ljava/lang/String;)V
+      22: athrow
+      23: iload_1
+      24: ireturn
+
+  private void logMovement(int, byte[]);
+    Code:
+       0: aload_2
+       1: arraylength
+       2: istore_3
+       3: iconst_0
+       4: newarray       byte
+       6: astore        4
+       8: iload_1
+       9: sipush        248
+      12: if_icmpne     86
+      15: aload_2
+      16: arraylength
+      17: bipush        17
+      19: if_icmpge     71
+      22: getstatic     #97                 // Field java/lang/System.out:Ljava/io/PrintStream;
+      25: ldc_w         #430                // String %sCLIENT_PACKET seq=%d opcode=248 len=%d movementShape=INVALID_MINIMAP payload=%s%n
+      28: iconst_4
+      29: anewarray     #2                  // class java/lang/Object
+      32: dup
+      33: iconst_0
+      34: aload_0
+      35: getfield      #21                 // Field tag:Ljava/lang/String;
+      38: aastore
+      39: dup
+      40: iconst_1
+      41: aload_0
+      42: getfield      #25                 // Field decodedCount:J
+      45: invokestatic  #105                // Method java/lang/Long.valueOf:(J)Ljava/lang/Long;
+      48: aastore
+      49: dup
+      50: iconst_2
+      51: aload_2
+      52: arraylength
+      53: invokestatic  #111                // Method java/lang/Integer.valueOf:(I)Ljava/lang/Integer;
+      56: aastore
+      57: dup
+      58: iconst_3
+      59: aload_2
+      60: bipush        96
+      62: invokestatic  #146                // Method hex:([BI)Ljava/lang/String;
+      65: aastore
+      66: invokevirtual #116                // Method java/io/PrintStream.printf:(Ljava/lang/String;[Ljava/lang/Object;)Ljava/io/PrintStream;
+      69: pop
+      70: return
+      71: aload_2
+      72: arraylength
+      73: bipush        14
+      75: isub
+      76: istore_3
+      77: aload_2
+      78: iload_3
+      79: aload_2
+      80: arraylength
+      81: invokestatic  #432                // Method java/util/Arrays.copyOfRange:([BII)[B
+      84: astore        4
+      86: iload_3
+      87: iconst_3
+      88: if_icmplt     99
+      91: iload_3
+      92: iconst_3
+      93: isub
+      94: iconst_1
+      95: iand
+      96: ifeq          155
+      99: getstatic     #97                 // Field java/lang/System.out:Ljava/io/PrintStream;
+     102: ldc_w         #438                // String %sCLIENT_PACKET seq=%d opcode=%d len=%d movementShape=INVALID payload=%s%n
+     105: iconst_5
+     106: anewarray     #2                  // class java/lang/Object
+     109: dup
+     110: iconst_0
+     111: aload_0
+     112: getfield      #21                 // Field tag:Ljava/lang/String;
+     115: aastore
+     116: dup
+     117: iconst_1
+     118: aload_0
+     119: getfield      #25                 // Field decodedCount:J
+     122: invokestatic  #105                // Method java/lang/Long.valueOf:(J)Ljava/lang/Long;
+     125: aastore
+     126: dup
+     127: iconst_2
+     128: iload_1
+     129: invokestatic  #111                // Method java/lang/Integer.valueOf:(I)Ljava/lang/Integer;
+     132: aastore
+     133: dup
+     134: iconst_3
+     135: aload_2
+     136: arraylength
+     137: invokestatic  #111                // Method java/lang/Integer.valueOf:(I)Ljava/lang/Integer;
+     140: aastore
+     141: dup
+     142: iconst_4
+     143: aload_2
+     144: bipush        64
+     146: invokestatic  #146                // Method hex:([BI)Ljava/lang/String;
+     149: aastore
+     150: invokevirtual #116                // Method java/io/PrintStream.printf:(Ljava/lang/String;[Ljava/lang/Object;)Ljava/io/PrintStream;
+     153: pop
+     154: return
+     155: iload_3
+     156: iconst_3
+     157: isub
+     158: iconst_2
+     159: idiv
+     160: istore        5
+     162: iload         5
+     164: iconst_1
+     165: if_icmpge     233
+     168: getstatic     #97                 // Field java/lang/System.out:Ljava/io/PrintStream;
+     171: ldc_w         #440                // String %sCLIENT_PACKET seq=%d opcode=%d len=%d movementSteps=%d payload=%s%n
+     174: bipush        6
+     176: anewarray     #2                  // class java/lang/Object
+     179: dup
+     180: iconst_0
+     181: aload_0
+     182: getfield      #21                 // Field tag:Ljava/lang/String;
+     185: aastore
+     186: dup
+     187: iconst_1
+     188: aload_0
+     189: getfield      #25                 // Field decodedCount:J
+     192: invokestatic  #105                // Method java/lang/Long.valueOf:(J)Ljava/lang/Long;
+     195: aastore
+     196: dup
+     197: iconst_2
+     198: iload_1
+     199: invokestatic  #111                // Method java/lang/Integer.valueOf:(I)Ljava/lang/Integer;
+     202: aastore
+     203: dup
+     204: iconst_3
+     205: aload_2
+     206: arraylength
+     207: invokestatic  #111                // Method java/lang/Integer.valueOf:(I)Ljava/lang/Integer;
+     210: aastore
+     211: dup
+     212: iconst_4
+     213: iload         5
+     215: invokestatic  #111                // Method java/lang/Integer.valueOf:(I)Ljava/lang/Integer;
+     218: aastore
+     219: dup
+     220: iconst_5
+     221: aload_2
+     222: bipush        64
+     224: invokestatic  #146                // Method hex:([BI)Ljava/lang/String;
+     227: aastore
+     228: invokevirtual #116                // Method java/io/PrintStream.printf:(Ljava/lang/String;[Ljava/lang/Object;)Ljava/io/PrintStream;
+     231: pop
+     232: return
+     233: aload_2
+     234: iconst_0
+     235: baload
+     236: sipush        255
+     239: iand
+     240: sipush        128
+     243: isub
+     244: sipush        255
+     247: iand
+     248: aload_2
+     249: iconst_1
+     250: baload
+     251: sipush        255
+     254: iand
+     255: bipush        8
+     257: ishl
+     258: ior
+     259: istore        6
+     261: iconst_2
+     262: iload         5
+     264: iconst_1
+     265: isub
+     266: iconst_2
+     267: imul
+     268: iadd
+     269: istore        7
+     271: aload_2
+     272: iload         7
+     274: baload
+     275: sipush        255
+     278: iand
+     279: aload_2
+     280: iload         7
+     282: iconst_1
+     283: iadd
+     284: baload
+     285: sipush        255
+     288: iand
+     289: bipush        8
+     291: ishl
+     292: ior
+     293: istore        8
+     295: aload_2
+     296: iload         7
+     298: iconst_2
+     299: iadd
+     300: baload
+     301: sipush        255
+     304: iand
+     305: ineg
+     306: sipush        255
+     309: iand
+     310: istore        9
+     312: iload         9
+     314: ifeq          321
+     317: iconst_1
+     318: goto          322
+     321: iconst_0
+     322: istore        10
+     324: iload         5
+     326: newarray       int
+     328: astore        11
+     330: iload         5
+     332: newarray       int
+     334: astore        12
+     336: aload         11
+     338: iconst_0
+     339: iload         6
+     341: iastore
+     342: aload         12
+     344: iconst_0
+     345: iload         8
+     347: iastore
+     348: new           #442                // class java/lang/StringBuilder
+     351: dup
+     352: invokespecial #444                // Method java/lang/StringBuilder."<init>":()V
+     355: astore        13
+     357: iconst_0
+     358: istore        14
+     360: iload         14
+     362: iload         5
+     364: iconst_1
+     365: isub
+     366: if_icmpge     450
+     369: aload_2
+     370: iconst_2
+     371: iload         14
+     373: iconst_2
+     374: imul
+     375: iadd
+     376: baload
+     377: istore        15
+     379: aload_2
+     380: iconst_3
+     381: iload         14
+     383: iconst_2
+     384: imul
+     385: iadd
+     386: baload
+     387: istore        16
+     389: aload         11
+     391: iload         14
+     393: iconst_1
+     394: iadd
+     395: iload         6
+     397: iload         15
+     399: iadd
+     400: iastore
+     401: aload         12
+     403: iload         14
+     405: iconst_1
+     406: iadd
+     407: iload         8
+     409: iload         16
+     411: iadd
+     412: iastore
+     413: iload         14
+     415: ifeq          426
+     418: aload         13
+     420: bipush        59
+     422: invokevirtual #445                // Method java/lang/StringBuilder.append:(C)Ljava/lang/StringBuilder;
+     425: pop
+     426: aload         13
+     428: iload         15
+     430: invokevirtual #449                // Method java/lang/StringBuilder.append:(I)Ljava/lang/StringBuilder;
+     433: bipush        44
+     435: invokevirtual #445                // Method java/lang/StringBuilder.append:(C)Ljava/lang/StringBuilder;
+     438: iload         16
+     440: invokevirtual #449                // Method java/lang/StringBuilder.append:(I)Ljava/lang/StringBuilder;
+     443: pop
+     444: iinc          14, 1
+     447: goto          360
+     450: aload_0
+     451: new           #452                // class spk/local/MovementRequest
+     454: dup
+     455: iload_1
+     456: iload         10
+     458: aload         11
+     460: aload         12
+     462: aload         4
+     464: invokespecial #454                // Method spk/local/MovementRequest."<init>":(IZ[I[I[B)V
+     467: putfield      #29                 // Field pendingMovement:Lspk/local/MovementRequest;
+     470: getstatic     #97                 // Field java/lang/System.out:Ljava/io/PrintStream;
+     473: ldc_w         #457                // String %sCLIENT_PACKET seq=%d opcode=%d len=%d movementFamily=true steps=%d startX=%d startY=%d run=%d deltas=[%s] decodedWaypoints=true%s%n
+     476: bipush        10
+     478: anewarray     #2                  // class java/lang/Object
+     481: dup
+     482: iconst_0
+     483: aload_0
+     484: getfield      #21                 // Field tag:Ljava/lang/String;
+     487: aastore
+     488: dup
+     489: iconst_1
+     490: aload_0
+     491: getfield      #25                 // Field decodedCount:J
+     494: invokestatic  #105                // Method java/lang/Long.valueOf:(J)Ljava/lang/Long;
+     497: aastore
+     498: dup
+     499: iconst_2
+     500: iload_1
+     501: invokestatic  #111                // Method java/lang/Integer.valueOf:(I)Ljava/lang/Integer;
+     504: aastore
+     505: dup
+     506: iconst_3
+     507: aload_2
+     508: arraylength
+     509: invokestatic  #111                // Method java/lang/Integer.valueOf:(I)Ljava/lang/Integer;
+     512: aastore
+     513: dup
+     514: iconst_4
+     515: iload         5
+     517: invokestatic  #111                // Method java/lang/Integer.valueOf:(I)Ljava/lang/Integer;
+     520: aastore
+     521: dup
+     522: iconst_5
+     523: iload         6
+     525: invokestatic  #111                // Method java/lang/Integer.valueOf:(I)Ljava/lang/Integer;
+     528: aastore
+     529: dup
+     530: bipush        6
+     532: iload         8
+     534: invokestatic  #111                // Method java/lang/Integer.valueOf:(I)Ljava/lang/Integer;
+     537: aastore
+     538: dup
+     539: bipush        7
+     541: iload         10
+     543: ifeq          550
+     546: iconst_1
+     547: goto          551
+     550: iconst_0
+     551: invokestatic  #111                // Method java/lang/Integer.valueOf:(I)Ljava/lang/Integer;
+     554: aastore
+     555: dup
+     556: bipush        8
+     558: aload         13
+     560: aastore
+     561: dup
+     562: bipush        9
+     564: iload_1
+     565: sipush        248
+     568: if_icmpne     586
+     571: aload         4
+     573: bipush        32
+     575: invokestatic  #146                // Method hex:([BI)Ljava/lang/String;
+     578: invokedynamic #459,  0            // InvokeDynamic #11:makeConcatWithConstants:(Ljava/lang/String;)Ljava/lang/String;
+     583: goto          589
+     586: ldc_w         #256                // String
+     589: aastore
+     590: invokevirtual #116                // Method java/io/PrintStream.printf:(Ljava/lang/String;[Ljava/lang/Object;)Ljava/io/PrintStream;
+     593: pop
+     594: return
+
+  void drainAvailableAsRaw(java.lang.String) throws java.io.IOException;
+    Code:
+       0: new           #460                // class java/io/ByteArrayOutputStream
+       3: dup
+       4: invokespecial #462                // Method java/io/ByteArrayOutputStream."<init>":()V
+       7: astore_2
+       8: aload_0
+       9: getfield      #13                 // Field in:Ljava/io/InputStream;
+      12: invokevirtual #463                // Method java/io/InputStream.available:()I
+      15: ifle          51
+      18: aload_2
+      19: invokevirtual #466                // Method java/io/ByteArrayOutputStream.size:()I
+      22: sipush        256
+      25: if_icmpge     51
+      28: aload_0
+      29: getfield      #13                 // Field in:Ljava/io/InputStream;
+      32: invokevirtual #86                 // Method java/io/InputStream.read:()I
+      35: istore_3
+      36: iload_3
+      37: ifge          43
+      40: goto          51
+      43: aload_2
+      44: iload_3
+      45: invokevirtual #469                // Method java/io/ByteArrayOutputStream.write:(I)V
+      48: goto          8
+      51: aload_2
+      52: invokevirtual #473                // Method java/io/ByteArrayOutputStream.toByteArray:()[B
+      55: astore_3
+      56: aload_3
+      57: arraylength
+      58: ifle          103
+      61: getstatic     #97                 // Field java/lang/System.out:Ljava/io/PrintStream;
+      64: ldc_w         #477                // String %sCLIENT_RAW reason=%s bytes=%d hex=%s%n
+      67: iconst_4
+      68: anewarray     #2                  // class java/lang/Object
+      71: dup
+      72: iconst_0
+      73: aload_0
+      74: getfield      #21                 // Field tag:Ljava/lang/String;
+      77: aastore
+      78: dup
+      79: iconst_1
+      80: aload_1
+      81: aastore
+      82: dup
+      83: iconst_2
+      84: aload_3
+      85: arraylength
+      86: invokestatic  #111                // Method java/lang/Integer.valueOf:(I)Ljava/lang/Integer;
+      89: aastore
+      90: dup
+      91: iconst_3
+      92: aload_3
+      93: bipush        96
+      95: invokestatic  #146                // Method hex:([BI)Ljava/lang/String;
+      98: aastore
+      99: invokevirtual #116                // Method java/io/PrintStream.printf:(Ljava/lang/String;[Ljava/lang/Object;)Ljava/io/PrintStream;
+     102: pop
+     103: return
+
+  private static java.lang.String quote(java.lang.String);
+    Code:
+       0: aload_0
+       1: ldc_w         #479                // String \\
+       4: ldc_w         #481                // String \\\\
+       7: invokevirtual #483                // Method java/lang/String.replace:(Ljava/lang/CharSequence;Ljava/lang/CharSequence;)Ljava/lang/String;
+      10: ldc_w         #487                // String \"
+      13: ldc_w         #489                // String \\\"
+      16: invokevirtual #483                // Method java/lang/String.replace:(Ljava/lang/CharSequence;Ljava/lang/CharSequence;)Ljava/lang/String;
+      19: invokedynamic #491,  0            // InvokeDynamic #12:makeConcatWithConstants:(Ljava/lang/String;)Ljava/lang/String;
+      24: areturn
+
+  static java.lang.String hex(byte[], int);
+    Code:
+       0: new           #442                // class java/lang/StringBuilder
+       3: dup
+       4: invokespecial #444                // Method java/lang/StringBuilder."<init>":()V
+       7: astore_2
+       8: aload_0
+       9: arraylength
+      10: iload_1
+      11: invokestatic  #492                // Method java/lang/Math.min:(II)I
+      14: istore_3
+      15: iconst_0
+      16: istore        4
+      18: iload         4
+      20: iload_3
+      21: if_icmpge     71
+      24: iload         4
+      26: ifeq          36
+      29: aload_2
+      30: bipush        32
+      32: invokevirtual #445                // Method java/lang/StringBuilder.append:(C)Ljava/lang/StringBuilder;
+      35: pop
+      36: aload_2
+      37: ldc_w         #498                // String %02X
+      40: iconst_1
+      41: anewarray     #2                  // class java/lang/Object
+      44: dup
+      45: iconst_0
+      46: aload_0
+      47: iload         4
+      49: baload
+      50: sipush        255
+      53: iand
+      54: invokestatic  #111                // Method java/lang/Integer.valueOf:(I)Ljava/lang/Integer;
+      57: aastore
+      58: invokestatic  #500                // Method java/lang/String.format:(Ljava/lang/String;[Ljava/lang/Object;)Ljava/lang/String;
+      61: invokevirtual #504                // Method java/lang/StringBuilder.append:(Ljava/lang/String;)Ljava/lang/StringBuilder;
+      64: pop
+      65: iinc          4, 1
+      68: goto          18
+      71: aload_0
+      72: arraylength
+      73: iload_3
+      74: if_icmple     85
+      77: aload_2
+      78: ldc_w         #507                // String  ...
+      81: invokevirtual #504                // Method java/lang/StringBuilder.append:(Ljava/lang/String;)Ljava/lang/StringBuilder;
+      84: pop
+      85: aload_2
+      86: invokevirtual #509                // Method java/lang/StringBuilder.toString:()Ljava/lang/String;
+      89: areturn
+}

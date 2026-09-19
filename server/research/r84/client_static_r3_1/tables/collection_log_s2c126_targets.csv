@@ -1,0 +1,4 @@
+target_key,semantic,payload,effect
+54315,clear_collection_rows,Payload ignored,Clear text on odd widgets 54315..54413
+54421,select_collection_row,decimal widget id,Set selected sprite for even widgets 54314..54412; reset scroll 54417
+54422,select_collection_category,decimal widget id,If 54302..54306 select category sprite/reset 54313; reset all row sprites

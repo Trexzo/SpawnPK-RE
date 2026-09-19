@@ -1,0 +1,65 @@
+subtype,operation,payload_grammar,exact_client_effect,confidence,notes
+3,direct,u16_be selector; u8 visible,selector1 controls Claim-coffer overlay/button (::claimcoffer); selector2 controls View-mail overlay/button (::mail); visible toggles registration/presentation,HIGH,No leading operation byte in this handler.
+4,0,none,terminate token-roll operation stream / no further mutation,HIGH,Handler loops over operation bytes until 0.
+4,1,repeated u16_be encodedId until 0,clear token/reward availability map then add each encodedId-1 as available,HIGH,
+4,2,u8 enabled; u16_be valueA; u16_be valueB; i32_be multiplier,update token-roll enabled/scalar/progress state and derived totals,EXACT_STRUCTURAL,Client arithmetic is exact; business labels for scalar fields are not assigned.
+4,3,u8 mode; u8 spriteState,"change token-roll presentation mode, selected sprite state and associated display name",EXACT_STRUCTURAL,
+4,4,u8 enabled,set token-roll boolean state q,EXACT_STRUCTURAL,
+5,1,i32_be widgetId; u16_be value,set runtime widget scalar V=value,HIGH,
+5,2,i32_be widgetId; u16_be value,set runtime widget scalar aH=value,HIGH,
+6,0,none,clear Event Activity entries and reset row counter,HIGH,
+6,1,string_nl title; u8 extraCount; extraCount*string_nl; i32_be current; i32_be limit; i64_be timestamp,append Event Activity row with up to three displayed extra strings and exact limit/progress presentation,HIGH,limit=-1 locked; 0 no token limit; current>=limit limit reached; otherwise current/limit.
+6,2,none,finalize/reflow Event Activity rows and scroll layout,HIGH,
+7,1,u8 enabled,reset/toggle boss-bar overlay state,EXACT_STRUCTURAL,
+7,2,i32_be valueA; i32_be valueB,set boss-bar scalar fields s/t,EXACT_STRUCTURAL,
+7,4,i32_be current; i32_be maximum,"set boss-bar ratio, percent and derived value strings",HIGH,
+7,5,string_nl label,set boss-bar label text,HIGH,
+7,6,i32_be value,set boss-bar formatted scalar x,EXACT_STRUCTURAL,
+7,7,i32_be current; i32_be maximum; string_nl text,set boss-bar ratio/percent and paired text state,HIGH,
+8,1,u8 selector; u8 enabled,"toggle combat-metric sections: selector2 Correct F3, 3 Magic, 4 Damage; selector1 sets separate global boolean",HIGH,
+8,2,string_nl leftName; string_nl rightName,set two combat-metric side/header names,HIGH,
+8,3,u8 side; u16_be valueA; u16_be valueB,set primary two-value ratio for selected side and derive A / B display,EXACT_STRUCTURAL,
+8,4,u8 side; u16_be valueA; u16_be valueB,set Correct F3 ratio and rounded percentage for selected side,HIGH,
+8,5,u8 side; u16_be valueA; u16_be valueB,set Magic ratio and rounded percentage for selected side,HIGH,
+8,6,u8 side; u16_be value,set Damage value for selected side and recompute paired difference strings,HIGH,
+8,7,u8 side; u8 percent; u8 greenFlag,set selected-side colored percent badge; greenFlag selects green versus red presentation,HIGH,
+8,8,none,validate/refresh combat-metric presentation without new payload state,EXACT_STRUCTURAL,
+9,0,none,clear items-kept-on-death auto-keep item-id set,HIGH,
+9,1,u16_be itemId,add itemId to items-kept-on-death auto-keep set,HIGH,
+11,1,u8 enabled,set essence-bonus overlay enabled state,HIGH,Canonical feature family is essence bonus; individual scalar labels remain structural.
+11,2,u16_be value,set essence-bonus scalar q and derived display string r,EXACT_STRUCTURAL,Canonical feature family is essence bonus; individual scalar labels remain structural.
+11,3,u16_be value,set essence-bonus scalar s and derived display string t,EXACT_STRUCTURAL,Canonical feature family is essence bonus; individual scalar labels remain structural.
+11,4,u16_be value,set essence-bonus scalar u and derived display string v,EXACT_STRUCTURAL,Canonical feature family is essence bonus; individual scalar labels remain structural.
+15,1,u8 enabled,set gambling-session boolean and refresh its client timestamp,HIGH,
+18,1,u8 enabled,set ticket-bonus overlay enabled state,HIGH,Canonical feature family is ticket bonus; individual scalar labels remain structural.
+18,2,u16_be value,set ticket-bonus scalar q and derived display string r,EXACT_STRUCTURAL,Canonical feature family is ticket bonus; individual scalar labels remain structural.
+18,3,u16_be value,set ticket-bonus scalar s and derived display string t,EXACT_STRUCTURAL,Canonical feature family is ticket bonus; individual scalar labels remain structural.
+18,4,u16_be value,set ticket-bonus scalar u and derived display string v,EXACT_STRUCTURAL,Canonical feature family is ticket bonus; individual scalar labels remain structural.
+19,normal,string_nl effectName; i32_be duration,"resolve named timed-effect enum; update existing duration, remove when duration<=0, or add when absent and duration>0/-1 infinite",HIGH,"Aliases include magic_sickness, welfare_2x and event_elixir; enum has 64 entries."
+19,dyn,string_nl name starting dyn_; i32_be valueA; i32_be valueB; string_nl description,remove dynamic effect with same key then add new dynamic effect; [br] is converted to newline in description,HIGH,Dynamic key is name substring after dyn_.
+21,1,i32_be actorIndex,"if actor index resolves in current actor array, clear that actor attached-effect list",HIGH,
+23,direct,string_nl line1; string_nl line2; string_nl line3,show three-line toast/notification overlay,HIGH,No leading operation byte in this handler.
+24,0,none,clear/reset current flashing attention hint,HIGH,
+24,1,i32_be target; u8 direction; u16_be x; u16_be y; u8 enabled,create/update directional flashing attention hint at supplied coordinates/target,HIGH,Direction selector maps to exact client direction enum; final bool toggles active state.
+24,3,u8 category,"set attention-hint category: 0 none, 1 ACHIEVEMENT, 2 INVENTORY, 3 EQUIPMENT, 4 MAGIC, 5 SETTINGS, 6 MISC",HIGH,
+24,4,i32_be value,set attention-hint structural scalar/helper state,EXACT_STRUCTURAL,Consumer is exact but semantic label remains unproven.
+25,direct,u16_be primary; if primary>0: u16_be secondary,set overlay counter pair; secondary becomes 0 when primary==0; clear cached display string,EXACT_STRUCTURAL,No leading operation byte in this handler.
+26,direct,u8 first; u8 second,set overlay pair state; wire first value 2 is normalized internally to -1,EXACT_STRUCTURAL,No leading operation byte in this handler.
+27,0,none,clear/reset 4x3 multi-field overlay text matrix,HIGH,
+27,1,u8 fieldIndex(1..3); string_nl text,set text field fieldIndex in overlay group 1,HIGH,
+27,2,u8 fieldIndex(1..3); string_nl text,set text field fieldIndex in overlay group 2,HIGH,
+27,3,u8 fieldIndex(1..3); string_nl text,set text field fieldIndex in overlay group 3,HIGH,
+27,4,u8 fieldIndex(1..3); string_nl text,set text field fieldIndex in overlay group 4,HIGH,
+29,direct,u16_be archive2ResourceId,"request/load client archive-2 resource through Client.a(id,true)",HIGH,No leading operation byte; exact resource identity remains supplied by server.
+33,0,none,reset/rebuild status panel rooted around 30700,HIGH,
+33,1,i32_be valueA; i32_be valueB; u8 mirror,configure widget/model 14171 through panel helper,EXACT_STRUCTURAL,
+33,2,u8 lineCount(1..4); lineCount*string_nl,populate status text widgets 6181..6184 and apply exact vertical geometry for line count,HIGH,
+33,3,i32_be colorOrSentinel,"draw status rectangle presentation; -1 selects exact fixed four-color rectangle set, otherwise supplied single color",PRESENTATION_ONLY,
+33,4,i32_be ignored,refresh/rebuild panel/model layout; payload argument is read but ignored by exact helper,HIGH,
+34,0,u8 action; string_nl key,remove keyed infobox when action=0; other action values continue through typed infobox path,HIGH,"First byte before this operation is infobox kind: 1 timer, 2 numeric, 3 static."
+34,2,string_nl key; i32_be value,"when existing keyed infobox is numeric, update its integer value in place",HIGH,This is inner action=2 after the outer kind byte.
+34,create,"u8 kind(1 timer,2 numeric,3 static); u8 action; string_nl key; string_nl iconClass; [i32_be value if kind!=3]; u8 imageMode; [string_nl resource if mode1 | i32_be spriteId if mode2]; u8 hasDescription; [string_nl description]","create/update keyed timer, numeric or static infobox with named/sprite/default icon and optional description",HIGH,iconClass def resolves to InfoBoxOverlay; [br] in description is normalized by client.
+36,0,none,reset both 0..457 progress values to zero,HIGH,
+36,1,u8 slot; u16_be value,set selected progress slot to value clamped to 0..457,HIGH,
+36,2,u8 slot; u8 styleIndexPlus1,"set selected slot style: 0 null, 1 GOLD_SLOW, 2 PURPLE_EXOTIC",HIGH,
+38,1,i64_be senderIdentity; string_nl message,publish formatted chat message through client chat type 6,HIGH,

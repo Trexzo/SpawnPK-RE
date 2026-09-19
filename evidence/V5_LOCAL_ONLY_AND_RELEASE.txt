@@ -1,0 +1,11 @@
+V5_LOCAL_ONLY_SOURCE_SCAN_PASS
+server_source_remote_literal_matches=0
+server_binds=127.0.0.1_only
+pinned_client_unchanged=true
+bank_object_26972_authoritative_adjacency_required=true
+c2s_226=VARBYTE_observe_only
+c2s_36=FIXED4_observe_only
+native_spawn_tab_wire71_root0_client_resolves67027=true
+spawn_tab_local_choice_index=10
+item_repository_count=28673
+server_jar_sha256=c5f598877e3107a1d929862975e6bedb378da333314ef318dc4b54e74b73e75e

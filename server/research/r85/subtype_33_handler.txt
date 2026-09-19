@@ -1,0 +1,275 @@
+  public void a();
+    Code:
+       0: aload_0
+       1: invokevirtual #30                 // Method e:()I
+       4: istore_1
+       5: iload_1
+       6: ifne          12
+       9: invokestatic  #28                 // Method rs/n/c/a/a.h:()V
+      12: iload_1
+      13: iconst_1
+      14: if_icmpne     49
+      17: aload_0
+      18: invokevirtual #31                 // Method g:()I
+      21: istore_2
+      22: aload_0
+      23: invokevirtual #31                 // Method g:()I
+      26: istore_3
+      27: aload_0
+      28: invokevirtual #30                 // Method e:()I
+      31: iconst_1
+      32: if_icmpne     39
+      35: iconst_1
+      36: goto          40
+      39: iconst_0
+      40: istore        4
+      42: iload_2
+      43: iload_3
+      44: iload         4
+      46: invokestatic  #27                 // Method rs/n/c/a/a.a:(IIZ)V
+      49: iload_1
+      50: iconst_2
+      51: if_icmpne     394
+      54: aload_0
+      55: invokevirtual #30                 // Method e:()I
+      58: istore_2
+      59: sipush        6181
+      62: invokestatic  #38                 // Method rs/n/e.l:(I)Lrs/n/e;
+      65: ldc           #5                  // String
+      67: putfield      #22                 // Field rs/n/e.at:Ljava/lang/String;
+      70: sipush        6182
+      73: invokestatic  #38                 // Method rs/n/e.l:(I)Lrs/n/e;
+      76: ldc           #5                  // String
+      78: putfield      #22                 // Field rs/n/e.at:Ljava/lang/String;
+      81: sipush        6183
+      84: invokestatic  #38                 // Method rs/n/e.l:(I)Lrs/n/e;
+      87: ldc           #5                  // String
+      89: putfield      #22                 // Field rs/n/e.at:Ljava/lang/String;
+      92: sipush        6184
+      95: invokestatic  #38                 // Method rs/n/e.l:(I)Lrs/n/e;
+      98: ldc           #5                  // String
+     100: putfield      #22                 // Field rs/n/e.at:Ljava/lang/String;
+     103: iload_2
+     104: iconst_1
+     105: if_icmpne     155
+     108: sipush        6183
+     111: invokestatic  #38                 // Method rs/n/e.l:(I)Lrs/n/e;
+     114: aload_0
+     115: invokevirtual #32                 // Method h:()Ljava/lang/String;
+     118: putfield      #22                 // Field rs/n/e.at:Ljava/lang/String;
+     121: getstatic     #21                 // Field rs/n/c/a/a.d:Lrs/n/d/c;
+     124: sipush        6183
+     127: invokevirtual #37                 // Method rs/n/d/c.b:(I)Lrs/n/d/b;
+     130: astore_3
+     131: aload_3
+     132: aload_3
+     133: invokevirtual #34                 // Method rs/n/d/b.f:()I
+     136: aload_3
+     137: invokevirtual #35                 // Method rs/n/d/b.g:()I
+     140: iconst_5
+     141: isub
+     142: invokevirtual #33                 // Method rs/n/d/b.a:(II)Lrs/n/d/b;
+     145: pop
+     146: getstatic     #21                 // Field rs/n/c/a/a.d:Lrs/n/d/c;
+     149: invokevirtual #36                 // Method rs/n/d/c.a:()V
+     152: goto          394
+     155: iload_2
+     156: iconst_2
+     157: if_icmpne     239
+     160: sipush        6182
+     163: invokestatic  #38                 // Method rs/n/e.l:(I)Lrs/n/e;
+     166: aload_0
+     167: invokevirtual #32                 // Method h:()Ljava/lang/String;
+     170: putfield      #22                 // Field rs/n/e.at:Ljava/lang/String;
+     173: sipush        6183
+     176: invokestatic  #38                 // Method rs/n/e.l:(I)Lrs/n/e;
+     179: aload_0
+     180: invokevirtual #32                 // Method h:()Ljava/lang/String;
+     183: putfield      #22                 // Field rs/n/e.at:Ljava/lang/String;
+     186: sipush        6182
+     189: istore_3
+     190: iload_3
+     191: sipush        6183
+     194: if_icmpgt     230
+     197: getstatic     #21                 // Field rs/n/c/a/a.d:Lrs/n/d/c;
+     200: iload_3
+     201: invokevirtual #37                 // Method rs/n/d/c.b:(I)Lrs/n/d/b;
+     204: astore        4
+     206: aload         4
+     208: aload         4
+     210: invokevirtual #34                 // Method rs/n/d/b.f:()I
+     213: aload         4
+     215: invokevirtual #35                 // Method rs/n/d/b.g:()I
+     218: iconst_3
+     219: iadd
+     220: invokevirtual #33                 // Method rs/n/d/b.a:(II)Lrs/n/d/b;
+     223: pop
+     224: iinc          3, 1
+     227: goto          190
+     230: getstatic     #21                 // Field rs/n/c/a/a.d:Lrs/n/d/c;
+     233: invokevirtual #36                 // Method rs/n/d/c.a:()V
+     236: goto          394
+     239: iload_2
+     240: iconst_3
+     241: if_icmpne     337
+     244: sipush        6181
+     247: invokestatic  #38                 // Method rs/n/e.l:(I)Lrs/n/e;
+     250: aload_0
+     251: invokevirtual #32                 // Method h:()Ljava/lang/String;
+     254: putfield      #22                 // Field rs/n/e.at:Ljava/lang/String;
+     257: sipush        6182
+     260: invokestatic  #38                 // Method rs/n/e.l:(I)Lrs/n/e;
+     263: aload_0
+     264: invokevirtual #32                 // Method h:()Ljava/lang/String;
+     267: putfield      #22                 // Field rs/n/e.at:Ljava/lang/String;
+     270: sipush        6183
+     273: invokestatic  #38                 // Method rs/n/e.l:(I)Lrs/n/e;
+     276: aload_0
+     277: invokevirtual #32                 // Method h:()Ljava/lang/String;
+     280: putfield      #22                 // Field rs/n/e.at:Ljava/lang/String;
+     283: sipush        6181
+     286: istore_3
+     287: iload_3
+     288: sipush        6183
+     291: if_icmpgt     328
+     294: getstatic     #21                 // Field rs/n/c/a/a.d:Lrs/n/d/c;
+     297: iload_3
+     298: invokevirtual #37                 // Method rs/n/d/c.b:(I)Lrs/n/d/b;
+     301: astore        4
+     303: aload         4
+     305: aload         4
+     307: invokevirtual #34                 // Method rs/n/d/b.f:()I
+     310: aload         4
+     312: invokevirtual #35                 // Method rs/n/d/b.g:()I
+     315: bipush        10
+     317: iadd
+     318: invokevirtual #33                 // Method rs/n/d/b.a:(II)Lrs/n/d/b;
+     321: pop
+     322: iinc          3, 1
+     325: goto          287
+     328: getstatic     #21                 // Field rs/n/c/a/a.d:Lrs/n/d/c;
+     331: invokevirtual #36                 // Method rs/n/d/c.a:()V
+     334: goto          394
+     337: iload_2
+     338: iconst_4
+     339: if_icmpne     394
+     342: sipush        6181
+     345: invokestatic  #38                 // Method rs/n/e.l:(I)Lrs/n/e;
+     348: aload_0
+     349: invokevirtual #32                 // Method h:()Ljava/lang/String;
+     352: putfield      #22                 // Field rs/n/e.at:Ljava/lang/String;
+     355: sipush        6182
+     358: invokestatic  #38                 // Method rs/n/e.l:(I)Lrs/n/e;
+     361: aload_0
+     362: invokevirtual #32                 // Method h:()Ljava/lang/String;
+     365: putfield      #22                 // Field rs/n/e.at:Ljava/lang/String;
+     368: sipush        6183
+     371: invokestatic  #38                 // Method rs/n/e.l:(I)Lrs/n/e;
+     374: aload_0
+     375: invokevirtual #32                 // Method h:()Ljava/lang/String;
+     378: putfield      #22                 // Field rs/n/e.at:Ljava/lang/String;
+     381: sipush        6184
+     384: invokestatic  #38                 // Method rs/n/e.l:(I)Lrs/n/e;
+     387: aload_0
+     388: invokevirtual #32                 // Method h:()Ljava/lang/String;
+     391: putfield      #22                 // Field rs/n/e.at:Ljava/lang/String;
+     394: iload_1
+     395: iconst_3
+     396: if_icmpne     586
+     399: aload_0
+     400: invokevirtual #31                 // Method g:()I
+     403: istore_2
+     404: iconst_0
+     405: istore_3
+     406: iconst_0
+     407: istore        4
+     409: getstatic     #19                 // Field rs/f/a.ai:Lrs/f/a$c;
+     412: getstatic     #20                 // Field rs/f/a$c.b:Lrs/f/a$c;
+     415: if_acmpne     439
+     418: getstatic     #18                 // Field rs/Client.ai:I
+     421: iconst_2
+     422: idiv
+     423: sipush        356
+     426: isub
+     427: istore_3
+     428: getstatic     #17                 // Field rs/Client.ah:I
+     431: iconst_2
+     432: idiv
+     433: sipush        230
+     436: isub
+     437: istore        4
+     439: iload_2
+     440: lookupswitch  { // 1
+                    -1: 460
+               default: 564
+          }
+     460: invokestatic  #25                 // Method rs/l/f/e.d:()Lrs/l/f/e;
+     463: invokevirtual #26                 // Method rs/l/f/e.g:()Lrs/l/f/a/f/c;
+     466: iconst_5
+     467: bipush        88
+     469: iload_3
+     470: iadd
+     471: sipush        419
+     474: iload         4
+     476: iadd
+     477: ldc           #3                  // int 16733525
+     479: sipush        200
+     482: invokevirtual #23                 // Method rs/l/f/a/f/c.a:(IIIII)V
+     485: invokestatic  #25                 // Method rs/l/f/e.d:()Lrs/l/f/e;
+     488: invokevirtual #26                 // Method rs/l/f/e.g:()Lrs/l/f/a/f/c;
+     491: iconst_5
+     492: bipush        88
+     494: iload_3
+     495: iadd
+     496: sipush        419
+     499: iload         4
+     501: iadd
+     502: ldc           #2                  // int 2621184
+     504: sipush        200
+     507: invokevirtual #23                 // Method rs/l/f/a/f/c.a:(IIIII)V
+     510: invokestatic  #25                 // Method rs/l/f/e.d:()Lrs/l/f/e;
+     513: invokevirtual #26                 // Method rs/l/f/e.g:()Lrs/l/f/a/f/c;
+     516: iconst_5
+     517: bipush        88
+     519: iload_3
+     520: iadd
+     521: sipush        419
+     524: iload         4
+     526: iadd
+     527: ldc           #1                  // int 65535
+     529: sipush        200
+     532: invokevirtual #23                 // Method rs/l/f/a/f/c.a:(IIIII)V
+     535: invokestatic  #25                 // Method rs/l/f/e.d:()Lrs/l/f/e;
+     538: invokevirtual #26                 // Method rs/l/f/e.g:()Lrs/l/f/a/f/c;
+     541: bipush        10
+     543: bipush        88
+     545: iload_3
+     546: iadd
+     547: sipush        419
+     550: iload         4
+     552: iadd
+     553: ldc           #4                  // int 16770304
+     555: sipush        200
+     558: invokevirtual #23                 // Method rs/l/f/a/f/c.a:(IIIII)V
+     561: goto          586
+     564: invokestatic  #25                 // Method rs/l/f/e.d:()Lrs/l/f/e;
+     567: invokevirtual #26                 // Method rs/l/f/e.g:()Lrs/l/f/a/f/c;
+     570: bipush        20
+     572: bipush        88
+     574: iload_3
+     575: iadd
+     576: sipush        419
+     579: iload         4
+     581: iadd
+     582: iload_2
+     583: invokevirtual #24                 // Method rs/l/f/a/f/c.b:(IIII)V
+     586: iload_1
+     587: iconst_4
+     588: if_icmpne     600
+     591: aload_0
+     592: invokevirtual #31                 // Method g:()I
+     595: istore_2
+     596: iload_2
+     597: invokestatic  #29                 // Method rs/n/c/a/a.m:(I)V
+     600: return
+}

@@ -1,0 +1,28 @@
+SpawnPK Local Lab v0.3.3
+
+Authority client SHA-256:
+6232bae206846a4ba8d09766a2dee886b69016066a3f50f83b201bf705f93662
+
+Runtime evidence from v0.3.2 reached:
+- opcode 185 widget 912
+- opcode 103 startup commands
+- opcode 0
+- opcode 121 loading acknowledgements
+- opcode 164 walking family, decoded observe-only
+- then opcode 3 caused the conservative decoder to pause
+
+Raw-client static closure:
+- rs.Client.bz() emits opcode 3 followed by rs.x.e.b(1) or b(0)
+- rs.C.focusGained sets hJ=true
+- rs.C.focusLost sets hJ=false
+- exact schema: opcode 3, fixed payload length 1, payload 1=focused / 0=unfocused
+
+Offline probe test:
+CLIENT_PACKET_PROBE_V033_PASS decoded=6 aligned=true command103+zero0+zero121+focus3+walk164
+
+Appearance/client decoder regression:
+APPEARANCE_CLIENT_PARSER_PARITY_PASS bytes=62 consumed=62 displayName=localtest
+PACKET81_FULL_CLIENT_DECODER_PARITY_PASS payload=69 consumed=69 displayName=localtest plane=0
+
+Watcher fix:
+WATCH_CLIENT_NETWORK.ps1 now selects only java/javaw command lines containing client-airgap.jar.

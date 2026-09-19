@@ -1,0 +1,53 @@
+menu_action_code,outbound_packet_opcodes,bytecode_branch_starts,bytecode_branch_targets,semantic_note
+6,39;73;136,3371;3554,3642;3610,Exact packet opcode(s) only; menu semantic intentionally not guessed in this table
+20,155,2176,2304,Exact packet opcode(s) only; menu semantic intentionally not guessed in this table
+27,73;189,4436,4533,Exact packet opcode(s) only; menu semantic intentionally not guessed in this table
+53,135,2991,3090,Exact packet opcode(s) only; menu semantic intentionally not guessed in this table
+62,192,567,658,Exact packet opcode(s) only; menu semantic intentionally not guessed in this table
+74,122,942,1122,Exact packet opcode(s) only; menu semantic intentionally not guessed in this table
+78,117,4338,4436,Exact packet opcode(s) only; menu semantic intentionally not guessed in this table
+94,181,5877,6027,Exact packet opcode(s) only; menu semantic intentionally not guessed in this table
+104,185,4183,4338,Also emits opcode 185 in this action branch; parameter payload differs by branch and is not relabeled here
+113,70,8709,8765,Exact packet opcode(s) only; menu semantic intentionally not guessed in this table
+169,185,9396,9516,Also emits opcode 185 in this action branch; parameter payload differs by branch and is not relabeled here
+213,79,4533,4673,Exact packet opcode(s) only; menu semantic intentionally not guessed in this table
+225,17;230,6337,6631,Exact packet opcode(s) only; menu semantic intentionally not guessed in this table
+234,236,340,481,Exact packet opcode(s) only; menu semantic intentionally not guessed in this table
+244,253,9649,9790,Exact packet opcode(s) only; menu semantic intentionally not guessed in this table
+291,140,481,519,Exact packet opcode(s) only; menu semantic intentionally not guessed in this table
+300,141,519,567,Exact packet opcode(s) only; menu semantic intentionally not guessed in this table
+315,185,1122,2044,Generic interface-button action; opcode 185 carries widget id after local controller hooks
+365,249,7211,7282,Exact packet opcode(s) only; menu semantic intentionally not guessed in this table
+412,72,7119,7211,Exact packet opcode(s) only; menu semantic intentionally not guessed in this table
+413,131,6796,6899,Exact packet opcode(s) only; menu semantic intentionally not guessed in this table
+431,129,2776,2876,Exact packet opcode(s) only; menu semantic intentionally not guessed in this table
+454,41,8374,8539,Exact packet opcode(s) only; menu semantic intentionally not guessed in this table
+478,18;85,8539,8709,Exact packet opcode(s) only; menu semantic intentionally not guessed in this table
+484,39,3481,3512,Exact packet opcode(s) only; menu semantic intentionally not guessed in this table
+491,14,8085,8217,Exact packet opcode(s) only; menu semantic intentionally not guessed in this table
+493,75,5637,5736,Exact packet opcode(s) only; menu semantic intentionally not guessed in this table
+502,132,8823,8883,Exact packet opcode(s) only; menu semantic intentionally not guessed in this table
+511,25,658,828,Exact packet opcode(s) only; menu semantic intentionally not guessed in this table
+539,16,3190,3364,Exact packet opcode(s) only; menu semantic intentionally not guessed in this table
+543,237,7837,7947,Exact packet opcode(s) only; menu semantic intentionally not guessed in this table
+561,128;136,2044,2176,Exact packet opcode(s) only; menu semantic intentionally not guessed in this table
+567,23,7472,7612,Exact packet opcode(s) only; menu semantic intentionally not guessed in this table
+577,139,7342,7403,Exact packet opcode(s) only; menu semantic intentionally not guessed in this table
+582,57,182,340,Exact packet opcode(s) only; menu semantic intentionally not guessed in this table
+632,145,4673,4848,Exact packet opcode(s) only; menu semantic intentionally not guessed in this table
+638,176,3090,3190,Exact packet opcode(s) only; menu semantic intentionally not guessed in this table
+646,185,6051,6337,Also emits opcode 185 in this action branch; parameter payload differs by branch and is not relabeled here
+652,156,5736,5877,Exact packet opcode(s) only; menu semantic intentionally not guessed in this table
+679,40,2741,2776,Exact packet opcode(s) only; menu semantic intentionally not guessed in this table
+729,39,7282,7342,Exact packet opcode(s) only; menu semantic intentionally not guessed in this table
+779,153,2304,2407,Exact packet opcode(s) only; menu semantic intentionally not guessed in this table
+847,87,3771,4006,Exact packet opcode(s) only; menu semantic intentionally not guessed in this table
+867,43;200,7612,7837,Exact packet opcode(s) only; menu semantic intentionally not guessed in this table
+870,53,3642,3771,Exact packet opcode(s) only; menu semantic intentionally not guessed in this table
+872,234,8765,8823,Exact packet opcode(s) only; menu semantic intentionally not guessed in this table
+900,252,7061,7119,Exact packet opcode(s) only; menu semantic intentionally not guessed in this table
+956,35,7403,7472,Exact packet opcode(s) only; menu semantic intentionally not guessed in this table
+965,21;152,6631,6796,Exact packet opcode(s) only; menu semantic intentionally not guessed in this table
+1062,183;228,2643,2741,Exact packet opcode(s) only; menu semantic intentionally not guessed in this table
+1500,185,828,895,Also emits opcode 185 in this action branch; parameter payload differs by branch and is not relabeled here
+1506,185,895,920,Also emits opcode 185 in this action branch; parameter payload differs by branch and is not relabeled here
