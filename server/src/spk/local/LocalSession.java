@@ -48,6 +48,7 @@ final class LocalSession implements Runnable {
     private final LocalItemOnNpcHandler itemOnNpcHandler;
     private final LocalGameplayWidgetHandler gameplayWidgetHandler;
     private final LocalBankObjectInteractionHandler bankObjectHandler;
+    private final LocalRoutedNpcInteractionHandler routedNpcHandler;
     /** Engine R7 one-stop in-game developer control center. */
     private final DevControlCenter devPanel = new DevControlCenter();
     private SceneUpdatePublisher scenePublisher;
@@ -62,8 +63,6 @@ final class LocalSession implements Runnable {
     private boolean worldRegistered;
     private long worldPlayerGeneration;
     private boolean worldTickAttached;
-    private Integer pendingBankNpcScene;
-    private long pendingBankNpcDeadlineMs;
     private Integer pendingPetPickupScene;
     private long pendingPetPickupDeadlineMs;
     /** Legacy R2.12 field retained for binary/test compatibility; R2.13 pickup uses Q/R and never arms it. */
@@ -134,6 +133,8 @@ final class LocalSession implements Runnable {
         this.gameplayWidgetHandler = new LocalGameplayWidgetHandler(
             prayers,playerState,equipment,combatStyles,magic,bank);
         this.bankObjectHandler = new LocalBankObjectInteractionHandler(bank,movement);
+        this.routedNpcHandler = new LocalRoutedNpcInteractionHandler(
+            npcs,bank,movement);
         if (movementEnabled && !bootstrap) throw new IllegalArgumentException("movement requires bootstrap");
     }
 
@@ -501,7 +502,8 @@ final class LocalSession implements Runnable {
             tickPlayerAttack(worldTick,sessionPackets,tag);
             String bankObjectTick=bankObjectHandler.tick(now,sessionPackets);
             if(bankObjectTick!=null)System.out.println(tag+bankObjectTick);
-            tryOpenDeferredNpcBank(sessionPackets, tag, now);
+            String routedNpcTick=routedNpcHandler.tick(now,sessionPackets);
+            if(routedNpcTick!=null)System.out.println(tag+routedNpcTick);
             applyGroundItemResult(
                 groundItemHandler.tick(now,scenePublisher,sessionPackets),tag);
             tryPickupDeferredPet(sessionPackets, tag, now);
@@ -904,20 +906,6 @@ final class LocalSession implements Runnable {
         if(request==null)return;
         String result=bankObjectHandler.handle(request,serverPackets);
         if(result!=null)System.out.println(tag+result);
-    }
-
-    private void tryOpenDeferredNpcBank(ServerPacketWriter serverPackets,String tag,long now)throws IOException {
-        Integer scene=pendingBankNpcScene;if(scene==null)return; NpcEntity n=npcs.scene(scene);
-        if(n==null||now>pendingBankNpcDeadlineMs){pendingBankNpcScene=null;System.out.println(tag+"V511_NPC_BANK scene="+scene+" action=CANCELLED_MISSING_OR_TIMEOUT");return;}
-        if(!adjacentTo(n.x,n.y)){if(movement.queued()==0){pendingBankNpcScene=null;System.out.println(tag+"V511_NPC_BANK scene="+scene+" action=CANCELLED_PATH_ENDED_NOT_ADJACENT");}return;}
-        pendingBankNpcScene=null; movement.clearQueuedPath(); NpcAction synthetic=new NpcAction(17,scene); NpcInteractionRouter.Route route=NpcInteractionRouter.resolve(synthetic,n);
-        openBankFromNpc(n,synthetic,route,serverPackets,tag,"OPENED_AFTER_AUTHORITATIVE_ARRIVAL");
-    }
-
-    private void openBankFromNpc(NpcEntity n,NpcAction req,NpcInteractionRouter.Route route,ServerPacketWriter serverPackets,String tag,String reason)throws IOException{
-        bank.open(serverPackets);
-        System.out.println(tag+"V511_BANK_OPEN_NPC npc="+n.definitionId+" scene="+n.sceneIndex+" world="+n.x+","+n.y+" request="+req+" route="+route+
-            " authorityWorld="+movement.x()+","+movement.y()+" distance="+chebyshev(movement.x(),movement.y(),n.x,n.y)+" root="+BankState.BANK_ROOT+" action="+reason);
     }
 
     private boolean adjacentTo(int x,int y) {
@@ -1567,14 +1555,8 @@ final class LocalSession implements Runnable {
             return;
         }
 
-        NpcInteractionRouter.Route route=NpcInteractionRouter.resolve(a,clicked);
-        if(route.service==NpcInteractionRouter.Service.BANK && clicked!=null){
-            if(adjacentTo(clicked.x,clicked.y)){ pendingBankNpcScene=null; openBankFromNpc(clicked,a,route,serverPackets,tag,"OPENED_ADJACENT_IMMEDIATE"); }
-            else { pendingBankNpcScene=clicked.sceneIndex; pendingBankNpcDeadlineMs=System.currentTimeMillis()+10_000L;
-                System.out.println(tag+"V511_NPC_BANK "+a+" clicked="+clicked+" route="+route+" distance="+chebyshev(movement.x(),movement.y(),clicked.x,clicked.y)+" action=DEFERRED_UNTIL_ADJACENT"); }
-            return;
-        }
-        System.out.println(tag+"V511_NPC_ACTION "+a+" route="+route+" result=DECODED_SEMANTIC_"+route.service+" clicked="+clicked+" petScene="+(pet==null?-1:pet.sceneIndex));
+        String routed=routedNpcHandler.handle(a,clicked,serverPackets);
+        if(routed!=null)System.out.println(tag+routed);
     }
 
 
