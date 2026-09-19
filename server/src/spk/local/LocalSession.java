@@ -1738,7 +1738,14 @@ final class LocalSession implements Runnable {
                 else devPanel.setPage(DevControlCenter.Page.MAGIC_PRAYER);break;
             case WORLD:
                 if(choice==0){promptDevPanelAmount(DevControlCenter.PendingAmount.REGION_ID,w);return;}
-                else if(choice==1)result=returnHomeFromTransientRegion(w,tag);
+                else if(choice==1){
+                    LocalRegionDevCommandHandler.Result region=
+                        regionDevCommands.returnHomeForPanel(
+                            username,scenePublisher,w);
+                    if(region.scenePublisher!=null)scenePublisher=region.scenePublisher;
+                    if(region.saveReason!=null)saveAccountQuiet(tag,region.saveReason);
+                    result=region.detailText;
+                }
                 else if(choice==2){int mask=WorldCollisionAuthority.maskAt(movement.x(),movement.y(),movement.plane());result="collision world="+movement.x()+","+movement.y()+","+movement.plane()+" mask="+mask+" blocked="+WorldCollisionAuthority.blockedTile(movement.x(),movement.y(),movement.plane());}
                 else devPanel.setPage(DevControlCenter.Page.MORE);break;
             case ITEMS:
@@ -1864,8 +1871,16 @@ final class LocalSession implements Runnable {
                     if(value<0||value>65535)result="REJECTED gfx 0..65535";else result=npcs.gfxPet(value,0,0,w);break;
                 case PET_NATIVE_STATE:
                     if(value<0||value>3)result="REJECTED state 0..3";else result=npcs.setPetNativeState(value,w);break;
-                case REGION_ID:
-                    result=enterTransientRegionDev(value,0,w,tag);reopen=false;break;
+                case REGION_ID:{
+                    LocalRegionDevCommandHandler.Result region=
+                        regionDevCommands.enterForPanel(
+                            value,0,scenePublisher,w);
+                    if(region.scenePublisher!=null)scenePublisher=region.scenePublisher;
+                    if(region.saveReason!=null)saveAccountQuiet(tag,region.saveReason);
+                    result=region.detailText;
+                    reopen=false;
+                    break;
+                }
                 case ITEM_LIBRARY_ID:
                     if(ItemAuthorityRepository.get(value)==null)result="REJECTED unknown item "+value;
                     else{devPanel.close();clearDialogNumberKeys();result=itemLibrary.open(w,value);reopen=false;}break;
