@@ -109,8 +109,8 @@ tasks.register('verifyJava11Bytecode') {
 
     doLast {
         def classFiles = files(
-            fileTree(layout.buildDirectory.dir('classes/java/main')) { include '**/*.class' },
-            fileTree(layout.buildDirectory.dir('classes/java/test')) { include '**/*.class' }
+            fileTree(new File(layout.buildDirectory.get().asFile, 'classes/java/main')) { include '**/*.class' },
+            fileTree(new File(layout.buildDirectory.get().asFile, 'classes/java/test')) { include '**/*.class' }
         ).files
 
         if (classFiles.empty) {
@@ -165,9 +165,9 @@ def readR85Selftests = {
         throw new GradleException('Could not locate $tests block in RUN_V5185_FULL_SELFTEST.ps1')
     }
 
-    int end = text.indexOf('\n)\n$cp=', start)
+    int end = text.indexOf('\n)\n', start)
     if (end < 0) {
-        end = text.indexOf('\r\n)\r\n$cp=', start)
+        end = text.indexOf('\r\n)\r\n', start)
     }
     if (end < 0) {
         throw new GradleException('Could not locate end of $tests block in RUN_V5185_FULL_SELFTEST.ps1')
