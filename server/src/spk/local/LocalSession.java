@@ -34,6 +34,7 @@ final class LocalSession implements Runnable {
     /** Engine R5 native Item Library server-side authority projection. */
     private final NativeItemLibraryService itemLibrary = new NativeItemLibraryService();
     private final LocalDiagnosticCommandHandler diagnosticCommands;
+    private final LocalPrayerMagicCommandHandler prayerMagicCommands;
     /** Engine R7 one-stop in-game developer control center. */
     private final DevControlCenter devPanel = new DevControlCenter();
     private SceneUpdatePublisher scenePublisher;
@@ -106,6 +107,7 @@ final class LocalSession implements Runnable {
         this.miniPets = worldPlayer.miniPets();
         this.diagnosticCommands = new LocalDiagnosticCommandHandler(
             world,equipment,movement,prayers,magic,combatStyles,itemLibrary);
+        this.prayerMagicCommands = new LocalPrayerMagicCommandHandler(prayers,magic);
         if (movementEnabled && !bootstrap) throw new IllegalArgumentException("movement requires bootstrap");
     }
 
@@ -1738,27 +1740,7 @@ final class LocalSession implements Runnable {
             System.out.println(tag+"V5160_REGION_HOME "+returnHomeFromTransientRegion(serverPackets,tag));
             return;
         }
-        if(p.length>=2 && p[0].equalsIgnoreCase("prayerbook")){
-            String r=prayers.switchBook(p[1],serverPackets);
-            System.out.println(tag+"V510_PRAYER_BOOK command="+clean+" result="+r);
-            return;
-        }
-        if(p.length>=2 && p[0].equalsIgnoreCase("spellbook")){
-            String r=magic.switchBook(p[1],serverPackets);
-            System.out.println(tag+"V510_SPELL_BOOK command="+clean+" result="+r);
-            return;
-        }
-        if(p.length>=1 && p[0].equalsIgnoreCase("prayeroff")){
-            String r=prayers.deactivateAll(serverPackets);
-            System.out.println(tag+"V510_PRAYER_OFF result="+r);
-            return;
-        }
-        if(p.length>=2 && p[0].equalsIgnoreCase("prayericon")){
-            int icon=parseInt(p[1],-999);
-            String r=prayers.publishManualHeadIcon(icon,serverPackets);
-            System.out.println(tag+"V510_PRAYER_ICON result="+r);
-            return;
-        }
+        if(prayerMagicCommands.handle(p,clean,serverPackets,tag))return;
         if(p.length>=1 && p[0].equalsIgnoreCase("authority")){
             System.out.println(tag+"V5124_AUTHORITY "+AuthorityR16R25Publisher.status()+
                 " bankWrapperExact="+BankState.BANK_WRAPPER_ROOT+" bankRuntimeRoot="+BankState.BANK_ROOT+
