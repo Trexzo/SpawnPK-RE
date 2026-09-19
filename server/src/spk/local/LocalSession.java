@@ -53,6 +53,7 @@ final class LocalSession implements Runnable {
     private final LocalPlayerInteractionHandler playerInteractions;
     private final LocalEquipmentItemActionHandler equipmentItemActions;
     private final LocalPetInventoryDialogHandler petDialogs;
+    private final LocalCompCapeCustomizeHandler compCapeCustomize;
     /** Engine R7 one-stop in-game developer control center. */
     private final DevControlCenter devPanel = new DevControlCenter();
     private SceneUpdatePublisher scenePublisher;
@@ -80,7 +81,6 @@ final class LocalSession implements Runnable {
     private String username = AccountStore.CANONICAL_USERNAME;
     private String loginAlias = "localtest";
     private boolean persistentAccount;
-    private boolean compCapeCustomizeOpen;
     /** Persisted semantic global pet accessory. 0 means none. */
     private final PetAccessoryState petAccessoryState = new PetAccessoryState();
     /** Engine R3 per-view remote-player synchronization context. */
@@ -137,6 +137,8 @@ final class LocalSession implements Runnable {
             bank,equipment,playerState,playerPresentation,combatStyles);
         this.petDialogs = new LocalPetInventoryDialogHandler(
             bank,miniPets,petState,npcs,movement,petAccessoryState);
+        this.compCapeCustomize = new LocalCompCapeCustomizeHandler(
+            bank,playerState);
         if (movementEnabled && !bootstrap) throw new IllegalArgumentException("movement requires bootstrap");
     }
 
@@ -682,13 +684,12 @@ final class LocalSession implements Runnable {
         devPanel.close();
         clearDialogNumberKeys();
         boolean wasOpen = bank.clientClosed();
-        boolean compWasOpen = compCapeCustomizeOpen;
+        boolean compWasOpen = compCapeCustomize.close();
         LocalPetInventoryDialogHandler.CloseState petDialogClose=
             petDialogs.clearAll();
         boolean petColorWasOpen=petDialogClose.petColorWasOpen;
         boolean miniConfigWasOpen=petDialogClose.miniConfigWasOpen;
         boolean petAccessoryWasOpen=petDialogClose.petAccessoryWasOpen;
-        compCapeCustomizeOpen = false;
         // Bank overlay inventory is widget 5064; once the overlay closes the normal
         // inventory is widget 3214. Re-send 3214 so withdrawals remain visible.
         if (wasOpen) bank.sendNormalInventory(serverPackets);
@@ -751,15 +752,10 @@ final class LocalSession implements Runnable {
             return;
         }
 
-        if (widget == 63027 || widget == 63031) {
-            if (!compCapeCustomizeOpen) {
-                System.out.println(tag + "V55_COMP_CAPE_WIDGET widget="+widget+" result=IGNORED_NOT_OPEN");
-                return;
-            }
-            boolean confirm = widget == 63027;
-            serverPackets.fixed(219, new byte[0]);
-            compCapeCustomizeOpen = false;
-            System.out.println(tag + "V55_COMP_CAPE_WIDGET widget="+widget+" action="+(confirm?"CONFIRM":"CANCEL")+" result=CLOSED_NATIVE_ROOT_63036 selectors="+playerState.compSelectorSummary());
+        String compCapeWidget=
+            compCapeCustomize.handleWidget(widget,serverPackets);
+        if(compCapeWidget!=null){
+            System.out.println(tag+compCapeWidget);
             return;
         }
         if (widget == 152) {
@@ -857,18 +853,10 @@ final class LocalSession implements Runnable {
             return;
         }
 
-        // Native Grand completionist cape Customize inventory action (menu 493 -> opcode 75).
-        // The exact current client initializes its six-colour selector UI when root 63036
-        // arrives through packet 97. No replacement LocalLab UI is invented.
-        if (a.opcode == 75 && a.widgetId == BankState.NORMAL_INVENTORY_CONTAINER && isSpecialCompCape(a.itemId)) {
-            BankState.Stack st=bank.inventoryAt(a.slot);
-            if(st==null || st.itemId!=a.itemId || st.qty<=0){
-                System.out.println(tag+"V54_COMP_CAPE_CUSTOMIZE_OPEN "+a+" result=REJECTED_INVENTORY_MISMATCH");
-                return;
-            }
-            serverPackets.fixed(97, BootstrapPackets.interface97(63036));
-            compCapeCustomizeOpen = true;
-            System.out.println(tag+"V55_COMP_CAPE_CUSTOMIZE_OPEN "+a+" result=OPENED_NATIVE_ROOT_63036 selectors="+playerState.compSelectorSummary());
+        String compCapeItem=
+            compCapeCustomize.handleItemAction(a,serverPackets);
+        if(compCapeItem!=null){
+            System.out.println(tag+compCapeItem);
             return;
         }
 
@@ -2674,10 +2662,6 @@ final class LocalSession implements Runnable {
         // safely overwrites key25.
         System.out.println(tag+"V5129_OPPONENT_OVERLAY_CLEAR_SUPPRESSED key=25 reason="+reason+
             " guard=EMPTY_PAYLOAD_CLIENT_DISCONNECT exactClearSentinel=UNRESOLVED");
-    }
-
-    private static boolean isSpecialCompCape(int itemId){
-        return itemId==23063 || itemId==21963 || itemId==21964;
     }
 
     private static String joinTokens(String[] p,int start){
