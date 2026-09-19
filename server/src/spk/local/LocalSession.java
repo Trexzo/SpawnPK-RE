@@ -41,6 +41,7 @@ final class LocalSession implements Runnable {
     private final LocalCompColorsCommandHandler compColorsCommands;
     private final LocalItemSpawnCommandHandler itemSpawnCommands;
     private final LocalNurseCommandHandler nurseCommands;
+    private final LocalBankRequestHandler bankRequests;
     /** Engine R7 one-stop in-game developer control center. */
     private final DevControlCenter devPanel = new DevControlCenter();
     private SceneUpdatePublisher scenePublisher;
@@ -120,6 +121,7 @@ final class LocalSession implements Runnable {
         this.compColorsCommands = new LocalCompColorsCommandHandler(playerState,equipment,playerPresentation);
         this.itemSpawnCommands = new LocalItemSpawnCommandHandler(bank);
         this.nurseCommands = new LocalNurseCommandHandler(playerState,movement);
+        this.bankRequests = new LocalBankRequestHandler(worldPlayer,bank);
         if (movementEnabled && !bootstrap) throw new IllegalArgumentException("movement requires bootstrap");
     }
 
@@ -1702,31 +1704,26 @@ final class LocalSession implements Runnable {
             handleDevPanelAmount(amount.intValue(),serverPackets,tag);
             return;
         }
-        String trade=TradeService.handleAmount(worldPlayer,amount);
-        if(trade!=null){
-            System.out.println(tag+"V5140_TRADE_AMOUNT opcode=208 amount="+amount+" result="+trade+" decoderAligned="+clientPackets.isAligned());
-            return;
-        }
-        String result = bank.applyAmount(amount, serverPackets);
-        saveAccountQuiet(tag, "BANK_AMOUNT");
-        System.out.println(tag + "V522_BANK_AMOUNT opcode=208 amount="+amount+" result="+result+" decoderAligned="+clientPackets.isAligned());
+        LocalBankRequestHandler.Result result=bankRequests.handleAmount(amount.intValue(),serverPackets);
+        if(result.saveReason!=null)saveAccountQuiet(tag,result.saveReason);
+        System.out.println(tag+result.logText+" decoderAligned="+clientPackets.isAligned());
     }
 
     private void acceptPendingContainerDrag(ClientPacketProbe clientPackets, ServerPacketWriter serverPackets, String tag) throws IOException {
         ContainerDrag d = clientPackets.takeContainerDrag();
         if (d == null) return;
-        String result = bank.applyDrag(d, serverPackets);
-        saveAccountQuiet(tag, d.widgetId==BankState.NORMAL_INVENTORY_CONTAINER ? "INVENTORY_DRAG" : "BANK_DRAG");
-        System.out.println(tag + "V561_CONTAINER_DRAG " + d + " result="+result+" decoderAligned="+clientPackets.isAligned());
+        LocalBankRequestHandler.Result result=bankRequests.handleDrag(d,serverPackets);
+        if(result.saveReason!=null)saveAccountQuiet(tag,result.saveReason);
+        System.out.println(tag+result.logText+" decoderAligned="+clientPackets.isAligned());
     }
 
     private void acceptPendingCommand(ClientPacketProbe clientPackets, ServerPacketWriter serverPackets, String tag) throws IOException {
         String command = clientPackets.takeCommand();
         if (command == null) return;
-        String result = bank.applyCommand(command, serverPackets);
-        if (!"IGNORED_NON_BANK_COMMAND".equals(result)) {
-            saveAccountQuiet(tag, "BANK_COMMAND");
-            System.out.println(tag + "V522_BANK_COMMAND command="+command+" result="+result+" decoderAligned="+clientPackets.isAligned());
+        LocalBankRequestHandler.Result bankCommand=bankRequests.handleCommand(command,serverPackets);
+        if(bankCommand!=null){
+            if(bankCommand.saveReason!=null)saveAccountQuiet(tag,bankCommand.saveReason);
+            System.out.println(tag+bankCommand.logText+" decoderAligned="+clientPackets.isAligned());
             return;
         }
 
