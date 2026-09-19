@@ -522,10 +522,23 @@ final class LocalDevPanelRenderer {
                 pet.petItemId);
     }
 
-    private V913WeaponRuntimeAuthority.Profile selectedRuntimeWeaponProfile(){
+    V913WeaponRuntimeAuthority.Profile selectedRuntimeWeaponProfile(){
         int itemId=panel.selectedRuntimeWeaponItemId();
         if(itemId<0)itemId=equipment.weapon();
         return V913WeaponRuntimeAuthority.resolve(itemId);
+    }
+
+    String runtimeWeaponAuthoritySummary(int itemId){
+        V913WeaponRuntimeAuthority.Profile profile=
+            V913WeaponRuntimeAuthority.resolve(itemId);
+
+        return RuntimeWeaponPresentationLab.summary(profile)+
+            " previewSafe="+
+            RuntimeWeaponPresentationLab.previewSafe(profile)+
+            " projectilePolicy="+
+            RuntimeWeaponPresentationLab.PROJECTILE_POLICY+
+            " preAnimationPolicy="+
+            RuntimeWeaponPresentationLab.PRE_ANIMATION_POLICY;
     }
 
     private String selectedMagicAuthoritySummary(){
@@ -568,7 +581,7 @@ final class LocalDevPanelRenderer {
             clip(regionAuthoritySummary(regionId),28);
     }
 
-    private String spellAuthoritySummary(int widget){
+    String spellAuthoritySummary(int widget){
         SpellDefinitionRepository.Spell definition=
             SpellDefinitionRepository.byWidget(widget);
 
@@ -587,7 +600,7 @@ final class LocalDevPanelRenderer {
                 :definition.resources.length);
     }
 
-    private String prayerAuthoritySummary(int widget){
+    String prayerAuthoritySummary(int widget){
         PrayerDefinitionRepository.Def definition=
             PrayerDefinitionRepository.byWidget(widget);
 
@@ -602,7 +615,7 @@ final class LocalDevPanelRenderer {
             " varp="+definition.varp;
     }
 
-    private String itemAuthorityBrowserSummary(int itemId){
+    String itemAuthorityBrowserSummary(int itemId){
         ItemAuthorityRepository.Entry entry=
             ItemAuthorityRepository.get(itemId);
 
@@ -617,7 +630,7 @@ final class LocalDevPanelRenderer {
              !entry.effectText.trim().isEmpty());
     }
 
-    private String regionAuthoritySummary(int regionId){
+    String regionAuthoritySummary(int regionId){
         WorldRegionAuthorityRepository.Region region=
             WorldRegionAuthorityRepository.get(regionId);
 
