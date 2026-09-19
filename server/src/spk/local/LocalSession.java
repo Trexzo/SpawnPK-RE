@@ -35,6 +35,7 @@ final class LocalSession implements Runnable {
     private final NativeItemLibraryService itemLibrary = new NativeItemLibraryService();
     private final LocalDiagnosticCommandHandler diagnosticCommands;
     private final LocalPrayerMagicCommandHandler prayerMagicCommands;
+    private final LocalDevWorldCommandHandler devWorldCommands;
     /** Engine R7 one-stop in-game developer control center. */
     private final DevControlCenter devPanel = new DevControlCenter();
     private SceneUpdatePublisher scenePublisher;
@@ -108,6 +109,7 @@ final class LocalSession implements Runnable {
         this.diagnosticCommands = new LocalDiagnosticCommandHandler(
             world,equipment,movement,prayers,magic,combatStyles,itemLibrary);
         this.prayerMagicCommands = new LocalPrayerMagicCommandHandler(prayers,magic);
+        this.devWorldCommands = new LocalDevWorldCommandHandler(world,movement);
         if (movementEnabled && !bootstrap) throw new IllegalArgumentException("movement requires bootstrap");
     }
 
@@ -1761,25 +1763,7 @@ final class LocalSession implements Runnable {
             if(sub.equals("off")||sub.equals("remove")){String r=bank.unequipCosmeticToInventory(playerState.cosmetic(),serverPackets);if(r.startsWith("COSMETIC_UNEQUIP_OK")){playerState.syncEquipmentPresentation(equipment);bank.sendCosmetic(serverPackets,playerState.cosmetic());playerPresentation.refresh(username,equipment,playerState,serverPackets);saveAccountQuiet(tag,"COSMETIC_OFF");}System.out.println(tag+"V5124_"+r+" nativeBs="+playerState.nativeIconItemId()+" ammo="+equipment.itemAt(EquipmentSlot.AMMO)+" cosmeticWidget="+BankState.COSMETIC_WIDGET);return;}
             System.out.println(tag+"V511_COSMETIC_HELP commands=info | off equip=normal_inventory_Wear/Wield_opcode41_on_native_icon_item");return;
         }
-        if(p.length>=1 && p[0].equalsIgnoreCase("devworld")){
-            String sub=p.length>=2?p[1].toLowerCase(java.util.Locale.ROOT):"info";
-            if(sub.equals("info")){System.out.println(tag+"V5121_DEV_WORLD "+world.summary()+" metrics="+world.metrics()+" sceneChunk="+scenePublisher.context().currentChunkX()+","+scenePublisher.context().currentChunkY());return;}
-            if(sub.equals("ground")&&p.length>=4){
-                int item=parseInt(p[2],-1),amount=parseInt(p[3],-1),dx=p.length>=5?parseInt(p[4],0):0,dy=p.length>=6?parseInt(p[5],0):0;
-                if(!ItemCatalog.exists(item)||amount<=0||amount>65535||dx<-16||dx>16||dy<-16||dy>16){System.out.println(tag+"V511_DEV_WORLD_GROUND result=REJECTED syntax=::devworld ground <item> <1..65535> [dx] [dy]");return;}
-                Tile t=new Tile(movement.x()+dx,movement.y()+dy,0); GroundItem before=world.groundItems().findOwned(item,t.x,t.y,0,username);int old=before==null?0:before.amount;
-                if((long)old+amount>65535){System.out.println(tag+"V511_DEV_WORLD_GROUND result=REJECTED_AMOUNT_OVERFLOW");return;}
-                GroundItem g=world.groundItems().add(item,amount,t,username,sessionWorldTick,true);if(old>0)scenePublisher.groundAmount(g,old);else scenePublisher.groundSpawn(g);
-                System.out.println(tag+"V511_DEV_WORLD_GROUND result=OK "+g);return;
-            }
-            if(sub.equals("groundclear")){int n=0;for(GroundItem g:world.groundItems().removeDevOwned()){try{scenePublisher.groundRemove(g);n++;}catch(IllegalArgumentException ignored){}}System.out.println(tag+"V511_DEV_WORLD_GROUNDCLEAR removed="+n);return;}
-            if(sub.equals("object")&&p.length>=7){int id=parseInt(p[2],-1),dx=parseInt(p[3],0),dy=parseInt(p[4],0),shape=parseInt(p[5],-1),rot=parseInt(p[6],-1);Tile t=new Tile(movement.x()+dx,movement.y()+dy,0);try{WorldObject o=world.objects().put(id,t,shape,rot,true);scenePublisher.objectAdd(id,t,shape,rot);System.out.println(tag+"V511_DEV_WORLD_OBJECT result=OK "+o);}catch(Exception e){System.out.println(tag+"V511_DEV_WORLD_OBJECT result=REJECTED "+e.getMessage());}return;}
-            if(sub.equals("objremove")&&p.length>=6){int dx=parseInt(p[2],0),dy=parseInt(p[3],0),shape=parseInt(p[4],-1),rot=parseInt(p[5],-1);Tile t=new Tile(movement.x()+dx,movement.y()+dy,0);try{WorldObject old=world.objects().removeAt(t,shape);scenePublisher.objectRemove(t,shape,rot);System.out.println(tag+"V511_DEV_WORLD_OBJREMOVE result=OK old="+old);}catch(Exception e){System.out.println(tag+"V511_DEV_WORLD_OBJREMOVE result=REJECTED "+e.getMessage());}return;}
-            if(sub.equals("objanim")&&p.length>=7){int anim=parseInt(p[2],-1),dx=parseInt(p[3],0),dy=parseInt(p[4],0),shape=parseInt(p[5],-1),rot=parseInt(p[6],-1);try{scenePublisher.objectAnimation(anim,new Tile(movement.x()+dx,movement.y()+dy,0),shape,rot);System.out.println(tag+"V511_DEV_WORLD_OBJANIM result=OK anim="+anim);}catch(Exception e){System.out.println(tag+"V511_DEV_WORLD_OBJANIM result=REJECTED "+e.getMessage());}return;}
-            if(sub.equals("gfx")&&p.length>=5){int gfx=parseInt(p[2],-1),dx=parseInt(p[3],0),dy=parseInt(p[4],0),h=p.length>=6?parseInt(p[5],0):0,d=p.length>=7?parseInt(p[6],0):0;try{scenePublisher.spotGraphic(gfx,new Tile(movement.x()+dx,movement.y()+dy,0),h,d);System.out.println(tag+"V511_DEV_WORLD_GFX result=OK gfx="+gfx);}catch(Exception e){System.out.println(tag+"V511_DEV_WORLD_GFX result=REJECTED "+e.getMessage());}return;}
-            if(sub.equals("sound")&&p.length>=3){int id=parseInt(p[2],-1),delay=p.length>=4?parseInt(p[3],0):0,loops=p.length>=5?parseInt(p[4],0):0;try{scenePublisher.soundEffect(id,delay,loops);System.out.println(tag+"V511_DEV_WORLD_SOUND result=OK id="+id);}catch(Exception e){System.out.println(tag+"V511_DEV_WORLD_SOUND result=REJECTED "+e.getMessage());}return;}
-            System.out.println(tag+"V511_DEV_WORLD_HELP ground <item> <amount> [dx] [dy] | groundclear | object <id> <dx> <dy> <shape> <rot> | objremove <dx> <dy> <shape> <rot> | objanim <anim> <dx> <dy> <shape> <rot> | gfx <gfx> <dx> <dy> [height] [delay] | sound <id> [delay] [loops] | info");return;
-        }
+        if(devWorldCommands.handle(p,scenePublisher,username,sessionWorldTick,tag))return;
 
         if(dev.trace().enabled() && p.length>0 && p[0].toLowerCase(java.util.Locale.ROOT).startsWith("dev"))
             dev.trace().record("DEV_COMMAND_REQUEST","C2S103 command=\""+clean+"\" -> router="+p[0],"EXACT_C2S103_TRANSPORT/LOCAL_DEV_ROUTE");
