@@ -197,7 +197,13 @@ $tests=@(
     'R85GenericC2SDecodeTest',
     'R85GenericC2SProbeIntegrationTest'
 )
-$cp="$jar;$client"
+$cpParts=@($jar)
+if($env:SPK_ALLOW_DEV_BUILD -eq '1'){
+  $gradleTests=Join-Path $lab 'server\build\classes\java\test'
+  if(Test-Path -LiteralPath $gradleTests -PathType Container){$cpParts+=$gradleTests}
+}
+$cpParts+=$client
+$cp=$cpParts -join ';'
 function Invoke-JavaSelfTest([string]$TestName,[int]$TimeoutMs=90000){
   $className='spk.local.'+$TestName
   $psi=New-Object System.Diagnostics.ProcessStartInfo
