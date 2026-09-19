@@ -58,6 +58,7 @@ final class LocalSession implements Runnable {
     private final LocalDevPlayerCommandHandler devPlayerCommands;
     private final LocalDevNpcCommandHandler devNpcCommands;
     private final LocalDevToolCommandHandler devToolCommands;
+    private final LocalVoidglassCommandHandler voidglassCommands;
     /** Engine R7 one-stop in-game developer control center. */
     private final DevControlCenter devPanel = new DevControlCenter();
     private SceneUpdatePublisher scenePublisher;
@@ -151,6 +152,8 @@ final class LocalSession implements Runnable {
             npcs,movement);
         this.devToolCommands = new LocalDevToolCommandHandler(
             dev,bank,equipment);
+        this.voidglassCommands = new LocalVoidglassCommandHandler(
+            bank,petState,npcs,movement,dev,voidglass);
         if (movementEnabled && !bootstrap) throw new IllegalArgumentException("movement requires bootstrap");
     }
 
@@ -1367,98 +1370,12 @@ final class LocalSession implements Runnable {
             System.out.println(tag+"R85_APP_FIXTURE "+appResult+" authority=LOCAL_DEV_FIXTURE clientProtocol=EXACT_CURRENT");
             return;
         }
-        if (p.length>=1 && (p[0].equalsIgnoreCase("voidglass3")||p[0].equalsIgnoreCase("voidglass2"))) {
-            String sub=p.length>=2?p[1].toLowerCase(java.util.Locale.ROOT):"status";
-            if(sub.equals("give")||sub.equals("item")){System.out.println(tag+"CUSTOM_PET_R3_VOIDGLASS "+giveVoidglassR3(serverPackets,tag));return;}
-            if(sub.equals("candidate")||sub.equals("c")){
-                int idx=p.length>=3?parseInt(p[2],-1):-1;
-                System.out.println(tag+"CUSTOM_PET_R3_VOIDGLASS "+selectVoidglassR3Candidate(idx,serverPackets));return;
-            }
-            if(sub.equals("next")){System.out.println(tag+"CUSTOM_PET_R3_VOIDGLASS "+cycleVoidglassR3Candidate(serverPackets));return;}
-            if(sub.equals("proc")){System.out.println(tag+"CUSTOM_PET_R3_VOIDGLASS "+triggerVoidglassR3Proc(serverPackets));return;}
-            if(sub.equals("status")||sub.equals("info")){System.out.println(tag+"CUSTOM_PET_R3_VOIDGLASS "+voidglassR3Status());return;}
-            if(sub.equals("reset")){
-                if(!VoidglassR3CustomContent.active(petState,npcs.pet())){System.out.println(tag+"CUSTOM_PET_R3_VOIDGLASS_RESET result=REJECTED_ACTIVE_PET_NOT_VOIDGLASS_R3");return;}
-                String a=npcs.previewPetDefinition(VoidglassR3CustomContent.DEFAULT_NPC_ID,movement,serverPackets), b=npcs.setPetNativeState(0,serverPackets), c=npcs.devSetParticleSelector(null,movement,serverPackets);
-                System.out.println(tag+"CUSTOM_PET_R3_VOIDGLASS_RESET candidate={"+a+"} native={"+b+"} particles={"+c+"}");return;
-            }
-            System.out.println(tag+"CUSTOM_PET_R3_VOIDGLASS_HELP usage=::voidglass3 give|candidate <1..4>|next|proc|status|reset item=29999 note=voidglass2_alias_migrated_to_R3 customAuthority=LOCAL_DEV_ONLY");return;
-        }
-
-        if (p.length>=1 && p[0].equalsIgnoreCase("voidglass")) {
-            String sub=p.length>=2?p[1].toLowerCase(java.util.Locale.ROOT):"status";
-            NpcEntity activePet=npcs.pet();
-            if(sub.equals("help")){
-                System.out.println(tag+"CUSTOM_PET_R1_VOIDGLASS_HELP usage=::item 22960 -> Drop -> ::voidglass on | fx <6|8|auto> | proc | status | off note=R1_reuses_Vasa_client_definition_session_only");
-                return;
-            }
-            if(sub.equals("on")||sub.equals("enable")){
-                if(voidglass.active()){
-                    System.out.println(tag+"CUSTOM_PET_R1_VOIDGLASS result=ALREADY_ACTIVE "+voidglass.summary(dev.petParticleSelector()));
-                    return;
-                }
-                if(!VoidglassPetProfile.matches(petState,activePet)){
-                    System.out.println(tag+"CUSTOM_PET_R1_VOIDGLASS result=REJECTED_NEED_BASE_VASA expected="+VoidglassPetProfile.BASE_ITEM_ID+"->"+VoidglassPetProfile.BASE_NPC_ID+
-                        " active="+(petState.active()?petState.itemId()+"->"+petState.npcId():"none")+
-                        " instructions=::item_22960_then_Drop");
-                    return;
-                }
-                Integer previous=dev.petParticleSelector();
-                voidglass.activate(previous);
-                String fx=npcs.devSetParticleSelector(VoidglassPetProfile.DEFAULT_PARTICLE_SELECTOR,movement,serverPackets);
-                String text=npcs.forcePetText("VOIDGLASS",serverPackets);
-                System.out.println(tag+"CUSTOM_PET_R1_VOIDGLASS result=ENABLED content="+VoidglassPetProfile.DISPLAY_NAME+
-                    " baseItem="+VoidglassPetProfile.BASE_ITEM_ID+" baseNpc="+VoidglassPetProfile.BASE_NPC_ID+
-                    " model="+VoidglassPetProfile.WORLD_MODEL_ID+" stand="+VoidglassPetProfile.STAND_ANIM+" walkTurn="+VoidglassPetProfile.WALK_TURN_ANIM+
-                    " fx="+fx+" identityText="+text+" "+voidglass.summary(dev.petParticleSelector()));
-                return;
-            }
-            if(sub.equals("off")||sub.equals("disable")){
-                if(!voidglass.active()){
-                    System.out.println(tag+"CUSTOM_PET_R1_VOIDGLASS result=ALREADY_OFF");
-                    return;
-                }
-                Integer restore=voidglass.clearAndRestoreSelector();
-                String fx=npcs.devSetParticleSelector(restore,movement,serverPackets);
-                System.out.println(tag+"CUSTOM_PET_R1_VOIDGLASS result=DISABLED restoredFx="+(restore==null?"AUTO":restore)+" transport="+fx);
-                return;
-            }
-            if(sub.equals("fx")){
-                if(!voidglass.active() || !VoidglassPetProfile.matches(petState,activePet)){
-                    System.out.println(tag+"CUSTOM_PET_R1_VOIDGLASS_FX result=REJECTED_NOT_ACTIVE");
-                    return;
-                }
-                String v=p.length>=3?p[2].toLowerCase(java.util.Locale.ROOT):"auto";
-                int selector=v.equals("auto")||v.equals("reset")?VoidglassPetProfile.DEFAULT_PARTICLE_SELECTOR:parseInt(v,-1);
-                if(!VoidglassPetProfile.allowedSelector(selector)){
-                    System.out.println(tag+"CUSTOM_PET_R1_VOIDGLASS_FX result=REJECTED selector=6_or_8_or_auto");
-                    return;
-                }
-                voidglass.selectParticle(selector);
-                String fx=npcs.devSetParticleSelector(selector,movement,serverPackets);
-                System.out.println(tag+"CUSTOM_PET_R1_VOIDGLASS_FX result=OK selector="+selector+" transport="+fx+
-                    " visual="+(selector==6?"MAGENTA":"CYAN_PINK_ALTERNATING"));
-                return;
-            }
-            if(sub.equals("proc")){
-                if(!voidglass.active() || !VoidglassPetProfile.matches(petState,activePet)){
-                    System.out.println(tag+"CUSTOM_PET_R1_VOIDGLASS_PROC result=REJECTED_NOT_ACTIVE");
-                    return;
-                }
-                voidglass.recordProc();
-                String text=npcs.forcePetText(VoidglassPetProfile.PROC_TEXT,serverPackets);
-                serverPackets.varShort(81,CombatSync.player81GfxOnly(VoidglassPetProfile.OWNER_PROC_GFX,0,0));
-                System.out.println(tag+"CUSTOM_PET_R1_VOIDGLASS_PROC result=OK text="+text+" ownerAnim=NONE ownerGfx="+VoidglassPetProfile.OWNER_PROC_GFX+
-                    " procCount="+voidglass.procCount()+" mechanic=PRESENTATION_ONLY_R1 combatAccuracyHook=DEFERRED");
-                return;
-            }
-            if(sub.equals("status")||sub.equals("info")){
-                System.out.println(tag+"CUSTOM_PET_R1_VOIDGLASS_STATUS "+voidglass.summary(dev.petParticleSelector())+
-                    " visiblePet="+(activePet==null?"none":activePet.petItemId+"->"+activePet.definitionId)+
-                    " customNameServerSide=Voidglass_Nistirio clientDefinitionName=Vasa_nistirio_pet limitation=NEW_CLIENT_DEFINITION_NOT_PACKED_IN_R1");
-                return;
-            }
-            System.out.println(tag+"CUSTOM_PET_R1_VOIDGLASS_HELP usage=on | fx <6|8|auto> | proc | status | off");
+        LocalVoidglassCommandHandler.Outcome voidglassCommand=
+            voidglassCommands.handle(p,serverPackets);
+        if(voidglassCommand!=null){
+            if(voidglassCommand.saveReason!=null)
+                saveAccountQuiet(tag,voidglassCommand.saveReason);
+            System.out.println(tag+voidglassCommand.text);
             return;
         }
 
@@ -1694,33 +1611,6 @@ final class LocalSession implements Runnable {
         }
     }
 
-
-    private String giveVoidglassR3(ServerPacketWriter w,String tag)throws IOException{
-        PetDefinitionRepository.Def d=PetDefinitionRepository.get(VoidglassR3CustomContent.ITEM_ID);
-        if(d==null||d.npcId!=VoidglassR3CustomContent.DEFAULT_NPC_ID)return "VOIDGLASS_R3_GIVE_REJECTED serverDefinitionMissing=true";
-        String r=bank.spawnItem(VoidglassR3CustomContent.ITEM_ID,1,w);saveAccountQuiet(tag,"CUSTOM_VOIDGLASS_R3_GIVE");
-        return "VOIDGLASS_R3_GIVE "+r+" next=inventory_Drop normalLifecycle=true correctedClientRange=true legacy32760Retired=true";
-    }
-    private String selectVoidglassR3Candidate(int index,ServerPacketWriter w)throws IOException{
-        if(!VoidglassR3CustomContent.active(petState,npcs.pet()))return "VOIDGLASS_R3_CANDIDATE_REJECTED activePetMustBe=item29999";
-        VoidglassR3CustomContent.Candidate c=VoidglassR3CustomContent.candidate(index);if(c==null)return "VOIDGLASS_R3_CANDIDATE_REJECTED expected=1..4";
-        String r=npcs.previewPetDefinition(c.npcId,movement,w);return "VOIDGLASS_R3_CANDIDATE_OK "+c.summary()+" transport={"+r+"} persistence=DEFAULT_CANDIDATE_ON_RELOGIN";
-    }
-    private String cycleVoidglassR3Candidate(ServerPacketWriter w)throws IOException{
-        if(!VoidglassR3CustomContent.active(petState,npcs.pet()))return "VOIDGLASS_R3_CANDIDATE_REJECTED activePetMustBe=item29999";
-        VoidglassR3CustomContent.Candidate cur=VoidglassR3CustomContent.candidateByNpc(npcs.pet().definitionId);int next=cur==null?1:(cur.index%VoidglassR3CustomContent.CANDIDATES.length)+1;return selectVoidglassR3Candidate(next,w);
-    }
-    private String triggerVoidglassR3Proc(ServerPacketWriter w)throws IOException{
-        if(!VoidglassR3CustomContent.active(petState,npcs.pet()))return "VOIDGLASS_R3_PROC_REJECTED activePetMustBe=item29999 candidateNpc12000..12003";
-        VoidglassR3CustomContent.Candidate c=VoidglassR3CustomContent.candidateByNpc(npcs.pet().definitionId);if(c==null)c=VoidglassR3CustomContent.defaultCandidate();
-        String fx=npcs.animationAndGfxPet(c.stand,0,VoidglassR3CustomContent.PROC_GFX,0,0,w);String text=npcs.forcePetText(VoidglassR3CustomContent.PROC_TEXT,w);
-        return "VOIDGLASS_R3_PROC_OK candidate="+c.index+" anim="+c.stand+" gfx="+VoidglassR3CustomContent.PROC_GFX+" text={"+text+"} visual={"+fx+"} hydraAssets=false gameplayModifier=NONE";
-    }
-    private String voidglassR3Status(){
-        NpcEntity p=npcs.pet();VoidglassR3CustomContent.Candidate c=p==null?null:VoidglassR3CustomContent.candidateByNpc(p.definitionId);
-        return VoidglassR3CustomContent.profile()+" active="+VoidglassR3CustomContent.active(petState,p)+" candidate="+(c==null?"none":c.summary())+
-            " currentPet="+(p==null?"none":"item="+p.petItemId+" npc="+p.definitionId+" world="+p.x+","+p.y)+" currentMovementAuthority=R8.4/V9.12-derived-follow pickupFix=R8.1";
-    }
 
     private String resetDevWorld(ServerPacketWriter serverPackets)throws IOException{
         int ground=0,objects=0;
@@ -2087,9 +1977,14 @@ final class LocalSession implements Runnable {
                 else if(choice==2)result="R1 prototype: item22960 Vasa -> npc3701; session-only overlay. Kept for regression/reference only.";
                 else devPanel.setPage(DevControlCenter.Page.PET_PRESENT_MORE);break;
             case CUSTOM_VOIDGLASS:
-                if(choice==0)result=giveVoidglassR3(w,tag);
-                else if(choice==1)result=cycleVoidglassR3Candidate(w);
-                else if(choice==2)result=triggerVoidglassR3Proc(w);
+                if(choice==0){
+                    LocalVoidglassCommandHandler.Outcome give=
+                        voidglassCommands.giveR3(w);
+                    if(give.saveReason!=null)saveAccountQuiet(tag,give.saveReason);
+                    result=give.text;
+                }
+                else if(choice==1)result=voidglassCommands.cycleR3Candidate(w);
+                else if(choice==2)result=voidglassCommands.triggerR3Proc(w);
                 else devPanel.setPage(DevControlCenter.Page.CUSTOM_CONTENT);break;
             case MAGIC_PRAYER:
                 if(choice==0)devPanel.setPage(DevControlCenter.Page.MAGIC);
