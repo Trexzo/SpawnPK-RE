@@ -44,6 +44,7 @@ final class LocalSession implements Runnable {
     private final LocalBankRequestHandler bankRequests;
     private final LocalItemOnItemHandler itemOnItemHandler;
     private final LocalSpellTargetHandler spellTargetHandler;
+    private final LocalGroundItemInteractionHandler groundItemHandler;
     /** Engine R7 one-stop in-game developer control center. */
     private final DevControlCenter devPanel = new DevControlCenter();
     private SceneUpdatePublisher scenePublisher;
@@ -61,8 +62,6 @@ final class LocalSession implements Runnable {
     private ObjectInteraction pendingBankInteraction;
     private Integer pendingBankNpcScene;
     private long pendingBankNpcDeadlineMs;
-    private GroundItemInteraction pendingGroundTake;
-    private long pendingGroundTakeDeadlineMs;
     private Integer pendingPetPickupScene;
     private long pendingPetPickupDeadlineMs;
     /** Legacy R2.12 field retained for binary/test compatibility; R2.13 pickup uses Q/R and never arms it. */
@@ -127,6 +126,8 @@ final class LocalSession implements Runnable {
         this.itemOnItemHandler = new LocalItemOnItemHandler(bank);
         this.spellTargetHandler = new LocalSpellTargetHandler(
             magic,bank,equipment,playerState,npcs,combat);
+        this.groundItemHandler = new LocalGroundItemInteractionHandler(
+            world,bank,movement);
         if (movementEnabled && !bootstrap) throw new IllegalArgumentException("movement requires bootstrap");
     }
 
@@ -494,7 +495,8 @@ final class LocalSession implements Runnable {
             tickPlayerAttack(worldTick,sessionPackets,tag);
             tryOpenDeferredBank(sessionPackets, tag, now);
             tryOpenDeferredNpcBank(sessionPackets, tag, now);
-            tryTakeDeferredGround(sessionPackets, tag, now);
+            applyGroundItemResult(
+                groundItemHandler.tick(now,scenePublisher,sessionPackets),tag);
             tryPickupDeferredPet(sessionPackets, tag, now);
             tryCompletePetPickup(sessionPackets, tag, now);
             if (mt != null) {
@@ -1327,31 +1329,18 @@ final class LocalSession implements Runnable {
     }
 
     private void acceptPendingGroundItemInteraction(ClientPacketProbe clientPackets,ServerPacketWriter serverPackets,String tag)throws IOException{
-        GroundItemInteraction a=clientPackets.takeGroundItemInteraction(); if(a==null)return;
-        GroundItem g=world.groundItems().find(a.itemId,a.worldX,a.worldY,0);
-        if(g==null || (g.owner!=null&&!g.owner.equalsIgnoreCase(username))){System.out.println(tag+"V511_GROUND_ACTION "+a+" result=REJECTED_NOT_VISIBLE_OR_MISSING");return;}
-        String action=GroundItemActionRepository.action(a.itemId,a.option);
-        if(action==null){System.out.println(tag+"V511_GROUND_ACTION "+a+" result=EMPTY_ACTION_SLOT authority=EXACT_CLIENT_DEF");return;}
-        if(!"Take".equalsIgnoreCase(action)){System.out.println(tag+"V511_GROUND_ACTION "+a+" action="+action+" result=DECODED_CONTENT_SEMANTIC_UNIMPLEMENTED");return;}
-        if(!bank.canAddInventoryAmount(g.itemId,g.amount)){System.out.println(tag+"V511_GROUND_TAKE "+a+" result=REJECTED_INVENTORY_FULL amount="+g.amount);return;}
-        if(onTile(g.tile.x,g.tile.y)){takeGroundNow(g,serverPackets,tag,"TAKE_ON_TILE_IMMEDIATE");return;}
-        pendingGroundTake=a; pendingGroundTakeDeadlineMs=System.currentTimeMillis()+10_000L;
-        System.out.println(tag+"V5122_GROUND_TAKE "+a+" result=DEFERRED_UNTIL_EXACT_TILE distance="+chebyshev(movement.x(),movement.y(),g.tile.x,g.tile.y));
+        GroundItemInteraction action=clientPackets.takeGroundItemInteraction();
+        if(action==null)return;
+        applyGroundItemResult(
+            groundItemHandler.handle(action,username,scenePublisher,serverPackets),
+            tag
+        );
     }
 
-    private void tryTakeDeferredGround(ServerPacketWriter serverPackets,String tag,long now)throws IOException{
-        GroundItemInteraction a=pendingGroundTake;if(a==null)return;
-        GroundItem g=world.groundItems().find(a.itemId,a.worldX,a.worldY,0);
-        if(g==null||now>pendingGroundTakeDeadlineMs){pendingGroundTake=null;System.out.println(tag+"V511_GROUND_TAKE "+a+" result=CANCELLED_MISSING_OR_TIMEOUT");return;}
-        if(!onTile(g.tile.x,g.tile.y)){if(movement.queued()==0){pendingGroundTake=null;System.out.println(tag+"V5122_GROUND_TAKE "+a+" result=CANCELLED_PATH_ENDED_NOT_ON_TILE");}return;}
-        pendingGroundTake=null; movement.clearQueuedPath(); takeGroundNow(g,serverPackets,tag,"TAKE_AFTER_EXACT_TILE_ARRIVAL");
-    }
-
-    private void takeGroundNow(GroundItem g,ServerPacketWriter serverPackets,String tag,String reason)throws IOException{
-        if(!bank.canAddInventoryAmount(g.itemId,g.amount)){System.out.println(tag+"V511_GROUND_TAKE id="+g.id+" result=REJECTED_INVENTORY_FULL");return;}
-        int dst=bank.addInventoryAmount(g.itemId,g.amount,serverPackets); if(dst<0)return;
-        world.groundItems().remove(g.id); scenePublisher.groundRemove(g); saveAccountQuiet(tag,"GROUND_TAKE");
-        System.out.println(tag+"V511_GROUND_TAKE id="+g.id+" item="+g.itemId+" amount="+g.amount+" dst="+dst+" world="+g.tile+" result="+reason);
+    private void applyGroundItemResult(LocalGroundItemInteractionHandler.Result result,String tag){
+        if(result==null)return;
+        if(result.saveReason!=null)saveAccountQuiet(tag,result.saveReason);
+        System.out.println(tag+result.logText);
     }
 
     private boolean cardinalAdjacentTo(int x,int y){
