@@ -61,6 +61,7 @@ final class LocalSession implements Runnable {
     private final LocalVoidglassCommandHandler voidglassCommands;
     private final LocalPetRuntimeCommandHandler petRuntimeCommands;
     private final LocalCombatCommandHandler combatCommands;
+    private final LocalRegionDevCommandHandler regionDevCommands;
     /** Engine R7 one-stop in-game developer control center. */
     private final DevControlCenter devPanel = new DevControlCenter();
     private SceneUpdatePublisher scenePublisher;
@@ -158,6 +159,19 @@ final class LocalSession implements Runnable {
             petState,petEffects,npcs,movement);
         this.combatCommands = new LocalCombatCommandHandler(
             combat,equipment,combatStyles,npcs,petRuntimeCommands);
+        this.regionDevCommands = new LocalRegionDevCommandHandler(
+            world,
+            worldPlayer,
+            movement,
+            playerInteractions,
+            combat,
+            npcs,
+            petState,
+            homeWorld,
+            ()->{
+                nextPetFollowAt=Long.MAX_VALUE;
+                petFollowRealtimeScheduled=false;
+            });
         if (movementEnabled && !bootstrap) throw new IllegalArgumentException("movement requires bootstrap");
     }
 
@@ -1293,14 +1307,14 @@ final class LocalSession implements Runnable {
 
         if(diagnosticCommands.handle(
             p,serverPackets,tag,username,loginAlias,persistentAccount,scenePublisher))return;
-        if(p.length>=1 && (p[0].equalsIgnoreCase("regionload")||p[0].equalsIgnoreCase("worldload"))){
-            if(p.length<2){System.out.println(tag+"V5160_REGION_LOAD result=REJECTED syntax=::regionload <regionId> [plane] | ::regionhome");return;}
-            int rid=parseInt(p[1],-1), plane=p.length>=3?parseInt(p[2],0):0;
-            System.out.println(tag+"V5160_REGION_LOAD "+enterTransientRegionDev(rid,plane,serverPackets,tag));
-            return;
-        }
-        if(p.length>=1 && (p[0].equalsIgnoreCase("regionhome")||p[0].equalsIgnoreCase("worldhome"))){
-            System.out.println(tag+"V5160_REGION_HOME "+returnHomeFromTransientRegion(serverPackets,tag));
+        LocalRegionDevCommandHandler.Result regionDevCommand=
+            regionDevCommands.handle(p,username,scenePublisher,serverPackets);
+        if(regionDevCommand!=null){
+            if(regionDevCommand.scenePublisher!=null)
+                scenePublisher=regionDevCommand.scenePublisher;
+            if(regionDevCommand.saveReason!=null)
+                saveAccountQuiet(tag,regionDevCommand.saveReason);
+            System.out.println(tag+regionDevCommand.logText);
             return;
         }
         if(prayerMagicCommands.handle(p,clean,serverPackets,tag))return;
@@ -1476,56 +1490,6 @@ final class LocalSession implements Runnable {
         for(int skill=0;skill<PlayerState.COMBAT_SKILL_COUNT;skill++)
             if((mask&(1<<skill))!=0)
                 serverPackets.fixed(134,BootstrapPackets.skill134(skill,playerState.xp(skill),playerState.currentLevel(skill)));
-    }
-
-    private String enterTransientRegionDev(int regionId,int plane,ServerPacketWriter w,String tag) throws IOException {
-        if(world.players().size()!=1)return "REJECTED_MULTIPLAYER members="+world.players().size()+" reason=PER_VIEW_REGION_MEMBERSHIP_NOT_YET_PROMOTED";
-        WorldRegionAuthorityRepository.Region r=WorldRegionAuthorityRepository.get(regionId);
-        if(r==null)return "REJECTED_UNKNOWN_REGION id="+regionId;
-        if(!r.mapPresent||!r.terrainParseOk)return "REJECTED_TERRAIN_NOT_DECODED id="+regionId+" mapPresent="+r.mapPresent+" terrainParseOk="+r.terrainParseOk;
-        if(!WorldCollisionAuthority.hasRegion(regionId))return "REJECTED_COLLISION_AUTHORITY_MISSING id="+regionId;
-        if(plane<0||plane>3)return "REJECTED_PLANE expected=0..3";
-        Tile tile=WorldCollisionAuthority.safeTile(regionId,plane);
-        if(tile==null)return "REJECTED_NO_SAFE_STATIC_TILE id="+regionId+" plane="+plane;
-        TradeService.cancelIfActive(worldPlayer,"REGION_DEV_LOAD"); playerInteractions.clearTargets();combat.cancelForManualMovement();
-        nextPetFollowAt=Long.MAX_VALUE; petFollowRealtimeScheduled=false;
-        int chunkX=tile.x>>3, chunkY=tile.y>>3, baseX=(chunkX-6)<<3, baseY=(chunkY-6)<<3;
-        // Explicitly remove the HOME NPC view before changing region. The server
-        // registry itself stays intact so ::regionhome can republish the exact same
-        // certified semantic actors without reconstructing or duplicating them.
-        java.util.List<NpcEntity> oldNpcs=npcs.snapshot();
-        if(!oldNpcs.isEmpty()){
-            java.util.ArrayList<NpcSyncEncoder.Update> removals=new java.util.ArrayList<>();
-            for(NpcEntity n:oldNpcs)removals.add(NpcSyncEncoder.Update.remove(n));
-            w.varShort(65,NpcSyncEncoder.encode(removals,java.util.Collections.emptyList(),movement.x(),movement.y()));
-        }
-        movement.enterTransientRegion(tile.x,tile.y,plane,baseX,baseY);
-        w.fixed(219,new byte[0]);
-        w.fixed(73,BootstrapPackets.region73(chunkX,chunkY));
-        w.varShort(81,BootstrapPackets.player81TeleportNoAppearance(plane,tile.y-baseY,tile.x-baseX));
-        scenePublisher=new SceneUpdatePublisher(w,new SceneCoordinateContext(baseX,baseY,plane));
-        saveAccountQuiet(tag,"REGION_DEV_LOAD_NONPERSISTENT");
-        return "OK region="+regionId+" name=["+r.name+"] group=["+r.group+"] landing="+tile.x+","+tile.y+","+plane+" base="+baseX+","+baseY+" packet73="+chunkX+","+chunkY+" collision=EXACT_CURRENT_STATIC removedHomeNpcView="+oldNpcs.size()+" arrivalAuthority=LOCAL_DEV_SAFE_TILE_NOT_PRODUCTION persistence=HOME_FALLBACK";
-    }
-
-    private String returnHomeFromTransientRegion(ServerPacketWriter w,String tag) throws IOException {
-        if(!movement.transientRegion())return "ALREADY_HOME world="+movement.x()+","+movement.y();
-        if(world.players().size()!=1)return "REJECTED_MULTIPLAYER members="+world.players().size();
-        movement.returnHome();
-        w.fixed(219,new byte[0]);
-        w.fixed(73,BootstrapPackets.region73(385,436));
-        w.varShort(81,BootstrapPackets.player81TeleportNoAppearance(0,55,55));
-        scenePublisher=new SceneUpdatePublisher(w,new SceneCoordinateContext(MovementState.REGION_BASE_X,MovementState.REGION_BASE_Y,0));
-        HomeObjectOverlayReplayer.Stats scene=homeWorld.replayScene(w,MovementState.REGION_BASE_X,MovementState.REGION_BASE_Y);
-        scenePublisher.context().invalidate();
-        // Registry identity/state survived the transient projection. Republish it
-        // as an initial HOME NPC view instead of calling bootstrapHome(), which
-        // would risk duplicating semantic actors in the server registry.
-        java.util.List<NpcEntity> homeNpcs=npcs.snapshot();
-        if(!homeNpcs.isEmpty())w.varShort(65,NpcSyncEncoder.initial(homeNpcs,movement.x(),movement.y()));
-        int replay=0;for(GroundItem g:world.groundItems().snapshot())if(g.owner==null||g.owner.equalsIgnoreCase(username)){scenePublisher.groundSpawn(g);replay++;}
-        saveAccountQuiet(tag,"REGION_DEV_RETURN_HOME");
-        return "OK world="+movement.x()+","+movement.y()+" packet73=385,436 scene={"+scene+"} groundReplay="+replay+" npcRepublish="+homeNpcs.size()+" pet="+petState.active()+"";
     }
 
     private void saveAccountQuiet(String tag, String reason) {
