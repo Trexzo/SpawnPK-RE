@@ -47,6 +47,7 @@ final class LocalSession implements Runnable {
     private final LocalGroundItemInteractionHandler groundItemHandler;
     private final LocalItemOnNpcHandler itemOnNpcHandler;
     private final LocalGameplayWidgetHandler gameplayWidgetHandler;
+    private final LocalBankObjectInteractionHandler bankObjectHandler;
     /** Engine R7 one-stop in-game developer control center. */
     private final DevControlCenter devPanel = new DevControlCenter();
     private SceneUpdatePublisher scenePublisher;
@@ -61,7 +62,6 @@ final class LocalSession implements Runnable {
     private boolean worldRegistered;
     private long worldPlayerGeneration;
     private boolean worldTickAttached;
-    private ObjectInteraction pendingBankInteraction;
     private Integer pendingBankNpcScene;
     private long pendingBankNpcDeadlineMs;
     private Integer pendingPetPickupScene;
@@ -74,7 +74,6 @@ final class LocalSession implements Runnable {
     private String pendingPetPickupCompleteReason;
     /** R8.1 owns a temporary follow freeze while the player approaches a Pick-up target. */
     private boolean petPickupOwnedFollowFreeze;
-    private long pendingBankDeadlineMs;
     private String username = AccountStore.CANONICAL_USERNAME;
     private String loginAlias = "localtest";
     private boolean persistentAccount;
@@ -134,6 +133,7 @@ final class LocalSession implements Runnable {
             bank,npcs,movement,petAccessoryState);
         this.gameplayWidgetHandler = new LocalGameplayWidgetHandler(
             prayers,playerState,equipment,combatStyles,magic,bank);
+        this.bankObjectHandler = new LocalBankObjectInteractionHandler(bank,movement);
         if (movementEnabled && !bootstrap) throw new IllegalArgumentException("movement requires bootstrap");
     }
 
@@ -499,7 +499,8 @@ final class LocalSession implements Runnable {
             if(mt!=null)saveAccountQuiet(tag,"POSITION_TICK");
             if(mt!=null)tryDispatchPendingPlayerTradeAfterMovement(tag);
             tickPlayerAttack(worldTick,sessionPackets,tag);
-            tryOpenDeferredBank(sessionPackets, tag, now);
+            String bankObjectTick=bankObjectHandler.tick(now,sessionPackets);
+            if(bankObjectTick!=null)System.out.println(tag+bankObjectTick);
             tryOpenDeferredNpcBank(sessionPackets, tag, now);
             applyGroundItemResult(
                 groundItemHandler.tick(now,scenePublisher,sessionPackets),tag);
@@ -899,63 +900,10 @@ final class LocalSession implements Runnable {
     }
 
     private void acceptPendingObjectInteraction(ClientPacketProbe clientPackets, ServerPacketWriter serverPackets, String tag) throws IOException {
-        ObjectInteraction r = clientPackets.takeObjectInteraction();
-        if (r == null) return;
-        if (r.objectId == BankState.BANK_OBJECT_ID) {
-            if (adjacentTo(r.worldX, r.worldY)) {
-                pendingBankInteraction=null;
-                openBankNow(r, serverPackets, tag, "OPENED_ADJACENT_IMMEDIATE");
-            } else {
-                pendingBankInteraction=r;
-                pendingBankDeadlineMs=System.currentTimeMillis()+10_000L;
-                System.out.println(tag + "V5_BANK_INTERACTION " + r
-                                 + " authorityWorld="+movement.x()+","+movement.y()
-                                 + " distance="+chebyshev(movement.x(),movement.y(),r.worldX,r.worldY)
-                                 + " action=DEFERRED_UNTIL_ADJACENT");
-            }
-            return;
-        }
-        pendingBankInteraction=null;
-        System.out.println(tag + "OBJECT_INTERACTION " + r
-                         + " action=DECODED_NOT_IMPLEMENTED decoderAligned=true");
-    }
-
-    private void tryOpenDeferredBank(ServerPacketWriter serverPackets, String tag, long now) throws IOException {
-        ObjectInteraction r=pendingBankInteraction;
-        if (r==null) return;
-        if (now > pendingBankDeadlineMs) {
-            pendingBankInteraction=null;
-            System.out.println(tag + "V5_BANK_INTERACTION " + r
-                             + " authorityWorld="+movement.x()+","+movement.y()
-                             + " action=CANCELLED_TIMEOUT_NOT_ADJACENT");
-            return;
-        }
-        if (!adjacentTo(r.worldX,r.worldY)) {
-            if (movement.queued()==0) {
-                pendingBankInteraction=null;
-                System.out.println(tag + "V5_BANK_INTERACTION " + r
-                                 + " authorityWorld="+movement.x()+","+movement.y()
-                                 + " action=CANCELLED_PATH_ENDED_NOT_ADJACENT");
-            }
-            return;
-        }
-        pendingBankInteraction=null;
-        movement.clearQueuedPath();
-        openBankNow(r,serverPackets,tag,"OPENED_AFTER_AUTHORITATIVE_ARRIVAL");
-    }
-
-    private void openBankNow(ObjectInteraction r, ServerPacketWriter serverPackets, String tag, String reason) throws IOException {
-        bank.open(serverPackets);
-        System.out.println(tag + "V5_BANK_OPEN " + r
-                         + " authorityWorld="+movement.x()+","+movement.y()
-                         + " distance="+chebyshev(movement.x(),movement.y(),r.worldX,r.worldY)
-                         + " root="+BankState.BANK_ROOT+" bankContainer="+BankState.BANK_CONTAINER
-                         + " bankInventoryRoot="+BankState.BANK_INVENTORY_ROOT
-                         + " inventoryContainer="+BankState.BANK_INVENTORY_CONTAINER
-                         + " bankOccupied="+bank.bankSlots()+"/"+bank.bankCapacity()
-                         + " inventoryOccupied="+bank.inventorySlots()+"/"+bank.inventoryCapacity()
-                         + " placeholders="+bank.placeholdersEnabled()
-                         + " action="+reason);
+        ObjectInteraction request=clientPackets.takeObjectInteraction();
+        if(request==null)return;
+        String result=bankObjectHandler.handle(request,serverPackets);
+        if(result!=null)System.out.println(tag+result);
     }
 
     private void tryOpenDeferredNpcBank(ServerPacketWriter serverPackets,String tag,long now)throws IOException {
