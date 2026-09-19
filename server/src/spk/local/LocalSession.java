@@ -42,6 +42,7 @@ final class LocalSession implements Runnable {
     private final LocalItemSpawnCommandHandler itemSpawnCommands;
     private final LocalNurseCommandHandler nurseCommands;
     private final LocalBankRequestHandler bankRequests;
+    private final LocalItemOnItemHandler itemOnItemHandler;
     /** Engine R7 one-stop in-game developer control center. */
     private final DevControlCenter devPanel = new DevControlCenter();
     private SceneUpdatePublisher scenePublisher;
@@ -122,6 +123,7 @@ final class LocalSession implements Runnable {
         this.itemSpawnCommands = new LocalItemSpawnCommandHandler(bank);
         this.nurseCommands = new LocalNurseCommandHandler(playerState,movement);
         this.bankRequests = new LocalBankRequestHandler(worldPlayer,bank);
+        this.itemOnItemHandler = new LocalItemOnItemHandler(bank);
         if (movementEnabled && !bootstrap) throw new IllegalArgumentException("movement requires bootstrap");
     }
 
@@ -1178,18 +1180,9 @@ final class LocalSession implements Runnable {
     private void acceptPendingItemOnItem(ClientPacketProbe clientPackets,ServerPacketWriter serverPackets,String tag)throws IOException{
         ItemOnItemAction a=clientPackets.takeItemOnItem();
         if(a==null)return;
-        if(a.selectedWidget!=BankState.NORMAL_INVENTORY_CONTAINER || a.targetWidget!=BankState.NORMAL_INVENTORY_CONTAINER){
-            System.out.println(tag+"V57_ITEM_ON_ITEM "+a+" result=DECODED_UNSUPPORTED_WIDGET");
-            return;
-        }
-        boolean doppelPair=(a.selectedItemId==28824&&a.targetItemId==3241)||(a.selectedItemId==3241&&a.targetItemId==28824);
-        if(doppelPair){
-            String result=bank.combineInventoryOne(a.selectedSlot,a.selectedItemId,a.targetSlot,a.targetItemId,28807,serverPackets);
-            if(result.startsWith("INVENTORY_COMBINE_OK"))saveAccountQuiet(tag,"DOPPELGANGER_APPLY_DYE");
-            System.out.println(tag+"V57_DOPPELGANGER_APPLY_DYE "+a+" result="+result+" resultItem=28807");
-            return;
-        }
-        System.out.println(tag+"V57_ITEM_ON_ITEM "+a+" result=DECODED_NO_SEMANTIC_HANDLER");
+        LocalItemOnItemHandler.Result result=itemOnItemHandler.handle(a,serverPackets);
+        if(result.saveReason!=null)saveAccountQuiet(tag,result.saveReason);
+        System.out.println(tag+result.logText);
     }
 
     private void acceptPendingItemOnNpc(ClientPacketProbe clientPackets,ServerPacketWriter serverPackets,String tag)throws IOException{
