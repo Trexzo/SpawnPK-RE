@@ -29,13 +29,22 @@ public final class LocalGameplayWidgetHandlerTest {
         if(wire.size()<=before)
             throw new AssertionError("prayer click emitted no config packet");
 
+        // WorldPlayer intentionally starts with Bloodrend equipped, so derive
+        // the exact current combat root instead of assuming an unarmed fixture.
+        int combatRoot=CombatInterfaceRepository.forWeapon(
+            player.equipment().weapon());
+        CombatStyleRepository.Style expectedStyle=
+            CombatStyleRepository.defaultForRoot(combatRoot);
+        if(expectedStyle==null)
+            throw new AssertionError("default combat style unresolved root="+combatRoot);
+
         before=wire.size();
-        String style=h.handle(5862,w); // Unarmed Punch, value 1.
+        String style=h.handle(expectedStyle.widget,w);
         if(style==null||
-           !style.contains("V510_COMBAT_STYLE widget=5862")||
+           !style.contains("V510_COMBAT_STYLE widget="+expectedStyle.widget)||
            !style.contains("COMBAT_STYLE_SELECTED"))
             throw new AssertionError("combat-style route="+style);
-        if(player.combatStyles().value()!=1)
+        if(player.combatStyles().value()!=expectedStyle.value)
             throw new AssertionError("combat-style state not delegated");
         if(wire.size()<=before)
             throw new AssertionError("combat style emitted no config packet");
