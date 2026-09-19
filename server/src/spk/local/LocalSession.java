@@ -37,6 +37,7 @@ final class LocalSession implements Runnable {
     private final LocalPrayerMagicCommandHandler prayerMagicCommands;
     private final LocalDevWorldCommandHandler devWorldCommands;
     private final LocalMiniPetCommandHandler miniPetCommands;
+    private final LocalCosmeticCommandHandler cosmeticCommands;
     /** Engine R7 one-stop in-game developer control center. */
     private final DevControlCenter devPanel = new DevControlCenter();
     private SceneUpdatePublisher scenePublisher;
@@ -112,6 +113,7 @@ final class LocalSession implements Runnable {
         this.prayerMagicCommands = new LocalPrayerMagicCommandHandler(prayers,magic);
         this.devWorldCommands = new LocalDevWorldCommandHandler(world,movement);
         this.miniPetCommands = new LocalMiniPetCommandHandler(miniPets,petState,npcs,movement);
+        this.cosmeticCommands = new LocalCosmeticCommandHandler(bank,equipment,playerState,playerPresentation);
         if (movementEnabled && !bootstrap) throw new IllegalArgumentException("movement requires bootstrap");
     }
 
@@ -1758,11 +1760,12 @@ final class LocalSession implements Runnable {
             System.out.println(tag+miniPetCommand.logText);
             return;
         }
-        if(p.length>=1 && p[0].equalsIgnoreCase("cosmetic")){
-            String sub=p.length>=2?p[1].toLowerCase(java.util.Locale.ROOT):"info";
-            if(sub.equals("info")||sub.equals("status")){System.out.println(tag+"V5124_COSMETIC_INFO item="+playerState.cosmetic().itemId()+" nativeBs="+playerState.nativeIconItemId()+" ammo="+equipment.itemAt(EquipmentSlot.AMMO)+" authority=PLAYER_APPEARANCE_BS ui1688=NORMAL_EQUIPMENT cosmeticWidget="+BankState.COSMETIC_WIDGET+" cosmeticWidgetPublished=true");return;}
-            if(sub.equals("off")||sub.equals("remove")){String r=bank.unequipCosmeticToInventory(playerState.cosmetic(),serverPackets);if(r.startsWith("COSMETIC_UNEQUIP_OK")){playerState.syncEquipmentPresentation(equipment);bank.sendCosmetic(serverPackets,playerState.cosmetic());playerPresentation.refresh(username,equipment,playerState,serverPackets);saveAccountQuiet(tag,"COSMETIC_OFF");}System.out.println(tag+"V5124_"+r+" nativeBs="+playerState.nativeIconItemId()+" ammo="+equipment.itemAt(EquipmentSlot.AMMO)+" cosmeticWidget="+BankState.COSMETIC_WIDGET);return;}
-            System.out.println(tag+"V511_COSMETIC_HELP commands=info | off equip=normal_inventory_Wear/Wield_opcode41_on_native_icon_item");return;
+        LocalCosmeticCommandHandler.Result cosmeticCommand=
+            cosmeticCommands.handle(p,username,serverPackets);
+        if(cosmeticCommand!=null){
+            if(cosmeticCommand.saveReason!=null)saveAccountQuiet(tag,cosmeticCommand.saveReason);
+            System.out.println(tag+cosmeticCommand.logText);
+            return;
         }
         if(devWorldCommands.handle(p,scenePublisher,username,sessionWorldTick,tag))return;
 
