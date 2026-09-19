@@ -63,6 +63,7 @@ final class LocalSession implements Runnable {
     private final LocalCombatCommandHandler combatCommands;
     private final LocalRegionDevCommandHandler regionDevCommands;
     private final LocalDevSessionCommandHandler devSessionCommands;
+    private final LocalPetCompatibilityCommandHandler petCompatibilityCommands;
     /** Engine R7 one-stop in-game developer control center. */
     private final DevControlCenter devPanel = new DevControlCenter();
     private SceneUpdatePublisher scenePublisher;
@@ -183,6 +184,8 @@ final class LocalSession implements Runnable {
             bank,
             petState,
             movement);
+        this.petCompatibilityCommands = new LocalPetCompatibilityCommandHandler(
+            petAccessoryState,npcs,movement,petDialogs);
         if (movementEnabled && !bootstrap) throw new IllegalArgumentException("movement requires bootstrap");
     }
 
@@ -1429,17 +1432,19 @@ final class LocalSession implements Runnable {
             for(String line:combatCommand)System.out.println(tag+line);
             return;
         }
-        if(p.length>=1 && p[0].equalsIgnoreCase("petaccessory")){
-            String sub=p.length>=2?p[1].toLowerCase(java.util.Locale.ROOT):"status";
-            if(sub.equals("off")||sub.equals("none")||sub.equals("disable")){petAccessoryState.clear();String visual=npcs.devSetParticleSelector(null,movement,serverPackets);saveAccountQuiet(tag,"PET_ACCESSORY_DEV_OFF");System.out.println(tag+"V5128_PET_ACCESSORY active=NONE visual={"+visual+"}");return;}
-            System.out.println(tag+"V5128_PET_ACCESSORY active="+(petAccessoryState.activeItem()==0?"NONE":petAccessoryState.activeItem()+"/"+PetAccessoryAuthority.name(petAccessoryState.activeItem()))+" visualSelectorMapping=UNRESOLVED_FAIL_CLOSED");
-            return;
-        }
-        if(p.length>=1 && p[0].equalsIgnoreCase("petswitchcolor")){
-            int requested=p.length>=2?parseInt(p[1],-1):-1;
-            LocalPetInventoryDialogHandler.Result petColorCompat=
-                petDialogs.openScoobyColorCompat(requested,serverPackets);
-            applyPetDialogResult(petColorCompat,tag);
+        LocalPetCompatibilityCommandHandler.Outcome petCompatibilityCommand=
+            petCompatibilityCommands.handle(p,serverPackets);
+        if(petCompatibilityCommand!=null){
+            if(petCompatibilityCommand.dialogResult!=null){
+                applyPetDialogResult(
+                    petCompatibilityCommand.dialogResult,
+                    tag);
+            }else{
+                if(petCompatibilityCommand.saveReason!=null)
+                    saveAccountQuiet(tag,petCompatibilityCommand.saveReason);
+                if(petCompatibilityCommand.logText!=null)
+                    System.out.println(tag+petCompatibilityCommand.logText);
+            }
             return;
         }
 
