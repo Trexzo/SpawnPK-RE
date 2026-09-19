@@ -53,7 +53,7 @@ public final class LocalEquipmentItemActionHandlerTest {
         ItemContainerAction remove=new ItemContainerAction(
             145,
             EquipmentState.EQUIPMENT_WIDGET,
-            EquipmentSlot.WEAPON.clientIndex,
+            EquipmentSlot.WEAPON.equipmentIndex,
             4151,
             0,
             "REMOVE"
