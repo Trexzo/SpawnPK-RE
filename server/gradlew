@@ -1,0 +1,52 @@
+#!/bin/sh
+set -eu
+
+APP_HOME=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+GRADLE_VERSION=8.10.2
+GRADLE_SHA256=31c55713e40233a8303827ceb42ca48a47267a0ad4bab9177123121e71524c26
+DIST_URL="https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip"
+CACHE_ROOT="${HOME}/.gradle/locallab-bootstrap"
+ZIP="${CACHE_ROOT}/gradle-${GRADLE_VERSION}-bin.zip"
+GRADLE_HOME_LOCAL="${CACHE_ROOT}/gradle-${GRADLE_VERSION}"
+GRADLE_BIN="${GRADLE_HOME_LOCAL}/bin/gradle"
+
+if [ ! -x "$GRADLE_BIN" ]; then
+  mkdir -p "$CACHE_ROOT"
+  if [ ! -f "$ZIP" ]; then
+    echo "Downloading Gradle ${GRADLE_VERSION}..."
+    if command -v curl >/dev/null 2>&1; then
+      curl -fL "$DIST_URL" -o "$ZIP"
+    elif command -v wget >/dev/null 2>&1; then
+      wget -O "$ZIP" "$DIST_URL"
+    else
+      echo "curl or wget is required to bootstrap Gradle." >&2
+      exit 1
+    fi
+  fi
+
+  if command -v sha256sum >/dev/null 2>&1; then
+    ACTUAL=$(sha256sum "$ZIP" | awk '{print $1}')
+  elif command -v shasum >/dev/null 2>&1; then
+    ACTUAL=$(shasum -a 256 "$ZIP" | awk '{print $1}')
+  else
+    echo "sha256sum or shasum is required to verify Gradle." >&2
+    exit 1
+  fi
+
+  if [ "$ACTUAL" != "$GRADLE_SHA256" ]; then
+    rm -f "$ZIP"
+    echo "Gradle distribution SHA-256 mismatch." >&2
+    exit 1
+  fi
+
+  TMP="${CACHE_ROOT}/extract-$$"
+  rm -rf "$TMP"
+  mkdir -p "$TMP"
+  unzip -q "$ZIP" -d "$TMP"
+  rm -rf "$GRADLE_HOME_LOCAL"
+  mv "$TMP/gradle-${GRADLE_VERSION}" "$GRADLE_HOME_LOCAL"
+  rm -rf "$TMP"
+fi
+
+cd "$APP_HOME"
+exec "$GRADLE_BIN" "$@"
