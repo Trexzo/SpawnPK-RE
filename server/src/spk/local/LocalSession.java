@@ -50,6 +50,7 @@ final class LocalSession implements Runnable {
     private final LocalBankObjectInteractionHandler bankObjectHandler;
     private final LocalRoutedNpcInteractionHandler routedNpcHandler;
     private final LocalGenericInteractionHandler genericInteractionHandler;
+    private final LocalPlayerInteractionHandler playerInteractions;
     /** Engine R7 one-stop in-game developer control center. */
     private final DevControlCenter devPanel = new DevControlCenter();
     private SceneUpdatePublisher scenePublisher;
@@ -87,10 +88,6 @@ final class LocalSession implements Runnable {
     private final PetAccessoryState petAccessoryState = new PetAccessoryState();
     /** Engine R3 per-view remote-player synchronization context. */
     private Player81WorldSync.Context player81Sync;
-    private EntityId activePlayerFollow;
-    private EntityId activePlayerAttack;
-    private EntityId activePlayerTrade;
-    private long nextPlayerAttackTick;
     private int petTestSequenceStep=-1;
     private long petTestSequenceAt=Long.MAX_VALUE;
     private volatile boolean logoutRequested;
@@ -137,6 +134,8 @@ final class LocalSession implements Runnable {
         this.routedNpcHandler = new LocalRoutedNpcInteractionHandler(
             npcs,bank,movement);
         this.genericInteractionHandler = new LocalGenericInteractionHandler();
+        this.playerInteractions = new LocalPlayerInteractionHandler(
+            world,worldPlayer,movement,equipment);
         if (movementEnabled && !bootstrap) throw new IllegalArgumentException("movement requires bootstrap");
     }
 
@@ -473,10 +472,11 @@ final class LocalSession implements Runnable {
                 if(legacyTickCount==1||legacyTickCount%25==0)System.out.println("[session "+socket.getRemoteSocketAddress()+"] V5160_TRANSIENT_REGION_PULSE tick="+worldTick+" world="+movement.x()+","+movement.y()+","+movement.plane()+" base="+movement.loadedBaseX()+","+movement.loadedBaseY()+" queued="+movement.queued()+" staticCollision=true homeSystemsSuspended=true");
                 return;
             }
-            preparePlayerInteractionTick(worldTick);
+            String playerInteractionPrep=playerInteractions.prepareTick(worldTick,player81Sync);
+            if(playerInteractionPrep!=null)System.out.println(playerInteractionPrep);
             MovementState.Tick mt = movementEnabled ? movement.advance() : null;
             Integer measuredApproachTarget = mt==null ? null : combat.consumeApproachFacingTargetForMovement();
-            Integer playerApproachTarget = mt==null ? null : playerInteractionTargetForMovement();
+            Integer playerApproachTarget = mt==null ? null : playerInteractions.movementInteractionTarget(player81Sync);
             Integer movementFacingTarget = measuredApproachTarget!=null?measuredApproachTarget:playerApproachTarget;
             if (mt == null) {
                 sessionPackets.varShort(81, BootstrapPackets.player81Idle());
@@ -500,8 +500,12 @@ final class LocalSession implements Runnable {
                                  + " remaining="+mt.remaining+" movementTick="+movementTickCount+" worldTick="+worldTick);
             }
             if(mt!=null)saveAccountQuiet(tag,"POSITION_TICK");
-            if(mt!=null)tryDispatchPendingPlayerTradeAfterMovement(tag);
-            tickPlayerAttack(worldTick,sessionPackets,tag);
+            if(mt!=null){
+                String playerTradeTick=playerInteractions.afterMovement(player81Sync);
+                if(playerTradeTick!=null)System.out.println(tag+playerTradeTick);
+            }
+            String playerAttackTick=playerInteractions.tickAttack(worldTick,sessionPackets,player81Sync);
+            if(playerAttackTick!=null)System.out.println(tag+playerAttackTick);
             String bankObjectTick=bankObjectHandler.tick(now,sessionPackets);
             if(bankObjectTick!=null)System.out.println(tag+bankObjectTick);
             String routedNpcTick=routedNpcHandler.tick(now,sessionPackets);
@@ -610,7 +614,7 @@ final class LocalSession implements Runnable {
                 w.varShort(65,NpcSyncEncoder.encode(removals,java.util.Collections.emptyList(),movement.x(),movement.y()));
             }
             nextPetFollowAt=Long.MAX_VALUE;petFollowRealtimeScheduled=false;
-            TradeService.cancelIfActive(worldPlayer,"AUTO_REGION_REBASE");activePlayerFollow=null;activePlayerAttack=null;activePlayerTrade=null;combat.cancelForManualMovement();
+            TradeService.cancelIfActive(worldPlayer,"AUTO_REGION_REBASE");playerInteractions.clearTargets();combat.cancelForManualMovement();
         }
         movement.rebaseLoadedWindow(baseX,baseY,true);
         w.fixed(219,new byte[0]);
@@ -1358,122 +1362,21 @@ final class LocalSession implements Runnable {
     private void acceptPendingPlayerAction(ClientPacketProbe clientPackets,ServerPacketWriter serverPackets,String tag)throws IOException{
         PlayerAction a=clientPackets.takePlayerAction();
         if(a==null)return;
-        if(player81Sync==null){System.out.println(tag+"V5131_PLAYER_ACTION "+a+" result=REJECTED_SYNC_NOT_READY");return;}
+        if(player81Sync==null){
+            System.out.println(tag+"V5131_PLAYER_ACTION "+a+" result=REJECTED_SYNC_NOT_READY");
+            return;
+        }
         WorldPlayer target=player81Sync.resolveVisible(a.playerIndex);
         if(target==null||!target.registered()){
-            System.out.println(tag+"V5131_PLAYER_ACTION "+a+" result=REJECTED_STALE_OR_NOT_VISIBLE");return;
+            System.out.println(tag+"V5131_PLAYER_ACTION "+a+" result=REJECTED_STALE_OR_NOT_VISIBLE");
+            return;
         }
         if(combat.active()){
             boolean cancelled=combat.cancelForManualMovement();
             if(cancelled)clearOpponentOverlay(serverPackets,tag,"PLAYER_INTERACTION_REPLACES_NPC_COMBAT");
         }
-        if(a.optionSlot==1){
-            activePlayerTrade=null;activePlayerFollow=null;activePlayerAttack=target.id();nextPlayerAttackTick=0;movement.clearQueuedPath();
-            System.out.println(tag+"V5131_PLAYER_ATTACK_REQUEST "+a+" target="+target.username()+" world="+target.movement().x()+","+target.movement().y()+
-                " clickFacing=false facingAuthority=FIRST_AUTHORITATIVE_MOVEMENT damage=DEFERRED_SERVER_FORMULA_AUTHORITY");
-            return;
-        }
-        if(a.optionSlot==2){
-            activePlayerTrade=null;activePlayerAttack=null;activePlayerFollow=target.id();nextPlayerAttackTick=0;movement.clearQueuedPath();
-            System.out.println(tag+"V5131_PLAYER_FOLLOW_REQUEST "+a+" target="+target.username()+" world="+target.movement().x()+","+target.movement().y()+" authority=SERVER_ROUTE");
-            return;
-        }
-        if(a.optionSlot==3){
-            activePlayerFollow=null;activePlayerAttack=null;nextPlayerAttackTick=0;movement.clearQueuedPath();
-            activePlayerTrade=target.id();
-            int dx=Math.abs(target.movement().x()-movement.x()),dy=Math.abs(target.movement().y()-movement.y());
-            if(dx+dy==1){
-                dispatchPendingPlayerTrade(target,tag,"ALREADY_ADJACENT");
-            }else{
-                System.out.println(tag+"V5141_PLAYER_TRADE_APPROACH "+a+" source="+username+" target="+target.username()+
-                    " distanceChebyshev="+Math.max(dx,dy)+" distanceManhattan="+(dx+dy)+" action=DEFERRED_UNTIL_CARDINAL_ADJACENT authority=SERVER_ROUTE");
-            }
-            return;
-        }
-        System.out.println(tag+"V5131_PLAYER_ACTION "+a+" result=DECODED_HIDDEN_OPTION_FAIL_CLOSED");
-    }
-
-    /** Re-plan active player Follow/Attack/Trade against the target's current authoritative tile. */
-    private void preparePlayerInteractionTick(long worldTick)throws IOException{
-        EntityId id=activePlayerAttack!=null?activePlayerAttack:(activePlayerFollow!=null?activePlayerFollow:activePlayerTrade);
-        if(id==null||player81Sync==null)return;
-        WorldPlayer target=world.players().byId(id);
-        if(target==null||!target.registered()||target.movement().plane()!=movement.plane()||player81Sync.clientIndexFor(target)<0){
-            activePlayerAttack=null;activePlayerFollow=null;activePlayerTrade=null;nextPlayerAttackTick=0;movement.clearQueuedPath();return;
-        }
-        int range=activePlayerAttack!=null?playerAttackRange():1;
-        int dx=Math.abs(target.movement().x()-movement.x()),dy=Math.abs(target.movement().y()-movement.y());
-        int dist=Math.max(dx,dy);
-        boolean inRange=range==1?dx+dy==1:dist<=range && !(dx==0&&dy==0);
-        if(inRange){
-            movement.clearQueuedPath();
-            if(activePlayerTrade!=null)dispatchPendingPlayerTrade(target,"[world player="+worldPlayer.id()+"] ","ARRIVED_ADJACENT_PRE_TICK");
-            return;
-        }
-        java.util.List<int[]> route=HomeCombatPathfinder.route(movement.x(),movement.y(),target.movement().x(),target.movement().y(),range);
-        if(route==null||route.isEmpty())return;
-        int n=Math.min(route.size(),MovementState.MAX_QUEUED_STEPS);
-        int[] xs=new int[n],ys=new int[n];for(int i=0;i<n;i++){xs[i]=route.get(i)[0];ys[i]=route.get(i)[1];}
-        movement.clearQueuedPath();
-        String result=movement.accept(new MovementRequest(164,movement.persistentRun(),xs,ys,new byte[0]));
-        if(!result.startsWith("ACCEPTED")){
-            System.out.println("[world player="+worldPlayer.id()+"] V5141_PLAYER_ROUTE result="+result+" target="+target.username()+" range="+range+" steps="+n+
-                " interaction="+(activePlayerTrade!=null?"TRADE":activePlayerAttack!=null?"ATTACK":"FOLLOW")+" worldTick="+worldTick);
-        }
-    }
-
-    private void dispatchPendingPlayerTrade(WorldPlayer target,String tag,String reason)throws IOException{
-        if(activePlayerTrade==null||target==null||!activePlayerTrade.equals(target.id()))return;
-        int dx=Math.abs(target.movement().x()-movement.x()),dy=Math.abs(target.movement().y()-movement.y());
-        if(dx+dy!=1)return;
-        activePlayerTrade=null;movement.clearQueuedPath();
-        String result=player81Sync.requestTrade(target,System.currentTimeMillis());
-        if(result.startsWith("TRADE_MUTUAL_ACCEPTED")){
-            String ui=TradeService.start(world,worldPlayer,target);
-            result=result+" "+ui;
-        }
-        System.out.println(tag+"V5141_PLAYER_TRADE_DISPATCH source="+username+" target="+target.username()+" reason="+reason+
-            " adjacency=CARDINAL_1 result="+result);
-    }
-
-    private void tryDispatchPendingPlayerTradeAfterMovement(String tag)throws IOException{
-        if(activePlayerTrade==null||player81Sync==null)return;
-        WorldPlayer target=world.players().byId(activePlayerTrade);
-        if(target==null||!target.registered()){activePlayerTrade=null;return;}
-        dispatchPendingPlayerTrade(target,tag,"ARRIVED_ADJACENT_AFTER_MOVEMENT");
-    }
-
-    private Integer playerInteractionTargetForMovement(){
-        if(player81Sync==null)return null;
-        EntityId id=activePlayerAttack!=null?activePlayerAttack:activePlayerFollow;if(id==null)return null;
-        WorldPlayer target=world.players().byId(id);if(target==null||!target.registered())return null;
-        int value=player81Sync.interactionTargetFor(target);return value<0?null:Integer.valueOf(value);
-    }
-
-    private int playerAttackRange(){
-        CombatWeaponProfile p=CombatWeaponRepository.resolve(equipment.weapon());
-        if(p==null||p.attackRange<=0)return 1;
-        return Math.max(1,Math.min(10,p.attackRange));
-    }
-
-    private void tickPlayerAttack(long worldTick,ServerPacketWriter serverPackets,String tag)throws IOException{
-        if(activePlayerAttack==null||player81Sync==null)return;
-        WorldPlayer target=world.players().byId(activePlayerAttack);
-        if(target==null||!target.registered()){activePlayerAttack=null;nextPlayerAttackTick=0;return;}
-        int targetValue=player81Sync.interactionTargetFor(target);
-        if(targetValue<0){activePlayerAttack=null;nextPlayerAttackTick=0;return;}
-        int range=playerAttackRange();int dx=Math.abs(target.movement().x()-movement.x()),dy=Math.abs(target.movement().y()-movement.y());
-        boolean inRange=range==1?dx+dy==1:(Math.max(dx,dy)<=range&&!(dx==0&&dy==0));
-        if(!inRange||worldTick<nextPlayerAttackTick)return;
-        CombatWeaponProfile p=CombatWeaponRepository.resolve(equipment.weapon());
-        int speed=p==null||p.attackSpeedTicks<=0?4:p.attackSpeedTicks;
-        int anim=p==null?-1:p.attackAnimation;
-        if(anim>=0)serverPackets.varShort(81,CombatSync.player81AnimationAndInteraction(anim,targetValue));
-        else serverPackets.varShort(81,CombatSync.player81InteractionOnly(targetValue));
-        nextPlayerAttackTick=worldTick+Math.max(1,speed);
-        System.out.println(tag+"V5131_PLAYER_ATTACK_PRESENTATION target="+target.username()+" clientTarget="+targetValue+" distance="+Math.max(dx,dy)+
-            " range="+range+" weapon="+equipment.weapon()+" attackAnim="+(anim>=0?anim:"DEFERRED")+" speedTicks="+speed+
-            " damage=DEFERRED_FORMULA_AUTHORITY remoteMaskRelay=true nextAttackTick="+nextPlayerAttackTick);
+        String result=playerInteractions.handleResolved(a,target,player81Sync);
+        if(result!=null)System.out.println(tag+result);
     }
 
     private void acceptPendingNpcAction(ClientPacketProbe clientPackets, ServerPacketWriter serverPackets, String tag) throws IOException {
@@ -2393,7 +2296,7 @@ final class LocalSession implements Runnable {
         if(plane<0||plane>3)return "REJECTED_PLANE expected=0..3";
         Tile tile=WorldCollisionAuthority.safeTile(regionId,plane);
         if(tile==null)return "REJECTED_NO_SAFE_STATIC_TILE id="+regionId+" plane="+plane;
-        TradeService.cancelIfActive(worldPlayer,"REGION_DEV_LOAD"); activePlayerFollow=null;activePlayerAttack=null;activePlayerTrade=null;combat.cancelForManualMovement();
+        TradeService.cancelIfActive(worldPlayer,"REGION_DEV_LOAD"); playerInteractions.clearTargets();combat.cancelForManualMovement();
         nextPetFollowAt=Long.MAX_VALUE; petFollowRealtimeScheduled=false;
         int chunkX=tile.x>>3, chunkY=tile.y>>3, baseX=(chunkX-6)<<3, baseY=(chunkY-6)<<3;
         // Explicitly remove the HOME NPC view before changing region. The server
@@ -3134,12 +3037,11 @@ final class LocalSession implements Runnable {
                 System.out.println(tag+"V5123_COMBAT_CANCEL_ON_MANUAL_MOVEMENT final="+req.finalX()+","+req.finalY()+" weapon="+equipment.weapon()+" clientInteractionTarget=CLEAR");
             }
         }
-        if(activePlayerFollow!=null||activePlayerAttack!=null||activePlayerTrade!=null){
-            boolean hadFacingInteraction=activePlayerFollow!=null||activePlayerAttack!=null;
-            boolean hadTrade=activePlayerTrade!=null;
-            activePlayerFollow=null;activePlayerAttack=null;activePlayerTrade=null;nextPlayerAttackTick=0;
-            if(hadFacingInteraction)serverPackets.varShort(81,CombatSync.player81InteractionOnly(-1));
-            System.out.println(tag+"V5141_PLAYER_INTERACTION_CANCEL reason=MANUAL_MOVEMENT clientInteractionTarget="+(hadFacingInteraction?"CLEAR":"UNCHANGED")+" pendingTrade="+hadTrade);
+        LocalPlayerInteractionHandler.Cancellation playerCancel=playerInteractions.cancelActive();
+        if(playerCancel.hadAnything()){
+            if(playerCancel.hadFacingInteraction)serverPackets.varShort(81,CombatSync.player81InteractionOnly(-1));
+            System.out.println(tag+"V5141_PLAYER_INTERACTION_CANCEL reason=MANUAL_MOVEMENT clientInteractionTarget="+
+                (playerCancel.hadFacingInteraction?"CLEAR":"UNCHANGED")+" pendingTrade="+playerCancel.hadTrade);
         }
         if(pendingPetPickupCompleteAtMs!=Long.MAX_VALUE){
             pendingPetPickupCompleteAtMs=Long.MAX_VALUE;pendingPetPickupItem=-1;pendingPetPickupNpc=-1;pendingPetPickupCompleteScene=-1;pendingPetPickupCompleteReason=null;pendingPetPickupScene=null;
