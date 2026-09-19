@@ -54,6 +54,7 @@ final class LocalSession implements Runnable {
     private final LocalEquipmentItemActionHandler equipmentItemActions;
     private final LocalPetInventoryDialogHandler petDialogs;
     private final LocalCompCapeCustomizeHandler compCapeCustomize;
+    private final LocalDevPetCommandHandler devPetCommands;
     /** Engine R7 one-stop in-game developer control center. */
     private final DevControlCenter devPanel = new DevControlCenter();
     private SceneUpdatePublisher scenePublisher;
@@ -139,6 +140,8 @@ final class LocalSession implements Runnable {
             bank,miniPets,petState,npcs,movement,petAccessoryState);
         this.compCapeCustomize = new LocalCompCapeCustomizeHandler(
             bank,playerState);
+        this.devPetCommands = new LocalDevPetCommandHandler(
+            dev,npcs,movement,bank);
         if (movementEnabled && !bootstrap) throw new IllegalArgumentException("movement requires bootstrap");
     }
 
@@ -1318,141 +1321,10 @@ final class LocalSession implements Runnable {
             } else System.out.println(tag+"V592_DEV_INFO "+dev.summary());
             return;
         }
-        if(p.length>=1 && p[0].equalsIgnoreCase("devpet")){
-            String sub=p.length>=2?p[1].toLowerCase(java.util.Locale.ROOT):"info";
-            String r;
-            if(sub.equals("info")){ System.out.println(tag+"V591_"+npcs.devInfo(movement)); return; }
-            if(sub.equals("fx")){
-                String v=p.length>=3?p[2].toLowerCase(java.util.Locale.ROOT):"auto";
-                Integer sel;
-                if(v.equals("auto")||v.equals("reset")) sel=null;
-                else if(v.equals("next")) sel=dev.petParticleSelector()==null?0:((dev.petParticleSelector()+1)&255);
-                else if(v.equals("prev")) sel=dev.petParticleSelector()==null?255:((dev.petParticleSelector()+255)&255);
-                else { int x=parseInt(v,-1); if(x<0||x>255){System.out.println(tag+"V591_DEV_PET_FX result=REJECTED expected=auto|next|prev|0..255");return;} sel=x; }
-                r=npcs.devSetParticleSelector(sel,movement,serverPackets); System.out.println(tag+"V591_"+r); return;
-            }
-            if(sub.equals("npc")||sub.equals("preview")){
-                int npc=p.length>=3?parseInt(p[2],-1):-1;
-                r=npcs.previewPetDefinition(npc,movement,serverPackets); System.out.println(tag+"V591_DEV_PET_NPC "+r); return;
-            }
-            if(sub.equals("map")){
-                String kind=p.length>=3?p[2].toLowerCase(java.util.Locale.ROOT):"show";
-                if(kind.equals("show")||kind.equals("info")){
-                    System.out.println(tag+"V593_DEV_PET_MAP npc="+dev.petNpcBindings()+" sprite="+dev.petSpriteBindings()+" persisted=false"); return;
-                }
-                if(kind.equals("clear")){
-                    if(p.length>=4){ int item=parseInt(p[3],-1); dev.clearPetBinding(item); } else dev.clearPetBindings();
-                    System.out.println(tag+"V593_DEV_PET_MAP_CLEAR npc="+dev.petNpcBindings()+" sprite="+dev.petSpriteBindings()); return;
-                }
-                if(kind.equals("npc")){
-                    int item=p.length>=4?parseInt(p[3],-1):-1, npc=p.length>=5?parseInt(p[4],-1):-1;
-                    if(item<0||npc<0||npc>16383){System.out.println(tag+"V593_DEV_PET_MAP_NPC result=REJECTED syntax=::devpet map npc <itemId> <npcId>");return;}
-                    dev.setPetNpcBinding(item,npc);
-                    String live="inactive";
-                    if(npcs.pet()!=null&&npcs.pet().petItemId==item) live=npcs.previewPetDefinition(npc,movement,serverPackets);
-                    System.out.println(tag+"V593_DEV_PET_MAP_NPC item="+item+" npc="+npc+" live="+live+" persisted=false"); return;
-                }
-                if(kind.equals("sprite")){
-                    int item=p.length>=4?parseInt(p[3],-1):-1, preview=p.length>=5?parseInt(p[4],-1):-1;
-                    if(item<0||preview<0||!ItemCatalog.exists(preview)){System.out.println(tag+"V593_DEV_PET_MAP_SPRITE result=REJECTED syntax=::devpet map sprite <itemId> <previewItemId>");return;}
-                    dev.setPetSpriteBinding(item,preview);
-                    System.out.println(tag+"V593_"+bank.sendDevInventoryVariantPreview(dev.petSpriteBindings(),serverPackets)); return;
-                }
-                if(kind.equals("applysprites")){ System.out.println(tag+"V593_"+bank.sendDevInventoryVariantPreview(dev.petSpriteBindings(),serverPackets)); return; }
-                System.out.println(tag+"V593_DEV_PET_MAP_HELP npc <itemId> <npcId> | sprite <itemId> <previewItemId> | applysprites | show | clear [itemId]"); return;
-            }
-            if(sub.equals("visual")){
-                String op=p.length>=3?p[2].toLowerCase(java.util.Locale.ROOT):"info";
-                int active=npcs.pet()==null?-1:npcs.pet().definitionId;
-                if(op.equals("info")){ int npc=p.length>=4?parseInt(p[3],active):active; System.out.println(tag+"V5124_"+SpecialPetVisualLab.info(npc,dev.petParticleSelector())+" "+LocalDevVisualOverrideStore.summary()); return; }
-                if(op.equals("npc")){ int npc=p.length>=4?parseInt(p[3],-1):-1; System.out.println(tag+"V593_"+npcs.previewPetDefinition(npc,movement,serverPackets)); return; }
-                if(op.equals("owner")){
-                    String v=p.length>=4?p[3].toLowerCase(java.util.Locale.ROOT):"player";
-                    int raw=v.equals("player")?(32768+NpcRegistry.LOCAL_PLAYER_INDEX):parseInt(v,-1);
-                    if(v.equals("raw")&&p.length>=5)raw=parseInt(p[4],-1);
-                    System.out.println(tag+"V593_"+npcs.devPetInteractionTarget(raw,serverPackets)); return;
-                }
-                if(op.equals("fx")){
-                    String v=p.length>=4?p[3].toLowerCase(java.util.Locale.ROOT):"auto"; Integer sel=v.equals("auto")?null:parseInt(v,-1);
-                    if(sel!=null&&(sel<0||sel>255)){System.out.println(tag+"V593_DEV_PET_VISUAL_FX result=REJECTED");return;}
-                    System.out.println(tag+"V593_"+npcs.devSetParticleSelector(sel,movement,serverPackets)); return;
-                }
-                if(op.equals("alpha")){
-                    String v=p.length>=4?p[3].toLowerCase(java.util.Locale.ROOT):"info";
-                    if(v.equals("info")){System.out.println(tag+"V5124_"+SpecialPetVisualLab.inspectOnly(op,active)+" "+LocalDevVisualOverrideStore.summary());return;}
-                    if(v.equals("auto")||v.equals("reset")){System.out.println(tag+"V5124_"+LocalDevVisualOverrideStore.set("alpha",null));return;}
-                    if(v.equals("off"))v="0"; int x=parseInt(v,-1); if(x<0||x>255){System.out.println(tag+"V5124_DEV_PET_VISUAL_ALPHA result=REJECTED expected=auto|off|0..255");return;}
-                    System.out.println(tag+"V5124_"+LocalDevVisualOverrideStore.set("alpha",Integer.toString(x))); return;
-                }
-                if(op.equals("ai")){
-                    String v=p.length>=4?p[3].toLowerCase(java.util.Locale.ROOT):"info";
-                    if(v.equals("info")){System.out.println(tag+"V5124_"+SpecialPetVisualLab.inspectOnly(op,active)+" "+LocalDevVisualOverrideStore.summary());return;}
-                    if(v.equals("auto")||v.equals("reset")){System.out.println(tag+"V5124_"+LocalDevVisualOverrideStore.set("ai",null));return;}
-                    if(v.equals("off"))v="0"; try{Integer.parseInt(v);}catch(Exception e){System.out.println(tag+"V5124_DEV_PET_VISUAL_AI result=REJECTED expected=auto|off|signedInt");return;}
-                    System.out.println(tag+"V5124_"+LocalDevVisualOverrideStore.set("ai",v)); return;
-                }
-                if(op.equals("tint")){
-                    String v=p.length>=4?p[3]:"info"; String lv=v.toLowerCase(java.util.Locale.ROOT);
-                    if(lv.equals("info")){System.out.println(tag+"V5124_"+SpecialPetVisualLab.inspectOnly(op,active)+" "+LocalDevVisualOverrideStore.summary());return;}
-                    if(lv.equals("auto")||lv.equals("reset")){System.out.println(tag+"V5124_"+LocalDevVisualOverrideStore.set("tint",null));return;}
-                    if(lv.equals("off")){System.out.println(tag+"V5124_"+LocalDevVisualOverrideStore.set("tint","off"));return;}
-                    if(lv.equals("raw")&&p.length>=5){try{Integer.parseInt(p[4]);}catch(Exception e){System.out.println(tag+"V5124_DEV_PET_VISUAL_TINT result=REJECTED raw_signedInt");return;}System.out.println(tag+"V5124_"+LocalDevVisualOverrideStore.set("tint","raw:"+p[4]));return;}
-                    String rgb=lv.startsWith("#")?lv.substring(1):(lv.startsWith("0x")?lv.substring(2):lv);
-                    try{int n=Integer.parseInt(rgb,16);if(n<0||n>0xffffff)throw new Exception();System.out.println(tag+"V5124_"+LocalDevVisualOverrideStore.set("tint","rgb:"+String.format("%06x",n)));}catch(Exception e){System.out.println(tag+"V5124_DEV_PET_VISUAL_TINT result=REJECTED expected=auto|off|#RRGGBB|0xRRGGBB|raw <signedInt>");}return;
-                }
-                if(op.equals("bodycycle")){
-                    String v=p.length>=4?p[3].toLowerCase(java.util.Locale.ROOT):"info";
-                    if(v.equals("info")){System.out.println(tag+"V5124_"+SpecialPetVisualLab.inspectOnly(op,active)+" "+LocalDevVisualOverrideStore.summary());return;}
-                    if(v.equals("auto")||v.equals("reset")){System.out.println(tag+"V5124_"+LocalDevVisualOverrideStore.set("bodycycle",null));return;}
-                    if(v.equals("off")){System.out.println(tag+"V5124_"+LocalDevVisualOverrideStore.set("bodycycle","off"));return;}
-                    int phase=parseInt(v,-1);if(phase<0||phase>66){System.out.println(tag+"V5124_DEV_PET_VISUAL_BODYCYCLE result=REJECTED expected=auto|off|0..66");return;}
-                    System.out.println(tag+"V5124_"+LocalDevVisualOverrideStore.set("bodycycle",Integer.toString(phase)));return;
-                }
-                if(op.equals("intrinsicfx")){
-                    String v=p.length>=4?p[3].toLowerCase(java.util.Locale.ROOT):"info";
-                    if(v.equals("info")){System.out.println(tag+"V5125_DEV_PET_VISUAL_INTRINSICFX npc="+active+" default="+((active==1334||active==8210)?"OFF_CORRECTED_PROFILE":"NATIVE_ON")+" "+LocalDevVisualOverrideStore.summary());return;}
-                    if(v.equals("auto")||v.equals("reset")||v.equals("default")){System.out.println(tag+"V5125_"+LocalDevVisualOverrideStore.set("intrinsicfx",null));return;}
-                    if(v.equals("on")||v.equals("native")||v.equals("true")){System.out.println(tag+"V5125_"+LocalDevVisualOverrideStore.set("intrinsicfx","on"));return;}
-                    if(v.equals("off")||v.equals("false")){System.out.println(tag+"V5125_"+LocalDevVisualOverrideStore.set("intrinsicfx","off"));return;}
-                    System.out.println(tag+"V5125_DEV_PET_VISUAL_INTRINSICFX result=REJECTED expected=auto|on|off");return;
-                }
-                if(op.equals("state")){int st=p.length>=4?parseInt(p[3],-1):-1;if(st<0||st>3){System.out.println(tag+"V5124_DEV_PET_VISUAL_STATE result=REJECTED expected=0..3");return;}System.out.println(tag+"V5124_"+npcs.setPetNativeState(st,serverPackets));return;}
-                if(op.equals("text")){if(p.length<4){System.out.println(tag+"V5124_DEV_PET_VISUAL_TEXT result=REJECTED expected=<text>");return;}System.out.println(tag+"V5124_"+npcs.forcePetText(joinTokens(p,3),serverPackets));return;}
-                if(op.equals("anim")){int anim=p.length>=4?parseInt(p[3],-999):-999,delay=p.length>=5?parseInt(p[4],0):0;System.out.println(tag+"V5124_"+npcs.animatePet(anim,delay,serverPackets));return;}
-                if(op.equals("gfx")){int gfx=p.length>=4?parseInt(p[3],-999):-999,h=p.length>=5?parseInt(p[4],0):0,d=p.length>=6?parseInt(p[5],0):0;System.out.println(tag+"V5124_"+npcs.gfxPet(gfx,h,d,serverPackets));return;}
-                if(op.equals("animfx")){int anim=p.length>=4?parseInt(p[3],-999):-999,gfx=p.length>=5?parseInt(p[4],-999):-999,h=p.length>=6?parseInt(p[5],0):0,d=p.length>=7?parseInt(p[6],0):0;System.out.println(tag+"V5124_"+npcs.animationAndGfxPet(anim,0,gfx,h,d,serverPackets));return;}
-                if(op.equals("owneranim")){int anim=p.length>=4?parseInt(p[3],-999):-999;if(anim<-1||anim>65535){System.out.println(tag+"V5124_DEV_PET_VISUAL_OWNERANIM result=REJECTED_RANGE");return;}serverPackets.varShort(81,CombatSync.player81AnimationOnly(anim));System.out.println(tag+"V5124_DEV_PET_VISUAL_OWNERANIM anim="+anim+" authority=LOCAL_DEV_EXPERIMENT");return;}
-                if(op.equals("ownergfx")){int gfx=p.length>=4?parseInt(p[3],-999):-999,h=p.length>=5?parseInt(p[4],0):0,d=p.length>=6?parseInt(p[5],0):0;try{serverPackets.varShort(81,CombatSync.player81GfxOnly(gfx,h,d));System.out.println(tag+"V5124_DEV_PET_VISUAL_OWNERGFX gfx="+gfx+" height="+h+" delay="+d+" authority=LOCAL_DEV_EXPERIMENT");}catch(IllegalArgumentException e){System.out.println(tag+"V5124_DEV_PET_VISUAL_OWNERGFX result=REJECTED "+e.getMessage());}return;}
-                if(op.equals("owneranimfx")){int anim=p.length>=4?parseInt(p[3],-999):-999,gfx=p.length>=5?parseInt(p[4],-999):-999,h=p.length>=6?parseInt(p[5],0):0,d=p.length>=7?parseInt(p[6],0):0;try{serverPackets.varShort(81,CombatSync.player81AnimationAndGfx(anim,gfx,h,d));System.out.println(tag+"V5124_DEV_PET_VISUAL_OWNERANIMFX anim="+anim+" gfx="+gfx+" height="+h+" delay="+d+" authority=LOCAL_DEV_EXPERIMENT");}catch(IllegalArgumentException e){System.out.println(tag+"V5124_DEV_PET_VISUAL_OWNERANIMFX result=REJECTED "+e.getMessage());}return;}
-                if(op.equals("reset")||op.equals("clear")){System.out.println(tag+"V5124_"+LocalDevVisualOverrideStore.clear());System.out.println(tag+"V5124_"+npcs.devSetParticleSelector(null,movement,serverPackets));return;}
-                System.out.println(tag+"V5124_DEV_PET_VISUAL_HELP info [npcId] | npc <id> (model/body via definition) | owner player|raw <target> | fx auto|0..255 | intrinsicfx auto|on|off | alpha auto|off|0..255 | ai auto|off|<int> | tint auto|off|#RRGGBB|raw <int> | bodycycle auto|off|0..66 | state 0..3 | text <text> | anim <id> [delay] | gfx <id> [height] [delay] | animfx <anim> <gfx> [height] [delay] | owneranim <id> | ownergfx <id> [height] [delay] | owneranimfx <anim> <gfx> [height] [delay] | reset ; client fields=LOCAL_DEV_EXPERIMENT"); return;
-            }
-            if(sub.equals("anim")){
-                int anim=p.length>=3?parseInt(p[2],-999):-999, delay=p.length>=4?parseInt(p[3],0):0;
-                r=npcs.animatePet(anim,delay,serverPackets); System.out.println(tag+"V591_DEV_PET_ANIM "+r); return;
-            }
-            if(sub.equals("gfx")){
-                int gfx=p.length>=3?parseInt(p[2],-999):-999, h=p.length>=4?parseInt(p[3],0):0, d=p.length>=5?parseInt(p[4],0):0;
-                r=npcs.gfxPet(gfx,h,d,serverPackets); System.out.println(tag+"V591_DEV_PET_GFX "+r); return;
-            }
-            if(sub.equals("animfx")){
-                int anim=p.length>=3?parseInt(p[2],-999):-999, gfx=p.length>=4?parseInt(p[3],-999):-999, h=p.length>=5?parseInt(p[4],0):0, d=p.length>=6?parseInt(p[5],0):0;
-                r=npcs.animationAndGfxPet(anim,0,gfx,h,d,serverPackets); System.out.println(tag+"V591_DEV_PET_ANIMFX "+r); return;
-            }
-            if(sub.equals("follow")){
-                String op=p.length>=3?p[2].toLowerCase(java.util.Locale.ROOT):"info";
-                if(op.equals("freeze")) r=npcs.devFollowFreeze(true);
-                else if(op.equals("resume")) r=npcs.devFollowFreeze(false);
-                else if(op.equals("step")) r=npcs.devFollowStep(movement,serverPackets);
-                else if(op.equals("snap")) r=npcs.devSnapToOwner(movement,serverPackets);
-                else if(op.equals("normal")||op.equals("reset")) r=npcs.devFollowDelay(null);
-                else if(op.equals("delay")){
-                    long ms=p.length>=4?parseLong(p[3],-1L):-1L;
-                    try { r=npcs.devFollowDelay(ms<0?null:ms); } catch(IllegalArgumentException e){ r="REJECTED "+e.getMessage(); }
-                } else r=npcs.devInfo(movement);
-                System.out.println(tag+"V591_DEV_PET_FOLLOW "+r); return;
-            }
-            System.out.println(tag+"V593_DEV_PET_HELP commands=info | fx auto|next|prev|0..255 | npc <npcId> | map npc|sprite|applysprites|show|clear | visual info|npc|owner|fx|intrinsicfx|alpha|tint|ai|bodycycle|state|anim|gfx|animfx|reset | anim <id> [delay] | gfx <id> [height] [delay] | animfx <anim> <gfx> [height] [delay] | follow freeze|resume|step|snap|normal|delay <ms>");
+        java.util.List<String> devPetCommand=
+            devPetCommands.handle(p,serverPackets);
+        if(devPetCommand!=null){
+            for(String line:devPetCommand)System.out.println(tag+line);
             return;
         }
         if(p.length>=1 && p[0].equalsIgnoreCase("devplayer")){
