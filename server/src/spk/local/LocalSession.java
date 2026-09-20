@@ -25,7 +25,7 @@ final class LocalSession implements Runnable {
     private final PlayerPresentationService playerPresentation = new PlayerPresentationService(dev);
     private final NpcRegistry npcs;
     private final HomeWorldRuntimePlan homeWorld;
-    private final CombatEngine combat = new CombatEngine(dev);
+    private final CombatEngine combat;
     /** Engine R5 native Item Library server-side authority projection. */
     private final NativeItemLibraryService itemLibrary = new NativeItemLibraryService();
     private final LocalDiagnosticCommandHandler diagnosticCommands;
@@ -108,6 +108,10 @@ final class LocalSession implements Runnable {
         this.combatStyles = worldPlayer.combatStyles();
         this.petEffects = worldPlayer.petEffects();
         this.miniPets = worldPlayer.miniPets();
+        this.combat = new CombatEngine(
+            worldPlayer.combatState(),
+            dev
+        );
         this.npcs = new NpcRegistry(
             dev,
             this.world.petNpcs(),
