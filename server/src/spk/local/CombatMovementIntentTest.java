@@ -18,10 +18,19 @@ public final class CombatMovementIntentTest {
         if(m.queued()!=3)throw new AssertionError("client echo replaced server route");
 
         // The next movement is unambiguously manual and must clear combat.
-        MovementRequest away=new MovementRequest(164,false,new int[]{m.x()-3},new int[]{m.y()},new byte[0]);
+        // Issue #13 made recovered HOME collision authoritative, so choose an
+        // actually open adjacent step instead of the old collision-blind x-3 fixture.
+        int[][] directions={{-1,0},{1,0},{0,-1},{0,1}};
+        int manualX=Integer.MIN_VALUE,manualY=Integer.MIN_VALUE;
+        for(int[] d:directions){
+            int x=m.x()+d[0],y=m.y()+d[1];
+            if(HomeCombatPathfinder.canStep(m.x(),m.y(),x,y)){manualX=x;manualY=y;break;}
+        }
+        if(manualX==Integer.MIN_VALUE)throw new AssertionError("no collision-open manual movement fixture");
+        MovementRequest manual=new MovementRequest(164,false,new int[]{manualX},new int[]{manualY},new byte[0]);
         if(!c.cancelForManualMovement())throw new AssertionError("manual cancel did not report active combat");
         if(c.state().active())throw new AssertionError("target remains active");
-        if(!m.accept(away).startsWith("ACCEPTED"))throw new AssertionError("manual route not accepted");
-        System.out.println("V5123_COMBAT_MOVEMENT_INTENT_PASS serverOwnedApproach=true firstClientEchoIgnored=true laterMovementCancels=true");
+        if(!m.accept(manual).startsWith("ACCEPTED"))throw new AssertionError("manual route not accepted");
+        System.out.println("V5123_COMBAT_MOVEMENT_INTENT_PASS serverOwnedApproach=true firstClientEchoIgnored=true laterMovementCancels=true collisionAwareManualFixture=true");
     }
 }
