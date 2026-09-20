@@ -149,7 +149,7 @@ final class LocalSession implements Runnable {
             prayers,playerState,equipment,combatStyles,magic,bank);
         this.bankObjectHandler = new LocalBankObjectInteractionHandler(bank,movement);
         this.routedNpcHandler = new LocalRoutedNpcInteractionHandler(
-            npcs,bank,movement);
+            npcs,bank,movement,world.content());
         this.genericInteractionHandler =
             new LocalGenericInteractionHandler(
                 world.content()
