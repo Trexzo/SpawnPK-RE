@@ -51,6 +51,70 @@ final class LocalAccountLifecycle {
         }
     }
 
+    static PlayerSnapshot captureAndSave(
+        String username,
+        WorldPlayer player,
+        PlayerRepository repository
+    )throws java.io.IOException{
+        PlayerSnapshot snapshot=
+            PlayerSnapshotCodec.capture(
+                username,
+                player
+            );
+
+        repository.save(snapshot);
+        return snapshot;
+    }
+
+    static void saveQuiet(
+        String username,
+        boolean persistent,
+        WorldPlayer player,
+        PlayerRepository repository,
+        int activePetAccessoryItem,
+        String tag,
+        String reason
+    ){
+        if(!persistent)return;
+
+        try{
+            PlayerSnapshot snapshot=
+                captureAndSave(
+                    username,
+                    player,
+                    repository
+                );
+
+            PetAccessoryPersistence.save(
+                username,
+                activePetAccessoryItem
+            );
+
+            System.out.println(
+                tag+
+                "V5123_ACCOUNT_SAVE reason="+
+                reason+
+                " repository="+
+                repository.getClass().getSimpleName()+
+                " snapshot="+snapshot+
+                " petAccessory="+
+                (activePetAccessoryItem==0
+                    ?"NONE"
+                    :activePetAccessoryItem)
+            );
+        }catch(Throwable e){
+            System.err.println(
+                tag+
+                "V5123_ACCOUNT_SAVE_FAILED reason="+
+                reason+
+                " profile="+username+
+                " repository="+
+                repository.getClass().getSimpleName()+
+                " error="+e
+            );
+        }
+    }
+
     static void saveQuiet(
         String username,
         boolean persistent,
