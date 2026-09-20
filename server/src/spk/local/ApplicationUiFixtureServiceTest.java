@@ -11,7 +11,7 @@ public final class ApplicationUiFixtureServiceTest {
         "mailbox","itemlist","makex","eventtask","events","shop","raid","confirm",
         "infobox","boss","metrics","selection","toast","attention","chapter","effects","progress"
     };
-    private static final String UNCHANGED_FIXTURES_SHA256="CAPTURE_FROM_WINDOWS_CI";
+    private static final String UNCHANGED_FIXTURES_SHA256="672a2a8ba2fe4ca359ff600f97a9e805976fee3d5f79858b1bad00bb46e96135";
 
     public static void main(String[] args)throws Exception{
         MessageDigest unchanged=MessageDigest.getInstance("SHA-256");
