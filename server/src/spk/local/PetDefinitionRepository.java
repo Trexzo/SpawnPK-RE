@@ -33,6 +33,7 @@ final class PetDefinitionRepository {
     static {
         try {
             loadMappings(resolveData("pet_mappings.tsv"));
+            loadMappings(resolveData("custom_pet_mappings.tsv"));
             loadAmbiguous(resolveData("pet_ambiguous.tsv"));
         } catch (IOException e) { throw new ExceptionInInitializerError(e); }
     }
