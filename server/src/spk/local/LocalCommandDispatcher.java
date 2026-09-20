@@ -153,6 +153,18 @@ final class LocalCommandDispatcher {
             );
         }
 
+        if(p.length>=1&&
+           p[0].equalsIgnoreCase(
+               "contentregistry"
+           )){
+            System.out.println(
+                tag+
+                "CONTENT_REGISTRY_DIAGNOSTIC "+
+                contentRegistry.summary()
+            );
+            return true;
+        }
+
         if(isDevPanelRoute(p)){
             bridge.openDevPanel(serverPackets);
             System.out.println(
