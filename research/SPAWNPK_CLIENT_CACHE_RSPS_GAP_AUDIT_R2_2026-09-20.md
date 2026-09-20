@@ -1,0 +1,926 @@
+# SpawnPK Exact-Current Client / Cache Gap Audit R2
+
+Date: 2026-09-20  
+Lane: evidence/research only  
+Base: `main` at `11df408115a87c26c713f10baecf047c72bfd073`  
+Pinned client SHA-256: `6232bae206846a4ba8d09766a2dee886b69016066a3f50f83b201bf705f93662`  
+Pinned cache archive SHA-256: `607425ad3fe69f4cfcaaf82220d9a0d4ebff9954e896819245f37271713d299a`
+
+## Purpose
+
+This continues the first-pass client/cache RSPS gap audit.
+
+R1 identified that S2C126 is not merely widget text and recommended deeper recovery of:
+
+1. remaining typed S2C126 targets,
+2. exact C2S actions for raids,
+3. marketplace,
+4. progression,
+5. mail/reward coffer,
+6. construction,
+
+before opening new implementation roadmap issues.
+
+This R2 pass follows that rule. It does not invent production gameplay mechanics, prices, rewards, ownership rules, raid mechanics, mailbox contents, or construction server authority.
+
+## Evidence used
+
+- exact pinned current client JAR,
+- exact matching SpawnPK cache archive,
+- exact client bytecode via `javap -c -p`,
+- existing protocol master / deep-recon documents,
+- live repository state checked before creating this research lane.
+
+The matching cache contains current SpawnPK configuration/assets including blood-system YAMLs and native UI assets.
+
+## Major R2 finding: S2C126 target space extends through at least 71
+
+R1's "15+" continuation bucket is much larger than it appeared.
+
+The current client has dedicated S2C126 target branches through target 71, with 50-52 absent from this branch. These targets coexist with ordinary widget-text fallback and the global command-token vocabulary.
+
+Do not model S2C126 as:
+
+```
+sendString(widgetId, text)
+```
+
+A safer model remains:
+
+```
+S2C126ApplicationControl
+  payload: string_nl
+  targetKey: u16_be_low_sub128
+
+  dispatch:
+    controller-specific typed targets
+    global control tokens
+    ordinary widget text fallback
+```
+
+## Recovered typed target catalog, 15-71
+
+Names below are conservative. "Structural" means the byte/field effect is exact but the original server-side business meaning is not yet fully proven.
+
+### 15 - Bank tab content state
+
+Payload is three integers.
+
+The client calls the bank-tab updater with:
+
+```
+tab = first - 1
+value2 = second
+value3 = third
+```
+
+The target updates the native bank tab arrays/state.
+
+Confidence: HIGH.
+
+### 16 - Selected bank tab
+
+Payload: one integer.
+
+The client applies `value - 1` as the selected bank tab and updates native bank-tab highlighting.
+
+Confidence: HIGH.
+
+### 17 - Friend-list clear/removal synchronization
+
+Payload: one integer.
+
+When the value is zero the client iterates its current friend IDs and invokes the same removal path used for normal friend removal.
+
+Important: the removal path emits C2S opcode 215 with the friend long identifier.
+
+This is therefore not merely cosmetic list clearing.
+
+Confidence: HIGH structural / MEDIUM original server intent.
+
+### 18 - Multi-group widget selection/highlight state
+
+Payload: widget/control integer.
+
+The client selects one entry and swaps active/inactive sprites over several hard-coded groups, including ranges around:
+
+- 240xx groups,
+- 51311 / 51313,
+- 59847-59852,
+- 25756-25758,
+- 25337-25338,
+- 54000,
+- 45912 / 45923,
+- 54105-54108,
+- 60271-60272.
+
+Exact state machine is proven; one universal gameplay name is not.
+
+Confidence: HIGH structural.
+
+### 19 - Hitpoints orb condition fill
+
+Payload values map to exact current-client orb fill assets:
+
+```
+0 -> orbs/hp_fill
+1 -> orbs/poison_fill
+2 -> orbs/venom_fill
+```
+
+Confidence: HIGH.
+
+### 20 - Widget model/media state
+
+Payload: two integers.
+
+Forwards to the current widget/model mutator with fixed trailing parameters.
+
+Keep named structurally until the original server use is proven.
+
+Confidence: HIGH structural.
+
+### 21 - Dynamic widget sprite
+
+Payload contains:
+
+```
+spritePath
+widgetId
+x
+y
+```
+
+The client constructs a sprite and installs it on the target widget.
+
+Confidence: HIGH.
+
+### 22 - Text state with [bl] newline conversion
+
+Payload string has `[bl]` converted to newline and is retained in client state.
+
+Domain owner remains unresolved.
+
+Confidence: HIGH structural.
+
+### 23 - Nullable text state
+
+Payload `"null"` becomes empty state; otherwise the literal payload is stored.
+
+Domain owner remains unresolved.
+
+Confidence: HIGH structural.
+
+### 24 - Keyed text/state map update
+
+Payload contains an integer key plus text and is stored in a client map.
+
+Confidence: HIGH structural.
+
+### 25 - CombatOverlay state update
+
+Exact consumer class identifies itself as `CombatOverlay`.
+
+Payload contains:
+
+```
+name/text
+integer
+integer
+```
+
+and resets related transient state.
+
+Confidence: HIGH.
+
+### 26 - Client text state
+
+Payload copied into a dedicated client string field.
+
+Domain owner unresolved.
+
+Confidence: HIGH structural.
+
+### 27 - Widget enabled/disabled sprite state
+
+Payload:
+
+```
+widgetId
+flag
+```
+
+The target widget's active/inactive visual state is updated.
+
+Confidence: HIGH structural.
+
+### 28 - Client deadline/timer
+
+Payload: seconds/milliseconds scalar interpreted as a future deadline relative to current time.
+
+Confidence: HIGH structural.
+
+### 29 - Two-scalar state
+
+Payload: two integers.
+
+Stored as a pair in client state.
+
+Confidence: HIGH structural.
+
+### 30 - Single-scalar state
+
+Payload: one integer.
+
+Confidence: HIGH structural.
+
+### 31 - Floating-point state
+
+Payload: double.
+
+Confidence: HIGH structural.
+
+### 32 - Player/entity runtime scalar
+
+Writes one scalar into a current `rs/a/k` field.
+
+Confidence: HIGH structural.
+
+### 33 - Indexed player/entity runtime scalar
+
+Payload identifies an index and scalar and updates an `rs/a/k` array entry.
+
+Confidence: HIGH structural.
+
+### 34 - Boolean pair-key state map
+
+Payload: two integers.
+
+The pair is converted into a key and recorded in a Boolean map.
+
+Confidence: HIGH structural.
+
+### 35 - Drop/hit/block popup state
+
+Consumer classes/assets identify popup/drop presentation including:
+
+- drop bar,
+- block drop,
+- hit drop.
+
+Payload includes an integer, long and integer and updates the popup list/state.
+
+Confidence: HIGH presentation / MEDIUM precise subtype wording.
+
+### 36 - Daily Money Making Activities selection
+
+Consumer: native `Daily Money Making Activities` controller.
+
+Payload: integer selecting its current filter/tab/difficulty state.
+
+The client contains Easy / Medium / Hard task views, tracking and teleport presentation.
+
+Confidence: HIGH.
+
+### 37 - Integer list append
+
+Payload integer appended to a client list.
+
+Domain owner unresolved.
+
+Confidence: HIGH structural.
+
+### 38 - Item Enchantment Chest state/stage
+
+Consumer: native `Item Enchantment Chest`.
+
+Payload integer changes its current internal state/stage.
+
+Confidence: HIGH.
+
+### 39 - Two-value timed state
+
+Payload: two integers, one of which contributes to a future deadline.
+
+Confidence: HIGH structural.
+
+### 40 / 41 - Widget Boolean state
+
+Payload: widget ID.
+
+```
+40 -> widget boolean false
+41 -> widget boolean true
+```
+
+Confidence: HIGH structural.
+
+### 42 - BountyOverlay scalar state
+
+Consumer: `BountyOverlay`.
+
+Payload integer writes a dedicated overlay field.
+
+Confidence: HIGH presentation / MEDIUM exact field meaning.
+
+### 43 - Two Bounty/PvP-adjacent client scalars
+
+Payload: two integers into paired client fields.
+
+Keep structural pending consumer proof.
+
+### 44 - Completionist/cosmetic selector text pair
+
+Payload can be either:
+
+```
+value
+```
+
+or:
+
+```
+value1,value2
+```
+
+It updates `rs/n/c/w` text state and immediately rebuilds that controller's visible label.
+
+The controller is part of the native completionist/cosmetic color-selection surface.
+
+Confidence: HIGH consumer / MEDIUM exact semantic label.
+
+### 45 - Completionist/cosmetic selector auxiliary text
+
+Payload stored in `rs/n/c/w.d`.
+
+Confidence: HIGH consumer / MEDIUM exact semantic label.
+
+### 46 - Two-scalar client state
+
+Payload: two integers.
+
+Confidence: HIGH structural.
+
+### 47 - Debug/log text
+
+Payload is printed to stdout.
+
+Confidence: HIGH.
+
+### 48 - Absolute future deadline
+
+Payload long is added to current time and stored as a deadline.
+
+Confidence: HIGH structural.
+
+### 49 - Multiline text state
+
+Payload replaces `{n}` with newline and stores the result.
+
+Confidence: HIGH structural.
+
+### 50-52
+
+No dedicated 50/51/52 target branch was found in this S2C126 handler.
+
+Do not invent them.
+
+### 53 - Item Library / Item Guide selection
+
+Payload is split into text plus integer and forwarded to `rs/n/c/ab.a(String,int)`.
+
+That controller is the native SpawnPK Item Library / Item Guide.
+
+Confidence: HIGH.
+
+### 54 - Launcher/window message control
+
+Payload is passed to the launcher with the title `SpawnPK RSPS`.
+
+Confidence: HIGH.
+
+### 55 - Daily Challenge row/state update
+
+Payload uses six semicolon-separated fields and calls the native Daily Challenges row updater.
+
+Confidence: HIGH.
+
+### 56 - Daily Challenge summary/progress update
+
+Payload:
+
+```
+string
+int
+int
+```
+
+and calls the native Daily Challenges summary/state updater.
+
+Confidence: HIGH.
+
+### 57 / 58 - Double state plus mode flag
+
+Both parse a double into the same field.
+
+```
+57 -> mode flag false
+58 -> mode flag true
+```
+
+Domain owner unresolved.
+
+Confidence: HIGH structural.
+
+### 59 / 60 / 61 - Three related text channels
+
+Each stores one string into adjacent client fields.
+
+Domain owner unresolved.
+
+Confidence: HIGH structural.
+
+### 62 - Fog state
+
+Exact token:
+
+```
+FOG_ACTIVE
+```
+
+sets the client fog Boolean; any other payload clears it.
+
+Confidence: HIGH.
+
+### 63 - Widget integer runtime property
+
+Payload:
+
+```
+widgetId
+value
+```
+
+writes the value into a runtime widget integer field.
+
+Confidence: HIGH structural.
+
+### 64 - BountyOverlay toggle
+
+No payload parsing is required; receiving target 64 toggles one BountyOverlay Boolean.
+
+Confidence: HIGH.
+
+### 65 - BountyOverlay deadline
+
+Payload long is converted into an absolute deadline relative to current time.
+
+Confidence: HIGH.
+
+### 66 - BountyOverlay paired strings
+
+Payload may contain:
+
+```
+value1^value2
+```
+
+or no pair.
+
+The two strings are stored in BountyOverlay; `None` is normalized to null for the first field.
+
+Confidence: HIGH.
+
+### 67 - BountyOverlay cursed state
+
+Exact payload check:
+
+```
+CURSED
+```
+
+sets the BountyOverlay cursed Boolean.
+
+Confidence: HIGH.
+
+### 68 - Launcher/window message control variant
+
+Payload passed to the launcher under `SpawnPK RSPS` with an additional Boolean mode.
+
+Confidence: HIGH.
+
+### 69 - Client text state
+
+Payload copied into a dedicated client string field.
+
+Domain owner unresolved.
+
+Confidence: HIGH structural.
+
+### 70 - Four-field timed/status state
+
+Payload has four components:
+
+```
+int
+int
+longDelta
+string
+```
+
+The long becomes an absolute deadline relative to current time.
+
+Domain owner unresolved.
+
+Confidence: HIGH structural.
+
+### 71 - Item Enchantment Chest selected/result sprite state
+
+Payload integer selects one of 60 native enchantment widgets beginning at widget 50254.
+
+The chosen index receives the active/result sprite while previous `sprite 30` state is reverted to the inactive sprite.
+
+Confidence: HIGH.
+
+## Exact C2S command transport recovered
+
+The current client command helper does not merely retain command strings.
+
+Its queued-command drain writes:
+
+```
+opcode 103
+var-byte length = commandString.length - 1
+ISO-8859-1 command text = commandString.substring(2)
+```
+
+Therefore a UI-side string:
+
+```
+::mail
+```
+
+becomes exact C2S opcode 103 command text:
+
+```
+mail
+```
+
+The same applies to all command helpers below.
+
+## Mail / reward coffer
+
+Exact client commands:
+
+```
+::mail
+::claimcoffer
+```
+
+Both enter the opcode-103 command queue.
+
+The richer inbox presentation is separately carried by the S2C250 application bus. Existing exact client evidence exposes native mail/coffer state operations for row population, status, selection, claim state and detail presentation.
+
+Architecture consequence:
+
+```
+MailDomainIntent (C2S opcode103 command)
+        +
+MailPresentationState (S2C250 typed subtype)
+```
+
+Do not model mailbox state as chat text or fabricate production messages/rewards.
+
+## Daily Challenges / progression
+
+Native Daily Challenges exact command prefixes:
+
+```
+::claimchallenge <challengeId>
+::infochallenge <challengeId>
+```
+
+Both are constructed by the client and flow through opcode 103.
+
+S2C126 targets 55 and 56 are exact Daily Challenge presentation/state updates.
+
+Architecture consequence:
+
+```
+ChallengeIntent
+ChallengeProgressState
+ChallengePresentationPublisher
+```
+
+The client proves the transport and UI surface, not the original server's challenge assignment/reward policy.
+
+## Blood Fountain perk tree
+
+Exact outbound command:
+
+```
+::selectperk <perkId>
+```
+
+Reset/unselect path:
+
+```
+::selectperk 0
+```
+
+Both flow through opcode 103.
+
+Existing S2C126 controls also include Blood Pool / Blood Tree reset controls.
+
+Architecture consequence:
+
+```
+BloodPerkSelectionIntent
+BloodPerkState
+BloodPerkPresentation
+```
+
+Do not infer perk mechanics merely from selection transport.
+
+## Adventure/progression entry point
+
+The exact client contains:
+
+```
+::adventurebook
+```
+
+and existing S2C126 control tokens include:
+
+```
+BEGIN_ADVENTURE
+BEGIN_ADVENTURE_BOOK
+BEGIN_ADVENTURE_ORB
+END_ADVENTURE
+```
+
+This gives an exact native presentation/control entry point, but not enough authority by itself to recreate adventure progression rules.
+
+## Raid / party UI
+
+Native raid setup interface root:
+
+```
+19600
+```
+
+Current client exposes:
+
+- Chambers of Xeric
+- Theatre of Blood
+- five party slots
+- invite/remove controls
+- Refresh
+- Re-invite last players
+- Start raid
+- Leave/disband party
+- Normal / Adept / Expert / Master / Grandmaster difficulty
+
+Exact current UI widget construction includes button IDs around:
+
+```
+19611..19634   party invite/remove rows
+19665          Start raid control
+19669          Leave/disband control
+19800          Refresh control
+19803          Re-invite control
+```
+
+The normal generic widget-action path uses client menu action 315 and serializes:
+
+```
+C2S opcode 185
+u16_be widgetId
+```
+
+Therefore the raid setup surface is primarily ordinary exact widget action transport, while raid presentation/state is richer and separately represented by:
+
+- S2C126 control tokens including `RAID_INSTANCE_ON/OFF`,
+- S2C250 raid application state.
+
+Existing exact S2C250 research identifies the raid subtype as a native state machine containing member rows, panel toggles, selection/visibility, overlay state, coordinates, timer and metrics.
+
+Architecture consequence:
+
+```
+RaidUiIntent (C2S185 widget)
+Party/Raid domain service
+RaidPresentationState (S2C126 + S2C250)
+```
+
+Do not infer raid damage/reward/drop mechanics from the UI.
+
+## Marketplace / Trading Post
+
+The native marketplace UI uses the ordinary generic widget menu action path for its clickable controls.
+
+The exact generic path for action code 315 serializes:
+
+```
+C2S opcode 185
+u16_be widgetId
+```
+
+The current marketplace UI contains:
+
+- search results,
+- name/quantity,
+- price each,
+- seller,
+- ascending/descending toggle,
+- pagination,
+- modify,
+- refresh,
+- `Select this market listing`.
+
+The current S2C126 global control vocabulary includes:
+
+```
+clear_exchange
+add_exchange
+update_exchange
+clearsellmarket
+clearbuymarket
+setsellitem,<itemId>
+```
+
+The richer S2C250 marketplace/listing state already has exact fields:
+
+```
+itemId
+totalQuantity
+soldQuantity
+priceEach
+currency
+```
+
+with exact currency mapping:
+
+```
+0 = Gold
+1 = Bags
+```
+
+and remove-by-itemId support.
+
+Architecture consequence:
+
+```
+TradingPostUiIntent (C2S185 and text/search input paths)
+TradingPostQuery/Transaction domain
+TradingPostPresentationState (S2C126 + S2C250)
+```
+
+Do not invent production listing contents, prices, seller ownership or settlement rules.
+
+## Construction / POH
+
+The current client contains a native construction room-selection surface with 23 room definitions, including:
+
+- Parlour
+- Garden
+- Kitchen
+- Dining room
+- Workshop
+- Bedroom
+- Hall variants
+- Games Room
+- Combat room
+- Menagerie
+- Study
+- Costume room
+- Chapel
+- Boss portal room
+- Formal garden
+- Throne room
+- Superior garden
+- four dungeon room types
+- Treasure room
+
+The current S2C126 command vocabulary contains exact:
+
+```
+CONSTRUCTION_BUILD_ON
+CONSTRUCTION_BUILD_OFF
+```
+
+The room-selection surface is built from ordinary current-client widgets. The generic widget action contract remains opcode 185 + widgetId.
+
+What is not proven yet:
+
+- exact original room-placement validation,
+- room graph constraints,
+- object hotspots,
+- material costs,
+- persistence semantics,
+- destruction/relocation rules.
+
+Architecture consequence:
+
+```
+ConstructionUiIntent
+HouseInstance / HouseLayout domain
+ConstructionPresentationState
+```
+
+but implementation must remain fixture/dev-authority until the missing server rules are independently evidenced.
+
+## Transport separation confirmed by R2
+
+Do not collapse these systems into one "custom packet" abstraction.
+
+The current client demonstrably uses at least:
+
+### S2C126
+
+Application control / typed target / text fallback.
+
+### S2C250
+
+Typed ScriptPacket/application-state records for richer systems such as mail, marketplace and raid UI.
+
+### S2C253
+
+Server-message transport with embedded request directives in other systems.
+
+### C2S103
+
+Text command intents.
+
+### C2S185
+
+Generic widget-button intents.
+
+A correct LocalLab architecture should preserve these boundaries.
+
+## Recommended implementation sequence after evidence closure
+
+Do not open all domain modules at once.
+
+Recommended order:
+
+1. typed S2C126 application-control/state publisher,
+2. typed S2C250 application-bus registry integration where already exact,
+3. Daily Challenges / progression presentation substrate,
+4. mailbox/reward-coffer presentation substrate,
+5. marketplace query/listing presentation substrate,
+6. party + raid presentation/intent substrate,
+7. construction/house instance substrate,
+8. domain mechanics only where independent server authority exists.
+
+## Suggested first implementation issue, after audit sign-off
+
+Title:
+
+`[Protocol / Presentation] Model exact-current S2C126 as a typed application-control/state bus`
+
+Acceptance should require:
+
+- preserve exact S2C126 wire grammar,
+- ordinary widget text remains supported,
+- explicit typed target handlers for proven targets,
+- explicit control-token registry,
+- provenance on every typed control,
+- no original-server gameplay invention,
+- exact packet-level golden vectors,
+- no changes to unrelated gameplay.
+
+## Remaining R2 evidence gaps before domain issues
+
+Continue research before opening raid/market/construction gameplay issues:
+
+1. resolve structural targets 22-24, 26, 29-34, 37, 39, 43, 46, 48-49, 57-61, 69-70 to domain owners where possible,
+2. map every raid setup widget ID to exact intent,
+3. recover marketplace text-entry submission payloads, not just button clicks,
+4. map construction room widget IDs and any non-widget command path,
+5. pair mail row actions with exact C2S widget IDs/commands,
+6. pair Daily Money Making Activities target 36 with exact outbound task/teleport controls,
+7. identify whether target 35 popup state is drop-only or a shared damage/block/drop transport,
+8. add packet-level fixtures before any production implementation.
+
+## R2 conclusion
+
+The first-pass gap assessment remains directionally correct, but the exact current client exposes a substantially larger recoverable presentation/control surface than R1 captured.
+
+The strongest architectural conclusion is now:
+
+```
+wire-exact transport
+  -> typed client/server presentation intent
+  -> domain request/state
+  -> server-authoritative mechanics
+```
+
+not:
+
+```
+custom packet/string
+  -> gameplay
+```
+
+The next safe code change is the typed S2C126 presentation bus, not a guessed raid, marketplace, mail or construction gameplay implementation.
