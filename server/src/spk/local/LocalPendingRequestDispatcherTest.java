@@ -565,6 +565,16 @@ public final class LocalPendingRequestDispatcherTest {
                 new byte[]{1,0}
             );
 
+            typedWire.write(
+                (18+typedEncoder.nextInt())&255
+            );
+            // NPC option 5, scene index 0 LE. No matching scene NPC is
+            // required; the typed request must still be consumed and routed
+            // through the existing fail-closed NPC domain path.
+            typedWire.write(
+                new byte[]{0,0}
+            );
+
             ClientPacketProbe probe=
                 new ClientPacketProbe(
                     new ByteArrayInputStream(
@@ -599,6 +609,11 @@ public final class LocalPendingRequestDispatcherTest {
             if(!probe.readNextKnownPacket())
                 throw new AssertionError(
                     "typed player action fixture decode failed"
+                );
+
+            if(!probe.readNextKnownPacket())
+                throw new AssertionError(
+                    "typed npc action fixture decode failed"
                 );
 
             setPending(
@@ -681,8 +696,9 @@ public final class LocalPendingRequestDispatcherTest {
                 "LOCAL_PENDING_REQUEST_DISPATCHER_PASS "+
                 "widgetConsumed=true dropConsumed=true "+
                 "itemOnNpcConsumed=true objectInteractionConsumed=true "+
-                "playerActionConsumed=true movementConsumed=true "+
-                "runToggleBeforeMovement=true classifierCompatibility=true"
+                "playerActionConsumed=true npcActionConsumed=true "+
+                "movementConsumed=true runToggleBeforeMovement=true "+
+                "classifierCompatibility=true"
             );
         }finally{
             world.close();
