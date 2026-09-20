@@ -39,6 +39,7 @@ DAILY_CHALLENGES,CLAIM_CHALLENGE,103,VAR_BYTE_COMMAND_TEXT,"claimchallenge <id>"
 DAILY_CHALLENGES,INFO_CHALLENGE,103,VAR_BYTE_COMMAND_TEXT,"infochallenge <id>","rs.n.c.b exact command recipe",EXACT_CURRENT_CLIENT,
 ADVENTURE,OPEN_BOOK,103,VAR_BYTE_COMMAND_TEXT,"adventurebook","exact current-client command string",EXACT_CURRENT_CLIENT,
 ITEM_ENCHANTMENT,SELECT_CATEGORY_1_TO_16,185,FIXED2_WIDGET_U16_BE,"widget=49970..49985","rs.n.c.G Select enchantment rows; helper sets M=1 -> action315",EXACT_CURRENT_CLIENT,"category/index meaning still server-owned"
+ITEM_ENCHANTMENT,SELECT_ITEM,145,FIXED6_WIDGET_BE_A_SLOT_BE_A_ITEM_BE_A,"widget=50253; slot; itemId","rs.n.c.G item grid W[0]=Select item -> menu action632; Client writer and LocalLab exact decoder agree",EXACT_CURRENT_CLIENT,"selection transport only; recipe eligibility remains server authority"
 ITEM_ENCHANTMENT,ATTEMPT_ENCHANT,185,FIXED2_WIDGET_U16_BE,"widget=49990","rs.n.c.G Enchant button current action widget",EXACT_CURRENT_CLIENT,
 ITEM_ENCHANTMENT,SEARCH_BY_NAME,185,FIXED2_WIDGET_U16_BE,"widget=50314","rs.n.c.G Search by name current action widget",EXACT_CURRENT_CLIENT,
 CONSTRUCTION_POH,BUILD_PARLOUR,185,FIXED2_WIDGET_U16_BE,"widget=39879","rs.n.c.z Build Parlour type-5 -> action646",EXACT_CURRENT_CLIENT,
