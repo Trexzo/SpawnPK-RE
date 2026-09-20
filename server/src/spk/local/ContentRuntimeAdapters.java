@@ -125,7 +125,7 @@ final class ContentRuntimeAdapters {
                 throw new NullPointerException(
                     "skill"
                 );
-            return skill.protocolIndex();
+            return skillIndex(skill);
         }
 
         private static Set<ContentSkill> skills(
@@ -139,7 +139,7 @@ final class ContentRuntimeAdapters {
             for(ContentSkill skill:
                     ContentSkill.values())
                 if((mask&
-                    (1<<skill.protocolIndex()))!=0)
+                    (1<<skillIndex(skill)))!=0)
                     result.add(skill);
 
             return Collections.unmodifiableSet(
@@ -171,7 +171,7 @@ final class ContentRuntimeAdapters {
             writer.fixed(
                 134,
                 BootstrapPackets.skill134(
-                    skill.protocolIndex(),
+                    skillIndex(skill),
                     experience,
                     currentLevel
                 )
@@ -189,14 +189,13 @@ final class ContentRuntimeAdapters {
             );
         }
 
-        @Override public void percentageText(
-            int widgetId,
+        @Override public void specialEnergy(
             int percent
         )throws IOException{
             writer.varShort(
                 126,
                 BootstrapPackets.widgetText126(
-                    widgetId,
+                    149,
                     percent+"%"
                 )
             );
@@ -217,6 +216,29 @@ final class ContentRuntimeAdapters {
                     gfxDelay
                 )
             );
+        }
+    }
+
+    private static int skillIndex(
+        ContentSkill skill
+    ){
+        if(skill==null)
+            throw new NullPointerException(
+                "skill"
+            );
+
+        switch(skill){
+            case ATTACK: return 0;
+            case DEFENCE: return 1;
+            case STRENGTH: return 2;
+            case HITPOINTS: return 3;
+            case RANGED: return 4;
+            case PRAYER: return 5;
+            case MAGIC: return 6;
+            default:
+                throw new AssertionError(
+                    "Unhandled ContentSkill "+skill
+                );
         }
     }
 
