@@ -16,6 +16,7 @@ final class CombatEngine {
     private final CombatDamageRules damageRules;
     private final CombatAttackTimingRules timingRules;
     private final CombatPresentationAdapter presentation;
+    private final CombatSystemHooks systemHooks;
     private long syntheticTick;
     private int lastDamageThisAction;
     private static final int DUMMY_HP_MAX=255;
@@ -115,6 +116,40 @@ final class CombatEngine {
         CombatAttackTimingRules timingRules,
         CombatPresentationAdapter presentation
     ){
+        this(
+            state,
+            dev,
+            damageRules,
+            timingRules,
+            presentation,
+            CombatSystemHooks.none()
+        );
+    }
+
+    CombatEngine(
+        CombatState state,
+        DevAuthorityWorkbench dev,
+        CombatDamageRules damageRules,
+        CombatSystemHooks systemHooks
+    ){
+        this(
+            state,
+            dev,
+            damageRules,
+            CombatAttackTimingRules.recoveredCompatibility(),
+            new CombatPresentationAdapter(),
+            systemHooks
+        );
+    }
+
+    CombatEngine(
+        CombatState state,
+        DevAuthorityWorkbench dev,
+        CombatDamageRules damageRules,
+        CombatAttackTimingRules timingRules,
+        CombatPresentationAdapter presentation,
+        CombatSystemHooks systemHooks
+    ){
         this.state=java.util.Objects.requireNonNull(
             state,
             "state"
@@ -134,6 +169,10 @@ final class CombatEngine {
         this.presentation=java.util.Objects.requireNonNull(
             presentation,
             "presentation"
+        );
+        this.systemHooks=java.util.Objects.requireNonNull(
+            systemHooks,
+            "systemHooks"
         );
     }
 
@@ -284,6 +323,13 @@ final class CombatEngine {
         CombatDamageRules.Result calculatedDamage=null;
         int damage=0,hitType=-1,hp=DUMMY_HP_MAX;
         if(mechanicsResolved){
+            CombatSystemHooks.Snapshot hookSnapshot=
+                systemHooks.beforeDamage(
+                    state.context,
+                    equipment.weapon(),
+                    worldTick
+                );
+
             calculatedDamage=
                 damageRules.calculate(
                     new CombatDamageRules.Request(
@@ -397,6 +443,10 @@ final class CombatEngine {
             " damageAuthority="+(calculatedDamage==null?"NOT_APPLIED":calculatedDamage.authority)+
             " damageFormula="+(calculatedDamage==null?"NOT_APPLIED":calculatedDamage.formula)+
             " damageMode="+(mechanicsResolved?activeDamageMode(calculatedDamage):"NOT_APPLIED")+
+            " systemHooks="+
+                (mechanicsResolved
+                    ?hookSnapshot
+                    :"NOT_APPLIED")+
             " hpFixture="+(mechanicsResolved?(hp+"/"+DUMMY_HP_MAX):"UNCHANGED")+
             " hitsplatType="+(mechanicsResolved?Integer.toString(hitType):"NONE")+
             " hitsplatVariantMode="+(mechanicsResolved?(devHitVariantAuto?"auto(normal=1,max=6)":"manual"):"NONE")+
