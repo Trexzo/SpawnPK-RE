@@ -35,7 +35,7 @@ public final class OverrideSocketIntegrationTest {
             EngineR7DevPanelSocketTest.sendCommand(c,"tabitem 22132 1");waitContains(account,"22132",2500);EngineR7DevPanelSocketTest.drainUntilQuiet(c.s,1000,80);
             send16(c,3214,0,22132);waitCosmetic(account,"22132",2500); // partyhat option3 Override
             Properties afterSwap=props(account);req(containsValue(afterSwap,"21560"),"old Kellatha not returned to inventory persistence");
-            send16(c,3214,0,21560);EngineR7DevPanelSocketTest.sendCommand(c,"devpanel");EngineR7DevPanelSocketTest.drainUntil(c.s,2500,"LocalLab Dev Control Center | v5.18.5\\n"); // ordered fence after fail-closed Defuse
+            send16(c,3214,0,21560);EngineR7DevPanelSocketTest.sendCommand(c,"devpanel");EngineR7DevPanelSocketTest.drainUntil(c.s,2500,"LocalLab Dev Control Center | v5.18.5\n"); // ordered fence after fail-closed Defuse
             Properties afterDefuse=props(account);req("22132".equals(afterDefuse.getProperty("cosmetic.itemId")),"Defuse changed cosmetic");req(containsValue(afterDefuse,"21560"),"Defuse consumed Kellatha");
             System.out.println("V51842_OVERRIDE_SOCKET_PASS kellatha75Override=true ownerPartyhat16Override=true swapPersisted=true kellatha16DefuseFailClosed=true inventoryRetained=true sessionAligned=true");
         }finally{if(c!=null)c.close();EngineR7DevPanelSocketTest.waitFor(()->world.players().size()==0,3000,"logout");accept.get(3,TimeUnit.SECONDS);ex.shutdownNow();}}
