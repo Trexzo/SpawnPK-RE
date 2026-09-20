@@ -9,6 +9,16 @@ import java.util.*;
  * packet-65 projections with the existing stable HOME scene indexes.
  */
 final class WorldHomeNpcService {
+    static final class VisibleNpc {
+        final int ordinal;
+        final WorldNpc npc;
+
+        VisibleNpc(int ordinal,WorldNpc npc){
+            this.ordinal=ordinal;
+            this.npc=Objects.requireNonNull(npc,"npc");
+        }
+    }
+
     private final WorldNpcRegistry registry;
     private final HomeNpcWorldState state=
         HomeNpcRuntimePlan.newWorldState();
@@ -81,13 +91,13 @@ final class WorldHomeNpcService {
         lastMoves=Collections.emptyList();
     }
 
-    synchronized List<NpcEntity> visibleEntities(
+    synchronized List<VisibleNpc> visibleCanonical(
         int playerX,
         int playerY
     ){
         ensureInitialized();
 
-        ArrayList<NpcEntity> out=new ArrayList<>();
+        ArrayList<VisibleNpc> out=new ArrayList<>();
 
         for(HomeNpcWorldState.Actor actor:state.actors()){
             WorldNpc npc=canonicalForOrdinal(
@@ -103,24 +113,48 @@ final class WorldHomeNpcService {
             int dx=npc.x()-playerX;
             int dy=npc.y()-playerY;
 
-            if(dx>=-16&&dx<=15&&dy>=-16&&dy<=15){
+            if(dx>=-16&&dx<=15&&dy>=-16&&dy<=15)
                 out.add(
-                    new NpcEntity(
-                        actor.sceneIndex,
-                        npc.definitionId,
-                        npc.x(),
-                        npc.y()
+                    new VisibleNpc(
+                        actor.spawn.ordinal,
+                        npc
                     )
                 );
-            }
         }
 
         out.sort(
             Comparator.comparingInt(
-                npc->npc.sceneIndex
+                visible->visible.ordinal
             )
         );
 
+        return Collections.unmodifiableList(out);
+    }
+
+    /**
+     * Compatibility projection for older tests/tools. Production viewer code
+     * owns the canonical-id -> scene-index map in HomeWorldRuntimePlan.
+     */
+    synchronized List<NpcEntity> visibleEntities(
+        int playerX,
+        int playerY
+    ){
+        ArrayList<NpcEntity> out=new ArrayList<>();
+        for(VisibleNpc visible:
+            visibleCanonical(playerX,playerY)){
+            int sceneIndex=
+                HomeNpcRuntimePlan.sceneIndexForOrdinal(
+                    visible.ordinal
+                );
+            out.add(
+                new NpcEntity(
+                    sceneIndex,
+                    visible.npc.definitionId,
+                    visible.npc.x(),
+                    visible.npc.y()
+                )
+            );
+        }
         return Collections.unmodifiableList(out);
     }
 
