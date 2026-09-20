@@ -1,0 +1,47 @@
+name: temp-issue15-migration-ci
+
+on:
+  push:
+    branches:
+      - refactor/issue-15-snapshot-v2-migration
+
+jobs:
+  validate:
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Build server
+        shell: pwsh
+        run: |
+          & .\server\build.ps1
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Focused migration and persistence regressions
+        shell: pwsh
+        run: |
+          $tests = @(
+            'spk.local.PlayerSnapshotMigrationTest',
+            'spk.local.PlayerRepositoryFoundationTest',
+            'spk.local.AccountPersistenceTest',
+            'spk.local.LocalAccountProfilesTest',
+            'spk.local.SecondaryAccountSelectionTest',
+            'spk.local.RuntimeRepositorySaveTest',
+            'spk.local.RuntimeRepositoryLoadTest',
+            'spk.local.PlayerSnapshotSchemaExtractionTest',
+            'spk.local.WorldAutosaveCheckpointTest',
+            'spk.local.WorldPersistenceThreadingTest',
+            'spk.local.EngineR3PetAccessoryPersistenceTest',
+            'spk.local.SharedWorldSocketIntegrationTest'
+          )
+          foreach ($test in $tests) {
+            Write-Host "=== $test ==="
+            java -cp server\build\classes $test
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
