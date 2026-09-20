@@ -25,7 +25,7 @@ public final class PlayerRepositoryFoundationTest {
             System.out.println(
                 "PLAYER_REPOSITORY_FOUNDATION_PASS "+
                 "immutableSnapshot=true "+
-                "legacyV1Compatible=true "+
+                "legacyV1MigratesToV2=true "+
                 "atomicFileRepository=true "+
                 "failureNoLiveMutation=true "+
                 "repositorySubstitutable=true"
@@ -94,7 +94,8 @@ public final class PlayerRepositoryFoundationTest {
                 source
             );
 
-        if(snapshot.version()!=1||
+        if(snapshot.version()!=
+                PlayerSnapshot.CURRENT_VERSION||
            !"opensrc".equals(
                 snapshot.username()))
             throw new AssertionError(
@@ -151,7 +152,9 @@ public final class PlayerRepositoryFoundationTest {
             raw.load(input);
         }
 
-        if(!"1".equals(
+        if(!Integer.toString(
+                PlayerSnapshot.CURRENT_VERSION
+           ).equals(
                 raw.getProperty(
                     "format.version"
                 ))||
@@ -268,6 +271,13 @@ public final class PlayerRepositoryFoundationTest {
                 ()->new AssertionError(
                     "legacy src snapshot missing"
                 )
+            );
+
+        if(migrated.version()!=
+                PlayerSnapshot.CURRENT_VERSION)
+            throw new AssertionError(
+                "legacy v1 profile was not migrated to current snapshot: "+
+                migrated
             );
 
         WorldPlayer restored=
