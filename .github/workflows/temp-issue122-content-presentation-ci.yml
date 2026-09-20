@@ -1,0 +1,50 @@
+name: Issue 122 temporary validation
+
+on:
+  push:
+    branches:
+      - refactor/issue-122-content-presentation-failure-boundary
+  pull_request:
+    branches:
+      - refactor/issue-118-content-protocol-boundary
+
+jobs:
+  validate:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Canonical build
+        shell: pwsh
+        run: ./server/build.ps1
+      - name: Focused content boundary regressions
+        shell: pwsh
+        run: |
+          $jar = 'server/build/SpawnPKLocalServer.jar'
+          $tests = @(
+            'spk.local.ContentPublicApiBoundaryTest',
+            'spk.local.ContentPresentationFailureBoundaryTest',
+            'spk.local.NurseContentRegistryParityTest',
+            'spk.local.ContentNpcOptionPublicBoundaryTest',
+            'spk.local.ContentRegistryTest',
+            'spk.local.ObjectOptionContentRegistryParityTest',
+            'spk.local.NpcOptionContentRegistryParityTest'
+          )
+          foreach ($test in $tests) {
+            & java -cp $jar $test
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+      - name: Transport exception source guard
+        shell: pwsh
+        run: |
+          $apiFiles = Get-ChildItem 'server/src/spk/content/api' -File -Filter '*.java'
+          foreach ($file in $apiFiles) {
+            $src = Get-Content $file.FullName -Raw
+            if ($src -match 'java\.io\.' -or $src -match 'throws\s+IOException') {
+              throw "public content API leaks java.io in $($file.Name)"
+            }
+          }
+          Write-Host 'ISSUE122_TRANSPORT_EXCEPTION_GUARD_PASS'
