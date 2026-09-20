@@ -135,6 +135,7 @@ final class World implements AutoCloseable {
 
     @Override public void close(){
         pulse.close();
+        commands.close();
         persistence.close();
     }
 }
