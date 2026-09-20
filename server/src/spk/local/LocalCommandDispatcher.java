@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import spk.content.api.ContentResult;
 
 /**
  * Owns raw command normalization and the ordered command-handler routing chain.
@@ -41,6 +42,8 @@ final class LocalCommandDispatcher {
     private final LocalCombatCommandHandler combatCommands;
     private final LocalPetCompatibilityCommandHandler petCompatibilityCommands;
     private final LocalItemSpawnCommandHandler itemSpawnCommands;
+    private final ContentRegistry contentRegistry;
+    private final WorldPlayer worldPlayer;
     private final SessionBridge bridge;
 
     LocalCommandDispatcher(
@@ -64,6 +67,8 @@ final class LocalCommandDispatcher {
         LocalCombatCommandHandler combatCommands,
         LocalPetCompatibilityCommandHandler petCompatibilityCommands,
         LocalItemSpawnCommandHandler itemSpawnCommands,
+        ContentRegistry contentRegistry,
+        WorldPlayer worldPlayer,
         SessionBridge bridge
     ){
         this.bankRequests=Objects.requireNonNull(bankRequests,"bankRequests");
@@ -86,6 +91,8 @@ final class LocalCommandDispatcher {
         this.combatCommands=Objects.requireNonNull(combatCommands,"combatCommands");
         this.petCompatibilityCommands=Objects.requireNonNull(petCompatibilityCommands,"petCompatibilityCommands");
         this.itemSpawnCommands=Objects.requireNonNull(itemSpawnCommands,"itemSpawnCommands");
+        this.contentRegistry=Objects.requireNonNull(contentRegistry,"contentRegistry");
+        this.worldPlayer=Objects.requireNonNull(worldPlayer,"worldPlayer");
         this.bridge=Objects.requireNonNull(bridge,"bridge");
     }
 
@@ -113,6 +120,38 @@ final class LocalCommandDispatcher {
 
         String clean=clean(command);
         String[] p=tokens(clean);
+
+        try{
+            ContentResult content=
+                contentRegistry.dispatchCommand(
+                    worldPlayer,
+                    command,
+                    serverPackets
+                );
+
+            if(content!=null){
+                if(content.saveReason()!=null)
+                    bridge.saveAccount(
+                        tag,
+                        content.saveReason()
+                    );
+
+                System.out.println(
+                    tag+content.logText()
+                );
+                return true;
+            }
+        }catch(IOException e){
+            throw e;
+        }catch(RuntimeException e){
+            throw e;
+        }catch(Exception e){
+            throw new IOException(
+                "content command failed command="+
+                clean,
+                e
+            );
+        }
 
         if(isDevPanelRoute(p)){
             bridge.openDevPanel(serverPackets);
