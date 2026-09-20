@@ -368,6 +368,7 @@ final class NpcRegistry {
      * several tiles behind.
      */
     boolean needsFollow(MovementState movement){
+        refreshCanonicalActorProjections();
         if(pet==null||movement==null)return false;
         if(!ownerTrail.isEmpty()||!miniTrail.isEmpty())return true;
         if(LocalSession.chebyshev(pet.x,pet.y,movement.x(),movement.y())>1)return true;
@@ -392,6 +393,7 @@ final class NpcRegistry {
      * around walls even before the full cache-derived HOME collision service lands.
      */
     String tickFollow(MovementState movement,ServerPacketWriter w) throws IOException {
+        refreshCanonicalActorProjections();
         if(pet==null) return null;
         int dist=LocalSession.chebyshev(pet.x,pet.y,movement.x(),movement.y());
 
@@ -431,7 +433,7 @@ final class NpcRegistry {
                 int dir=cardinalDirectionToward(pet,movement.x(),movement.y());
                 if(dir<0)break;
                 enqueueMiniBreadcrumb(pet.x,pet.y);
-                applyDirection(pet,dir);
+                applyPetDirection(pet,dir,true);
                 if(petMoves==0)petDir1=dir;else petDir2=dir;
                 petMoves++;
             }
@@ -451,7 +453,7 @@ final class NpcRegistry {
                 int dir=cardinalDirectionToward(pet,target[0],target[1]);
                 if(dir<0)break;
                 enqueueMiniBreadcrumb(pet.x,pet.y);
-                applyDirection(pet,dir);
+                applyPetDirection(pet,dir,true);
                 if(petMoves==0)petDir1=dir;else petDir2=dir;
                 petMoves++;
                 if(pet.x==target[0]&&pet.y==target[1])ownerTrail.removeFirst();
@@ -489,7 +491,7 @@ final class NpcRegistry {
                     if(LocalSession.chebyshev(miniPet.x,miniPet.y,pet.x,pet.y)<=1)break;
                     int dir=cardinalDirectionToward(miniPet,pet.x,pet.y);
                     if(dir<0)break;
-                    applyDirection(miniPet,dir);
+                    applyPetDirection(miniPet,dir,false);
                     if(miniMoves==0)miniDir1=dir;else miniDir2=dir;
                     miniMoves++;
                 }
@@ -505,7 +507,7 @@ final class NpcRegistry {
                     if(LocalSession.chebyshev(miniPet.x,miniPet.y,target[0],target[1])>1){miniTrail.clear();miniTrailState="DISCONTINUITY_DURING_STEP_DIRECT_NEXT_TICK";break;}
                     int dir=cardinalDirectionToward(miniPet,target[0],target[1]);
                     if(dir<0)break;
-                    applyDirection(miniPet,dir);
+                    applyPetDirection(miniPet,dir,false);
                     if(miniMoves==0)miniDir1=dir;else miniDir2=dir;
                     miniMoves++;
                     if(miniPet.x==target[0]&&miniPet.y==target[1])miniTrail.removeFirst();
@@ -523,7 +525,6 @@ final class NpcRegistry {
             else updates.add(NpcSyncEncoder.Update.retain(n));
         }
         w.varShort(65,NpcSyncEncoder.encode(updates,Collections.emptyList(),0,0));
-        canonicalMoveActors();
         return "PET_FOLLOW_CURRENT_ROUTE_CARDINAL_TRAIL_R28_FLUID sceneIndex="+pet.sceneIndex+" npc="+pet.definitionId+
             " distBefore="+dist+" movement="+(petDir2>=0?"RUN":petDir1>=0?"WALK":"RETAIN")+" dir1="+petDir1+" dir2="+petDir2+
             " world="+pet.x+","+pet.y+" owner="+movement.x()+","+movement.y()+" ownerTrail="+ownerTrail.size()+" petTrailState="+petTrailState+
@@ -550,11 +551,10 @@ final class NpcRegistry {
         visible.remove(old);
         int tx=pet.x-1,ty=pet.y;
         if(!MovementState.insideLoadedRegion(tx,ty)){tx=pet.x;ty=pet.y-1;}
-        old.x=tx;old.y=ty;
+        setCanonicalActorPosition(old,false,tx,ty);
         ArrayList<NpcSyncEncoder.Update> retained=new ArrayList<>();for(NpcEntity n:visible)retained.add(NpcSyncEncoder.Update.retain(n));
         w.varShort(65,NpcSyncEncoder.encode(retained,Collections.singletonList(old),movement.x(),movement.y()));
         visible.add(old);miniPet=old;miniTrail.clear();hasMiniTrail=false;
-        canonicalMoveMini();
         sendMask(miniPet,NpcSyncEncoder.Mask.interactionTarget(pet.sceneIndex),w);
         return "MINIPET_BROKEN_TRAIL_REANCHOR scene="+old.sceneIndex+" world="+old.x+","+old.y+" mainPet="+pet.x+","+pet.y;
     }
@@ -594,6 +594,7 @@ final class NpcRegistry {
 
     /** Normal gameplay cadence: one NPC walk step per 600 ms world tick. */
     long followDelayMs(MovementState movement){
+        refreshCanonicalActorProjections();
         if(pet==null) return Long.MAX_VALUE;
         Long override=dev.petFollowDelayMs();
         if(override!=null)return override.longValue();
@@ -650,12 +651,16 @@ final class NpcRegistry {
         for(NpcEntity n:visible) remove.add(n==oldPet?NpcSyncEncoder.Update.remove(n):NpcSyncEncoder.Update.retain(n));
         w.varShort(65,NpcSyncEncoder.encode(remove,Collections.emptyList(),0,0));
         visible.remove(oldPet);
-        oldPet.x=targetX; oldPet.y=targetY;
+        setCanonicalActorPosition(
+            oldPet,
+            true,
+            targetX,
+            targetY
+        );
         ArrayList<NpcSyncEncoder.Update> retained=new ArrayList<>();
         for(NpcEntity n:visible) retained.add(NpcSyncEncoder.Update.retain(n));
         w.varShort(65,NpcSyncEncoder.encode(retained,Collections.singletonList(oldPet),movement.x(),movement.y(),spawnPresentationFor(oldPet)));
         visible.add(oldPet); pet=oldPet;
-        canonicalMoveMain();
         if(miniPet!=null) sendMask(miniPet,NpcSyncEncoder.Mask.interactionTarget(pet.sceneIndex),w);
         return "PET_TELEPORT_TO_OWNER sceneIndex="+pet.sceneIndex+" npc="+pet.definitionId+" distBefore="+distBefore+" world="+pet.x+","+pet.y+" owner="+movement.x()+","+movement.y()+" targetAuthority="+(safe!=null?"OWNER_CURRENT_ROUTE":"FALLBACK_ADJACENT");
     }
@@ -687,12 +692,14 @@ final class NpcRegistry {
     }
 
     String devSnapToOwner(MovementState movement,ServerPacketWriter w)throws IOException{
+        refreshCanonicalActorProjections();
         if(pet==null) return "REJECTED_NO_ACTIVE_PET";
         int dist=LocalSession.chebyshev(pet.x,pet.y,movement.x(),movement.y());
         return teleportBesideOwner(movement,w,dist);
     }
 
     String devInfo(MovementState movement){
+        refreshCanonicalActorProjections();
         return "DEV_PET_INFO active="+(pet!=null)+" item="+(pet==null?-1:pet.petItemId)+" npc="+(pet==null?-1:pet.definitionId)+
             " pet="+(pet==null?"none":pet.x+","+pet.y)+" owner="+movement.x()+","+movement.y()+" queued="+ownerTrail.size()+
             " particle="+(dev.petParticleSelector()==null?"AUTO":dev.petParticleSelector())+" follow="+(dev.petFollowFrozen()?"FROZEN":"LIVE")+
@@ -975,31 +982,136 @@ final class NpcRegistry {
         miniPet.bindCanonicalId(canonical.id);
     }
 
-    private void canonicalMoveMain(){
-        if(worldPets==null||canonicalOwnerId==null||pet==null)
+    private void refreshCanonicalActorProjections(){
+        if(worldPets==null||canonicalOwnerId==null)
             return;
-        worldPets.moveMain(
-            canonicalOwnerId,
-            pet.x,
-            pet.y,
-            0
-        );
+
+        if(pet!=null){
+            WorldNpc canonical=
+                worldPets.main(canonicalOwnerId);
+            if(canonical!=null){
+                pet.bindCanonicalId(canonical.id);
+                pet.x=canonical.x();
+                pet.y=canonical.y();
+            }
+        }
+
+        if(miniPet!=null){
+            WorldNpc canonical=
+                worldPets.mini(canonicalOwnerId);
+            if(canonical!=null){
+                miniPet.bindCanonicalId(canonical.id);
+                miniPet.x=canonical.x();
+                miniPet.y=canonical.y();
+            }
+        }
     }
 
-    private void canonicalMoveMini(){
-        if(worldPets==null||canonicalOwnerId==null||miniPet==null)
+    private void applyPetDirection(
+        NpcEntity actor,
+        int direction,
+        boolean main
+    ){
+        if(actor==null)
+            throw new NullPointerException("actor");
+
+        if(worldPets==null||canonicalOwnerId==null){
+            applyDirection(actor,direction);
             return;
-        worldPets.moveMini(
-            canonicalOwnerId,
-            miniPet.x,
-            miniPet.y,
-            0
-        );
+        }
+
+        WorldNpc canonical=
+            main
+                ?worldPets.main(canonicalOwnerId)
+                :worldPets.mini(canonicalOwnerId);
+
+        if(canonical==null)
+            throw new IllegalStateException(
+                (main?"main":"mini")+
+                " pet projection has no canonical World actor"
+            );
+
+        actor.bindCanonicalId(canonical.id);
+
+        int[] delta=directionDelta(direction);
+        int targetX=canonical.x()+delta[0];
+        int targetY=canonical.y()+delta[1];
+
+        WorldNpc moved=
+            main
+                ?worldPets.moveMain(
+                    canonicalOwnerId,
+                    targetX,
+                    targetY,
+                    canonical.plane()
+                )
+                :worldPets.moveMini(
+                    canonicalOwnerId,
+                    targetX,
+                    targetY,
+                    canonical.plane()
+                );
+
+        if(moved==null)
+            throw new IllegalStateException(
+                (main?"main":"mini")+
+                " canonical movement target disappeared"
+            );
+
+        actor.x=moved.x();
+        actor.y=moved.y();
     }
 
-    private void canonicalMoveActors(){
-        canonicalMoveMain();
-        canonicalMoveMini();
+    private void setCanonicalActorPosition(
+        NpcEntity actor,
+        boolean main,
+        int x,
+        int y
+    ){
+        if(actor==null)
+            throw new NullPointerException("actor");
+
+        if(worldPets==null||canonicalOwnerId==null){
+            actor.x=x;
+            actor.y=y;
+            return;
+        }
+
+        WorldNpc canonical=
+            main
+                ?worldPets.main(canonicalOwnerId)
+                :worldPets.mini(canonicalOwnerId);
+
+        if(canonical==null)
+            throw new IllegalStateException(
+                (main?"main":"mini")+
+                " pet projection has no canonical World actor"
+            );
+
+        WorldNpc moved=
+            main
+                ?worldPets.moveMain(
+                    canonicalOwnerId,
+                    x,
+                    y,
+                    canonical.plane()
+                )
+                :worldPets.moveMini(
+                    canonicalOwnerId,
+                    x,
+                    y,
+                    canonical.plane()
+                );
+
+        if(moved==null)
+            throw new IllegalStateException(
+                (main?"main":"mini")+
+                " canonical actor disappeared during reanchor"
+            );
+
+        actor.bindCanonicalId(moved.id);
+        actor.x=moved.x();
+        actor.y=moved.y();
     }
 
     private void canonicalRemoveMini(){
