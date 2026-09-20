@@ -116,9 +116,13 @@ final class MovementState {
                 int nx=cx+Integer.signum(tx-cx),ny=cy+Integer.signum(ty-cy);
                 int dir=direction(cx,cy,nx,ny);
                 if(dir<0){rejectedPaths++;return "REJECT_NON_ADJACENT_STEP from="+cx+","+cy+" to="+nx+","+ny;}
-                // HOME keeps the already-certified client-submitted path policy.
-                // External cache regions add exact-current static collision.
-                if(transientRegion && !WorldCollisionAuthority.canStep(cx,cy,plane,nx,ny)){
+                // Collision ownership is explicit even while HOME preserves the
+                // certified client-submitted compatibility policy.
+                CollisionStepAuthority.Policy collisionPolicy=
+                    CollisionStepAuthority.movementPolicy(this);
+                if(!CollisionStepAuthority.canStep(
+                        collisionPolicy,
+                        cx,cy,plane,nx,ny)){
                     rejectedPaths++;return "REJECT_STATIC_COLLISION from="+cx+","+cy+" to="+nx+","+ny+" plane="+plane;
                 }
                 proposed.addLast(new Step(nx,ny,dir));cx=nx;cy=ny;
