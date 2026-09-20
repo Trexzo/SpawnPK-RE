@@ -57,6 +57,14 @@ final class PlayerCombatResolutionService {
         this.hooks=Objects.requireNonNull(hooks,"hooks");
     }
 
+    String damageAuthority(){
+        return damageRules.authority();
+    }
+
+    String damageFormula(){
+        return damageRules.formula();
+    }
+
     Result resolveImmediate(
         WorldPlayer target,
         int weaponId,
