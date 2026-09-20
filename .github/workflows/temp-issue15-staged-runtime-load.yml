@@ -1,0 +1,37 @@
+name: Temporary Issue 15 staged runtime load validation
+
+on:
+  push:
+    branches:
+      - refactor/issue-15-staged-runtime-load
+
+jobs:
+  validate:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Compile current source tree
+        shell: pwsh
+        run: ./server/build.ps1
+      - name: Run staged runtime repository load regression
+        shell: pwsh
+        run: java -cp server/build/classes spk.local.RuntimeRepositoryLoadTest
+      - name: Run runtime repository save regression
+        shell: pwsh
+        run: java -cp server/build/classes spk.local.RuntimeRepositorySaveTest
+      - name: Run repository foundation regression
+        shell: pwsh
+        run: java -cp server/build/classes spk.local.PlayerRepositoryFoundationTest
+      - name: Run legacy account persistence regression
+        shell: pwsh
+        run: java -cp server/build/classes spk.local.AccountPersistenceTest
+      - name: Run dual profile persistence regression
+        shell: pwsh
+        run: java -cp server/build/classes spk.local.LocalAccountProfilesTest
+      - name: Run secondary account selection regression
+        shell: pwsh
+        run: java -cp server/build/classes spk.local.SecondaryAccountSelectionTest
