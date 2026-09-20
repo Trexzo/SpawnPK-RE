@@ -80,34 +80,6 @@ final class EquipmentState {
 
     int occupiedSlots() { int n=0; for (int item : items) if (item >= 0) n++; return n; }
 
-    void saveAccountProperties(java.util.Properties p) {
-        for (int i=0;i<items.length;i++) {
-            p.setProperty("equipment."+i, Integer.toString(items[i]));
-            p.setProperty("equipmentQty."+i, Integer.toString(quantityAt(i)));
-        }
-    }
-
-    void loadAccountProperties(java.util.Properties p) {
-        int[] next = new int[EQUIPMENT_SLOTS];
-        int[] nextQty = new int[EQUIPMENT_SLOTS];
-        Arrays.fill(next, -1);
-        for (int i=0;i<next.length;i++) {
-            String v=p.getProperty("equipment."+i);
-            if (v==null) continue;
-            try { next[i]=Integer.parseInt(v); } catch (Exception e) { throw new IllegalArgumentException("bad equipment."+i+"="+v); }
-            if(next[i]>=0){
-                String q=p.getProperty("equipmentQty."+i);
-                if(q==null || q.isEmpty()) nextQty[i]=1; // backward-compatible pre-v5.7 account
-                else {
-                    try { nextQty[i]=Integer.parseInt(q); } catch(Exception e){ throw new IllegalArgumentException("bad equipmentQty."+i+"="+q); }
-                    if(nextQty[i]<=0) nextQty[i]=1;
-                }
-            }
-        }
-        System.arraycopy(next,0,items,0,items.length);
-        System.arraycopy(nextQty,0,quantities,0,quantities.length);
-    }
-
     int[] appearanceItems() {
         int[] out = new int[APPEARANCE_SLOTS];
         Arrays.fill(out, -1);
