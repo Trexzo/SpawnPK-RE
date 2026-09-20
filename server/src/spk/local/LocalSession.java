@@ -71,6 +71,7 @@ final class LocalSession implements Runnable {
     private final LocalSessionUiActionHandler uiActions;
     private final LocalPetDropPickupHandler petDropPickup;
     private final LocalMovementRequestHandler movementRequests;
+    private final LocalRegionStreamHandler regionStreams;
     private SceneUpdatePublisher scenePublisher;
     private ServerPacketWriter sessionPackets;
     private OutboundPacketQueue outboundPackets;
@@ -416,6 +417,35 @@ final class LocalSession implements Runnable {
                     );
                 }
             });
+        this.regionStreams = new LocalRegionStreamHandler(
+            movementEnabled,
+            world,
+            worldPlayer,
+            movement,
+            homeWorld,
+            npcs,
+            playerInteractions,
+            combat,
+            new LocalRegionStreamHandler.SessionBridge(){
+                @Override public String username(){
+                    return LocalSession.this.username;
+                }
+
+                @Override public SceneUpdatePublisher scenePublisher(){
+                    return LocalSession.this.scenePublisher;
+                }
+
+                @Override public void replaceScenePublisher(
+                    SceneUpdatePublisher replacement
+                ){
+                    LocalSession.this.scenePublisher=replacement;
+                }
+
+                @Override public void resetPetFollowRuntime(){
+                    LocalSession.this.nextPetFollowAt=Long.MAX_VALUE;
+                    LocalSession.this.petFollowRealtimeScheduled=false;
+                }
+            });
         if (movementEnabled && !bootstrap) throw new IllegalArgumentException("movement requires bootstrap");
     }
 
@@ -738,7 +768,7 @@ final class LocalSession implements Runnable {
         sessionPackets.beginBatch();
         try{
             String tag="[session "+socket.getRemoteSocketAddress()+"] ";
-            if(maybeAutoStreamRegion(sessionPackets,tag)){
+            if(regionStreams.maybeStream(sessionPackets,tag)){
                 legacyTickCount++;
                 return;
             }
@@ -843,69 +873,6 @@ final class LocalSession implements Runnable {
         } finally {
             sessionPackets.endBatch();
         }
-    }
-
-    /**
-     * R8.1 automatic packet-73 scene streaming. The client owns terrain/object
-     * decoding from its current cache; LocalLab only recenters the 104x104 scene
-     * before the player reaches its black/unloaded edge. Dynamic SpawnPK overlays
-     * outside HOME remain deliberately absent.
-     */
-    private boolean maybeAutoStreamRegion(ServerPacketWriter w,String tag)throws IOException{
-        if(!movementEnabled||world.players().size()!=1)return false;
-
-        // When an exploration window walks well back into HOME, reconnect to the
-        // certified HOME view without teleporting the authoritative world position.
-        if(movement.transientRegion()&&movement.insideHomeInnerCore(24)){
-            movement.restoreHomeWindowAtCurrentPosition();
-            w.fixed(219,new byte[0]);
-            w.fixed(73,BootstrapPackets.region73(385,436));
-            w.varShort(81,BootstrapPackets.player81TeleportNoAppearance(0,movement.y()-MovementState.REGION_BASE_Y,movement.x()-MovementState.REGION_BASE_X));
-            scenePublisher=new SceneUpdatePublisher(w,new SceneCoordinateContext(MovementState.REGION_BASE_X,MovementState.REGION_BASE_Y,0));
-            HomeObjectOverlayReplayer.Stats scene=homeWorld.replayScene(w,MovementState.REGION_BASE_X,MovementState.REGION_BASE_Y);
-            scenePublisher.context().invalidate();
-            java.util.List<NpcEntity> homeNpcs=npcs.snapshot();
-            if(!homeNpcs.isEmpty())w.varShort(65,NpcSyncEncoder.initial(homeNpcs,movement.x(),movement.y()));
-            int replay=0;for(GroundItem g:world.groundItems().snapshot())if(g.owner==null||g.owner.equalsIgnoreCase(username)){scenePublisher.groundSpawn(g);replay++;}
-            nextPetFollowAt=Long.MAX_VALUE;petFollowRealtimeScheduled=false;
-            System.out.println(tag+"V5181_WORLD_AUTO_HOME_REATTACH world="+movement.x()+","+movement.y()+",0 base="+MovementState.REGION_BASE_X+","+MovementState.REGION_BASE_Y+
-                " packet73=385,436 scene={"+scene+"} npcRepublish="+homeNpcs.size()+" groundReplay="+replay+" dynamicOutsideHome=false");
-            return true;
-        }
-
-        if(!movement.nearLoadedEdge(16))return false;
-        int rid=((movement.x()>>6)<<8)|(movement.y()>>6);
-        WorldRegionAuthorityRepository.Region r=WorldRegionAuthorityRepository.get(rid);
-        if(r==null||!r.mapPresent||!r.terrainParseOk||!WorldCollisionAuthority.hasRegion(rid)){
-            System.out.println(tag+"V5181_WORLD_AUTO_REBASE result=FAIL_CLOSED region="+rid+" world="+movement.x()+","+movement.y()+","+movement.plane()+
-                " authority="+(r==null?"UNKNOWN":("map="+r.mapPresent+" terrain="+r.terrainParseOk+" collision="+WorldCollisionAuthority.hasRegion(rid))));
-            return false;
-        }
-        int chunkX=movement.x()>>3,chunkY=movement.y()>>3;
-        int baseX=(chunkX-6)<<3,baseY=(chunkY-6)<<3;
-        if(baseX==movement.loadedBaseX()&&baseY==movement.loadedBaseY())return false;
-
-        boolean leavingHome=!movement.transientRegion();
-        int removed=0;
-        if(leavingHome){
-            java.util.List<NpcEntity> old=npcs.snapshot();removed=old.size();
-            if(!old.isEmpty()){
-                java.util.ArrayList<NpcSyncEncoder.Update> removals=new java.util.ArrayList<>();
-                for(NpcEntity n:old)removals.add(NpcSyncEncoder.Update.remove(n));
-                w.varShort(65,NpcSyncEncoder.encode(removals,java.util.Collections.emptyList(),movement.x(),movement.y()));
-            }
-            nextPetFollowAt=Long.MAX_VALUE;petFollowRealtimeScheduled=false;
-            TradeService.cancelIfActive(worldPlayer,"AUTO_REGION_REBASE");playerInteractions.clearTargets();combat.cancelForManualMovement();
-        }
-        movement.rebaseLoadedWindow(baseX,baseY,true);
-        w.fixed(219,new byte[0]);
-        w.fixed(73,BootstrapPackets.region73(chunkX,chunkY));
-        w.varShort(81,BootstrapPackets.player81TeleportNoAppearance(movement.plane(),movement.y()-baseY,movement.x()-baseX));
-        scenePublisher=new SceneUpdatePublisher(w,new SceneCoordinateContext(baseX,baseY,movement.plane()));
-        System.out.println(tag+"V5181_WORLD_AUTO_REBASE result=OK region="+rid+" name=["+r.name+"] world="+movement.x()+","+movement.y()+","+movement.plane()+
-            " base="+baseX+","+baseY+" packet73="+chunkX+","+chunkY+" removedHomeNpcView="+removed+
-            " terrain=CLIENT_CACHE collision=EXACT_CURRENT_STATIC dynamicOverlays=UNRESOLVED_SERVER_AUTHORITY");
-        return true;
     }
 
     private void ensurePetFollowScheduled(long now){
