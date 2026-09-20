@@ -1,6 +1,9 @@
 name: TEMP Integration Roadmap 11-16
 
 on:
+  pull_request:
+    branches:
+      - main
   push:
     branches:
       - integration/roadmap-11-16-cumulative-chat1
