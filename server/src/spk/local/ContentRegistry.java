@@ -96,7 +96,7 @@ final class ContentRegistry {
             );
 
         synchronized(this){
-            if(!installedModules.add(
+            if(installedModules.contains(
                     moduleId))
                 throw new IllegalStateException(
                     "content module already installed: "+
@@ -104,29 +104,38 @@ final class ContentRegistry {
                 );
         }
 
-        ContentRegistrar registrar=
+        Registrar registrar=
             new Registrar(
                 moduleId,
                 provenance
             );
 
-        try{
-            module.register(registrar);
-        }catch(Throwable t){
-            synchronized(this){
-                installedModules.remove(
-                    moduleId
-                );
-                removeModuleBindings(
-                    moduleId
-                );
-            }
+        module.register(registrar);
 
-            if(t instanceof RuntimeException)
-                throw (RuntimeException)t;
-            if(t instanceof Error)
-                throw (Error)t;
-            throw new RuntimeException(t);
+        synchronized(this){
+            if(installedModules.contains(
+                    moduleId))
+                throw new IllegalStateException(
+                    "content module already installed: "+
+                    moduleId
+                );
+
+            LinkedHashMap<String,CommandBinding>
+                next=
+                    new LinkedHashMap<>(
+                        commands
+                    );
+
+            for(PendingCommand pending:
+                    registrar.pendingCommands)
+                applyCommand(
+                    next,
+                    pending
+                );
+
+            commands.clear();
+            commands.putAll(next);
+            installedModules.add(moduleId);
         }
     }
 
@@ -232,84 +241,48 @@ final class ContentRegistry {
             );
     }
 
-    private synchronized void registerCommand(
-        String moduleId,
-        ContentProvenance provenance,
-        String name,
-        int priority,
-        ContentCommandHandler handler
+    private static void applyCommand(
+        Map<String,CommandBinding> target,
+        PendingCommand pending
     ){
-        String key=canonical(name);
-
-        if(key.isEmpty())
-            throw new IllegalArgumentException(
-                "command name"
-            );
-
-        Objects.requireNonNull(
-            handler,
-            "handler"
-        );
-
         CommandBinding existing=
-            commands.get(key);
-
-        BindingInfo info=
-            new BindingInfo(
-                "COMMAND",
-                key,
-                moduleId,
-                priority,
-                provenance
+            target.get(
+                pending.info.key
             );
 
         if(existing==null){
-            commands.put(
-                key,
+            target.put(
+                pending.info.key,
                 new CommandBinding(
-                    info,
-                    handler
+                    pending.info,
+                    pending.handler
                 )
             );
             return;
         }
 
-        if(priority==
+        if(pending.info.priority==
                 existing.info.priority)
             throw new IllegalStateException(
                 "content binding conflict kind=COMMAND key="+
-                key+
-                " priority="+priority+
+                pending.info.key+
+                " priority="+
+                pending.info.priority+
                 " existingModule="+
                 existing.info.moduleId+
-                " incomingModule="+moduleId
+                " incomingModule="+
+                pending.info.moduleId
             );
 
-        if(priority>
+        if(pending.info.priority>
                 existing.info.priority)
-            commands.put(
-                key,
+            target.put(
+                pending.info.key,
                 new CommandBinding(
-                    info,
-                    handler
+                    pending.info,
+                    pending.handler
                 )
             );
-    }
-
-    private synchronized void removeModuleBindings(
-        String moduleId
-    ){
-        for(Iterator<Map.Entry<String,CommandBinding>>
-                it=commands.entrySet()
-                    .iterator();
-            it.hasNext();){
-            Map.Entry<String,CommandBinding>
-                entry=it.next();
-
-            if(entry.getValue().info.moduleId
-                    .equals(moduleId))
-                it.remove();
-        }
     }
 
     private static String cleanModuleId(
@@ -339,11 +312,26 @@ final class ContentRegistry {
                 );
     }
 
-    private final class Registrar
+    private static final class PendingCommand {
+        final BindingInfo info;
+        final ContentCommandHandler handler;
+
+        PendingCommand(
+            BindingInfo info,
+            ContentCommandHandler handler
+        ){
+            this.info=info;
+            this.handler=handler;
+        }
+    }
+
+    private static final class Registrar
         implements ContentRegistrar {
 
         private final String moduleId;
         private final ContentProvenance provenance;
+        private final ArrayList<PendingCommand>
+            pendingCommands=new ArrayList<>();
 
         Registrar(
             String moduleId,
@@ -358,12 +346,29 @@ final class ContentRegistry {
             int priority,
             ContentCommandHandler handler
         ){
-            registerCommand(
-                moduleId,
-                provenance,
-                name,
-                priority,
-                handler
+            String key=canonical(name);
+
+            if(key.isEmpty())
+                throw new IllegalArgumentException(
+                    "command name"
+                );
+
+            Objects.requireNonNull(
+                handler,
+                "handler"
+            );
+
+            pendingCommands.add(
+                new PendingCommand(
+                    new BindingInfo(
+                        "COMMAND",
+                        key,
+                        moduleId,
+                        priority,
+                        provenance
+                    ),
+                    handler
+                )
             );
         }
     }
