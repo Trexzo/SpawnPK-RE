@@ -29,7 +29,7 @@ jobs:
       - name: Stress duplicate-src preload guard
         shell: pwsh
         run: |
-          $cp = 'server/build/classes/java/test;server/build/classes/java/main'
+          $cp = 'server/build/classes/java/test;server/build/classes/java/main;server/build/resources/test;server/build/resources/main'
 
           for ($i = 1; $i -le 10; $i++) {
             & java -cp $cp spk.local.DuplicateSrcProfilePreloadGuardTest
