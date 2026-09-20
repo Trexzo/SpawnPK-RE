@@ -29,8 +29,10 @@ jobs:
       - name: Stress duplicate-src preload guard
         shell: pwsh
         run: |
+          $cp = 'server/build/classes/java/test;server/build/classes/java/main'
+
           for ($i = 1; $i -le 10; $i++) {
-            & java -cp server/build/classes spk.local.DuplicateSrcProfilePreloadGuardTest
+            & java -cp $cp spk.local.DuplicateSrcProfilePreloadGuardTest
             if ($LASTEXITCODE -ne 0) {
               throw "DuplicateSrcProfilePreloadGuardTest failed iteration=$i exit=$LASTEXITCODE"
             }
@@ -41,6 +43,8 @@ jobs:
       - name: Run profile and lifecycle guards
         shell: pwsh
         run: |
+          $cp = 'server/build/classes/java/test;server/build/classes/java/main'
+
           $tests = @(
             'SecondaryAccountSelectionTest',
             'LocalSessionPlayerInitializerTest',
@@ -49,7 +53,7 @@ jobs:
           )
 
           foreach ($test in $tests) {
-            & java -cp server/build/classes "spk.local.$test"
+            & java -cp $cp "spk.local.$test"
             if ($LASTEXITCODE -ne 0) {
               throw "$test failed exit=$LASTEXITCODE"
             }
