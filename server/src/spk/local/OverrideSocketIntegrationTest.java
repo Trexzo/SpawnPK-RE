@@ -21,6 +21,9 @@ public final class OverrideSocketIntegrationTest {
     private static void waitCosmetic(Path p,String expected,long ms)throws Exception{
         long end=System.currentTimeMillis()+ms;while(System.currentTimeMillis()<end){if(expected.equals(props(p).getProperty("cosmetic.itemId")))return;Thread.sleep(20);}throw new AssertionError("cosmetic timeout expected="+expected+" actual="+props(p).getProperty("cosmetic.itemId"));
     }
+    private static void waitContains(Path p,String needle,long ms)throws Exception{
+        long end=System.currentTimeMillis()+ms;while(System.currentTimeMillis()<end){if(containsValue(props(p),needle))return;Thread.sleep(20);}throw new AssertionError("account value timeout needle="+needle+" state="+props(p));
+    }
     private static boolean containsValue(Properties p,String needle){for(Object v:p.values())if(String.valueOf(v).contains(needle))return true;return false;}
 
     public static void main(String[]args)throws Exception{
