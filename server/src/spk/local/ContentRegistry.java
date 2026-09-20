@@ -55,9 +55,57 @@ final class ContentRegistry {
         }
     }
 
+    private static final class ObjectOptionKey {
+        final int objectId;
+        final int option;
+
+        ObjectOptionKey(
+            int objectId,
+            int option
+        ){
+            this.objectId=objectId;
+            this.option=option;
+        }
+
+        String diagnosticKey(){
+            return objectId+":"+option;
+        }
+
+        @Override public boolean equals(
+            Object other
+        ){
+            if(this==other)return true;
+            if(!(other instanceof ObjectOptionKey))
+                return false;
+            ObjectOptionKey key=
+                (ObjectOptionKey)other;
+            return objectId==key.objectId&&
+                option==key.option;
+        }
+
+        @Override public int hashCode(){
+            return 31*objectId+option;
+        }
+    }
+
+    private static final class ObjectOptionBinding {
+        final BindingInfo info;
+        final ContentObjectOptionHandler handler;
+
+        ObjectOptionBinding(
+            BindingInfo info,
+            ContentObjectOptionHandler handler
+        ){
+            this.info=info;
+            this.handler=handler;
+        }
+    }
+
     private final World world;
     private final LinkedHashMap<String,CommandBinding>
         commands=new LinkedHashMap<>();
+    private final LinkedHashMap<ObjectOptionKey,ObjectOptionBinding>
+        objectOptions=new LinkedHashMap<>();
     private final LinkedHashSet<String>
         installedModules=new LinkedHashSet<>();
 
@@ -121,20 +169,39 @@ final class ContentRegistry {
                 );
 
             LinkedHashMap<String,CommandBinding>
-                next=
+                nextCommands=
                     new LinkedHashMap<>(
                         commands
+                    );
+
+            LinkedHashMap<ObjectOptionKey,ObjectOptionBinding>
+                nextObjectOptions=
+                    new LinkedHashMap<>(
+                        objectOptions
                     );
 
             for(PendingCommand pending:
                     registrar.pendingCommands)
                 applyCommand(
-                    next,
+                    nextCommands,
+                    pending
+                );
+
+            for(PendingObjectOption pending:
+                    registrar.pendingObjectOptions)
+                applyObjectOption(
+                    nextObjectOptions,
                     pending
                 );
 
             commands.clear();
-            commands.putAll(next);
+            commands.putAll(nextCommands);
+
+            objectOptions.clear();
+            objectOptions.putAll(
+                nextObjectOptions
+            );
+
             installedModules.add(moduleId);
         }
     }
@@ -200,12 +267,60 @@ final class ContentRegistry {
         );
     }
 
+    ContentInteractionResult dispatchObjectOption(
+        int objectId,
+        int option,
+        int worldX,
+        int worldY
+    ){
+        requireWorldThread();
+
+        ObjectOptionBinding binding;
+
+        synchronized(this){
+            binding=objectOptions.get(
+                new ObjectOptionKey(
+                    objectId,
+                    option
+                )
+            );
+        }
+
+        if(binding==null)
+            return null;
+
+        return binding.handler.handle(
+            new ObjectOptionContext(
+                objectId,
+                option,
+                worldX,
+                worldY
+            )
+        );
+    }
+
     synchronized BindingInfo commandBinding(
         String name
     ){
         CommandBinding binding=
             commands.get(
                 canonical(name)
+            );
+        return binding==null
+            ?null
+            :binding.info;
+    }
+
+    synchronized BindingInfo objectOptionBinding(
+        int objectId,
+        int option
+    ){
+        ObjectOptionBinding binding=
+            objectOptions.get(
+                new ObjectOptionKey(
+                    objectId,
+                    option
+                )
             );
         return binding==null
             ?null
@@ -220,6 +335,10 @@ final class ContentRegistry {
                 commands.values())
             result.add(binding.info);
 
+        for(ObjectOptionBinding binding:
+                objectOptions.values())
+            result.add(binding.info);
+
         return Collections.unmodifiableList(
             result
         );
@@ -229,6 +348,8 @@ final class ContentRegistry {
         return "ContentRegistry{modules="+
             installedModules.size()+
             ",commands="+commands.size()+
+            ",objectOptions="+
+                objectOptions.size()+
             ",bindings="+bindings()+
             "}";
     }
@@ -263,15 +384,9 @@ final class ContentRegistry {
 
         if(pending.info.priority==
                 existing.info.priority)
-            throw new IllegalStateException(
-                "content binding conflict kind=COMMAND key="+
-                pending.info.key+
-                " priority="+
-                pending.info.priority+
-                " existingModule="+
-                existing.info.moduleId+
-                " incomingModule="+
-                pending.info.moduleId
+            throw conflict(
+                pending.info,
+                existing.info
             );
 
         if(pending.info.priority>
@@ -283,6 +398,60 @@ final class ContentRegistry {
                     pending.handler
                 )
             );
+    }
+
+    private static void applyObjectOption(
+        Map<ObjectOptionKey,ObjectOptionBinding> target,
+        PendingObjectOption pending
+    ){
+        ObjectOptionBinding existing=
+            target.get(
+                pending.key
+            );
+
+        if(existing==null){
+            target.put(
+                pending.key,
+                new ObjectOptionBinding(
+                    pending.info,
+                    pending.handler
+                )
+            );
+            return;
+        }
+
+        if(pending.info.priority==
+                existing.info.priority)
+            throw conflict(
+                pending.info,
+                existing.info
+            );
+
+        if(pending.info.priority>
+                existing.info.priority)
+            target.put(
+                pending.key,
+                new ObjectOptionBinding(
+                    pending.info,
+                    pending.handler
+                )
+            );
+    }
+
+    private static IllegalStateException conflict(
+        BindingInfo incoming,
+        BindingInfo existing
+    ){
+        return new IllegalStateException(
+            "content binding conflict kind="+
+            incoming.kind+
+            " key="+incoming.key+
+            " priority="+incoming.priority+
+            " existingModule="+
+            existing.moduleId+
+            " incomingModule="+
+            incoming.moduleId
+        );
     }
 
     private static String cleanModuleId(
@@ -325,6 +494,22 @@ final class ContentRegistry {
         }
     }
 
+    private static final class PendingObjectOption {
+        final ObjectOptionKey key;
+        final BindingInfo info;
+        final ContentObjectOptionHandler handler;
+
+        PendingObjectOption(
+            ObjectOptionKey key,
+            BindingInfo info,
+            ContentObjectOptionHandler handler
+        ){
+            this.key=key;
+            this.info=info;
+            this.handler=handler;
+        }
+    }
+
     private static final class Registrar
         implements ContentRegistrar {
 
@@ -332,6 +517,9 @@ final class ContentRegistry {
         private final ContentProvenance provenance;
         private final ArrayList<PendingCommand>
             pendingCommands=new ArrayList<>();
+        private final ArrayList<PendingObjectOption>
+            pendingObjectOptions=
+                new ArrayList<>();
 
         Registrar(
             String moduleId,
@@ -363,6 +551,48 @@ final class ContentRegistry {
                     new BindingInfo(
                         "COMMAND",
                         key,
+                        moduleId,
+                        priority,
+                        provenance
+                    ),
+                    handler
+                )
+            );
+        }
+
+        @Override public void objectOption(
+            int objectId,
+            int option,
+            int priority,
+            ContentObjectOptionHandler handler
+        ){
+            if(objectId<0)
+                throw new IllegalArgumentException(
+                    "objectId"
+                );
+
+            if(option<1||option>5)
+                throw new IllegalArgumentException(
+                    "object option"
+                );
+
+            Objects.requireNonNull(
+                handler,
+                "handler"
+            );
+
+            ObjectOptionKey key=
+                new ObjectOptionKey(
+                    objectId,
+                    option
+                );
+
+            pendingObjectOptions.add(
+                new PendingObjectOption(
+                    key,
+                    new BindingInfo(
+                        "OBJECT_OPTION",
+                        key.diagnosticKey(),
                         moduleId,
                         priority,
                         provenance
@@ -414,6 +644,43 @@ final class ContentRegistry {
 
         @Override public ContentPresentation presentation(){
             return presentation;
+        }
+    }
+
+    private static final class ObjectOptionContext
+        implements ContentObjectOptionContext {
+
+        private final int objectId;
+        private final int option;
+        private final int worldX;
+        private final int worldY;
+
+        ObjectOptionContext(
+            int objectId,
+            int option,
+            int worldX,
+            int worldY
+        ){
+            this.objectId=objectId;
+            this.option=option;
+            this.worldX=worldX;
+            this.worldY=worldY;
+        }
+
+        @Override public int objectId(){
+            return objectId;
+        }
+
+        @Override public int option(){
+            return option;
+        }
+
+        @Override public int worldX(){
+            return worldX;
+        }
+
+        @Override public int worldY(){
+            return worldY;
         }
     }
 }
