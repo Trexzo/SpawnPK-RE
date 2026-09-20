@@ -43,13 +43,6 @@ final class MarketplaceListing {
         @Override public String toString(){return "MarketplaceListingSnapshot{id="+listingId+",state="+state+",owner="+ownerRef+",item="+itemRef+",sold="+soldQuantity+"/"+totalQuantity+",priceEach="+priceEach+",currency="+currencyRef+",authority="+sourceAuthority+"}";}
     }
 
-    static final class AppliedFill {
-        final String buyerRef;
-        final long quantity;
-        AppliedFill(String buyerRef,long quantity){this.buyerRef=buyerRef;this.quantity=quantity;}
-        boolean matches(String buyer,long qty){return buyerRef.equals(buyer)&&quantity==qty;}
-    }
-
     final Id id;
     final String ownerRef;
     final String itemRef;
@@ -58,7 +51,6 @@ final class MarketplaceListing {
     final String currencyRef;
     final AtomicTransactionService.TransactionId sellerEscrowTransactionId;
     final AtomicTransactionService.SourceAuthority sourceAuthority;
-    final LinkedHashMap<AtomicTransactionService.TransactionId,AppliedFill> appliedFills=new LinkedHashMap<>();
     long remainingQuantity;
     State state=State.DRAFT;
 
