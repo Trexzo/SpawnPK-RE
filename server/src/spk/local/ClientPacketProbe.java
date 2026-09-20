@@ -45,7 +45,6 @@ final class ClientPacketProbe {
     private NpcAction pendingNpcAction;
     private ItemOnItemAction pendingItemOnItem;
     private SpellTargetRequest pendingSpellTarget;
-    private GroundItemInteraction pendingGroundItemInteraction;
 
     ClientPacketProbe(InputStream in, IsaacCipher cipher, String tag) {
         this.in = in;
@@ -91,12 +90,6 @@ final class ClientPacketProbe {
     SpellTargetRequest takeSpellTarget(){
         SpellTargetRequest v=pendingSpellTarget;
         pendingSpellTarget=null;
-        return v;
-    }
-
-    GroundItemInteraction takeGroundItemInteraction(){
-        GroundItemInteraction v=pendingGroundItemInteraction;
-        pendingGroundItemInteraction=null;
         return v;
     }
 
@@ -461,12 +454,44 @@ final class ClientPacketProbe {
             case 79: {
                 byte[] body=Binary.readExactly(in,6);
                 int option,worldX,worldY,item;
-                if(opcode==156){ option=1; worldX=beA(body,0); worldY=le(body,2); item=leA(body,4); }
-                else if(opcode==23){ option=2; worldY=le(body,0); item=le(body,2); worldX=le(body,4); }
-                else if(opcode==236){ option=3; worldY=le(body,0); item=be(body,2); worldX=le(body,4); }
-                else if(opcode==253){ option=4; worldX=le(body,0); worldY=leA(body,2); item=beA(body,4); }
-                else { option=5; worldY=le(body,0); item=be(body,2); worldX=beA(body,4); }
-                pendingGroundItemInteraction=new GroundItemInteraction(opcode,option,item,worldX,worldY);
+                String requestSchema;
+                if(opcode==156){
+                    option=1; worldX=beA(body,0); worldY=le(body,2); item=leA(body,4);
+                    requestSchema="FIXED6_WORLD_X_BE_A_WORLD_Y_LE_ITEM_LE_A";
+                }else if(opcode==23){
+                    option=2; worldY=le(body,0); item=le(body,2); worldX=le(body,4);
+                    requestSchema="FIXED6_WORLD_Y_LE_ITEM_LE_WORLD_X_LE";
+                }else if(opcode==236){
+                    option=3; worldY=le(body,0); item=be(body,2); worldX=le(body,4);
+                    requestSchema="FIXED6_WORLD_Y_LE_ITEM_BE_WORLD_X_LE";
+                }else if(opcode==253){
+                    option=4; worldX=le(body,0); worldY=leA(body,2); item=beA(body,4);
+                    requestSchema="FIXED6_WORLD_X_LE_WORLD_Y_LE_A_ITEM_BE_A";
+                }else{
+                    option=5; worldY=le(body,0); item=be(body,2); worldX=beA(body,4);
+                    requestSchema="FIXED6_WORLD_Y_LE_ITEM_BE_WORLD_X_BE_A";
+                }
+
+                offerTypedRequest(
+                    new GroundItemClientRequest(
+                        new GroundItemInteraction(
+                            opcode,
+                            option,
+                            item,
+                            worldX,
+                            worldY
+                        ),
+                        ClientRequestMetadata.exactCurrent(
+                            opcode,
+                            requestSchema,
+                            "PINNED_CLIENT_GROUND_ITEM_OPTION_"+
+                                option+
+                                "_WRITER"
+                        )
+                    ),
+                    opcode
+                );
+
                 System.out.printf("%sCLIENT_PACKET seq=%d opcode=%d len=6 groundOption=%d item=%d world=%d,%d schema=STATIC_EXACT%n",
                     tag,decodedCount,opcode,option,item,worldX,worldY);
                 return true;
