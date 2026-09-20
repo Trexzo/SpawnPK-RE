@@ -6,6 +6,7 @@ import spk.content.api.ContentProvenance;
 import spk.content.builtin.LocalLabCoreContentModule;
 import spk.content.builtin.UnknownServerInteractionModule;
 import spk.content.builtin.RuntimeProvenNpcInteractionModule;
+import spk.event.DomainEventBus;
 
 /** Shared authoritative ownership root. R2 adds membership, one WorldPulse and command execution. */
 final class World implements AutoCloseable {
@@ -21,6 +22,7 @@ final class World implements AutoCloseable {
     private final WorldPetNpcService petNpcs=new WorldPetNpcService(npcs);
     private final WorldNpcPresentationEvents npcPresentationEvents=new WorldNpcPresentationEvents();
     private final WorldCommandInbox commands=new WorldCommandInbox();
+    private final DomainEventBus domainEvents;
     private final LinkedHashMap<EntityId,WorldTickTarget> tickTargets=new LinkedHashMap<>();
     private final WorldPulse pulse;
     private final WorldPlayerPersistence persistence;
@@ -38,6 +40,9 @@ final class World implements AutoCloseable {
         PlayerRepository repository
     ){
         pulse=new WorldPulse(this,tickMillis);
+        domainEvents=new DomainEventBus(
+            () -> pulse.inExecutionContext()
+        );
         persistence=
             new WorldPlayerPersistence(
                 this,
@@ -82,6 +87,7 @@ final class World implements AutoCloseable {
     WorldPetNpcService petNpcs(){return petNpcs;}
     WorldNpcPresentationEvents npcPresentationEvents(){return npcPresentationEvents;}
     WorldCommandInbox commands(){return commands;}
+    DomainEventBus domainEvents(){return domainEvents;}
     WorldPulse pulse(){return pulse;}
     WorldPlayerPersistence persistence(){return persistence;}
     ContentRegistry content(){return content;}
