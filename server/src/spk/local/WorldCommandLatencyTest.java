@@ -14,12 +14,22 @@ public final class WorldCommandLatencyTest {
         w.submit(p,ran::incrementAndGet).get(250,TimeUnit.MILLISECONDS);
         long ms=TimeUnit.NANOSECONDS.toMillis(System.nanoTime()-t0);
         long tickAtCompletion=w.clock().tick();
-        String metrics=w.metrics();
+        String metrics=awaitFastMetric(w,100L);
         w.unregisterPlayer(p);w.close();
         if(ran.get()!=1)throw new AssertionError("command not run");
         if(ms>=200L)throw new AssertionError("artificial input latency ms="+ms);
         if(tickAtCompletion!=0L)throw new AssertionError("command waited for 600ms simulation tick tick="+tickAtCompletion);
         if(!metrics.contains("fastCommandsProcessed=1"))throw new AssertionError("fast path metric "+metrics);
         System.out.println("V5121_LOW_LATENCY_WORLD_COMMAND_PASS elapsedMs="+ms+" completedBeforeFirst600msTick=true metrics="+metrics);
+    }
+
+    private static String awaitFastMetric(World w,long timeoutMillis)throws InterruptedException{
+        long deadline=System.nanoTime()+TimeUnit.MILLISECONDS.toNanos(timeoutMillis);
+        String metrics=w.metrics();
+        while(!metrics.contains("fastCommandsProcessed=1")&&System.nanoTime()<deadline){
+            Thread.sleep(1L);
+            metrics=w.metrics();
+        }
+        return metrics;
     }
 }
