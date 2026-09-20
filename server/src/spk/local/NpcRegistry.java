@@ -103,6 +103,13 @@ final class NpcRegistry {
     NpcEntity pet(){ return pet; }
     NpcEntity miniPet(){ return miniPet; }
     NpcEntity scene(int sceneIndex){ return findScene(sceneIndex); }
+    NpcEntity canonical(EntityId canonicalId){
+        if(canonicalId==null)return null;
+        for(NpcEntity npc:visible)
+            if(canonicalId.equals(npc.canonicalId()))
+                return npc;
+        return null;
+    }
     int visibleCount(){return visible.size();}
     List<NpcEntity> snapshot(){return new ArrayList<>(visible);}
 
@@ -923,6 +930,8 @@ final class NpcRegistry {
     }
 
     EntityId canonicalPetId(){
+        if(pet!=null&&pet.canonicalId()!=null)
+            return pet.canonicalId();
         if(worldPets==null||canonicalOwnerId==null)
             return null;
         WorldNpc canonical=worldPets.main(canonicalOwnerId);
@@ -930,6 +939,8 @@ final class NpcRegistry {
     }
 
     EntityId canonicalMiniPetId(){
+        if(miniPet!=null&&miniPet.canonicalId()!=null)
+            return miniPet.canonicalId();
         if(worldPets==null||canonicalOwnerId==null)
             return null;
         WorldNpc canonical=worldPets.mini(canonicalOwnerId);
@@ -939,7 +950,7 @@ final class NpcRegistry {
     private void canonicalEnsureMain(int sourceItemId){
         if(worldPets==null||canonicalOwnerId==null||pet==null)
             return;
-        worldPets.ensureMain(
+        WorldNpc canonical=worldPets.ensureMain(
             canonicalOwnerId,
             pet.definitionId,
             sourceItemId,
@@ -947,12 +958,13 @@ final class NpcRegistry {
             pet.y,
             0
         );
+        pet.bindCanonicalId(canonical.id);
     }
 
     private void canonicalEnsureMini(int sourceItemId){
         if(worldPets==null||canonicalOwnerId==null||miniPet==null)
             return;
-        worldPets.ensureMini(
+        WorldNpc canonical=worldPets.ensureMini(
             canonicalOwnerId,
             miniPet.definitionId,
             sourceItemId,
@@ -960,6 +972,7 @@ final class NpcRegistry {
             miniPet.y,
             0
         );
+        miniPet.bindCanonicalId(canonical.id);
     }
 
     private void canonicalMoveMain(){
