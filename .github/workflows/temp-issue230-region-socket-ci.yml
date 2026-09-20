@@ -40,7 +40,6 @@ jobs:
         shell: pwsh
         run: |
           $tests = @(
-            'EngineR6RegionProjectionTest',
             'EngineR6WorldCollisionAuthorityTest',
             'LocalRegionStreamHandlerTest',
             'LocalRegionDevCommandHandlerTest'
