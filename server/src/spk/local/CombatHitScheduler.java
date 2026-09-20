@@ -83,8 +83,45 @@ final class CombatHitScheduler {
         long attackTick,
         CombatDamageRules.Result rules
     ){
+        return schedule(
+            target,
+            damage,
+            hitType,
+            hp,
+            maxHp,
+            targetGfx,
+            attackTick,
+            LOCALLAB_COMPAT_DELAY_TICKS,
+            rules,
+            DELAY_AUTHORITY
+        );
+    }
+
+    PendingHit schedule(
+        NpcEntity target,
+        int damage,
+        int hitType,
+        int hp,
+        int maxHp,
+        int targetGfx,
+        long attackTick,
+        long delayTicks,
+        CombatDamageRules.Result rules,
+        String delayAuthority
+    ){
         Objects.requireNonNull(target,"target");
         Objects.requireNonNull(rules,"rules");
+
+        if(delayTicks<0)
+            throw new IllegalArgumentException(
+                "delayTicks="+delayTicks
+            );
+
+        String authority=
+            delayAuthority==null||
+            delayAuthority.isEmpty()
+                ?"UNSPECIFIED_DELAY_AUTHORITY"
+                :delayAuthority;
 
         PendingHit hit=
             new PendingHit(
@@ -96,10 +133,10 @@ final class CombatHitScheduler {
                 maxHp,
                 targetGfx,
                 attackTick,
-                attackTick+LOCALLAB_COMPAT_DELAY_TICKS,
+                attackTick+delayTicks,
                 rules.authority,
                 rules.formula,
-                DELAY_AUTHORITY
+                authority
             );
 
         state.pendingHits.addLast(hit);
