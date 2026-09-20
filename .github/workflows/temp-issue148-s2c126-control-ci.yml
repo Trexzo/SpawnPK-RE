@@ -1,0 +1,45 @@
+name: temp-issue148-s2c126-control-ci
+
+on:
+  push:
+    branches:
+      - protocol/issue-148-s2c126-application-control
+
+jobs:
+  validate:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Canonical server build
+        shell: pwsh
+        run: ./server/build.ps1
+
+      - name: Typed S2C126 regression
+        shell: pwsh
+        run: |
+          java -cp server/build/SpawnPKLocalServer.jar spk.local.ApplicationControl126ServiceTest
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Inherited application protocol regressions
+        shell: pwsh
+        run: |
+          $tests = @(
+            'spk.local.EngineR84ApplicationProtocolAuthorityTest',
+            'spk.local.EngineR85ApplicationProtocolAuthorityTest',
+            'spk.local.ApplicationUiServiceTest',
+            'spk.local.EngineR84ApplicationPanelSocketTest'
+          )
+
+          foreach ($test in $tests) {
+            Write-Host "=== $test ==="
+            java -cp server/build/SpawnPKLocalServer.jar $test
+            if ($LASTEXITCODE -ne 0) {
+              throw "$test failed with exit code $LASTEXITCODE"
+            }
+          }
