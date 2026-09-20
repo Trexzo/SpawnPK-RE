@@ -15,6 +15,7 @@ final class WorldNpcPresentationEvents {
         static final int SCENE=0;
         static final int PET=1;
         static final int MINI=2;
+        static final int CANONICAL=3;
 
         final int kind;
         final int scene;
@@ -63,6 +64,22 @@ final class WorldNpcPresentationEvents {
         ){
             return new Target(
                 MINI,
+                -1,
+                definition,
+                canonicalId
+            );
+        }
+
+        static Target canonical(
+            EntityId canonicalId,
+            int definition
+        ){
+            if(canonicalId==null)
+                throw new NullPointerException(
+                    "canonicalId"
+                );
+            return new Target(
+                CANONICAL,
                 -1,
                 definition,
                 canonicalId
