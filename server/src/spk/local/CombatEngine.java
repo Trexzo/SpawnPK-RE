@@ -104,8 +104,13 @@ final class CombatEngine {
     }
 
     String request(NpcEntity npc,MovementState movement,int weaponId,long now,CombatStyleRepository.Style style,ServerPacketWriter writer)throws IOException{
-        CombatTargetRepository.Target target=CombatTargetRepository.forDefinition(npc.definitionId);
-        if(target==null) return "REJECTED_NOT_COMBAT_TARGET scene="+npc.sceneIndex+" def="+npc.definitionId;
+        CombatTargetValidator.Result validity=
+            CombatTargetValidator.acquireNpc(npc);
+        if(!validity.valid)
+            return "REJECTED_COMBAT_TARGET_"+validity.reason+
+                " detail="+validity.detail;
+        CombatTargetRepository.Target target=
+            CombatTargetRepository.forDefinition(npc.definitionId);
         CombatWeaponProfile weapon=CombatWeaponRepository.resolve(weaponId);
         int range=weapon!=null&&weapon.attackRange>0?weapon.attackRange:1;
         int dist=LocalSession.chebyshev(movement.x(),movement.y(),npc.x,npc.y);
@@ -148,7 +153,18 @@ final class CombatEngine {
         lastDamageThisAction=0;
         if(!state.active()) return null;
         NpcEntity target=npcs.scene(state.targetSceneIndex);
-        if(target==null || target.definitionId!=state.targetDefinitionId){ state.clear(); approachFacingPending=false; return "TARGET_CLEARED_NOT_VISIBLE"; }
+        CombatTargetValidator.Result validity=
+            CombatTargetValidator.activeNpc(
+                target,
+                state
+            );
+        if(!validity.valid){
+            state.clear();
+            approachFacingPending=false;
+            clearApproachEcho();
+            return "TARGET_CLEARED_"+validity.reason+
+                " detail="+validity.detail;
+        }
 
         CombatWeaponProfile profile=CombatWeaponRepository.resolve(equipment.weapon());
         V913WeaponRuntimeAuthority.Profile runtime=V913WeaponRuntimeAuthority.resolve(equipment.weapon());
