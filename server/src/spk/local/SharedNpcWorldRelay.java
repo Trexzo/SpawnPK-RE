@@ -54,7 +54,12 @@ final class SharedNpcWorldRelay {
         synchronized(SharedNpcWorldRelay.class){
             Context src=BY_WRITER.get(sourceWriter);if(src==null)return;
             WorldNpcPresentationEvents.Target target;
-            if(sourceTarget==sourceNpcs.pet())
+            if(sourceTarget.canonicalId()!=null)
+                target=WorldNpcPresentationEvents.Target.canonical(
+                    sourceTarget.canonicalId(),
+                    sourceTarget.definitionId
+                );
+            else if(sourceTarget==sourceNpcs.pet())
                 target=WorldNpcPresentationEvents.Target.pet(
                     sourceNpcs.canonicalPetId(),
                     sourceTarget.definitionId
@@ -331,15 +336,9 @@ final class SharedNpcWorldRelay {
                     petX,
                     petY,
                     32768+playerIndex,
-                    selector
+                    selector,
+                    petCanonicalId
                 );
-
-                if(petCanonicalId!=null&&
-                   t.mainScene>=0)
-                    remoteIndexes.bind(
-                        petCanonicalId,
-                        t.mainScene
-                    );
 
                 t.mainDef=petDef;
                 t.mainX=petX;
@@ -413,15 +412,9 @@ final class SharedNpcWorldRelay {
                         miniX,
                         miniY,
                         t.mainScene,
-                        null
+                        null,
+                        miniCanonicalId
                     );
-
-                    if(miniCanonicalId!=null&&
-                       t.miniScene>=0)
-                        remoteIndexes.bind(
-                            miniCanonicalId,
-                            t.miniScene
-                        );
 
                     t.miniDef=miniDef;
                     t.miniX=miniX;
@@ -467,37 +460,198 @@ final class SharedNpcWorldRelay {
                 removeRemote(id);
         }
 
-        int syncOne(int scene,int oldDef,int def,int oldX,int oldY,int x,int y,int interactionTarget,Integer particleSelector)throws IOException{
-            if(Math.abs(x-movement.x())>15||Math.abs(y-movement.y())>15){if(scene>=0)npcs.devRemoveNpc(scene,writer);return -1;}
-            if(scene<0||oldDef!=def||npcs.scene(scene)==null){
-                if(scene>=0)npcs.devRemoveNpc(scene,writer);
-                NpcEntity e=npcs.spawnMirroredNpc(def,x,y,particleSelector,movement,writer);
-                if(e!=null)npcs.sendMaskLocal(e,NpcSyncEncoder.Mask.interactionTarget(interactionTarget),writer);
-                return e==null?-1:e.sceneIndex;
+        int syncOne(
+            int scene,
+            int oldDef,
+            int def,
+            int oldX,
+            int oldY,
+            int x,
+            int y,
+            int interactionTarget,
+            Integer particleSelector,
+            EntityId canonicalId
+        )throws IOException{
+            if(Math.abs(x-movement.x())>15||
+               Math.abs(y-movement.y())>15){
+                if(scene>=0)
+                    npcs.devRemoveNpc(
+                        scene,
+                        writer
+                    );
+                if(canonicalId!=null)
+                    remoteIndexes.unbind(
+                        canonicalId
+                    );
+                return -1;
             }
-            NpcEntity e=npcs.scene(scene);if(e==null)return -1;
-            int dx=x-oldX,dy=y-oldY;
-            if(dx==0&&dy==0)return scene;
+
+            if(scene<0||
+               oldDef!=def||
+               npcs.scene(scene)==null){
+                if(scene>=0)
+                    npcs.devRemoveNpc(
+                        scene,
+                        writer
+                    );
+                if(canonicalId!=null)
+                    remoteIndexes.unbind(
+                        canonicalId
+                    );
+
+                NpcEntity e=
+                    npcs.spawnMirroredNpc(
+                        def,
+                        x,
+                        y,
+                        particleSelector,
+                        movement,
+                        writer
+                    );
+
+                if(e!=null&&canonicalId!=null){
+                    e.bindCanonicalId(canonicalId);
+                    remoteIndexes.bind(
+                        canonicalId,
+                        e.sceneIndex
+                    );
+                }
+
+                if(e!=null)
+                    npcs.sendMaskLocal(
+                        e,
+                        NpcSyncEncoder.Mask.interactionTarget(
+                            interactionTarget
+                        ),
+                        writer
+                    );
+
+                return e==null
+                    ?-1
+                    :e.sceneIndex;
+            }
+
+            NpcEntity e=npcs.scene(scene);
+            if(e==null)return -1;
+
+            if(canonicalId!=null){
+                e.bindCanonicalId(canonicalId);
+                remoteIndexes.bind(
+                    canonicalId,
+                    scene
+                );
+            }
+
+            int dx=x-oldX;
+            int dy=y-oldY;
+            if(dx==0&&dy==0)
+                return scene;
+
             int d1=-1,d2=-1;
-            if(Math.abs(dx)<=1&&Math.abs(dy)<=1){d1=MovementState.direction(oldX,oldY,x,y);}
-            else if(Math.abs(dx)<=2&&Math.abs(dy)<=2){
-                int mx=oldX+Integer.signum(dx),my=oldY+Integer.signum(dy);d1=MovementState.direction(oldX,oldY,mx,my);d2=MovementState.direction(mx,my,x,y);
+            if(Math.abs(dx)<=1&&
+               Math.abs(dy)<=1){
+                d1=MovementState.direction(
+                    oldX,
+                    oldY,
+                    x,
+                    y
+                );
+            }else if(Math.abs(dx)<=2&&
+                     Math.abs(dy)<=2){
+                int mx=oldX+Integer.signum(dx);
+                int my=oldY+Integer.signum(dy);
+                d1=MovementState.direction(
+                    oldX,
+                    oldY,
+                    mx,
+                    my
+                );
+                d2=MovementState.direction(
+                    mx,
+                    my,
+                    x,
+                    y
+                );
             }
-            if(d1<0 || (Math.max(Math.abs(dx),Math.abs(dy))>1&&d2<0)){
-                npcs.devRemoveNpc(scene,writer);return syncOne(-1,-1,def,x,y,x,y,interactionTarget,particleSelector);
+
+            if(d1<0||
+               (Math.max(
+                    Math.abs(dx),
+                    Math.abs(dy)
+                )>1&&d2<0)){
+                npcs.devRemoveNpc(
+                    scene,
+                    writer
+                );
+                if(canonicalId!=null)
+                    remoteIndexes.unbind(
+                        canonicalId
+                    );
+                return syncOne(
+                    -1,
+                    -1,
+                    def,
+                    x,
+                    y,
+                    x,
+                    y,
+                    interactionTarget,
+                    particleSelector,
+                    canonicalId
+                );
             }
-            ArrayList<NpcSyncEncoder.Update> ups=new ArrayList<>();
+
+            ArrayList<NpcSyncEncoder.Update> ups=
+                new ArrayList<>();
             for(NpcEntity n:npcs.snapshot()){
-                if(n.sceneIndex==scene){ups.add(d2>=0?NpcSyncEncoder.Update.run(n,d1,d2):NpcSyncEncoder.Update.walk(n,d1));}
-                else ups.add(NpcSyncEncoder.Update.retain(n));
+                if(n.sceneIndex==scene)
+                    ups.add(
+                        d2>=0
+                            ?NpcSyncEncoder.Update.run(
+                                n,
+                                d1,
+                                d2
+                            )
+                            :NpcSyncEncoder.Update.walk(
+                                n,
+                                d1
+                            )
+                    );
+                else
+                    ups.add(
+                        NpcSyncEncoder.Update.retain(n)
+                    );
             }
-            writer.varShort(65,NpcSyncEncoder.encode(ups,Collections.<NpcEntity>emptyList(),0,0));
-            e.x=x;e.y=y;
+
+            writer.varShort(
+                65,
+                NpcSyncEncoder.encode(
+                    ups,
+                    Collections.<NpcEntity>emptyList(),
+                    0,
+                    0
+                )
+            );
+
+            e.x=x;
+            e.y=y;
             return scene;
         }
 
         NpcEntity resolve(EntityId sourceId,WorldNpcPresentationEvents.Target ref){
-            if(ref.kind==WorldNpcPresentationEvents.Target.SCENE){
+            if(ref.kind==
+                    WorldNpcPresentationEvents.Target.CANONICAL){
+                NpcEntity canonical=
+                    npcs.canonical(ref.canonicalId);
+                return canonical!=null&&
+                    canonical.definitionId==
+                        ref.definition
+                    ?canonical
+                    :null;
+            }
+
+            if(ref.kind==
+                    WorldNpcPresentationEvents.Target.SCENE){
                 NpcEntity same=npcs.scene(ref.scene);
                 return same!=null&&
                     same.definitionId==ref.definition
