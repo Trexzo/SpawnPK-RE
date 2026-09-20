@@ -1,14 +1,11 @@
 package spk.local;
 
-import java.util.concurrent.atomic.AtomicLong;
-
 /**
  * Gameplay owner independent of the connection.  R2 deliberately composes the
  * already-certified state classes so ownership can move without rewriting them.
  */
 final class WorldPlayer {
-    private static final AtomicLong IDS=new AtomicLong(1L);
-    private final EntityId entityId=new EntityId(IDS.getAndIncrement());
+    private final EntityId entityId=EntityId.next();
     private final MovementState movement=new MovementState();
     private final BankState bank=new BankState();
     private final EquipmentState equipment=new EquipmentState();
@@ -17,8 +14,12 @@ final class WorldPlayer {
     private final PrayerState prayers=new PrayerState();
     private final MagicState magic=new MagicState();
     private final CombatStyleState combatStyles=new CombatStyleState();
+    private final CombatState combatState=new CombatState();
+    private final PlayerLifecycleState lifecycle=new PlayerLifecycleState();
+    private final PlayerStatusState statusState=new PlayerStatusState();
     private final PetEffectState petEffects=new PetEffectState();
     private final MiniPetService miniPets=new MiniPetService();
+    private final PetAccessoryState petAccessoryState=new PetAccessoryState();
     private final Object mutationLock=new Object();
     private String username;
     private long generation;
@@ -33,8 +34,12 @@ final class WorldPlayer {
     PrayerState prayers(){return prayers;}
     MagicState magic(){return magic;}
     CombatStyleState combatStyles(){return combatStyles;}
+    CombatState combatState(){return combatState;}
+    PlayerLifecycleState lifecycle(){return lifecycle;}
+    PlayerStatusState statusState(){return statusState;}
     PetEffectState petEffects(){return petEffects;}
     MiniPetService miniPets(){return miniPets;}
+    PetAccessoryState petAccessoryState(){return petAccessoryState;}
     Object mutationLock(){return mutationLock;}
 
     synchronized String username(){return username;}

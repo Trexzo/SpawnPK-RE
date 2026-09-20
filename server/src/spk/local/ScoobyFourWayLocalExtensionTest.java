@@ -2,7 +2,7 @@ package spk.local;
 import java.lang.reflect.*;import java.util.*;
 public final class ScoobyFourWayLocalExtensionTest{
   public static void main(String[] args)throws Exception{
-    Method m=LocalSession.class.getDeclaredMethod("petColorFamily",int.class);m.setAccessible(true);
+    Method m=LocalPetInventoryDialogHandler.class.getDeclaredMethod("petColorFamily",int.class);m.setAccessible(true);
     int[] expected={24016,24017,24018,24019};
     for(int current:expected){
       int[] x=(int[])m.invoke(null,current);
