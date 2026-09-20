@@ -42,7 +42,6 @@ final class ClientPacketProbe {
         new ClientRequestQueue();
     private MovementRequest pendingMovement;
     private ItemContainerAction pendingItemAction;
-    private NpcAction pendingNpcAction;
     private ItemOnItemAction pendingItemOnItem;
     private SpellTargetRequest pendingSpellTarget;
     private GroundItemInteraction pendingGroundItemInteraction;
@@ -74,12 +73,6 @@ final class ClientPacketProbe {
 
     int typedRequestCount(){
         return typedRequests.size();
-    }
-
-    NpcAction takeNpcAction() {
-        NpcAction v=pendingNpcAction;
-        pendingNpcAction=null;
-        return v;
     }
 
     ItemOnItemAction takeItemOnItem(){
@@ -445,12 +438,31 @@ final class ClientPacketProbe {
             case 18: {
                 byte[] body=Binary.readExactly(in,2);
                 int sceneIndex;
-                if(opcode==17) sceneIndex=leA(body,0);      // NPC option 3
-                else if(opcode==21) sceneIndex=be(body,0); // NPC option 4
-                else sceneIndex=le(body,0);                // NPC option 5
-                pendingNpcAction=new NpcAction(opcode,sceneIndex);
+                String schema;
+                int option=NpcInteractionRouter.optionForOpcode(opcode);
+                if(opcode==17){
+                    sceneIndex=leA(body,0);                 // NPC option 3
+                    schema="FIXED2_NPC_SCENE_INDEX_LE_A";
+                }else if(opcode==21){
+                    sceneIndex=be(body,0);                  // NPC option 4
+                    schema="FIXED2_NPC_SCENE_INDEX_BE";
+                }else{
+                    sceneIndex=le(body,0);                  // NPC option 5
+                    schema="FIXED2_NPC_SCENE_INDEX_LE";
+                }
+                offerTypedRequest(
+                    new NpcActionClientRequest(
+                        new NpcAction(opcode,sceneIndex),
+                        ClientRequestMetadata.exactCurrent(
+                            opcode,
+                            schema,
+                            "PINNED_CLIENT_NPC_OPTION_"+option+"_WRITER"
+                        )
+                    ),
+                    opcode
+                );
                 System.out.printf("%sCLIENT_PACKET seq=%d opcode=%d len=2 npcOption=%d sceneIndex=%d schema=STATIC_EXACT%n",
-                    tag,decodedCount,opcode,NpcInteractionRouter.optionForOpcode(opcode),sceneIndex);
+                    tag,decodedCount,opcode,option,sceneIndex);
                 return true;
             }
 
@@ -481,7 +493,17 @@ final class ClientPacketProbe {
                 // 00 01 -> scene 129 (def 1489), 00 06 -> scene 134 (def 1488).
                 byte[] body=Binary.readExactly(in,2);
                 int sceneIndex=beA(body,0);
-                pendingNpcAction=new NpcAction(opcode,sceneIndex);
+                offerTypedRequest(
+                    new NpcActionClientRequest(
+                        new NpcAction(opcode,sceneIndex),
+                        ClientRequestMetadata.exactCurrent(
+                            72,
+                            "FIXED2_NPC_SCENE_INDEX_BE_A",
+                            "PINNED_CLIENT_NPC_OPTION_2_ATTACK_WRITER"
+                        )
+                    ),
+                    opcode
+                );
                 System.out.printf("%sCLIENT_PACKET seq=%d opcode=72 len=2 npcAttack=true sceneIndex=%d schema=STATIC_EXACT_FIXED2_BE_A%n",
                                   tag,decodedCount,sceneIndex);
                 return true;
@@ -520,7 +542,17 @@ final class ClientPacketProbe {
                 // The scene NPC index is a plain little-endian short.
                 byte[] body=Binary.readExactly(in,2);
                 int sceneIndex=le(body,0);
-                pendingNpcAction=new NpcAction(opcode,sceneIndex);
+                offerTypedRequest(
+                    new NpcActionClientRequest(
+                        new NpcAction(opcode,sceneIndex),
+                        ClientRequestMetadata.exactCurrent(
+                            155,
+                            "FIXED2_NPC_SCENE_INDEX_LE",
+                            "PINNED_CLIENT_NPC_OPTION_1_WRITER"
+                        )
+                    ),
+                    opcode
+                );
                 System.out.printf("%sCLIENT_PACKET seq=%d opcode=155 len=2 npcFirstOption=true sceneIndex=%d schema=STATIC_EXACT_FIXED2_LE%n",
                                   tag,decodedCount,sceneIndex);
                 return true;
