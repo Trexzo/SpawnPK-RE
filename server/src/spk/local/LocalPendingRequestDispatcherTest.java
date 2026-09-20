@@ -295,6 +295,8 @@ public final class LocalPendingRequestDispatcherTest {
                     combatCommands,
                     petCompatibilityCommands,
                     itemSpawnCommands,
+                    world.content(),
+                    player,
                     new LocalCommandDispatcher.SessionBridge(){
                         @Override public SceneUpdatePublisher scenePublisher(){
                             return publisher;
