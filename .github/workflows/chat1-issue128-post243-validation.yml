@@ -1,0 +1,42 @@
+name: Chat1 Issue128 Post243 Validation
+
+on:
+  push:
+    branches:
+      - integration/post243-issue128-persistence-chat1
+
+jobs:
+  windows-persistence:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Gradle-backed canonical build
+        shell: pwsh
+        run: ./server/build.ps1
+      - name: Persistence regressions
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $cp = 'server/build/SpawnPKLocalServer.jar;server/build/classes/java/test'
+          $tests = @(
+            'LegacyPersistenceTempCleanupTest',
+            'AccountPersistenceTest',
+            'PositionPersistenceR213Test',
+            'PetPersistenceTest',
+            'AmmoPersistenceTest',
+            'V58StatePersistenceTest',
+            'WorldPlayerPersistenceShutdownTest',
+            'WorldAutosaveCheckpointTest',
+            'WorldPersistenceThreadingTest',
+            'PlayerSnapshotMigrationTest'
+          )
+          foreach ($t in $tests) {
+            Write-Host "[ISSUE128] $t"
+            & java -cp $cp "spk.local.$t"
+            if ($LASTEXITCODE -ne 0) { throw "Issue128 regression failed: $t" }
+          }
+          Write-Host "ISSUE128_POST243_PASS tests=$($tests.Count)"
