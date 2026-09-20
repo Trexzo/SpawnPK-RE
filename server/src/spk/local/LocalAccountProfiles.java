@@ -33,7 +33,15 @@ final class LocalAccountProfiles {
             if(world.players().byName(SECONDARY)==null) return SECONDARY;
             throw new IllegalStateException("LOCAL_PROFILE_SLOTS_FULL profiles="+PRIMARY+","+SECONDARY);
         }
-        if(SECONDARY.equalsIgnoreCase(alias)) return SECONDARY;
+        if(SECONDARY.equalsIgnoreCase(alias)){
+            if(world!=null &&
+               world.players().byName(SECONDARY)!=null)
+                throw new IllegalStateException(
+                    "DUPLICATE_LOGIN username="+
+                    SECONDARY
+                );
+            return SECONDARY;
+        }
         return alias;
     }
 
