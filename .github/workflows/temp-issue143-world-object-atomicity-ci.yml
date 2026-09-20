@@ -1,0 +1,45 @@
+name: temp-issue143-world-object-atomicity-ci
+
+on:
+  push:
+    branches:
+      - fix/issue-143-world-object-replacement-atomicity
+
+jobs:
+  validate:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Canonical server build
+        shell: pwsh
+        run: ./server/build.ps1
+
+      - name: Object registry atomicity regression
+        shell: pwsh
+        run: |
+          java -cp server/build/SpawnPKLocalServer.jar spk.local.WorldObjectRegistryReplacementAtomicityTest
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Inherited object and world regressions
+        shell: pwsh
+        run: |
+          $tests = @(
+            'spk.local.LocalBankObjectInteractionHandlerTest',
+            'spk.local.ObjectOptionContentRegistryParityTest',
+            'spk.local.WorldPulseCommandExecutionTest',
+            'spk.local.SharedWorldSocketIntegrationTest'
+          )
+
+          foreach ($test in $tests) {
+            Write-Host "=== $test ==="
+            java -cp server/build/SpawnPKLocalServer.jar $test
+            if ($LASTEXITCODE -ne 0) {
+              throw "$test failed with exit code $LASTEXITCODE"
+            }
+          }
