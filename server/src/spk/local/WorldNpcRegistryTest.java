@@ -35,7 +35,7 @@ public final class WorldNpcRegistryTest {
 
             if(shared.id.equals(owner.id())||
                pet.id.equals(owner.id())||
-               shared.id.equals(pet.id()))
+               shared.id.equals(pet.id))
                 throw new AssertionError(
                     "canonical entity IDs collided"
                 );
