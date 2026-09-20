@@ -14,6 +14,7 @@ final class CombatEngine {
     private final CombatState state;
     private final DevAuthorityWorkbench dev;
     private final CombatDamageRules damageRules;
+    private final CombatHitScheduler hitScheduler;
     private long syntheticTick;
     private int lastDamageThisAction;
     private static final int DUMMY_HP_MAX=255;
@@ -92,6 +93,8 @@ final class CombatEngine {
             damageRules,
             "damageRules"
         );
+        this.hitScheduler=
+            new CombatHitScheduler(this.state);
     }
 
     String request(NpcEntity npc,MovementState movement,int weaponId,long now){
@@ -146,7 +149,21 @@ final class CombatEngine {
 
     String tick(MovementState movement,NpcRegistry npcs,EquipmentState equipment,ServerPacketWriter w,long worldTick,CombatStyleRepository.Style style,SceneUpdatePublisher scene) throws IOException {
         lastDamageThisAction=0;
-        if(!state.active()) return null;
+
+        int dueAtTickStart=
+            publishDueHits(
+                worldTick,
+                npcs,
+                w
+            );
+
+        if(!state.active())
+            return dueAtTickStart>0
+                ?"PENDING_HIT_PUBLISHED count="+dueAtTickStart+
+                    " hitDelayAuthority="+
+                    CombatHitScheduler.DELAY_AUTHORITY
+                :null;
+
         NpcEntity target=npcs.scene(state.targetSceneIndex);
         if(target==null || target.definitionId!=state.targetDefinitionId){ state.clear(); approachFacingPending=false; return "TARGET_CLEARED_NOT_VISIBLE"; }
 
@@ -216,27 +233,22 @@ final class CombatEngine {
                 calculatedDamage.maxHitReference
             );
 
-            NpcSyncEncoder.Mask hitMask=
-                NpcSyncEncoder.Mask.singleHit(
-                    damage,
-                    hitType,
-                    hp,
-                    DUMMY_HP_MAX
-                );
-
-            if(targetGfx>=0)
-                hitMask=hitMask.withGfx(
-                    targetGfx,
-                    0,
-                    0
-                );
-
-            npcs.sendMask(
+            hitScheduler.scheduleCompatibility(
                 target,
-                hitMask,
+                damage,
+                hitType,
+                hp,
+                DUMMY_HP_MAX,
+                targetGfx,
+                worldTick,
+                calculatedDamage
+            );
+
+            publishDueHits(
+                worldTick,
+                npcs,
                 w
             );
-            lastDamageThisAction=damage;
         } else if(targetGfx>=0){
             // Target-side GFX is direct presentation authority and does not imply a hit.
             npcs.sendMask(target,NpcSyncEncoder.Mask.gfx(targetGfx,0,0),w);
@@ -271,6 +283,9 @@ final class CombatEngine {
             " damageAuthority="+(calculatedDamage==null?"NOT_APPLIED":calculatedDamage.authority)+
             " damageFormula="+(calculatedDamage==null?"NOT_APPLIED":calculatedDamage.formula)+
             " damageMode="+(mechanicsResolved?activeDamageMode(calculatedDamage):"NOT_APPLIED")+
+            " hitDelayTicks="+(mechanicsResolved?Long.toString(CombatHitScheduler.LOCALLAB_COMPAT_DELAY_TICKS):"NOT_APPLIED")+
+            " hitDelayAuthority="+(mechanicsResolved?CombatHitScheduler.DELAY_AUTHORITY:"NOT_APPLIED")+
+            " pendingHits="+hitScheduler.pending()+
             " hpFixture="+(mechanicsResolved?(hp+"/"+DUMMY_HP_MAX):"UNCHANGED")+
             " hitsplatType="+(mechanicsResolved?Integer.toString(hitType):"NONE")+
             " hitsplatVariantMode="+(mechanicsResolved?(devHitVariantAuto?"auto(normal=1,max=6)":"manual"):"NONE")+
@@ -281,6 +296,51 @@ final class CombatEngine {
             " styleMath="+(calculatedDamage==null?"NOT_APPLIED":calculatedDamage.formula)+
             " maxHit="+(calculatedDamage==null?"DEFERRED":Integer.toString(calculatedDamage.maxHitReference))+
             " accuracy=DEFERRED assetEvidence="+(runtimeBasic?runtime.evidence:profile.evidence);
+    }
+
+    private int publishDueHits(
+        long worldTick,
+        NpcRegistry npcs,
+        ServerPacketWriter writer
+    )throws IOException{
+        int published=0;
+
+        for(CombatHitScheduler.PendingHit hit:
+                hitScheduler.drainDue(worldTick)){
+            NpcEntity target=
+                npcs.scene(hit.targetSceneIndex);
+
+            if(target==null||
+               target.definitionId!=
+                    hit.targetDefinitionId)
+                continue;
+
+            NpcSyncEncoder.Mask mask=
+                NpcSyncEncoder.Mask.singleHit(
+                    hit.damage,
+                    hit.hitType,
+                    hit.hp,
+                    hit.maxHp
+                );
+
+            if(hit.targetGfx>=0)
+                mask=mask.withGfx(
+                    hit.targetGfx,
+                    0,
+                    0
+                );
+
+            npcs.sendMask(
+                target,
+                mask,
+                writer
+            );
+
+            lastDamageThisAction+=hit.damage;
+            published++;
+        }
+
+        return published;
     }
 
     String magicFixtureHit(int sceneIndex,SpellDefinitionRepository.Spell spell,NpcRegistry npcs,ServerPacketWriter w)throws IOException{
