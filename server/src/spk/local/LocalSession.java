@@ -15,6 +15,7 @@ final class LocalSession implements Runnable {
     private final EquipmentState equipment;
     private final PetState petState;
     private final PlayerState playerState;
+    private final PlayerStatusService statuses;
     private final PrayerState prayers;
     private final MagicState magic;
     private final CombatStyleState combatStyles;
@@ -103,6 +104,7 @@ final class LocalSession implements Runnable {
         this.equipment = worldPlayer.equipment();
         this.petState = worldPlayer.petState();
         this.playerState = worldPlayer.playerState();
+        this.statuses = new PlayerStatusService(worldPlayer);
         this.prayers = worldPlayer.prayers();
         this.magic = worldPlayer.magic();
         this.combatStyles = worldPlayer.combatStyles();
@@ -125,7 +127,11 @@ final class LocalSession implements Runnable {
         this.cosmeticCommands = new LocalCosmeticCommandHandler(bank,equipment,playerState,playerPresentation);
         this.compColorsCommands = new LocalCompColorsCommandHandler(playerState,equipment,playerPresentation);
         this.itemSpawnCommands = new LocalItemSpawnCommandHandler(bank);
-        this.nurseCommands = new LocalNurseCommandHandler(playerState,movement);
+        this.nurseCommands = new LocalNurseCommandHandler(
+            playerState,
+            movement,
+            statuses
+        );
         this.bankRequests = new LocalBankRequestHandler(worldPlayer,bank);
         this.itemOnItemHandler = new LocalItemOnItemHandler(bank);
         this.spellTargetHandler = new LocalSpellTargetHandler(
