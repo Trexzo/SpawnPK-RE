@@ -1,0 +1,57 @@
+name: TEMP Issue 232 Dev Panel Reliability CI
+
+on:
+  pull_request:
+    branches:
+      - refactor/issue-16-npc-option-registry
+    paths:
+      - 'server/src/spk/local/EngineR7DevPanelSocketTest.java'
+      - '.github/workflows/temp-issue232-devpanel-ci.yml'
+
+jobs:
+  validate:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Temurin JDK 21
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Build server
+        shell: pwsh
+        run: ./server/build.ps1
+
+      - name: Stress dev-panel socket test
+        shell: pwsh
+        run: |
+          for ($i = 1; $i -le 10; $i++) {
+            & java -cp server/build/classes spk.local.EngineR7DevPanelSocketTest
+            if ($LASTEXITCODE -ne 0) {
+              throw "EngineR7DevPanelSocketTest failed iteration=$i exit=$LASTEXITCODE"
+            }
+          }
+          Write-Host "ISSUE232_DEVPANEL_STRESS_PASS iterations=10"
+
+      - name: Run dependent panel regressions
+        shell: pwsh
+        run: |
+          $tests = @(
+            'EngineR72RuntimeWeaponPanelSocketTest',
+            'EngineR82ResearchPanelSocketTest',
+            'EngineR83DiscoveryPanelSocketTest',
+            'EngineR84ApplicationPanelSocketTest',
+            'EngineR8ResearchPanelSocketTest'
+          )
+
+          foreach ($test in $tests) {
+            & java -cp server/build/classes "spk.local.$test"
+            if ($LASTEXITCODE -ne 0) {
+              throw "$test failed with exit code $LASTEXITCODE"
+            }
+          }
+
+          Write-Host "ISSUE232_DEPENDENT_PANELS_PASS tests=$($tests.Count)"
