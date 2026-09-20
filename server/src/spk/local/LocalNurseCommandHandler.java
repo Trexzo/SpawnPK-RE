@@ -11,10 +11,23 @@ import java.io.IOException;
 final class LocalNurseCommandHandler {
     private final PlayerState playerState;
     private final MovementState movement;
+    private final PlayerStatusService statuses;
 
-    LocalNurseCommandHandler(PlayerState playerState,MovementState movement){
+    LocalNurseCommandHandler(
+        PlayerState playerState,
+        MovementState movement
+    ){
+        this(playerState,movement,null);
+    }
+
+    LocalNurseCommandHandler(
+        PlayerState playerState,
+        MovementState movement,
+        PlayerStatusService statuses
+    ){
         this.playerState=java.util.Objects.requireNonNull(playerState,"playerState");
         this.movement=java.util.Objects.requireNonNull(movement,"movement");
+        this.statuses=statuses;
     }
 
     Result handle(
@@ -26,6 +39,7 @@ final class LocalNurseCommandHandler {
         if(p==null||p.length==0||!p[0].equalsIgnoreCase("nurse"))return null;
 
         int changed=playerState.restoreNurse();
+        if(statuses!=null)statuses.clearAll();
         movement.setRunEnergy(100);
         changed|=playerState.syncScopesightMaintenance(scopesightActive);
         publishSkillMask(changed,serverPackets);
