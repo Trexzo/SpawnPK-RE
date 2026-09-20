@@ -120,12 +120,29 @@ final class FollowerStepResolver {
 
             // Deterministic preference preserves old X-first/Y-second behavior
             // when multiple cardinal detours are equally short.
-            int[][] directions={
-                {sx,0},
-                {0,sy},
-                {-sx,0},
-                {0,-sy}
-            };
+            int[][] directions;
+            if(sx!=0&&sy==0){
+                directions=new int[][]{
+                    {sx,0},
+                    {0,1},
+                    {0,-1},
+                    {-sx,0}
+                };
+            }else if(sx==0&&sy!=0){
+                directions=new int[][]{
+                    {0,sy},
+                    {1,0},
+                    {-1,0},
+                    {0,-sy}
+                };
+            }else{
+                directions=new int[][]{
+                    {sx,0},
+                    {0,sy},
+                    {-sx,0},
+                    {0,-sy}
+                };
+            }
 
             for(int[] direction:directions){
                 int dx=direction[0];
