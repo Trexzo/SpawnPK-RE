@@ -294,6 +294,8 @@ final class LocalSession implements Runnable {
             combatCommands,
             petCompatibilityCommands,
             itemSpawnCommands,
+            world.content(),
+            worldPlayer,
             new LocalCommandDispatcher.SessionBridge(){
                 @Override public SceneUpdatePublisher scenePublisher(){
                     return LocalSession.this.scenePublisher;
