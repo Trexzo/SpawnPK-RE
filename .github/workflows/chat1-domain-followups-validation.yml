@@ -1,0 +1,38 @@
+name: Chat1 Domain Followups Validation
+
+on:
+  push:
+    branches:
+      - integration/domain-followups-chat1
+
+jobs:
+  windows-domain-followups:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Gradle-backed canonical build
+        shell: pwsh
+        run: ./server/build.ps1
+      - name: Focused semantic regressions
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $cp = 'server/build/SpawnPKLocalServer.jar;server/build/classes/java/test'
+          $tests = @(
+            'ObjectiveProgressFoundationTest',
+            'DailyChallengeAssignmentServiceTest',
+            'DailyMoneyMakingStateServiceTest',
+            'ItemCatalogQueryServiceTest',
+            'ItemMechanicsEvidenceQueryServiceTest',
+            'AdventureBookProjectionMapperTest'
+          )
+          foreach ($t in $tests) {
+            Write-Host "[DOMAIN] $t"
+            & java -cp $cp "spk.local.$t"
+            if ($LASTEXITCODE -ne 0) { throw "Domain follow-up failed: $t" }
+          }
+          Write-Host "CHAT1_DOMAIN_FOLLOWUPS_PASS tests=$($tests.Count)"
