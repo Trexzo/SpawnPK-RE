@@ -1,0 +1,37 @@
+name: Chat1 Catalog Selection Validation
+
+on:
+  push:
+    branches:
+      - integration/catalog-selection-followups-chat1
+
+jobs:
+  windows-catalog-selection:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Gradle-backed canonical build
+        shell: pwsh
+        run: ./server/build.ps1
+      - name: Focused catalog and selection regressions
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $cp = 'server/build/SpawnPKLocalServer.jar;server/build/classes/java/test'
+          $tests = @(
+            'BloodFountainSelectablePerkCatalogTest',
+            'BloodFountainPerkSelectionServiceTest',
+            'GamblingModeCatalogTest',
+            'GamblingModeSelectionServiceTest',
+            'ApplicationUiServiceTest'
+          )
+          foreach ($t in $tests) {
+            Write-Host "[CATALOG] $t"
+            & java -cp $cp "spk.local.$t"
+            if ($LASTEXITCODE -ne 0) { throw "Catalog/selection regression failed: $t" }
+          }
+          Write-Host "CHAT1_CATALOG_SELECTION_PASS tests=$($tests.Count)"
