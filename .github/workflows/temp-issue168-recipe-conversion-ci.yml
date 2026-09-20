@@ -1,0 +1,42 @@
+name: Temp Issue 168 Recipe Conversion CI
+
+on:
+  pull_request:
+
+jobs:
+  issue168:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Canonical server build
+        shell: pwsh
+        run: ./server/build.ps1
+      - name: Issue 159 prerequisite regression
+        shell: pwsh
+        run: |
+          java -cp server/build/classes spk.local.AtomicTransactionServiceTest
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Issue 168 focused regression
+        shell: pwsh
+        run: |
+          java -cp server/build/classes spk.local.ConversionServiceTest
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Recipe protocol-boundary guard
+        shell: pwsh
+        run: |
+          $paths = @(
+            "server/src/spk/local/RecipeId.java",
+            "server/src/spk/local/RecipeDefinition.java",
+            "server/src/spk/local/RecipeCatalog.java",
+            "server/src/spk/local/ConversionService.java"
+          )
+          $bad = Select-String -Path $paths -Pattern "widgetId|opcode|subtype|ServerPacketWriter|ClientPacket|S2C126|S2C250|spriteId|java\.util\.Random|ThreadLocalRandom" -CaseSensitive:$false
+          if ($bad) {
+            $bad | ForEach-Object { Write-Host $_ }
+            throw "Issue 168 domain source contains protocol/presentation/RNG identity."
+          }
+          Write-Host "ISSUE168_PROTOCOL_BOUNDARY_PASS"
