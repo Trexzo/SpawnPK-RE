@@ -260,17 +260,37 @@ The pair is converted into a key and recorded in a Boolean map.
 
 Confidence: HIGH structural.
 
-### 35 - Drop/hit/block popup state
+### 35 - Combat hit/block popup update
 
-Consumer classes/assets identify popup/drop presentation including:
+This target is now bytecode-joined to exact top-level S2C255.
 
-- drop bar,
-- block drop,
-- hit drop.
+S2C255 creates the popup object through `rs/l/e/h.a(int,long,int)`:
 
-Payload includes an integer, long and integer and updates the popup list/state.
+```
+HIT_DROP_POPUP_EVENT(amount, opaque64, protectionStyle)
+```
 
-Confidence: HIGH presentation / MEDIUM precise subtype wording.
+Target 35 parses the same three-field shape:
+
+```
+amount,opaque64,protectionStyle
+```
+
+It scans both active/pending popup lists for the matching `opaque64` identifier and mutates the existing popup's visible amount and protection style.
+
+The renderer uses exact current assets:
+
+- `popups/hit drop` when amount is non-zero,
+- `popups/block drop` when amount is zero,
+- `popups/protmelee` when protectionStyle = 1,
+- `popups/protmagic` when protectionStyle = 2,
+- `popups/protrange` otherwise.
+
+Therefore target 35 is not a loot/drop-table state channel. It is the update side of the current combat hit/block popup presentation contract.
+
+The middle `opaque64` remains intentionally opaque because its server-side identity meaning is not consumed by the audited renderer.
+
+Confidence: HIGH.
 
 ### 36 - Daily Money Making Activities selection
 
@@ -1114,11 +1134,13 @@ Acceptance should require:
 Continue research before opening raid/market/construction gameplay issues:
 
 1. resolve structural targets 22-24, 26, 29-34, 37, 39, 43, 46, 48-49, 57-61, 69-70 to domain owners where possible,
-2. identify whether target 35 popup state is drop-only or a shared damage/block/drop transport,
-3. enumerate Item Enchantment Chest outbound actions paired with targets 38/71,
-4. verify whether construction exposes any additional non-widget placement command after room selection,
-5. recover any raid invitation text-entry path if the server requests a player name after the invite widget,
-6. add packet-level fixtures before any production implementation.
+2. enumerate Item Enchantment Chest outbound actions paired with targets 38/71,
+3. verify whether construction exposes any additional non-widget placement command after room selection,
+4. recover any raid invitation text-entry path if the server requests a player name after the invite widget,
+5. add packet-level fixtures before any production implementation.
+
+Closed in R2.3:
+- S2C126 target 35 is the exact update side of S2C255 `HIT_DROP_POPUP_EVENT(amount, opaque64, protectionStyle)`; it is combat hit/block popup presentation, not loot/drop-table state.
 
 Closed in R2.1/R2.2:
 - Trading Post text submission: `tpsitem` / `tpsuser` / `tpshist` over C2S103.
