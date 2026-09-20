@@ -146,14 +146,17 @@ final class WorldHomeNpcService {
                 HomeNpcRuntimePlan.sceneIndexForOrdinal(
                     visible.ordinal
                 );
-            out.add(
+            NpcEntity projection=
                 new NpcEntity(
                     sceneIndex,
                     visible.npc.definitionId,
                     visible.npc.x(),
                     visible.npc.y()
-                )
+                );
+            projection.bindCanonicalId(
+                visible.npc.id
             );
+            out.add(projection);
         }
         return Collections.unmodifiableList(out);
     }
