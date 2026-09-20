@@ -54,9 +54,9 @@ final class MarketplaceService {
         if(existing!=null)throw new IllegalStateException("seller escrow transaction already bound to listing "+existing);
         MarketplaceListing.Id id=new MarketplaceListing.Id(listingSequence.incrementAndGet());
         MarketplaceListing listing=new MarketplaceListing(id,owner,item,totalQuantity,priceEach,currency,escrowReservation.transactionId,sourceAuthority);
+        save(listing);
         listings.put(id,listing);
         sellerEscrowUses.put(escrowReservation.transactionId,id);
-        save(listing);
         return id;
     }
 
@@ -65,7 +65,15 @@ final class MarketplaceService {
         if(listing.state==MarketplaceListing.State.ACTIVE)return listing.snapshot();
         if(listing.state!=MarketplaceListing.State.DRAFT)throw invalid(listing,"activate");
         verifySellerEscrow(listing.ownerRef,listing.itemRef,listing.totalQuantity,escrowReservation,listing.sellerEscrowTransactionId);
-        listing.state=MarketplaceListing.State.ACTIVE;save(listing);return listing.snapshot();
+        MarketplaceListing.State previousState=listing.state;
+        listing.state=MarketplaceListing.State.ACTIVE;
+        try{
+            save(listing);
+        }catch(RuntimeException failure){
+            listing.state=previousState;
+            throw failure;
+        }
+        return listing.snapshot();
     }
 
     synchronized SettlementRequest requestFill(MarketplaceListing.Id id,String buyerRef,long quantity){
@@ -83,17 +91,35 @@ final class MarketplaceService {
             return listing.snapshot();
         }
         requireFillable(listing,quantity);
+        long previousRemaining=listing.remainingQuantity;
+        MarketplaceListing.State previousState=listing.state;
         listing.remainingQuantity-=quantity;
         appliedSettlements.put(committedSettlement.transactionId,new SettlementUse(id,buyer,quantity));
         listing.state=listing.remainingQuantity==0?MarketplaceListing.State.FILLED:MarketplaceListing.State.PARTIALLY_FILLED;
-        save(listing);return listing.snapshot();
+        try{
+            save(listing);
+        }catch(RuntimeException failure){
+            appliedSettlements.remove(committedSettlement.transactionId);
+            listing.remainingQuantity=previousRemaining;
+            listing.state=previousState;
+            throw failure;
+        }
+        return listing.snapshot();
     }
 
     synchronized CancellationRequest cancel(MarketplaceListing.Id id,String ownerRef){
         MarketplaceListing listing=required(id);requireOwner(listing,ownerRef);
         if(listing.state==MarketplaceListing.State.CANCELLED)return new CancellationRequest(listing);
         if(listing.state!=MarketplaceListing.State.ACTIVE&&listing.state!=MarketplaceListing.State.PARTIALLY_FILLED)throw invalid(listing,"cancel");
-        listing.state=MarketplaceListing.State.CANCELLED;save(listing);return new CancellationRequest(listing);
+        MarketplaceListing.State previousState=listing.state;
+        listing.state=MarketplaceListing.State.CANCELLED;
+        try{
+            save(listing);
+        }catch(RuntimeException failure){
+            listing.state=previousState;
+            throw failure;
+        }
+        return new CancellationRequest(listing);
     }
 
     synchronized MarketplaceListing.Snapshot snapshot(MarketplaceListing.Id id){return required(id).snapshot();}
