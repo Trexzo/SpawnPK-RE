@@ -48,11 +48,36 @@ final class HomeWorldRuntimePlan {
         @Override public String toString(){return "OpenOverride{"+worldX+","+worldY+",layer="+layer+",shape="+shape+",rot="+rotation+"}";}
     }
 
-    private final HomeNpcWorldState npcWorld=HomeNpcRuntimePlan.newWorldState();
+    private final WorldHomeNpcService homeNpcs;
+    private final boolean resetOnBootstrap;
     private final LinkedHashSet<Integer> clientVisibleWorldSceneIndexes=new LinkedHashSet<>();
     private boolean npcBootstrapEstablished;
 
-    HomeWorldRuntimePlan() {}
+    HomeWorldRuntimePlan(){
+        this(
+            new WorldHomeNpcService(
+                new WorldNpcRegistry()
+            ),
+            true
+        );
+    }
+
+    HomeWorldRuntimePlan(
+        WorldHomeNpcService homeNpcs
+    ){
+        this(homeNpcs,false);
+    }
+
+    private HomeWorldRuntimePlan(
+        WorldHomeNpcService homeNpcs,
+        boolean resetOnBootstrap
+    ){
+        this.homeNpcs=Objects.requireNonNull(
+            homeNpcs,
+            "homeNpcs"
+        );
+        this.resetOnBootstrap=resetOnBootstrap;
+    }
 
     /** Replay exact production HOME object mutations using packets 85/101/151. */
     HomeObjectOverlayReplayer.Stats replayScene(ServerPacketWriter writer) throws IOException {
@@ -70,8 +95,9 @@ final class HomeWorldRuntimePlan {
      * MAINLINE may append its pet/dynamic actors before encoding that one packet.
      */
     List<NpcEntity> bootstrapNpcs(int playerX,int playerY) {
-        npcWorld.reset();
-        List<NpcEntity> initial=npcWorld.visibleEntities(playerX,playerY);
+        if(resetOnBootstrap)homeNpcs.resetToAnchors();
+        else homeNpcs.ensureInitialized();
+        List<NpcEntity> initial=homeNpcs.visibleEntities(playerX,playerY);
         clientVisibleWorldSceneIndexes.clear();
         for(NpcEntity n:initial) clientVisibleWorldSceneIndexes.add(n.sceneIndex);
         npcBootstrapEstablished=true;
@@ -86,11 +112,11 @@ final class HomeWorldRuntimePlan {
         if(!npcBootstrapEstablished) throw new IllegalStateException("bootstrapNpcs must be called before tick");
         if(worldTick<=0) throw new IllegalArgumentException("worldTick");
 
-        List<HomeNpcWorldState.Move> moves=npcWorld.tick(worldTick);
+        List<HomeNpcWorldState.Move> moves=homeNpcs.tick(worldTick);
         LinkedHashMap<Integer,Integer> moved=new LinkedHashMap<>();
         for(HomeNpcWorldState.Move m:moves) moved.put(m.sceneIndex,m.direction);
 
-        List<NpcEntity> desiredEntities=npcWorld.visibleEntities(playerX,playerY);
+        List<NpcEntity> desiredEntities=homeNpcs.visibleEntities(playerX,playerY);
         LinkedHashMap<Integer,NpcEntity> desiredByScene=new LinkedHashMap<>();
         for(NpcEntity n:desiredEntities){
             if(desiredByScene.put(n.sceneIndex,n)!=null) throw new IllegalStateException("duplicate HOME scene index "+n.sceneIndex);
@@ -135,6 +161,6 @@ final class HomeWorldRuntimePlan {
     }
 
     static List<HomeLandmarkRepository.Landmark> landmarks(){ return HomeWorldManifest.landmarks(); }
-    int trackedWorldNpcCount(){ return npcWorld.size(); }
+    int trackedWorldNpcCount(){ return homeNpcs.size(); }
     int clientVisibleWorldNpcCount(){ return clientVisibleWorldSceneIndexes.size(); }
 }
