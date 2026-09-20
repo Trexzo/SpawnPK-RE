@@ -176,12 +176,16 @@ final class HomeWorldRuntimePlan {
                 visible.ordinal
             )
         );
-        return new NpcEntity(
+        NpcEntity projection=new NpcEntity(
             sceneIndex,
             visible.npc.definitionId,
             visible.npc.x(),
             visible.npc.y()
         );
+        projection.bindCanonicalId(
+            visible.npc.id
+        );
+        return projection;
     }
 
     Integer sceneIndexForCanonical(
