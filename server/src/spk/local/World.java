@@ -2,6 +2,8 @@ package spk.local;
 
 import java.util.*;
 import java.util.concurrent.*;
+import spk.content.api.ContentProvenance;
+import spk.content.builtin.LocalLabCoreContentModule;
 
 /** Shared authoritative ownership root. R2 adds membership, one WorldPulse and command execution. */
 final class World implements AutoCloseable {
@@ -20,6 +22,7 @@ final class World implements AutoCloseable {
     private final LinkedHashMap<EntityId,WorldTickTarget> tickTargets=new LinkedHashMap<>();
     private final WorldPulse pulse;
     private final WorldPlayerPersistence persistence;
+    private final ContentRegistry content;
 
     private World(long tickMillis){
         this(
@@ -38,6 +41,12 @@ final class World implements AutoCloseable {
                 this,
                 repository
             );
+        content=
+            new ContentRegistry(this);
+        content.installTrusted(
+            new LocalLabCoreContentModule(),
+            ContentProvenance.CUSTOM_LOCALLAB
+        );
     }
 
     static World shared(){return SHARED;}
@@ -65,6 +74,7 @@ final class World implements AutoCloseable {
     WorldCommandInbox commands(){return commands;}
     WorldPulse pulse(){return pulse;}
     WorldPlayerPersistence persistence(){return persistence;}
+    ContentRegistry content(){return content;}
 
     void start(){pulse.start();}
 
@@ -102,7 +112,9 @@ final class World implements AutoCloseable {
     String metrics(){
         return pulse.metrics()+
             " "+
-            persistence.metrics();
+            persistence.metrics()+
+            " "+
+            content.summary();
     }
 
     @Override public void close(){
