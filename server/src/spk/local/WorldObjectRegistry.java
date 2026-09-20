@@ -7,6 +7,7 @@ final class WorldObjectRegistry {
     private final LinkedHashMap<Long,WorldObject> byId=new LinkedHashMap<>();
     private final AtomicLong ids=new AtomicLong();
     synchronized WorldObject put(int objectId,Tile tile,int shape,int rotation,boolean devOwned){
+        if(objectId<0||tile==null||shape<0||shape>22||rotation<0||rotation>3)throw new IllegalArgumentException();
         removeAt(tile,shape); WorldObject o=new WorldObject(ids.incrementAndGet(),objectId,tile,shape,rotation,devOwned);byId.put(o.id,o);return o;
     }
     synchronized WorldObject findAt(Tile tile,int shape){for(WorldObject o:byId.values())if(o.shape==shape&&o.tile.equals(tile))return o;return null;}
