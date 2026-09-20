@@ -30,7 +30,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           java -cp $jar spk.local.VoidglassR3CustomContentTest
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          java -cp $jar spk.local.EquipmentMetadataRepositoryTest
+          java -cp $jar spk.local.EquipmentSlotOverrideDataTest
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Packaged resource and cleanup contract
         shell: pwsh
