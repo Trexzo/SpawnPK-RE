@@ -1,0 +1,47 @@
+name: temp-issue144-pet-replacement-ci
+
+on:
+  push:
+    branches:
+      - fix/issue-144-canonical-pet-replacement-atomicity
+
+jobs:
+  validate:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Canonical server build
+        shell: pwsh
+        run: ./server/build.ps1
+
+      - name: Focused pet replacement regression
+        shell: pwsh
+        run: |
+          java -cp server/build/SpawnPKLocalServer.jar spk.local.WorldPetNpcReplacementAtomicityTest
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Inherited canonical pet/world regressions
+        shell: pwsh
+        run: |
+          $tests = @(
+            'spk.local.WorldPetNpcOwnershipTest',
+            'spk.local.CanonicalPetMutationAuthorityTest',
+            'spk.local.CanonicalRemotePetProjectionTest',
+            'spk.local.PetReplacementRuntimeTest',
+            'spk.local.WorldPulseCommandExecutionTest',
+            'spk.local.SharedWorldSocketIntegrationTest'
+          )
+
+          foreach ($test in $tests) {
+            Write-Host "=== $test ==="
+            java -cp server/build/SpawnPKLocalServer.jar $test
+            if ($LASTEXITCODE -ne 0) {
+              throw "$test failed with exit code $LASTEXITCODE"
+            }
+          }
