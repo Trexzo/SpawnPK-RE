@@ -170,11 +170,6 @@ final class LocalPendingRequestDispatcher {
             serverPackets,
             tag
         );
-        acceptPlayerAction(
-            clientPackets,
-            serverPackets,
-            tag
-        );
         acceptNpcAction(
             clientPackets,
             serverPackets,
@@ -285,6 +280,19 @@ final class LocalPendingRequestDispatcher {
 
                 routeObjectInteraction(
                     object.interaction(),
+                    serverPackets,
+                    tag
+                );
+                continue;
+            }
+
+            if(request instanceof
+                    PlayerActionClientRequest){
+                PlayerActionClientRequest player=
+                    (PlayerActionClientRequest)request;
+
+                routePlayerAction(
+                    player.action(),
                     serverPackets,
                     tag
                 );
@@ -563,16 +571,11 @@ final class LocalPendingRequestDispatcher {
         );
     }
 
-    private void acceptPlayerAction(
-        ClientPacketProbe clientPackets,
+    private void routePlayerAction(
+        PlayerAction action,
         ServerPacketWriter serverPackets,
         String tag
     )throws IOException{
-        PlayerAction action=
-            clientPackets.takePlayerAction();
-
-        if(action==null)return;
-
         Player81WorldSync.Context playerSync=
             bridge.player81Sync();
 
