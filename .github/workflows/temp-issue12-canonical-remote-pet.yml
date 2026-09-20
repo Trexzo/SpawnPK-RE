@@ -1,0 +1,34 @@
+name: Temporary Issue 12 canonical remote pet validation
+
+on:
+  push:
+    branches:
+      - refactor/issue-12-canonical-remote-pet-projection
+
+jobs:
+  validate:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Compile current source tree
+        shell: pwsh
+        run: ./server/build.ps1
+      - name: Run canonical remote pet projection regression
+        shell: pwsh
+        run: java -cp server/build/classes spk.local.CanonicalRemotePetProjectionTest
+      - name: Run canonical pet ownership regression
+        shell: pwsh
+        run: java -cp server/build/classes spk.local.WorldPetNpcOwnershipTest
+      - name: Run shared NPC relay regression
+        shell: pwsh
+        run: java -cp server/build/classes spk.local.EngineR31SharedNpcRelayTest
+      - name: Run world presentation bus regression
+        shell: pwsh
+        run: java -cp server/build/classes spk.local.EngineR32WorldPresentationBusTest
+      - name: Run pet runtime integration regression
+        shell: pwsh
+        run: java -cp server/build/classes spk.local.PetRuntimeIntegrationTest
