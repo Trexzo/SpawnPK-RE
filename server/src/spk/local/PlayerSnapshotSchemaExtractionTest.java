@@ -86,7 +86,8 @@ public final class PlayerSnapshotSchemaExtractionTest {
                 ))||
            !"21566".equals(
                 snapshot.value(
-                    "equipment.3"
+                    "equipment."+
+                    EquipmentSlot.WEAPON.equipmentIndex
                 ))||
            !"44".equals(
                 snapshot.value(
