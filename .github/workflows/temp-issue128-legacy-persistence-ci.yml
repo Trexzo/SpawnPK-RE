@@ -1,0 +1,46 @@
+name: temp-issue128-legacy-persistence-ci
+
+on:
+  push:
+    branches:
+      - fix/issue-128-legacy-persistence-temp-cleanup
+
+jobs:
+  validate:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Canonical server build
+        shell: pwsh
+        run: ./server/build.ps1
+
+      - name: Legacy temp cleanup regression
+        shell: pwsh
+        run: |
+          java -cp server/build/SpawnPKLocalServer.jar spk.local.LegacyPersistenceTempCleanupTest
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Existing persistence regressions
+        shell: pwsh
+        run: |
+          $tests = @(
+            'spk.local.AccountPersistenceTest',
+            'spk.local.PositionPersistenceR213Test',
+            'spk.local.PetPersistenceTest',
+            'spk.local.AmmoPersistenceTest',
+            'spk.local.V58StatePersistenceTest'
+          )
+
+          foreach ($test in $tests) {
+            Write-Host "=== $test ==="
+            java -cp server/build/SpawnPKLocalServer.jar $test
+            if ($LASTEXITCODE -ne 0) {
+              throw "$test failed with exit code $LASTEXITCODE"
+            }
+          }
