@@ -70,6 +70,7 @@ final class LocalSession implements Runnable {
     private final LocalCommandDispatcher commandDispatcher;
     private final LocalSessionUiActionHandler uiActions;
     private final LocalPetDropPickupHandler petDropPickup;
+    private final LocalPetRealtimeScheduler petRealtime;
     private final LocalMovementRequestHandler movementRequests;
     private final LocalRegionStreamHandler regionStreams;
     private final LocalWorldTickCoordinator worldTicks;
@@ -77,9 +78,6 @@ final class LocalSession implements Runnable {
     private ServerPacketWriter sessionPackets;
     private OutboundPacketQueue outboundPackets;
     private long sessionWorldTick;
-    private long nextPetFollowAt=Long.MAX_VALUE;
-    private boolean petFollowRealtimeScheduled;
-    private boolean petTestRealtimeScheduled;
     private boolean worldRegistered;
     private long worldPlayerGeneration;
     private boolean worldTickAttached;
@@ -165,10 +163,7 @@ final class LocalSession implements Runnable {
             npcs,
             petState,
             homeWorld,
-            ()->{
-                nextPetFollowAt=Long.MAX_VALUE;
-                petFollowRealtimeScheduled=false;
-            });
+            ()->resetPetFollowRuntime());
         this.devSessionCommands = new LocalDevSessionCommandHandler(
             world,
             dev,
@@ -379,13 +374,32 @@ final class LocalSession implements Runnable {
                 }
 
                 @Override public void resetPetFollowDeadline(){
-                    LocalSession.this.nextPetFollowAt=Long.MAX_VALUE;
+                    LocalSession.this.resetPetFollowDeadline();
                 }
 
                 @Override public void ensurePetFollowScheduled(
                     long now
                 ){
                     LocalSession.this.ensurePetFollowScheduled(now);
+                }
+            });
+        this.petRealtime = new LocalPetRealtimeScheduler(
+            bootstrap,
+            world,
+            worldPlayer,
+            movement,
+            npcs,
+            petDropPickup,
+            petRuntimeCommands,
+            new LocalPetRealtimeScheduler.SessionBridge(){
+                @Override public ServerPacketWriter sessionPackets(){
+                    return LocalSession.this.sessionPackets;
+                }
+
+                @Override public String sessionTag(){
+                    return "[session "+
+                        LocalSession.this.socket.getRemoteSocketAddress()+
+                        "] ";
                 }
             });
         this.movementRequests = new LocalMovementRequestHandler(
@@ -441,8 +455,7 @@ final class LocalSession implements Runnable {
                 }
 
                 @Override public void resetPetFollowRuntime(){
-                    LocalSession.this.nextPetFollowAt=Long.MAX_VALUE;
-                    LocalSession.this.petFollowRealtimeScheduled=false;
+                    LocalSession.this.resetPetFollowRuntime();
                 }
             });
         this.worldTicks = new LocalWorldTickCoordinator(
@@ -506,13 +519,13 @@ final class LocalSession implements Runnable {
                 }
 
                 @Override public long petFollowDeadline(){
-                    return LocalSession.this.nextPetFollowAt;
+                    return LocalSession.this.petFollowDeadline();
                 }
 
                 @Override public void setPetFollowDeadline(
                     long value
                 ){
-                    LocalSession.this.nextPetFollowAt=value;
+                    LocalSession.this.setPetFollowDeadline(value);
                 }
 
                 @Override public void ensurePetFollowScheduled(
@@ -863,47 +876,28 @@ final class LocalSession implements Runnable {
         }
     }
 
-    private void ensurePetFollowScheduled(long now){
-        if(!bootstrap||movement.transientRegion()||petDropPickup.pendingPickupBlocksPetFollow()||petFollowRealtimeScheduled||npcs.followFrozen()||!npcs.needsFollow(movement))return;
-        if(nextPetFollowAt==Long.MAX_VALUE)nextPetFollowAt=now+200L;
-        long at=Math.max(now,nextPetFollowAt);
-        petFollowRealtimeScheduled=true;
-        world.realtime().schedule(at,worldPlayer,()->runPetFollowRealtime());
+    private void resetPetFollowRuntime(){
+        petRealtime.resetFollowRuntime();
     }
 
-    private void runPetFollowRealtime(){
-        petFollowRealtimeScheduled=false;
-        if(!bootstrap||movement.transientRegion()||petDropPickup.pendingPickupBlocksPetFollow()||sessionPackets==null||npcs.followFrozen()||!npcs.needsFollow(movement)){nextPetFollowAt=Long.MAX_VALUE;return;}
-        long now=System.currentTimeMillis();
-        try{
-            String tag="[session "+socket.getRemoteSocketAddress()+"] ";
-            String petFollow=npcs.tickFollow(movement,sessionPackets);
-            long nextDelay=npcs.needsFollow(movement)?npcs.followDelayMs(movement):Long.MAX_VALUE;
-            if(petFollow!=null)System.out.println(tag+"V512_"+petFollow+" execution=SHARED_WORLD_THREAD initialReactionMs=200 nextDelayMs="+(nextDelay==Long.MAX_VALUE?"idle":nextDelay)+" ownerRunning="+npcs.recentOwnerRunning());
-            nextPetFollowAt=nextDelay==Long.MAX_VALUE?Long.MAX_VALUE:now+nextDelay;
-            if(nextDelay!=Long.MAX_VALUE)ensurePetFollowScheduled(now);
-        }catch(Throwable t){System.err.println("[world player="+worldPlayer.id()+"] pet-follow presentation failed: "+t);}
+    private void resetPetFollowDeadline(){
+        petRealtime.resetFollowDeadline();
+    }
+
+    private long petFollowDeadline(){
+        return petRealtime.followDeadline();
+    }
+
+    private void setPetFollowDeadline(long value){
+        petRealtime.setFollowDeadline(value);
+    }
+
+    private void ensurePetFollowScheduled(long now){
+        petRealtime.ensureFollowScheduled(now);
     }
 
     private void ensurePetTestSequenceScheduled(long now){
-        if(!bootstrap||petTestRealtimeScheduled||!petRuntimeCommands.sequenceActive()||sessionPackets==null)return;
-        long due=petRuntimeCommands.sequenceAt();
-        long at=Math.max(now,due==Long.MAX_VALUE?now:due);
-        petTestRealtimeScheduled=true;
-        world.realtime().schedule(at,worldPlayer,()->{
-            petTestRealtimeScheduled=false;
-            if(!petRuntimeCommands.sequenceActive())return;
-            long when=System.currentTimeMillis();
-            try{
-                String line=petRuntimeCommands.tickSequence(when,sessionPackets);
-                if(line!=null)System.out.println("[session "+socket.getRemoteSocketAddress()+"] "+line);
-            }
-            catch(Throwable t){
-                petRuntimeCommands.failSequence();
-                System.err.println("[world player="+worldPlayer.id()+"] pet-test sequence failed: "+t);
-            }
-            if(petRuntimeCommands.sequenceActive())ensurePetTestSequenceScheduled(when);
-        });
+        petRealtime.ensureTestSequenceScheduled(now);
     }
 
     private void acceptPendingInterfaceClose(
