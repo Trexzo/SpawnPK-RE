@@ -7,6 +7,7 @@ final class GroundItemRegistry {
     private final LinkedHashMap<Long,GroundItem> byId=new LinkedHashMap<>();
     private final AtomicLong ids=new AtomicLong();
     synchronized GroundItem add(int itemId,int amount,Tile tile,String owner,long tick,boolean devOwned){
+        if(itemId<0||amount<=0||tile==null)throw new IllegalArgumentException();
         for(GroundItem g:byId.values()) if(g.itemId==itemId&&g.tile.equals(tile)&&Objects.equals(g.owner,owner)&&g.devOwned==devOwned){
             long sum=(long)g.amount+amount; if(sum>Integer.MAX_VALUE)throw new IllegalStateException("ground amount overflow"); g.amount=(int)sum; return g;
         }
