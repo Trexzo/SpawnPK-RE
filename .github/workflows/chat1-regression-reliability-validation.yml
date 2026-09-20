@@ -1,0 +1,62 @@
+name: Chat1 Regression Reliability Validation
+
+on:
+  push:
+    branches:
+      - integration/post257-regression-reliability-chat1
+
+jobs:
+  windows-regression-reliability:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Gradle-backed canonical build
+        shell: pwsh
+        run: ./server/build.ps1
+
+      - name: Stress deterministic regression slices
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $cp = 'server/build/SpawnPKLocalServer.jar;server/build/classes/java/test'
+          $tests = @(
+            'WorldCommandLatencyTest',
+            'EngineR3DualSocketVisibilityTest',
+            'EngineR41TradeApproachSocketTest',
+            'EngineR5ItemLibrarySocketTest',
+            'EngineR6RegionSocketCommandTest'
+          )
+          for ($round = 1; $round -le 10; $round++) {
+            foreach ($t in $tests) {
+              Write-Host "[RELIABILITY] round=$round test=$t"
+              & java -cp $cp "spk.local.$t"
+              if ($LASTEXITCODE -ne 0) {
+                throw "Reliability regression failed: round=$round test=$t exit=$LASTEXITCODE"
+              }
+            }
+          }
+          Write-Host "CHAT1_REGRESSION_RELIABILITY_STRESS_PASS rounds=10 tests=$($tests.Count) executions=50"
+
+      - name: Related region guards
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $cp = 'server/build/SpawnPKLocalServer.jar;server/build/classes/java/test'
+          $tests = @(
+            'EngineR6WorldCollisionAuthorityTest',
+            'LocalRegionStreamHandlerTest',
+            'LocalRegionDevCommandHandlerTest'
+          )
+          foreach ($t in $tests) {
+            Write-Host "[REGION-GUARD] $t"
+            & java -cp $cp "spk.local.$t"
+            if ($LASTEXITCODE -ne 0) {
+              throw "Region guard failed: $t exit=$LASTEXITCODE"
+            }
+          }
+          Write-Host "CHAT1_REGION_GUARDS_PASS tests=$($tests.Count)"
