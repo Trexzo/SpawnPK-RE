@@ -1,0 +1,32 @@
+name: Temp Issue 167 Post200 CI
+on:
+  pull_request:
+jobs:
+  issue167:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Canonical server build
+        shell: pwsh
+        run: ./server/build.ps1
+      - name: Issue 167 focused regression
+        shell: pwsh
+        run: |
+          java -cp server/build/classes spk.local.ConstructionHouseLayoutTest
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Construction authority boundary guard
+        shell: pwsh
+        run: |
+          $paths = @(
+            "server/src/spk/local/HouseRoomDefinition.java",
+            "server/src/spk/local/ConstructionRoomCatalog.java",
+            "server/src/spk/local/ConstructionService.java",
+            "server/src/spk/local/HouseInstanceMaterializationPort.java"
+          )
+          $bad = Select-String -Path $paths -Pattern "widgetId|opcode|subtype|ClientPacket|ServerPacket|spriteId|sceneIndex|worldX|worldY|objectId|buildPrice|materialRequirement" -CaseSensitive:$false
+          if ($bad) { $bad | ForEach-Object { Write-Host $_ }; throw "Issue 167 authority/protocol boundary violation." }
+          Write-Host "ISSUE167_PROTOCOL_AUTHORITY_BOUNDARY_PASS"
