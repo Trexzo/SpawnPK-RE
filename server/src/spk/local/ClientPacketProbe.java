@@ -43,8 +43,6 @@ final class ClientPacketProbe {
     private MovementRequest pendingMovement;
     private ObjectInteraction pendingObjectInteraction;
     private ItemContainerAction pendingItemAction;
-    private Integer pendingAmount;
-    private ContainerDrag pendingContainerDrag;
     private DropItemAction pendingDropItem;
     private NpcAction pendingNpcAction;
     private PlayerAction pendingPlayerAction;
@@ -78,18 +76,6 @@ final class ClientPacketProbe {
         ItemContainerAction r = pendingItemAction;
         pendingItemAction = null;
         return r;
-    }
-
-    Integer takeAmount() {
-        Integer v = pendingAmount;
-        pendingAmount = null;
-        return v;
-    }
-
-    ContainerDrag takeContainerDrag() {
-        ContainerDrag v = pendingContainerDrag;
-        pendingContainerDrag = null;
-        return v;
     }
 
     ClientRequest takeTypedRequest(){
@@ -362,7 +348,19 @@ final class ClientPacketProbe {
                 // rs.x.e.g(int) is ordinary big-endian 32-bit.
                 byte[] body = Binary.readExactly(in, 4);
                 int amount = be32(body,0);
-                pendingAmount = amount;
+
+                offerTypedRequest(
+                    new AmountEntryClientRequest(
+                        amount,
+                        ClientRequestMetadata.exactCurrent(
+                            208,
+                            "FIXED4_BE_SIGNED_AMOUNT",
+                            "PINNED_CLIENT_AMOUNT_ENTRY_WRITER"
+                        )
+                    ),
+                    opcode
+                );
+
                 System.out.printf("%sCLIENT_PACKET seq=%d opcode=208 len=4 amount=%d amountEntry=true schema=STATIC_EXACT_FIXED4_BE%n",
                                   tag, decodedCount, amount);
                 return true;
@@ -377,7 +375,24 @@ final class ClientPacketProbe {
                 int mode = (-(body[2] & 0xff)) & 0xff;
                 int source = leA(body,3);
                 int destination = le(body,5);
-                pendingContainerDrag = new ContainerDrag(widget,mode,source,destination);
+
+                offerTypedRequest(
+                    new ContainerDragClientRequest(
+                        new ContainerDrag(
+                            widget,
+                            mode,
+                            source,
+                            destination
+                        ),
+                        ClientRequestMetadata.exactCurrent(
+                            214,
+                            "FIXED7_WIDGET_LE_A_MODE_NEG_SOURCE_LE_A_DEST_LE",
+                            "PINNED_CLIENT_CONTAINER_DRAG_WRITER"
+                        )
+                    ),
+                    opcode
+                );
+
                 System.out.printf("%sCLIENT_PACKET seq=%d opcode=214 len=7 containerDrag=true widget=%d mode=%d source=%d destination=%d schema=STATIC_EXACT_FIXED7%n",
                                   tag, decodedCount, widget, mode, source, destination);
                 return true;
