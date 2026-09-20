@@ -41,9 +41,17 @@ public final class ClientPacketProbeTest {
         MovementRequest m1=p.takeMovement();
         if (m1==null || m1.opcode!=164 || m1.finalX()!=3087 || m1.finalY()!=3495 || m1.run)
             throw new AssertionError("first movement decode mismatch: "+m1);
+
+        ClientRequest startupCommand=p.takeTypedRequest();
+        if(!(startupCommand instanceof CommandClientRequest)||
+           !"abc".equals(((CommandClientRequest)startupCommand).command()))
+            throw new AssertionError("startup command request="+startupCommand);
+
         if (!p.readNextKnownPacket()) throw new AssertionError("generic 185 decode stopped");
-        Integer wa=p.takeWidgetAction();
-        if (wa==null || wa!=152) throw new AssertionError("widget action mismatch: "+wa);
+        ClientRequest widgetRequest=p.takeTypedRequest();
+        if(!(widgetRequest instanceof WidgetActionClientRequest)||
+           ((WidgetActionClientRequest)widgetRequest).widgetId()!=152)
+            throw new AssertionError("widget action mismatch: "+widgetRequest);
         if (!p.readNextKnownPacket()) throw new AssertionError("object132 decode stopped");
         ObjectInteraction oi=p.takeObjectInteraction();
         if (oi==null || oi.opcode!=132 || oi.objectId!=26972 || oi.worldX!=3095 || oi.worldY!=3493)
@@ -56,7 +64,9 @@ public final class ClientPacketProbeTest {
         if (!p.readNextKnownPacket()) throw new AssertionError("drag214 decode stopped");
         ContainerDrag drag=p.takeContainerDrag(); if(drag==null||drag.widgetId!=5064||drag.mode!=0||drag.sourceSlot!=0||drag.destinationSlot!=5)throw new AssertionError("drag214="+drag);
         if (!p.readNextKnownPacket()) throw new AssertionError("close130 decode stopped");
-        if (!p.takeInterfaceClose()) throw new AssertionError("close130 pending flag missing");
+        ClientRequest closeRequest=p.takeTypedRequest();
+        if(!(closeRequest instanceof InterfaceCloseClientRequest))
+            throw new AssertionError("close130 typed request missing: "+closeRequest);
         if (!p.readNextKnownPacket()) throw new AssertionError("second movement decode stopped");
         MovementRequest m2=p.takeMovement();
         if (m2==null || m2.opcode!=164 || m2.finalX()!=3087 || m2.finalY()!=3496 || m2.run)
