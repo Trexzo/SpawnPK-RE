@@ -4,6 +4,7 @@ import java.util.*;
 import java.util.concurrent.*;
 import spk.content.api.ContentProvenance;
 import spk.content.builtin.LocalLabCoreContentModule;
+import spk.content.builtin.UnknownServerInteractionModule;
 
 /** Shared authoritative ownership root. R2 adds membership, one WorldPulse and command execution. */
 final class World implements AutoCloseable {
@@ -46,6 +47,10 @@ final class World implements AutoCloseable {
         content.installTrusted(
             new LocalLabCoreContentModule(),
             ContentProvenance.CUSTOM_LOCALLAB
+        );
+        content.installTrusted(
+            new UnknownServerInteractionModule(),
+            ContentProvenance.UNKNOWN_SERVER_AUTHORITY
         );
     }
 
