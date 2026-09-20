@@ -21,7 +21,9 @@ final class WorldPathfinder {
             for(int i=0;i<8;i++){
                 int nx=x+DX[i],ny=y+DY[i];if(nx<minX||nx>maxX||ny<minY||ny>maxY)continue;
                 long nk=key(nx,ny);if(prev.containsKey(nk))continue;
-                if(!WorldCollisionAuthority.canStep(x,y,plane,nx,ny))continue;
+                if(!CollisionStepAuthority.canStep(
+                        CollisionStepAuthority.Policy.WORLD_STATIC,
+                        x,y,plane,nx,ny))continue;
                 prev.put(nk,cur);q.addLast(nk);
             }
         }
