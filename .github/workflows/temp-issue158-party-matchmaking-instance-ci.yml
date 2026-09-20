@@ -1,0 +1,39 @@
+name: Temp Issue 158 Party Matchmaking Instance CI
+
+on:
+  pull_request:
+
+jobs:
+  issue158:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Canonical server build
+        shell: pwsh
+        run: ./server/build.ps1
+      - name: Issue 158 focused regression
+        shell: pwsh
+        run: |
+          java -cp server/build/classes spk.local.PartyMatchmakingWorldInstanceFoundationTest
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Domain separation boundary guard
+        shell: pwsh
+        run: |
+          $paths = @(
+            "server/src/spk/local/PartyId.java",
+            "server/src/spk/local/PartyService.java",
+            "server/src/spk/local/QueueId.java",
+            "server/src/spk/local/MatchmakingService.java",
+            "server/src/spk/local/WorldInstanceId.java",
+            "server/src/spk/local/WorldInstanceService.java"
+          )
+          $bad = Select-String -Path $paths -Pattern "widgetId|opcode|subtype|ServerPacketWriter|ClientPacket|S2C126|S2C250|spriteId|sceneIndex|WorldRegionAuthority|WorldRegion" -CaseSensitive:$false
+          if ($bad) {
+            $bad | ForEach-Object { Write-Host $_ }
+            throw "Issue 158 domain source contains protocol/presentation/map identity."
+          }
+          Write-Host "ISSUE158_DOMAIN_BOUNDARY_PASS"
