@@ -194,6 +194,13 @@ final class LocalRegionStreamHandler {
         return true;
     }
 
+    void reattachHomeForRespawn(
+        ServerPacketWriter writer,
+        String tag
+    )throws IOException{
+        reattachHome(writer,tag);
+    }
+
     private void reattachHome(
         ServerPacketWriter writer,
         String tag
