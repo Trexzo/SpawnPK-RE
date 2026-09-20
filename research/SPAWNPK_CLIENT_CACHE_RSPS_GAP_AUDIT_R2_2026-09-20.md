@@ -1406,58 +1406,113 @@ Acceptance should require:
 
 ## Remaining R2 evidence gaps before domain issues
 
-Continue research before opening raid/market/construction gameplay issues:
+The R1-requested transport/effect audit is now closed at the static exact-current layer.
 
-1. no active numeric S2C126 target remains without an exact client effect classification; target 69 intentionally retains UNKNOWN feature/domain ownership despite its exact HUD render effect,
-2. verify whether construction exposes any additional non-widget placement command after room selection,
-3. recover any raid invitation text-entry path if the server requests a player name after the invite widget,
-4. identify the Item Enchantment Search-by-name text submission path if it is client-local rather than server-requested,
-5. add packet-level fixtures before any production implementation.
+Remaining unknowns are deliberately server-owned business rules or require runtime/server evidence, for example:
 
-Closed in R2.4:
-- Item Enchantment widget 50253 `Select item` uses exact C2S145 with BE-A widget/slot/item fields; category, Enchant and Search controls remain C2S185.
+1. raid invite-name acquisition after the exact C2S185 invite click,
+2. authoritative raid admission/progression/reward rules,
+3. marketplace escrow/settlement/ownership rules,
+4. mailbox contents/claim authorization/expiry rules,
+5. construction placement/adjacency/material/persistence rules,
+6. Enchantment Search-by-name follow-up query acquisition,
+7. recipe/success/cost mechanics for Enchantment/Blood conversion systems.
 
-Closed in R2.3:
-- S2C126 target 35 is the exact update side of S2C255 `HIT_DROP_POPUP_EVENT(amount, opaque64, protectionStyle)`; it is combat hit/block popup presentation, not loot/drop-table state.
+These are **not** grounds to invent new C2S/S2C packet families.
 
-Closed in R2.1/R2.2:
-- Trading Post text submission: `tpsitem` / `tpsuser` / `tpshist` over C2S103.
-- Mailbox row/delete/deposit/refresh widget actions over C2S185.
-- Construction room-selection widget IDs and C2S185 transport.
-- Named raid type/difficulty/member/start/leave/refresh/re-invite controls over C2S185.
-- Daily Money Making track/teleport/difficulty controls over C2S185 paired with S2C126 target 36.
+Packet-level production fixtures and typed S2C126 implementation belong on Issue #148's isolated production lane.
 
-Closed in R2.5:
-- target 22 = task-progress hover text.
-- target 23 = broadcast banner text.
-- target 24 = equipment-hover detail cache, paired with exact C2S103 `equipstr <itemId>` and `RESET_HOVER_EQUIPMENT`.
+## R2.9 negative closures for indirect input / post-selection paths
 
-Closed in R2.6:
-- target 32 = local-player prayer/protection head-icon index.
-- target 33 = indexed remote-player prayer/protection head-icon index.
-- target 34 = tile-scoped NPC/player scene suppression state in region 10806; feature/domain intentionally remains unnamed.
+### Raid invite-name follow-up remains intentionally unjoined
 
-Closed in canonical reconciliation R2.7:
-- target 18 = gambling game-type selection.
-- target 26 = Daily Money Making tracking text.
-- target 27 = gambling/control selected-state.
-- target 31 = special-attack orb value.
-- target 37 = Blood Pool shop slot append.
-- target 39 = World Tournament phase/deadline.
-- target 43 = current pet-loadout pair, paired with C2S103 `pet_loadout <arg0> <arg1>`.
-- targets 44/45 = generic Text Color Selection state + server-selectable submit command prefix.
-- target 46 + 57/58 = raid overlay points/total and progress/style state.
-- targets 48/49 = PvP Hotspot timer/body state.
-- targets 59-61 = LMS lobby text lines.
-- target 70 = exact dormant structured timed state with no stock reader.
-- Enchantment widget 50314 has no hardwired local `Client.fN` input-mode transition; follow-up text entry remains server-mediated/indirect or otherwise unresolved.
+The exact raid setup controller `rs.n.c.aL` owns the four native invite widgets:
 
-Closed in R2.8:
-- target 28 = Clan Wars begin-countdown deadline.
-- target 29 = Clan Wars Your-clan/Opponents counts.
-- target 30 = Clan Wars Fighters-vs-Kills score-label mode.
-- target 69 = exact standalone HUD-panel text effect; feature/domain remains intentionally UNKNOWN.
-- With these closures, all active numeric targets now have an exact client effect classification; unknowns are semantic ownership/business authority, not packet shape or client behavior.
+```
+19614
+19620
+19626
+19632
+```
+
+Each is an ordinary current-client widget request and therefore emits:
+
+```
+C2S185(widgetId)
+```
+
+A direct audit of the raid controller finds:
+
+- no write to `Client.fN` (the client-local text-input mode),
+- no embedded `::raidinvite` / player-name command construction,
+- no alternate raid-specific C2S name packet.
+
+The current client does have a generic server-driven native name prompt:
+
+```
+S2C187 -> Enter name mode
+C2S60  -> fixed8 BE name-hash long
+```
+
+but static exact-current evidence does **not** join that generic prompt to the raid invite widgets.
+
+Therefore the safe contract is:
+
+```
+raid Invite member click
+ -> exact C2S185(widget)
+ -> subsequent invitee-name acquisition = SERVER-MEDIATED / UNRESOLVED
+```
+
+Do not hardwire raid invite to S2C187/C2S60 without runtime/server evidence.
+
+### Item Enchantment Search-by-name is request-only
+
+Widget `50314` is the exact current `Search by name` button and its click transport is C2S185.
+
+Whole-JAR negative proof from the canonical R6 audit shows:
+
+- `rs.n.c.G` owns widget 50314 but never writes `Client.fN`,
+- all current-client `Client.fN` writers lack widget 50314,
+- therefore this button does not locally enter one of the known text-command input modes.
+
+The follow-up query entry remains server-mediated/indirect or otherwise unresolved.
+
+Do not map it to an arbitrary name/free-text input protocol by analogy.
+
+### Construction has no hidden client-side second packet family
+
+The construction room selector `rs.n.c.z` creates each `Build <room>` row as widget mode `M=5`.
+
+Exact outbound-menu authority closes:
+
+```
+M=5
+ -> client menu action 646
+ -> C2S185(widgetId)
+```
+
+The construction controller contains no local `Client.fN` input transition and no construction-specific `::command` emission.
+
+Thus the exact client-side transport boundary for room choice is the already-cataloged C2S185 room widget.
+
+Anything after that choice—placement legality, adjacency, orientation, build hotspot selection, price/material deduction, persistence, deletion/refund—is server authority unless separately observed.
+
+No additional construction packet family should be invented.
+
+### Research-lane closure status
+
+At this point:
+
+- every active numeric S2C126 target has an exact client-effect classification;
+- all five high-value R1 domains (raid, marketplace, progression, mail, construction) have exact current-client outbound intent transports or explicit negative boundaries;
+- known command compatibility paths are mapped onto C2S103;
+- ordinary UI actions converge on C2S185;
+- Item Enchantment item selection is separately exact C2S145;
+- generic native amount/name prompts remain reusable transports but are not assigned to a feature without a direct join;
+- unresolved items are server business authority, not unknown packet framing.
+
+Production implementation remains owned by Issue #148 / its dedicated branch. This research lane should not duplicate that code.
 
 ## R2 conclusion
 
