@@ -1,0 +1,22 @@
+name: Temporary Issue 13 HOME collision comparison
+
+on:
+  push:
+    branches:
+      - research/issue-13-home-collision-authority-compare
+
+jobs:
+  compare:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Compile current source tree
+        shell: pwsh
+        run: ./server/build.ps1
+      - name: Compare HOME collision authorities
+        shell: pwsh
+        run: java -cp server/build/classes spk.local.HomeCollisionAuthorityComparisonTest
