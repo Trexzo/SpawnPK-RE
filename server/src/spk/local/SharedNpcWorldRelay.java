@@ -55,9 +55,21 @@ final class SharedNpcWorldRelay {
         synchronized(SharedNpcWorldRelay.class){
             Context src=BY_WRITER.get(sourceWriter);if(src==null)return;
             TargetRef target;
-            if(sourceTarget==sourceNpcs.pet()) target=TargetRef.pet(sourceTarget.definitionId);
-            else if(sourceTarget==sourceNpcs.miniPet()) target=TargetRef.mini(sourceTarget.definitionId);
-            else target=TargetRef.scene(sourceTarget.sceneIndex,sourceTarget.definitionId);
+            if(sourceTarget==sourceNpcs.pet())
+                target=TargetRef.pet(
+                    sourceNpcs.canonicalPetId(),
+                    sourceTarget.definitionId
+                );
+            else if(sourceTarget==sourceNpcs.miniPet())
+                target=TargetRef.mini(
+                    sourceNpcs.canonicalMiniPetId(),
+                    sourceTarget.definitionId
+                );
+            else
+                target=TargetRef.scene(
+                    sourceTarget.sceneIndex,
+                    sourceTarget.definitionId
+                );
 
             long barrier=Player81WorldSync.latestPublishedEventSequence(sourceWriter);
             LinkedHashSet<EntityId> recipients=new LinkedHashSet<>();
@@ -111,7 +123,11 @@ final class SharedNpcWorldRelay {
 
 
     private static boolean sameTarget(TargetRef a,TargetRef b){
-        return a!=null&&b!=null&&a.kind==b.kind&&a.scene==b.scene&&a.definition==b.definition;
+        return a!=null&&b!=null&&
+            a.kind==b.kind&&
+            a.scene==b.scene&&
+            a.definition==b.definition&&
+            Objects.equals(a.canonicalId,b.canonicalId);
     }
 
     private static boolean sameMask(NpcSyncEncoder.Mask a,NpcSyncEncoder.Mask b){
@@ -153,10 +169,48 @@ final class SharedNpcWorldRelay {
     private static final class TargetRef{
         static final int SCENE=0,PET=1,MINI=2;
         final int kind,scene,definition;
-        TargetRef(int k,int s,int d){kind=k;scene=s;definition=d;}
-        static TargetRef scene(int s,int d){return new TargetRef(SCENE,s,d);}
-        static TargetRef pet(int d){return new TargetRef(PET,-1,d);}
-        static TargetRef mini(int d){return new TargetRef(MINI,-1,d);}
+        final EntityId canonicalId;
+        TargetRef(
+            int kind,
+            int scene,
+            int definition,
+            EntityId canonicalId
+        ){
+            this.kind=kind;
+            this.scene=scene;
+            this.definition=definition;
+            this.canonicalId=canonicalId;
+        }
+        static TargetRef scene(int scene,int definition){
+            return new TargetRef(
+                SCENE,
+                scene,
+                definition,
+                null
+            );
+        }
+        static TargetRef pet(
+            EntityId canonicalId,
+            int definition
+        ){
+            return new TargetRef(
+                PET,
+                -1,
+                definition,
+                canonicalId
+            );
+        }
+        static TargetRef mini(
+            EntityId canonicalId,
+            int definition
+        ){
+            return new TargetRef(
+                MINI,
+                -1,
+                definition,
+                canonicalId
+            );
+        }
     }
 
     private static final class MaskEvent{
@@ -174,59 +228,290 @@ final class SharedNpcWorldRelay {
     private static final class RemotePetTrack{
         int mainScene=-1,miniScene=-1,mainDef=-1,miniDef=-1;
         int mainX,mainY,miniX,miniY;
+        EntityId mainCanonicalId,miniCanonicalId;
         Integer mainParticleSelector;
     }
 
     private static final class Context{
         final ServerPacketWriter writer;final WorldState state;final WorldPlayer owner;final NpcRegistry npcs;final MovementState movement;
         final HashMap<EntityId,RemotePetTrack> remote=new HashMap<>();
+        final NpcViewIndexMap remoteIndexes=new NpcViewIndexMap();
         Context(ServerPacketWriter w,WorldState s,WorldPlayer o,NpcRegistry n,MovementState m){writer=w;state=s;owner=o;npcs=n;movement=m;}
 
         void syncRemotePets()throws IOException{
             ArrayList<Context> sources;
-            synchronized(SharedNpcWorldRelay.class){sources=new ArrayList<>(state.contexts.values());}
+            synchronized(SharedNpcWorldRelay.class){
+                sources=new ArrayList<>(
+                    state.contexts.values()
+                );
+            }
+
             HashSet<EntityId> live=new HashSet<>();
+
             for(Context src:sources){
                 if(src==this)continue;
-                int playerIndex=Player81WorldSync.clientIndexFor(writer,src.owner);
-                if(playerIndex<0){removeRemote(src.owner.id());continue;}
-                NpcEntity pet=src.npcs.pet(),mini=src.npcs.miniPet();
-                if(pet==null){removeRemote(src.owner.id());continue;}
-                live.add(src.owner.id());
-                RemotePetTrack t=remote.get(src.owner.id());if(t==null){t=new RemotePetTrack();remote.put(src.owner.id(),t);}
 
-                Integer selector=src.npcs.petParticleSelector();
-                boolean selectorChanged=t.mainScene>=0&&!Objects.equals(t.mainParticleSelector,selector);
+                int playerIndex=
+                    Player81WorldSync.clientIndexFor(
+                        writer,
+                        src.owner
+                    );
+
+                if(playerIndex<0){
+                    removeRemote(src.owner.id());
+                    continue;
+                }
+
+                WorldNpc canonicalPet=
+                    state.world.petNpcs().main(
+                        src.owner.id()
+                    );
+                WorldNpc canonicalMini=
+                    state.world.petNpcs().mini(
+                        src.owner.id()
+                    );
+
+                NpcEntity fallbackPet=src.npcs.pet();
+                NpcEntity fallbackMini=src.npcs.miniPet();
+
+                boolean canonicalSource=
+                    canonicalPet!=null;
+
+                if(canonicalPet==null&&
+                   fallbackPet==null){
+                    removeRemote(src.owner.id());
+                    continue;
+                }
+
+                int petDef=canonicalSource
+                    ?canonicalPet.definitionId
+                    :fallbackPet.definitionId;
+                int petX=canonicalSource
+                    ?canonicalPet.x()
+                    :fallbackPet.x;
+                int petY=canonicalSource
+                    ?canonicalPet.y()
+                    :fallbackPet.y;
+                EntityId petCanonicalId=canonicalSource
+                    ?canonicalPet.id
+                    :null;
+
+                boolean canonicalMiniSource=
+                    canonicalMini!=null;
+                boolean miniPresent=
+                    canonicalMiniSource||
+                    (!canonicalSource&&fallbackMini!=null);
+
+                int miniDef=miniPresent
+                    ?(canonicalMiniSource
+                        ?canonicalMini.definitionId
+                        :fallbackMini.definitionId)
+                    :-1;
+                int miniX=miniPresent
+                    ?(canonicalMiniSource
+                        ?canonicalMini.x()
+                        :fallbackMini.x)
+                    :0;
+                int miniY=miniPresent
+                    ?(canonicalMiniSource
+                        ?canonicalMini.y()
+                        :fallbackMini.y)
+                    :0;
+                EntityId miniCanonicalId=
+                    canonicalMiniSource
+                        ?canonicalMini.id
+                        :null;
+
+                live.add(src.owner.id());
+
+                RemotePetTrack t=
+                    remote.get(src.owner.id());
+                if(t==null){
+                    t=new RemotePetTrack();
+                    remote.put(src.owner.id(),t);
+                }
+
+                Integer selector=
+                    src.npcs.petParticleSelector();
+
+                boolean mainIdentityChanged=
+                    t.mainScene>=0&&
+                    !Objects.equals(
+                        t.mainCanonicalId,
+                        petCanonicalId
+                    )&&
+                    (t.mainCanonicalId!=null||
+                     petCanonicalId!=null);
+
+                boolean selectorChanged=
+                    t.mainScene>=0&&
+                    !Objects.equals(
+                        t.mainParticleSelector,
+                        selector
+                    );
+
                 int previousMainScene=t.mainScene;
-                if(selectorChanged){
-                    if(t.mainScene>=0)npcs.devRemoveNpc(t.mainScene,writer);
-                    t.mainScene=-1;t.mainDef=-1;
+
+                if(mainIdentityChanged||
+                   selectorChanged){
+                    if(t.mainScene>=0)
+                        npcs.devRemoveNpc(
+                            t.mainScene,
+                            writer
+                        );
+                    if(t.mainCanonicalId!=null)
+                        remoteIndexes.unbind(
+                            t.mainCanonicalId
+                        );
+                    t.mainScene=-1;
+                    t.mainDef=-1;
                 }
 
                 boolean mainWasAbsent=t.mainScene<0;
-                t.mainScene=syncOne(t.mainScene,t.mainDef,pet.definitionId,t.mainX,t.mainY,pet.x,pet.y,32768+playerIndex,selector);
-                t.mainDef=pet.definitionId;t.mainX=pet.x;t.mainY=pet.y;t.mainParticleSelector=selector;
 
-                boolean mainRespawned=mainWasAbsent||selectorChanged||previousMainScene!=t.mainScene;
-                if(mainRespawned&&t.mainScene>=0&&PetPresentationProfile.supportsNativeState(pet.definitionId)){
-                    int nativeState=src.npcs.petNativeState();
+                t.mainScene=syncOne(
+                    t.mainScene,
+                    t.mainDef,
+                    petDef,
+                    t.mainX,
+                    t.mainY,
+                    petX,
+                    petY,
+                    32768+playerIndex,
+                    selector
+                );
+
+                if(petCanonicalId!=null&&
+                   t.mainScene>=0)
+                    remoteIndexes.bind(
+                        petCanonicalId,
+                        t.mainScene
+                    );
+
+                t.mainDef=petDef;
+                t.mainX=petX;
+                t.mainY=petY;
+                t.mainCanonicalId=petCanonicalId;
+                t.mainParticleSelector=selector;
+
+                boolean mainRespawned=
+                    mainWasAbsent||
+                    mainIdentityChanged||
+                    selectorChanged||
+                    previousMainScene!=t.mainScene;
+
+                if(mainRespawned&&
+                   t.mainScene>=0&&
+                   PetPresentationProfile.supportsNativeState(
+                       petDef
+                   )){
+                    int nativeState=
+                        src.npcs.petNativeState();
+
                     if(nativeState!=0){
-                        NpcEntity mirrored=npcs.scene(t.mainScene);
-                        if(mirrored!=null)npcs.sendMaskLocal(mirrored,NpcSyncEncoder.Mask.forceText(Integer.toString(nativeState)),writer);
+                        NpcEntity mirrored=
+                            npcs.scene(t.mainScene);
+                        if(mirrored!=null)
+                            npcs.sendMaskLocal(
+                                mirrored,
+                                NpcSyncEncoder.Mask.forceText(
+                                    Integer.toString(
+                                        nativeState
+                                    )
+                                ),
+                                writer
+                            );
                     }
                 }
 
-                if(mini!=null && t.mainScene>=0){
-                    int oldMiniScene=t.miniScene;
-                    t.miniScene=syncOne(t.miniScene,t.miniDef,mini.definitionId,t.miniX,t.miniY,mini.x,mini.y,t.mainScene,null);
-                    t.miniDef=mini.definitionId;t.miniX=mini.x;t.miniY=mini.y;
-                    if(t.miniScene>=0&&(mainRespawned||oldMiniScene!=t.miniScene)){
-                        NpcEntity mirroredMini=npcs.scene(t.miniScene);
-                        if(mirroredMini!=null)npcs.sendMaskLocal(mirroredMini,NpcSyncEncoder.Mask.interactionTarget(t.mainScene),writer);
+                if(miniPresent&&
+                   t.mainScene>=0){
+                    boolean miniIdentityChanged=
+                        t.miniScene>=0&&
+                        !Objects.equals(
+                            t.miniCanonicalId,
+                            miniCanonicalId
+                        )&&
+                        (t.miniCanonicalId!=null||
+                         miniCanonicalId!=null);
+
+                    if(miniIdentityChanged){
+                        if(t.miniScene>=0)
+                            npcs.devRemoveNpc(
+                                t.miniScene,
+                                writer
+                            );
+                        if(t.miniCanonicalId!=null)
+                            remoteIndexes.unbind(
+                                t.miniCanonicalId
+                            );
+                        t.miniScene=-1;
+                        t.miniDef=-1;
                     }
-                }else if(t.miniScene>=0){npcs.devRemoveNpc(t.miniScene,writer);t.miniScene=-1;t.miniDef=-1;}
+
+                    int oldMiniScene=t.miniScene;
+
+                    t.miniScene=syncOne(
+                        t.miniScene,
+                        t.miniDef,
+                        miniDef,
+                        t.miniX,
+                        t.miniY,
+                        miniX,
+                        miniY,
+                        t.mainScene,
+                        null
+                    );
+
+                    if(miniCanonicalId!=null&&
+                       t.miniScene>=0)
+                        remoteIndexes.bind(
+                            miniCanonicalId,
+                            t.miniScene
+                        );
+
+                    t.miniDef=miniDef;
+                    t.miniX=miniX;
+                    t.miniY=miniY;
+                    t.miniCanonicalId=miniCanonicalId;
+
+                    if(t.miniScene>=0&&
+                       (mainRespawned||
+                        miniIdentityChanged||
+                        oldMiniScene!=t.miniScene)){
+                        NpcEntity mirroredMini=
+                            npcs.scene(t.miniScene);
+                        if(mirroredMini!=null)
+                            npcs.sendMaskLocal(
+                                mirroredMini,
+                                NpcSyncEncoder.Mask.interactionTarget(
+                                    t.mainScene
+                                ),
+                                writer
+                            );
+                    }
+                }else if(t.miniScene>=0){
+                    npcs.devRemoveNpc(
+                        t.miniScene,
+                        writer
+                    );
+                    if(t.miniCanonicalId!=null)
+                        remoteIndexes.unbind(
+                            t.miniCanonicalId
+                        );
+                    t.miniScene=-1;
+                    t.miniDef=-1;
+                    t.miniCanonicalId=null;
+                }
             }
-            ArrayList<EntityId> stale=new ArrayList<>();for(EntityId id:remote.keySet())if(!live.contains(id))stale.add(id);for(EntityId id:stale)removeRemote(id);
+
+            ArrayList<EntityId> stale=
+                new ArrayList<>();
+            for(EntityId id:remote.keySet())
+                if(!live.contains(id))
+                    stale.add(id);
+            for(EntityId id:stale)
+                removeRemote(id);
         }
 
         int syncOne(int scene,int oldDef,int def,int oldX,int oldY,int x,int y,int interactionTarget,Integer particleSelector)throws IOException{
@@ -261,19 +546,60 @@ final class SharedNpcWorldRelay {
         NpcEntity resolve(EntityId sourceId,TargetRef ref){
             if(ref.kind==TargetRef.SCENE){
                 NpcEntity same=npcs.scene(ref.scene);
-                return same!=null&&same.definitionId==ref.definition?same:null;
+                return same!=null&&
+                    same.definitionId==ref.definition
+                    ?same
+                    :null;
             }
-            RemotePetTrack t=remote.get(sourceId);if(t==null)return null;
-            int scene=ref.kind==TargetRef.PET?t.mainScene:t.miniScene;
+
+            RemotePetTrack t=remote.get(sourceId);
+            if(t==null)return null;
+
+            Integer mapped=
+                ref.canonicalId==null
+                    ?null
+                    :remoteIndexes.sceneIndex(
+                        ref.canonicalId
+                    );
+
+            int scene=mapped!=null
+                ?mapped.intValue()
+                :(ref.kind==TargetRef.PET
+                    ?t.mainScene
+                    :t.miniScene);
+
             if(scene<0)return null;
+
             NpcEntity e=npcs.scene(scene);
-            return e!=null&&e.definitionId==ref.definition?e:null;
+            return e!=null&&
+                e.definitionId==ref.definition
+                ?e
+                :null;
         }
 
         void removeRemote(EntityId id)throws IOException{
-            RemotePetTrack t=remote.remove(id);if(t==null)return;
-            if(t.miniScene>=0)npcs.devRemoveNpc(t.miniScene,writer);
-            if(t.mainScene>=0)npcs.devRemoveNpc(t.mainScene,writer);
+            RemotePetTrack t=remote.remove(id);
+            if(t==null)return;
+
+            if(t.miniScene>=0)
+                npcs.devRemoveNpc(
+                    t.miniScene,
+                    writer
+                );
+            if(t.mainScene>=0)
+                npcs.devRemoveNpc(
+                    t.mainScene,
+                    writer
+                );
+
+            if(t.miniCanonicalId!=null)
+                remoteIndexes.unbind(
+                    t.miniCanonicalId
+                );
+            if(t.mainCanonicalId!=null)
+                remoteIndexes.unbind(
+                    t.mainCanonicalId
+                );
         }
         void removeAllRemotePets()throws IOException{for(EntityId id:new ArrayList<>(remote.keySet()))removeRemote(id);}
     }
