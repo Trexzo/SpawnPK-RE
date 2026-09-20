@@ -41,6 +41,24 @@ public final class NpcDropKnowledgebaseQueryTest {
             }
         }, "npc actions immutable");
 
+        QueryPage<Integer> hugeLimitPage = QueryPage.slice(
+            Arrays.asList(Integer.valueOf(10), Integer.valueOf(20)),
+            1,
+            Integer.MAX_VALUE
+        );
+        require(hugeLimitPage.entries().size() == 1, "overflow-safe huge limit page size");
+        require(hugeLimitPage.entries().get(0).intValue() == 20, "overflow-safe huge limit row");
+        require(!hugeLimitPage.hasMore(), "overflow-safe huge limit hasMore");
+
+        QueryPage<Integer> hugeOffsetPage = QueryPage.slice(
+            Arrays.asList(Integer.valueOf(10), Integer.valueOf(20)),
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE
+        );
+        require(hugeOffsetPage.entries().isEmpty(), "overflow-safe huge offset empty page");
+        require(hugeOffsetPage.total() == 2, "overflow-safe huge offset total");
+        require(!hugeOffsetPage.hasMore(), "overflow-safe huge offset hasMore");
+
         DropTableCatalogQueryService.DropTableEntry row =
             new DropTableCatalogQueryService.DropTableEntry(
                 20,
@@ -112,9 +130,9 @@ public final class NpcDropKnowledgebaseQueryTest {
 
         System.out.println(
             "ISSUE175_NPC_DROP_KNOWLEDGEBASE_QUERY_PASS npcLookup=true npcSearch=true pagination=true " +
-            "npcOrder=true immutableNpc=true dropByNpc=true dropByItem=true unknownDropSourceAbsent=true " +
-            "unknownRarityAbsent=true knowledgeLookup=true knowledgeSearch=true immutableArticles=true " +
-            "provenance=true mutation=false inventedDropData=false protocolIndependent=true"
+            "paginationOverflowSafe=true npcOrder=true immutableNpc=true dropByNpc=true dropByItem=true " +
+            "unknownDropSourceAbsent=true unknownRarityAbsent=true knowledgeLookup=true knowledgeSearch=true " +
+            "immutableArticles=true provenance=true mutation=false inventedDropData=false protocolIndependent=true"
         );
     }
 
