@@ -436,7 +436,14 @@ final class NpcRegistry {
             int budget=(recentOwnerRunning||dist>2)?2:1;
             for(int i=0;i<budget;i++){
                 if(LocalSession.chebyshev(pet.x,pet.y,movement.x(),movement.y())<=1)break;
-                int dir=cardinalDirectionToward(pet,movement.x(),movement.y());
+                int dir=FollowerStepResolver.nextDirection(
+                    pet.x,
+                    pet.y,
+                    movement.x(),
+                    movement.y(),
+                    1,
+                    movement
+                );
                 if(dir<0)break;
                 enqueueMiniBreadcrumb(pet.x,pet.y);
                 applyPetDirection(pet,dir,true);
@@ -456,7 +463,14 @@ final class NpcRegistry {
                     petTrailState="DISCONTINUITY_DURING_STEP_DIRECT_NEXT_TICK";
                     break;
                 }
-                int dir=cardinalDirectionToward(pet,target[0],target[1]);
+                int dir=FollowerStepResolver.nextDirection(
+                    pet.x,
+                    pet.y,
+                    target[0],
+                    target[1],
+                    0,
+                    movement
+                );
                 if(dir<0)break;
                 enqueueMiniBreadcrumb(pet.x,pet.y);
                 applyPetDirection(pet,dir,true);
@@ -495,7 +509,14 @@ final class NpcRegistry {
                 int budget=(petMoves>0||miniDist>2)?2:1;
                 for(int i=0;i<budget;i++){
                     if(LocalSession.chebyshev(miniPet.x,miniPet.y,pet.x,pet.y)<=1)break;
-                    int dir=cardinalDirectionToward(miniPet,pet.x,pet.y);
+                    int dir=FollowerStepResolver.nextDirection(
+                        miniPet.x,
+                        miniPet.y,
+                        pet.x,
+                        pet.y,
+                        1,
+                        movement
+                    );
                     if(dir<0)break;
                     applyPetDirection(miniPet,dir,false);
                     if(miniMoves==0)miniDir1=dir;else miniDir2=dir;
@@ -511,7 +532,14 @@ final class NpcRegistry {
                     if(miniTrail.isEmpty())break;
                     int[] target=miniTrail.peekFirst();
                     if(LocalSession.chebyshev(miniPet.x,miniPet.y,target[0],target[1])>1){miniTrail.clear();miniTrailState="DISCONTINUITY_DURING_STEP_DIRECT_NEXT_TICK";break;}
-                    int dir=cardinalDirectionToward(miniPet,target[0],target[1]);
+                    int dir=FollowerStepResolver.nextDirection(
+                        miniPet.x,
+                        miniPet.y,
+                        target[0],
+                        target[1],
+                        0,
+                        movement
+                    );
                     if(dir<0)break;
                     applyPetDirection(miniPet,dir,false);
                     if(miniMoves==0)miniDir1=dir;else miniDir2=dir;
