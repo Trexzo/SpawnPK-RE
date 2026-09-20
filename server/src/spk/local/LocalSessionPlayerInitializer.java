@@ -39,6 +39,31 @@ final class LocalSessionPlayerInitializer {
     LocalSessionPlayerInitializer(
         World world,
         WorldPlayer worldPlayer,
+        BankState bank,
+        EquipmentState equipment,
+        MovementState movement,
+        PetState petState,
+        PlayerState playerState,
+        PetEffectState petEffects,
+        PetAccessoryState petAccessoryState
+    ){
+        this(
+            world,
+            worldPlayer,
+            new FilePlayerRepository(),
+            bank,
+            equipment,
+            movement,
+            petState,
+            playerState,
+            petEffects,
+            petAccessoryState
+        );
+    }
+
+    LocalSessionPlayerInitializer(
+        World world,
+        WorldPlayer worldPlayer,
         PlayerRepository playerRepository,
         BankState bank,
         EquipmentState equipment,
