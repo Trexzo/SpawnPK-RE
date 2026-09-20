@@ -337,16 +337,26 @@ final class CombatEngine {
         int dist=LocalSession.chebyshev(movement.x(),movement.y(),npc.x,npc.y);
         if(inLegalRange(movement.x(),movement.y(),npc.x,npc.y,range)){ clearApproachEcho(); return "ALREADY_IN_RANGE distance="+dist+" range="+range; }
 
-        // R2.10: interaction movement must respect the same exact HOME collision
-        // overlay published to the client. The old direct single-waypoint route could
-        // walk straight through altars/objects because MovementState only guarantees
-        // adjacent stepping, not collision legality.
-        java.util.List<int[]> path=HomeCombatPathfinder.route(movement.x(),movement.y(),npc.x,npc.y,range);
+        // Route ownership now enters through the generic routing service. This
+        // first roadmap slice intentionally selects the exact recovered HOME combat
+        // compatibility policy, so path geometry/authority is unchanged.
+        RouteFinder.Result routeResult=
+            RouteFinder.find(
+                RouteRequest.combatCompatibility(
+                    movement.x(),
+                    movement.y(),
+                    movement.plane(),
+                    npc.x,
+                    npc.y,
+                    range
+                )
+            );
+        java.util.List<int[]> path=routeResult.path;
         if(path==null || path.isEmpty()){
             clearApproachEcho();
             return path==null?
                 "APPROACH_REJECTED_NO_COLLISION_SAFE_ROUTE target="+npc.x+","+npc.y+" range="+range+
-                    " blockedTiles="+HomeCombatPathfinder.blockedTileCount()+" blockedEdges="+HomeCombatPathfinder.blockedEdgeCount():
+                    " blockedTiles="+routeResult.blockedTileCount+" blockedEdges="+routeResult.blockedEdgeCount:
                 "ALREADY_IN_RANGE distance="+dist+" range="+range;
         }
         int[] xs=new int[path.size()], ys=new int[path.size()];
@@ -364,7 +374,7 @@ final class CombatEngine {
         // the fence short so a genuinely later ground click is never swallowed.
         approachEchoDeadlineMs=now+350L;
         return "SERVER_APPROACH_ACCEPTED_COLLISION_SAFE dest="+destX+","+destY+" range="+range+" distance="+dist+
-            " pathSteps="+path.size()+" blockedTiles="+HomeCombatPathfinder.blockedTileCount()+" blockedEdges="+HomeCombatPathfinder.blockedEdgeCount()+
+            " pathSteps="+path.size()+" blockedTiles="+routeResult.blockedTileCount+" blockedEdges="+routeResult.blockedEdgeCount+
             " queued="+movement.queued()+" echoFenceMs=350";
     }
 
