@@ -5,12 +5,14 @@ import java.util.*;
 /**
  * Immutable versioned gameplay-state snapshot.
  *
- * Schema v1 carries the exact established account keys, but their gameplay
- * encoding/decoding is owned by PlayerSnapshotSchemaV1. Legacy Properties
- * conversion remains only at repository/compatibility boundaries.
+ * Snapshot v2 is the domain-owned repository format. It deliberately preserves
+ * the recovered schema-v1 gameplay keys; PlayerSnapshotMigrations owns version
+ * transitions and PlayerSnapshotSchemaV1 owns gameplay key encoding/decoding.
+ * Legacy Properties conversion remains only at repository/compatibility
+ * boundaries.
  */
 final class PlayerSnapshot {
-    static final int CURRENT_VERSION=1;
+    static final int CURRENT_VERSION=2;
 
     private final int version;
     private final String username;
@@ -108,59 +110,11 @@ final class PlayerSnapshot {
         String requestedUsername,
         Properties properties
     ){
-        if(properties==null)
-            throw new NullPointerException(
-                "properties"
+        return PlayerSnapshotMigrations
+            .fromLegacyProperties(
+                requestedUsername,
+                properties
             );
-
-        int version=parseInt(
-            properties.getProperty(
-                "format.version"
-            ),
-            -1
-        );
-
-        if(version!=CURRENT_VERSION)
-            throw new IllegalArgumentException(
-                "unsupported snapshot version="+
-                version
-            );
-
-        String stored=
-            properties.getProperty(
-                "username",
-                requestedUsername
-            );
-
-        TreeMap<String,String> values=
-            new TreeMap<>();
-
-        for(String key:
-                properties.stringPropertyNames())
-            if(!"format.version".equals(key)&&
-               !"username".equals(key)&&
-               !"saved.at".equals(key))
-                values.put(
-                    key,
-                    properties.getProperty(key)
-                );
-
-        return new PlayerSnapshot(
-            version,
-            stored,
-            values
-        );
-    }
-
-    private static int parseInt(
-        String value,
-        int fallback
-    ){
-        try{
-            return Integer.parseInt(value);
-        }catch(Exception e){
-            return fallback;
-        }
     }
 
     @Override public String toString(){
