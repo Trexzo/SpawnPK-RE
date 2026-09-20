@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - fix/issue-8-makex-fixture
+  pull_request:
+    branches:
+      - main
   workflow_dispatch:
 
 permissions:
