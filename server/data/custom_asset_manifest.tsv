@@ -1,0 +1,5 @@
+kind	contentKey	variant	itemId	npcId	name	models	stand	walk	scale	gfx	text	description	provenance
+PET_VARIANT	voidglass_nistirio	1	29999	12000	Rift Reaper	32327,32325,32324,32326,32765,32530	1662	1663	58	5042	VOIDGLASS RIFT	Blood-reaper body + abyssal portal + crystal accent	CUSTOM_LOCALLAB_VOIDGLASS_R3_MANIFEST
+PET_VARIANT	voidglass_nistirio	2	29999	12001	Arcane Singularity	17378,17394,17387,17399,17390,34252	66	63	45	5042	VOIDGLASS RIFT	Arcane-demon body + black-hole model	CUSTOM_LOCALLAB_VOIDGLASS_R3_MANIFEST
+PET_VARIANT	voidglass_nistirio	3	29999	12002	Nightmare Shard	39182,32530,40177	8593	8592	45	5042	VOIDGLASS RIFT	Nightmare body + crystal + darkness warning model	CUSTOM_LOCALLAB_VOIDGLASS_R3_MANIFEST
+PET_VARIANT	voidglass_nistirio	4	29999	12003	Ripper Soul	44733,42282,34252	10921	10920	55	5042	VOIDGLASS RIFT	Ripper-demon body + blue-soul + black-hole models	CUSTOM_LOCALLAB_VOIDGLASS_R3_MANIFEST
