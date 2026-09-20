@@ -24,10 +24,19 @@ public final class PetClientActionDecoderTest {
            metadata.provenance!=ClientRequestProvenance.EXACT_CURRENT_CLIENT)
             throw new AssertionError(String.valueOf(metadata));
         if(!p.readNextKnownPacket())throw new AssertionError();
-        NpcAction n=p.takeNpcAction();
+        ClientRequest npcRequest=p.takeTypedRequest();
+        if(!(npcRequest instanceof NpcActionClientRequest))throw new AssertionError(String.valueOf(npcRequest));
+        NpcActionClientRequest typedNpc=(NpcActionClientRequest)npcRequest;
+        NpcAction n=typedNpc.action();
         if(n==null||n.opcode!=155||n.sceneIndex!=4)throw new AssertionError(String.valueOf(n));
+        ClientRequestMetadata npcMetadata=typedNpc.metadata();
+        if(npcMetadata.opcode!=155||
+           !"FIXED2_NPC_SCENE_INDEX_LE".equals(npcMetadata.schema)||
+           !"PINNED_CLIENT_NPC_OPTION_1_WRITER".equals(npcMetadata.source)||
+           npcMetadata.provenance!=ClientRequestProvenance.EXACT_CURRENT_CLIENT)
+            throw new AssertionError(String.valueOf(npcMetadata));
         if(!p.isAligned())throw new AssertionError("decoder unaligned");
-        System.out.println("V53_PET_CLIENT_ACTION_DECODER_PASS opcode87=typed:20776/3214/4 opcode155=scene4 aligned=true metadata=true");
+        System.out.println("V53_PET_CLIENT_ACTION_DECODER_PASS opcode87=typed:20776/3214/4 opcode155=typed:scene4 aligned=true metadata=true");
     }
     private static void putBE(OutputStream o,int v)throws IOException{o.write(v>>>8);o.write(v);}
     private static void putBEA(OutputStream o,int v)throws IOException{o.write(v>>>8);o.write((v+128)&255);}
