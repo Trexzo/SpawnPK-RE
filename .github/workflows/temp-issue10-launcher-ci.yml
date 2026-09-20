@@ -42,7 +42,7 @@ jobs:
       - name: Exercise standalone airgap launcher
         shell: pwsh
         run: |
-          $output = & .\RUN_CLIENT_AIRGAP.ps1 2>&1 | Out-String
+          $output = & .\RUN_CLIENT_AIRGAP.ps1 *>&1 | Out-String
           Write-Host $output
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           if ($output -notmatch 'LOCALLAB_JAVA_OK') { throw 'Canonical Java selector did not run.' }
