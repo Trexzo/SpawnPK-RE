@@ -80,6 +80,12 @@ public final class WorldHomeNpcOwnershipTest {
                     "viewer packet projections must remain viewer-local objects"
                 );
 
+            if(!canonical.id.equals(firstView.canonicalId())||
+               !canonical.id.equals(secondView.canonicalId()))
+                throw new AssertionError(
+                    "HOME projections lost canonical identity"
+                );
+
             if(firstView.x!=canonical.x()||
                firstView.y!=canonical.y()||
                secondView.x!=canonical.x()||
