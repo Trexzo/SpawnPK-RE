@@ -28,8 +28,17 @@ final class MarketplaceService {
         CancellationRequest(MarketplaceListing listing){listingId=listing.id;ownerRef=listing.ownerRef;sellerEscrowTransactionId=listing.sellerEscrowTransactionId;}
     }
 
+    private static final class SettlementUse {
+        final MarketplaceListing.Id listingId;
+        final String buyerRef;
+        final long quantity;
+        SettlementUse(MarketplaceListing.Id listingId,String buyerRef,long quantity){this.listingId=listingId;this.buyerRef=buyerRef;this.quantity=quantity;}
+        boolean matches(MarketplaceListing.Id id,String buyer,long qty){return listingId.equals(id)&&buyerRef.equals(buyer)&&quantity==qty;}
+    }
+
     private final AtomicLong listingSequence=new AtomicLong();
     private final LinkedHashMap<MarketplaceListing.Id,MarketplaceListing> listings=new LinkedHashMap<>();
+    private final LinkedHashMap<AtomicTransactionService.TransactionId,SettlementUse> appliedSettlements=new LinkedHashMap<>();
     private final MarketplaceListingRepository repository;
 
     MarketplaceService(MarketplaceListingRepository repository){if(repository==null)throw new NullPointerException("repository");this.repository=repository;}
@@ -39,7 +48,7 @@ final class MarketplaceService {
         if(totalQuantity<=0)throw new IllegalArgumentException("totalQuantity="+totalQuantity);
         if(priceEach<=0)throw new IllegalArgumentException("priceEach="+priceEach);
         if(sourceAuthority==null)throw new NullPointerException("sourceAuthority");
-        verifySellerEscrow(owner,escrowReservation,null);
+        verifySellerEscrow(owner,item,totalQuantity,escrowReservation,null);
         MarketplaceListing.Id id=new MarketplaceListing.Id(listingSequence.incrementAndGet());
         MarketplaceListing listing=new MarketplaceListing(id,owner,item,totalQuantity,priceEach,currency,escrowReservation.transactionId,sourceAuthority);
         listings.put(id,listing);save(listing);return id;
@@ -49,7 +58,7 @@ final class MarketplaceService {
         MarketplaceListing listing=required(id);requireOwner(listing,ownerRef);
         if(listing.state==MarketplaceListing.State.ACTIVE)return listing.snapshot();
         if(listing.state!=MarketplaceListing.State.DRAFT)throw invalid(listing,"activate");
-        verifySellerEscrow(listing.ownerRef,escrowReservation,listing.sellerEscrowTransactionId);
+        verifySellerEscrow(listing.ownerRef,listing.itemRef,listing.totalQuantity,escrowReservation,listing.sellerEscrowTransactionId);
         listing.state=MarketplaceListing.State.ACTIVE;save(listing);return listing.snapshot();
     }
 
@@ -61,17 +70,15 @@ final class MarketplaceService {
 
     synchronized MarketplaceListing.Snapshot confirmFill(MarketplaceListing.Id id,String buyerRef,long quantity,AtomicTransactionService.Snapshot committedSettlement){
         MarketplaceListing listing=required(id);String buyer=requireText(buyerRef,"buyerRef");
-        if(committedSettlement==null)throw new NullPointerException("committedSettlement");
-        if(committedSettlement.state!=AtomicTransactionService.TransactionState.COMMITTED)throw new IllegalArgumentException("settlement must be COMMITTED");
-        if(!buyer.equals(committedSettlement.ownerRef))throw new SecurityException("settlement owner mismatch");
-        MarketplaceListing.AppliedFill previous=listing.appliedFills.get(committedSettlement.transactionId);
+        verifyBuyerSettlement(listing,buyer,quantity,committedSettlement);
+        SettlementUse previous=appliedSettlements.get(committedSettlement.transactionId);
         if(previous!=null){
-            if(!previous.matches(buyer,quantity))throw new IllegalStateException("settlement transaction already applied with different fill data");
+            if(!previous.matches(id,buyer,quantity))throw new IllegalStateException("settlement transaction already applied to another fill");
             return listing.snapshot();
         }
         requireFillable(listing,quantity);
         listing.remainingQuantity-=quantity;
-        listing.appliedFills.put(committedSettlement.transactionId,new MarketplaceListing.AppliedFill(buyer,quantity));
+        appliedSettlements.put(committedSettlement.transactionId,new SettlementUse(id,buyer,quantity));
         listing.state=listing.remainingQuantity==0?MarketplaceListing.State.FILLED:MarketplaceListing.State.PARTIALLY_FILLED;
         save(listing);return listing.snapshot();
     }
@@ -89,7 +96,9 @@ final class MarketplaceService {
     private void save(MarketplaceListing listing){repository.save(listing.snapshot());}
     private MarketplaceListing required(MarketplaceListing.Id id){if(id==null)throw new NullPointerException("listingId");MarketplaceListing listing=listings.get(id);if(listing==null)throw new IllegalArgumentException("unknown listing "+id);return listing;}
     private static void requireFillable(MarketplaceListing listing,long quantity){if(listing.state!=MarketplaceListing.State.ACTIVE&&listing.state!=MarketplaceListing.State.PARTIALLY_FILLED)throw invalid(listing,"fill");if(quantity<=0)throw new IllegalArgumentException("quantity="+quantity);if(quantity>listing.remainingQuantity)throw new IllegalArgumentException("fill exceeds remaining quantity: "+quantity+">"+listing.remainingQuantity);Math.multiplyExact(quantity,listing.priceEach);}
-    private static void verifySellerEscrow(String owner,AtomicTransactionService.Snapshot snapshot,AtomicTransactionService.TransactionId expectedId){if(snapshot==null)throw new NullPointerException("escrowReservation");if(snapshot.state!=AtomicTransactionService.TransactionState.RESERVED)throw new IllegalArgumentException("seller escrow must be RESERVED");if(!owner.equals(snapshot.ownerRef))throw new SecurityException("seller escrow owner mismatch");if(expectedId!=null&&!expectedId.equals(snapshot.transactionId))throw new IllegalArgumentException("seller escrow transaction mismatch");}
+    private static void verifySellerEscrow(String owner,String item,long quantity,AtomicTransactionService.Snapshot snapshot,AtomicTransactionService.TransactionId expectedId){if(snapshot==null)throw new NullPointerException("escrowReservation");if(snapshot.state!=AtomicTransactionService.TransactionState.RESERVED)throw new IllegalArgumentException("seller escrow must be RESERVED");if(!owner.equals(snapshot.ownerRef))throw new SecurityException("seller escrow owner mismatch");if(expectedId!=null&&!expectedId.equals(snapshot.transactionId))throw new IllegalArgumentException("seller escrow transaction mismatch");if(!containsAsset(snapshot,EscrowAsset.Kind.ITEM,item,quantity,owner))throw new IllegalArgumentException("seller escrow does not reserve listed item quantity");}
+    private static void verifyBuyerSettlement(MarketplaceListing listing,String buyer,long quantity,AtomicTransactionService.Snapshot snapshot){if(snapshot==null)throw new NullPointerException("committedSettlement");if(snapshot.state!=AtomicTransactionService.TransactionState.COMMITTED)throw new IllegalArgumentException("settlement must be COMMITTED");if(!buyer.equals(snapshot.ownerRef))throw new SecurityException("settlement owner mismatch");long total=Math.multiplyExact(quantity,listing.priceEach);if(!containsAsset(snapshot,EscrowAsset.Kind.CURRENCY,listing.currencyRef,total,buyer))throw new IllegalArgumentException("settlement does not cover listing currency amount");}
+    private static boolean containsAsset(AtomicTransactionService.Snapshot snapshot,EscrowAsset.Kind kind,String semanticKey,long minimumQuantity,String owner){long total=0;for(AtomicTransactionService.Reservation reservation:snapshot.reservations){EscrowAsset asset=reservation.asset;if(asset.kind==kind&&semanticKey.equals(asset.semanticKey)&&owner.equals(asset.ownerRef)){try{total=Math.addExact(total,asset.quantity);}catch(ArithmeticException overflow){return true;}if(total>=minimumQuantity)return true;}}return false;}
     private static void requireOwner(MarketplaceListing listing,String ownerRef){String owner=requireText(ownerRef,"ownerRef");if(!listing.ownerRef.equals(owner))throw new SecurityException("listing owner mismatch");}
     private static IllegalStateException invalid(MarketplaceListing listing,String op){return new IllegalStateException(op+" invalid from "+listing.state+" for "+listing.id);}
     private static String requireText(String value,String field){if(value==null)throw new NullPointerException(field);String clean=value.trim();if(clean.isEmpty())throw new IllegalArgumentException(field+" blank");return clean;}
