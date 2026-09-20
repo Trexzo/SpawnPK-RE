@@ -69,6 +69,7 @@ final class LocalSession implements Runnable {
     private final LocalDevPanelRenderer devPanelRenderer;
     private final LocalDevPanelAmountHandler devPanelAmounts;
     private final LocalDevPanelWidgetHandler devPanelWidgets;
+    private final LocalCommandDispatcher commandDispatcher;
     private SceneUpdatePublisher scenePublisher;
     private ServerPacketWriter sessionPackets;
     private OutboundPacketQueue outboundPackets;
@@ -235,6 +236,65 @@ final class LocalSession implements Runnable {
             devPanelRenderer,
             (pending,writer)->promptDevPanelAmount(pending,writer),
             ()->clearDialogNumberKeys());
+        this.commandDispatcher = new LocalCommandDispatcher(
+            bankRequests,
+            diagnosticCommands,
+            regionDevCommands,
+            prayerMagicCommands,
+            miniPetCommands,
+            cosmeticCommands,
+            devWorldCommands,
+            dev,
+            devSessionCommands,
+            devPetCommands,
+            devPlayerCommands,
+            devNpcCommands,
+            devToolCommands,
+            nurseCommands,
+            voidglassCommands,
+            petRuntimeCommands,
+            compColorsCommands,
+            combatCommands,
+            petCompatibilityCommands,
+            itemSpawnCommands,
+            new LocalCommandDispatcher.SessionBridge(){
+                @Override public SceneUpdatePublisher scenePublisher(){
+                    return LocalSession.this.scenePublisher;
+                }
+
+                @Override public void replaceScenePublisher(
+                    SceneUpdatePublisher replacement
+                ){
+                    LocalSession.this.scenePublisher=replacement;
+                }
+
+                @Override public void saveAccount(
+                    String tag,
+                    String reason
+                ){
+                    LocalSession.this.saveAccountQuiet(tag,reason);
+                }
+
+                @Override public boolean scopesightActive(){
+                    return LocalSession.this.scopesightActive();
+                }
+
+                @Override public void openDevPanel(
+                    ServerPacketWriter writer
+                )throws IOException{
+                    LocalSession.this.openDevPanel(
+                        DevControlCenter.Page.MAIN,
+                        writer
+                    );
+                }
+
+                @Override public void applyPetDialog(
+                    LocalPetInventoryDialogHandler.Result result,
+                    String tag
+                ){
+                    LocalSession.this.applyPetDialogResult(result,tag);
+                }
+            });
         if (movementEnabled && !bootstrap) throw new IllegalArgumentException("movement requires bootstrap");
     }
 
@@ -1348,162 +1408,24 @@ final class LocalSession implements Runnable {
         System.out.println(tag+result.logText+" decoderAligned="+clientPackets.isAligned());
     }
 
-    private void acceptPendingCommand(ClientPacketProbe clientPackets, ServerPacketWriter serverPackets, String tag) throws IOException {
-        String command = clientPackets.takeCommand();
-        if (command == null) return;
-        LocalBankRequestHandler.Result bankCommand=bankRequests.handleCommand(command,serverPackets);
-        if(bankCommand!=null){
-            if(bankCommand.saveReason!=null)saveAccountQuiet(tag,bankCommand.saveReason);
-            System.out.println(tag+bankCommand.logText+" decoderAligned="+clientPackets.isAligned());
-            return;
-        }
+    private void acceptPendingCommand(
+        ClientPacketProbe clientPackets,
+        ServerPacketWriter serverPackets,
+        String tag
+    )throws IOException{
+        String command=clientPackets.takeCommand();
+        if(command==null)return;
 
-        String clean=command.trim();
-        if (clean.startsWith("::")) clean=clean.substring(2);
-        String[] p=clean.split("\\s+");
-
-        if(p.length>=1 && (p[0].equalsIgnoreCase("devpanel")||p[0].equalsIgnoreCase("devui")||p[0].equalsIgnoreCase("lab")||(p[0].equalsIgnoreCase("dev")&&p.length>=2&&p[1].equalsIgnoreCase("panel")))){
-            openDevPanel(DevControlCenter.Page.MAIN,serverPackets);
-            System.out.println(tag+"V5172_DEV_PANEL_OPEN route="+p[0]+" authority="+ContentAuthorityRepository.summary()+" runtimeWeaponProfiles="+V913WeaponRuntimeAuthority.count());
-            return;
-        }
-
-        if(diagnosticCommands.handle(
-            p,serverPackets,tag,username,loginAlias,persistentAccount,scenePublisher))return;
-        LocalRegionDevCommandHandler.Result regionDevCommand=
-            regionDevCommands.handle(p,username,scenePublisher,serverPackets);
-        if(regionDevCommand!=null){
-            if(regionDevCommand.scenePublisher!=null)
-                scenePublisher=regionDevCommand.scenePublisher;
-            if(regionDevCommand.saveReason!=null)
-                saveAccountQuiet(tag,regionDevCommand.saveReason);
-            System.out.println(tag+regionDevCommand.logText);
-            return;
-        }
-        if(prayerMagicCommands.handle(p,clean,serverPackets,tag))return;
-        if(p.length>=1 && p[0].equalsIgnoreCase("authority")){
-            System.out.println(tag+"V5124_AUTHORITY "+AuthorityR16R25Publisher.status()+
-                " bankWrapperExact="+BankState.BANK_WRAPPER_ROOT+" bankRuntimeRoot="+BankState.BANK_ROOT+
-                " combatProfiles="+CombatStyleRepository.rootCount()+" combatStyles="+CombatStyleRepository.countStyles()+
-                " note=R25_core_17_59_plus_independent_exact_staff328_3; unproven_server_mechanics_remain_fail_closed");
-            return;
-        }
-        LocalMiniPetCommandHandler.Result miniPetCommand=miniPetCommands.handle(p,serverPackets);
-        if(miniPetCommand!=null){
-            if(miniPetCommand.saveReason!=null)saveAccountQuiet(tag,miniPetCommand.saveReason);
-            System.out.println(tag+miniPetCommand.logText);
-            return;
-        }
-        LocalCosmeticCommandHandler.Result cosmeticCommand=
-            cosmeticCommands.handle(p,username,serverPackets);
-        if(cosmeticCommand!=null){
-            if(cosmeticCommand.saveReason!=null)saveAccountQuiet(tag,cosmeticCommand.saveReason);
-            System.out.println(tag+cosmeticCommand.logText);
-            return;
-        }
-        if(devWorldCommands.handle(p,scenePublisher,username,sessionWorldTick,tag))return;
-
-        if(dev.trace().enabled() && p.length>0 && p[0].toLowerCase(java.util.Locale.ROOT).startsWith("dev"))
-            dev.trace().record("DEV_COMMAND_REQUEST","C2S103 command=\""+clean+"\" -> router="+p[0],"EXACT_C2S103_TRANSPORT/LOCAL_DEV_ROUTE");
-
-        // v5.9.1 session-only Dev Authority Workbench. These routes never persist
-        // experimental presentation values into opensrc.properties.
-        String devSessionCommand=
-            devSessionCommands.handle(
-                p,username,scenePublisher,serverPackets);
-        if(devSessionCommand!=null){
-            System.out.println(tag+devSessionCommand);
-            return;
-        }
-        java.util.List<String> devPetCommand=
-            devPetCommands.handle(p,serverPackets);
-        if(devPetCommand!=null){
-            for(String line:devPetCommand)System.out.println(tag+line);
-            return;
-        }
-        java.util.List<String> devPlayerCommand=
-            devPlayerCommands.handle(p,username,serverPackets);
-        if(devPlayerCommand!=null){
-            for(String line:devPlayerCommand)System.out.println(tag+line);
-            return;
-        }
-        java.util.List<String> devNpcCommand=
-            devNpcCommands.handle(p,serverPackets);
-        if(devNpcCommand!=null){
-            for(String line:devNpcCommand)System.out.println(tag+line);
-            return;
-        }
-        java.util.List<String> devToolCommand=
-            devToolCommands.handle(p,serverPackets);
-        if(devToolCommand!=null){
-            for(String line:devToolCommand)System.out.println(tag+line);
-            return;
-        }
-        LocalNurseCommandHandler.Result nurseCommand=
-            nurseCommands.handle(p,command,scopesightActive(),serverPackets);
-        if(nurseCommand!=null){
-            if(nurseCommand.saveReason!=null)saveAccountQuiet(tag,nurseCommand.saveReason);
-            System.out.println(tag+nurseCommand.logText);
-            return;
-        }
-        if (p.length>=1 && p[0].equalsIgnoreCase("appfixture")) {
-            String which=p.length>=2?p[1]:"help";
-            String appResult=ApplicationUiFixtureService.run(which,serverPackets);
-            System.out.println(tag+"R85_APP_FIXTURE "+appResult+" authority=LOCAL_DEV_FIXTURE clientProtocol=EXACT_CURRENT");
-            return;
-        }
-        LocalVoidglassCommandHandler.Outcome voidglassCommand=
-            voidglassCommands.handle(p,serverPackets);
-        if(voidglassCommand!=null){
-            if(voidglassCommand.saveReason!=null)
-                saveAccountQuiet(tag,voidglassCommand.saveReason);
-            System.out.println(tag+voidglassCommand.text);
-            return;
-        }
-
-        java.util.List<String> petRuntimeCommand=
-            petRuntimeCommands.handle(p,serverPackets);
-        if(petRuntimeCommand!=null){
-            for(String line:petRuntimeCommand)System.out.println(tag+line);
-            return;
-        }
-
-        LocalCompColorsCommandHandler.Result compColorsCommand=
-            compColorsCommands.handle(p,command,username,serverPackets);
-        if(compColorsCommand!=null){
-            if(compColorsCommand.saveReason!=null)saveAccountQuiet(tag,compColorsCommand.saveReason);
-            System.out.println(tag+compColorsCommand.logText);
-            return;
-        }
-        java.util.List<String> combatCommand=
-            combatCommands.handle(p,command,serverPackets);
-        if(combatCommand!=null){
-            for(String line:combatCommand)System.out.println(tag+line);
-            return;
-        }
-        LocalPetCompatibilityCommandHandler.Outcome petCompatibilityCommand=
-            petCompatibilityCommands.handle(p,serverPackets);
-        if(petCompatibilityCommand!=null){
-            if(petCompatibilityCommand.dialogResult!=null){
-                applyPetDialogResult(
-                    petCompatibilityCommand.dialogResult,
-                    tag);
-            }else{
-                if(petCompatibilityCommand.saveReason!=null)
-                    saveAccountQuiet(tag,petCompatibilityCommand.saveReason);
-                if(petCompatibilityCommand.logText!=null)
-                    System.out.println(tag+petCompatibilityCommand.logText);
-            }
-            return;
-        }
-
-        LocalItemSpawnCommandHandler.Result itemSpawnCommand=
-            itemSpawnCommands.handle(p,command,serverPackets);
-        if(itemSpawnCommand!=null){
-            if(itemSpawnCommand.saveReason!=null)saveAccountQuiet(tag,itemSpawnCommand.saveReason);
-            System.out.println(tag+itemSpawnCommand.logText+
-                " decoderAligned="+clientPackets.isAligned());
-        }
+        commandDispatcher.handle(
+            command,
+            clientPackets.isAligned(),
+            username,
+            loginAlias,
+            persistentAccount,
+            sessionWorldTick,
+            serverPackets,
+            tag
+        );
     }
 
 
