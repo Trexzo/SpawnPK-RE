@@ -541,6 +541,20 @@ public final class LocalPendingRequestDispatcherTest {
                 }
             );
 
+            typedWire.write(
+                (132+typedEncoder.nextInt())&255
+            );
+            // worldX=0 LE-A, non-bank object=12345 BE,
+            // worldY=0 BE-A. The semantic handler must consume it
+            // and preserve fail-closed non-bank behavior.
+            typedWire.write(
+                new byte[]{
+                    (byte)128,0,
+                    0x30,0x39,
+                    0,(byte)128
+                }
+            );
+
             ClientPacketProbe probe=
                 new ClientPacketProbe(
                     new ByteArrayInputStream(
@@ -565,6 +579,11 @@ public final class LocalPendingRequestDispatcherTest {
             if(!probe.readNextKnownPacket())
                 throw new AssertionError(
                     "typed item-on-npc fixture decode failed"
+                );
+
+            if(!probe.readNextKnownPacket())
+                throw new AssertionError(
+                    "typed object interaction fixture decode failed"
                 );
 
             setPending(
@@ -646,7 +665,8 @@ public final class LocalPendingRequestDispatcherTest {
             System.out.println(
                 "LOCAL_PENDING_REQUEST_DISPATCHER_PASS "+
                 "widgetConsumed=true dropConsumed=true "+
-                "itemOnNpcConsumed=true movementConsumed=true "+
+                "itemOnNpcConsumed=true objectInteractionConsumed=true "+
+                "movementConsumed=true "+
                 "runToggleBeforeMovement=true classifierCompatibility=true"
             );
         }finally{
