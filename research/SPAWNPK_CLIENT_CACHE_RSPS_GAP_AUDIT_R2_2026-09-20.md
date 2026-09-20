@@ -1938,6 +1938,297 @@ AdventureBookPresentationAdapter
 
 with S2C250 subtype 22 and C2S185/C2S103 confined to the presentation/protocol adapter.
 
+## R2.14 exact-current Collection Log projection and action contract
+
+This continuation was rechecked directly against the supplied exact-current v308 JAR and reconciled with the later R6 audit.
+
+Native controller:
+
+```
+rs.n.c.v
+root = 54300
+```
+
+### Exact widget model
+
+```
+54302..54306  category controls
+54313         collection-row scroll/container
+54314..54412  50 row selection sprites, even IDs
+54315..54413  50 row label/click controls, odd IDs
+54414         collection name
+54415         obtained count text
+54416         kill count text
+54417         item-result scroll/container
+54418         120-slot item-result container
+54419         completion-reward heading
+54420         completion-reward description
+54421         hidden S2C126 row-selection control
+54422         hidden S2C126 category-selection control
+```
+
+The item-result container is allocated as exactly:
+
+```
+6 columns
+20 rows
+120 slots
+```
+
+and is presentation-only in this controller; no Collection-specific item action is attached.
+
+### Exact category actions
+
+Native category widgets:
+
+```
+54302  Bosses
+54303  Boxes
+54304  Minigames
+54305  Other
+54306  N/A placeholder
+```
+
+The category builder sets `M=1`.
+
+Therefore each category click is the ordinary exact path:
+
+```
+C2S185
+u16_be widgetId
+```
+
+No Collection-specific C2S packet family exists for category selection.
+
+### Exact collection-row actions
+
+Each of the 50 collection rows is built as a pair:
+
+```
+selection sprite = even ID
+clickable label  = even ID + 1
+```
+
+So:
+
+```
+row 0:
+  sprite = 54314
+  click  = 54315
+
+row 1:
+  sprite = 54316
+  click  = 54317
+
+...
+
+row 49:
+  sprite = 54412
+  click  = 54413
+```
+
+The clickable label is `M=1`, action text `Select collection log`.
+
+Therefore row selection outbound is exactly:
+
+```
+C2S185(widgetId)
+widgetId = 54315..54413, odd only, step 2
+```
+
+### S2C126 target 54421 - selected row uses the *even* sprite ID
+
+Target `54421` parses the payload as an integer and compares it against the **even selection-sprite IDs**:
+
+```
+54314..54412, even only
+```
+
+The selected sprite receives the active asset; every other even sprite receives its alternating inactive asset.
+
+The same handler resets the right-side item-result scroll:
+
+```
+widget 54417 scrollPosition = 0
+```
+
+This creates an exact adapter relationship:
+
+```
+client click odd row widget
+  54315 + 2*i
+
+server semantic row resolution
+  -> collection identity
+
+S2C126 selected presentation
+  payload = even sprite widget
+          = clickedWidget - 1
+          = 54314 + 2*i
+```
+
+The even/odd widget IDs are presentation identity only and must not become CollectionLog domain IDs.
+
+### S2C126 target 54422 - selected category
+
+Target `54422` parses:
+
+```
+54302..54306
+```
+
+and updates category active/inactive sprites.
+
+For a valid category it also resets the left collection-list scroll:
+
+```
+widget 54313 scrollPosition = 0
+```
+
+Then it resets every collection-row selection sprite to inactive.
+
+Thus category selection is a presentation reset boundary for the current row projection.
+
+### S2C126 target 54315 - dual clear + first-row publication
+
+The native controller's target hook performs this exact special effect when:
+
+```
+target == 54315
+```
+
+Before generic widget-text publication, it loops:
+
+```
+54315..54413
+```
+
+and clears every **odd** row-label widget.
+
+Crucially, the global S2C126 dispatcher then continues normally and, because the target is positive, executes ordinary widget-text publication:
+
+```
+H[target].text = payload
+```
+
+Therefore target `54315` is not merely a standalone "clear rows" opcode.
+
+Its exact semantics are:
+
+```
+S2C126 target=54315 payload=""
+ -> clear all 50 row labels
+ -> first row remains blank
+
+S2C126 target=54315 payload="<first row text>"
+ -> clear all 50 row labels
+ -> set row-0 label 54315 to payload
+```
+
+Subsequent row labels can then be populated by ordinary S2C126 widget-text publication to:
+
+```
+54317, 54319, ... 54413
+```
+
+This means LocalLab's current `collectionClearRows()` helper is wire-correct for an empty-payload clear, but the exact target itself is more accurately:
+
+```
+CLEAR_ROWS_THEN_SET_FIRST_ROW_TEXT
+```
+
+when a non-empty payload is used.
+
+Do not erase this dual behavior in future typed presentation APIs.
+
+### Detail projection uses existing generic packets
+
+The selected collection detail surface is not a new custom protocol family.
+
+Exact client roles:
+
+```
+54414  collection name
+54415  obtained / total text
+54416  kill count
+54418  item-result container
+54419  completion-reward heading
+54420  completion-reward description
+```
+
+Projection therefore naturally splits into:
+
+```
+S2C126 ordinary widget text
+  -> 54414 / 54415 / 54416 / 54419 / 54420
+
+S2C53 generic item-container update
+  -> 54418
+```
+
+No Collection-specific item-list packet is required.
+
+### No completion-reward claim button in the Collection Log root
+
+The exact `rs.n.c.v` controller creates reward heading/description widgets only:
+
+```
+54419
+54420
+```
+
+It does not create a `Claim` / `Claim reward` action in this root.
+
+Therefore the client proves completion-reward **presentation**, but not a claim transport from the Collection Log screen itself.
+
+Any reward settlement may be automatic, server-mediated, or exposed through another surface; it remains unresolved until separately joined.
+
+Do not invent a Collection-specific claim packet or widget action.
+
+### Exact top-level entry actions
+
+The native Features / Tools controller `rs.n.c.aj` creates ordinary `M=1` entries:
+
+```
+64603  <img=321> View collection logs
+64604  <img=321> Collection log milestones
+```
+
+Both therefore emit ordinary:
+
+```
+C2S185(widgetId)
+```
+
+The second is a sibling milestone surface and should not be silently conflated with the main Collection Log root.
+
+### Domain consequence
+
+The exact client supports a semantic aggregate such as:
+
+```
+CollectionLogAggregate {
+    collectionId
+    category
+    obtainedEntries
+    totalEntries
+    killCount
+    completionState
+}
+```
+
+but the protocol boundary must maintain a projection map:
+
+```
+odd clickable row widget
+ -> semantic collectionId
+ -> even selected sprite widget
+```
+
+Collection progress should be driven by authoritative server loot/reward events.
+
+The client-visible item grid, obtained count, kill count and reward text are presentation only and must never be scanned back into domain truth.
+
 ## R2 conclusion
 
 The first-pass gap assessment remains directionally correct, but the exact current client exposes a substantially larger recoverable presentation/control surface than R1 captured.
