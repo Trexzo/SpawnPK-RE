@@ -1,0 +1,36 @@
+name: Temp Issue 183 Collection Log CI
+
+on:
+  pull_request:
+
+jobs:
+  issue183:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Canonical server build
+        shell: pwsh
+        run: ./server/build.ps1
+      - name: Issue 183 focused regression
+        shell: pwsh
+        run: |
+          java -cp server/build/classes spk.local.CollectionLogServiceTest
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Collection Log protocol-boundary guard
+        shell: pwsh
+        run: |
+          $paths = @(
+            "server/src/spk/local/CollectionLogDefinition.java",
+            "server/src/spk/local/CollectionLogRepository.java",
+            "server/src/spk/local/CollectionLogService.java"
+          )
+          $bad = Select-String -Path $paths -Pattern "widgetId|opcode|subtype|ServerPacketWriter|ClientPacket|ApplicationBus|spriteId|rowIndex|containerId" -CaseSensitive:$false
+          if ($bad) {
+            $bad | ForEach-Object { Write-Host $_ }
+            throw "Issue 183 domain source contains protocol/presentation identity."
+          }
+          Write-Host "ISSUE183_PROTOCOL_BOUNDARY_PASS"
