@@ -1,0 +1,2 @@
+itemId	npcId	itemName	npcName	stand	walk	turn180	turn90cw	turn90ccw	size	models	provenance
+29999	12000	Voidglass Nistirio	Voidglass Nistirio	1662	1663	1663	1663	1663	1	32327,32325,32324,32326,32765,32530	CUSTOM_LOCALLAB_VOIDGLASS_R3_MANIFEST
