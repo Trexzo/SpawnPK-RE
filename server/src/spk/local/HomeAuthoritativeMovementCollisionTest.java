@@ -179,20 +179,22 @@ public final class HomeAuthoritativeMovementCollisionTest {
     }
 
     private static MovementState at(int x,int y){
-        Properties p=new Properties();
-        p.setProperty(
-            "movement.worldX",
-            Integer.toString(x)
-        );
-        p.setProperty(
-            "movement.worldY",
-            Integer.toString(y)
-        );
-        p.setProperty("movement.plane","0");
+        SortedMap<String,String> values=
+            PersistenceSchemaTestSupport.values(
+                "movement.worldX",
+                Integer.toString(x),
+                "movement.worldY",
+                Integer.toString(y),
+                "movement.plane",
+                "0"
+            );
 
         MovementState movement=
             new MovementState();
-        movement.loadAccountProperties(p);
+        PersistenceSchemaTestSupport.restoreMovement(
+            movement,
+            values
+        );
 
         if(movement.x()!=x||
            movement.y()!=y||
