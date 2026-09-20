@@ -1,0 +1,37 @@
+name: Temporary Issue 13 interaction approach validation
+
+on:
+  push:
+    branches:
+      - refactor/issue-13-interaction-approach-resolver
+
+jobs:
+  validate:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Compile current source tree
+        shell: pwsh
+        run: ./server/build.ps1
+      - name: Run interaction approach regression
+        shell: pwsh
+        run: java -cp server/build/classes spk.local.InteractionApproachResolverTest
+      - name: Run RouteFinder compatibility regression
+        shell: pwsh
+        run: java -cp server/build/classes spk.local.RouteFinderCompatibilityTest
+      - name: Run authoritative HOME movement regression
+        shell: pwsh
+        run: java -cp server/build/classes spk.local.HomeAuthoritativeMovementCollisionTest
+      - name: Run combat server-owned approach regression
+        shell: pwsh
+        run: java -cp server/build/classes spk.local.CombatServerOwnedApproachTest
+      - name: Run NPC interaction router regression
+        shell: pwsh
+        run: java -cp server/build/classes spk.local.NpcInteractionRouterTest
+      - name: Run movement runtime regression
+        shell: pwsh
+        run: java -cp server/build/classes spk.local.MovementRuntimeIntegrationTest
