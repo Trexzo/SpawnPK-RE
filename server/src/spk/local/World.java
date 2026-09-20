@@ -12,6 +12,7 @@ final class World implements AutoCloseable {
     private final GroundItemRegistry groundItems=new GroundItemRegistry();
     private final WorldObjectRegistry objects=new WorldObjectRegistry();
     private final PlayerRegistry players=new PlayerRegistry();
+    private final WorldNpcRegistry npcs=new WorldNpcRegistry();
     private final WorldCommandInbox commands=new WorldCommandInbox();
     private final LinkedHashMap<EntityId,WorldTickTarget> tickTargets=new LinkedHashMap<>();
     private final WorldPulse pulse;
@@ -26,6 +27,7 @@ final class World implements AutoCloseable {
     GroundItemRegistry groundItems(){return groundItems;}
     WorldObjectRegistry objects(){return objects;}
     PlayerRegistry players(){return players;}
+    WorldNpcRegistry npcs(){return npcs;}
     WorldCommandInbox commands(){return commands;}
     WorldPulse pulse(){return pulse;}
 
