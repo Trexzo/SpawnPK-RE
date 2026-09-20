@@ -3,8 +3,6 @@ package spk.local;
 import java.io.*;
 import java.net.*;
 import java.time.Instant;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.*;
 
 final class LocalSession implements Runnable {
     private final Socket socket;
@@ -1009,33 +1007,5 @@ final class LocalSession implements Runnable {
             " guard=EMPTY_PAYLOAD_CLIENT_DISCONNECT exactClearSentinel=UNRESOLVED");
     }
 
-    private static String joinTokens(String[] p,int start){
-        if(p==null||start>=p.length) return "";
-        StringBuilder b=new StringBuilder();
-        for(int i=start;i<p.length;i++){ if(i>start)b.append(' '); b.append(p[i]); }
-        return b.toString();
-    }
-
-    private static long parseLong(String s,long fallback) {
-        try{return Long.parseLong(s);}catch(Exception e){return fallback;}
-    }
-
-    private static int parseInt(String s,int fallback) {
-        try { return Integer.parseInt(s); } catch (Exception e) { return fallback; }
-    }
-
-    private static int parseAmount(String s,int fallback) {
-        if (s==null) return fallback;
-        String t=s.trim().toLowerCase(java.util.Locale.ROOT).replace(",", "");
-        long mul=1L;
-        if (t.endsWith("k")) { mul=1_000L; t=t.substring(0,t.length()-1); }
-        else if (t.endsWith("m")) { mul=1_000_000L; t=t.substring(0,t.length()-1); }
-        else if (t.endsWith("b")) { mul=1_000_000_000L; t=t.substring(0,t.length()-1); }
-        try {
-            long base=Long.parseLong(t);
-            long v=Math.max(1L,Math.min(1_000_000_000L,base*mul));
-            return (int)v;
-        } catch (Exception e) { return fallback; }
-    }
 
 }
