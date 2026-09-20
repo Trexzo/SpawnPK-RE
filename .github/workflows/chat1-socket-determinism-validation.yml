@@ -1,0 +1,38 @@
+name: Chat1 Socket Determinism Validation
+
+on:
+  push:
+    branches:
+      - integration/post270-socket-determinism-chat1
+
+jobs:
+  windows-socket-determinism:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Gradle-backed canonical build
+        shell: pwsh
+        run: ./server/build.ps1
+      - name: Stress socket determinism regressions
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $cp = 'server/build/SpawnPKLocalServer.jar;server/build/classes/java/test'
+          $tests = @(
+            'VoidglassR2PanelSocketTest',
+            'OverrideSocketIntegrationTest'
+          )
+          for ($round = 1; $round -le 10; $round++) {
+            foreach ($t in $tests) {
+              Write-Host "[SOCKET] round=$round test=$t"
+              & java -cp $cp "spk.local.$t"
+              if ($LASTEXITCODE -ne 0) {
+                throw "Socket determinism regression failed: round=$round test=$t exit=$LASTEXITCODE"
+              }
+            }
+          }
+          Write-Host "CHAT1_SOCKET_DETERMINISM_STRESS_PASS rounds=10 tests=$($tests.Count) executions=20"
