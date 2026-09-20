@@ -585,6 +585,20 @@ public final class LocalPendingRequestDispatcherTest {
                 new byte[]{0,(byte)128,0,0}
             );
 
+            typedWire.write(
+                (70+typedEncoder.nextInt())&255
+            );
+            // Promoted object option 3: worldY LE=0x3456,
+            // worldX BE=0x2345, objectId LE-A=0x1234.
+            // Generic semantics remain deliberately fail-closed.
+            typedWire.write(
+                new byte[]{
+                    0x56,0x34,
+                    0x23,0x45,
+                    (byte)0xB4,0x12
+                }
+            );
+
             ClientPacketProbe probe=
                 new ClientPacketProbe(
                     new ByteArrayInputStream(
@@ -629,6 +643,11 @@ public final class LocalPendingRequestDispatcherTest {
             if(!probe.readNextKnownPacket())
                 throw new AssertionError(
                     "typed spell target fixture decode failed"
+                );
+
+            if(!probe.readNextKnownPacket())
+                throw new AssertionError(
+                    "typed generic interaction fixture decode failed"
                 );
 
             setPending(
@@ -712,8 +731,9 @@ public final class LocalPendingRequestDispatcherTest {
                 "widgetConsumed=true dropConsumed=true "+
                 "itemOnNpcConsumed=true objectInteractionConsumed=true "+
                 "playerActionConsumed=true npcActionConsumed=true "+
-                "spellTargetConsumed=true movementConsumed=true "+
-                "runToggleBeforeMovement=true classifierCompatibility=true"
+                "spellTargetConsumed=true genericInteractionConsumed=true "+
+                "movementConsumed=true runToggleBeforeMovement=true "+
+                "classifierCompatibility=true"
             );
         }finally{
             world.close();
