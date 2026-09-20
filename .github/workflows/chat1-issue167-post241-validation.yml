@@ -1,0 +1,20 @@
+name: Chat1 Issue167 Post241 Validation
+
+on:
+  push:
+    branches:
+      - integration/post241-issue167-construction-chat1
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Gradle build and Java 11 bytecode verification
+        run: bash server/gradlew --no-daemon clean build
+      - name: Focused Issue 167 regression
+        run: java -cp "server/build/classes/java/main:server/build/classes/java/test:server/build/resources/main:server/build/resources/test" spk.local.ConstructionHouseLayoutTest
