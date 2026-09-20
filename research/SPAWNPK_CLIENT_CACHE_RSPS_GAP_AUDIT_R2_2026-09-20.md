@@ -1514,6 +1514,49 @@ At this point:
 
 Production implementation remains owned by Issue #148 / its dedicated branch. This research lane should not duplicate that code.
 
+## R2.10 live roadmap coordination snapshot
+
+Live repository coordination was rechecked after the static audit closed.
+
+The following audit-derived foundations/services are now owned by separate issues/lanes and must not be duplicated from this research branch:
+
+```
+#148  exact-current S2C126 application control/state bus
+#150  semantic timed-effect foundation
+#154  objective/progression foundation
+#157  semantic usage-quota/window state
+#158  Party + Matchmaking + WorldInstance lifecycle
+#159  atomic transaction/escrow substrate
+#162  mailbox/offline reward delivery
+#164  durable global-event lifecycle above WorldEventQueue
+#165  Marketplace listing lifecycle above #159
+#166  read-only semantic item catalog query API
+#167  Construction/HouseInstance room-layout state above #158
+```
+
+Related implementation/draft PRs already present at this snapshot include:
+
+```
+#149  S2C126 application-control implementation
+#151  semantic timed effects
+#153  v308 login compatibility guard
+#155  objective/progression foundation
+#161  semantic usage-quota window foundation
+#163  mailbox/offline reward delivery foundation
+```
+
+Issue #160 was opened concurrently with #158 for Party + WorldInstance, detected immediately, and closed as a duplicate without creating an implementation branch.
+
+This R2 branch remains **research/evidence only**.
+
+### v308 compatibility note
+
+A separate exact-client compatibility audit (#152 / PR #153) established that the newest supplied v308 JAR differs from the prior pinned v307 JAR only in `rs/f/a.class`, where the embedded client-build/config constant changes from 307 to 308.
+
+No application/UI class used by this R2 audit changed.
+
+Therefore the S2C126/application-action findings in this report remain applicable to the supplied v308 exact-current client. This does **not** replace the repository's pinned-client 179/179 acceptance hash and does not claim that the external suite has been run against v308.
+
 ## R2 conclusion
 
 The first-pass gap assessment remains directionally correct, but the exact current client exposes a substantially larger recoverable presentation/control surface than R1 captured.
