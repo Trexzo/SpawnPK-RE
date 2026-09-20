@@ -195,16 +195,6 @@ final class LocalPendingRequestDispatcher {
             serverPackets,
             tag
         );
-        acceptAmount(
-            clientPackets,
-            serverPackets,
-            tag
-        );
-        acceptContainerDrag(
-            clientPackets,
-            serverPackets,
-            tag
-        );
         acceptMovement(
             clientPackets,
             serverPackets,
@@ -243,6 +233,34 @@ final class LocalPendingRequestDispatcher {
 
                 uiActions.handleWidget(
                     widget.widgetId(),
+                    serverPackets,
+                    tag
+                );
+                continue;
+            }
+
+            if(request instanceof
+                    AmountEntryClientRequest){
+                AmountEntryClientRequest amount=
+                    (AmountEntryClientRequest)request;
+
+                routeAmount(
+                    amount.amount(),
+                    clientPackets,
+                    serverPackets,
+                    tag
+                );
+                continue;
+            }
+
+            if(request instanceof
+                    ContainerDragClientRequest){
+                ContainerDragClientRequest drag=
+                    (ContainerDragClientRequest)request;
+
+                routeContainerDrag(
+                    drag.drag(),
+                    clientPackets,
                     serverPackets,
                     tag
                 );
@@ -705,17 +723,15 @@ final class LocalPendingRequestDispatcher {
             System.out.println(tag+routed);
     }
 
-    private void acceptAmount(
+    private void routeAmount(
+        int amount,
         ClientPacketProbe clientPackets,
         ServerPacketWriter serverPackets,
         String tag
     )throws IOException{
-        Integer amount=clientPackets.takeAmount();
-        if(amount==null)return;
-
         if(devPanel.hasPending()){
             bridge.handleDevPanelAmount(
-                amount.intValue(),
+                amount,
                 serverPackets,
                 tag
             );
@@ -724,7 +740,7 @@ final class LocalPendingRequestDispatcher {
 
         LocalBankRequestHandler.Result result=
             bankRequests.handleAmount(
-                amount.intValue(),
+                amount,
                 serverPackets
             );
 
@@ -742,16 +758,12 @@ final class LocalPendingRequestDispatcher {
         );
     }
 
-    private void acceptContainerDrag(
+    private void routeContainerDrag(
+        ContainerDrag drag,
         ClientPacketProbe clientPackets,
         ServerPacketWriter serverPackets,
         String tag
     )throws IOException{
-        ContainerDrag drag=
-            clientPackets.takeContainerDrag();
-
-        if(drag==null)return;
-
         LocalBankRequestHandler.Result result=
             bankRequests.handleDrag(
                 drag,
