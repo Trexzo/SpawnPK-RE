@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - refactor/issue-17-npc-action-request-queue-chat2
+  pull_request:
 
 jobs:
   validate:
