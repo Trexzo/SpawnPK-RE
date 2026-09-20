@@ -70,8 +70,13 @@ public final class ClientPacketProbeTest {
            objectMetadata.provenance!=ClientRequestProvenance.EXACT_CURRENT_CLIENT)
             throw new AssertionError("object metadata="+objectMetadata);
         if (!p.readNextKnownPacket()) throw new AssertionError("opcode41 decode stopped");
-        ItemContainerAction equip=p.takeItemAction();
-        if(equip==null||equip.opcode!=41||equip.widgetId!=3214||equip.slot!=0||equip.itemId!=4151)throw new AssertionError("equip41="+equip);
+        ClientRequest equipRequest=p.takeTypedRequest();
+        if(!(equipRequest instanceof ItemContainerActionClientRequest))
+            throw new AssertionError("equip41 request="+equipRequest);
+        ItemContainerAction equip=
+            ((ItemContainerActionClientRequest)equipRequest).action();
+        if(equip.opcode!=41||equip.widgetId!=3214||equip.slot!=0||equip.itemId!=4151)
+            throw new AssertionError("equip41="+equip);
         if (!p.readNextKnownPacket()) throw new AssertionError("amount208 decode stopped");
         ClientRequest amountRequest=p.takeTypedRequest();
         if(!(amountRequest instanceof AmountEntryClientRequest)||
