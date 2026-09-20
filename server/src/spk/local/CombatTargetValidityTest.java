@@ -196,26 +196,12 @@ public final class CombatTargetValidityTest {
 
             target.lifecycle().markRespawned();
 
-            java.util.Properties moved=
-                new java.util.Properties();
-            moved.setProperty(
-                "movement.worldX",
-                Integer.toString(
-                    target.movement().x()
-                )
-            );
-            moved.setProperty(
-                "movement.worldY",
-                Integer.toString(
-                    target.movement().y()
-                )
-            );
-            moved.setProperty(
-                "movement.plane",
-                "1"
-            );
-            target.movement().loadAccountProperties(
-                moved
+            target.movement().enterTransientRegion(
+                target.movement().x(),
+                target.movement().y(),
+                1,
+                target.movement().loadedBaseX(),
+                target.movement().loadedBaseY()
             );
 
             CombatTargetValidator.Result plane=
