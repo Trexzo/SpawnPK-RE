@@ -32,7 +32,19 @@ if (-not (Test-Path -LiteralPath $gradleBat -PathType Leaf)) {
         Invoke-WebRequest -UseBasicParsing -Uri $distribution -OutFile $zip
     }
 
-    $actual = (Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+    $sha256 = [System.Security.Cryptography.SHA256]::Create()
+    try {
+        $stream = [System.IO.File]::OpenRead($zip)
+        try {
+            $actual = ([BitConverter]::ToString($sha256.ComputeHash($stream))).Replace('-', '').ToLowerInvariant()
+        }
+        finally {
+            $stream.Dispose()
+        }
+    }
+    finally {
+        $sha256.Dispose()
+    }
     if ($actual -ne $expectedSha256) {
         Remove-Item -LiteralPath $zip -Force -ErrorAction SilentlyContinue
         throw "Gradle distribution SHA-256 mismatch. expected=$expectedSha256 actual=$actual"
