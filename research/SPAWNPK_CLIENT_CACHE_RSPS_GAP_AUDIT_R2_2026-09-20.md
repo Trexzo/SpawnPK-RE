@@ -2229,6 +2229,248 @@ Collection progress should be driven by authoritative server loot/reward events.
 
 The client-visible item grid, obtained count, kill count and reward text are presentation only and must never be scanned back into domain truth.
 
+## R2.15 exact-current Construction build-hotspot / placement-request transport
+
+This continuation uses the supplied v308-era cache snapshot:
+
+```
+.spawnpk-data.zip
+SHA-256 026336100f5f9a6b1aa89dd5668ee9b17d3a334703e9d6acf017f3eec1600f4c
+```
+
+and the exact v308 object-definition loader rather than assuming a stock cache format.
+
+### Build-mode object family
+
+The exact scene loader contains one static `rs.x.b` object-ID family with:
+
+```
+227 IDs total
+```
+
+Feeding the supplied `.spawnpk/loc.dat + loc.idx` through the current client's own `STANDARD` object-definition parser resolves:
+
+```
+208  objects with a Build action
+19   non-actionable Doorway objects
+```
+
+The 208 buildable IDs are exactly:
+
+```
+13728..13733
+15256..15450
+18810..18815
+22457
+```
+
+The 19 non-actionable Doorway members are:
+
+```
+29113
+29120..29133
+29136..29139
+```
+
+Representative exact names include:
+
+```
+Window space
+Treasure space
+Monster space
+Decoration space
+Bed space
+Wardrobe space
+Dresser space
+Curtain space
+Rug space
+Fireplace space
+Clock space
+Icon space
+Altar space
+Combat ring space
+Storage space
+Door hotspot
+Guard space
+Trap space
+Floor space
+Centrepiece space
+Head trophy space
+Fishing trophy space
+Armour space
+Rune case space
+Portrait space
+Landscape space
+Guild trophy space
+Bookcase space
+Stove space
+Larder space
+Portal space
+Throne space
+Workbench space
+Repair space
+Cape rack space
+Magic wardrobe space
+Toy box space
+Treasure chest space
+Armour case space
+```
+
+This closes the earlier uncertainty: the gated object family is genuinely Construction/POH hotspot/space data.
+
+### What CONSTRUCTION_BUILD_ON/OFF does in the scene loader
+
+The target-1 control tokens toggle:
+
+```
+rs.f.a.ae
+```
+
+The region/object loader consults that flag while decoding map objects.
+
+When build mode is **ON**, the original build-hotspot object ID is preserved and reaches normal scene-object creation.
+
+When build mode is **OFF** and an object ID belongs to the 227-ID family:
+
+1. if the encoded object shape/type is not `0`, that object occurrence is skipped from this scene-load path;
+2. if the object ID is at least `15000`, it is skipped;
+3. the low-ID window-space family `13728..13733`, when shape/type is `0`, is replaced by object `13830`.
+
+The exact current definition for:
+
+```
+13830
+```
+
+is:
+
+```
+name    = Window
+actions = none
+```
+
+So build mode OFF suppresses actionable Construction hotspots; its one low-ID special case becomes a non-actionable finished-window presentation.
+
+The bytecode also contains explicit skip checks for `15305..15317` and `15402/15403`; those IDs are already within the `>=15000` family and resolve to Construction hotspot/space definitions.
+
+### Exact Build action slots
+
+Of the 208 Build-capable definitions:
+
+```
+207 use action-array slot 5
+1   uses action-array slot 1
+```
+
+The sole slot-1 exception is:
+
+```
+22457  Crate
+actions = [Build, null, null, null, null]
+```
+
+All other 207 Build definitions expose:
+
+```
+[null, null, null, null, Build]
+```
+
+### Exact hotspot request transport
+
+Exact current outbound action authority maps object option 5 to:
+
+```
+C2S228
+objectId  u16_be_low_add128
+worldX    u16_be_low_add128
+worldY    u16_be
+```
+
+Therefore ordinary Construction hotspot activation is:
+
+```
+Build hotspot
+ -> object option 5
+ -> C2S228(objectId, worldX, worldY)
+```
+
+The one exact exception, object `22457 Crate`, uses object option 1:
+
+```
+C2S132
+objectId  u16_le_low_add128
+worldX    u16_be
+worldY    u16_be_low_add128
+```
+
+No Construction-specific placement opcode is required.
+
+### Two-stage client contract
+
+The previously recovered room selector sends:
+
+```
+Build <room>
+ -> C2S185(widgetId)
+```
+
+and contains no world coordinate fields.
+
+The build-hotspot click, by contrast, carries:
+
+```
+objectId
+worldX
+worldY
+```
+
+This establishes an exact transport split:
+
+```
+visible Construction hotspot
+ -> C2S228 / C2S132 with world coordinates
+
+later Construction UI selection
+ -> C2S185 widgetId only
+```
+
+Therefore any server implementation must resolve/correlate the later semantic selection against server-owned Construction context established independently of the room widget itself.
+
+That architectural requirement does **not** prove the original server's internal implementation technique. A clean LocalLab design may model explicit semantic state such as:
+
+```
+ConstructionPlacementContext {
+    houseId
+    hotspot identity
+    semantic house coordinate / world position
+    allowed selection kind
+}
+```
+
+but should not expose raw C2S object IDs or widget IDs to the public domain/content API.
+
+### Authority boundary remains strict
+
+This exact contract proves:
+
+- hotspot object identities/names/actions in the supplied current cache;
+- build-mode visibility/suppression behavior;
+- world-coordinate-bearing hotspot request transport;
+- room/widget selection transport.
+
+It does **not** prove:
+
+- which room/object choices are legal for a specific hotspot;
+- authoritative house-grid topology;
+- orientation/door-connectivity rules;
+- material/currency cost;
+- skill/quest requirements beyond client-visible metadata;
+- server collision validation;
+- replacement/removal/refund behavior;
+- persistence semantics.
+
+Those remain `UNKNOWN_SERVER_AUTHORITY`.
+
 ## R2 conclusion
 
 The first-pass gap assessment remains directionally correct, but the exact current client exposes a substantially larger recoverable presentation/control surface than R1 captured.
