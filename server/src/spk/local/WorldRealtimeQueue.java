@@ -15,7 +15,39 @@ final class WorldRealtimeQueue {
     }
     private final PriorityQueue<E> q=new PriorityQueue<>();
     private final AtomicLong seq=new AtomicLong();
-    synchronized void schedule(long atMillis,WorldPlayer owner,Runnable task){if(owner==null||task==null)throw new NullPointerException();q.add(new E(atMillis,seq.incrementAndGet(),owner,owner.generation(),task));notifyAll();}
+
+    void schedule(
+        long atMillis,
+        WorldPlayer owner,
+        Runnable task
+    ){
+        if(owner==null||task==null)
+            throw new NullPointerException();
+
+        synchronized(owner.mutationLock()){
+            long generation=
+                owner.generation();
+
+            if(!owner.accepts(generation))
+                throw new IllegalStateException(
+                    "realtime owner not registered: "+
+                    owner.id()
+                );
+
+            synchronized(this){
+                q.add(
+                    new E(
+                        atMillis,
+                        seq.incrementAndGet(),
+                        owner,
+                        generation,
+                        task
+                    )
+                );
+                notifyAll();
+            }
+        }
+    }
     int runDue(long nowMillis){int n=0;for(;;){E e;synchronized(this){e=q.peek();if(e==null||e.at>nowMillis)return n;q.remove();}if(e.owner.accepts(e.generation)){try{synchronized(e.owner.mutationLock()){if(e.owner.accepts(e.generation))e.task.run();}}catch(Throwable t){System.err.println("[world-realtime] task failed owner="+e.owner.id()+" error="+t);}}n++;}}
     synchronized int cancelPlayer(WorldPlayer player){int n=0;for(Iterator<E>it=q.iterator();it.hasNext();){if(it.next().owner.id().equals(player.id())){it.remove();n++;}}return n;}
     synchronized long nextDueMillis(){E e=q.peek();return e==null?Long.MAX_VALUE:e.at;}

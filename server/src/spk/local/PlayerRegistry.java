@@ -10,6 +10,10 @@ final class PlayerRegistry {
     synchronized long register(WorldPlayer player,String username){
         if(player==null)throw new NullPointerException("player");
         String key=canonical(username);
+        if(key.isEmpty())
+            throw new IllegalArgumentException(
+                "username"
+            );
         EntityId existing=byName.get(key);
         if(existing!=null)throw new IllegalStateException("DUPLICATE_LOGIN username="+username+" existing="+existing);
         long generation=player.markRegistered(username);

@@ -25,6 +25,27 @@ final class WorldNpc {
         int sourceItemId
     ){
         if(id==null)throw new NullPointerException("id");
+
+        validateSpawnParameters(
+            definitionId,
+            plane,
+            sourceItemId
+        );
+
+        this.id=id;
+        this.definitionId=definitionId;
+        this.x=x;
+        this.y=y;
+        this.plane=plane;
+        this.ownerId=ownerId;
+        this.sourceItemId=sourceItemId;
+    }
+
+    static void validateSpawnParameters(
+        int definitionId,
+        int plane,
+        int sourceItemId
+    ){
         if(definitionId<0||definitionId>=16384)
             throw new IllegalArgumentException(
                 "definitionId="+definitionId
@@ -37,14 +58,6 @@ final class WorldNpc {
             throw new IllegalArgumentException(
                 "sourceItemId="+sourceItemId
             );
-
-        this.id=id;
-        this.definitionId=definitionId;
-        this.x=x;
-        this.y=y;
-        this.plane=plane;
-        this.ownerId=ownerId;
-        this.sourceItemId=sourceItemId;
     }
 
     synchronized int x(){return x;}
