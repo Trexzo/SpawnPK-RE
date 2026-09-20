@@ -1,6 +1,8 @@
 package spk.local;
 
 import java.io.IOException;
+import spk.content.api.ContentNpcOptionResult;
+import spk.content.api.ContentNpcService;
 
 /**
  * Residual definition-routed NPC interaction coordinator.
@@ -14,6 +16,7 @@ final class LocalRoutedNpcInteractionHandler {
     private final BankState bank;
     private final MovementState movement;
     private final InteractionApproachResolver approach;
+    private final ContentRegistry contentRegistry;
 
     private Integer pendingBankScene;
     private long pendingBankDeadlineMs;
@@ -23,10 +26,25 @@ final class LocalRoutedNpcInteractionHandler {
         BankState bank,
         MovementState movement
     ){
+        this(
+            npcs,
+            bank,
+            movement,
+            null
+        );
+    }
+
+    LocalRoutedNpcInteractionHandler(
+        NpcRegistry npcs,
+        BankState bank,
+        MovementState movement,
+        ContentRegistry contentRegistry
+    ){
         this.npcs=java.util.Objects.requireNonNull(npcs,"npcs");
         this.bank=java.util.Objects.requireNonNull(bank,"bank");
         this.movement=java.util.Objects.requireNonNull(movement,"movement");
         this.approach=new InteractionApproachResolver(this.movement);
+        this.contentRegistry=contentRegistry;
     }
 
     String handle(
@@ -39,7 +57,13 @@ final class LocalRoutedNpcInteractionHandler {
         NpcInteractionRouter.Route route=
             NpcInteractionRouter.resolve(request,clicked);
 
-        if(route.service==NpcInteractionRouter.Service.BANK && clicked!=null){
+        NpcInteractionRouter.Service service=
+            contentService(
+                route,
+                clicked
+            );
+
+        if(service==NpcInteractionRouter.Service.BANK && clicked!=null){
             if(adjacentTo(clicked.x,clicked.y)){
                 pendingBankScene=null;
                 return openBank(
@@ -83,7 +107,7 @@ final class LocalRoutedNpcInteractionHandler {
         NpcEntity pet=npcs.pet();
         return "V511_NPC_ACTION "+request+
             " route="+route+
-            " result=DECODED_SEMANTIC_"+route.service+
+            " result=DECODED_SEMANTIC_"+service+
             " clicked="+clicked+
             " petScene="+(pet==null?-1:pet.sceneIndex);
     }
@@ -140,6 +164,50 @@ final class LocalRoutedNpcInteractionHandler {
 
     boolean hasPendingBank(){
         return pendingBankScene!=null;
+    }
+
+    private NpcInteractionRouter.Service contentService(
+        NpcInteractionRouter.Route route,
+        NpcEntity clicked
+    ){
+        if(contentRegistry==null||
+           route==null||
+           clicked==null||
+           route.option<1)
+            return route==null
+                ?NpcInteractionRouter.Service.NONE
+                :route.service;
+
+        ContentNpcOptionResult content=
+            contentRegistry.dispatchNpcOption(
+                clicked.definitionId,
+                route.option,
+                clicked.sceneIndex,
+                clicked.x,
+                clicked.y
+            );
+
+        if(content==null)
+            return route.service;
+
+        ContentNpcService service=
+            content.service();
+
+        switch(service){
+            case BANK:
+                return NpcInteractionRouter.Service.BANK;
+            case ATTACK:
+                return NpcInteractionRouter.Service.ATTACK;
+            case TALK:
+                return NpcInteractionRouter.Service.TALK;
+            case TRADE:
+                return NpcInteractionRouter.Service.TRADE;
+            case UNIMPLEMENTED:
+                return NpcInteractionRouter.Service.UNIMPLEMENTED;
+            case NONE:
+            default:
+                return NpcInteractionRouter.Service.NONE;
+        }
     }
 
     private String openBank(
