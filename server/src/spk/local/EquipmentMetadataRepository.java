@@ -261,41 +261,26 @@ final class EquipmentMetadataRepository {
      * semantic families below and clone inheritance.
      */
     private static Map<Integer,EquipmentSlot> ambiguitySlots() {
-        Map<Integer,EquipmentSlot> m=new HashMap<>();
-        // OSRS/public base-slot authority for identical-name pairs.
-        m.put(542, EquipmentSlot.LEGS);   // Monk's robe (bottom)
-        m.put(544, EquipmentSlot.CHEST);  // Monk's robe top
-
-        // Current custom sets with deliberately generic display names.
-        m.put(12855, EquipmentSlot.HEAD); // Hunter's honour (public OSRS head slot)
-        m.put(12856, EquipmentSlot.HEAD); // Rogue's revenge (paired BH head cosmetic)
-        m.put(20520, EquipmentSlot.LEGS); // Elder chaos robe (set bottom)
-        m.put(20535, EquipmentSlot.LEGS); // Bloodmancer garb/robe/hood/boots set bottom
-        m.put(20552, EquipmentSlot.CHEST); // Tuxedo torso
-        m.put(21097, EquipmentSlot.HEAD); // Chicken head
-        m.put(21109, EquipmentSlot.CHEST); // Armadyl d'hide torso
-        m.put(21116, EquipmentSlot.CHEST); // Bandos d'hide torso
-        m.put(21122, EquipmentSlot.CHEST); // Ancient d'hide torso
-        m.put(21103, EquipmentSlot.CHEST); // Decorative armour: torso model has 2 worn components
-        m.put(21104, EquipmentSlot.LEGS);  // Decorative armour: leg model
-        m.put(21105, EquipmentSlot.HEAD);  // Decorative armour: head model
-        m.put(22294, EquipmentSlot.CAPE);  // Master salvation back/aura cosmetic in SpawnPK's 11-slot layout
-        m.put(22295, EquipmentSlot.CAPE);  // Master corruption back/aura cosmetic
-        m.put(25401, EquipmentSlot.CHEST); // Xerician robe; robe bottom is a separate item
-        m.put(28028, EquipmentSlot.LEGS);  // Elder chaos robe (or)
-
-        // Lantern families are hand/offhand wearables in the current custom corpus.
-        int[] lanterns={9065,21276,22183,22184,22185,23948,23949,23950,27411,27548,27549,27550,28712,28831};
-        for (int id:lanterns) m.put(id,EquipmentSlot.SHIELD);
-
-        // Cape/back cosmetics whose names are not normal cape vocabulary.
-        m.put(21773,EquipmentSlot.CAPE); // Jolly parrot shoulder/back cosmetic
-        m.put(27245,EquipmentSlot.CAPE); // Scroll sack; standard cape-slot item
-        m.put(28802,EquipmentSlot.CAPE); // Giant boulder back cosmetic (equipClone crate-with-Zanik visual family)
-
-        // Exotic rune pouch is an Equip-action, non-appearance accessory; use ammunition/accessory slot.
-        m.put(27475,EquipmentSlot.AMMO);
-        return Collections.unmodifiableMap(m);
+        Map<Integer,EquipmentSlot> out = new HashMap<>();
+        try (InputStream raw=EquipmentMetadataRepository.class.getResourceAsStream("/spk/local/equipment_slot_overrides.tsv")) {
+            if (raw == null) throw new IllegalStateException("missing embedded /spk/local/equipment_slot_overrides.tsv");
+            try (BufferedReader br=new BufferedReader(new InputStreamReader(raw, StandardCharsets.UTF_8))) {
+                String line;
+                while ((line=br.readLine()) != null) {
+                    if (line.isEmpty() || line.charAt(0)=='#') continue;
+                    String[] p=line.split("\\t",-1);
+                    if (p.length < 3) throw new IllegalStateException("bad equipment override row: "+line);
+                    int id=Integer.parseInt(p[0]);
+                    EquipmentSlot slot=EquipmentSlot.valueOf(p[1]);
+                    EquipmentSlot prior=out.put(id,slot);
+                    if (prior != null && prior != slot)
+                        throw new IllegalStateException("conflicting equipment override for "+id);
+                }
+            }
+        } catch (IOException e) {
+            throw new ExceptionInInitializerError(e);
+        }
+        return Collections.unmodifiableMap(out);
     }
 
     private static EquipmentSlot semanticSlot(ItemCatalog.Meta item) {
