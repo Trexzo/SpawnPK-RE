@@ -88,6 +88,14 @@ public final class WorldHomeNpcOwnershipTest {
                     "viewer projections do not reflect canonical HOME position"
                 );
 
+            if(!Integer.valueOf(sceneIndex).equals(
+                    first.sceneIndexForCanonical(canonical.id))||
+               !Integer.valueOf(sceneIndex).equals(
+                    second.sceneIndexForCanonical(canonical.id)))
+                throw new AssertionError(
+                    "viewer-local canonical ID mapping did not preserve HOME scene index"
+                );
+
             int cadence=
                 HomeNpcWanderRepository.cadenceTicks(
                     wanderer.ordinal
