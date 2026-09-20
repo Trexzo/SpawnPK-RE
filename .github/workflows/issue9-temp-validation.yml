@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - pipeline/issue-9-custom-asset-definitions
+  pull_request:
+    branches:
+      - main
 
 jobs:
   validate:
