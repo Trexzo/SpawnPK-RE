@@ -5,9 +5,9 @@ import java.util.*;
 /**
  * Immutable versioned gameplay-state snapshot.
  *
- * Schema v1 intentionally carries the exact established property keys so the
- * repository boundary can be introduced before component codecs are extracted
- * from the legacy state classes.
+ * Schema v1 carries the exact established account keys, but their gameplay
+ * encoding/decoding is owned by PlayerSnapshotSchemaV1. Legacy Properties
+ * conversion remains only at repository/compatibility boundaries.
  */
 final class PlayerSnapshot {
     static final int CURRENT_VERSION=1;
