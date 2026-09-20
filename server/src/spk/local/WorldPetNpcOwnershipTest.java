@@ -57,7 +57,8 @@ public final class WorldPetNpcOwnershipTest {
                canonicalMain.sourceItemId!=mainDef.itemId||
                canonicalMain.x()!=localMain.x||
                canonicalMain.y()!=localMain.y||
-               !owner.id().equals(canonicalMain.ownerId))
+               !owner.id().equals(canonicalMain.ownerId)||
+               !canonicalMain.id.equals(localMain.canonicalId()))
                 throw new AssertionError(
                     "canonical main pet does not match owner presentation"
                 );
@@ -95,7 +96,8 @@ public final class WorldPetNpcOwnershipTest {
                canonicalMini.sourceItemId!=23629||
                canonicalMini.x()!=localMini.x||
                canonicalMini.y()!=localMini.y||
-               !owner.id().equals(canonicalMini.ownerId))
+               !owner.id().equals(canonicalMini.ownerId)||
+               !canonicalMini.id.equals(localMini.canonicalId()))
                 throw new AssertionError(
                     "canonical mini pet does not match owner presentation"
                 );
