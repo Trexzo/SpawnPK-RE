@@ -1,0 +1,377 @@
+package spk.local;
+
+import java.io.IOException;
+import java.util.List;
+import java.util.Locale;
+import java.util.Objects;
+
+/**
+ * Owns raw command normalization and the ordered command-handler routing chain.
+ *
+ * Session-owned effects that must remain at the network/session boundary are
+ * exposed through a narrow bridge rather than implemented here.
+ */
+final class LocalCommandDispatcher {
+    interface SessionBridge {
+        SceneUpdatePublisher scenePublisher();
+        void replaceScenePublisher(SceneUpdatePublisher scenePublisher);
+        void saveAccount(String tag,String reason);
+        boolean scopesightActive();
+        void openDevPanel(ServerPacketWriter serverPackets)throws IOException;
+        void applyPetDialog(LocalPetInventoryDialogHandler.Result result,String tag);
+    }
+
+    private final LocalBankRequestHandler bankRequests;
+    private final LocalDiagnosticCommandHandler diagnosticCommands;
+    private final LocalRegionDevCommandHandler regionDevCommands;
+    private final LocalPrayerMagicCommandHandler prayerMagicCommands;
+    private final LocalMiniPetCommandHandler miniPetCommands;
+    private final LocalCosmeticCommandHandler cosmeticCommands;
+    private final LocalDevWorldCommandHandler devWorldCommands;
+    private final DevAuthorityWorkbench dev;
+    private final LocalDevSessionCommandHandler devSessionCommands;
+    private final LocalDevPetCommandHandler devPetCommands;
+    private final LocalDevPlayerCommandHandler devPlayerCommands;
+    private final LocalDevNpcCommandHandler devNpcCommands;
+    private final LocalDevToolCommandHandler devToolCommands;
+    private final LocalNurseCommandHandler nurseCommands;
+    private final LocalVoidglassCommandHandler voidglassCommands;
+    private final LocalPetRuntimeCommandHandler petRuntimeCommands;
+    private final LocalCompColorsCommandHandler compColorsCommands;
+    private final LocalCombatCommandHandler combatCommands;
+    private final LocalPetCompatibilityCommandHandler petCompatibilityCommands;
+    private final LocalItemSpawnCommandHandler itemSpawnCommands;
+    private final SessionBridge bridge;
+
+    LocalCommandDispatcher(
+        LocalBankRequestHandler bankRequests,
+        LocalDiagnosticCommandHandler diagnosticCommands,
+        LocalRegionDevCommandHandler regionDevCommands,
+        LocalPrayerMagicCommandHandler prayerMagicCommands,
+        LocalMiniPetCommandHandler miniPetCommands,
+        LocalCosmeticCommandHandler cosmeticCommands,
+        LocalDevWorldCommandHandler devWorldCommands,
+        DevAuthorityWorkbench dev,
+        LocalDevSessionCommandHandler devSessionCommands,
+        LocalDevPetCommandHandler devPetCommands,
+        LocalDevPlayerCommandHandler devPlayerCommands,
+        LocalDevNpcCommandHandler devNpcCommands,
+        LocalDevToolCommandHandler devToolCommands,
+        LocalNurseCommandHandler nurseCommands,
+        LocalVoidglassCommandHandler voidglassCommands,
+        LocalPetRuntimeCommandHandler petRuntimeCommands,
+        LocalCompColorsCommandHandler compColorsCommands,
+        LocalCombatCommandHandler combatCommands,
+        LocalPetCompatibilityCommandHandler petCompatibilityCommands,
+        LocalItemSpawnCommandHandler itemSpawnCommands,
+        SessionBridge bridge
+    ){
+        this.bankRequests=Objects.requireNonNull(bankRequests,"bankRequests");
+        this.diagnosticCommands=Objects.requireNonNull(diagnosticCommands,"diagnosticCommands");
+        this.regionDevCommands=Objects.requireNonNull(regionDevCommands,"regionDevCommands");
+        this.prayerMagicCommands=Objects.requireNonNull(prayerMagicCommands,"prayerMagicCommands");
+        this.miniPetCommands=Objects.requireNonNull(miniPetCommands,"miniPetCommands");
+        this.cosmeticCommands=Objects.requireNonNull(cosmeticCommands,"cosmeticCommands");
+        this.devWorldCommands=Objects.requireNonNull(devWorldCommands,"devWorldCommands");
+        this.dev=Objects.requireNonNull(dev,"dev");
+        this.devSessionCommands=Objects.requireNonNull(devSessionCommands,"devSessionCommands");
+        this.devPetCommands=Objects.requireNonNull(devPetCommands,"devPetCommands");
+        this.devPlayerCommands=Objects.requireNonNull(devPlayerCommands,"devPlayerCommands");
+        this.devNpcCommands=Objects.requireNonNull(devNpcCommands,"devNpcCommands");
+        this.devToolCommands=Objects.requireNonNull(devToolCommands,"devToolCommands");
+        this.nurseCommands=Objects.requireNonNull(nurseCommands,"nurseCommands");
+        this.voidglassCommands=Objects.requireNonNull(voidglassCommands,"voidglassCommands");
+        this.petRuntimeCommands=Objects.requireNonNull(petRuntimeCommands,"petRuntimeCommands");
+        this.compColorsCommands=Objects.requireNonNull(compColorsCommands,"compColorsCommands");
+        this.combatCommands=Objects.requireNonNull(combatCommands,"combatCommands");
+        this.petCompatibilityCommands=Objects.requireNonNull(petCompatibilityCommands,"petCompatibilityCommands");
+        this.itemSpawnCommands=Objects.requireNonNull(itemSpawnCommands,"itemSpawnCommands");
+        this.bridge=Objects.requireNonNull(bridge,"bridge");
+    }
+
+    boolean handle(
+        String command,
+        boolean decoderAligned,
+        String username,
+        String loginAlias,
+        boolean persistentAccount,
+        long sessionWorldTick,
+        ServerPacketWriter serverPackets,
+        String tag
+    )throws IOException{
+        if(command==null)return false;
+
+        LocalBankRequestHandler.Result bankCommand=
+            bankRequests.handleCommand(command,serverPackets);
+        if(bankCommand!=null){
+            if(bankCommand.saveReason!=null)
+                bridge.saveAccount(tag,bankCommand.saveReason);
+            System.out.println(tag+bankCommand.logText+
+                " decoderAligned="+decoderAligned);
+            return true;
+        }
+
+        String clean=clean(command);
+        String[] p=tokens(clean);
+
+        if(isDevPanelRoute(p)){
+            bridge.openDevPanel(serverPackets);
+            System.out.println(
+                tag+"V5172_DEV_PANEL_OPEN route="+p[0]+
+                " authority="+ContentAuthorityRepository.summary()+
+                " runtimeWeaponProfiles="+V913WeaponRuntimeAuthority.count());
+            return true;
+        }
+
+        if(diagnosticCommands.handle(
+            p,
+            serverPackets,
+            tag,
+            username,
+            loginAlias,
+            persistentAccount,
+            bridge.scenePublisher()
+        ))return true;
+
+        LocalRegionDevCommandHandler.Result regionDevCommand=
+            regionDevCommands.handle(
+                p,
+                username,
+                bridge.scenePublisher(),
+                serverPackets
+            );
+        if(regionDevCommand!=null){
+            if(regionDevCommand.scenePublisher!=null)
+                bridge.replaceScenePublisher(regionDevCommand.scenePublisher);
+            if(regionDevCommand.saveReason!=null)
+                bridge.saveAccount(tag,regionDevCommand.saveReason);
+            System.out.println(tag+regionDevCommand.logText);
+            return true;
+        }
+
+        if(prayerMagicCommands.handle(
+            p,
+            clean,
+            serverPackets,
+            tag
+        ))return true;
+
+        if(p.length>=1&&p[0].equalsIgnoreCase("authority")){
+            System.out.println(
+                tag+"V5124_AUTHORITY "+AuthorityR16R25Publisher.status()+
+                " bankWrapperExact="+BankState.BANK_WRAPPER_ROOT+
+                " bankRuntimeRoot="+BankState.BANK_ROOT+
+                " combatProfiles="+CombatStyleRepository.rootCount()+
+                " combatStyles="+CombatStyleRepository.countStyles()+
+                " note=R25_core_17_59_plus_independent_exact_staff328_3; unproven_server_mechanics_remain_fail_closed"
+            );
+            return true;
+        }
+
+        LocalMiniPetCommandHandler.Result miniPetCommand=
+            miniPetCommands.handle(p,serverPackets);
+        if(miniPetCommand!=null){
+            if(miniPetCommand.saveReason!=null)
+                bridge.saveAccount(tag,miniPetCommand.saveReason);
+            System.out.println(tag+miniPetCommand.logText);
+            return true;
+        }
+
+        LocalCosmeticCommandHandler.Result cosmeticCommand=
+            cosmeticCommands.handle(p,username,serverPackets);
+        if(cosmeticCommand!=null){
+            if(cosmeticCommand.saveReason!=null)
+                bridge.saveAccount(tag,cosmeticCommand.saveReason);
+            System.out.println(tag+cosmeticCommand.logText);
+            return true;
+        }
+
+        if(devWorldCommands.handle(
+            p,
+            bridge.scenePublisher(),
+            username,
+            sessionWorldTick,
+            tag
+        ))return true;
+
+        if(dev.trace().enabled()&&
+           p.length>0&&
+           p[0].toLowerCase(Locale.ROOT).startsWith("dev")){
+            dev.trace().record(
+                "DEV_COMMAND_REQUEST",
+                "C2S103 command=\""+clean+"\" -> router="+p[0],
+                "EXACT_C2S103_TRANSPORT/LOCAL_DEV_ROUTE"
+            );
+        }
+
+        String devSessionCommand=
+            devSessionCommands.handle(
+                p,
+                username,
+                bridge.scenePublisher(),
+                serverPackets
+            );
+        if(devSessionCommand!=null){
+            System.out.println(tag+devSessionCommand);
+            return true;
+        }
+
+        List<String> devPetCommand=
+            devPetCommands.handle(p,serverPackets);
+        if(devPetCommand!=null){
+            for(String line:devPetCommand)
+                System.out.println(tag+line);
+            return true;
+        }
+
+        List<String> devPlayerCommand=
+            devPlayerCommands.handle(p,username,serverPackets);
+        if(devPlayerCommand!=null){
+            for(String line:devPlayerCommand)
+                System.out.println(tag+line);
+            return true;
+        }
+
+        List<String> devNpcCommand=
+            devNpcCommands.handle(p,serverPackets);
+        if(devNpcCommand!=null){
+            for(String line:devNpcCommand)
+                System.out.println(tag+line);
+            return true;
+        }
+
+        List<String> devToolCommand=
+            devToolCommands.handle(p,serverPackets);
+        if(devToolCommand!=null){
+            for(String line:devToolCommand)
+                System.out.println(tag+line);
+            return true;
+        }
+
+        LocalNurseCommandHandler.Result nurseCommand=
+            nurseCommands.handle(
+                p,
+                command,
+                bridge.scopesightActive(),
+                serverPackets
+            );
+        if(nurseCommand!=null){
+            if(nurseCommand.saveReason!=null)
+                bridge.saveAccount(tag,nurseCommand.saveReason);
+            System.out.println(tag+nurseCommand.logText);
+            return true;
+        }
+
+        if(p.length>=1&&p[0].equalsIgnoreCase("appfixture")){
+            String which=p.length>=2?p[1]:"help";
+            String appResult=
+                ApplicationUiFixtureService.run(which,serverPackets);
+            System.out.println(
+                tag+"R85_APP_FIXTURE "+appResult+
+                " authority=LOCAL_DEV_FIXTURE clientProtocol=EXACT_CURRENT"
+            );
+            return true;
+        }
+
+        LocalVoidglassCommandHandler.Outcome voidglassCommand=
+            voidglassCommands.handle(p,serverPackets);
+        if(voidglassCommand!=null){
+            if(voidglassCommand.saveReason!=null)
+                bridge.saveAccount(tag,voidglassCommand.saveReason);
+            System.out.println(tag+voidglassCommand.text);
+            return true;
+        }
+
+        List<String> petRuntimeCommand=
+            petRuntimeCommands.handle(p,serverPackets);
+        if(petRuntimeCommand!=null){
+            for(String line:petRuntimeCommand)
+                System.out.println(tag+line);
+            return true;
+        }
+
+        LocalCompColorsCommandHandler.Result compColorsCommand=
+            compColorsCommands.handle(
+                p,
+                command,
+                username,
+                serverPackets
+            );
+        if(compColorsCommand!=null){
+            if(compColorsCommand.saveReason!=null)
+                bridge.saveAccount(tag,compColorsCommand.saveReason);
+            System.out.println(tag+compColorsCommand.logText);
+            return true;
+        }
+
+        List<String> combatCommand=
+            combatCommands.handle(p,command,serverPackets);
+        if(combatCommand!=null){
+            for(String line:combatCommand)
+                System.out.println(tag+line);
+            return true;
+        }
+
+        LocalPetCompatibilityCommandHandler.Outcome petCompatibilityCommand=
+            petCompatibilityCommands.handle(p,serverPackets);
+        if(petCompatibilityCommand!=null){
+            if(petCompatibilityCommand.dialogResult!=null){
+                bridge.applyPetDialog(
+                    petCompatibilityCommand.dialogResult,
+                    tag
+                );
+            }else{
+                if(petCompatibilityCommand.saveReason!=null)
+                    bridge.saveAccount(
+                        tag,
+                        petCompatibilityCommand.saveReason
+                    );
+                if(petCompatibilityCommand.logText!=null)
+                    System.out.println(
+                        tag+petCompatibilityCommand.logText
+                    );
+            }
+            return true;
+        }
+
+        LocalItemSpawnCommandHandler.Result itemSpawnCommand=
+            itemSpawnCommands.handle(p,command,serverPackets);
+        if(itemSpawnCommand!=null){
+            if(itemSpawnCommand.saveReason!=null)
+                bridge.saveAccount(tag,itemSpawnCommand.saveReason);
+            System.out.println(
+                tag+itemSpawnCommand.logText+
+                " decoderAligned="+decoderAligned
+            );
+            return true;
+        }
+
+        return false;
+    }
+
+    static String clean(String command){
+        String clean=command==null?"":command.trim();
+        if(clean.startsWith("::"))
+            clean=clean.substring(2);
+        return clean;
+    }
+
+    static String[] tokens(String clean){
+        return clean.split("\\s+");
+    }
+
+    static boolean isDevPanelRoute(String[] p){
+        return p!=null&&
+            p.length>=1&&
+            (
+                p[0].equalsIgnoreCase("devpanel")||
+                p[0].equalsIgnoreCase("devui")||
+                p[0].equalsIgnoreCase("lab")||
+                (
+                    p[0].equalsIgnoreCase("dev")&&
+                    p.length>=2&&
+                    p[1].equalsIgnoreCase("panel")
+                )
+            );
+    }
+}
