@@ -1,0 +1,51 @@
+name: temp-issue131-persistence-shutdown-ci
+
+on:
+  push:
+    branches:
+      - fix/issue-131-persistence-shutdown-completions
+
+jobs:
+  validate:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Canonical server build
+        shell: pwsh
+        run: ./server/build.ps1
+
+      - name: Forced shutdown regression
+        shell: pwsh
+        run: |
+          java -cp server/build/SpawnPKLocalServer.jar spk.local.WorldPersistenceForcedShutdownTest
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Inherited persistence regressions
+        shell: pwsh
+        run: |
+          $tests = @(
+            'spk.local.WorldPersistenceThreadingTest',
+            'spk.local.PlayerRepositoryFoundationTest',
+            'spk.local.PlayerSnapshotMigrationTest',
+            'spk.local.PlayerSnapshotSchemaExtractionTest',
+            'spk.local.AccountPersistenceTest',
+            'spk.local.AmmoPersistenceTest',
+            'spk.local.PetPersistenceTest',
+            'spk.local.EngineR3PetAccessoryPersistenceTest',
+            'spk.local.PositionPersistenceR213Test',
+            'spk.local.V58StatePersistenceTest'
+          )
+
+          foreach ($test in $tests) {
+            Write-Host "=== $test ==="
+            java -cp server/build/SpawnPKLocalServer.jar $test
+            if ($LASTEXITCODE -ne 0) {
+              throw "$test failed with exit code $LASTEXITCODE"
+            }
+          }
