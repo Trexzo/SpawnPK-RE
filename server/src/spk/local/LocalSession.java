@@ -75,6 +75,7 @@ final class LocalSession implements Runnable {
     private final LocalPendingRequestDispatcher pendingRequests;
     private final LocalSessionBootstrapPublisher bootstrapPublisher;
     private final LocalSessionPlayerInitializer playerInitializer;
+    private final LocalSessionRuntimeBindings runtimeBindings;
     private SceneUpdatePublisher scenePublisher;
     private ServerPacketWriter sessionPackets;
     private OutboundPacketQueue outboundPackets;
@@ -87,8 +88,6 @@ final class LocalSession implements Runnable {
     private boolean persistentAccount;
     /** Persisted semantic global pet accessory. 0 means none. */
     private final PetAccessoryState petAccessoryState = new PetAccessoryState();
-    /** Engine R3 per-view remote-player synchronization context. */
-    private Player81WorldSync.Context player81Sync;
     private volatile boolean logoutRequested;
 
     LocalSession(Socket socket, boolean bootstrap) { this(socket, bootstrap, false, World.shared()); }
@@ -511,7 +510,7 @@ final class LocalSession implements Runnable {
             petRuntimeCommands,
             new LocalWorldTickCoordinator.SessionBridge(){
                 @Override public Player81WorldSync.Context player81Sync(){
-                    return LocalSession.this.player81Sync;
+                    return LocalSession.this.runtimeBindings.context();
                 }
 
                 @Override public SceneUpdatePublisher scenePublisher(){
@@ -621,7 +620,7 @@ final class LocalSession implements Runnable {
                 }
 
                 @Override public Player81WorldSync.Context player81Sync(){
-                    return LocalSession.this.player81Sync;
+                    return LocalSession.this.runtimeBindings.context();
                 }
 
                 @Override public void saveAccount(
@@ -694,6 +693,18 @@ final class LocalSession implements Runnable {
             petEffects,
             petAccessoryState
         );
+        this.runtimeBindings = new LocalSessionRuntimeBindings(
+            world,
+            worldPlayer,
+            dev,
+            npcs,
+            movement,
+            bank,
+            (tag,reason)->LocalSession.this.saveAccountQuiet(
+                tag,
+                reason
+            )
+        );
         if (movementEnabled && !bootstrap) throw new IllegalArgumentException("movement requires bootstrap");
     }
 
@@ -753,13 +764,11 @@ final class LocalSession implements Runnable {
                         tag
                     );
                 }
-                if(bootstrap && player81Sync==null){
-                    player81Sync=Player81WorldSync.register(serverPackets,world,worldPlayer,dev);
-                    SharedNpcWorldRelay.register(serverPackets,world,worldPlayer,npcs,movement);
-                    TradeService.register(world,worldPlayer,bank,serverPackets,()->saveAccountQuiet("[session "+socket.getRemoteSocketAddress()+"] ","TRADE_COMMIT"));
-                    Player81WorldSync.sendPlayerOptionsIfMultiplayer(world);
-                    System.out.println(tag+"V5131_ENGINE_R3_PLAYER_SYNC_REGISTER playerId="+worldPlayer.id()+" members="+world.players().size()+" "+player81Sync.summary()+
-                        " options="+(world.players().size()>1?"Attack/Follow/TradeWith":"DEFERRED_UNTIL_MULTIPLAYER")+" authority=EXACT_CLIENT_S2C104_C2S128_153_73");
+                if(bootstrap && runtimeBindings.context()==null){
+                    runtimeBindings.register(
+                        serverPackets,
+                        tag
+                    );
                 }
 
                 try {
@@ -825,7 +834,7 @@ final class LocalSession implements Runnable {
             System.err.println(tag + "closed: " + t);
         } finally {
             if(worldTickAttached){world.detachTickTarget(worldPlayer.id());worldTickAttached=false;}
-            if(sessionPackets!=null){TradeService.unregister(worldPlayer);SharedNpcWorldRelay.unregister(sessionPackets);Player81WorldSync.unregister(sessionPackets);player81Sync=null;}
+            runtimeBindings.unregister();
             if(worldRegistered){
                 boolean removed=world.unregisterPlayer(worldPlayer);worldRegistered=false;
                 System.out.println(tag+"V512_WORLD_UNREGISTER playerId="+worldPlayer.id()+" removed="+removed+" members="+world.players().size()+" queuedCommands="+world.commands().size());
