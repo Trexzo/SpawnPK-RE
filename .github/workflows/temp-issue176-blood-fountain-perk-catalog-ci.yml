@@ -1,0 +1,33 @@
+name: temp-issue176-blood-fountain-perk-catalog-ci
+
+on:
+  push:
+    branches:
+      - research/issue-176-blood-fountain-perk-catalog
+
+jobs:
+  validate:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Canonical server build
+        shell: pwsh
+        run: ./server/build.ps1
+
+      - name: Blood Fountain selectable perk catalog
+        shell: pwsh
+        run: |
+          java -cp server/build/SpawnPKLocalServer.jar spk.local.BloodFountainSelectablePerkCatalogTest
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Inherited application regression
+        shell: pwsh
+        run: |
+          java -cp server/build/SpawnPKLocalServer.jar spk.local.ApplicationUiServiceTest
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
