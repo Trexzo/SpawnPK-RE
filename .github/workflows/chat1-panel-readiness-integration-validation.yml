@@ -25,8 +25,9 @@ jobs:
       - name: Stress dev-panel socket test
         shell: pwsh
         run: |
+          $cp = 'server/build/classes/java/main;server/build/classes/java/test;server/build/resources/main;server/build/resources/test'
           for ($i = 1; $i -le 10; $i++) {
-            & java -cp server/build/classes spk.local.EngineR7DevPanelSocketTest
+            & java -cp $cp spk.local.EngineR7DevPanelSocketTest
             if ($LASTEXITCODE -ne 0) {
               throw "EngineR7DevPanelSocketTest failed iteration=$i exit=$LASTEXITCODE"
             }
@@ -36,8 +37,9 @@ jobs:
       - name: Stress runtime weapon panel socket test
         shell: pwsh
         run: |
+          $cp = 'server/build/classes/java/main;server/build/classes/java/test;server/build/resources/main;server/build/resources/test'
           for ($i = 1; $i -le 10; $i++) {
-            & java -cp server/build/classes spk.local.EngineR72RuntimeWeaponPanelSocketTest
+            & java -cp $cp spk.local.EngineR72RuntimeWeaponPanelSocketTest
             if ($LASTEXITCODE -ne 0) {
               throw "EngineR72RuntimeWeaponPanelSocketTest failed iteration=$i exit=$LASTEXITCODE"
             }
@@ -47,6 +49,7 @@ jobs:
       - name: Run dependent panel regressions
         shell: pwsh
         run: |
+          $cp = 'server/build/classes/java/main;server/build/classes/java/test;server/build/resources/main;server/build/resources/test'
           $tests = @(
             'EngineR82ResearchPanelSocketTest',
             'EngineR83DiscoveryPanelSocketTest',
@@ -54,7 +57,7 @@ jobs:
             'EngineR8ResearchPanelSocketTest'
           )
           foreach ($test in $tests) {
-            & java -cp server/build/classes "spk.local.$test"
+            & java -cp $cp "spk.local.$test"
             if ($LASTEXITCODE -ne 0) {
               throw "$test failed with exit code $LASTEXITCODE"
             }
