@@ -716,7 +716,39 @@ final class ClientPacketProbe {
      * 86 distinct opcodes, zero dynamic opcode sites.
      */
     private boolean consumeFramingOnly(int opcode) throws IOException {
-        if (R85GenericC2SBridge.tryConsume(this, opcode)) {
+        int genericLength=
+            GenericInteractionPacketDecoder.length(opcode);
+        if(genericLength>=0){
+            byte[] payload=
+                Binary.readExactly(in,genericLength);
+            GenericInteractionEvent event=
+                GenericInteractionPacketDecoder.decode(
+                    opcode,
+                    payload
+                );
+
+            offerTypedRequest(
+                new GenericInteractionClientRequest(
+                    event,
+                    ClientRequestMetadata.exactCurrent(
+                        opcode,
+                        GenericInteractionPacketDecoder
+                            .schema(opcode),
+                        GenericInteractionPacketDecoder
+                            .source(opcode)
+                    )
+                ),
+                opcode
+            );
+
+            System.out.printf(
+                "%sCLIENT_PACKET seq=%d opcode=%d len=%d genericInteraction=%s schema=STATIC_EXACT_TYPED%n",
+                tag,
+                decodedCount,
+                opcode,
+                genericLength,
+                event
+            );
             return true;
         }
 
