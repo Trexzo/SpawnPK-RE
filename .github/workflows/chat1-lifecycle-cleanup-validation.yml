@@ -1,0 +1,61 @@
+name: Chat1 Lifecycle Cleanup Validation
+
+on:
+  push:
+    branches:
+      - integration/post257-lifecycle-cleanups-chat1
+
+jobs:
+  windows-lifecycle:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Gradle-backed canonical build
+        shell: pwsh
+        run: ./server/build.ps1
+
+      - name: Stress lifecycle regressions
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $cp = 'server/build/SpawnPKLocalServer.jar;server/build/classes/java/test'
+          $tests = @(
+            'WorldCommandShutdownFenceTest',
+            'TradeServiceWorldStateCleanupTest',
+            'Player81WorldStateCleanupTest',
+            'Player81OwnerStatePruneTest'
+          )
+          for ($round = 1; $round -le 10; $round++) {
+            foreach ($t in $tests) {
+              Write-Host "[LIFECYCLE] round=$round test=$t"
+              & java -cp $cp "spk.local.$t"
+              if ($LASTEXITCODE -ne 0) {
+                throw "Lifecycle regression failed: round=$round test=$t exit=$LASTEXITCODE"
+              }
+            }
+          }
+          Write-Host "CHAT1_LIFECYCLE_STRESS_PASS rounds=10 tests=$($tests.Count) executions=40"
+
+      - name: Related world and multiplayer guards
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $cp = 'server/build/SpawnPKLocalServer.jar;server/build/classes/java/test'
+          $tests = @(
+            'WorldPulseCommandExecutionTest',
+            'EngineR3DualSocketVisibilityTest',
+            'EngineR41TradeApproachSocketTest'
+          )
+          foreach ($t in $tests) {
+            Write-Host "[LIFECYCLE-GUARD] $t"
+            & java -cp $cp "spk.local.$t"
+            if ($LASTEXITCODE -ne 0) {
+              throw "Lifecycle guard failed: $t exit=$LASTEXITCODE"
+            }
+          }
+          Write-Host "CHAT1_LIFECYCLE_GUARDS_PASS tests=$($tests.Count)"
