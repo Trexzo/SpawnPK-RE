@@ -113,9 +113,9 @@ final class LocalPlayerInteractionHandler {
                 " clickFacing=false facingAuthority=FIRST_AUTHORITATIVE_MOVEMENT"+
                 " targetValidity=VALID"+
                 " damageAuthority="+
-                CombatDamageRules.localLabFallback().authority()+
+                pvpCombat.damageAuthority()+
                 " damageFormula="+
-                CombatDamageRules.localLabFallback().formula();
+                pvpCombat.damageFormula();
         }
 
         if(action.optionSlot==2){
