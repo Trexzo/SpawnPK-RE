@@ -53,9 +53,19 @@ public final class ClientPacketProbeTest {
            ((WidgetActionClientRequest)widgetRequest).widgetId()!=152)
             throw new AssertionError("widget action mismatch: "+widgetRequest);
         if (!p.readNextKnownPacket()) throw new AssertionError("object132 decode stopped");
-        ObjectInteraction oi=p.takeObjectInteraction();
-        if (oi==null || oi.opcode!=132 || oi.objectId!=26972 || oi.worldX!=3095 || oi.worldY!=3493)
+        ClientRequest objectRequest=p.takeTypedRequest();
+        if(!(objectRequest instanceof ObjectInteractionClientRequest))
+            throw new AssertionError("object132 typed request missing: "+objectRequest);
+        ObjectInteractionClientRequest typedObject=(ObjectInteractionClientRequest)objectRequest;
+        ObjectInteraction oi=typedObject.interaction();
+        if (oi.opcode!=132 || oi.objectId!=26972 || oi.worldX!=3095 || oi.worldY!=3493)
             throw new AssertionError("object interaction mismatch: "+oi);
+        ClientRequestMetadata objectMetadata=typedObject.metadata();
+        if(objectMetadata.opcode!=132||
+           !"FIXED6_WORLD_X_LE_A_OBJECT_BE_WORLD_Y_BE_A".equals(objectMetadata.schema)||
+           !"PINNED_CLIENT_MENU_ACTION_502_AND_N_SERIALIZER".equals(objectMetadata.source)||
+           objectMetadata.provenance!=ClientRequestProvenance.EXACT_CURRENT_CLIENT)
+            throw new AssertionError("object metadata="+objectMetadata);
         if (!p.readNextKnownPacket()) throw new AssertionError("opcode41 decode stopped");
         ItemContainerAction equip=p.takeItemAction();
         if(equip==null||equip.opcode!=41||equip.widgetId!=3214||equip.slot!=0||equip.itemId!=4151)throw new AssertionError("equip41="+equip);
