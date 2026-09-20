@@ -21,7 +21,6 @@ import java.util.*;
 final class SharedNpcWorldRelay {
     private static final IdentityHashMap<ServerPacketWriter,Context> BY_WRITER=new IdentityHashMap<>();
     private static final IdentityHashMap<World,WorldState> BY_WORLD=new IdentityHashMap<>();
-    private static final long MASK_TTL_MS=5000L;
 
     private SharedNpcWorldRelay(){}
 
@@ -54,38 +53,47 @@ final class SharedNpcWorldRelay {
         if(sourceWriter==null||sourceNpcs==null||sourceTarget==null||mask==null)return;
         synchronized(SharedNpcWorldRelay.class){
             Context src=BY_WRITER.get(sourceWriter);if(src==null)return;
-            TargetRef target;
+            WorldNpcPresentationEvents.Target target;
             if(sourceTarget==sourceNpcs.pet())
-                target=TargetRef.pet(
+                target=WorldNpcPresentationEvents.Target.pet(
                     sourceNpcs.canonicalPetId(),
                     sourceTarget.definitionId
                 );
             else if(sourceTarget==sourceNpcs.miniPet())
-                target=TargetRef.mini(
+                target=WorldNpcPresentationEvents.Target.mini(
                     sourceNpcs.canonicalMiniPetId(),
                     sourceTarget.definitionId
                 );
             else
-                target=TargetRef.scene(
+                target=WorldNpcPresentationEvents.Target.scene(
                     sourceTarget.sceneIndex,
                     sourceTarget.definitionId
                 );
 
-            long barrier=Player81WorldSync.latestPublishedEventSequence(sourceWriter);
-            LinkedHashSet<EntityId> recipients=new LinkedHashSet<>();
-            for(Context c:src.state.contexts.values())if(c!=src&&!c.owner.id().equals(src.owner.id()))recipients.add(c.owner.id());
+            long barrier=
+                Player81WorldSync.latestPublishedEventSequence(
+                    sourceWriter
+                );
+
+            LinkedHashSet<EntityId> recipients=
+                new LinkedHashSet<>();
+            for(Context c:src.state.contexts.values())
+                if(c!=src&&
+                   !c.owner.id().equals(src.owner.id()))
+                    recipients.add(c.owner.id());
+
             if(recipients.isEmpty())return;
-            long now=System.currentTimeMillis();
-            // R3.1 had explicit combat relay callsites in addition to the semantic
-            // NpcRegistry mask publication.  Suppress only same-tick semantic
-            // duplicates while the old callsites are retained for binary compatibility.
-            MaskEvent last=src.state.maskEvents.peekLast();
-            if(last!=null && now-last.createdAt<=100L && last.playerBarrierSeq==barrier
-                && last.sourceId.equals(src.owner.id()) && sameTarget(last.target,target)
-                && sameMask(last.mask,mask)) return;
-            src.state.maskEvents.addLast(new MaskEvent(++src.state.maskSequence,now,
-                src.owner.id(),target,mask,barrier,recipients));
-            while(src.state.maskEvents.size()>256)src.state.maskEvents.removeFirst();
+
+            src.state.world
+                .npcPresentationEvents()
+                .enqueue(
+                    System.currentTimeMillis(),
+                    src.owner.id(),
+                    target,
+                    mask,
+                    barrier,
+                    recipients
+                );
         }
     }
 
@@ -94,134 +102,79 @@ final class SharedNpcWorldRelay {
      * outbound stream.  Any NPC masks whose source-player barrier has now been
      * consumed are appended after it, preserving visible event order.
      */
-    static void flushAfterPlayer81(ServerPacketWriter viewerWriter)throws IOException{
+    static void flushAfterPlayer81(
+        ServerPacketWriter viewerWriter
+    )throws IOException{
         Context viewer;
-        ArrayList<MaskEvent> ready=new ArrayList<>();
-        long now=System.currentTimeMillis();
         synchronized(SharedNpcWorldRelay.class){
-            viewer=BY_WRITER.get(viewerWriter);if(viewer==null)return;
-            Iterator<MaskEvent> it=viewer.state.maskEvents.iterator();
-            while(it.hasNext()){
-                MaskEvent e=it.next();
-                if(now-e.createdAt>MASK_TTL_MS){it.remove();continue;}
-                if(!e.recipients.contains(viewer.owner.id())||e.delivered.contains(viewer.owner.id()))continue;
-                long consumed=Player81WorldSync.consumedEventSequence(viewerWriter,e.sourceId);
-                if(e.playerBarrierSeq>0 && consumed<e.playerBarrierSeq)continue;
-                ready.add(e);
-            }
+            viewer=BY_WRITER.get(viewerWriter);
         }
+        if(viewer==null)return;
 
-        for(MaskEvent e:ready){
-            NpcEntity target=viewer.resolve(e.sourceId,e.target);
-            if(target==null)continue; // wait for remote pet add / viewport entry until TTL
-            viewer.npcs.sendMaskLocal(target,e.mask,viewer.writer);
-            synchronized(SharedNpcWorldRelay.class){e.delivered.add(viewer.owner.id());}
+        long now=System.currentTimeMillis();
+
+        List<WorldNpcPresentationEvents.Event> pending=
+            viewer.state.world
+                .npcPresentationEvents()
+                .pendingFor(
+                    viewer.owner.id(),
+                    now
+                );
+
+        for(WorldNpcPresentationEvents.Event event:
+            pending){
+            long consumed=
+                Player81WorldSync.consumedEventSequence(
+                    viewerWriter,
+                    event.sourceId
+                );
+
+            if(event.playerBarrierSequence>0&&
+               consumed<
+                    event.playerBarrierSequence)
+                continue;
+
+            NpcEntity target=
+                viewer.resolve(
+                    event.sourceId,
+                    event.target
+                );
+
+            if(target==null)
+                continue;
+
+            viewer.npcs.sendMaskLocal(
+                target,
+                event.mask,
+                viewer.writer
+            );
+
+            viewer.state.world
+                .npcPresentationEvents()
+                .markDelivered(
+                    event.sequence,
+                    viewer.owner.id(),
+                    now
+                );
         }
-
-        synchronized(SharedNpcWorldRelay.class){viewer.state.pruneDelivered(now);}
     }
 
-
-    private static boolean sameTarget(TargetRef a,TargetRef b){
-        return a!=null&&b!=null&&
-            a.kind==b.kind&&
-            a.scene==b.scene&&
-            a.definition==b.definition&&
-            Objects.equals(a.canonicalId,b.canonicalId);
-    }
-
-    private static boolean sameMask(NpcSyncEncoder.Mask a,NpcSyncEncoder.Mask b){
-        if(a==b)return true;if(a==null||b==null)return false;
-        return Objects.equals(a.animationId,b.animationId)
-            && a.animationDelay==b.animationDelay
-            && Objects.equals(a.interactionTarget,b.interactionTarget)
-            && Objects.equals(a.hitDamage,b.hitDamage)
-            && Objects.equals(a.gfxId,b.gfxId)
-            && a.gfxHeight==b.gfxHeight
-            && a.gfxDelay==b.gfxDelay
-            && Objects.equals(a.forceText,b.forceText)
-            && a.hitType==b.hitType
-            && a.hitCycle==b.hitCycle
-            && a.currentHp==b.currentHp
-            && a.maxHp==b.maxHp;
-    }
 
     private static final class WorldState{
-        final World world;final HashMap<EntityId,Context> contexts=new HashMap<>();
-        final ArrayDeque<MaskEvent> maskEvents=new ArrayDeque<>();
-        long maskSequence;
-        WorldState(World w){world=w;}
+        final World world;
+        final HashMap<EntityId,Context> contexts=
+            new HashMap<>();
+
+        WorldState(World world){
+            this.world=world;
+        }
 
         void pruneDeadRecipients(){
-            HashSet<EntityId> live=new HashSet<>(contexts.keySet());
-            for(MaskEvent e:maskEvents)e.recipients.retainAll(live);
-            pruneDelivered(System.currentTimeMillis());
-        }
-        void pruneDelivered(long now){
-            Iterator<MaskEvent> it=maskEvents.iterator();
-            while(it.hasNext()){
-                MaskEvent e=it.next();
-                if(now-e.createdAt>MASK_TTL_MS||e.delivered.containsAll(e.recipients)||e.recipients.isEmpty())it.remove();
-            }
-        }
-    }
-
-    private static final class TargetRef{
-        static final int SCENE=0,PET=1,MINI=2;
-        final int kind,scene,definition;
-        final EntityId canonicalId;
-        TargetRef(
-            int kind,
-            int scene,
-            int definition,
-            EntityId canonicalId
-        ){
-            this.kind=kind;
-            this.scene=scene;
-            this.definition=definition;
-            this.canonicalId=canonicalId;
-        }
-        static TargetRef scene(int scene,int definition){
-            return new TargetRef(
-                SCENE,
-                scene,
-                definition,
-                null
-            );
-        }
-        static TargetRef pet(
-            EntityId canonicalId,
-            int definition
-        ){
-            return new TargetRef(
-                PET,
-                -1,
-                definition,
-                canonicalId
-            );
-        }
-        static TargetRef mini(
-            EntityId canonicalId,
-            int definition
-        ){
-            return new TargetRef(
-                MINI,
-                -1,
-                definition,
-                canonicalId
-            );
-        }
-    }
-
-    private static final class MaskEvent{
-        final long seq,createdAt,playerBarrierSeq;
-        final EntityId sourceId;
-        final TargetRef target;
-        final NpcSyncEncoder.Mask mask;
-        final LinkedHashSet<EntityId> recipients;
-        final HashSet<EntityId> delivered=new HashSet<>();
-        MaskEvent(long s,long at,EntityId src,TargetRef t,NpcSyncEncoder.Mask m,long barrier,LinkedHashSet<EntityId> r){
-            seq=s;createdAt=at;sourceId=src;target=t;mask=m;playerBarrierSeq=barrier;recipients=r;
+            world.npcPresentationEvents()
+                .retainRecipients(
+                    contexts.keySet(),
+                    System.currentTimeMillis()
+                );
         }
     }
 
@@ -543,8 +496,8 @@ final class SharedNpcWorldRelay {
             return scene;
         }
 
-        NpcEntity resolve(EntityId sourceId,TargetRef ref){
-            if(ref.kind==TargetRef.SCENE){
+        NpcEntity resolve(EntityId sourceId,WorldNpcPresentationEvents.Target ref){
+            if(ref.kind==WorldNpcPresentationEvents.Target.SCENE){
                 NpcEntity same=npcs.scene(ref.scene);
                 return same!=null&&
                     same.definitionId==ref.definition
@@ -564,7 +517,7 @@ final class SharedNpcWorldRelay {
 
             int scene=mapped!=null
                 ?mapped.intValue()
-                :(ref.kind==TargetRef.PET
+                :(ref.kind==WorldNpcPresentationEvents.Target.PET
                     ?t.mainScene
                     :t.miniScene);
 
