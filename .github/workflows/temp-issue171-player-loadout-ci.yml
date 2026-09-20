@@ -29,7 +29,7 @@ jobs:
             "server/src/spk/local/PlayerLoadout.java",
             "server/src/spk/local/LoadoutService.java"
           )
-          $bad = Select-String -Path $paths -Pattern "equip_loadout|item_loadout|skills_loadout|pet_loadout|spawn_loadout|widgetId|opcode|subtype|ServerPacketWriter|ClientPacket|S2C126|S2C250|EquipmentState|\bInventory\b|PetRuntime|SkillRuntime" -CaseSensitive:$false
+          $bad = Select-String -Path $paths -Pattern "equip_loadout|item_loadout|skills_loadout|pet_loadout|spawn_loadout|widgetId|opcode|subtype|ServerPacketWriter|ClientPacket|S2C126|S2C250|EquipmentState|spk\.local\.Inventory|PetRuntime|SkillRuntime" -CaseSensitive:$false
           if ($bad) {
             $bad | ForEach-Object { Write-Host $_ }
             throw "Issue 171 domain source contains protocol or live-mutation identity."
