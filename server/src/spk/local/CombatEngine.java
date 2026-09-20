@@ -321,9 +321,10 @@ final class CombatEngine {
         boolean runtimeActorGfxPublished=
             actorPublication.actorGfxPublished;
         CombatDamageRules.Result calculatedDamage=null;
+        CombatSystemHooks.Snapshot hookSnapshot=null;
         int damage=0,hitType=-1,hp=DUMMY_HP_MAX;
         if(mechanicsResolved){
-            CombatSystemHooks.Snapshot hookSnapshot=
+            hookSnapshot=
                 systemHooks.beforeDamage(
                     state.context,
                     equipment.weapon(),
