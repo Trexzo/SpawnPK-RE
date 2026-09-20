@@ -19,10 +19,38 @@ final class World implements AutoCloseable {
     private final WorldCommandInbox commands=new WorldCommandInbox();
     private final LinkedHashMap<EntityId,WorldTickTarget> tickTargets=new LinkedHashMap<>();
     private final WorldPulse pulse;
+    private final WorldPlayerPersistence persistence;
 
-    private World(long tickMillis){pulse=new WorldPulse(this,tickMillis);}
+    private World(long tickMillis){
+        this(
+            tickMillis,
+            new FilePlayerRepository()
+        );
+    }
+
+    private World(
+        long tickMillis,
+        PlayerRepository repository
+    ){
+        pulse=new WorldPulse(this,tickMillis);
+        persistence=
+            new WorldPlayerPersistence(
+                this,
+                repository
+            );
+    }
+
     static World shared(){return SHARED;}
     static World isolatedForTest(long tickMillis){return new World(tickMillis);}
+    static World isolatedForTest(
+        long tickMillis,
+        PlayerRepository repository
+    ){
+        return new World(
+            tickMillis,
+            repository
+        );
+    }
 
     GameClock clock(){return clock;}
     WorldEventQueue events(){return events;}
@@ -36,6 +64,7 @@ final class World implements AutoCloseable {
     WorldNpcPresentationEvents npcPresentationEvents(){return npcPresentationEvents;}
     WorldCommandInbox commands(){return commands;}
     WorldPulse pulse(){return pulse;}
+    WorldPlayerPersistence persistence(){return persistence;}
 
     void start(){pulse.start();}
 
@@ -70,6 +99,14 @@ final class World implements AutoCloseable {
     synchronized long observePulse(long nowMillis){if(!pulse.running())pulse.pulseOnce(nowMillis);return clock.tick();}
 
     String summary(){return "World{tick="+clock.tick()+",players="+players.size()+",groundItems="+groundItems.size()+",objects="+objects.size()+",commands="+commands.size()+",scheduled="+events.size()+",pulseRunning="+pulse.running()+"}";}
-    String metrics(){return pulse.metrics();}
-    @Override public void close(){pulse.close();}
+    String metrics(){
+        return pulse.metrics()+
+            " "+
+            persistence.metrics();
+    }
+
+    @Override public void close(){
+        pulse.close();
+        persistence.close();
+    }
 }
