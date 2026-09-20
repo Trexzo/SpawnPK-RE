@@ -1,0 +1,22 @@
+name: Temporary Issue 11 pet drop pickup validation
+
+on:
+  push:
+    branches:
+      - refactor/issue-11-pet-drop-pickup-slice
+
+jobs:
+  validate:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Compile current source tree
+        shell: pwsh
+        run: ./server/build.ps1
+      - name: Run focused pet drop pickup regression
+        shell: pwsh
+        run: java -cp server/build/classes spk.local.LocalPetDropPickupHandlerTest
