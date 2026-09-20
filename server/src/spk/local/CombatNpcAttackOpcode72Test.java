@@ -10,7 +10,7 @@ public final class CombatNpcAttackOpcode72Test {
         check(134, new byte[]{0x00,0x06}, 1488); // WORLD ordinal34 -> scene134 Player dummy
         if (ClientPacketProbe.framingOnlyFixedLength(72) != -1)
             throw new AssertionError("opcode72 must not remain framing-only");
-        System.out.println("V56_COMBAT_NPC_ATTACK_OPCODE72_PASS codec=BE_SHORT_A liveVectors=00_03->131/1488,00_01->129/1489,00_06->134/1488 semantic=NPC_ATTACK");
+        System.out.println("V56_COMBAT_NPC_ATTACK_OPCODE72_PASS codec=BE_SHORT_A liveVectors=00_03->131/1488,00_01->129/1489,00_06->134/1488 semantic=NPC_ATTACK typed=true metadata=true");
     }
 
     private static void check(int expectedScene, byte[] body, int expectedDef) throws Exception {
@@ -21,8 +21,19 @@ public final class CombatNpcAttackOpcode72Test {
         wire.write(body);
         ClientPacketProbe p=new ClientPacketProbe(new ByteArrayInputStream(wire.toByteArray()),new IsaacCipher(seed.clone()),"[opcode72-test] ");
         if(!p.readNextKnownPacket()) throw new AssertionError("decode false");
-        NpcAction a=p.takeNpcAction();
-        if(a==null || a.opcode!=72 || a.sceneIndex!=expectedScene) throw new AssertionError(String.valueOf(a));
+        ClientRequest request=p.takeTypedRequest();
+        if(!(request instanceof NpcActionClientRequest))
+            throw new AssertionError("request="+request);
+        NpcActionClientRequest typed=(NpcActionClientRequest)request;
+        NpcAction a=typed.action();
+        if(a==null || a.opcode!=72 || a.sceneIndex!=expectedScene)
+            throw new AssertionError(String.valueOf(a));
+        ClientRequestMetadata metadata=typed.metadata();
+        if(metadata.opcode!=72||
+           !"FIXED2_NPC_SCENE_INDEX_BE_A".equals(metadata.schema)||
+           !"PINNED_CLIENT_NPC_OPTION_2_ATTACK_WRITER".equals(metadata.source)||
+           metadata.provenance!=ClientRequestProvenance.EXACT_CURRENT_CLIENT)
+            throw new AssertionError("metadata="+metadata);
         int ord=expectedScene-100;
         HomeNpcSpawnRepository.Spawn spawn=null;
         for(HomeNpcSpawnRepository.Spawn s:HomeNpcSpawnRepository.all()) if(s.ordinal==ord){spawn=s;break;}
