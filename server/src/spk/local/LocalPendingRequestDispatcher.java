@@ -160,11 +160,6 @@ final class LocalPendingRequestDispatcher {
             serverPackets,
             tag
         );
-        acceptSpellTarget(
-            clientPackets,
-            serverPackets,
-            tag
-        );
         acceptGroundItemInteraction(
             clientPackets,
             serverPackets,
@@ -301,6 +296,19 @@ final class LocalPendingRequestDispatcher {
 
                 routeNpcAction(
                     npc.action(),
+                    serverPackets,
+                    tag
+                );
+                continue;
+            }
+
+            if(request instanceof
+                    SpellTargetClientRequest){
+                SpellTargetClientRequest spell=
+                    (SpellTargetClientRequest)request;
+
+                routeSpellTarget(
+                    spell.request(),
                     serverPackets,
                     tag
                 );
@@ -510,16 +518,11 @@ final class LocalPendingRequestDispatcher {
         );
     }
 
-    private void acceptSpellTarget(
-        ClientPacketProbe clientPackets,
+    private void routeSpellTarget(
+        SpellTargetRequest request,
         ServerPacketWriter serverPackets,
         String tag
     )throws IOException{
-        SpellTargetRequest request=
-            clientPackets.takeSpellTarget();
-
-        if(request==null)return;
-
         System.out.println(
             tag+
             spellTargetHandler.handle(
