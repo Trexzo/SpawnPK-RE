@@ -43,7 +43,6 @@ final class ClientPacketProbe {
     private MovementRequest pendingMovement;
     private ItemContainerAction pendingItemAction;
     private ItemOnItemAction pendingItemOnItem;
-    private SpellTargetRequest pendingSpellTarget;
     private GroundItemInteraction pendingGroundItemInteraction;
 
     ClientPacketProbe(InputStream in, IsaacCipher cipher, String tag) {
@@ -78,12 +77,6 @@ final class ClientPacketProbe {
     ItemOnItemAction takeItemOnItem(){
         ItemOnItemAction v=pendingItemOnItem;
         pendingItemOnItem=null;
-        return v;
-    }
-
-    SpellTargetRequest takeSpellTarget(){
-        SpellTargetRequest v=pendingSpellTarget;
-        pendingSpellTarget=null;
         return v;
     }
 
@@ -416,9 +409,50 @@ final class ClientPacketProbe {
             case 237: {
                 int len=(opcode==249||opcode==131)?4:8;
                 byte[] body=Binary.readExactly(in,len);
-                pendingSpellTarget=decodeSpellTarget(opcode,body);
+                SpellTargetRequest decoded=
+                    decodeSpellTarget(opcode,body);
+
+                String schema;
+                String source;
+                switch(opcode){
+                    case 249:
+                        schema="FIXED4_PLAYER_BE_A_SPELL_LE";
+                        source="PINNED_CLIENT_SPELL_ON_PLAYER_WRITER";
+                        break;
+                    case 131:
+                        schema="FIXED4_NPC_LE_A_SPELL_BE_A";
+                        source="PINNED_CLIENT_SPELL_ON_NPC_WRITER";
+                        break;
+                    case 35:
+                        schema="FIXED8_WORLD_X_LE_SPELL_BE_A_WORLD_Y_BE_A_OBJECT_LE";
+                        source="PINNED_CLIENT_SPELL_ON_OBJECT_WRITER";
+                        break;
+                    case 181:
+                        schema="FIXED8_WORLD_Y_LE_ITEM_BE_WORLD_X_LE_SPELL_BE_A";
+                        source="PINNED_CLIENT_SPELL_ON_GROUND_ITEM_WRITER";
+                        break;
+                    case 237:
+                        schema="FIXED8_SLOT_BE_ITEM_BE_A_WIDGET_BE_SPELL_BE_A";
+                        source="PINNED_CLIENT_SPELL_ON_INVENTORY_ITEM_WRITER";
+                        break;
+                    default:
+                        throw new AssertionError();
+                }
+
+                offerTypedRequest(
+                    new SpellTargetClientRequest(
+                        decoded,
+                        ClientRequestMetadata.exactCurrent(
+                            opcode,
+                            schema,
+                            source
+                        )
+                    ),
+                    opcode
+                );
+
                 System.out.printf("%sCLIENT_PACKET seq=%d opcode=%d len=%d spellTarget=%s schema=R25_EXACT_CURRENT%n",
-                                  tag,decodedCount,opcode,len,pendingSpellTarget);
+                                  tag,decodedCount,opcode,len,decoded);
                 return true;
             }
 
