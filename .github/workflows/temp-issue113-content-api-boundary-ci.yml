@@ -1,0 +1,57 @@
+name: temp-issue113-content-api-boundary-ci
+
+on:
+  push:
+    branches:
+      - refactor/issue-113-content-npc-scene-boundary
+
+jobs:
+  validate:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Canonical server build
+        shell: pwsh
+        run: ./server/build.ps1
+
+      - name: Public content API boundary regressions
+        shell: pwsh
+        run: |
+          $tests = @(
+            'spk.local.ContentNpcOptionPublicBoundaryTest',
+            'spk.local.ContentPublicApiBoundaryTest'
+          )
+          foreach ($test in $tests) {
+            Write-Host "=== $test ==="
+            java -cp server/build/SpawnPKLocalServer.jar $test
+            if ($LASTEXITCODE -ne 0) {
+              throw "$test failed with exit code $LASTEXITCODE"
+            }
+          }
+
+      - name: Inherited content and NPC parity regressions
+        shell: pwsh
+        run: |
+          $tests = @(
+            'spk.local.NpcOptionContentRegistryParityTest',
+            'spk.local.ContentRegistryTest',
+            'spk.local.ObjectOptionContentRegistryParityTest',
+            'spk.local.LocalRoutedNpcInteractionHandlerTest',
+            'spk.local.NpcInteractionRouterTest',
+            'spk.local.WorldPulseCommandExecutionTest',
+            'spk.local.SharedWorldSocketIntegrationTest'
+          )
+
+          foreach ($test in $tests) {
+            Write-Host "=== $test ==="
+            java -cp server/build/SpawnPKLocalServer.jar $test
+            if ($LASTEXITCODE -ne 0) {
+              throw "$test failed with exit code $LASTEXITCODE"
+            }
+          }
