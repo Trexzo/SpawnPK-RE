@@ -1,0 +1,601 @@
+package spk.local;
+
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.lang.reflect.Field;
+
+public final class LocalPendingRequestDispatcherTest {
+    private static void setPending(
+        ClientPacketProbe probe,
+        String fieldName,
+        Object value
+    )throws Exception{
+        Field field=
+            ClientPacketProbe.class.getDeclaredField(fieldName);
+        field.setAccessible(true);
+        field.set(probe,value);
+    }
+
+    public static void main(String[] args)throws Exception{
+        World world=World.isolatedForTest(50L);
+
+        try{
+            WorldPlayer player=new WorldPlayer();
+            world.registerPlayer(player,"opensrc");
+
+            MovementState movement=player.movement();
+            BankState bank=player.bank();
+            EquipmentState equipment=player.equipment();
+            PetState petState=player.petState();
+            PlayerState playerState=player.playerState();
+            PrayerState prayers=player.prayers();
+            MagicState magic=player.magic();
+            CombatStyleState combatStyles=player.combatStyles();
+            PetEffectState petEffects=player.petEffects();
+            MiniPetService miniPets=player.miniPets();
+
+            DevAuthorityWorkbench dev=
+                new DevAuthorityWorkbench();
+            PlayerPresentationService presentation=
+                new PlayerPresentationService(dev);
+            NpcRegistry npcs=new NpcRegistry(dev);
+            HomeWorldRuntimePlan homeWorld=
+                new HomeWorldRuntimePlan();
+            CombatEngine combat=new CombatEngine(dev);
+            NativeItemLibraryService itemLibrary=
+                new NativeItemLibraryService();
+            PetAccessoryState accessory=
+                new PetAccessoryState();
+            VoidglassPetState voidglass=
+                new VoidglassPetState();
+
+            ByteArrayOutputStream wire=
+                new ByteArrayOutputStream();
+            ServerPacketWriter writer=
+                new ServerPacketWriter(
+                    wire,
+                    new IsaacCipher(new int[]{1,2,3,4})
+                );
+            SceneUpdatePublisher publisher=
+                new SceneUpdatePublisher(
+                    writer,
+                    new SceneCoordinateContext(
+                        MovementState.REGION_BASE_X,
+                        MovementState.REGION_BASE_Y,
+                        0
+                    )
+                );
+
+            LocalDiagnosticCommandHandler diagnosticCommands=
+                new LocalDiagnosticCommandHandler(
+                    world,
+                    equipment,
+                    movement,
+                    prayers,
+                    magic,
+                    combatStyles,
+                    itemLibrary
+                );
+            LocalPrayerMagicCommandHandler prayerMagicCommands=
+                new LocalPrayerMagicCommandHandler(
+                    prayers,
+                    magic
+                );
+            LocalDevWorldCommandHandler devWorldCommands=
+                new LocalDevWorldCommandHandler(
+                    world,
+                    movement
+                );
+            LocalMiniPetCommandHandler miniPetCommands=
+                new LocalMiniPetCommandHandler(
+                    miniPets,
+                    petState,
+                    npcs,
+                    movement
+                );
+            LocalCosmeticCommandHandler cosmeticCommands=
+                new LocalCosmeticCommandHandler(
+                    bank,
+                    equipment,
+                    playerState,
+                    presentation
+                );
+            LocalCompColorsCommandHandler compColorsCommands=
+                new LocalCompColorsCommandHandler(
+                    playerState,
+                    equipment,
+                    presentation
+                );
+            LocalItemSpawnCommandHandler itemSpawnCommands=
+                new LocalItemSpawnCommandHandler(bank);
+            LocalNurseCommandHandler nurseCommands=
+                new LocalNurseCommandHandler(
+                    playerState,
+                    movement
+                );
+            LocalBankRequestHandler bankRequests=
+                new LocalBankRequestHandler(
+                    player,
+                    bank
+                );
+            LocalItemOnItemHandler itemOnItemHandler=
+                new LocalItemOnItemHandler(bank);
+            LocalSpellTargetHandler spellTargetHandler=
+                new LocalSpellTargetHandler(
+                    magic,
+                    bank,
+                    equipment,
+                    playerState,
+                    npcs,
+                    combat
+                );
+            LocalGroundItemInteractionHandler groundItemHandler=
+                new LocalGroundItemInteractionHandler(
+                    world,
+                    bank,
+                    movement
+                );
+            LocalItemOnNpcHandler itemOnNpcHandler=
+                new LocalItemOnNpcHandler(
+                    bank,
+                    npcs,
+                    movement,
+                    accessory
+                );
+            LocalGameplayWidgetHandler gameplayWidgets=
+                new LocalGameplayWidgetHandler(
+                    prayers,
+                    playerState,
+                    equipment,
+                    combatStyles,
+                    magic,
+                    bank
+                );
+            LocalBankObjectInteractionHandler bankObjects=
+                new LocalBankObjectInteractionHandler(
+                    bank,
+                    movement
+                );
+            LocalRoutedNpcInteractionHandler routedNpcs=
+                new LocalRoutedNpcInteractionHandler(
+                    npcs,
+                    bank,
+                    movement
+                );
+            LocalGenericInteractionHandler genericInteractions=
+                new LocalGenericInteractionHandler();
+            LocalPlayerInteractionHandler playerInteractions=
+                new LocalPlayerInteractionHandler(
+                    world,
+                    player,
+                    movement,
+                    equipment
+                );
+            LocalEquipmentItemActionHandler equipmentActions=
+                new LocalEquipmentItemActionHandler(
+                    bank,
+                    equipment,
+                    playerState,
+                    presentation,
+                    combatStyles
+                );
+            LocalPetInventoryDialogHandler petDialogs=
+                new LocalPetInventoryDialogHandler(
+                    bank,
+                    miniPets,
+                    petState,
+                    npcs,
+                    movement,
+                    accessory
+                );
+            LocalCompCapeCustomizeHandler compCape=
+                new LocalCompCapeCustomizeHandler(
+                    bank,
+                    playerState
+                );
+            LocalDevPetCommandHandler devPetCommands=
+                new LocalDevPetCommandHandler(
+                    dev,
+                    npcs,
+                    movement,
+                    bank
+                );
+            LocalDevPlayerCommandHandler devPlayerCommands=
+                new LocalDevPlayerCommandHandler(
+                    presentation,
+                    equipment,
+                    playerState
+                );
+            LocalDevNpcCommandHandler devNpcCommands=
+                new LocalDevNpcCommandHandler(
+                    npcs,
+                    movement
+                );
+            LocalDevToolCommandHandler devToolCommands=
+                new LocalDevToolCommandHandler(
+                    dev,
+                    bank,
+                    equipment
+                );
+            LocalVoidglassCommandHandler voidglassCommands=
+                new LocalVoidglassCommandHandler(
+                    bank,
+                    petState,
+                    npcs,
+                    movement,
+                    dev,
+                    voidglass
+                );
+            LocalPetRuntimeCommandHandler petRuntimeCommands=
+                new LocalPetRuntimeCommandHandler(
+                    petState,
+                    petEffects,
+                    npcs,
+                    movement
+                );
+            LocalCombatCommandHandler combatCommands=
+                new LocalCombatCommandHandler(
+                    combat,
+                    equipment,
+                    combatStyles,
+                    npcs,
+                    petRuntimeCommands
+                );
+            LocalRegionDevCommandHandler regionDevCommands=
+                new LocalRegionDevCommandHandler(
+                    world,
+                    player,
+                    movement,
+                    playerInteractions,
+                    combat,
+                    npcs,
+                    petState,
+                    homeWorld,
+                    ()->{}
+                );
+            LocalDevSessionCommandHandler devSessionCommands=
+                new LocalDevSessionCommandHandler(
+                    world,
+                    dev,
+                    npcs,
+                    presentation,
+                    equipment,
+                    playerState,
+                    bank,
+                    petState,
+                    movement
+                );
+            LocalPetCompatibilityCommandHandler petCompatibilityCommands=
+                new LocalPetCompatibilityCommandHandler(
+                    accessory,
+                    npcs,
+                    movement,
+                    petDialogs
+                );
+
+            LocalCommandDispatcher commandDispatcher=
+                new LocalCommandDispatcher(
+                    bankRequests,
+                    diagnosticCommands,
+                    regionDevCommands,
+                    prayerMagicCommands,
+                    miniPetCommands,
+                    cosmeticCommands,
+                    devWorldCommands,
+                    dev,
+                    devSessionCommands,
+                    devPetCommands,
+                    devPlayerCommands,
+                    devNpcCommands,
+                    devToolCommands,
+                    nurseCommands,
+                    voidglassCommands,
+                    petRuntimeCommands,
+                    compColorsCommands,
+                    combatCommands,
+                    petCompatibilityCommands,
+                    itemSpawnCommands,
+                    new LocalCommandDispatcher.SessionBridge(){
+                        @Override public SceneUpdatePublisher scenePublisher(){
+                            return publisher;
+                        }
+                        @Override public void replaceScenePublisher(
+                            SceneUpdatePublisher replacement
+                        ){}
+                        @Override public void saveAccount(
+                            String tag,
+                            String reason
+                        ){}
+                        @Override public boolean scopesightActive(){
+                            return false;
+                        }
+                        @Override public void openDevPanel(
+                            ServerPacketWriter serverPackets
+                        ){}
+                        @Override public void applyPetDialog(
+                            LocalPetInventoryDialogHandler.Result result,
+                            String tag
+                        ){}
+                    }
+                );
+
+            DevControlCenter devPanel=
+                new DevControlCenter();
+
+            LocalSessionUiActionHandler uiActions=
+                new LocalSessionUiActionHandler(
+                    player,
+                    itemLibrary,
+                    devPanel,
+                    bank,
+                    compCape,
+                    petDialogs,
+                    gameplayWidgets,
+                    movement,
+                    true,
+                    equipment,
+                    new LocalSessionUiActionHandler.SessionBridge(){
+                        @Override public void saveAccount(
+                            String tag,
+                            String reason
+                        ){}
+                        @Override public void clearDialogNumberKeys(){}
+                        @Override public void handleDevPanelWidget(
+                            int widget,
+                            ServerPacketWriter serverPackets,
+                            String tag
+                        ){}
+                        @Override public void applyPetDialog(
+                            LocalPetInventoryDialogHandler.Result result,
+                            String tag
+                        ){}
+                        @Override public void requestLogout(){}
+                    }
+                );
+
+            LocalPetDropPickupHandler petDropPickup=
+                new LocalPetDropPickupHandler(
+                    world,
+                    bank,
+                    movement,
+                    petState,
+                    petEffects,
+                    miniPets,
+                    npcs,
+                    voidglass,
+                    accessory,
+                    dev,
+                    new LocalPetDropPickupHandler.SessionBridge(){
+                        @Override public String username(){
+                            return "opensrc";
+                        }
+                        @Override public boolean persistentAccount(){
+                            return true;
+                        }
+                        @Override public long sessionWorldTick(){
+                            return 1L;
+                        }
+                        @Override public SceneUpdatePublisher scenePublisher(){
+                            return publisher;
+                        }
+                        @Override public void saveAccount(
+                            String tag,
+                            String reason
+                        ){}
+                        @Override public int syncScopesightPassive(
+                            ServerPacketWriter serverPackets
+                        ){
+                            return 0;
+                        }
+                        @Override public void resetPetFollowDeadline(){}
+                        @Override public void ensurePetFollowScheduled(long now){}
+                    }
+                );
+
+            LocalMovementRequestHandler movementRequests=
+                new LocalMovementRequestHandler(
+                    true,
+                    bank,
+                    petDialogs,
+                    devPanel,
+                    movement,
+                    combat,
+                    equipment,
+                    playerInteractions,
+                    petDropPickup,
+                    npcs,
+                    new LocalMovementRequestHandler.SessionBridge(){
+                        @Override public void clearDialogNumberKeys(){}
+                        @Override public void clearOpponentOverlay(
+                            ServerPacketWriter serverPackets,
+                            String tag,
+                            String reason
+                        ){}
+                    }
+                );
+
+            LocalPetRealtimeScheduler petRealtime=
+                new LocalPetRealtimeScheduler(
+                    true,
+                    world,
+                    player,
+                    movement,
+                    npcs,
+                    petDropPickup,
+                    petRuntimeCommands,
+                    new LocalPetRealtimeScheduler.SessionBridge(){
+                        @Override public ServerPacketWriter sessionPackets(){
+                            return writer;
+                        }
+                        @Override public String sessionTag(){
+                            return "[pending-test] ";
+                        }
+                    }
+                );
+
+            LocalPendingRequestDispatcher dispatcher=
+                new LocalPendingRequestDispatcher(
+                    player,
+                    bank,
+                    equipment,
+                    combatStyles,
+                    movement,
+                    npcs,
+                    combat,
+                    devPanel,
+                    uiActions,
+                    commandDispatcher,
+                    bankObjects,
+                    genericInteractions,
+                    equipmentActions,
+                    petDialogs,
+                    compCape,
+                    itemOnItemHandler,
+                    itemOnNpcHandler,
+                    spellTargetHandler,
+                    petDropPickup,
+                    groundItemHandler,
+                    playerInteractions,
+                    routedNpcs,
+                    bankRequests,
+                    movementRequests,
+                    petRealtime,
+                    new LocalPendingRequestDispatcher.SessionBridge(){
+                        @Override public String username(){
+                            return "opensrc";
+                        }
+                        @Override public String loginAlias(){
+                            return "localtest";
+                        }
+                        @Override public boolean persistentAccount(){
+                            return true;
+                        }
+                        @Override public long sessionWorldTick(){
+                            return 1L;
+                        }
+                        @Override public SceneUpdatePublisher scenePublisher(){
+                            return publisher;
+                        }
+                        @Override public Player81WorldSync.Context player81Sync(){
+                            return null;
+                        }
+                        @Override public void saveAccount(
+                            String tag,
+                            String reason
+                        ){}
+                        @Override public void applyPetDialogResult(
+                            LocalPetInventoryDialogHandler.Result result,
+                            String tag
+                        ){}
+                        @Override public void clearOpponentOverlay(
+                            ServerPacketWriter serverPackets,
+                            String tag,
+                            String reason
+                        ){}
+                        @Override public void handleDevPanelAmount(
+                            int value,
+                            ServerPacketWriter serverPackets,
+                            String tag
+                        ){}
+                    }
+                );
+
+            ClientPacketProbe probe=
+                new ClientPacketProbe(
+                    new ByteArrayInputStream(new byte[0]),
+                    new IsaacCipher(new int[]{5,6,7,8}),
+                    "[pending-test] "
+                );
+
+            setPending(
+                probe,
+                "pendingWidgetAction",
+                Integer.valueOf(152)
+            );
+
+            setPending(
+                probe,
+                "pendingMovement",
+                new MovementRequest(
+                    164,
+                    false,
+                    new int[]{
+                        MovementState.INITIAL_X+1
+                    },
+                    new int[]{
+                        MovementState.INITIAL_Y
+                    },
+                    new byte[0]
+                )
+            );
+
+            dispatcher.drain(
+                probe,
+                writer,
+                "[pending-test] "
+            );
+
+            if(!movement.persistentRun())
+                throw new AssertionError(
+                    "widget action was not routed"
+                );
+
+            if(movement.queued()!=1)
+                throw new AssertionError(
+                    "movement request did not reach authoritative queue"
+                );
+
+            if(movement.acceptedPaths()!=1L)
+                throw new AssertionError(
+                    "movement request consumed more or less than once"
+                );
+
+            if(probe.takeWidgetAction()!=null)
+                throw new AssertionError(
+                    "widget request was not consumed"
+                );
+
+            if(probe.takeMovement()!=null)
+                throw new AssertionError(
+                    "movement request was not consumed"
+                );
+
+            NpcEntity dummy=
+                new NpcEntity(
+                    3,
+                    1489,
+                    MovementState.INITIAL_X+2,
+                    MovementState.INITIAL_Y
+                );
+
+            NpcAction attack=
+                new NpcAction(72,3);
+
+            if(!LocalPendingRequestDispatcher.isCombatAttackAction(
+                attack,
+                dummy
+            )){
+                throw new AssertionError(
+                    "combat attack classification changed"
+                );
+            }
+
+            if(!LocalSession.isCombatAttackAction(
+                attack,
+                dummy
+            )){
+                throw new AssertionError(
+                    "LocalSession combat classifier compatibility seam changed"
+                );
+            }
+
+            System.out.println(
+                "LOCAL_PENDING_REQUEST_DISPATCHER_PASS "+
+                "widgetConsumed=true movementConsumed=true "+
+                "runToggleBeforeMovement=true classifierCompatibility=true"
+            );
+        }finally{
+            world.close();
+        }
+    }
+}
