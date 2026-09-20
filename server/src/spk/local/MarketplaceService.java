@@ -38,6 +38,7 @@ final class MarketplaceService {
 
     private final AtomicLong listingSequence=new AtomicLong();
     private final LinkedHashMap<MarketplaceListing.Id,MarketplaceListing> listings=new LinkedHashMap<>();
+    private final LinkedHashMap<AtomicTransactionService.TransactionId,MarketplaceListing.Id> sellerEscrowUses=new LinkedHashMap<>();
     private final LinkedHashMap<AtomicTransactionService.TransactionId,SettlementUse> appliedSettlements=new LinkedHashMap<>();
     private final MarketplaceListingRepository repository;
 
@@ -49,9 +50,14 @@ final class MarketplaceService {
         if(priceEach<=0)throw new IllegalArgumentException("priceEach="+priceEach);
         if(sourceAuthority==null)throw new NullPointerException("sourceAuthority");
         verifySellerEscrow(owner,item,totalQuantity,escrowReservation,null);
+        MarketplaceListing.Id existing=sellerEscrowUses.get(escrowReservation.transactionId);
+        if(existing!=null)throw new IllegalStateException("seller escrow transaction already bound to listing "+existing);
         MarketplaceListing.Id id=new MarketplaceListing.Id(listingSequence.incrementAndGet());
         MarketplaceListing listing=new MarketplaceListing(id,owner,item,totalQuantity,priceEach,currency,escrowReservation.transactionId,sourceAuthority);
-        listings.put(id,listing);save(listing);return id;
+        listings.put(id,listing);
+        sellerEscrowUses.put(escrowReservation.transactionId,id);
+        save(listing);
+        return id;
     }
 
     synchronized MarketplaceListing.Snapshot activate(MarketplaceListing.Id id,String ownerRef,AtomicTransactionService.Snapshot escrowReservation){
