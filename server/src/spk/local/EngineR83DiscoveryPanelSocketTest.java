@@ -6,7 +6,7 @@ public final class EngineR83DiscoveryPanelSocketTest {
  public static void main(String[]args)throws Exception{
   Path tmp=Files.createTempDirectory("spk-v5183-discovery-panel-");String old=System.getProperty("spk.local.accountFile");System.setProperty("spk.local.accountFile",tmp.resolve("opensrc.properties").toString());World world=World.isolatedForTest(80L);InetAddress loop=InetAddress.getByName("127.0.0.1");
   try(ServerSocket ss=new ServerSocket(0,1,loop)){ExecutorService ex=Executors.newFixedThreadPool(2);Future<?> accept=ex.submit(()->{try{Socket s=ss.accept();new LocalSession(s,true,true,world).run();}catch(Exception e){throw new RuntimeException(e);}});EngineR7DevPanelSocketTest.Client c=null;try{
-   c=EngineR7DevPanelSocketTest.login(loop,ss.getLocalPort(),"opensrc");EngineR7DevPanelSocketTest.waitFor(()->world.players().size()==1,3000,"login");Thread.sleep(500);EngineR7DevPanelSocketTest.drain(c.s,300);
+   c=EngineR7DevPanelSocketTest.login(loop,ss.getLocalPort(),"opensrc");EngineR7DevPanelSocketTest.waitFor(()->world.players().size()==1,3000,"login");EngineR7DevPanelSocketTest.waitFor(()->world.tickTargetsSnapshot().size()==1,3000,"session ready");EngineR7DevPanelSocketTest.drainUntilQuiet(c.s,1500,100);
    EngineR7DevPanelSocketTest.sendCommand(c,"devpanel");EngineR7DevPanelSocketTest.drain(c.s,500);
    EngineR7DevPanelSocketTest.sendWidget(c,2485);EngineR7DevPanelSocketTest.drain(c.s,400); // More
    EngineR7DevPanelSocketTest.sendWidget(c,2485);EngineR7DevPanelSocketTest.drain(c.s,400); // Diagnostics
