@@ -15,6 +15,7 @@ final class WorldPlayer {
     private final MagicState magic=new MagicState();
     private final CombatStyleState combatStyles=new CombatStyleState();
     private final CombatState combatState=new CombatState();
+    private final PlayerLifecycleState lifecycle=new PlayerLifecycleState();
     private final PetEffectState petEffects=new PetEffectState();
     private final MiniPetService miniPets=new MiniPetService();
     private final Object mutationLock=new Object();
@@ -32,6 +33,7 @@ final class WorldPlayer {
     MagicState magic(){return magic;}
     CombatStyleState combatStyles(){return combatStyles;}
     CombatState combatState(){return combatState;}
+    PlayerLifecycleState lifecycle(){return lifecycle;}
     PetEffectState petEffects(){return petEffects;}
     MiniPetService miniPets(){return miniPets;}
     Object mutationLock(){return mutationLock;}
