@@ -75,13 +75,19 @@ final class AccountStore {
         if (player != null) player.saveAccountProperties(p);
 
         Path tmp = file.resolveSibling(file.getFileName().toString()+".tmp");
-        try (OutputStream out = Files.newOutputStream(tmp, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.WRITE)) {
-            p.store(out, "SpawnPK LocalLab localhost account state");
-        }
+        boolean completed=false;
         try {
-            Files.move(tmp, file, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
-        } catch (AtomicMoveNotSupportedException e) {
-            Files.move(tmp, file, StandardCopyOption.REPLACE_EXISTING);
+            try (OutputStream out = Files.newOutputStream(tmp, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.WRITE)) {
+                p.store(out, "SpawnPK LocalLab localhost account state");
+            }
+            try {
+                Files.move(tmp, file, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+            } catch (AtomicMoveNotSupportedException e) {
+                Files.move(tmp, file, StandardCopyOption.REPLACE_EXISTING);
+            }
+            completed=true;
+        } finally {
+            if (!completed) Files.deleteIfExists(tmp);
         }
         return "ACCOUNT_SAVED file="+file+" equipment="+equipment.occupiedSlots()
              +" inventory="+bank.inventorySlots()+" bank="+bank.bankSlots()

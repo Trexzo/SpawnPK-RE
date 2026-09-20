@@ -76,11 +76,17 @@ final class LocalAccountProfiles {
         if(pet!=null)pet.saveAccountProperties(p);
         if(player!=null)player.saveAccountProperties(p);
         Path tmp=file.resolveSibling(file.getFileName().toString()+".tmp");
-        try(OutputStream out=Files.newOutputStream(tmp,StandardOpenOption.CREATE,StandardOpenOption.TRUNCATE_EXISTING,StandardOpenOption.WRITE)){
-            p.store(out,"SpawnPK LocalLab localhost account state");
+        boolean completed=false;
+        try{
+            try(OutputStream out=Files.newOutputStream(tmp,StandardOpenOption.CREATE,StandardOpenOption.TRUNCATE_EXISTING,StandardOpenOption.WRITE)){
+                p.store(out,"SpawnPK LocalLab localhost account state");
+            }
+            try{Files.move(tmp,file,StandardCopyOption.REPLACE_EXISTING,StandardCopyOption.ATOMIC_MOVE);}
+            catch(AtomicMoveNotSupportedException e){Files.move(tmp,file,StandardCopyOption.REPLACE_EXISTING);}
+            completed=true;
+        }finally{
+            if(!completed)Files.deleteIfExists(tmp);
         }
-        try{Files.move(tmp,file,StandardCopyOption.REPLACE_EXISTING,StandardCopyOption.ATOMIC_MOVE);}
-        catch(AtomicMoveNotSupportedException e){Files.move(tmp,file,StandardCopyOption.REPLACE_EXISTING);}
         return summary("ACCOUNT_SAVED",file,u,bank,equipment,movement,pet,player);
     }
 
