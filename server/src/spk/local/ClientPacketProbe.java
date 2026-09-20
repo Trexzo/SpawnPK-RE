@@ -40,7 +40,6 @@ final class ClientPacketProbe {
     private long opcode0Count;
     private final ClientRequestQueue typedRequests=
         new ClientRequestQueue();
-    private MovementRequest pendingMovement;
     private ItemContainerAction pendingItemAction;
     private ItemOnItemAction pendingItemOnItem;
     private GroundItemInteraction pendingGroundItemInteraction;
@@ -53,12 +52,6 @@ final class ClientPacketProbe {
 
     boolean isAligned() { return aligned; }
     long decodedCount() { return decodedCount; }
-
-    MovementRequest takeMovement() {
-        MovementRequest r = pendingMovement;
-        pendingMovement = null;
-        return r;
-    }
 
     ItemContainerAction takeItemAction() {
         ItemContainerAction r = pendingItemAction;
@@ -909,7 +902,7 @@ final class ClientPacketProbe {
      * v2 reconstructs absolute turning-point waypoints but does not itself move
      * anything. LocalSession owns the authoritative movement state/tick.
      */
-    private void logMovement(int opcode, byte[] body) {
+    private void logMovement(int opcode, byte[] body) throws IOException {
         int coreLen = body.length;
         byte[] telemetry = new byte[0];
         if (opcode == 248) {
@@ -957,7 +950,48 @@ final class ClientPacketProbe {
             if (i != 0) deltas.append(';');
             deltas.append(dx).append(',').append(dy);
         }
-        pendingMovement = new MovementRequest(opcode, run, xs, ys, telemetry);
+        MovementRequest movement=
+            new MovementRequest(
+                opcode,
+                run,
+                xs,
+                ys,
+                telemetry
+            );
+
+        String schema=
+            opcode==248
+                ?"VARBYTE_PATH_X_LE_A_SIGNED_DELTAS_Y_LE_RUN_NEG_PLUS_OPAQUE14"
+                :"VARBYTE_PATH_X_LE_A_SIGNED_DELTAS_Y_LE_RUN_NEG";
+
+        String source;
+        switch(opcode){
+            case 164:
+                source="PINNED_CLIENT_MOVEMENT_OPCODE_164_WRITER";
+                break;
+            case 98:
+                source="PINNED_CLIENT_MOVEMENT_OPCODE_98_WRITER";
+                break;
+            case 248:
+                source="PINNED_CLIENT_MINIMAP_MOVEMENT_OPCODE_248_WRITER";
+                break;
+            default:
+                throw new AssertionError(
+                    "unexpected movement opcode="+opcode
+                );
+        }
+
+        offerTypedRequest(
+            new MovementClientRequest(
+                movement,
+                ClientRequestMetadata.exactCurrent(
+                    opcode,
+                    schema,
+                    source
+                )
+            ),
+            opcode
+        );
 
         System.out.printf("%sCLIENT_PACKET seq=%d opcode=%d len=%d movementFamily=true steps=%d startX=%d startY=%d run=%d deltas=[%s] decodedWaypoints=true%s%n",
                           tag, decodedCount, opcode, body.length, steps, startX, startY, run?1:0, deltas,
