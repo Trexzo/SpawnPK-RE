@@ -1,0 +1,37 @@
+name: Temp Issue 171 Player Loadout CI
+
+on:
+  pull_request:
+
+jobs:
+  issue171:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Canonical server build
+        shell: pwsh
+        run: ./server/build.ps1
+      - name: Issue 171 focused regression
+        shell: pwsh
+        run: |
+          java -cp server/build/classes spk.local.PlayerLoadoutFoundationTest
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Loadout protocol and mutation boundary guard
+        shell: pwsh
+        run: |
+          $paths = @(
+            "server/src/spk/local/PlayerLoadoutId.java",
+            "server/src/spk/local/PlayerLoadoutVersion.java",
+            "server/src/spk/local/PlayerLoadout.java",
+            "server/src/spk/local/LoadoutService.java"
+          )
+          $bad = Select-String -Path $paths -Pattern "equip_loadout|item_loadout|skills_loadout|pet_loadout|spawn_loadout|widgetId|opcode|subtype|ServerPacketWriter|ClientPacket|S2C126|S2C250|EquipmentState|\bInventory\b|PetRuntime|SkillRuntime" -CaseSensitive:$false
+          if ($bad) {
+            $bad | ForEach-Object { Write-Host $_ }
+            throw "Issue 171 domain source contains protocol or live-mutation identity."
+          }
+          Write-Host "ISSUE171_PROTOCOL_MUTATION_BOUNDARY_PASS"
