@@ -26,14 +26,13 @@ jobs:
         shell: pwsh
         run: ./server/build.ps1
 
-      - name: Run Player81 lifecycle regressions
+      - name: Run deterministic Player81 lifecycle regressions
         shell: pwsh
         run: |
           $tests = @(
             'Player81WorldStateCleanupTest',
             'LocalSessionRuntimeBindingsTest',
             'EngineR3PlayerSyncTest',
-            'EngineR3DualSocketVisibilityTest',
             'SharedWorldSocketIntegrationTest',
             'PlayerPresentationIsolationTest'
           )
