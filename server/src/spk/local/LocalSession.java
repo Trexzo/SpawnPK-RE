@@ -64,9 +64,8 @@ final class LocalSession implements Runnable {
     private final LocalPetCompatibilityCommandHandler petCompatibilityCommands;
     /** Engine R7 one-stop in-game developer control center. */
     private final DevControlCenter devPanel = new DevControlCenter();
-    private final LocalDevPanelRenderer devPanelRenderer;
-    private final LocalDevPanelAmountHandler devPanelAmounts;
-    private final LocalDevPanelWidgetHandler devPanelWidgets;
+    private final LocalDialogNumberKeyState dialogNumberKeys = new LocalDialogNumberKeyState();
+    private final LocalDevPanelCoordinator devPanelCoordinator;
     private final LocalCommandDispatcher commandDispatcher;
     private final LocalSessionUiActionHandler uiActions;
     private final LocalPetDropPickupHandler petDropPickup;
@@ -177,7 +176,7 @@ final class LocalSession implements Runnable {
             movement);
         this.petCompatibilityCommands = new LocalPetCompatibilityCommandHandler(
             petAccessoryState,npcs,movement,petDialogs);
-        this.devPanelRenderer = new LocalDevPanelRenderer(
+        LocalDevPanelRenderer devPanelRenderer = new LocalDevPanelRenderer(
             devPanel,
             equipment,
             combatStyles,
@@ -189,7 +188,7 @@ final class LocalSession implements Runnable {
             prayers,
             movement,
             playerPresentation);
-        this.devPanelAmounts = new LocalDevPanelAmountHandler(
+        LocalDevPanelAmountHandler devPanelAmounts = new LocalDevPanelAmountHandler(
             devPanel,
             dev,
             equipment,
@@ -202,8 +201,8 @@ final class LocalSession implements Runnable {
             playerState,
             prayers,
             devPanelRenderer,
-            ()->clearDialogNumberKeys());
-        this.devPanelWidgets = new LocalDevPanelWidgetHandler(
+            ()->dialogNumberKeys.clear());
+        LocalDevPanelWidgetHandler devPanelWidgets = new LocalDevPanelWidgetHandler(
             devPanel,
             equipment,
             combatStyles,
@@ -222,7 +221,39 @@ final class LocalSession implements Runnable {
             devSessionCommands,
             devPanelRenderer,
             (pending,writer)->promptDevPanelAmount(pending,writer),
-            ()->clearDialogNumberKeys());
+            ()->dialogNumberKeys.clear());
+        this.devPanelCoordinator = new LocalDevPanelCoordinator(
+            devPanel,
+            worldPlayer,
+            bank,
+            itemLibrary,
+            petDialogs,
+            devPanelRenderer,
+            devPanelAmounts,
+            devPanelWidgets,
+            dialogNumberKeys,
+            new LocalDevPanelCoordinator.SessionBridge(){
+                @Override public String username(){
+                    return LocalSession.this.username;
+                }
+
+                @Override public SceneUpdatePublisher scenePublisher(){
+                    return LocalSession.this.scenePublisher;
+                }
+
+                @Override public void replaceScenePublisher(
+                    SceneUpdatePublisher replacement
+                ){
+                    LocalSession.this.scenePublisher=replacement;
+                }
+
+                @Override public void saveAccount(
+                    String tag,
+                    String reason
+                ){
+                    LocalSession.this.saveAccountQuiet(tag,reason);
+                }
+            });
         this.commandDispatcher = new LocalCommandDispatcher(
             bankRequests,
             diagnosticCommands,
@@ -269,7 +300,7 @@ final class LocalSession implements Runnable {
                 @Override public void openDevPanel(
                     ServerPacketWriter writer
                 )throws IOException{
-                    LocalSession.this.openDevPanel(
+                    LocalSession.this.devPanelCoordinator.open(
                         DevControlCenter.Page.MAIN,
                         writer
                     );
@@ -302,7 +333,7 @@ final class LocalSession implements Runnable {
                 }
 
                 @Override public void clearDialogNumberKeys(){
-                    LocalSession.this.clearDialogNumberKeys();
+                    LocalSession.this.dialogNumberKeys.clear();
                 }
 
                 @Override public void handleDevPanelWidget(
@@ -310,7 +341,7 @@ final class LocalSession implements Runnable {
                     ServerPacketWriter writer,
                     String tag
                 )throws IOException{
-                    LocalSession.this.handleDevPanelWidget(
+                    LocalSession.this.devPanelCoordinator.handleWidget(
                         widget,
                         writer,
                         tag
@@ -626,7 +657,7 @@ final class LocalSession implements Runnable {
                     ServerPacketWriter writer,
                     String tag
                 )throws IOException{
-                    LocalSession.this.handleDevPanelAmount(
+                    LocalSession.this.devPanelCoordinator.handleAmount(
                         value,
                         writer,
                         tag
@@ -914,8 +945,7 @@ final class LocalSession implements Runnable {
                 boolean removed=world.unregisterPlayer(worldPlayer);worldRegistered=false;
                 System.out.println(tag+"V512_WORLD_UNREGISTER playerId="+worldPlayer.id()+" removed="+removed+" members="+world.players().size()+" queuedCommands="+world.commands().size());
             }
-            if(petDialogs.hasAnyOpen() || devPanel.isOpen()) clearDialogNumberKeys();
-            devPanel.close();
+            devPanelCoordinator.closeSession();
             synchronized(worldPlayer.mutationLock()){saveAccountQuiet(tag, "SESSION_END");}
         }
     }
@@ -991,11 +1021,11 @@ final class LocalSession implements Runnable {
     ){
         if(result==null)return;
         if(result.keyAction==LocalPetInventoryDialogHandler.KeyAction.PUBLISH_2482_2485)
-            publishDialogNumberKeys(2482,2483,2484,2485);
+            dialogNumberKeys.publish(2482,2483,2484,2485);
         if(result.saveReason!=null)saveAccountQuiet(tag,result.saveReason);
         if(result.logText!=null)System.out.println(tag+result.logText);
         if(result.keyAction==LocalPetInventoryDialogHandler.KeyAction.CLEAR_AFTER_LOG)
-            clearDialogNumberKeys();
+            dialogNumberKeys.clear();
     }
 
     static int chebyshev(int x0,int y0,int x1,int y1) {
@@ -1055,111 +1085,16 @@ final class LocalSession implements Runnable {
 
 
 
-    // ---------------------------------------------------------------------
-    // Engine R7 — one-stop in-game developer control center.
-    // Uses the exact current clickable four-choice chatbox (2480) and native
-    // numeric prompt (S2C27 -> C2S208). All overrides are session-local.
-    // ---------------------------------------------------------------------
-    private void openDevPanel(DevControlCenter.Page page,ServerPacketWriter w)throws IOException{
-        if(bank.isOpen())bank.close(w);
-        TradeService.cancelIfActive(worldPlayer,"DEV_PANEL_OPEN");
-        itemLibrary.close();
-        petDialogs.clearAll();
-        clearDialogNumberKeys();
-        w.fixed(219,new byte[0]);
-        devPanel.open(page);
-        renderDevPanel(w);
-    }
-
-    private void renderDevPanel(ServerPacketWriter w)throws IOException{
-        if(devPanelRenderer.render(w))
-            publishDialogNumberKeys(2482,2483,2484,2485);
-    }
-
-    private void handleDevPanelWidget(int widget,ServerPacketWriter w,String tag)throws IOException{
-        LocalDevPanelWidgetHandler.Outcome outcome=
-            devPanelWidgets.handle(
-                widget,username,scenePublisher,w);
-
-        if(outcome==null)return;
-
-        if(outcome.scenePublisher!=null)
-            scenePublisher=outcome.scenePublisher;
-
-        if(outcome.saveReason!=null)
-            saveAccountQuiet(tag,outcome.saveReason);
-
-        if(outcome.directLogText!=null){
-            System.out.println(tag+outcome.directLogText);
-            return;
-        }
-
-        if(!outcome.renderAfter)return;
-
-        if(outcome.resultText!=null&&!outcome.resultText.isEmpty()){
-            System.out.println(
-                tag+"V5171_DEV_PANEL page="+
-                devPanel.page()+
-                " choice="+(outcome.choice+1)+
-                " result={"+outcome.resultText+"}");
-        }
-
-        renderDevPanel(w);
-    }
-
-    private void promptDevPanelAmount(DevControlCenter.PendingAmount pending,ServerPacketWriter w)throws IOException{
-        w.fixed(219,new byte[0]);clearDialogNumberKeys();devPanel.prompt(pending);w.fixed(27,new byte[0]);
-    }
-
-    private void handleDevPanelAmount(int value,ServerPacketWriter w,String tag)throws IOException{
-        LocalDevPanelAmountHandler.Outcome outcome=
-            devPanelAmounts.handle(
-                value,username,scenePublisher,w);
-
-        if(outcome.scenePublisher!=null)
-            scenePublisher=outcome.scenePublisher;
-
-        if(outcome.saveReason!=null)
-            saveAccountQuiet(tag,outcome.saveReason);
-
-        System.out.println(
-            tag+"V5171_DEV_PANEL_AMOUNT kind="+
-            outcome.pending+
-            " value="+value+
-            " result={"+outcome.resultText+"}");
-
-        if(outcome.reopen){
-            devPanel.finishPrompt();
-            renderDevPanel(w);
-        }else{
-            devPanel.cancelPending();
-        }
-    }
-
-    /**
-     * Generic LocalLab classic-dialog keyboard contract. The exact client key
-     * queue returns ASCII digits; the client helper translates 1..9 into the
-     * ordered widget ids published here and sends the same opcode185 packet as
-     * a mouse click. This file is runtime state only and never shipped as data.
-     */
-    private void publishDialogNumberKeys(int... widgets){
-        try{
-            Path f=Paths.get("server","data","locallab_dialog_keys.properties");
-            Path parent=f.getParent(); if(parent!=null)Files.createDirectories(parent);
-            StringBuilder ids=new StringBuilder();
-            for(int i=0;i<widgets.length&&i<9;i++){if(i>0)ids.append(',');ids.append(widgets[i]);}
-            String body="active=true\nwidgets="+ids+"\nupdated="+System.currentTimeMillis()+"\n";
-            Path tmp=f.resolveSibling(f.getFileName().toString()+".tmp");
-            Files.write(tmp,body.getBytes(StandardCharsets.UTF_8));
-            try{Files.move(tmp,f,StandardCopyOption.REPLACE_EXISTING,StandardCopyOption.ATOMIC_MOVE);}
-            catch(AtomicMoveNotSupportedException ex){Files.move(tmp,f,StandardCopyOption.REPLACE_EXISTING);}
-        }catch(Throwable t){System.err.println("LOCALLAB_DIALOG_NUMBER_KEYS_STATE_WRITE_FAILED "+t);}
-    }
-    private void clearDialogNumberKeys(){
-        try{
-            Path f=Paths.get("server","data","locallab_dialog_keys.properties");
-            if(Files.exists(f))Files.write(f,"active=false\nwidgets=\n".getBytes(StandardCharsets.UTF_8));
-        }catch(Throwable t){System.err.println("LOCALLAB_DIALOG_NUMBER_KEYS_STATE_CLEAR_FAILED "+t);}
+    // LocalDevPanelWidgetHandler is constructed before the coordinator so its
+    // numeric-prompt callback enters through this one deferred forwarding seam.
+    private void promptDevPanelAmount(
+        DevControlCenter.PendingAmount pending,
+        ServerPacketWriter writer
+    )throws IOException{
+        devPanelCoordinator.promptAmount(
+            pending,
+            writer
+        );
     }
 
     private void publishOpponentOverlay(NpcEntity target,ServerPacketWriter w,String tag,String reason)throws IOException{
