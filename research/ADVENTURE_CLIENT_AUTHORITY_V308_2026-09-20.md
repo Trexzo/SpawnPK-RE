@@ -105,6 +105,159 @@ The exact current client proves distinct presentation states, but this audit doe
 not rename them into gameplay phases such as STARTED, ACTIVE, COMPLETE, etc.
 Those names would imply server semantics not established by the client.
 
+
+## Exact S2C250 subtype 22 Adventure objective projection
+
+A later exact-current v308 pass closes the native Adventure book data path much
+further than the original control-token audit.
+
+The client accepts server-published Adventure objective records through S2C250
+subtype 22.
+
+### Operation 3 - append one typed objective record
+
+Exact wire grammar:
+
+    subjectType          u8
+    subjectId            i32_be
+    textPartCount        u8
+    primaryText          string_nl
+    secondaryText?       string_nl   // present when textPartCount >= 2
+    rewardCount          u8
+    repeat rewardCount:
+        rewardItemId     i32_be
+        rewardAmount     i32_be
+    current              u16_be
+    target               u16_be
+    claimed              u8          // true only when value == 1
+
+Exact subject-type mapping:
+
+    1 -> ITEM
+    2 -> NPC_HEAD
+    3 -> OBJ
+
+The final three fields are objective presentation state:
+
+    claimed == true        -> CLAIMED
+    else current >= target -> CLAIMABLE
+    else                    -> IN_PROGRESS
+
+The current client caps the combined rendered objective lists at **25 records**.
+
+The reward item/amount pairs are presentation payload. They do not grant or
+authorize rewards by themselves.
+
+### Operation 7 - chapter reward claim-state projection
+
+Payload:
+
+    state u8
+
+Exact client presentation:
+
+    0     -> incomplete / not claimable
+    1     -> claimable / highlighted CLAIM presentation
+    other -> claimed presentation
+
+The native client toggles the chapter claim widgets and associated text according
+to that state. This is presentation state only; claim authorization remains
+server authority.
+
+### Operation 8 - chapter progress fraction
+
+Payload:
+
+    current u16_be
+    target  u16_be
+
+The native Adventure renderer consumes this pair as the **Chapter Progress**
+progress-ring fraction.
+
+### Finalize/rebuild ordering
+
+The client maintains two insertion-ordered objective lists:
+
+    unclaimed
+    claimed
+
+The finalize/rebuild path renders:
+
+    all unclaimed first
+    then all claimed
+
+That ordering is part of the presentation adapter contract because outbound row
+clicks carry only generated widget identity, not a semantic objective id.
+
+## Exact stable outbound Adventure book actions
+
+The native controller creates ordinary M=1 buttons:
+
+    30380  Next chapter
+    30383  Previous chapter
+    30390  Claim rewards
+
+All three therefore use the ordinary exact C2S185 widget-action transport:
+
+    C2S185
+    u16_be widgetId
+
+Widget 30393 is presentation text, not the clickable claim action.
+
+## Exact dynamic Adventure objective-row actions
+
+Dynamic objective rows use a fixed **15-widget stride**.
+
+For rendered row ordinal i (0-based):
+
+    Tips & Information  = 30400 + (15 * i)
+    Teleport to Task    = 30403 + (15 * i)
+    Claim reward        = 30407 + (15 * i)
+
+The claim button is only materialized when that row is claimable.
+
+All three actions are ordinary M=1 controls and emit only C2S185(widgetId).
+There is no Adventure-specific packet payload carrying objective identity.
+
+At the 25-row client cap the ranges are:
+
+    Tips:      30400 .. 30760  step 15
+    Teleport:  30403 .. 30763  step 15
+    Claim:     30407 .. 30767  step 15
+
+## Presentation projection identity must not become domain identity
+
+Because outbound dynamic row clicks carry only generated widget identity, the
+presentation adapter must retain the exact current projection ordering and
+resolve:
+
+    dynamic widget
+     -> action kind + rendered row ordinal
+     -> server-owned semantic objective identity
+
+The raw widget arithmetic is **presentation identity only**.
+
+A claimable row is necessarily in the unclaimed projection, so a dynamic claim
+widget resolves to the current unclaimed row ordinal. That still does not make
+the client row or subject id authoritative reward identity.
+
+## Stronger authority conclusion
+
+The exact client embeds starter/reference objective definitions, but the S2C250
+subtype-22 path proves the server can clear and republish Adventure objective
+records, progress and claim state.
+
+Therefore the safe authority split is:
+
+    client embedded definitions      = presentation/reference evidence
+    server objective definitions     = authoritative domain state
+    server progress/claim validation = authoritative domain state
+    client generated widget id       = presentation selection only
+
+This strengthens, rather than weakens, the negative boundary above: a modified
+client must never be trusted to define Adventure rewards, completion state or
+objective identity.
+
 ## Exact-current related presentation evidence
 
 The current timed-effect catalogue also contains:
