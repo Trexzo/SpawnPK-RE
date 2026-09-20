@@ -587,6 +587,20 @@ public final class LocalPendingRequestDispatcherTest {
                 }
             );
 
+            typedWire.write(
+                (41+typedEncoder.nextInt())&255
+            );
+            // Benign item option 2 fixture: item 0 BE,
+            // slot 0 BE-A, widget 0 BE-A. Existing semantic
+            // routing must consume it without transport fallback.
+            typedWire.write(
+                new byte[]{
+                    0,0,
+                    0,(byte)128,
+                    0,(byte)128
+                }
+            );
+
             int movementX=MovementState.INITIAL_X+1;
             int movementY=MovementState.INITIAL_Y;
             typedWire.write(
@@ -648,6 +662,11 @@ public final class LocalPendingRequestDispatcherTest {
             if(!probe.readNextKnownPacket())
                 throw new AssertionError(
                     "typed generic interaction fixture decode failed"
+                );
+
+            if(!probe.readNextKnownPacket())
+                throw new AssertionError(
+                    "typed item-container fixture decode failed"
                 );
 
             if(!probe.readNextKnownPacket())
@@ -716,7 +735,8 @@ public final class LocalPendingRequestDispatcherTest {
                 "itemOnNpcConsumed=true objectInteractionConsumed=true "+
                 "playerActionConsumed=true npcActionConsumed=true "+
                 "spellTargetConsumed=true genericInteractionConsumed=true "+
-                "movementConsumed=true runToggleBeforeMovement=true "+
+                "itemActionConsumed=true movementConsumed=true "+
+                "runToggleBeforeMovement=true "+
                 "classifierCompatibility=true"
             );
         }finally{
