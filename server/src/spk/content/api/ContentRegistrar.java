@@ -12,4 +12,11 @@ public interface ContentRegistrar {
         int priority,
         ContentCommandHandler handler
     );
+
+    void objectOption(
+        int objectId,
+        int option,
+        int priority,
+        ContentObjectOptionHandler handler
+    );
 }
