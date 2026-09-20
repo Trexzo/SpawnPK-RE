@@ -48,7 +48,6 @@ final class ClientPacketProbe {
     private ItemOnItemAction pendingItemOnItem;
     private SpellTargetRequest pendingSpellTarget;
     private GroundItemInteraction pendingGroundItemInteraction;
-    private ItemOnNpcAction pendingItemOnNpc;
 
     ClientPacketProbe(InputStream in, IsaacCipher cipher, String tag) {
         this.in = in;
@@ -112,12 +111,6 @@ final class ClientPacketProbe {
     GroundItemInteraction takeGroundItemInteraction(){
         GroundItemInteraction v=pendingGroundItemInteraction;
         pendingGroundItemInteraction=null;
-        return v;
-    }
-
-    ItemOnNpcAction takeItemOnNpc(){
-        ItemOnNpcAction v=pendingItemOnNpc;
-        pendingItemOnNpc=null;
         return v;
     }
 
@@ -222,7 +215,19 @@ final class ClientPacketProbe {
                 int targetNpc=decoded.targetNpcIndex;
                 int selectedSlot=decoded.slot;
                 int selectedWidget=decoded.widgetId;
-                pendingItemOnNpc=decoded;
+
+                offerTypedRequest(
+                    new ItemOnNpcClientRequest(
+                        decoded,
+                        ClientRequestMetadata.exactCurrent(
+                            57,
+                            "FIXED8_ITEM_BE_A_NPC_BE_A_SLOT_LE_WIDGET_BE_A",
+                            "PINNED_CLIENT_ITEM_ON_NPC_WRITER"
+                        )
+                    ),
+                    opcode
+                );
+
                 System.out.printf("%sCLIENT_PACKET seq=%d opcode=57 len=8 itemOnNpc=true itemId=%d slot=%d widget=%d targetNpc=%d schema=STATIC_EXACT_FIXED8%n",
                                   tag,decodedCount,selectedItem,selectedSlot,selectedWidget,targetNpc);
                 return true;
