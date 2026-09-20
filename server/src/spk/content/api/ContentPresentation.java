@@ -17,8 +17,7 @@ public interface ContentPresentation {
 
     void runEnergy(int energy)throws IOException;
 
-    void percentageText(
-        int widgetId,
+    void specialEnergy(
         int percent
     )throws IOException;
 
