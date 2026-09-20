@@ -1,15 +1,44 @@
 package spk.local;
 
+import spk.content.api.ContentInteractionResult;
+
 /**
  * Typed fail-closed routing for the exact-current generic R8.5 interaction
  * bridge. Transport/framing remains in R85GenericC2SBridge.
  */
 final class LocalGenericInteractionHandler {
+    private final ContentRegistry contentRegistry;
+
+    LocalGenericInteractionHandler(){
+        this(null);
+    }
+
+    LocalGenericInteractionHandler(
+        ContentRegistry contentRegistry
+    ){
+        this.contentRegistry=contentRegistry;
+    }
+
     String handle(GenericInteractionEvent event){
         if(event==null)return null;
 
         switch(event.family){
             case OBJECT_OPTION:
+                if(contentRegistry!=null){
+                    ContentInteractionResult content=
+                        contentRegistry.dispatchObjectOption(
+                            event.targetId,
+                            event.option,
+                            event.worldX,
+                            event.worldY
+                        );
+
+                    if(content!=null)
+                        return "V5185_GENERIC_OBJECT_ACTION "+event+
+                            " result="+content.outcome()+
+                            " authority=EXACT_CLIENT_WIRE_AND_TRIGGER_SERVER_BEHAVIOR_UNKNOWN";
+                }
+
                 return "V5185_GENERIC_OBJECT_ACTION "+event+
                     " result=DECODED_FAIL_CLOSED authority=EXACT_CLIENT_WIRE_AND_TRIGGER_SERVER_BEHAVIOR_UNKNOWN";
             case WIDGET_ITEM_OPTION:
