@@ -13,7 +13,7 @@ import java.util.*;
  * than a reconstructed SpawnPK combat formula.
  */
 final class CombatEngine {
-    private final CombatState state=new CombatState();
+    private final CombatState state;
     private final DevAuthorityWorkbench dev;
     private long syntheticTick;
     private int lastDamageThisAction;
@@ -49,8 +49,27 @@ final class CombatEngine {
     // click-time target. The first authoritative movement packet owns facing.
     private boolean approachFacingPending;
 
-    CombatEngine(){ this(new DevAuthorityWorkbench()); }
-    CombatEngine(DevAuthorityWorkbench dev){ this.dev=dev==null?new DevAuthorityWorkbench():dev; }
+    CombatEngine(){
+        this(new CombatState(),new DevAuthorityWorkbench());
+    }
+
+    CombatEngine(DevAuthorityWorkbench dev){
+        this(new CombatState(),dev);
+    }
+
+    CombatEngine(
+        CombatState state,
+        DevAuthorityWorkbench dev
+    ){
+        this.state=java.util.Objects.requireNonNull(
+            state,
+            "state"
+        );
+        this.dev=
+            dev==null
+                ?new DevAuthorityWorkbench()
+                :dev;
+    }
 
     String request(NpcEntity npc,MovementState movement,int weaponId,long now){
         return request(npc,movement,weaponId,now,null);
