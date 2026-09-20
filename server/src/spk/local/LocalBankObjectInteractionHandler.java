@@ -12,6 +12,7 @@ import java.io.IOException;
 final class LocalBankObjectInteractionHandler {
     private final BankState bank;
     private final MovementState movement;
+    private final InteractionApproachResolver approach;
 
     private ObjectInteraction pending;
     private long pendingDeadlineMs;
@@ -19,6 +20,7 @@ final class LocalBankObjectInteractionHandler {
     LocalBankObjectInteractionHandler(BankState bank,MovementState movement){
         this.bank=java.util.Objects.requireNonNull(bank,"bank");
         this.movement=java.util.Objects.requireNonNull(movement,"movement");
+        this.approach=new InteractionApproachResolver(this.movement);
     }
 
     String handle(ObjectInteraction request,ServerPacketWriter serverPackets)throws IOException{
@@ -36,13 +38,30 @@ final class LocalBankObjectInteractionHandler {
                 request,serverPackets,"OPENED_ADJACENT_IMMEDIATE");
         }
 
+        InteractionApproachResolver.Result approachResult=
+            approach.queueAdjacent(
+                request.worldX,
+                request.worldY
+            );
+
+        if(!approachResult.queued()){
+            pending=null;
+            return "V5_BANK_INTERACTION "+request+
+                " authorityWorld="+movement.x()+","+movement.y()+
+                " distance="+chebyshev(
+                    movement.x(),movement.y(),request.worldX,request.worldY)+
+                " action=REJECTED_SERVER_APPROACH_"+approachResult.status+
+                " approach="+approachResult;
+        }
+
         pending=request;
         pendingDeadlineMs=System.currentTimeMillis()+10_000L;
         return "V5_BANK_INTERACTION "+request+
             " authorityWorld="+movement.x()+","+movement.y()+
             " distance="+chebyshev(
                 movement.x(),movement.y(),request.worldX,request.worldY)+
-            " action=DEFERRED_UNTIL_ADJACENT";
+            " action=DEFERRED_UNTIL_ADJACENT"+
+            " serverApproach="+approachResult;
     }
 
     String tick(long now,ServerPacketWriter serverPackets)throws IOException{
