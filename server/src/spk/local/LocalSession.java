@@ -113,7 +113,10 @@ final class LocalSession implements Runnable {
         this.combat = new CombatEngine(
             worldPlayer.combatState(),
             dev,
-            CombatDamageRules.localLabFallback()
+            CombatDamageRules.localLabFallback(),
+            CombatSystemHooks.forPlayer(
+                worldPlayer
+            )
         );
         this.npcs = new NpcRegistry(
             dev,
