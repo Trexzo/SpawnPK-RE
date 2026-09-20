@@ -22,9 +22,9 @@ jobs:
           distribution: temurin
           java-version: '21'
 
-      - name: Build server
+      - name: Compile test classes
         shell: pwsh
-        run: ./server/build.ps1
+        run: ./server/gradlew.bat --no-daemon testClasses
 
       - name: Stress duplicate-src preload guard
         shell: pwsh
