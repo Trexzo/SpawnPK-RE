@@ -36,6 +36,7 @@ jobs:
             throw "Base failed for an unexpected reason."
           }
           Write-Host "BASELINE_STALE_BANK_OBJECT_TEST_CONFIRMED pathEndedCancellationNull=true"
+          exit 0
 
   validate:
     runs-on: windows-latest
