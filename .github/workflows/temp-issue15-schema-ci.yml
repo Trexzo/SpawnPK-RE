@@ -1,0 +1,46 @@
+name: temp-issue15-schema-ci
+
+on:
+  push:
+    branches:
+      - refactor/issue-15-schema-v1-codec-extraction
+
+jobs:
+  validate:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Compile all server sources
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path build\classes | Out-Null
+          Get-ChildItem server\src -Recurse -Filter *.java |
+            ForEach-Object { $_.FullName } |
+            Set-Content -LiteralPath sources.txt -Encoding ascii
+          javac -encoding UTF-8 -d build\classes '@sources.txt'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Focused persistence regressions
+        shell: pwsh
+        run: |
+          $tests = @(
+            'spk.local.PlayerSnapshotSchemaExtractionTest',
+            'spk.local.PlayerRepositoryFoundationTest',
+            'spk.local.RuntimeRepositorySaveTest',
+            'spk.local.RuntimeRepositoryLoadTest',
+            'spk.local.AccountPersistenceTest',
+            'spk.local.LocalAccountProfilesTest',
+            'spk.local.SecondaryAccountSelectionTest'
+          )
+          foreach ($test in $tests) {
+            Write-Host "=== $test ==="
+            java -cp build\classes $test
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
