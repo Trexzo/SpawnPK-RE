@@ -112,7 +112,8 @@ final class LocalSession implements Runnable {
         this.miniPets = worldPlayer.miniPets();
         this.combat = new CombatEngine(
             worldPlayer.combatState(),
-            dev
+            dev,
+            CombatDamageRules.localLabFallback()
         );
         this.npcs = new NpcRegistry(
             dev,
