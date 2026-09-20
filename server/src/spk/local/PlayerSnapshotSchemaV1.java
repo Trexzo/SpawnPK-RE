@@ -347,24 +347,10 @@ final class PlayerSnapshotSchemaV1 {
             }
         }
 
-        for(int i=0;
-            i<next.length;
-            i++){
-            EquipmentSlot slot=
-                EquipmentSlot.fromEquipmentIndex(i);
-
-            if(slot==null)
-                throw new IllegalStateException(
-                    "unsupported equipment index="+
-                    i
-                );
-
-            equipment.setStack(
-                slot,
-                next[i],
-                nextQty[i]
-            );
-        }
+        equipment.restoreAccountState(
+            next,
+            nextQty
+        );
     }
 
     private static void encodeMovement(
@@ -682,8 +668,9 @@ final class PlayerSnapshotSchemaV1 {
             );
         }
 
-        int[] selectors=
-            player.compSelectors();
+        int[] selectors={
+            13,9,7,9,7,5
+        };
 
         for(int i=0;
             i<selectors.length;
