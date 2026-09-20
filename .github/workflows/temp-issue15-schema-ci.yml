@@ -17,14 +17,10 @@ jobs:
           distribution: temurin
           java-version: '21'
 
-      - name: Compile all server sources
+      - name: Build server with canonical resource packaging
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Force -Path build\classes | Out-Null
-          Get-ChildItem server\src -Recurse -Filter *.java |
-            ForEach-Object { $_.FullName } |
-            Set-Content -LiteralPath sources.txt -Encoding ascii
-          javac -encoding UTF-8 -d build\classes '@sources.txt'
+          & .\server\build.ps1
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Focused persistence regressions
@@ -41,6 +37,6 @@ jobs:
           )
           foreach ($test in $tests) {
             Write-Host "=== $test ==="
-            java -cp "build\classes;server\src" $test
+            java -cp server\build\classes $test
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           }
