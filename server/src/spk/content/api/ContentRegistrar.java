@@ -7,20 +7,20 @@ package spk.content.api;
  * module code cannot self-label custom behavior as recovered authority.
  */
 public interface ContentRegistrar {
-    void command(
+    ContentRegistration command(
         String name,
         int priority,
         ContentCommandHandler handler
     );
 
-    void objectOption(
+    ContentRegistration objectOption(
         int objectId,
         int option,
         int priority,
         ContentObjectOptionHandler handler
     );
 
-    void npcOption(
+    ContentRegistration npcOption(
         int npcDefinitionId,
         int option,
         int priority,
