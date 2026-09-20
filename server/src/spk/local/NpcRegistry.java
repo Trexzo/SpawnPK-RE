@@ -394,9 +394,9 @@ final class NpcRegistry {
      * diagonal displacement is therefore a deterministic L-turn, never a literal
      * diagonal follower step. The old 50/50 X/Y alternator is intentionally gone.
      *
-     * A discontinuous breadcrumb is failed closed instead of direct-chasing or
-     * teleporting through scenery. This lets a legal player route carry the pets
-     * around walls even before the full cache-derived HOME collision service lands.
+     * Breadcrumb presentation remains cardinal, while every follower catch-up
+     * component is selected through the shared collision authority. When the old
+     * deterministic X/Y component is blocked, the follower takes a cardinal detour.
      */
     String tickFollow(MovementState movement,ServerPacketWriter w) throws IOException {
         refreshCanonicalActorProjections();
@@ -609,14 +609,6 @@ final class NpcRegistry {
         }
         if(tx==pet.x&&ty==pet.y)tx=pet.x-1;
         return new int[]{tx,ty};
-    }
-
-    /** Deterministic cardinal component order: X first, then Y. */
-    private static int cardinalDirectionToward(NpcEntity mover,int tx,int ty){
-        int sx=Integer.compare(tx,mover.x),sy=Integer.compare(ty,mover.y);
-        if(sx!=0)return MovementState.direction(mover.x,mover.y,mover.x+sx,mover.y);
-        if(sy!=0)return MovementState.direction(mover.x,mover.y,mover.x,mover.y+sy);
-        return -1;
     }
 
     private static void pruneReached(ArrayDeque<int[]> trail,NpcEntity mover){
