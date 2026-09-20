@@ -57,6 +57,54 @@ final class PlayerSnapshotCodec {
         }
     }
 
+    static PlayerSnapshot validateAndNormalize(
+        PlayerSnapshot snapshot
+    ){
+        Objects.requireNonNull(
+            snapshot,
+            "snapshot"
+        );
+
+        WorldPlayer staged=
+            new WorldPlayer();
+
+        applyLegacy(
+            snapshot,
+            staged
+        );
+
+        return capture(
+            snapshot.username(),
+            staged
+        );
+    }
+
+    /**
+     * Stage-decodes into detached state first. Only a snapshot that has already
+     * survived the full component decode is then applied to the live player.
+     */
+    static PlayerSnapshot applyValidated(
+        PlayerSnapshot snapshot,
+        WorldPlayer livePlayer
+    ){
+        Objects.requireNonNull(
+            livePlayer,
+            "livePlayer"
+        );
+
+        PlayerSnapshot normalized=
+            validateAndNormalize(
+                snapshot
+            );
+
+        applyLegacy(
+            normalized,
+            livePlayer
+        );
+
+        return normalized;
+    }
+
     /**
      * Compatibility decode used only by migration/round-trip tests in this
      * foundation slice. Runtime account loading still uses the existing loader
