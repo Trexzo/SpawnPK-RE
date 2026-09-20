@@ -9,8 +9,8 @@ public final class VoidglassRuntimeIntegrationTest {
     static void setPendingCommand(ClientPacketProbe p,String c)throws Exception{Field f=ClientPacketProbe.class.getDeclaredField("pendingCommand");f.setAccessible(true);f.set(p,c);}
     static void command(LocalSession s,ClientPacketProbe p,ServerPacketWriter w,String c)throws Exception{
         setPendingCommand(p,c);
-        Method m=LocalSession.class.getDeclaredMethod("acceptPendingCommand",ClientPacketProbe.class,ServerPacketWriter.class,String.class);m.setAccessible(true);
-        try{m.invoke(s,p,w,"[voidglass-test] ");}catch(InvocationTargetException e){Throwable x=e.getCause();if(x instanceof Exception)throw (Exception)x;throw e;}
+        LocalPendingRequestDispatcher dispatcher=(LocalPendingRequestDispatcher)field(s,"pendingRequests");
+        dispatcher.drain(p,w,"[voidglass-test] ");
     }
     public static void main(String[] args)throws Exception{
         LocalSession s=new LocalSession(new Socket(),true,true);
