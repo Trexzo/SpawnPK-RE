@@ -146,10 +146,6 @@ final class LocalPendingRequestDispatcher {
             serverPackets,
             tag
         );
-        acceptGenericInteraction(
-            clientPackets,
-            tag
-        );
         acceptItemAction(
             clientPackets,
             serverPackets,
@@ -316,6 +312,18 @@ final class LocalPendingRequestDispatcher {
             }
 
             if(request instanceof
+                    GenericInteractionClientRequest){
+                GenericInteractionClientRequest generic=
+                    (GenericInteractionClientRequest)request;
+
+                routeGenericInteraction(
+                    generic.event(),
+                    tag
+                );
+                continue;
+            }
+
+            if(request instanceof
                     CommandClientRequest){
                 CommandClientRequest command=
                     (CommandClientRequest)request;
@@ -355,22 +363,15 @@ final class LocalPendingRequestDispatcher {
             System.out.println(tag+result);
     }
 
-    private void acceptGenericInteraction(
-        ClientPacketProbe clientPackets,
+    private void routeGenericInteraction(
+        GenericInteractionEvent event,
         String tag
     ){
-        for(
-            GenericInteractionEvent event;
-            (event=R85GenericC2SBridge.take(
-                clientPackets
-            ))!=null;
-        ){
-            String result=
-                genericInteractionHandler.handle(event);
+        String result=
+            genericInteractionHandler.handle(event);
 
-            if(result!=null)
-                System.out.println(tag+result);
-        }
+        if(result!=null)
+            System.out.println(tag+result);
     }
 
     private void acceptItemAction(
