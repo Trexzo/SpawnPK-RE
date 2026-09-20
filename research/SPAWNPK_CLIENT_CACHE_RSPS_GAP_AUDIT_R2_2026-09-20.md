@@ -830,6 +830,101 @@ ConstructionPresentationState
 
 but implementation must remain fixture/dev-authority until the missing server rules are independently evidenced.
 
+## R2.2 exact C2S closure: raid/party setup
+
+The native raid setup actions are now mapped to exact current-client widget IDs.
+
+Raid type selectors:
+
+```
+19637  Chambers of Xeric
+19638  Theatre of Blood
+```
+
+Difficulty selectors:
+
+```
+19643  Normal
+19644  Adept
+19645  Expert
+19646  Master
+19647  Grandmaster
+```
+
+Party membership controls:
+
+```
+19611  Remove member slot 2
+19617  Remove member slot 3
+19623  Remove member slot 4
+19629  Remove member slot 5
+
+19614  Invite member slot 2
+19620  Invite member slot 3
+19626  Invite member slot 4
+19632  Invite member slot 5
+```
+
+Party/raid controls:
+
+```
+19665  Start raid
+19669  Leave/disband party
+19800  Refresh
+19803  Re-invite last players
+```
+
+The raid type/difficulty rows are type-1 widgets with explicit `Q` actions such as `Selected raid` and `Normal difficulty`.
+The party/start/leave/refresh buttons are also current-client action widgets.
+
+For type-1 action widgets, the client menu builder emits menu action 315. Menu action 315 serializes exactly:
+
+```
+C2S opcode 185
+u16_be widgetId
+```
+
+Therefore all named raid/party setup intents above have exact C2S185 contracts.
+
+This does not authorize inference of party ownership rules, instance lifecycle, raid encounter mechanics, completion validation or rewards.
+
+## R2.2 exact C2S closure: Daily Money Making Activities
+
+The native Daily Money Making controller exposes exact current-client controls:
+
+```
+55002  Track this activity
+55012  Teleport to this activity
+55015  Hard money making tasks
+55018  Medium money making tasks
+55021  Easy money making tasks
+```
+
+`55002` and `55012` are ordinary type-1 action widgets and use menu action 315.
+
+The Easy/Medium/Hard selector widgets are type-5 action widgets. The client menu builder maps type-5 to menu action 646. The action-646 handler then serializes the same exact widget packet:
+
+```
+C2S opcode 185
+u16_be widgetId
+```
+
+Therefore target 36 can be paired with an exact outbound presentation-intent surface:
+
+```
+DailyMoneyMakingUiIntent
+  TRACK_CURRENT        -> C2S185(55002)
+  TELEPORT_CURRENT     -> C2S185(55012)
+  SELECT_HARD          -> C2S185(55015)
+  SELECT_MEDIUM        -> C2S185(55018)
+  SELECT_EASY          -> C2S185(55021)
+
+DailyMoneyMakingState
+  <- S2C126 target 36
+```
+
+The transport is exact. Task assignment, progress credit, completion requirements, teleport eligibility and rewards remain server-authority gaps.
+
 ## R2.1 exact C2S closure: Trading Post text search
 
 The three marketplace text-entry modes are now bytecode-closed.
@@ -1019,17 +1114,18 @@ Acceptance should require:
 Continue research before opening raid/market/construction gameplay issues:
 
 1. resolve structural targets 22-24, 26, 29-34, 37, 39, 43, 46, 48-49, 57-61, 69-70 to domain owners where possible,
-2. map every raid setup widget ID to exact intent rather than only the major controls,
-3. pair Daily Money Making Activities target 36 with exact outbound task/teleport controls,
-4. identify whether target 35 popup state is drop-only or a shared damage/block/drop transport,
-5. enumerate Item Enchantment Chest outbound actions paired with targets 38/71,
-6. verify whether construction exposes any additional non-widget placement command after room selection,
-7. add packet-level fixtures before any production implementation.
+2. identify whether target 35 popup state is drop-only or a shared damage/block/drop transport,
+3. enumerate Item Enchantment Chest outbound actions paired with targets 38/71,
+4. verify whether construction exposes any additional non-widget placement command after room selection,
+5. recover any raid invitation text-entry path if the server requests a player name after the invite widget,
+6. add packet-level fixtures before any production implementation.
 
-Closed in R2.1:
+Closed in R2.1/R2.2:
 - Trading Post text submission: `tpsitem` / `tpsuser` / `tpshist` over C2S103.
 - Mailbox row/delete/deposit/refresh widget actions over C2S185.
 - Construction room-selection widget IDs and C2S185 transport.
+- Named raid type/difficulty/member/start/leave/refresh/re-invite controls over C2S185.
+- Daily Money Making track/teleport/difficulty controls over C2S185 paired with S2C126 target 36.
 
 ## R2 conclusion
 
