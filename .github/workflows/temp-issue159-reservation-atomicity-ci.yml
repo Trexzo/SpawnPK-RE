@@ -1,0 +1,35 @@
+name: Temp Issue 159 Reservation Atomicity CI
+
+on:
+  pull_request:
+
+jobs:
+  issue159:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Canonical server build
+        shell: pwsh
+        run: ./server/build.ps1
+      - name: Issue 159 focused regression
+        shell: pwsh
+        run: |
+          java -cp server/build/classes spk.local.AtomicTransactionServiceTest
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Issue 159 protocol boundary guard
+        shell: pwsh
+        run: |
+          $paths = @(
+            "server/src/spk/local/AtomicTransactionService.java",
+            "server/src/spk/local/EscrowAsset.java"
+          )
+          $bad = Select-String -Path $paths -Pattern "widgetId|opcode|subtype|ServerPacketWriter|ClientPacket|ApplicationBus|spriteId|sceneIndex" -CaseSensitive:$false
+          if ($bad) {
+            $bad | ForEach-Object { Write-Host $_ }
+            throw "Issue 159 domain source contains protocol identity."
+          }
+          Write-Host "ISSUE159_PROTOCOL_BOUNDARY_PASS"
