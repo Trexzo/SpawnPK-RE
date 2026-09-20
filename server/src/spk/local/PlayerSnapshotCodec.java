@@ -3,16 +3,27 @@ package spk.local;
 import java.util.*;
 
 /**
- * Transitional schema-v1 codec.
+ * Immutable PlayerSnapshot capture/apply orchestration.
  *
- * Existing state-class property serializers remain the exact compatibility
- * authority in this first repository slice. Later #15 slices can move each
- * component codec here without changing PlayerRepository.
+ * Schema-v1 key encoding belongs to PlayerSnapshotSchemaV1; gameplay state
+ * classes no longer know about java.util.Properties or repository storage.
  */
 final class PlayerSnapshotCodec {
     static PlayerSnapshot capture(
         String username,
         WorldPlayer player
+    ){
+        return capture(
+            username,
+            player,
+            0
+        );
+    }
+
+    static PlayerSnapshot capture(
+        String username,
+        WorldPlayer player,
+        int petAccessoryItem
     ){
         Objects.requireNonNull(
             player,
@@ -20,39 +31,13 @@ final class PlayerSnapshotCodec {
         );
 
         synchronized(player.mutationLock()){
-            Properties properties=
-                new Properties();
-
-            player.bank().saveAccountProperties(
-                properties
-            );
-            player.equipment().saveAccountProperties(
-                properties
-            );
-            player.movement().saveAccountProperties(
-                properties
-            );
-            player.petState().saveAccountProperties(
-                properties
-            );
-            player.playerState().saveAccountProperties(
-                properties
-            );
-
-            TreeMap<String,String> values=
-                new TreeMap<>();
-
-            for(String key:
-                    properties.stringPropertyNames())
-                values.put(
-                    key,
-                    properties.getProperty(key)
-                );
-
             return new PlayerSnapshot(
                 PlayerSnapshot.CURRENT_VERSION,
                 username,
-                values
+                PlayerSnapshotSchemaV1.capture(
+                    player,
+                    petAccessoryItem
+                )
             );
         }
     }
@@ -75,7 +60,8 @@ final class PlayerSnapshotCodec {
 
         return capture(
             snapshot.username(),
-            staged
+            staged,
+            accessoryItem(snapshot)
         );
     }
 
@@ -106,9 +92,8 @@ final class PlayerSnapshotCodec {
     }
 
     /**
-     * Compatibility decode used only by migration/round-trip tests in this
-     * foundation slice. Runtime account loading still uses the existing loader
-     * until atomic live-state application is introduced separately.
+     * Schema-v1 compatibility apply. The historical name remains as a test and
+     * migration seam while all actual key decoding is owned by the schema codec.
      */
     static void applyLegacy(
         PlayerSnapshot snapshot,
@@ -123,26 +108,21 @@ final class PlayerSnapshotCodec {
             "player"
         );
 
-        Properties properties=
-            snapshot.toLegacyProperties();
-
         synchronized(player.mutationLock()){
-            player.bank().loadAccountProperties(
-                properties
-            );
-            player.equipment().loadAccountProperties(
-                properties
-            );
-            player.movement().loadAccountProperties(
-                properties
-            );
-            player.petState().loadAccountProperties(
-                properties
-            );
-            player.playerState().loadAccountProperties(
-                properties
+            PlayerSnapshotSchemaV1.apply(
+                snapshot,
+                player
             );
         }
+    }
+
+    static int accessoryItem(
+        PlayerSnapshot snapshot
+    ){
+        return PlayerSnapshotSchemaV1
+            .petAccessoryItem(
+                snapshot
+            );
     }
 
     private PlayerSnapshotCodec(){}
