@@ -301,25 +301,62 @@ Payload: double.
 
 Confidence: HIGH structural.
 
-### 32 - Player/entity runtime scalar
+### 32 - Local-player prayer/protection head icon
 
-Writes one scalar into a current `rs/a/k` field.
+Target 32 writes directly to the local player's `rs/a/k.bd` field.
 
-Confidence: HIGH structural.
+That field is consumed by the player overhead renderer as an index into the 21-entry:
 
-### 33 - Indexed player/entity runtime scalar
+```
+headicons_prayer
+```
 
-Payload identifies an index and scalar and updates an `rs/a/k` array entry.
+sprite array. Current-client special entries also replace indices 7/8/9 with combined protection assets:
 
-Confidence: HIGH structural.
+```
+prayer/protmagemelee
+prayer/protmeleerange
+prayer/protall
+```
 
-### 34 - Boolean pair-key state map
+Therefore target 32 is exact local-player prayer/protection overhead-icon state.
 
-Payload: two integers.
+Confidence: HIGH.
 
-The pair is converted into a key and recorded in a Boolean map.
+### 33 - Indexed remote-player prayer/protection head icon
 
-Confidence: HIGH structural.
+Payload contains:
+
+```
+playerIndex
+headIconIndex
+```
+
+The client bounds-checks the player array, resolves that indexed `rs/a/k`, and writes the same `bd` field used by target 32.
+
+The overhead renderer consumes it through the same `headicons_prayer` sprite array.
+
+Therefore target 33 is the indexed remote-player form of the prayer/protection overhead-icon update.
+
+Confidence: HIGH.
+
+### 34 - Scene-tile entity suppression state
+
+Payload contains two integers which are normalized into the exact string key:
+
+```
+"<worldX>,<worldY>"
+```
+
+and inserted into a Boolean map.
+
+The same map is consulted by both current-client NPC and player scene-render passes. In region `10806`, if the entity's resolved world-tile key exists in the map, that entity is skipped from the relevant render/add path.
+
+A scene-update path removes the exact same coordinate key when the corresponding tile state is cleared.
+
+This proves the target's client effect as tile-scoped entity suppression/visibility state. The gameplay feature that causes the server to mark those tiles remains intentionally unnamed.
+
+Confidence: HIGH structural effect / UNKNOWN_SERVER_AUTHORITY domain.
 
 ### 35 - Combat hit/block popup update
 
@@ -1251,7 +1288,7 @@ Acceptance should require:
 
 Continue research before opening raid/market/construction gameplay issues:
 
-1. resolve structural targets 26, 29-34, 37, 39, 43, 46, 48-49, 57-61, 69-70 to domain owners where possible,
+1. resolve structural targets 26, 29-31, 37, 39, 43, 46, 48-49, 57-61, 69-70 to domain owners where possible,
 2. verify whether construction exposes any additional non-widget placement command after room selection,
 3. recover any raid invitation text-entry path if the server requests a player name after the invite widget,
 4. identify the Item Enchantment Search-by-name text submission path if it is client-local rather than server-requested,
@@ -1274,6 +1311,11 @@ Closed in R2.5:
 - target 22 = task-progress hover text.
 - target 23 = broadcast banner text.
 - target 24 = equipment-hover detail cache, paired with exact C2S103 `equipstr <itemId>` and `RESET_HOVER_EQUIPMENT`.
+
+Closed in R2.6:
+- target 32 = local-player prayer/protection head-icon index.
+- target 33 = indexed remote-player prayer/protection head-icon index.
+- target 34 = tile-scoped NPC/player scene suppression state in region 10806; feature/domain intentionally remains unnamed.
 
 ## R2 conclusion
 
