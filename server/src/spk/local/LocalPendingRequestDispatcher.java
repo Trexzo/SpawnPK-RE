@@ -161,12 +161,6 @@ final class LocalPendingRequestDispatcher {
             serverPackets,
             tag
         );
-        acceptMovement(
-            clientPackets,
-            serverPackets,
-            tag
-        );
-
         long now=System.currentTimeMillis();
         petRealtime.ensureFollowScheduled(now);
         petRealtime.ensureTestSequenceScheduled(now);
@@ -318,6 +312,19 @@ final class LocalPendingRequestDispatcher {
 
                 routeGenericInteraction(
                     generic.event(),
+                    tag
+                );
+                continue;
+            }
+
+            if(request instanceof
+                    MovementClientRequest){
+                MovementClientRequest movement=
+                    (MovementClientRequest)request;
+
+                routeMovement(
+                    movement.movement(),
+                    serverPackets,
                     tag
                 );
                 continue;
@@ -803,16 +810,11 @@ final class LocalPendingRequestDispatcher {
         );
     }
 
-    private void acceptMovement(
-        ClientPacketProbe clientPackets,
+    private void routeMovement(
+        MovementRequest request,
         ServerPacketWriter serverPackets,
         String tag
     )throws IOException{
-        MovementRequest request=
-            clientPackets.takeMovement();
-
-        if(request==null)return;
-
         movementRequests.handle(
             request,
             serverPackets,
