@@ -1,0 +1,33 @@
+name: temp-issue180-gambling-mode-catalog-ci
+
+on:
+  push:
+    branches:
+      - research/issue-180-gambling-mode-catalog
+
+jobs:
+  validate:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Canonical server build
+        shell: pwsh
+        run: ./server/build.ps1
+
+      - name: Gambling mode catalog
+        shell: pwsh
+        run: |
+          java -cp server/build/SpawnPKLocalServer.jar spk.local.GamblingModeCatalogTest
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Inherited application regression
+        shell: pwsh
+        run: |
+          java -cp server/build/SpawnPKLocalServer.jar spk.local.ApplicationUiServiceTest
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
