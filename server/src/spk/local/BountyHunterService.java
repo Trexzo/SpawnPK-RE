@@ -322,13 +322,36 @@ final class BountyHunterService {
     ) {
         Objects.requireNonNull(candidates, "candidates");
         Objects.requireNonNull(policy, "policy");
-        List<PlayerId> safeCandidates = Collections.unmodifiableList(new ArrayList<PlayerId>(candidates));
-        Optional<PlayerId> selected = policy.select(
-            Objects.requireNonNull(hunter, "hunter"),
-            safeCandidates
+        Objects.requireNonNull(hunter, "hunter");
+
+        ArrayList<PlayerId> checkedCandidates =
+            new ArrayList<PlayerId>(candidates.size());
+        java.util.LinkedHashSet<PlayerId> candidateSet =
+            new java.util.LinkedHashSet<PlayerId>();
+
+        for (PlayerId candidate : candidates) {
+            if (candidate == null) {
+                throw new IllegalArgumentException("Candidate list contains null player");
+            }
+            if (!candidateSet.add(candidate)) {
+                throw new IllegalArgumentException("Candidate list contains duplicate player: " + candidate);
+            }
+            checkedCandidates.add(candidate);
+        }
+
+        List<PlayerId> safeCandidates =
+            Collections.unmodifiableList(checkedCandidates);
+        Optional<PlayerId> selected = Objects.requireNonNull(
+            policy.select(hunter, safeCandidates),
+            "policy result"
         );
         if (!selected.isPresent()) {
             throw new IllegalStateException("External target policy selected no target");
+        }
+        if (!candidateSet.contains(selected.get())) {
+            throw new IllegalStateException(
+                "External target policy selected player outside candidate set: " + selected.get()
+            );
         }
         return assign(id, hunter, selected.get(), assignedTick, deadlineTick);
     }
