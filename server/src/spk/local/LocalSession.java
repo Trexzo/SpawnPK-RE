@@ -512,6 +512,7 @@ final class LocalSession implements Runnable {
             equipment,
             combatStyles,
             petEffects,
+            statuses,
             npcs,
             homeWorld,
             combat,
