@@ -322,38 +322,42 @@ final class BankState {
     }
 
 
-    void saveAccountProperties(Properties p) {
-        p.setProperty("bank.placeholders", Boolean.toString(placeholdersEnabled));
-        for (int i=0;i<bank.length;i++) p.setProperty("bank."+i, encodeStack(bank[i]));
-        for (int i=0;i<inventory.length;i++) p.setProperty("inventory."+i, encodeStack(inventory[i]));
-    }
+    void restoreAccountState(
+        Stack[] nextBank,
+        Stack[] nextInventory,
+        boolean placeholders
+    ){
+        if(nextBank==null||
+           nextBank.length!=BANK_CAPACITY)
+            throw new IllegalArgumentException(
+                "bank snapshot length"
+            );
+        if(nextInventory==null||
+           nextInventory.length!=INVENTORY_CAPACITY)
+            throw new IllegalArgumentException(
+                "inventory snapshot length"
+            );
 
-    void loadAccountProperties(Properties p) {
-        Stack[] nextBank = new Stack[BANK_CAPACITY];
-        Stack[] nextInventory = new Stack[INVENTORY_CAPACITY];
-        for (int i=0;i<nextBank.length;i++) nextBank[i]=decodeStack(p.getProperty("bank."+i,""), "bank."+i);
-        for (int i=0;i<nextInventory.length;i++) nextInventory[i]=decodeStack(p.getProperty("inventory."+i,""), "inventory."+i);
-        System.arraycopy(nextBank,0,bank,0,bank.length);
-        System.arraycopy(nextInventory,0,inventory,0,inventory.length);
-        placeholdersEnabled = Boolean.parseBoolean(p.getProperty("bank.placeholders", "false"));
+        System.arraycopy(
+            nextBank,
+            0,
+            bank,
+            0,
+            bank.length
+        );
+        System.arraycopy(
+            nextInventory,
+            0,
+            inventory,
+            0,
+            inventory.length
+        );
+
+        placeholdersEnabled=placeholders;
         open=false;
         pendingX=null;
     }
 
-    private static String encodeStack(Stack s) {
-        return s==null ? "" : s.itemId+","+s.qty+","+s.tab;
-    }
-
-    private static Stack decodeStack(String text, String key) {
-        if (text==null || text.isEmpty()) return null;
-        String[] p=text.split(",",-1);
-        if (p.length!=3) throw new IllegalArgumentException("bad "+key+"="+text);
-        try {
-            int id=Integer.parseInt(p[0]), qty=Integer.parseInt(p[1]), tab=Integer.parseInt(p[2]);
-            if (id<0 || qty<0) throw new IllegalArgumentException("bad "+key+"="+text);
-            return new Stack(id,qty,tab);
-        } catch (NumberFormatException e) { throw new IllegalArgumentException("bad "+key+"="+text,e); }
-    }
 
     /**
      * Generic localhost item spawn foundation. Every id present in the embedded
