@@ -2,6 +2,8 @@ package spk.local;
 
 /** Canonical player-owned combat scheduler state, independent of the connection wrapper. */
 final class CombatState {
+    final java.util.ArrayDeque<CombatHitScheduler.PendingHit> pendingHits=
+        new java.util.ArrayDeque<>();
     int targetSceneIndex=-1;
     int targetDefinitionId=-1;
     CombatContext context;
@@ -17,6 +19,10 @@ final class CombatState {
         requestedAtMs=now; this.pendingRange=pendingRange; this.readyEmitted=false;
         nextAttackTick=0; lastAttackTick=-1; attackCount=0;
     }
+    /**
+     * Clears target/attack-cycle ownership only. Already-launched pending hits are
+     * deliberately independent and remain scheduled.
+     */
     void clear(){ targetSceneIndex=-1; targetDefinitionId=-1; context=null; requestedAtMs=0L; pendingRange=false; readyEmitted=false; nextAttackTick=0; lastAttackTick=-1; attackCount=0; }
     boolean active(){ return targetSceneIndex>=0 && context!=null; }
 }
