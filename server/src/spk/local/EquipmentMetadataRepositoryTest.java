@@ -35,6 +35,11 @@ public final class EquipmentMetadataRepositoryTest {
         if (EquipmentMetadataRepository.resolve(28524) != null)
             throw new AssertionError("scythe kit incorrectly resolved as equipment");
 
+        EquipmentMetadataRepository.Meta runePouch = EquipmentMetadataRepository.resolve(27475);
+        if (runePouch == null || runePouch.slot != EquipmentSlot.AMMO)
+            throw new AssertionError("data-backed override 27475=" + (runePouch == null ? "null" : runePouch.slot));
+        if (!EquipmentMetadataRepository.resolutionEvidence(27475).contains("CURRENT_ITEM_AMBIGUITY_OVERRIDE"))
+            throw new AssertionError("override provenance=" + EquipmentMetadataRepository.resolutionEvidence(27475));
         // v5.2 generic clone/equipClone slot inheritance fixtures.
         EquipmentMetadataRepository.Meta ultimate = EquipmentMetadataRepository.resolve(27034);
         if (ultimate == null || ultimate.slot != EquipmentSlot.HEAD || ultimate.coverage != EquipmentMetadataRepository.Coverage.FULL_HELM)
@@ -54,6 +59,6 @@ public final class EquipmentMetadataRepositoryTest {
                          + " bloodrendSlot=WEAPON twoHanded=true scytheProfileReusable=true"
                          + " pose7=15692,823,1146,820,821,822,1210 specificMask=0x7f complete=true"
                          + " ultimate27034=HEAD_via_equipClone21724 wanderer27486=FEET_via_clone22830 dyedVitur24023=WEAPON_via_clone21566_scythePose"
-                         + " wieldCape21026ResolvedCAPE=true scytheKit28524Rejected=true");
+                         + " wieldCape21026ResolvedCAPE=true scytheKit28524Rejected=true override27475DataBackedAMMO=true");
     }
 }
