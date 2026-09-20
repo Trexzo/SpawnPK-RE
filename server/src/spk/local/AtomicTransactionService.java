@@ -84,7 +84,7 @@ final class AtomicTransactionService {
         String owner=requireText(ownerRef,"ownerRef");
         String ref=requireText(reference,"reference");
         if(sourceAuthority==null)throw new NullPointerException("sourceAuthority");
-        TransactionId id=new TransactionId(transactionSequence.incrementAndGet());
+        TransactionId id=nextTransactionId();
         transactions.put(id,new Transaction(id,owner,ref,sourceAuthority));
         return id;
     }
@@ -100,9 +100,11 @@ final class AtomicTransactionService {
             if(asset==null)throw new NullPointerException("asset");
             checked.add(asset);
         }
+        ArrayList<Reservation> pending=new ArrayList<>(checked.size());
         for(EscrowAsset asset:checked){
-            t.reservations.add(new Reservation(new EscrowId(escrowSequence.incrementAndGet()),asset));
+            pending.add(new Reservation(nextEscrowId(),asset));
         }
+        t.reservations.addAll(pending);
         t.state=TransactionState.RESERVED;
         return snapshot(t);
     }
@@ -127,6 +129,18 @@ final class AtomicTransactionService {
     synchronized Snapshot snapshot(TransactionId id){return snapshot(required(id));}
 
     synchronized int size(){return transactions.size();}
+
+    private TransactionId nextTransactionId(){
+        long value=transactionSequence.incrementAndGet();
+        if(value<=0)throw new IllegalStateException("transaction id sequence exhausted");
+        return new TransactionId(value);
+    }
+
+    private EscrowId nextEscrowId(){
+        long value=escrowSequence.incrementAndGet();
+        if(value<=0)throw new IllegalStateException("escrow id sequence exhausted");
+        return new EscrowId(value);
+    }
 
     private Transaction required(TransactionId id){
         if(id==null)throw new NullPointerException("transactionId");
