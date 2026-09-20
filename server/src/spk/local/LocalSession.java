@@ -1141,6 +1141,19 @@ final class LocalSession implements Runnable {
     }
 
 
+    /** Legacy package-level test seam; ownership now lives in LocalPetDropPickupHandler. */
+    static boolean isPetPickupAction(
+        NpcAction a,
+        NpcEntity pet,
+        PetState petState
+    ){
+        return LocalPetDropPickupHandler.isPetPickupAction(
+            a,
+            pet,
+            petState
+        );
+    }
+
     static boolean isCombatAttackAction(NpcAction a,NpcEntity clicked){
         return a!=null && a.opcode==72 && clicked!=null && CombatTargetRepository.isCombatDummy(clicked.definitionId);
     }
