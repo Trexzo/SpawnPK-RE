@@ -10,7 +10,6 @@ final class LocalSession implements Runnable {
     private final boolean movementEnabled;
     private final World world;
     private final WorldPlayer worldPlayer;
-    private final PlayerRepository playerRepository;
     private final MovementState movement;
     private final BankState bank;
     private final EquipmentState equipment;
@@ -100,7 +99,6 @@ final class LocalSession implements Runnable {
         this.world = java.util.Objects.requireNonNull(world,"world");
         this.homeWorld = new HomeWorldRuntimePlan(this.world.homeNpcs());
         this.worldPlayer = new WorldPlayer();
-        this.playerRepository = new FilePlayerRepository();
         this.movement = worldPlayer.movement();
         this.bank = worldPlayer.bank();
         this.equipment = worldPlayer.equipment();
@@ -706,7 +704,6 @@ final class LocalSession implements Runnable {
         this.playerInitializer = new LocalSessionPlayerInitializer(
             world,
             worldPlayer,
-            playerRepository,
             bank,
             equipment,
             movement,
@@ -857,12 +854,12 @@ final class LocalSession implements Runnable {
         } finally {
             if(worldTickAttached){world.detachTickTarget(worldPlayer.id());worldTickAttached=false;}
             runtimeBindings.unregister();
+            devPanelCoordinator.closeSession();
+            saveAccountFinal(tag,"SESSION_END");
             if(worldRegistered){
                 boolean removed=world.unregisterPlayer(worldPlayer);worldRegistered=false;
                 System.out.println(tag+"V512_WORLD_UNREGISTER playerId="+worldPlayer.id()+" removed="+removed+" members="+world.players().size()+" queuedCommands="+world.commands().size());
             }
-            devPanelCoordinator.closeSession();
-            synchronized(worldPlayer.mutationLock()){saveAccountQuiet(tag, "SESSION_END");}
         }
     }
 
@@ -993,16 +990,109 @@ final class LocalSession implements Runnable {
                 serverPackets.fixed(134,BootstrapPackets.skill134(skill,playerState.xp(skill),playerState.currentLevel(skill)));
     }
 
-    private void saveAccountQuiet(String tag, String reason) {
-        LocalAccountLifecycle.saveQuiet(
-            username,
-            persistentAccount,
+    private WorldPlayerPersistence.SaveTicket requestAccountSave(
+        String tag,
+        String reason
+    )throws Exception{
+        if(!persistentAccount)
+            return null;
+
+        if(world.pulse().inExecutionContext())
+            return world.persistence().captureAndSave(
+                username,
+                worldPlayer,
+                petAccessoryState.activeItem(),
+                tag,
+                reason
+            );
+
+        final java.util.concurrent.atomic.AtomicReference<
+            WorldPlayerPersistence.SaveTicket
+        > ticket=
+            new java.util.concurrent.atomic.AtomicReference<>();
+
+        world.submitAndWait(
             worldPlayer,
-            playerRepository,
-            petAccessoryState.activeItem(),
-            tag,
-            reason
+            ()->ticket.set(
+                world.persistence().captureAndSave(
+                    username,
+                    worldPlayer,
+                    petAccessoryState.activeItem(),
+                    tag,
+                    reason
+                )
+            ),
+            5_000L
         );
+
+        WorldPlayerPersistence.SaveTicket result=
+            ticket.get();
+
+        if(result==null)
+            throw new IllegalStateException(
+                "world save capture produced no ticket"
+            );
+
+        return result;
+    }
+
+    private void saveAccountQuiet(
+        String tag,
+        String reason
+    ){
+        if(!persistentAccount)
+            return;
+
+        try{
+            requestAccountSave(
+                tag,
+                reason
+            );
+        }catch(Throwable e){
+            System.err.println(
+                tag+
+                "V5123_ACCOUNT_SAVE_FAILED reason="+
+                reason+
+                " profile="+username+
+                " repository="+
+                world.persistence().repositoryName()+
+                " stage=WORLD_CAPTURE_OR_ENQUEUE"+
+                " error="+e
+            );
+        }
+    }
+
+    private void saveAccountFinal(
+        String tag,
+        String reason
+    ){
+        if(!persistentAccount||
+           !worldRegistered)
+            return;
+
+        try{
+            WorldPlayerPersistence.SaveTicket ticket=
+                requestAccountSave(
+                    tag,
+                    reason
+                );
+
+            if(ticket!=null)
+                ticket.completion.get(
+                    5,
+                    java.util.concurrent.TimeUnit.SECONDS
+                );
+        }catch(Throwable e){
+            System.err.println(
+                tag+
+                "V5123_ACCOUNT_FINAL_SAVE_WAIT_FAILED reason="+
+                reason+
+                " profile="+username+
+                " repository="+
+                world.persistence().repositoryName()+
+                " error="+e
+            );
+        }
     }
 
 
