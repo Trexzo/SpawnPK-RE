@@ -41,6 +41,6 @@ jobs:
           )
           foreach ($test in $tests) {
             Write-Host "=== $test ==="
-            java -cp build\classes $test
+            java -cp "build\classes;server\src" $test
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           }
