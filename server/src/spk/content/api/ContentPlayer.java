@@ -16,6 +16,7 @@ public interface ContentPlayer {
     void clearTimedStatuses();
     void setRunEnergy(int value);
     Set<ContentSkill> syncMaintainedPetEffects();
+    boolean maintainedPetEffectActive();
 
     int runEnergy();
     int specialEnergy();
