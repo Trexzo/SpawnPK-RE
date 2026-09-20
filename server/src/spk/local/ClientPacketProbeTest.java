@@ -38,14 +38,17 @@ public final class ClientPacketProbeTest {
         ClientPacketProbe p = new ClientPacketProbe(new ByteArrayInputStream(wire.toByteArray()), new IsaacCipher(seed.clone()), "[test] ");
         if (p.readFirst185() != 185) throw new AssertionError();
         for (int i=0;i<9;i++) if (!p.readNextKnownPacket()) throw new AssertionError("decode stopped at startup packet " + i);
-        MovementRequest m1=p.takeMovement();
-        if (m1==null || m1.opcode!=164 || m1.finalX()!=3087 || m1.finalY()!=3495 || m1.run)
-            throw new AssertionError("first movement decode mismatch: "+m1);
-
         ClientRequest startupCommand=p.takeTypedRequest();
         if(!(startupCommand instanceof CommandClientRequest)||
            !"abc".equals(((CommandClientRequest)startupCommand).command()))
             throw new AssertionError("startup command request="+startupCommand);
+
+        ClientRequest startupMovement=p.takeTypedRequest();
+        if(!(startupMovement instanceof MovementClientRequest))
+            throw new AssertionError("startup movement request="+startupMovement);
+        MovementRequest m1=((MovementClientRequest)startupMovement).movement();
+        if (m1.opcode!=164 || m1.finalX()!=3087 || m1.finalY()!=3495 || m1.run)
+            throw new AssertionError("first movement decode mismatch: "+m1);
 
         if (!p.readNextKnownPacket()) throw new AssertionError("generic 185 decode stopped");
         ClientRequest widgetRequest=p.takeTypedRequest();
@@ -86,12 +89,18 @@ public final class ClientPacketProbeTest {
         if(!(closeRequest instanceof InterfaceCloseClientRequest))
             throw new AssertionError("close130 typed request missing: "+closeRequest);
         if (!p.readNextKnownPacket()) throw new AssertionError("second movement decode stopped");
-        MovementRequest m2=p.takeMovement();
-        if (m2==null || m2.opcode!=164 || m2.finalX()!=3087 || m2.finalY()!=3496 || m2.run)
+        ClientRequest secondMovement=p.takeTypedRequest();
+        if(!(secondMovement instanceof MovementClientRequest))
+            throw new AssertionError("second movement request="+secondMovement);
+        MovementRequest m2=((MovementClientRequest)secondMovement).movement();
+        if (m2.opcode!=164 || m2.finalX()!=3087 || m2.finalY()!=3496 || m2.run)
             throw new AssertionError("second movement decode mismatch: "+m2);
         if (!p.readNextKnownPacket()) throw new AssertionError("minimap movement decode stopped");
-        MovementRequest m3=p.takeMovement();
-        if (m3==null || m3.opcode!=248 || m3.finalX()!=3088 || m3.finalY()!=3496 || m3.telemetry.length!=14)
+        ClientRequest minimapMovement=p.takeTypedRequest();
+        if(!(minimapMovement instanceof MovementClientRequest))
+            throw new AssertionError("minimap movement request="+minimapMovement);
+        MovementRequest m3=((MovementClientRequest)minimapMovement).movement();
+        if (m3.opcode!=248 || m3.finalX()!=3088 || m3.finalY()!=3496 || m3.telemetry.length!=14)
             throw new AssertionError("minimap movement decode mismatch: "+m3);
         if (!p.isAligned() || p.decodedCount()!=18) throw new AssertionError("aligned="+p.isAligned()+" count="+p.decodedCount());
         System.out.println("CLIENT_PACKET_PROBE_V521_PASS decoded=18 aligned=true opcode226Varbyte=true opcode202Fixed0=true opcode36Fixed4=true walk164->widget185->object132->item41->amount208->drag214->close130->walk164->minimap248 telemetry14=preserved");
