@@ -60,6 +60,21 @@ final class RouteFinder {
                     HomeCombatPathfinder.blockedEdgeCount()
                 );
 
+            case HOME_RECOVERED_STATIC_AUTHORITY:
+                return new Result(
+                    request,
+                    HomeCombatPathfinder.route(
+                        request.startX,
+                        request.startY,
+                        request.targetX,
+                        request.targetY,
+                        request.stopRange
+                    ),
+                    "HOME_RECOVERED_STATIC_COLLISION",
+                    HomeCombatPathfinder.blockedTileCount(),
+                    HomeCombatPathfinder.blockedEdgeCount()
+                );
+
             case WORLD_STATIC_AUTHORITY:
                 return new Result(
                     request,
