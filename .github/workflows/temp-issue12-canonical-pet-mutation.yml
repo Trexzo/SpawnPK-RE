@@ -1,0 +1,40 @@
+name: Temporary Issue 12 canonical pet mutation validation
+
+on:
+  push:
+    branches:
+      - refactor/issue-12-canonical-pet-mutation-authority
+
+jobs:
+  validate:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Compile current source tree
+        shell: pwsh
+        run: ./server/build.ps1
+      - name: Run canonical pet mutation authority regression
+        shell: pwsh
+        run: java -cp server/build/classes spk.local.CanonicalPetMutationAuthorityTest
+      - name: Run canonical pet ownership regression
+        shell: pwsh
+        run: java -cp server/build/classes spk.local.WorldPetNpcOwnershipTest
+      - name: Run pet catch-up cadence regression
+        shell: pwsh
+        run: java -cp server/build/classes spk.local.PetCatchupCadenceTest
+      - name: Run pet catch-up scheduler continuity regression
+        shell: pwsh
+        run: java -cp server/build/classes spk.local.PetCatchupSchedulerContinuityTest
+      - name: Run mini-pet subsystem regression
+        shell: pwsh
+        run: java -cp server/build/classes spk.local.MiniPetSubsystemTest
+      - name: Run pet runtime integration regression
+        shell: pwsh
+        run: java -cp server/build/classes spk.local.PetRuntimeIntegrationTest
+      - name: Run canonical remote pet projection regression
+        shell: pwsh
+        run: java -cp server/build/classes spk.local.CanonicalRemotePetProjectionTest
