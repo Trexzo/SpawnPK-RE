@@ -56,6 +56,12 @@ final class WorldPlayerPersistence
         boolean scheduled;
     }
 
+    private static final class DroppedTaskCounts {
+        int saves;
+        int checkpoints;
+        int unknown;
+    }
+
     private static final AtomicLong WORKER_IDS=
         new AtomicLong();
 
@@ -162,27 +168,22 @@ final class WorldPlayerPersistence
         CompletableFuture<Void> future=
             new CompletableFuture<>();
 
-        try{
-            io.execute(
-                ()->write(
-                    saveSequence,
-                    snapshot,
-                    petAccessoryItem,
-                    cleanTag(tag),
-                    cleanReason(reason),
-                    future,
-                    false
-                )
-            );
-        }catch(RejectedExecutionException e){
-            failed.incrementAndGet();
-            future.completeExceptionally(e);
-            logRejected(
-                snapshot,
+        SaveTask task=
+            new SaveTask(
                 saveSequence,
+                snapshot,
+                petAccessoryItem,
                 cleanTag(tag),
                 cleanReason(reason),
-                e
+                future
+            );
+
+        try{
+            io.execute(task);
+        }catch(RejectedExecutionException e){
+            task.reject(
+                e,
+                "IO_BACKPRESSURE"
             );
         }
 
@@ -292,6 +293,10 @@ final class WorldPlayerPersistence
         return checkpointRejected.get();
     }
 
+    long failedCount(){
+        return failed.get();
+    }
+
     int queuedWrites(){
         return io.getQueue().size();
     }
@@ -318,38 +323,19 @@ final class WorldPlayerPersistence
         EntityId playerId,
         CheckpointSlot slot
     ){
-        try{
-            io.execute(
-                ()->drainCheckpoints(
-                    playerId,
-                    slot
-                )
+        CheckpointDrainTask task=
+            new CheckpointDrainTask(
+                playerId,
+                slot
             );
+
+        try{
+            io.execute(task);
         }catch(RejectedExecutionException e){
-            PendingCheckpoint rejected;
-
-            synchronized(checkpointLock){
-                rejected=slot.latest;
-                slot.latest=null;
-                slot.scheduled=false;
-                checkpoints.remove(
-                    playerId,
-                    slot
-                );
-            }
-
-            checkpointRejected.incrementAndGet();
-            failed.incrementAndGet();
-
-            if(rejected!=null)
-                logRejected(
-                    rejected.snapshot,
-                    sequence.incrementAndGet(),
-                    "[world] ",
-                    "AUTOSAVE_TICK_"+
-                        rejected.tick,
-                    e
-                );
+            task.reject(
+                e,
+                "IO_BACKPRESSURE"
+            );
         }
     }
 
@@ -390,6 +376,117 @@ final class WorldPlayerPersistence
                 completion,
                 true
             );
+        }
+    }
+
+    private final class SaveTask
+        implements Runnable {
+
+        private final long saveSequence;
+        private final PlayerSnapshot snapshot;
+        private final int petAccessoryItem;
+        private final String tag;
+        private final String reason;
+        private final CompletableFuture<Void> future;
+
+        SaveTask(
+            long saveSequence,
+            PlayerSnapshot snapshot,
+            int petAccessoryItem,
+            String tag,
+            String reason,
+            CompletableFuture<Void> future
+        ){
+            this.saveSequence=saveSequence;
+            this.snapshot=snapshot;
+            this.petAccessoryItem=petAccessoryItem;
+            this.tag=tag;
+            this.reason=reason;
+            this.future=future;
+        }
+
+        @Override public void run(){
+            write(
+                saveSequence,
+                snapshot,
+                petAccessoryItem,
+                tag,
+                reason,
+                future,
+                false
+            );
+        }
+
+        void reject(
+            RejectedExecutionException error,
+            String stage
+        ){
+            if(!future.completeExceptionally(
+                    error))
+                return;
+
+            failed.incrementAndGet();
+            logRejected(
+                snapshot,
+                saveSequence,
+                tag,
+                reason,
+                stage,
+                error
+            );
+        }
+    }
+
+    private final class CheckpointDrainTask
+        implements Runnable {
+
+        private final EntityId playerId;
+        private final CheckpointSlot slot;
+
+        CheckpointDrainTask(
+            EntityId playerId,
+            CheckpointSlot slot
+        ){
+            this.playerId=playerId;
+            this.slot=slot;
+        }
+
+        @Override public void run(){
+            drainCheckpoints(
+                playerId,
+                slot
+            );
+        }
+
+        void reject(
+            RejectedExecutionException error,
+            String stage
+        ){
+            PendingCheckpoint rejected;
+
+            synchronized(checkpointLock){
+                rejected=slot.latest;
+                slot.latest=null;
+                slot.scheduled=false;
+                checkpoints.remove(
+                    playerId,
+                    slot
+                );
+            }
+
+            checkpointRejected.incrementAndGet();
+            failed.incrementAndGet();
+
+            if(rejected!=null)
+                logRejected(
+                    rejected.snapshot,
+                    sequence.incrementAndGet(),
+                    "[world] ",
+                    "AUTOSAVE_TICK_"+
+                        rejected.tick,
+                    stage,
+                    error
+                );
         }
     }
 
@@ -450,18 +547,81 @@ final class WorldPlayerPersistence
         String reason,
         RejectedExecutionException error
     ){
+        logRejected(
+            snapshot,
+            saveSequence,
+            tag,
+            reason,
+            "IO_BACKPRESSURE",
+            error
+        );
+    }
+
+    private void logRejected(
+        PlayerSnapshot snapshot,
+        long saveSequence,
+        String tag,
+        String reason,
+        String stage,
+        RejectedExecutionException error
+    ){
         System.err.println(
             tag+
             "V5123_ACCOUNT_SAVE_FAILED reason="+reason+
             " profile="+snapshot.username()+
             " repository="+repositoryName()+
             " sequence="+saveSequence+
-            " stage=IO_BACKPRESSURE"+
+            " stage="+stage+
             " queueCapacity="+
                 MAX_PENDING_WRITES+
             " queued="+queuedWrites()+
             " error="+error
         );
+    }
+
+    private DroppedTaskCounts rejectDroppedTasks(
+        List<Runnable> dropped,
+        String stage
+    ){
+        DroppedTaskCounts counts=
+            new DroppedTaskCounts();
+
+        for(Runnable runnable:dropped){
+            RejectedExecutionException error=
+                new RejectedExecutionException(
+                    "persistence "+stage+
+                    " dropped queued task"
+                );
+
+            if(runnable instanceof SaveTask){
+                counts.saves++;
+                ((SaveTask)runnable).reject(
+                    error,
+                    stage
+                );
+                continue;
+            }
+
+            if(runnable instanceof CheckpointDrainTask){
+                counts.checkpoints++;
+                ((CheckpointDrainTask)runnable).reject(
+                    error,
+                    stage
+                );
+                continue;
+            }
+
+            counts.unknown++;
+            failed.incrementAndGet();
+            System.err.println(
+                "[world] V5123_ACCOUNT_SAVE_FAILED "+
+                "stage="+stage+
+                " unknownDroppedTask="+
+                runnable.getClass().getName()
+            );
+        }
+
+        return counts;
     }
 
     private void requireWorldExecutionContext(){
@@ -501,9 +661,11 @@ final class WorldPlayerPersistence
                 List<Runnable> dropped=
                     io.shutdownNow();
 
-                checkpointRejected.addAndGet(
-                    dropped.size()
-                );
+                DroppedTaskCounts counts=
+                    rejectDroppedTasks(
+                        dropped,
+                        "SHUTDOWN_FORCED"
+                    );
 
                 clean=
                     io.awaitTermination(
@@ -514,6 +676,11 @@ final class WorldPlayerPersistence
                 System.err.println(
                     "[world] V5123_PERSISTENCE_SHUTDOWN_FORCED"+
                     " droppedTasks="+dropped.size()+
+                    " droppedSaves="+counts.saves+
+                    " droppedCheckpoints="+
+                        counts.checkpoints+
+                    " droppedUnknown="+
+                        counts.unknown+
                     " cleanAfterForce="+clean+
                     " "+metrics()
                 );
@@ -524,13 +691,20 @@ final class WorldPlayerPersistence
             List<Runnable> dropped=
                 io.shutdownNow();
 
-            checkpointRejected.addAndGet(
-                dropped.size()
-            );
+            DroppedTaskCounts counts=
+                rejectDroppedTasks(
+                    dropped,
+                    "SHUTDOWN_INTERRUPTED"
+                );
 
             System.err.println(
                 "[world] V5123_PERSISTENCE_SHUTDOWN_INTERRUPTED"+
                 " droppedTasks="+dropped.size()+
+                " droppedSaves="+counts.saves+
+                " droppedCheckpoints="+
+                    counts.checkpoints+
+                " droppedUnknown="+
+                    counts.unknown+
                 " "+metrics()
             );
             return;
