@@ -59,12 +59,25 @@ The four certified-only historical class entries and one differing
 `ClientPacketProbe.class` are preserved as sealed-artifact provenance instead
 of being silently injected into current source builds.
 
-Use:
+Use the repository wrappers:
 
 ```powershell
 .\scripts\Build-Server.ps1
 .\RUN_REPO_SELFTEST.ps1
 ```
+
+The server build is now Gradle-backed. Direct Gradle entry points live under
+`server/`:
+
+```powershell
+cd server
+.\gradlew.bat build
+```
+
+`build` compiles with JDK 21 and `--release 11`, verifies class major version
+55, creates `server/build/SpawnPKLocalServer.jar`, and runs the inherited R8.5
+regression task when the externally supplied pinned client JAR is available.
+Use `-PrequireExactClient=true` to make a missing client fixture fatal.
 
 The original `RUN_V5185_FULL_SELFTEST.ps1` remains strict by default and still
 requires the sealed R8.5 outer SHA unless development mode is explicitly
