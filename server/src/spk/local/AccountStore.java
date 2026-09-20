@@ -11,6 +11,9 @@ import java.util.Properties;
  * The LocalLab has one canonical development account (opensrc). The real client
  * may still submit the historical login alias "localtest"; both aliases resolve
  * to the same local account. No production credentials or remote data are used.
+ *
+ * Legacy file I/O remains here for compatibility tests. Schema-v1 gameplay
+ * encoding is owned by PlayerSnapshotSchemaV1.
  */
 final class AccountStore {
     static final String CANONICAL_USERNAME = "opensrc";
@@ -37,15 +40,29 @@ final class AccountStore {
     static String load(BankState bank, EquipmentState equipment, MovementState movement, PetState pet, PlayerState player) throws IOException {
         Path file = accountFile();
         if (!Files.isRegularFile(file)) return "NEW_ACCOUNT_DEFAULTS file=" + file;
-        Properties p = new Properties();
-        try (InputStream in = Files.newInputStream(file)) { p.load(in); }
-        int version = parseInt(p.getProperty("format.version"), -1);
-        if (version != FORMAT_VERSION) throw new IOException("unsupported account format version="+version+" file="+file);
-        bank.loadAccountProperties(p);
-        equipment.loadAccountProperties(p);
-        movement.loadAccountProperties(p);
-        if (pet != null) pet.loadAccountProperties(p);
-        if (player != null) player.loadAccountProperties(p);
+
+        Properties properties = new Properties();
+        try (InputStream in = Files.newInputStream(file)) { properties.load(in); }
+
+        int version = parseInt(properties.getProperty("format.version"), -1);
+        if (version != FORMAT_VERSION)
+            throw new IOException("unsupported account format version="+version+" file="+file);
+
+        PlayerSnapshot snapshot =
+            PlayerSnapshot.fromLegacyProperties(
+                CANONICAL_USERNAME,
+                properties
+            );
+
+        PlayerSnapshotSchemaV1.apply(
+            snapshot.values(),
+            bank,
+            equipment,
+            movement,
+            pet,
+            player
+        );
+
         return "ACCOUNT_LOADED file="+file+" equipment="+equipment.occupiedSlots()
              +" inventory="+bank.inventorySlots()+" bank="+bank.bankSlots()
              +" runEnabled="+movement.persistentRun()+" runEnergy="+movement.runEnergy()
@@ -64,25 +81,39 @@ final class AccountStore {
     static String save(BankState bank, EquipmentState equipment, MovementState movement, PetState pet, PlayerState player) throws IOException {
         Path file = accountFile();
         Files.createDirectories(file.getParent());
-        Properties p = new Properties();
-        p.setProperty("format.version", Integer.toString(FORMAT_VERSION));
-        p.setProperty("username", CANONICAL_USERNAME);
-        p.setProperty("saved.at", Instant.now().toString());
-        bank.saveAccountProperties(p);
-        equipment.saveAccountProperties(p);
-        movement.saveAccountProperties(p);
-        if (pet != null) pet.saveAccountProperties(p);
-        if (player != null) player.saveAccountProperties(p);
+
+        PlayerSnapshot snapshot =
+            new PlayerSnapshot(
+                FORMAT_VERSION,
+                CANONICAL_USERNAME,
+                PlayerSnapshotSchemaV1.capture(
+                    bank,
+                    equipment,
+                    movement,
+                    pet,
+                    player,
+                    0
+                )
+            );
+
+        Properties properties =
+            snapshot.toLegacyProperties();
+
+        properties.setProperty(
+            "saved.at",
+            Instant.now().toString()
+        );
 
         Path tmp = file.resolveSibling(file.getFileName().toString()+".tmp");
         try (OutputStream out = Files.newOutputStream(tmp, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.WRITE)) {
-            p.store(out, "SpawnPK LocalLab localhost account state");
+            properties.store(out, "SpawnPK LocalLab localhost account state");
         }
         try {
             Files.move(tmp, file, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
         } catch (AtomicMoveNotSupportedException e) {
             Files.move(tmp, file, StandardCopyOption.REPLACE_EXISTING);
         }
+
         return "ACCOUNT_SAVED file="+file+" equipment="+equipment.occupiedSlots()
              +" inventory="+bank.inventorySlots()+" bank="+bank.bankSlots()
              +" runEnabled="+movement.persistentRun()+" runEnergy="+movement.runEnergy()
