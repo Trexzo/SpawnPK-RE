@@ -1,0 +1,44 @@
+name: temp-issue150-semantic-timed-effects-ci
+
+on:
+  push:
+    branches:
+      - refactor/issue-150-semantic-timed-effects
+
+jobs:
+  validate:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Canonical server build
+        shell: pwsh
+        run: ./server/build.ps1
+
+      - name: Semantic timed effect foundation
+        shell: pwsh
+        run: |
+          java -cp server/build/SpawnPKLocalServer.jar spk.local.SemanticTimedEffectFoundationTest
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Inherited status and application regressions
+        shell: pwsh
+        run: |
+          $tests = @(
+            'spk.local.PlayerStatusServiceTest',
+            'spk.local.ApplicationUiServiceTest',
+            'spk.local.WorldPulseCommandExecutionTest'
+          )
+
+          foreach ($test in $tests) {
+            Write-Host "=== $test ==="
+            java -cp server/build/SpawnPKLocalServer.jar $test
+            if ($LASTEXITCODE -ne 0) {
+              throw "$test failed with exit code $LASTEXITCODE"
+            }
+          }
