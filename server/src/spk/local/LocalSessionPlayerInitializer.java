@@ -27,6 +27,7 @@ final class LocalSessionPlayerInitializer {
 
     private final World world;
     private final WorldPlayer worldPlayer;
+    private final PlayerRepository playerRepository;
     private final BankState bank;
     private final EquipmentState equipment;
     private final MovementState movement;
@@ -38,6 +39,7 @@ final class LocalSessionPlayerInitializer {
     LocalSessionPlayerInitializer(
         World world,
         WorldPlayer worldPlayer,
+        PlayerRepository playerRepository,
         BankState bank,
         EquipmentState equipment,
         MovementState movement,
@@ -48,6 +50,10 @@ final class LocalSessionPlayerInitializer {
     ){
         this.world=Objects.requireNonNull(world,"world");
         this.worldPlayer=Objects.requireNonNull(worldPlayer,"worldPlayer");
+        this.playerRepository=Objects.requireNonNull(
+            playerRepository,
+            "playerRepository"
+        );
         this.bank=Objects.requireNonNull(bank,"bank");
         this.equipment=Objects.requireNonNull(equipment,"equipment");
         this.movement=Objects.requireNonNull(movement,"movement");
@@ -75,11 +81,8 @@ final class LocalSessionPlayerInitializer {
         LocalAccountLifecycle.LoadResult accountLoad=
             LocalAccountLifecycle.load(
                 account,
-                bank,
-                equipment,
-                movement,
-                petState,
-                playerState,
+                worldPlayer,
+                playerRepository,
                 PetAccessoryAuthority::isAccessory,
                 tag
             );
