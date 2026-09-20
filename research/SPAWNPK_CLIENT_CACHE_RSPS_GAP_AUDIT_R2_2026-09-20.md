@@ -830,6 +830,130 @@ ConstructionPresentationState
 
 but implementation must remain fixture/dev-authority until the missing server rules are independently evidenced.
 
+## R2.1 exact C2S closure: Trading Post text search
+
+The three marketplace text-entry modes are now bytecode-closed.
+
+Current-client input modes:
+
+```
+28  Enter name of item to search
+29  Enter name of player to search
+30  Enter name of item history to search
+```
+
+On submit the client constructs exactly:
+
+```
+::tpsitem <text>
+::tpsuser <text>
+::tpshist <text>
+```
+
+The generic pending-command drain is also exact:
+
+```
+C2S opcode 103
+u8 payloadLength = commandString.length - 1
+ISO-8859-1 text = commandString.substring(2)
+```
+
+Therefore the actual wire command texts are:
+
+```
+tpsitem <text>
+tpsuser <text>
+tpshist <text>
+```
+
+This closes the Trading Post text-search C2S path. Ordinary clickable market controls remain exact C2S185 widget actions.
+
+## R2.1 exact C2S closure: mailbox row/detail actions
+
+The native mailbox creates type-1 action widgets. The current client's type-1 menu builder maps their `Q` action string to menu action 315; menu action 315 serializes:
+
+```
+C2S opcode 185
+u16_be widgetId
+```
+
+Exact mailbox controls recovered:
+
+```
+row i View inbox message = 32026 + (4 * i), i = 0..34
+Delete this message      = 32184
+Deposit items to inventory = 32181
+Deposit items to bank      = 32178
+Refresh icon/control        = 32185
+```
+
+The refresh control intentionally has an empty menu-label string while retaining the same type-1 clickable widget construction.
+
+This means mailbox intent transport can be modeled without inventing a mailbox-specific C2S packet:
+
+```
+MailboxUiIntent
+  VIEW_ROW(index/widget)
+  DELETE_SELECTED
+  DEPOSIT_ATTACHMENTS_INVENTORY
+  DEPOSIT_ATTACHMENTS_BANK
+  REFRESH
+      -> C2S185(widgetId)
+```
+
+Mailbox/coffer top-level entry commands remain:
+
+```
+::mail
+::claimcoffer
+    -> C2S103
+```
+
+The server still owns message contents, attachment ownership, expiry, claim authorization and rewards.
+
+## R2.1 exact C2S closure: construction room selector
+
+The construction room selector creates one actionable `Build <room>` type-5 widget per room.
+
+The type-5 widget builder installs `Q = "Build " + roomName`; the current client maps this widget action to menu action 315, therefore every room selection serializes as:
+
+```
+C2S opcode 185
+u16_be widgetId
+```
+
+Exact actionable room widget IDs:
+
+```
+39879  Parlour
+39883  Garden
+39887  Kitchen
+39891  Dining room
+39895  Workshop
+39899  Bedroom
+39903  Hall - Skill Trophies
+39907  Games Room
+39911  Combat room
+39915  Hall - Quest trophies
+39919  Menagerie
+39923  Study
+39927  Costume room
+39931  Chapel
+39935  Boss portal room
+39939  Formal garden
+39943  Throne room
+39947  Superior garden
+39951  Dungeon - corridor
+39955  Dungeon - junction
+39959  Dungeon - stairs
+39963  Dungeon - pit
+40300  Treasure room
+```
+
+The final jump is deliberate current-client behavior: when the dynamic ID counter reaches `39967`, the builder changes the next room base to `40300`.
+
+This closes the room-selection transport contract. It does **not** prove original-server placement validation, adjacency/graph rules, hotspot semantics, material consumption, persistence or destruction rules.
+
 ## Transport separation confirmed by R2
 
 Do not collapse these systems into one "custom packet" abstraction.
@@ -895,13 +1019,17 @@ Acceptance should require:
 Continue research before opening raid/market/construction gameplay issues:
 
 1. resolve structural targets 22-24, 26, 29-34, 37, 39, 43, 46, 48-49, 57-61, 69-70 to domain owners where possible,
-2. map every raid setup widget ID to exact intent,
-3. recover marketplace text-entry submission payloads, not just button clicks,
-4. map construction room widget IDs and any non-widget command path,
-5. pair mail row actions with exact C2S widget IDs/commands,
-6. pair Daily Money Making Activities target 36 with exact outbound task/teleport controls,
-7. identify whether target 35 popup state is drop-only or a shared damage/block/drop transport,
-8. add packet-level fixtures before any production implementation.
+2. map every raid setup widget ID to exact intent rather than only the major controls,
+3. pair Daily Money Making Activities target 36 with exact outbound task/teleport controls,
+4. identify whether target 35 popup state is drop-only or a shared damage/block/drop transport,
+5. enumerate Item Enchantment Chest outbound actions paired with targets 38/71,
+6. verify whether construction exposes any additional non-widget placement command after room selection,
+7. add packet-level fixtures before any production implementation.
+
+Closed in R2.1:
+- Trading Post text submission: `tpsitem` / `tpsuser` / `tpshist` over C2S103.
+- Mailbox row/delete/deposit/refresh widget actions over C2S185.
+- Construction room-selection widget IDs and C2S185 transport.
 
 ## R2 conclusion
 
