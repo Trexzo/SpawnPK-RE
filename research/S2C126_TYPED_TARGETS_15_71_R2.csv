@@ -19,7 +19,7 @@ target,canonical_name,payload_shape,consumer_or_effect,confidence,notes
 32,PLAYER_ENTITY_RUNTIME_SCALAR,int,"rs/a/k runtime field",HIGH_STRUCTURAL,"domain unresolved"
 33,INDEXED_PLAYER_ENTITY_RUNTIME_SCALAR,"index,int","rs/a/k[] runtime field",HIGH_STRUCTURAL,"domain unresolved"
 34,BOOLEAN_PAIR_KEY_STATE,"int,int","Boolean map keyed by pair",HIGH_STRUCTURAL,"domain unresolved"
-35,DROP_HIT_BLOCK_POPUP_STATE,"int,long,int","popup/drop bar/block drop/hit drop controller",MEDIUM_HIGH,"precise subtype wording unresolved"
+35,COMBAT_HIT_BLOCK_POPUP_UPDATE,"int,long,int","updates S2C255 HIT_DROP_POPUP_EVENT by matching opaque64; amount selects hit/block; style selects prot icon",HIGH,"exact update side of S2C255; opaque64 server identity remains intentionally opaque"
 36,DAILY_MONEY_MAKING_SELECTION,int,"Daily Money Making Activities selected filter/tab/difficulty",HIGH,"Easy/Medium/Hard native UI"
 37,INTEGER_LIST_APPEND,int,"append to client list",HIGH_STRUCTURAL,"domain unresolved"
 38,ITEM_ENCHANTMENT_STAGE,int,"Item Enchantment Chest controller state/stage",HIGH,"native enchantment UI"
