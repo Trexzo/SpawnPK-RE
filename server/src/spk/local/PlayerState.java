@@ -1,7 +1,6 @@
 package spk.local;
 
 import java.util.Arrays;
-import java.util.Properties;
 
 /**
  * Server-owned player state used by the exact current client surfaces.
@@ -71,6 +70,12 @@ final class PlayerState {
         return true;
     }
 
+    void setXp(int skill,int value){
+        if(skill<0 || skill>=COMBAT_SKILL_COUNT)
+            throw new IllegalArgumentException("skill");
+        xp[skill]=Math.max(0,value);
+    }
+
     /**
      * HP-specific world lifecycle mutation. Unlike ordinary skill-level setters,
      * hitpoints must be able to reach zero so death can be represented.
@@ -137,36 +142,6 @@ final class PlayerState {
         for(int v:values) if(v<0 || v>19) return false;
         System.arraycopy(values,0,compSelectors,0,6);
         return true;
-    }
-
-    void saveAccountProperties(Properties p){
-        for(int i=0;i<COMBAT_SKILL_COUNT;i++){
-            p.setProperty("skill."+i+".current",Integer.toString(current[i]));
-            p.setProperty("skill."+i+".xp",Integer.toString(xp[i]));
-        }
-        for(int i=0;i<compSelectors.length;i++)
-            p.setProperty("comp.selector."+i,Integer.toString(compSelectors[i]));
-        p.setProperty("combat.special.energy",Integer.toString(specialEnergy));
-        p.setProperty("status.poison",Integer.toString(poison));
-        p.setProperty("status.venom",Integer.toString(venom));
-        p.setProperty("status.sicken",Integer.toString(sicken));
-        p.setProperty("cosmetic.itemId",Integer.toString(cosmetic.itemId()));
-    }
-
-    void loadAccountProperties(Properties p){
-        for(int i=0;i<COMBAT_SKILL_COUNT;i++){
-            current[i]=boundedInt(p.getProperty("skill."+i+".current"),99,1,255);
-            xp[i]=boundedInt(p.getProperty("skill."+i+".xp"),XP_99,0,Integer.MAX_VALUE);
-        }
-        for(int i=0;i<compSelectors.length;i++)
-            compSelectors[i]=boundedInt(p.getProperty("comp.selector."+i),DEFAULT_COMP_SELECTORS[i],0,19);
-        specialEnergy=boundedInt(p.getProperty("combat.special.energy"),100,0,100);
-        poison=boundedInt(p.getProperty("status.poison"),0,0,Integer.MAX_VALUE);
-        venom=boundedInt(p.getProperty("status.venom"),0,0,Integer.MAX_VALUE);
-        sicken=boundedInt(p.getProperty("status.sicken"),0,0,Integer.MAX_VALUE);
-        int cosmeticItem=boundedInt(p.getProperty("cosmetic.itemId"),-1,-1,65535);
-        if(cosmeticItem>0 && ItemCatalog.isNativePlayerIcon(cosmeticItem)) cosmetic.set(cosmeticItem); else cosmetic.clear();
-        nativeIconItemId=cosmetic.active()?cosmetic.itemId():-1;
     }
 
     String compSelectorSummary(){ return Arrays.toString(compSelectors); }
