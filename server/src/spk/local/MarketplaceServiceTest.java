@@ -11,6 +11,12 @@ public final class MarketplaceServiceTest {
 
         AtomicTransactionService.TransactionId sellerTxn=tx.create("player:alice","fixture-seller-escrow",AtomicTransactionService.SourceAuthority.CUSTOM_LOCALLAB);
         AtomicTransactionService.Snapshot sellerReserved=tx.reserve(sellerTxn,Collections.singletonList(new EscrowAsset(EscrowAsset.Kind.ITEM,"item:fixture_sword",10,"player:alice",AtomicTransactionService.SourceAuthority.CUSTOM_LOCALLAB)));
+        AtomicTransactionService.TransactionId wrongItemEscrowTxn=tx.create("player:alice","fixture-wrong-item-escrow",AtomicTransactionService.SourceAuthority.CUSTOM_LOCALLAB);
+        AtomicTransactionService.Snapshot wrongItemEscrow=tx.reserve(wrongItemEscrowTxn,Collections.singletonList(new EscrowAsset(EscrowAsset.Kind.ITEM,"item:not_the_sword",10,"player:alice",AtomicTransactionService.SourceAuthority.CUSTOM_LOCALLAB)));
+        expect(IllegalArgumentException.class,()->market.createDraft("player:alice","item:fixture_sword",10,1000,"currency:fixture_coins",wrongItemEscrow,AtomicTransactionService.SourceAuthority.CUSTOM_LOCALLAB),"seller escrow wrong item");
+        AtomicTransactionService.TransactionId shortEscrowTxn=tx.create("player:alice","fixture-short-escrow",AtomicTransactionService.SourceAuthority.CUSTOM_LOCALLAB);
+        AtomicTransactionService.Snapshot shortEscrow=tx.reserve(shortEscrowTxn,Collections.singletonList(new EscrowAsset(EscrowAsset.Kind.ITEM,"item:fixture_sword",9,"player:alice",AtomicTransactionService.SourceAuthority.CUSTOM_LOCALLAB)));
+        expect(IllegalArgumentException.class,()->market.createDraft("player:alice","item:fixture_sword",10,1000,"currency:fixture_coins",shortEscrow,AtomicTransactionService.SourceAuthority.CUSTOM_LOCALLAB),"seller escrow short quantity");
         MarketplaceListing.Id listingId=market.createDraft("player:alice","item:fixture_sword",10,1000,"currency:fixture_coins",sellerReserved,AtomicTransactionService.SourceAuthority.CUSTOM_LOCALLAB);
         MarketplaceListing.Snapshot draft=market.snapshot(listingId);
         eq(MarketplaceListing.State.DRAFT,draft.state,"draft state");eq(10L,draft.remainingQuantity,"draft remaining");eq(0L,draft.soldQuantity,"draft sold");eq(sellerTxn,draft.sellerEscrowTransactionId,"escrow ref");
@@ -26,6 +32,10 @@ public final class MarketplaceServiceTest {
         eq(3L,request.quantity,"request qty");eq(3000L,request.totalPrice,"request total");eq("item:fixture_sword",request.itemRef,"request item");
         eq(10L,market.snapshot(listingId).remainingQuantity,"request does not mutate");
 
+        AtomicTransactionService.TransactionId badBuyerTxn=tx.create("player:bob","fixture-wrong-currency",AtomicTransactionService.SourceAuthority.CUSTOM_LOCALLAB);
+        tx.reserve(badBuyerTxn,Collections.singletonList(new EscrowAsset(EscrowAsset.Kind.CURRENCY,"currency:wrong",3000,"player:bob",AtomicTransactionService.SourceAuthority.CUSTOM_LOCALLAB)));
+        AtomicTransactionService.Snapshot badBuyerCommitted=tx.commit(badBuyerTxn);
+        expect(IllegalArgumentException.class,()->market.confirmFill(listingId,"player:bob",3,badBuyerCommitted),"wrong currency settlement");
         AtomicTransactionService.TransactionId bobTxn=tx.create("player:bob","fixture-buyer-settlement",AtomicTransactionService.SourceAuthority.CUSTOM_LOCALLAB);
         tx.reserve(bobTxn,Collections.singletonList(new EscrowAsset(EscrowAsset.Kind.CURRENCY,"currency:fixture_coins",3000,"player:bob",AtomicTransactionService.SourceAuthority.CUSTOM_LOCALLAB)));
         AtomicTransactionService.Snapshot bobCommitted=tx.commit(bobTxn);
@@ -34,6 +44,11 @@ public final class MarketplaceServiceTest {
         eq(7L,market.confirmFill(listingId,"player:bob",3,bobCommitted).remainingQuantity,"idempotent fill");
         expect(IllegalStateException.class,()->market.confirmFill(listingId,"player:bob",2,bobCommitted),"reused settlement mismatch");
         expect(IllegalArgumentException.class,()->market.requestFill(listingId,"player:eve",8),"overfill request");
+        AtomicTransactionService.TransactionId sellerTxn3=tx.create("player:frank","fixture-seller-escrow-3",AtomicTransactionService.SourceAuthority.CUSTOM_LOCALLAB);
+        AtomicTransactionService.Snapshot sellerReserved3=tx.reserve(sellerTxn3,Collections.singletonList(new EscrowAsset(EscrowAsset.Kind.ITEM,"item:fixture_other",3,"player:frank",AtomicTransactionService.SourceAuthority.CUSTOM_LOCALLAB)));
+        MarketplaceListing.Id listing3=market.createDraft("player:frank","item:fixture_other",3,1000,"currency:fixture_coins",sellerReserved3,AtomicTransactionService.SourceAuthority.CUSTOM_LOCALLAB);
+        market.activate(listing3,"player:frank",sellerReserved3);
+        expect(IllegalStateException.class,()->market.confirmFill(listing3,"player:bob",3,bobCommitted),"settlement reused across listings");
 
         AtomicTransactionService.TransactionId carolTxn=tx.create("player:carol","fixture-final-settlement",AtomicTransactionService.SourceAuthority.CUSTOM_LOCALLAB);
         tx.reserve(carolTxn,Collections.singletonList(new EscrowAsset(EscrowAsset.Kind.CURRENCY,"currency:fixture_coins",7000,"player:carol",AtomicTransactionService.SourceAuthority.CUSTOM_LOCALLAB)));
@@ -65,7 +80,7 @@ public final class MarketplaceServiceTest {
 
         eq(MarketplaceListing.State.FILLED,repository.find(listingId).state,"repository latest filled");
         eq(MarketplaceListing.State.CANCELLED,repository.find(listing2).state,"repository latest cancelled");
-        eq(2L,market.size(),"market size");
+        eq(3L,market.size(),"market size");
         assertNoProtocolLeaks(MarketplaceListing.class);assertNoProtocolLeaks(MarketplaceService.class);assertNoProtocolLeaks(MarketplaceListingRepository.class);
         System.out.println("ISSUE165_MARKETPLACE_LIFECYCLE_PASS draft=true escrowGate=true partialFill=true settlementIdempotent=true ownerGuard=true immutableSnapshots=true repository=true protocolIndependent=true listings="+market.size());
     }
