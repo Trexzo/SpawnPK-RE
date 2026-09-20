@@ -72,6 +72,26 @@ final class PlayerState {
     }
 
     /**
+     * HP-specific world lifecycle mutation. Unlike ordinary skill-level setters,
+     * hitpoints must be able to reach zero so death can be represented.
+     */
+    int applyHitpointsDamage(int amount){
+        int requested=Math.max(0,amount);
+        int before=current[HITPOINTS];
+        int after=Math.max(0,before-requested);
+        current[HITPOINTS]=after;
+        return before-after;
+    }
+
+    void restoreHitpointsDefault(){
+        current[HITPOINTS]=99;
+    }
+
+    boolean alive(){
+        return current[HITPOINTS]>0;
+    }
+
+    /**
      * User-requested localhost nurse authority. The client proves presentation,
      * not these server decisions; keep the mechanic explicit here rather than
      * pretending it was recovered from client.jar.
