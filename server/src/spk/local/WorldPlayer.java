@@ -1,14 +1,11 @@
 package spk.local;
 
-import java.util.concurrent.atomic.AtomicLong;
-
 /**
  * Gameplay owner independent of the connection.  R2 deliberately composes the
  * already-certified state classes so ownership can move without rewriting them.
  */
 final class WorldPlayer {
-    private static final AtomicLong IDS=new AtomicLong(1L);
-    private final EntityId entityId=new EntityId(IDS.getAndIncrement());
+    private final EntityId entityId=EntityId.next();
     private final MovementState movement=new MovementState();
     private final BankState bank=new BankState();
     private final EquipmentState equipment=new EquipmentState();
