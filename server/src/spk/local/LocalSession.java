@@ -70,6 +70,7 @@ final class LocalSession implements Runnable {
     private final LocalCommandDispatcher commandDispatcher;
     private final LocalSessionUiActionHandler uiActions;
     private final LocalPetDropPickupHandler petDropPickup;
+    private final LocalMovementRequestHandler movementRequests;
     private SceneUpdatePublisher scenePublisher;
     private ServerPacketWriter sessionPackets;
     private OutboundPacketQueue outboundPackets;
@@ -385,6 +386,34 @@ final class LocalSession implements Runnable {
                     long now
                 ){
                     LocalSession.this.ensurePetFollowScheduled(now);
+                }
+            });
+        this.movementRequests = new LocalMovementRequestHandler(
+            movementEnabled,
+            bank,
+            petDialogs,
+            devPanel,
+            movement,
+            combat,
+            equipment,
+            playerInteractions,
+            petDropPickup,
+            npcs,
+            new LocalMovementRequestHandler.SessionBridge(){
+                @Override public void clearDialogNumberKeys(){
+                    LocalSession.this.clearDialogNumberKeys();
+                }
+
+                @Override public void clearOpponentOverlay(
+                    ServerPacketWriter writer,
+                    String tag,
+                    String reason
+                )throws IOException{
+                    LocalSession.this.clearOpponentOverlay(
+                        writer,
+                        tag,
+                        reason
+                    );
                 }
             });
         if (movementEnabled && !bootstrap) throw new IllegalArgumentException("movement requires bootstrap");
@@ -984,7 +1013,12 @@ final class LocalSession implements Runnable {
     }
 
     static int chebyshev(int x0,int y0,int x1,int y1) {
-        return Math.max(Math.abs(x1-x0),Math.abs(y1-y0));
+        return LocalMovementRequestHandler.chebyshev(
+            x0,
+            y0,
+            x1,
+            y1
+        );
     }
 
     private void acceptPendingItemAction(ClientPacketProbe clientPackets, ServerPacketWriter serverPackets, String tag) throws IOException {
@@ -1378,66 +1412,18 @@ final class LocalSession implements Runnable {
         } catch (Exception e) { return fallback; }
     }
 
-    private void acceptPendingMovement(ClientPacketProbe clientPackets, ServerPacketWriter serverPackets, String tag) throws IOException {
-        MovementRequest req = clientPackets.takeMovement();
-        if (req == null) return;
-        if (!movementEnabled) {
-            System.out.println(tag + "M5_MOVEMENT_REQUEST " + req + " action=OBSERVE_ONLY");
-            return;
-        }
-        boolean bankWasOpen=bank.isOpen();
-        if(bankWasOpen){
-            bank.close(serverPackets);
-            System.out.println(tag+"V5122_BANK_CLOSE_ON_MOVEMENT opcode="+req.opcode+" final="+req.finalX()+","+req.finalY()+" normalInventory3214Refresh=true");
-        }
-        if(petDialogs.hasAnyOpen() || devPanel.isOpen()){
-            serverPackets.fixed(219,new byte[0]);
-            LocalPetInventoryDialogHandler.CloseState petDialogClose=
-                petDialogs.clearAll();
-            boolean mini=petDialogClose.miniConfigWasOpen;
-            boolean color=petDialogClose.petColorWasOpen;
-            boolean accessory=petDialogClose.petAccessoryWasOpen;
-            boolean panel=devPanel.isOpen();
-            devPanel.close();
-            clearDialogNumberKeys();
-            System.out.println(tag+"V5170_DIALOG_CLOSE_ON_MOVEMENT mini="+mini+" petColor="+color+" petAccessory="+accessory+" devPanel="+panel+" opcode="+req.opcode);
-        }
-        int clientStartX=req.waypointCount()>0?req.x[0]:movement.x();
-        int clientStartY=req.waypointCount()>0?req.y[0]:movement.y();
-        int startDrift=chebyshev(movement.x(),movement.y(),clientStartX,clientStartY);
-        if(startDrift>1)
-            System.out.println(tag+"V5123_MOVEMENT_START_DRIFT observeOnly=true clientStart="+clientStartX+","+clientStartY+" authority="+movement.x()+","+movement.y()+" chebyshev="+startDrift+" queuedBefore="+movement.queued()+" final="+req.finalX()+","+req.finalY());
-        long now=System.currentTimeMillis();
-        if(combat.consumeImmediateApproachEcho(req,now)){
-            // The server-owned combat route is already active. Do not let the
-            // stock client's immediate interaction-route echo replace it.
-            System.out.println(tag+"V5123_COMBAT_APPROACH_ECHO_IGNORED "+combat.approachEchoSummary(req)+" weapon="+equipment.weapon()+" authorityWorld="+movement.x()+","+movement.y());
-            return;
-        }
-        if(combat.active()){
-            boolean cancelled=combat.cancelForManualMovement();
-            if(cancelled){
-                // Clear the client-side interaction target as well as server state.
-                // This prevents stale target/facing state from trying to resurrect
-                // the dummy after the player deliberately clicks the ground.
-                serverPackets.varShort(81,CombatSync.player81InteractionOnly(-1));
-                clearOpponentOverlay(serverPackets,tag,"MANUAL_MOVEMENT");
-                System.out.println(tag+"V5123_COMBAT_CANCEL_ON_MANUAL_MOVEMENT final="+req.finalX()+","+req.finalY()+" weapon="+equipment.weapon()+" clientInteractionTarget=CLEAR");
-            }
-        }
-        LocalPlayerInteractionHandler.Cancellation playerCancel=playerInteractions.cancelActive();
-        if(playerCancel.hadAnything()){
-            if(playerCancel.hadFacingInteraction)serverPackets.varShort(81,CombatSync.player81InteractionOnly(-1));
-            System.out.println(tag+"V5141_PLAYER_INTERACTION_CANCEL reason=MANUAL_MOVEMENT clientInteractionTarget="+
-                (playerCancel.hadFacingInteraction?"CLEAR":"UNCHANGED")+" pendingTrade="+playerCancel.hadTrade);
-        }
-        petDropPickup.cancelForMovement(serverPackets,tag);
-        boolean replacingLiveRoute = npcs.pet()!=null && (movement.queued()>0 || npcs.needsFollow(movement));
-        String result = movement.accept(req);
-        String petRouteReset="NONE";
-        if(result.startsWith("ACCEPTED") && replacingLiveRoute)
-            petRouteReset=npcs.onOwnerRouteReplaced();
-        System.out.println(tag + "M5_MOVEMENT_REQUEST " + req + " action=" + result
-                         + " authorityWorld="+movement.x()+","+movement.y()+" petRoute="+petRouteReset);
+    private void acceptPendingMovement(
+        ClientPacketProbe clientPackets,
+        ServerPacketWriter serverPackets,
+        String tag
+    )throws IOException{
+        MovementRequest request=clientPackets.takeMovement();
+        if(request==null)return;
+        movementRequests.handle(
+            request,
+            serverPackets,
+            tag
+        );
     }
+
 }
