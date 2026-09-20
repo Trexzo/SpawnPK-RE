@@ -33,8 +33,26 @@ public final class EngineR3DualSocketVisibilityTest {
 
                 c2=login(loop,ss.getLocalPort(),"opensrc");
                 waitFor(() -> world.players().size()==2,3000,"dual membership");
-                Socket s2=socket(c2);Thread.sleep(700);
-                byte[] p1=drain(s1),p2=drain(s2);
+                Socket s2=socket(c2);
+
+                byte[] p1=awaitContains(
+                    s1,
+                    4000L,
+                    "primary multiplayer payload",
+                    "Attack\n",
+                    "Follow\n",
+                    "Trade with\n",
+                    "src\n"
+                );
+                byte[] p2=awaitContains(
+                    s2,
+                    4000L,
+                    "secondary multiplayer payload",
+                    "Attack\n",
+                    "Follow\n",
+                    "Trade with\n",
+                    "opensrc\n"
+                );
 
                 has(p1,"Attack\n","primary Attack option");
                 has(p1,"Follow\n","primary Follow option");
@@ -74,8 +92,44 @@ public final class EngineR3DualSocketVisibilityTest {
         while(System.currentTimeMillis()<until){int n=in.available();if(n>0){byte[] b=new byte[Math.min(n,8192)];int r=in.read(b);if(r>0){out.write(b,0,r);until=System.currentTimeMillis()+80;}}else Thread.sleep(5);}
         return out.toByteArray();
     }
+    private static byte[] awaitContains(Socket s,long timeout,String label,String... needles)throws Exception{
+        InputStream in=s.getInputStream();
+        ByteArrayOutputStream out=new ByteArrayOutputStream();
+        long end=System.currentTimeMillis()+timeout;
+        byte[] bytes=new byte[0];
+        while(System.currentTimeMillis()<end){
+            int n=in.available();
+            if(n>0){
+                byte[] b=new byte[Math.min(n,8192)];
+                int r=in.read(b);
+                if(r>0){
+                    out.write(b,0,r);
+                    bytes=out.toByteArray();
+                    if(hasAll(bytes,needles))return bytes;
+                }
+            }else Thread.sleep(5);
+        }
+        throw new AssertionError(label+" timeout bytes="+bytes.length+" missing="+missing(bytes,needles));
+    }
+    private static boolean hasAll(byte[] bytes,String... needles){
+        for(String needle:needles)if(!contains(bytes,needle))return false;
+        return true;
+    }
+    private static String missing(byte[] bytes,String... needles){
+        ArrayList<String> missing=new ArrayList<>();
+        for(String needle:needles)if(!contains(bytes,needle))missing.add(needle.replace("\n","\\n"));
+        return missing.toString();
+    }
+    private static boolean contains(byte[] b,String needle){
+        byte[] n=needle.getBytes(StandardCharsets.ISO_8859_1);
+        outer:for(int i=0;i+n.length<=b.length;i++){
+            for(int j=0;j<n.length;j++)if(b[i+j]!=n[j])continue outer;
+            return true;
+        }
+        return false;
+    }
     private static void has(byte[] b,String needle,String label){
-        byte[] n=needle.getBytes(StandardCharsets.ISO_8859_1);outer:for(int i=0;i+n.length<=b.length;i++){for(int j=0;j<n.length;j++)if(b[i+j]!=n[j])continue outer;return;}throw new AssertionError(label+" missing bytes="+b.length);
+        if(!contains(b,needle))throw new AssertionError(label+" missing bytes="+b.length);
     }
     private interface Check{boolean ok();}
     private static void waitFor(Check c,long ms,String label)throws Exception{long end=System.currentTimeMillis()+ms;while(System.currentTimeMillis()<end){if(c.ok())return;Thread.sleep(10);}throw new AssertionError(label+" timeout");}
