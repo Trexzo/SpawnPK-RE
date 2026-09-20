@@ -1,0 +1,48 @@
+name: TEMP Issue 277 Equipstr Socket Reliability CI
+
+on:
+  pull_request:
+    branches:
+      - test/item-library-socket-determinism-chat2
+    paths:
+      - 'server/src/spk/local/EngineR81EquipstrFailClosedSocketTest.java'
+      - '.github/workflows/temp-issue277-equipstr-socket-ci.yml'
+
+jobs:
+  validate:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Temurin JDK 21
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Build server
+        shell: pwsh
+        run: ./server/build.ps1
+
+      - name: Stress equipstr fail-closed socket regression
+        shell: pwsh
+        run: |
+          for ($i = 1; $i -le 15; $i++) {
+            & java -cp server/build/classes spk.local.EngineR81EquipstrFailClosedSocketTest
+            if ($LASTEXITCODE -ne 0) {
+              throw "EngineR81EquipstrFailClosedSocketTest failed iteration=$i exit=$LASTEXITCODE"
+            }
+          }
+
+          Write-Host "ISSUE277_EQUIPSTR_STRESS_PASS iterations=15"
+
+      - name: Run parent item-library guard
+        shell: pwsh
+        run: |
+          & java -cp server/build/classes spk.local.EngineR5ItemLibrarySocketTest
+          if ($LASTEXITCODE -ne 0) {
+            throw "EngineR5ItemLibrarySocketTest failed exit=$LASTEXITCODE"
+          }
+
+          Write-Host "ISSUE277_PARENT_ITEM_LIBRARY_PASS tests=1"
