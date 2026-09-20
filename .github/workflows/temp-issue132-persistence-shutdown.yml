@@ -38,7 +38,7 @@ jobs:
           $tests = @(
             'WorldPlayerPersistenceShutdownTest',
             'WorldAutosaveCheckpointTest',
-            'WorldPlayerPersistenceTest',
+            'WorldPersistenceThreadingTest',
             'PlayerRepositoryFoundationTest',
             'PlayerSnapshotMigrationTest',
             'AccountPersistenceTest',
