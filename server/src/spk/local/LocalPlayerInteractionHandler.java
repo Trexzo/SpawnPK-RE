@@ -13,6 +13,8 @@ final class LocalPlayerInteractionHandler {
     private final WorldPlayer owner;
     private final MovementState movement;
     private final EquipmentState equipment;
+    private final CombatStyleState combatStyles;
+    private final PlayerCombatResolutionService pvpCombat;
 
     private EntityId activeFollow;
     private EntityId activeAttack;
@@ -25,10 +27,54 @@ final class LocalPlayerInteractionHandler {
         MovementState movement,
         EquipmentState equipment
     ){
+        this(
+            world,
+            owner,
+            movement,
+            equipment,
+            owner==null?null:owner.combatStyles(),
+            CombatDamageRules.localLabFallback(),
+            CombatAttackTimingRules.recoveredCompatibility(),
+            owner==null
+                ?CombatSystemHooks.none()
+                :CombatSystemHooks.forPlayer(owner)
+        );
+    }
+
+    LocalPlayerInteractionHandler(
+        World world,
+        WorldPlayer owner,
+        MovementState movement,
+        EquipmentState equipment,
+        CombatStyleState combatStyles,
+        CombatDamageRules damageRules,
+        CombatAttackTimingRules timingRules,
+        CombatSystemHooks systemHooks
+    ){
         this.world=java.util.Objects.requireNonNull(world,"world");
         this.owner=java.util.Objects.requireNonNull(owner,"owner");
         this.movement=java.util.Objects.requireNonNull(movement,"movement");
         this.equipment=java.util.Objects.requireNonNull(equipment,"equipment");
+        this.combatStyles=java.util.Objects.requireNonNull(
+            combatStyles,
+            "combatStyles"
+        );
+        this.pvpCombat=
+            new PlayerCombatResolutionService(
+                owner,
+                java.util.Objects.requireNonNull(
+                    damageRules,
+                    "damageRules"
+                ),
+                java.util.Objects.requireNonNull(
+                    timingRules,
+                    "timingRules"
+                ),
+                java.util.Objects.requireNonNull(
+                    systemHooks,
+                    "systemHooks"
+                )
+            );
     }
 
     String handleResolved(
@@ -66,7 +112,10 @@ final class LocalPlayerInteractionHandler {
                 " world="+target.movement().x()+","+target.movement().y()+
                 " clickFacing=false facingAuthority=FIRST_AUTHORITATIVE_MOVEMENT"+
                 " targetValidity=VALID"+
-                " damage=DEFERRED_SERVER_FORMULA_AUTHORITY";
+                " damageAuthority="+
+                CombatDamageRules.localLabFallback().authority()+
+                " damageFormula="+
+                CombatDamageRules.localLabFallback().formula();
         }
 
         if(action.optionSlot==2){
@@ -282,11 +331,6 @@ final class LocalPlayerInteractionHandler {
         CombatWeaponProfile profile=
             CombatWeaponRepository.resolve(equipment.weapon());
 
-        int speed=
-            profile==null||profile.attackSpeedTicks<=0
-                ?4
-                :profile.attackSpeedTicks;
-
         int animation=
             profile==null?-1:profile.attackAnimation;
 
@@ -305,17 +349,63 @@ final class LocalPlayerInteractionHandler {
             );
         }
 
-        nextAttackTick=worldTick+Math.max(1,speed);
+        CombatStyleRepository.Style style=
+            combatStyles.current(
+                CombatInterfaceRepository.forWeapon(
+                    equipment.weapon()
+                )
+            );
 
-        return "V5131_PLAYER_ATTACK_PRESENTATION target="+target.username()+
+        PlayerCombatResolutionService.Result resolution=
+            pvpCombat.resolveImmediate(
+                target,
+                equipment.weapon(),
+                style,
+                worldTick
+            );
+
+        boolean hpPublished=
+            Player81WorldSync.sendSkillUpdate(
+                world,
+                target,
+                PlayerState.HITPOINTS,
+                target.playerState().xp(
+                    PlayerState.HITPOINTS
+                ),
+                target.playerState().currentLevel(
+                    PlayerState.HITPOINTS
+                )
+            );
+
+        nextAttackTick=
+            worldTick+
+            resolution.nextAttackDelayTicks;
+
+        if(resolution.lifecycle.died){
+            activeAttack=null;
+            movement.clearQueuedPath();
+        }
+
+        return "V5131_PLAYER_ATTACK_RESOLVED target="+target.username()+
             " clientTarget="+targetValue+
             " distance="+Math.max(dx,dy)+
             " range="+range+
             " weapon="+equipment.weapon()+
             " attackAnim="+(animation>=0?animation:"DEFERRED")+
-            " speedTicks="+speed+
-            " damage=DEFERRED_FORMULA_AUTHORITY"+
-            " remoteMaskRelay=true nextAttackTick="+nextAttackTick;
+            " speedTicks="+resolution.nextAttackDelayTicks+
+            " cadenceAuthority="+resolution.timing.cadenceAuthority+
+            " hitDelayTicks="+resolution.timing.hitDelayTicks+
+            " hitDelayAuthority="+resolution.timing.hitDelayAuthority+
+            " damage="+resolution.lifecycle.applied+
+            " damageAuthority="+resolution.damage.authority+
+            " damageFormula="+resolution.damage.formula+
+            " hp="+resolution.lifecycle.hpBefore+
+            "->"+resolution.lifecycle.hpAfter+
+            " targetDied="+resolution.lifecycle.died+
+            " targetHpPacket134="+hpPublished+
+            " systemHooks="+resolution.hooks+
+            " remoteMaskRelay=true nextAttackTick="+
+            (activeAttack==null?"CLEARED_ON_DEATH":Long.toString(nextAttackTick));
     }
 
     Cancellation cancelActive(){
