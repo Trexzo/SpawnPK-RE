@@ -33,7 +33,7 @@ public final class ApplicationUiFixtureServiceTest {
         if(unchangedBytes!=1667)throw new AssertionError("non-Make-X fixture bytes changed: "+unchangedBytes);
         if(!UNCHANGED_FIXTURES_SHA256.startsWith("CAPTURE_")&&!UNCHANGED_FIXTURES_SHA256.equals(unchangedSha))
             throw new AssertionError("non-Make-X fixture snapshot changed expected="+UNCHANGED_FIXTURES_SHA256+" actual="+unchangedSha);
-        if(total!=1783)throw new AssertionError("fixture aggregate bytes changed: "+total);
+        if(total!=1805)throw new AssertionError("fixture aggregate bytes changed: "+total);
 
         verifyMakeXFixtureFraming();
         verifyMakeXTypedEncoderFraming();
@@ -41,7 +41,7 @@ public final class ApplicationUiFixtureServiceTest {
         System.out.println("V5185_APPLICATION_UI_FIXTURES_PASS fixtures="+FIXTURES.length
             +" bytes="+total+" unchangedBytes="+unchangedBytes+" unchangedSha256="+unchangedSha
             +" makeXNativeRoot="+ApplicationUiFixtureService.MAKE_X_FIXTURE_ROOT
-            +" makeXFrames=6 typedOperationFrames=7 exactPayloads=true asyncResourceExcluded=true"
+            +" makeXFrames=8 typedOperationFrames=7 exactPayloads=true baselinePayloadSequencePreserved=true"
             +" productionDataInvented=false");
     }
 
@@ -61,19 +61,16 @@ public final class ApplicationUiFixtureServiceTest {
             throw new AssertionError("authority label lost: "+run.result);
 
         List<Frame> frames=decodeMakeXFixture(run.wire);
-        if(frames.size()!=6)throw new AssertionError("Make-X emitted unexpected frame count: "+frames.size());
+        if(frames.size()!=8)throw new AssertionError("Make-X emitted unexpected frame count: "+frames.size());
 
         expect(frames,0,97,u16(55290));
         expect(frames,1,250,app(2,bytes(0)));
         expect(frames,2,250,app(2,join(bytes(1),nl("LocalLab Make-X fixture"),bytes(1),nl("No production recipe/cost authority"))));
         expect(frames,3,250,app(0,join(bytes(0),i32(4151))));
-        expect(frames,4,250,app(3,join(bytes(0),nl("Local fixture row"))));
-        expect(frames,5,250,app(1,bytes(2)));
-
-        for(int i=1;i<frames.size();i++){
-            if((frames.get(i).body[2]&255)==4)
-                throw new AssertionError("live Make-X fixture must not trigger async resource operation 4");
-        }
+        expect(frames,4,250,app(0,join(bytes(1),i32(20570))));
+        expect(frames,5,250,app(3,join(bytes(0),nl("Local fixture row"))));
+        expect(frames,6,250,app(4,join(bytes(0),nl("npc_1"))));
+        expect(frames,7,250,app(1,bytes(2)));
     }
 
     private static void verifyMakeXTypedEncoderFraming()throws Exception{
