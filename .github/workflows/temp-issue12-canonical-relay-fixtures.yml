@@ -28,7 +28,7 @@ jobs:
         run: java -cp server/build/classes spk.local.WorldHomeNpcOwnershipTest
       - name: Run canonical mask routing regression
         shell: pwsh
-        run: java -cp server/build/classes spk.local.WorldNpcCanonicalMaskRoutingTest
+        run: java -cp server/build/classes spk.local.CanonicalHomeNpcMaskRelayTest
       - name: Run canonical pet mutation regression
         shell: pwsh
-        run: java -cp server/build/classes spk.local.WorldPetNpcMutationAuthorityTest
+        run: java -cp server/build/classes spk.local.CanonicalPetMutationAuthorityTest
