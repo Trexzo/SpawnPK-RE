@@ -146,10 +146,4 @@ final class PlayerState {
 
     String compSelectorSummary(){ return Arrays.toString(compSelectors); }
 
-    private static int boundedInt(String s,int fallback,int min,int max){
-        try{
-            int v=Integer.parseInt(s);
-            return v<min||v>max?fallback:v;
-        }catch(Exception e){return fallback;}
-    }
 }
