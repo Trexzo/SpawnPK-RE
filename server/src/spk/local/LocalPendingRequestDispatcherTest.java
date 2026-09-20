@@ -526,6 +526,21 @@ public final class LocalPendingRequestDispatcherTest {
                 }
             );
 
+            typedWire.write(
+                (57+typedEncoder.nextInt())&255
+            );
+            // item=0 BE-A, targetNpc=0 BE-A,
+            // slot=0 LE, widget=0 BE-A. The semantic handler
+            // must consume it and fail closed on missing inventory source.
+            typedWire.write(
+                new byte[]{
+                    0,(byte)128,
+                    0,(byte)128,
+                    0,0,
+                    0,(byte)128
+                }
+            );
+
             ClientPacketProbe probe=
                 new ClientPacketProbe(
                     new ByteArrayInputStream(
@@ -545,6 +560,11 @@ public final class LocalPendingRequestDispatcherTest {
             if(!probe.readNextKnownPacket())
                 throw new AssertionError(
                     "typed drop fixture decode failed"
+                );
+
+            if(!probe.readNextKnownPacket())
+                throw new AssertionError(
+                    "typed item-on-npc fixture decode failed"
                 );
 
             setPending(
@@ -626,7 +646,7 @@ public final class LocalPendingRequestDispatcherTest {
             System.out.println(
                 "LOCAL_PENDING_REQUEST_DISPATCHER_PASS "+
                 "widgetConsumed=true dropConsumed=true "+
-                "movementConsumed=true "+
+                "itemOnNpcConsumed=true movementConsumed=true "+
                 "runToggleBeforeMovement=true classifierCompatibility=true"
             );
         }finally{
