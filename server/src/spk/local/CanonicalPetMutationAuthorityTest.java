@@ -55,6 +55,11 @@ public final class CanonicalPetMutationAuthorityTest {
             int originX=canonical.x();
             int originY=canonical.y();
 
+            // Spawn establishes the certified Drop-egress breadcrumb. Clear it as
+            // an ordinary route replacement so this regression isolates canonical
+            // catch-up authority rather than testing Drop presentation geometry.
+            npcs.onOwnerRouteReplaced();
+
             // Move only the owner three tiles east. The pet's canonical state remains
             // at the original spawn tile and should be the source for catch-up.
             movement.enterTransientRegion(
