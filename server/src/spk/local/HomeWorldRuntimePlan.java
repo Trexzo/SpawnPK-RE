@@ -50,6 +50,7 @@ final class HomeWorldRuntimePlan {
 
     private final WorldHomeNpcService homeNpcs;
     private final boolean resetOnBootstrap;
+    private final NpcViewIndexMap viewIndexes=new NpcViewIndexMap();
     private final LinkedHashSet<Integer> clientVisibleWorldSceneIndexes=new LinkedHashSet<>();
     private boolean npcBootstrapEstablished;
 
@@ -97,11 +98,17 @@ final class HomeWorldRuntimePlan {
     List<NpcEntity> bootstrapNpcs(int playerX,int playerY) {
         if(resetOnBootstrap)homeNpcs.resetToAnchors();
         else homeNpcs.ensureInitialized();
-        List<NpcEntity> initial=homeNpcs.visibleEntities(playerX,playerY);
+
+        ArrayList<NpcEntity> initial=new ArrayList<>();
+        for(WorldHomeNpcService.VisibleNpc visible:
+            homeNpcs.visibleCanonical(playerX,playerY))
+            initial.add(project(visible));
+
         clientVisibleWorldSceneIndexes.clear();
-        for(NpcEntity n:initial) clientVisibleWorldSceneIndexes.add(n.sceneIndex);
+        for(NpcEntity n:initial)
+            clientVisibleWorldSceneIndexes.add(n.sceneIndex);
         npcBootstrapEstablished=true;
-        return initial;
+        return Collections.unmodifiableList(initial);
     }
 
     /**
@@ -114,12 +121,32 @@ final class HomeWorldRuntimePlan {
 
         List<HomeNpcWorldState.Move> moves=homeNpcs.tick(worldTick);
         LinkedHashMap<Integer,Integer> moved=new LinkedHashMap<>();
-        for(HomeNpcWorldState.Move m:moves) moved.put(m.sceneIndex,m.direction);
+        for(HomeNpcWorldState.Move m:moves){
+            WorldNpc canonical=
+                homeNpcs.canonicalForOrdinal(m.ordinal);
+            if(canonical==null)
+                throw new IllegalStateException(
+                    "missing canonical HOME NPC ordinal "+
+                    m.ordinal
+                );
+            int scene=viewIndexes.bind(
+                canonical.id,
+                HomeNpcRuntimePlan.sceneIndexForOrdinal(
+                    m.ordinal
+                )
+            );
+            moved.put(scene,m.direction);
+        }
 
-        List<NpcEntity> desiredEntities=homeNpcs.visibleEntities(playerX,playerY);
         LinkedHashMap<Integer,NpcEntity> desiredByScene=new LinkedHashMap<>();
-        for(NpcEntity n:desiredEntities){
-            if(desiredByScene.put(n.sceneIndex,n)!=null) throw new IllegalStateException("duplicate HOME scene index "+n.sceneIndex);
+        for(WorldHomeNpcService.VisibleNpc visible:
+            homeNpcs.visibleCanonical(playerX,playerY)){
+            NpcEntity n=project(visible);
+            if(desiredByScene.put(n.sceneIndex,n)!=null)
+                throw new IllegalStateException(
+                    "duplicate HOME scene index "+
+                    n.sceneIndex
+                );
         }
         LinkedHashSet<Integer> desired=new LinkedHashSet<>(desiredByScene.keySet());
 
@@ -138,6 +165,29 @@ final class HomeWorldRuntimePlan {
         clientVisibleWorldSceneIndexes.clear();
         clientVisibleWorldSceneIndexes.addAll(desired);
         return new NpcDelta(worldTick,added,removed,walked,desired,playerX,playerY);
+    }
+
+    private NpcEntity project(
+        WorldHomeNpcService.VisibleNpc visible
+    ){
+        int sceneIndex=viewIndexes.bind(
+            visible.npc.id,
+            HomeNpcRuntimePlan.sceneIndexForOrdinal(
+                visible.ordinal
+            )
+        );
+        return new NpcEntity(
+            sceneIndex,
+            visible.npc.definitionId,
+            visible.npc.x(),
+            visible.npc.y()
+        );
+    }
+
+    Integer sceneIndexForCanonical(
+        EntityId entityId
+    ){
+        return viewIndexes.sceneIndex(entityId);
     }
 
     /** True for the stable scene-index block reserved by WORLD-R3. */
