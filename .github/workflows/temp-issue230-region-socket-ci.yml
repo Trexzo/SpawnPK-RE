@@ -1,0 +1,56 @@
+name: TEMP Issue 230 Region Socket Reliability CI
+
+on:
+  pull_request:
+    branches:
+      - refactor/issue-16-npc-option-registry
+    paths:
+      - 'server/src/spk/local/EngineR6RegionSocketCommandTest.java'
+      - '.github/workflows/temp-issue230-region-socket-ci.yml'
+
+jobs:
+  validate:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Temurin JDK 21
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Build server
+        shell: pwsh
+        run: ./server/build.ps1
+
+      - name: Stress region socket command regression
+        shell: pwsh
+        run: |
+          for ($i = 1; $i -le 20; $i++) {
+            & java -cp server/build/classes spk.local.EngineR6RegionSocketCommandTest
+            if ($LASTEXITCODE -ne 0) {
+              throw "EngineR6RegionSocketCommandTest failed iteration=$i exit=$LASTEXITCODE"
+            }
+          }
+          Write-Host "ISSUE230_REGION_SOCKET_STRESS_PASS iterations=20"
+
+      - name: Run related region regressions
+        shell: pwsh
+        run: |
+          $tests = @(
+            'EngineR6RegionProjectionTest',
+            'EngineR6WorldCollisionAuthorityTest',
+            'LocalRegionStreamHandlerTest',
+            'LocalRegionDevCommandHandlerTest'
+          )
+
+          foreach ($test in $tests) {
+            & java -cp server/build/classes "spk.local.$test"
+            if ($LASTEXITCODE -ne 0) {
+              throw "$test failed with exit code $LASTEXITCODE"
+            }
+          }
+
+          Write-Host "ISSUE230_RELATED_REGION_PASS tests=$($tests.Count)"
