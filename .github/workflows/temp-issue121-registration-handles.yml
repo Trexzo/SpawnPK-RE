@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - refactor/issue-121-content-registration-handles
+  pull_request:
+    branches:
+      - refactor/issue-113-content-npc-scene-boundary
   workflow_dispatch:
 
 permissions:
