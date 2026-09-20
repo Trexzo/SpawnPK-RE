@@ -62,3 +62,15 @@ Hydra proc animation 8236 and GFX 4098 are not used.
 ## Boundary
 
 R3 is a **new composition of existing native model bytes**. It is deliberately no longer a Hydra recolor, but it is not yet a newly-authored raw 3D mesh/model archive. If none of the four candidates is visually good enough, the next lane is true model/cache injection rather than another recolor/compositor tweak.
+
+## Issue #9 manifest migration
+
+The R3 server-side definition is now declarative:
+
+- item -> default pet mapping: `server/data/custom_pet_mappings.tsv`
+- model/animation/GFX candidates: `server/data/custom_asset_manifest.tsv`
+- loader/validation boundary: `CustomAssetManifestRepository`
+
+`VoidglassR3CustomContent` no longer mutates `PetDefinitionRepository` through reflection and no longer owns a hardcoded candidate table.
+
+The retired R2 compositor profile/resource rows were removed. Actual proprietary cache packing remains an external-runtime concern and is not claimed as validated by GitHub CI.
