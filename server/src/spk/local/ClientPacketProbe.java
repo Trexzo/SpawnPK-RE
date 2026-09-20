@@ -41,7 +41,6 @@ final class ClientPacketProbe {
     private final ClientRequestQueue typedRequests=
         new ClientRequestQueue();
     private MovementRequest pendingMovement;
-    private ObjectInteraction pendingObjectInteraction;
     private ItemContainerAction pendingItemAction;
     private NpcAction pendingNpcAction;
     private PlayerAction pendingPlayerAction;
@@ -61,12 +60,6 @@ final class ClientPacketProbe {
     MovementRequest takeMovement() {
         MovementRequest r = pendingMovement;
         pendingMovement = null;
-        return r;
-    }
-
-    ObjectInteraction takeObjectInteraction() {
-        ObjectInteraction r = pendingObjectInteraction;
-        pendingObjectInteraction = null;
         return r;
     }
 
@@ -261,7 +254,24 @@ final class ClientPacketProbe {
                 int worldX = (((body[0] & 0xff) - 128) & 0xff) | ((body[1] & 0xff) << 8);
                 int objectId = ((body[2] & 0xff) << 8) | (body[3] & 0xff);
                 int worldY = ((body[4] & 0xff) << 8) | (((body[5] & 0xff) - 128) & 0xff);
-                pendingObjectInteraction = new ObjectInteraction(opcode, objectId, worldX, worldY);
+
+                offerTypedRequest(
+                    new ObjectInteractionClientRequest(
+                        new ObjectInteraction(
+                            opcode,
+                            objectId,
+                            worldX,
+                            worldY
+                        ),
+                        ClientRequestMetadata.exactCurrent(
+                            132,
+                            "FIXED6_WORLD_X_LE_A_OBJECT_BE_WORLD_Y_BE_A",
+                            "PINNED_CLIENT_MENU_ACTION_502_AND_N_SERIALIZER"
+                        )
+                    ),
+                    opcode
+                );
+
                 System.out.printf("%sCLIENT_PACKET seq=%d opcode=132 len=6 objectAction=true objectId=%d worldX=%d worldY=%d schema=STATIC_EXACT_FIXED6%n",
                                   tag, decodedCount, objectId, worldX, worldY);
                 return true;
