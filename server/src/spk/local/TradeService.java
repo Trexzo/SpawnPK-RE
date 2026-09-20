@@ -22,8 +22,14 @@ final class TradeService {
     }
     static synchronized void unregister(WorldPlayer player){
         if(player==null)return;
-        for(State s:STATES.values()){
-            Context c=s.contexts.get(player.id());if(c!=null){cancel0(s,c,"DISCONNECT",true);s.contexts.remove(player.id());break;}
+        for(Iterator<Map.Entry<World,State>> it=STATES.entrySet().iterator();it.hasNext();){
+            State s=it.next().getValue();
+            Context c=s.contexts.get(player.id());
+            if(c==null)continue;
+            cancel0(s,c,"DISCONNECT",true);
+            s.contexts.remove(player.id());
+            if(s.contexts.isEmpty()&&s.trades.isEmpty())it.remove();
+            break;
         }
     }
     static synchronized String start(World world,WorldPlayer a,WorldPlayer b)throws IOException{
