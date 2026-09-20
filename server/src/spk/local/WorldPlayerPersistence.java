@@ -56,6 +56,135 @@ final class WorldPlayerPersistence
         boolean scheduled;
     }
 
+    private interface ShutdownAwareTask extends Runnable {
+        void droppedOnShutdown();
+        boolean checkpointTask();
+    }
+
+    private final class SaveWriteTask
+        implements ShutdownAwareTask {
+
+        private final long saveSequence;
+        private final PlayerSnapshot snapshot;
+        private final int petAccessoryItem;
+        private final String tag;
+        private final String reason;
+        private final CompletableFuture<Void> future;
+
+        SaveWriteTask(
+            long saveSequence,
+            PlayerSnapshot snapshot,
+            int petAccessoryItem,
+            String tag,
+            String reason,
+            CompletableFuture<Void> future
+        ){
+            this.saveSequence=saveSequence;
+            this.snapshot=snapshot;
+            this.petAccessoryItem=petAccessoryItem;
+            this.tag=tag;
+            this.reason=reason;
+            this.future=future;
+        }
+
+        @Override public void run(){
+            write(
+                saveSequence,
+                snapshot,
+                petAccessoryItem,
+                tag,
+                reason,
+                future,
+                false
+            );
+        }
+
+        @Override public void droppedOnShutdown(){
+            RejectedExecutionException error=
+                new RejectedExecutionException(
+                    "persistence shutdown before save execution"
+                );
+
+            failed.incrementAndGet();
+            future.completeExceptionally(
+                error
+            );
+
+            logShutdownDropped(
+                snapshot,
+                saveSequence,
+                tag,
+                reason,
+                false,
+                error
+            );
+        }
+
+        @Override public boolean checkpointTask(){
+            return false;
+        }
+    }
+
+    private final class CheckpointDrainTask
+        implements ShutdownAwareTask {
+
+        private final EntityId playerId;
+        private final CheckpointSlot slot;
+
+        CheckpointDrainTask(
+            EntityId playerId,
+            CheckpointSlot slot
+        ){
+            this.playerId=playerId;
+            this.slot=slot;
+        }
+
+        @Override public void run(){
+            drainCheckpoints(
+                playerId,
+                slot
+            );
+        }
+
+        @Override public void droppedOnShutdown(){
+            PendingCheckpoint dropped;
+
+            synchronized(checkpointLock){
+                dropped=slot.latest;
+                slot.latest=null;
+                slot.scheduled=false;
+                checkpoints.remove(
+                    playerId,
+                    slot
+                );
+            }
+
+            checkpointRejected.incrementAndGet();
+            failed.incrementAndGet();
+
+            if(dropped!=null){
+                long saveSequence=
+                    sequence.incrementAndGet();
+
+                logShutdownDropped(
+                    dropped.snapshot,
+                    saveSequence,
+                    "[world] ",
+                    "AUTOSAVE_TICK_"+
+                        dropped.tick,
+                    true,
+                    new RejectedExecutionException(
+                        "persistence shutdown before checkpoint execution"
+                    )
+                );
+            }
+        }
+
+        @Override public boolean checkpointTask(){
+            return true;
+        }
+    }
+
     private static final AtomicLong WORKER_IDS=
         new AtomicLong();
 
@@ -162,16 +291,20 @@ final class WorldPlayerPersistence
         CompletableFuture<Void> future=
             new CompletableFuture<>();
 
+        String cleanTag=
+            cleanTag(tag);
+        String cleanReason=
+            cleanReason(reason);
+
         try{
             io.execute(
-                ()->write(
+                new SaveWriteTask(
                     saveSequence,
                     snapshot,
                     petAccessoryItem,
-                    cleanTag(tag),
-                    cleanReason(reason),
-                    future,
-                    false
+                    cleanTag,
+                    cleanReason,
+                    future
                 )
             );
         }catch(RejectedExecutionException e){
@@ -180,8 +313,8 @@ final class WorldPlayerPersistence
             logRejected(
                 snapshot,
                 saveSequence,
-                cleanTag(tag),
-                cleanReason(reason),
+                cleanTag,
+                cleanReason,
                 e
             );
         }
@@ -320,7 +453,7 @@ final class WorldPlayerPersistence
     ){
         try{
             io.execute(
-                ()->drainCheckpoints(
+                new CheckpointDrainTask(
                     playerId,
                     slot
                 )
@@ -464,6 +597,53 @@ final class WorldPlayerPersistence
         );
     }
 
+    private void logShutdownDropped(
+        PlayerSnapshot snapshot,
+        long saveSequence,
+        String tag,
+        String reason,
+        boolean checkpoint,
+        RejectedExecutionException error
+    ){
+        System.err.println(
+            tag+
+            "V5123_ACCOUNT_SAVE_FAILED reason="+reason+
+            " profile="+snapshot.username()+
+            " repository="+repositoryName()+
+            " sequence="+saveSequence+
+            " checkpoint="+checkpoint+
+            " stage=SHUTDOWN_DROPPED"+
+            " error="+error
+        );
+    }
+
+    private int notifyDropped(
+        List<Runnable> dropped
+    ){
+        int explicit=0;
+
+        for(Runnable runnable:dropped){
+            if(runnable instanceof ShutdownAwareTask){
+                ShutdownAwareTask task=
+                    (ShutdownAwareTask)runnable;
+
+                if(!task.checkpointTask())
+                    explicit++;
+
+                task.droppedOnShutdown();
+            }else{
+                failed.incrementAndGet();
+                System.err.println(
+                    "[world] V5123_ACCOUNT_SAVE_FAILED"+
+                    " stage=SHUTDOWN_DROPPED_UNKNOWN"+
+                    " task="+runnable
+                );
+            }
+        }
+
+        return explicit;
+    }
+
     private void requireWorldExecutionContext(){
         if(!world.pulse().inExecutionContext())
             throw new IllegalStateException(
@@ -501,9 +681,10 @@ final class WorldPlayerPersistence
                 List<Runnable> dropped=
                     io.shutdownNow();
 
-                checkpointRejected.addAndGet(
-                    dropped.size()
-                );
+                int droppedExplicit=
+                    notifyDropped(
+                        dropped
+                    );
 
                 clean=
                     io.awaitTermination(
@@ -514,6 +695,7 @@ final class WorldPlayerPersistence
                 System.err.println(
                     "[world] V5123_PERSISTENCE_SHUTDOWN_FORCED"+
                     " droppedTasks="+dropped.size()+
+                    " droppedExplicit="+droppedExplicit+
                     " cleanAfterForce="+clean+
                     " "+metrics()
                 );
@@ -524,13 +706,15 @@ final class WorldPlayerPersistence
             List<Runnable> dropped=
                 io.shutdownNow();
 
-            checkpointRejected.addAndGet(
-                dropped.size()
-            );
+            int droppedExplicit=
+                notifyDropped(
+                    dropped
+                );
 
             System.err.println(
                 "[world] V5123_PERSISTENCE_SHUTDOWN_INTERRUPTED"+
                 " droppedTasks="+dropped.size()+
+                " droppedExplicit="+droppedExplicit+
                 " "+metrics()
             );
             return;
