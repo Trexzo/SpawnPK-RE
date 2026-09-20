@@ -40,6 +40,7 @@ final class LocalWorldTickCoordinator {
     private final CombatStyleState combatStyles;
     private final PetEffectState petEffects;
     private final PlayerStatusService statuses;
+    private final PlayerLifecycleService lifecycle;
     private final NpcRegistry npcs;
     private final HomeWorldRuntimePlan homeWorld;
     private final CombatEngine combat;
@@ -127,6 +128,7 @@ final class LocalWorldTickCoordinator {
         this.combatStyles=Objects.requireNonNull(combatStyles,"combatStyles");
         this.petEffects=Objects.requireNonNull(petEffects,"petEffects");
         this.statuses=Objects.requireNonNull(statuses,"statuses");
+        this.lifecycle=new PlayerLifecycleService(worldPlayer);
         this.npcs=Objects.requireNonNull(npcs,"npcs");
         this.homeWorld=Objects.requireNonNull(homeWorld,"homeWorld");
         this.combat=Objects.requireNonNull(combat,"combat");
@@ -162,6 +164,59 @@ final class LocalWorldTickCoordinator {
                 statusTick+
                 " sharedWorldTick="+worldTick
             );
+        }
+
+        PlayerLifecycleService.TickResult lifecycleTick=
+            lifecycle.tick(worldTick);
+
+        if(lifecycleTick==PlayerLifecycleService.TickResult.RESPAWNED){
+            playerInteractions.clearTargets();
+            TradeService.cancelIfActive(
+                worldPlayer,
+                "PLAYER_RESPAWN"
+            );
+
+            writer.fixed(
+                134,
+                BootstrapPackets.skill134(
+                    PlayerState.HITPOINTS,
+                    worldPlayer.playerState().xp(
+                        PlayerState.HITPOINTS
+                    ),
+                    worldPlayer.playerState().currentLevel(
+                        PlayerState.HITPOINTS
+                    )
+                )
+            );
+
+            regionStreams.reattachHomeForRespawn(
+                writer,
+                tag
+            );
+
+            bridge.saveAccount(
+                tag,
+                "PLAYER_RESPAWN"
+            );
+
+            legacyTickCount++;
+
+            System.out.println(
+                tag+
+                "PLAYER_RESPAWN_APPLIED tick="+
+                worldTick+
+                " hp="+
+                worldPlayer.playerState().currentLevel(
+                    PlayerState.HITPOINTS
+                )+
+                " world="+
+                movement.x()+","+
+                movement.y()+","+
+                movement.plane()+
+                " authority="+
+                PlayerLifecycleService.AUTHORITY
+            );
+            return;
         }
 
         if(regionStreams.maybeStream(writer,tag)){
