@@ -27,6 +27,67 @@ public final class BountyHunterServiceTest {
         BountyHunterService.PlayerId hunter = new BountyHunterService.PlayerId("hunter");
         BountyHunterService.PlayerId target = new BountyHunterService.PlayerId("target");
         BountyHunterService.PlayerId candidate2 = new BountyHunterService.PlayerId("candidate-2");
+        final BountyHunterService.PlayerId outsider = new BountyHunterService.PlayerId("outsider");
+
+        expectIllegalState(new Runnable() {
+            @Override public void run() {
+                service.assignWithPolicy(
+                    new BountyHunterService.AssignmentId("a-policy-outsider"),
+                    hunter,
+                    Arrays.asList(target, candidate2),
+                    new BountyTargetSelectionPolicy() {
+                        @Override public Optional<BountyHunterService.PlayerId> select(
+                            BountyHunterService.PlayerId ignoredHunter,
+                            java.util.List<BountyHunterService.PlayerId> candidates
+                        ) {
+                            return Optional.of(outsider);
+                        }
+                    },
+                    1L,
+                    null
+                );
+            }
+        }, "matcher output must belong to supplied candidate set");
+
+        expectIllegalArgument(new Runnable() {
+            @Override public void run() {
+                service.assignWithPolicy(
+                    new BountyHunterService.AssignmentId("a-duplicate-candidates"),
+                    hunter,
+                    Arrays.asList(target, target),
+                    new BountyTargetSelectionPolicy() {
+                        @Override public Optional<BountyHunterService.PlayerId> select(
+                            BountyHunterService.PlayerId ignoredHunter,
+                            java.util.List<BountyHunterService.PlayerId> candidates
+                        ) {
+                            return Optional.of(candidates.get(0));
+                        }
+                    },
+                    2L,
+                    null
+                );
+            }
+        }, "duplicate candidate fails closed");
+
+        expectIllegalArgument(new Runnable() {
+            @Override public void run() {
+                service.assignWithPolicy(
+                    new BountyHunterService.AssignmentId("a-null-candidate"),
+                    hunter,
+                    Arrays.asList(target, (BountyHunterService.PlayerId) null),
+                    new BountyTargetSelectionPolicy() {
+                        @Override public Optional<BountyHunterService.PlayerId> select(
+                            BountyHunterService.PlayerId ignoredHunter,
+                            java.util.List<BountyHunterService.PlayerId> candidates
+                        ) {
+                            return Optional.of(candidates.get(0));
+                        }
+                    },
+                    3L,
+                    null
+                );
+            }
+        }, "null candidate fails closed");
 
         BountyHunterService.AssignmentSnapshot assigned = service.assignWithPolicy(
             new BountyHunterService.AssignmentId("a1"),
@@ -156,7 +217,7 @@ public final class BountyHunterServiceTest {
         );
 
         System.out.println(
-            "ISSUE172_BOUNTY_HUNTER_PASS semanticPlayers=true externalMatcher=true oneOpenAssignment=true " +
+            "ISSUE172_BOUNTY_HUNTER_PASS semanticPlayers=true externalMatcher=true matcherCandidateBoundary=true oneOpenAssignment=true " +
             "assignmentLifecycle=true deadlineHook=true targetUnavailable=true terminalIdempotent=true " +
             "objectiveReferencePort=true duplicateProgress=false taskSkip=true statsSeparate=true " +
             "streakFormulaInvented=false rewardGrant=false teleportMutation=false protocolIndependent=true"
