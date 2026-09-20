@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - fix/issue-132-persistence-shutdown-futures
+  pull_request:
+    branches:
+      - refactor/issue-15-snapshot-v2-migration
   workflow_dispatch:
 
 permissions:
