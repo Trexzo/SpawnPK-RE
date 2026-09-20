@@ -14,7 +14,7 @@ public final class CollisionStepAuthorityCompatibilityTest {
                 3083,3495,0,
                 3084,3495))
             throw new AssertionError(
-                "HOME compatibility policy unexpectedly tightened"
+                "historical HOME compatibility policy changed"
             );
 
         if(CollisionStepAuthority.canStep(
@@ -23,6 +23,15 @@ public final class CollisionStepAuthorityCompatibilityTest {
                 3084,3495))
             throw new AssertionError(
                 "recovered HOME collision failed to block known altar tile"
+            );
+
+        MovementState movement=
+            new MovementState();
+
+        if(CollisionStepAuthority.movementPolicy(movement)!=
+                CollisionStepAuthority.Policy.HOME_RECOVERED_STATIC)
+            throw new AssertionError(
+                "HOME movement is not using recovered static authority"
             );
 
         int[][] samples={
@@ -53,45 +62,12 @@ public final class CollisionStepAuthorityCompatibilityTest {
                 );
         }
 
-        MovementState movement=
-            new MovementState();
-
-        MovementRequest legacyHomePath=
-            new MovementRequest(
-                164,
-                false,
-                new int[]{3083},
-                new int[]{3495},
-                new byte[0]
-            );
-
-        String accepted=
-            movement.accept(legacyHomePath);
-
-        if(!accepted.startsWith("ACCEPTED"))
-            throw new AssertionError(
-                "HOME client-submitted compatibility changed: "+
-                accepted
-            );
-
-        if(movement.queued()!=4)
-            throw new AssertionError(
-                "HOME compatibility queue changed expected=4 actual="+
-                movement.queued()
-            );
-
-        if(CollisionStepAuthority.movementPolicy(movement)!=
-                CollisionStepAuthority.Policy.HOME_CLIENT_SUBMITTED_COMPATIBILITY)
-            throw new AssertionError(
-                "HOME movement policy changed"
-            );
-
         System.out.println(
             "COLLISION_STEP_AUTHORITY_COMPATIBILITY_PASS "+
-            "homeCompatibilityPermissive=true "+
-            "homeRecoveredBlocker=true "+
-            "worldStaticParity=true "+
-            "queued="+movement.queued()
+            "legacyPolicyRetained=true "+
+            "homeMovementPolicy=HOME_RECOVERED_STATIC "+
+            "knownBlocker=true "+
+            "worldStaticParity=true"
         );
     }
 }
