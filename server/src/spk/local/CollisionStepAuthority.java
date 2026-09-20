@@ -9,9 +9,8 @@ package spk.local;
 final class CollisionStepAuthority {
     enum Policy {
         /**
-         * R8.5 HOME ordinary movement compatibility: the client-submitted path
-         * is accepted after loaded-window/adjacency validation. This policy is
-         * intentionally permissive until #13 replaces it under stronger tests.
+         * Historical R8.5 HOME ordinary movement compatibility retained only
+         * for explicit regression/research comparison.
          */
         HOME_CLIENT_SUBMITTED_COMPATIBILITY,
 
@@ -28,7 +27,7 @@ final class CollisionStepAuthority {
 
         return movement.transientRegion()
             ?Policy.WORLD_STATIC
-            :Policy.HOME_CLIENT_SUBMITTED_COMPATIBILITY;
+            :Policy.HOME_RECOVERED_STATIC;
     }
 
     static boolean canStep(
