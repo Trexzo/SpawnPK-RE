@@ -1557,6 +1557,48 @@ No application/UI class used by this R2 audit changed.
 
 Therefore the S2C126/application-action findings in this report remain applicable to the supplied v308 exact-current client. This does **not** replace the repository's pinned-client 179/179 acceptance hash and does not claim that the external suite has been run against v308.
 
+## R2.11 later R5 authority correction: Construction prices are presentation-only and internally inconsistent
+
+A deeper exact-current R5 pass found that the native Construction UI does **not** expose one trustworthy room-cost table.
+
+It contains two separate parallel price representations:
+
+### Client-side comparison thresholds
+
+For the 23 room choices the interface script compares inventory coins against integer thresholds:
+
+```
+1000, 1000, 5000, 5000, 10000, 10000, 15000, 25000, 25000, 25000,
+30000, 50000, 50000, 50000, 100000, 75000, 150000, 150000,
+7500, 7500, 7500, 10000, 250000
+```
+
+These are exact-current client constants used by interface comparison logic.
+
+### Separately rendered GP-price strings
+
+The same 23 rooms render independent visible price strings:
+
+```
+30k, 30k, 150k, 150k, 300k, 300k, 450k, 750k, 750k, 750k,
+900k, 1500k, 1500k, 1500k, 300M, 2250k, 4500k, 500M,
+300k, 300k, 300k, 350k, 1000k
+```
+
+These are displayed as `<img=9> {price} gp`.
+
+The two sets differ substantially.
+
+Therefore the correct provenance is:
+
+- room names = `EXACT_CURRENT_CLIENT`
+- displayed level requirements = `EXACT_CURRENT_CLIENT`
+- integer comparison thresholds = `EXACT_CURRENT_CLIENT`, interface/presentation semantics only
+- rendered GP strings = `EXACT_CURRENT_CLIENT`, presentation only
+- actual server deduction/build cost = `UNKNOWN_SERVER_AUTHORITY`
+
+This supersedes any wording that might imply the client has one authoritative room-cost array.
+
 ## R2 conclusion
 
 The first-pass gap assessment remains directionally correct, but the exact current client exposes a substantially larger recoverable presentation/control surface than R1 captured.
