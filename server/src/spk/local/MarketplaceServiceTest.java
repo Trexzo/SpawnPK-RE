@@ -20,6 +20,8 @@ public final class MarketplaceServiceTest {
         MarketplaceListing.Id listingId=market.createDraft("player:alice","item:fixture_sword",10,1000,"currency:fixture_coins",sellerReserved,AtomicTransactionService.SourceAuthority.CUSTOM_LOCALLAB);
         MarketplaceListing.Snapshot draft=market.snapshot(listingId);
         eq(MarketplaceListing.State.DRAFT,draft.state,"draft state");eq(10L,draft.remainingQuantity,"draft remaining");eq(0L,draft.soldQuantity,"draft sold");eq(sellerTxn,draft.sellerEscrowTransactionId,"escrow ref");
+        expect(IllegalStateException.class,()->market.createDraft("player:alice","item:fixture_sword",10,999,"currency:fixture_coins",sellerReserved,AtomicTransactionService.SourceAuthority.CUSTOM_LOCALLAB),"seller escrow reused across listings");
+        eq(1L,market.size(),"rejected escrow reuse must not create listing");
         expect(SecurityException.class,()->market.activate(listingId,"player:mallory",sellerReserved),"unauthorized activate");
 
         AtomicTransactionService.TransactionId wrongTxn=tx.create("player:alice","fixture-wrong",AtomicTransactionService.SourceAuthority.CUSTOM_LOCALLAB);
@@ -82,7 +84,7 @@ public final class MarketplaceServiceTest {
         eq(MarketplaceListing.State.CANCELLED,repository.find(listing2).state,"repository latest cancelled");
         eq(3L,market.size(),"market size");
         assertNoProtocolLeaks(MarketplaceListing.class);assertNoProtocolLeaks(MarketplaceService.class);assertNoProtocolLeaks(MarketplaceListingRepository.class);
-        System.out.println("ISSUE165_MARKETPLACE_LIFECYCLE_PASS draft=true escrowGate=true partialFill=true settlementIdempotent=true ownerGuard=true immutableSnapshots=true repository=true protocolIndependent=true listings="+market.size());
+        System.out.println("ISSUE165_MARKETPLACE_LIFECYCLE_PASS draft=true escrowGate=true sellerEscrowSingleUse=true partialFill=true settlementIdempotent=true ownerGuard=true immutableSnapshots=true repository=true protocolIndependent=true listings="+market.size());
     }
 
     static final class MemoryRepository implements MarketplaceListingRepository {
