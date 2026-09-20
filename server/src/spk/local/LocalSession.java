@@ -74,6 +74,7 @@ final class LocalSession implements Runnable {
     private final LocalMovementRequestHandler movementRequests;
     private final LocalRegionStreamHandler regionStreams;
     private final LocalWorldTickCoordinator worldTicks;
+    private final LocalPendingRequestDispatcher pendingRequests;
     private SceneUpdatePublisher scenePublisher;
     private ServerPacketWriter sessionPackets;
     private OutboundPacketQueue outboundPackets;
@@ -540,6 +541,98 @@ final class LocalSession implements Runnable {
                     LocalSession.this.ensurePetTestSequenceScheduled(now);
                 }
             });
+        this.pendingRequests = new LocalPendingRequestDispatcher(
+            worldPlayer,
+            bank,
+            equipment,
+            combatStyles,
+            movement,
+            npcs,
+            combat,
+            devPanel,
+            uiActions,
+            commandDispatcher,
+            bankObjectHandler,
+            genericInteractionHandler,
+            equipmentItemActions,
+            petDialogs,
+            compCapeCustomize,
+            itemOnItemHandler,
+            itemOnNpcHandler,
+            spellTargetHandler,
+            petDropPickup,
+            groundItemHandler,
+            playerInteractions,
+            routedNpcHandler,
+            bankRequests,
+            movementRequests,
+            petRealtime,
+            new LocalPendingRequestDispatcher.SessionBridge(){
+                @Override public String username(){
+                    return LocalSession.this.username;
+                }
+
+                @Override public String loginAlias(){
+                    return LocalSession.this.loginAlias;
+                }
+
+                @Override public boolean persistentAccount(){
+                    return LocalSession.this.persistentAccount;
+                }
+
+                @Override public long sessionWorldTick(){
+                    return LocalSession.this.sessionWorldTick;
+                }
+
+                @Override public SceneUpdatePublisher scenePublisher(){
+                    return LocalSession.this.scenePublisher;
+                }
+
+                @Override public Player81WorldSync.Context player81Sync(){
+                    return LocalSession.this.player81Sync;
+                }
+
+                @Override public void saveAccount(
+                    String tag,
+                    String reason
+                ){
+                    LocalSession.this.saveAccountQuiet(tag,reason);
+                }
+
+                @Override public void applyPetDialogResult(
+                    LocalPetInventoryDialogHandler.Result result,
+                    String tag
+                ){
+                    LocalSession.this.applyPetDialogResult(
+                        result,
+                        tag
+                    );
+                }
+
+                @Override public void clearOpponentOverlay(
+                    ServerPacketWriter writer,
+                    String tag,
+                    String reason
+                )throws IOException{
+                    LocalSession.this.clearOpponentOverlay(
+                        writer,
+                        tag,
+                        reason
+                    );
+                }
+
+                @Override public void handleDevPanelAmount(
+                    int value,
+                    ServerPacketWriter writer,
+                    String tag
+                )throws IOException{
+                    LocalSession.this.handleDevPanelAmount(
+                        value,
+                        writer,
+                        tag
+                    );
+                }
+            });
         if (movementEnabled && !bootstrap) throw new IllegalArgumentException("movement requires bootstrap");
     }
 
@@ -827,28 +920,20 @@ final class LocalSession implements Runnable {
         }
     }
 
-    private void processPendingOnWorld(ClientPacketProbe clientPackets,ServerPacketWriter serverPackets,String tag) throws Exception {
-        world.submitAndWait(worldPlayer,()->{
-            acceptPendingInterfaceClose(clientPackets, serverPackets, tag);
-            acceptPendingActions(clientPackets, serverPackets, tag);
-            acceptPendingCommand(clientPackets, serverPackets, tag);
-            acceptPendingObjectInteraction(clientPackets, serverPackets, tag);
-            acceptPendingGenericInteraction(clientPackets, serverPackets, tag);
-            acceptPendingItemAction(clientPackets, serverPackets, tag);
-            acceptPendingItemOnItem(clientPackets, serverPackets, tag);
-            acceptPendingItemOnNpc(clientPackets, serverPackets, tag);
-            acceptPendingSpellTarget(clientPackets, serverPackets, tag);
-            acceptPendingDropItem(clientPackets, serverPackets, tag);
-            acceptPendingGroundItemInteraction(clientPackets, serverPackets, tag);
-            acceptPendingPlayerAction(clientPackets, serverPackets, tag);
-            acceptPendingNpcAction(clientPackets, serverPackets, tag);
-            acceptPendingAmount(clientPackets, serverPackets, tag);
-            acceptPendingContainerDrag(clientPackets, serverPackets, tag);
-            acceptPendingMovement(clientPackets, serverPackets, tag);
-            long now=System.currentTimeMillis();
-            ensurePetFollowScheduled(now);
-            ensurePetTestSequenceScheduled(now);
-        },5_000L);
+    private void processPendingOnWorld(
+        ClientPacketProbe clientPackets,
+        ServerPacketWriter serverPackets,
+        String tag
+    )throws Exception{
+        world.submitAndWait(
+            worldPlayer,
+            ()->pendingRequests.drain(
+                clientPackets,
+                serverPackets,
+                tag
+            ),
+            5_000L
+        );
     }
 
     private void drainOutbound(OutputStream out)throws IOException{
@@ -900,33 +985,6 @@ final class LocalSession implements Runnable {
         petRealtime.ensureTestSequenceScheduled(now);
     }
 
-    private void acceptPendingInterfaceClose(
-        ClientPacketProbe clientPackets,
-        ServerPacketWriter serverPackets,
-        String tag
-    )throws IOException{
-        if(!clientPackets.takeInterfaceClose())return;
-        uiActions.handleInterfaceClose(
-            clientPackets.isAligned(),
-            serverPackets,
-            tag
-        );
-    }
-
-    private void acceptPendingActions(
-        ClientPacketProbe clientPackets,
-        ServerPacketWriter serverPackets,
-        String tag
-    )throws IOException{
-        Integer widget=clientPackets.takeWidgetAction();
-        if(widget==null)return;
-        uiActions.handleWidget(
-            widget.intValue(),
-            serverPackets,
-            tag
-        );
-    }
-
     private void applyPetDialogResult(
         LocalPetInventoryDialogHandler.Result result,
         String tag
@@ -940,27 +998,6 @@ final class LocalSession implements Runnable {
             clearDialogNumberKeys();
     }
 
-    private void acceptPendingGenericInteraction(ClientPacketProbe clientPackets, ServerPacketWriter serverPackets, String tag) throws IOException {
-        for (GenericInteractionEvent e; (e=R85GenericC2SBridge.take(clientPackets))!=null; ) {
-            String result=genericInteractionHandler.handle(e);
-            if(result!=null)System.out.println(tag+result);
-        }
-    }
-
-    private void acceptPendingObjectInteraction(ClientPacketProbe clientPackets, ServerPacketWriter serverPackets, String tag) throws IOException {
-        ObjectInteraction request=clientPackets.takeObjectInteraction();
-        if(request==null)return;
-        String result=bankObjectHandler.handle(request,serverPackets);
-        if(result!=null)System.out.println(tag+result);
-    }
-
-    private boolean adjacentTo(int x,int y) {
-        return chebyshev(movement.x(),movement.y(),x,y) <= 1;
-    }
-    private boolean onTile(int x,int y) {
-        return movement.x()==x && movement.y()==y;
-    }
-
     static int chebyshev(int x0,int y0,int x1,int y1) {
         return LocalMovementRequestHandler.chebyshev(
             x0,
@@ -969,160 +1006,6 @@ final class LocalSession implements Runnable {
             y1
         );
     }
-
-    private void acceptPendingItemAction(ClientPacketProbe clientPackets, ServerPacketWriter serverPackets, String tag) throws IOException {
-        ItemContainerAction a = clientPackets.takeItemAction();
-        if (a == null) return;
-
-        String tradeItem=TradeService.handleItemAction(worldPlayer,a);
-        if(tradeItem!=null){
-            System.out.println(tag+"V5140_TRADE_ITEM "+a+" result="+tradeItem);
-            return;
-        }
-
-        LocalEquipmentItemActionHandler.Result equipmentAction=
-            equipmentItemActions.handle(a,username,serverPackets);
-        if(equipmentAction!=null){
-            for(String line:equipmentAction.beforeSaveLogs)System.out.println(tag+line);
-            if(equipmentAction.saveReason!=null)saveAccountQuiet(tag,equipmentAction.saveReason);
-            for(String line:equipmentAction.afterSaveLogs)System.out.println(tag+line);
-            return;
-        }
-
-        LocalPetInventoryDialogHandler.Result petDialogItem=
-            petDialogs.handleItemAction(a,serverPackets);
-        if(petDialogItem!=null){
-            applyPetDialogResult(petDialogItem,tag);
-            return;
-        }
-
-        String compCapeItem=
-            compCapeCustomize.handleItemAction(a,serverPackets);
-        if(compCapeItem!=null){
-            System.out.println(tag+compCapeItem);
-            return;
-        }
-
-        String result = bank.apply(a, serverPackets);
-        saveAccountQuiet(tag, "BANK_ITEM_ACTION");
-        System.out.println(tag + "V522_BANK_ITEM_ACTION " + a + " result=" + result + " decoderAligned=true");
-    }
-
-    private void acceptPendingItemOnItem(ClientPacketProbe clientPackets,ServerPacketWriter serverPackets,String tag)throws IOException{
-        ItemOnItemAction a=clientPackets.takeItemOnItem();
-        if(a==null)return;
-        LocalItemOnItemHandler.Result result=itemOnItemHandler.handle(a,serverPackets);
-        if(result.saveReason!=null)saveAccountQuiet(tag,result.saveReason);
-        System.out.println(tag+result.logText);
-    }
-
-    private void acceptPendingItemOnNpc(ClientPacketProbe clientPackets,ServerPacketWriter serverPackets,String tag)throws IOException{
-        ItemOnNpcAction action=clientPackets.takeItemOnNpc();
-        if(action==null)return;
-        LocalItemOnNpcHandler.Result result=itemOnNpcHandler.handle(action,serverPackets);
-        if(result.saveReason!=null)saveAccountQuiet(tag,result.saveReason);
-        System.out.println(tag+result.logText);
-    }
-
-    private void acceptPendingSpellTarget(ClientPacketProbe clientPackets,ServerPacketWriter serverPackets,String tag)throws IOException{
-        SpellTargetRequest req=clientPackets.takeSpellTarget();
-        if(req==null)return;
-        System.out.println(tag+spellTargetHandler.handle(req,serverPackets));
-    }
-
-    private void acceptPendingDropItem(
-        ClientPacketProbe clientPackets,
-        ServerPacketWriter serverPackets,
-        String tag
-    )throws IOException{
-        DropItemAction action=clientPackets.takeDropItem();
-        if(action==null)return;
-        petDropPickup.handleDrop(action,serverPackets,tag);
-    }
-
-    private void acceptPendingGroundItemInteraction(ClientPacketProbe clientPackets,ServerPacketWriter serverPackets,String tag)throws IOException{
-        GroundItemInteraction action=clientPackets.takeGroundItemInteraction();
-        if(action==null)return;
-        applyGroundItemResult(
-            groundItemHandler.handle(action,username,scenePublisher,serverPackets),
-            tag
-        );
-    }
-
-    private void applyGroundItemResult(LocalGroundItemInteractionHandler.Result result,String tag){
-        if(result==null)return;
-        if(result.saveReason!=null)saveAccountQuiet(tag,result.saveReason);
-        System.out.println(tag+result.logText);
-    }
-
-    private void acceptPendingPlayerAction(ClientPacketProbe clientPackets,ServerPacketWriter serverPackets,String tag)throws IOException{
-        PlayerAction a=clientPackets.takePlayerAction();
-        if(a==null)return;
-        if(player81Sync==null){
-            System.out.println(tag+"V5131_PLAYER_ACTION "+a+" result=REJECTED_SYNC_NOT_READY");
-            return;
-        }
-        WorldPlayer target=player81Sync.resolveVisible(a.playerIndex);
-        if(target==null||!target.registered()){
-            System.out.println(tag+"V5131_PLAYER_ACTION "+a+" result=REJECTED_STALE_OR_NOT_VISIBLE");
-            return;
-        }
-        if(combat.active()){
-            boolean cancelled=combat.cancelForManualMovement();
-            if(cancelled)clearOpponentOverlay(serverPackets,tag,"PLAYER_INTERACTION_REPLACES_NPC_COMBAT");
-        }
-        String result=playerInteractions.handleResolved(a,target,player81Sync);
-        if(result!=null)System.out.println(tag+result);
-    }
-
-    private void acceptPendingNpcAction(ClientPacketProbe clientPackets, ServerPacketWriter serverPackets, String tag) throws IOException {
-        NpcAction a=clientPackets.takeNpcAction();
-        if(a==null) return;
-        NpcEntity clicked=npcs.scene(a.sceneIndex);
-        NpcEntity pet=npcs.pet();
-
-        // MAINLINE pet Pick-up is exact current-client opcode155 only.
-        // Attack opcode72 must never despawn a follower merely because the scene
-        // index happens to match the active pet.
-        if(petDropPickup.handlePickupNpcAction(
-            a,
-            serverPackets,
-            tag
-        ))return;
-
-        // Any different NPC interaction supersedes a deferred pet pickup before
-        // a new combat/bank interaction target is assigned.
-        petDropPickup.cancelDeferredForNewNpcAction(a,tag);
-
-        // Exact client exposes Yoshiganger NPC option 3 as Switch-effect, but the production
-        // gameplay transition (Doppel-like vs Yoshi-like functionality) is not recovered.
-        // Fail closed: never synthesize an accessory/intrinsic particle layer as a substitute.
-        if(clicked!=null && clicked==pet && clicked.definitionId==1334 && a.opcode==17){
-            String rr=LocalDevVisualOverrideStore.set("intrinsicfx",null);
-            System.out.println(tag+"V5128_YOSHIGANGER_SWITCH_EFFECT scene="+clicked.sceneIndex+
-                " result=PENDING_FUNCTIONAL_MODE_RECONSTRUCTION visualAccessoryInvented=false bodyGreenPreserved=true overrideReset="+rr);
-            return;
-        }
-
-        // Exact current-client combat entry point is opcode72. opcode155 remains the
-        // ordinary first NPC option (e.g. pet Pick-up). The target definition is
-        // still checked fail-closed, so only the production max-hit dummies enter
-        // the M1 combat harness.
-        if(isCombatAttackAction(a,clicked)){
-            int combatRoot=CombatInterfaceRepository.forWeapon(equipment.weapon());
-            long now=System.currentTimeMillis();
-            String result=combat.request(clicked,movement,equipment.weapon(),now,combatStyles.current(combatRoot),serverPackets);
-            String approach="NONE";
-            if(result.contains("TARGET_DEFERRED_RANGE"))
-                approach=combat.beginServerOwnedApproach(clicked,movement,equipment.weapon(),now);
-            System.out.println(tag+"V5123_COMBAT_REQUEST "+a+" semantic=NPC_ATTACK clicked="+clicked+" result="+result+" approach="+approach);
-            return;
-        }
-
-        String routed=routedNpcHandler.handle(a,clicked,serverPackets);
-        if(routed!=null)System.out.println(tag+routed);
-    }
-
 
     /** Legacy package-level test seam; ownership now lives in LocalPetDropPickupHandler. */
     static boolean isPetPickupAction(
@@ -1137,50 +1020,15 @@ final class LocalSession implements Runnable {
         );
     }
 
-    static boolean isCombatAttackAction(NpcAction a,NpcEntity clicked){
-        return a!=null && a.opcode==72 && clicked!=null && CombatTargetRepository.isCombatDummy(clicked.definitionId);
-    }
-
-    private void acceptPendingAmount(ClientPacketProbe clientPackets, ServerPacketWriter serverPackets, String tag) throws IOException {
-        Integer amount = clientPackets.takeAmount();
-        if (amount == null) return;
-        if(devPanel.hasPending()){
-            handleDevPanelAmount(amount.intValue(),serverPackets,tag);
-            return;
-        }
-        LocalBankRequestHandler.Result result=bankRequests.handleAmount(amount.intValue(),serverPackets);
-        if(result.saveReason!=null)saveAccountQuiet(tag,result.saveReason);
-        System.out.println(tag+result.logText+" decoderAligned="+clientPackets.isAligned());
-    }
-
-    private void acceptPendingContainerDrag(ClientPacketProbe clientPackets, ServerPacketWriter serverPackets, String tag) throws IOException {
-        ContainerDrag d = clientPackets.takeContainerDrag();
-        if (d == null) return;
-        LocalBankRequestHandler.Result result=bankRequests.handleDrag(d,serverPackets);
-        if(result.saveReason!=null)saveAccountQuiet(tag,result.saveReason);
-        System.out.println(tag+result.logText+" decoderAligned="+clientPackets.isAligned());
-    }
-
-    private void acceptPendingCommand(
-        ClientPacketProbe clientPackets,
-        ServerPacketWriter serverPackets,
-        String tag
-    )throws IOException{
-        String command=clientPackets.takeCommand();
-        if(command==null)return;
-
-        commandDispatcher.handle(
-            command,
-            clientPackets.isAligned(),
-            username,
-            loginAlias,
-            persistentAccount,
-            sessionWorldTick,
-            serverPackets,
-            tag
+    static boolean isCombatAttackAction(
+        NpcAction action,
+        NpcEntity clicked
+    ){
+        return LocalPendingRequestDispatcher.isCombatAttackAction(
+            action,
+            clicked
         );
     }
-
 
     private boolean scopesightActive(){
         return petState.active() && petState.itemId()==ScopesightPetProfile.ITEM_ID && petState.npcId()==ScopesightPetProfile.NPC_ID;
@@ -1359,20 +1207,6 @@ final class LocalSession implements Runnable {
             long v=Math.max(1L,Math.min(1_000_000_000L,base*mul));
             return (int)v;
         } catch (Exception e) { return fallback; }
-    }
-
-    private void acceptPendingMovement(
-        ClientPacketProbe clientPackets,
-        ServerPacketWriter serverPackets,
-        String tag
-    )throws IOException{
-        MovementRequest request=clientPackets.takeMovement();
-        if(request==null)return;
-        movementRequests.handle(
-            request,
-            serverPackets,
-            tag
-        );
     }
 
 }
