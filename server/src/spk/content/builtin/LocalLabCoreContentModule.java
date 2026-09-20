@@ -58,7 +58,7 @@ public final class LocalLabCoreContentModule
         context.presentation()
             .runEnergy(100);
         context.presentation()
-            .percentageText(149,100);
+            .specialEnergy(100);
         context.presentation()
             .animationAndGfx(
                 10184,

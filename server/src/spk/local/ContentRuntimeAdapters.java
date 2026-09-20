@@ -125,7 +125,7 @@ final class ContentRuntimeAdapters {
                 throw new NullPointerException(
                     "skill"
                 );
-            return skill.protocolIndex();
+            return skillIndex(skill);
         }
 
         private static Set<ContentSkill> skills(
@@ -139,7 +139,7 @@ final class ContentRuntimeAdapters {
             for(ContentSkill skill:
                     ContentSkill.values())
                 if((mask&
-                    (1<<skill.protocolIndex()))!=0)
+                    (1<<skillIndex(skill)))!=0)
                     result.add(skill);
 
             return Collections.unmodifiableSet(
@@ -167,37 +167,45 @@ final class ContentRuntimeAdapters {
             ContentSkill skill,
             int experience,
             int currentLevel
-        )throws IOException{
-            writer.fixed(
-                134,
-                BootstrapPackets.skill134(
-                    skill.protocolIndex(),
-                    experience,
-                    currentLevel
+        ){
+            write(
+                "skill",
+                ()->writer.fixed(
+                    134,
+                    BootstrapPackets.skill134(
+                        skillIndex(skill),
+                        experience,
+                        currentLevel
+                    )
                 )
             );
         }
 
         @Override public void runEnergy(
             int energy
-        )throws IOException{
-            writer.fixed(
-                110,
-                BootstrapPackets.runEnergy110(
-                    energy
+        ){
+            write(
+                "runEnergy",
+                ()->writer.fixed(
+                    110,
+                    BootstrapPackets.runEnergy110(
+                        energy
+                    )
                 )
             );
         }
 
-        @Override public void percentageText(
-            int widgetId,
+        @Override public void specialEnergy(
             int percent
-        )throws IOException{
-            writer.varShort(
-                126,
-                BootstrapPackets.widgetText126(
-                    widgetId,
-                    percent+"%"
+        ){
+            write(
+                "specialEnergy",
+                ()->writer.varShort(
+                    126,
+                    BootstrapPackets.widgetText126(
+                        149,
+                        percent+"%"
+                    )
                 )
             );
         }
@@ -207,16 +215,63 @@ final class ContentRuntimeAdapters {
             int gfxId,
             int gfxHeight,
             int gfxDelay
-        )throws IOException{
-            writer.varShort(
-                81,
-                CombatSync.player81AnimationAndGfx(
-                    animationId,
-                    gfxId,
-                    gfxHeight,
-                    gfxDelay
+        ){
+            write(
+                "animationAndGfx",
+                ()->writer.varShort(
+                    81,
+                    CombatSync.player81AnimationAndGfx(
+                        animationId,
+                        gfxId,
+                        gfxHeight,
+                        gfxDelay
+                    )
                 )
             );
+        }
+
+        private void write(
+            String operation,
+            PacketWrite action
+        ){
+            try{
+                action.run();
+            }catch(IOException e){
+                throw new ContentPresentationException(
+                    "content presentation "+
+                    operation+
+                    " failed",
+                    e
+                );
+            }
+        }
+
+        @FunctionalInterface
+        private interface PacketWrite {
+            void run()throws IOException;
+        }
+    }
+
+    private static int skillIndex(
+        ContentSkill skill
+    ){
+        if(skill==null)
+            throw new NullPointerException(
+                "skill"
+            );
+
+        switch(skill){
+            case ATTACK: return 0;
+            case DEFENCE: return 1;
+            case STRENGTH: return 2;
+            case HITPOINTS: return 3;
+            case RANGED: return 4;
+            case PRAYER: return 5;
+            case MAGIC: return 6;
+            default:
+                throw new AssertionError(
+                    "Unhandled ContentSkill "+skill
+                );
         }
     }
 

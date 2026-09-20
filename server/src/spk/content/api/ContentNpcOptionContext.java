@@ -4,7 +4,6 @@ package spk.content.api;
 public interface ContentNpcOptionContext {
     int npcDefinitionId();
     int option();
-    int sceneIndex();
     int worldX();
     int worldY();
 }

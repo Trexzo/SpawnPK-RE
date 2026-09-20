@@ -182,7 +182,6 @@ final class LocalRoutedNpcInteractionHandler {
             contentRegistry.dispatchNpcOption(
                 clicked.definitionId,
                 route.option,
-                clicked.sceneIndex,
                 clicked.x,
                 clicked.y
             );
