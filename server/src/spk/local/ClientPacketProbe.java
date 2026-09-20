@@ -41,7 +41,6 @@ final class ClientPacketProbe {
     private final ClientRequestQueue typedRequests=
         new ClientRequestQueue();
     private MovementRequest pendingMovement;
-    private Integer pendingWidgetAction;
     private ObjectInteraction pendingObjectInteraction;
     private ItemContainerAction pendingItemAction;
     private Integer pendingAmount;
@@ -53,7 +52,6 @@ final class ClientPacketProbe {
     private SpellTargetRequest pendingSpellTarget;
     private GroundItemInteraction pendingGroundItemInteraction;
     private ItemOnNpcAction pendingItemOnNpc;
-    private boolean pendingInterfaceClose;
 
     ClientPacketProbe(InputStream in, IsaacCipher cipher, String tag) {
         this.in = in;
@@ -68,12 +66,6 @@ final class ClientPacketProbe {
         MovementRequest r = pendingMovement;
         pendingMovement = null;
         return r;
-    }
-
-    Integer takeWidgetAction() {
-        Integer w = pendingWidgetAction;
-        pendingWidgetAction = null;
-        return w;
     }
 
     ObjectInteraction takeObjectInteraction() {
@@ -150,12 +142,6 @@ final class ClientPacketProbe {
         return v;
     }
 
-    boolean takeInterfaceClose() {
-        boolean v = pendingInterfaceClose;
-        pendingInterfaceClose = false;
-        return v;
-    }
-
     /** Decode the one login-success packet statically proven in the current client. */
     int readFirst185() throws IOException {
         int encoded = in.read();
@@ -226,7 +212,19 @@ final class ClientPacketProbe {
                 // decoder to pause on later widget actions such as 152.
                 byte[] body = Binary.readExactly(in, 2);
                 int widget = Binary.u16(body, 0);
-                pendingWidgetAction = widget;
+
+                offerTypedRequest(
+                    new WidgetActionClientRequest(
+                        widget,
+                        ClientRequestMetadata.exactCurrent(
+                            185,
+                            "FIXED2_WIDGET_U16_BE",
+                            "PINNED_CLIENT_OPCODE_185_ALL_CALLSITES"
+                        )
+                    ),
+                    opcode
+                );
+
                 System.out.printf("%sCLIENT_PACKET seq=%d opcode=185 len=2 widget=%d schema=STATIC_EXACT_ALL_CALLSITES%n",
                                   tag, decodedCount, widget);
                 return true;
@@ -255,7 +253,16 @@ final class ClientPacketProbe {
                 // Exact pinned-client writer (Client.bQ): fv.a(130) with no payload.
                 // This is emitted when the client closes an interface. v3 paused here,
                 // which made subsequent bank clicks and movement look frozen.
-                pendingInterfaceClose = true;
+                offerTypedRequest(
+                    new InterfaceCloseClientRequest(
+                        ClientRequestMetadata.exactCurrent(
+                            130,
+                            "FIXED0_INTERFACE_CLOSE",
+                            "PINNED_CLIENT_CLIENT_BQ"
+                        )
+                    ),
+                    opcode
+                );
                 System.out.printf("%sCLIENT_PACKET seq=%d opcode=130 len=0 interfaceClose=true schema=STATIC_EXACT_FIXED0%n",
                                   tag, decodedCount);
                 return true;
@@ -506,15 +513,10 @@ final class ClientPacketProbe {
                         )
                     );
 
-                if(!typedRequests.offer(request)){
-                    aligned=false;
-                    throw new IOException(
-                        "CLIENT_REQUEST_QUEUE_FULL capacity="+
-                        typedRequests.capacity()+
-                        " opcode=103 decodedCount="+
-                        decodedCount
-                    );
-                }
+                offerTypedRequest(
+                    request,
+                    opcode
+                );
 
                 System.out.printf("%sCLIENT_PACKET seq=%d opcode=103 len=%d command=%s newline=%s%n",
                                   tag, decodedCount, len, quote(text), newline);
@@ -727,6 +729,22 @@ final class ClientPacketProbe {
     private static int beA(byte[] b,int o){ return ((b[o]&255)<<8)|(((b[o+1]&255)-128)&255); }
     private static int leA(byte[] b,int o){ return (((b[o]&255)-128)&255)|((b[o+1]&255)<<8); }
     private static int be32(byte[] b,int o){ return ((b[o]&255)<<24)|((b[o+1]&255)<<16)|((b[o+2]&255)<<8)|(b[o+3]&255); }
+
+    private void offerTypedRequest(
+        ClientRequest request,
+        int opcode
+    )throws IOException{
+        if(typedRequests.offer(request))
+            return;
+
+        aligned=false;
+        throw new IOException(
+            "CLIENT_REQUEST_QUEUE_FULL capacity="+
+            typedRequests.capacity()+
+            " opcode="+opcode+
+            " decodedCount="+decodedCount
+        );
+    }
 
     private int readU8() throws IOException {
         int v = in.read();
