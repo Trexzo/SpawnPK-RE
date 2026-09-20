@@ -198,22 +198,18 @@ public final class PlayerInteractionRouteFinderTest {
         int x,
         int y
     ){
-        Properties properties=
-            new Properties();
-        properties.setProperty(
-            "movement.worldX",
-            Integer.toString(x)
-        );
-        properties.setProperty(
-            "movement.worldY",
-            Integer.toString(y)
-        );
-        properties.setProperty(
-            "movement.plane",
-            "0"
-        );
-        movement.loadAccountProperties(
-            properties
+        SortedMap<String,String> values=
+            PersistenceSchemaTestSupport.values(
+                "movement.worldX",
+                Integer.toString(x),
+                "movement.worldY",
+                Integer.toString(y),
+                "movement.plane",
+                "0"
+            );
+        PersistenceSchemaTestSupport.restoreMovement(
+            movement,
+            values
         );
 
         if(movement.x()!=x||
