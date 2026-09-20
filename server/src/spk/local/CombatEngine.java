@@ -15,6 +15,7 @@ final class CombatEngine {
     private final DevAuthorityWorkbench dev;
     private final CombatDamageRules damageRules;
     private final CombatAttackTimingRules timingRules;
+    private final CombatPresentationAdapter presentation;
     private long syntheticTick;
     private int lastDamageThisAction;
     private static final int DUMMY_HP_MAX=255;
@@ -98,6 +99,22 @@ final class CombatEngine {
         CombatDamageRules damageRules,
         CombatAttackTimingRules timingRules
     ){
+        this(
+            state,
+            dev,
+            damageRules,
+            timingRules,
+            new CombatPresentationAdapter()
+        );
+    }
+
+    CombatEngine(
+        CombatState state,
+        DevAuthorityWorkbench dev,
+        CombatDamageRules damageRules,
+        CombatAttackTimingRules timingRules,
+        CombatPresentationAdapter presentation
+    ){
         this.state=java.util.Objects.requireNonNull(
             state,
             "state"
@@ -113,6 +130,10 @@ final class CombatEngine {
         this.timingRules=java.util.Objects.requireNonNull(
             timingRules,
             "timingRules"
+        );
+        this.presentation=java.util.Objects.requireNonNull(
+            presentation,
+            "presentation"
         );
     }
 
@@ -251,17 +272,15 @@ final class CombatEngine {
             attackAnimation=-1;
             animationAuthority="SCORCHING_OBSOLETE_15624_FAIL_CLOSED";
         }
-        boolean runtimeActorGfxPublished=false;
-        if(attackAnimation>=0){
-            if(actorGfx>=0){
-                w.varShort(81,CombatSync.player81AnimationGfxAndInteraction(attackAnimation,actorGfx,0,0,target.sceneIndex));
-                runtimeActorGfxPublished=true;
-            } else {
-                w.varShort(81,CombatSync.player81AnimationAndInteraction(attackAnimation,target.sceneIndex));
-            }
-        } else {
-            w.varShort(81,CombatSync.player81InteractionOnly(target.sceneIndex));
-        }
+        CombatPresentationAdapter.ActorPublication actorPublication=
+            presentation.publishActor(
+                attackAnimation,
+                actorGfx,
+                target,
+                w
+            );
+        boolean runtimeActorGfxPublished=
+            actorPublication.actorGfxPublished;
         CombatDamageRules.Result calculatedDamage=null;
         int damage=0,hitType=-1,hp=DUMMY_HP_MAX;
         if(mechanicsResolved){
@@ -307,30 +326,45 @@ final class CombatEngine {
                 );
 
             if(immediate!=null){
-                String immediatePublication=
-                    publishScheduledHit(
+                CombatPresentationAdapter.HitPublication hitPublication=
+                    presentation.publishHit(
                         immediate,
                         npcs,
                         w
                     );
+                if(hitPublication.published)
+                    lastDamageThisAction=
+                        hitPublication.damage;
+                String immediatePublication=
+                    hitPublication.log;
                 dueHitPublication=
                     dueHitPublication==null
                         ?immediatePublication
                         :dueHitPublication+" "+immediatePublication;
             }
         } else if(targetGfx>=0){
-            // Target-side GFX is direct presentation authority and does not imply a hit.
-            npcs.sendMask(target,NpcSyncEncoder.Mask.gfx(targetGfx,0,0),w);
+            presentation.publishTargetGfx(
+                target,
+                targetGfx,
+                npcs,
+                w
+            );
         }
-        String runtimeProjectilePublication="NONE";
-        if(runtimeBasic && projectileId>=0){
-            runtimeProjectilePublication=V913LiveProjectilePublisher.publish(runtime,movement,target,scene);
-        }
-        boolean runtimeSoundPublished=false;
-        if(runtimeBasic && runtime.hasBasicSound()){
-            w.fixed(174,new PacketPayloadWriter().putU16BE(runtime.soundId).putU16BE(runtime.soundParam2).putU16BE(runtime.soundParam3).toByteArray());
-            runtimeSoundPublished=true;
-        }
+
+        CombatPresentationAdapter.RuntimePublication runtimePresentation=
+            presentation.publishRuntimeEffects(
+                runtimeBasic,
+                projectileId,
+                runtime,
+                movement,
+                target,
+                scene,
+                w
+            );
+        String runtimeProjectilePublication=
+            runtimePresentation.projectilePublication;
+        boolean runtimeSoundPublished=
+            runtimePresentation.soundPublished;
         state.lastAttackTick=worldTick;
         // Cadence and hit delay now come from the explicit timing-rule boundary.
         // Unresolved cadence still emits one presentation and requires a fresh request.
@@ -389,63 +423,18 @@ final class CombatEngine {
         if(due==null)
             return null;
 
-        return publishScheduledHit(
-            due,
-            npcs,
-            w
-        );
-    }
-
-    private String publishScheduledHit(
-        CombatHitScheduler.ScheduledHit hit,
-        NpcRegistry npcs,
-        ServerPacketWriter w
-    )throws IOException{
-        NpcEntity target=
-            npcs.scene(
-                hit.targetSceneIndex
+        CombatPresentationAdapter.HitPublication publication=
+            presentation.publishHit(
+                due,
+                npcs,
+                w
             );
 
-        if(target==null||
-           target.definitionId!=
-                hit.targetDefinitionId){
-            return "M2_HIT_CANCELLED_TARGET_CHANGED scene="+
-                hit.targetSceneIndex+
-                " def="+hit.targetDefinitionId+
-                " scheduledTick="+hit.scheduledTick;
-        }
+        if(publication.published)
+            lastDamageThisAction=
+                publication.damage;
 
-        NpcSyncEncoder.Mask hitMask=
-            NpcSyncEncoder.Mask.singleHit(
-                hit.damage,
-                hit.hitType,
-                hit.hp,
-                hit.hpMax
-            );
-
-        if(hit.targetGfx>=0)
-            hitMask=hitMask.withGfx(
-                hit.targetGfx,
-                0,
-                0
-            );
-
-        npcs.sendMask(
-            target,
-            hitMask,
-            w
-        );
-
-        lastDamageThisAction=
-            hit.damage;
-
-        return "M2_HIT_PUBLISHED scene="+
-            hit.targetSceneIndex+
-            " def="+hit.targetDefinitionId+
-            " damage="+hit.damage+
-            " scheduledTick="+hit.scheduledTick+
-            " damageAuthority="+hit.damageAuthority+
-            " damageFormula="+hit.damageFormula;
+        return publication.log;
     }
 
     String magicFixtureHit(int sceneIndex,SpellDefinitionRepository.Spell spell,NpcRegistry npcs,ServerPacketWriter w)throws IOException{
