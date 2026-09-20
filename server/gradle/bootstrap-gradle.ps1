@@ -21,8 +21,8 @@ if (-not (Test-Path -LiteralPath $selector -PathType Leaf)) {
 
 $cacheRoot = Join-Path ([Environment]::GetFolderPath('UserProfile')) ".gradle\locallab-bootstrap"
 $zip = Join-Path $cacheRoot "gradle-$version-bin.zip"
-$home = Join-Path $cacheRoot "gradle-$version"
-$gradleBat = Join-Path $home 'bin\gradle.bat'
+$gradleHome = Join-Path $cacheRoot "gradle-$version"
+$gradleBat = Join-Path $gradleHome 'bin\gradle.bat'
 
 New-Item -ItemType Directory -Force -Path $cacheRoot | Out-Null
 
@@ -45,8 +45,8 @@ if (-not (Test-Path -LiteralPath $gradleBat -PathType Leaf)) {
         if (-not (Test-Path -LiteralPath $expanded -PathType Container)) {
             throw "Gradle archive did not contain gradle-$version"
         }
-        Remove-Item -LiteralPath $home -Recurse -Force -ErrorAction SilentlyContinue
-        Move-Item -LiteralPath $expanded -Destination $home
+        Remove-Item -LiteralPath $gradleHome -Recurse -Force -ErrorAction SilentlyContinue
+        Move-Item -LiteralPath $expanded -Destination $gradleHome
     }
     finally {
         Remove-Item -LiteralPath $tmp -Recurse -Force -ErrorAction SilentlyContinue
