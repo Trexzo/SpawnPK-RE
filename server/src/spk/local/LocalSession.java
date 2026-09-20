@@ -706,6 +706,7 @@ final class LocalSession implements Runnable {
         this.playerInitializer = new LocalSessionPlayerInitializer(
             world,
             worldPlayer,
+            playerRepository,
             bank,
             equipment,
             movement,
