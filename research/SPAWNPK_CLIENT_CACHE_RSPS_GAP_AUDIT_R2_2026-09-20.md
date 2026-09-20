@@ -274,25 +274,61 @@ The current client applies the active/inactive sprite state used by the native g
 
 Confidence: HIGH.
 
-### 28 - Client deadline/timer
+### 28 - Clan Wars begin countdown
 
-Payload: seconds/milliseconds scalar interpreted as a future deadline relative to current time.
+Target 28 is part of the same renderer gated by exact target-1 controls:
 
-Confidence: HIGH structural.
+```
+ENABLE_CLAN_WARS_OVERLAY
+DISABLE_CLAN_WARS_OVERLAY
+```
 
-### 29 - Two-scalar state
+Payload is parsed as seconds and stored exactly as:
 
-Payload: two integers.
+```
+clanWarsBeginDeadline = now + (payloadSeconds * 1000)
+```
 
-Stored as a pair in client state.
+While active, the overlay renders:
 
-Confidence: HIGH structural.
+```
+Begin in..
+<minutes>:<seconds>
+```
 
-### 30 - Single-scalar state
+Confidence: HIGH.
 
-Payload: one integer.
+### 29 - Clan Wars team/opponent counts
 
-Confidence: HIGH structural.
+Payload:
+
+```
+yourClanCount,opponentCount
+```
+
+The Clan Wars overlay renders the two stored integers directly beneath exact labels:
+
+```
+Your clan
+Opponents
+```
+
+Confidence: HIGH.
+
+### 30 - Clan Wars score-label mode
+
+Payload is one integer consumed by the same Clan Wars overlay.
+
+Exact current rendering:
+
+```
+0       -> Fighters:
+nonzero -> Kills:
+```
+
+This is a presentation-mode flag, not a recovered server scoring rule.
+
+Confidence: HIGH.
 
 ### 31 - Special-attack orb value
 
@@ -698,13 +734,20 @@ Payload passed to the launcher under `SpawnPK RSPS` with an additional Boolean m
 
 Confidence: HIGH.
 
-### 69 - Client text state
+### 69 - Standalone HUD panel text
 
-Payload copied into a dedicated client string field.
+Target 69 stores the payload in `Client.k`.
 
-Domain owner unresolved.
+A whole-JAR reader census finds the only stock consumer in `rs.l.b.b`: when the field is non-null, the client draws a fixed standalone HUD panel and renders the payload verbatim inside it.
 
-Confidence: HIGH structural.
+No feature-specific heading, command token, asset name, or second consumer identifies the originating domain. The honest classification is therefore exact presentation effect with unknown business owner:
+
+```
+GENERIC_HUD_PANEL_TEXT
+feature/domain = UNKNOWN
+```
+
+Confidence: HIGH structural effect / UNKNOWN_SERVER_AUTHORITY domain.
 
 ### 70 - Dormant structured timed state
 
@@ -1365,7 +1408,7 @@ Acceptance should require:
 
 Continue research before opening raid/market/construction gameplay issues:
 
-1. resolve the still-conservative targets 28-30 and 69 only where exact current consumers exist; otherwise retain structural/unknown labels,
+1. no active numeric S2C126 target remains without an exact client effect classification; target 69 intentionally retains UNKNOWN feature/domain ownership despite its exact HUD render effect,
 2. verify whether construction exposes any additional non-widget placement command after room selection,
 3. recover any raid invitation text-entry path if the server requests a player name after the invite widget,
 4. identify the Item Enchantment Search-by-name text submission path if it is client-local rather than server-requested,
@@ -1408,6 +1451,13 @@ Closed in canonical reconciliation R2.7:
 - targets 59-61 = LMS lobby text lines.
 - target 70 = exact dormant structured timed state with no stock reader.
 - Enchantment widget 50314 has no hardwired local `Client.fN` input-mode transition; follow-up text entry remains server-mediated/indirect or otherwise unresolved.
+
+Closed in R2.8:
+- target 28 = Clan Wars begin-countdown deadline.
+- target 29 = Clan Wars Your-clan/Opponents counts.
+- target 30 = Clan Wars Fighters-vs-Kills score-label mode.
+- target 69 = exact standalone HUD-panel text effect; feature/domain remains intentionally UNKNOWN.
+- With these closures, all active numeric targets now have an exact client effect classification; unknowns are semantic ownership/business authority, not packet shape or client behavior.
 
 ## R2 conclusion
 
