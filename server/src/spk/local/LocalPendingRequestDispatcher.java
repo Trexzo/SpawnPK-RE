@@ -141,16 +141,6 @@ final class LocalPendingRequestDispatcher {
         Objects.requireNonNull(clientPackets,"clientPackets");
         Objects.requireNonNull(serverPackets,"serverPackets");
 
-        acceptInterfaceClose(
-            clientPackets,
-            serverPackets,
-            tag
-        );
-        acceptWidgetAction(
-            clientPackets,
-            serverPackets,
-            tag
-        );
         acceptTypedRequests(
             clientPackets,
             serverPackets,
@@ -226,35 +216,6 @@ final class LocalPendingRequestDispatcher {
         petRealtime.ensureTestSequenceScheduled(now);
     }
 
-    private void acceptInterfaceClose(
-        ClientPacketProbe clientPackets,
-        ServerPacketWriter serverPackets,
-        String tag
-    )throws IOException{
-        if(!clientPackets.takeInterfaceClose())return;
-
-        uiActions.handleInterfaceClose(
-            clientPackets.isAligned(),
-            serverPackets,
-            tag
-        );
-    }
-
-    private void acceptWidgetAction(
-        ClientPacketProbe clientPackets,
-        ServerPacketWriter serverPackets,
-        String tag
-    )throws IOException{
-        Integer widget=clientPackets.takeWidgetAction();
-        if(widget==null)return;
-
-        uiActions.handleWidget(
-            widget.intValue(),
-            serverPackets,
-            tag
-        );
-    }
-
     private void acceptTypedRequests(
         ClientPacketProbe clientPackets,
         ServerPacketWriter serverPackets,
@@ -265,6 +226,29 @@ final class LocalPendingRequestDispatcher {
             (request=clientPackets
                 .takeTypedRequest())!=null;
         ){
+            if(request instanceof
+                    InterfaceCloseClientRequest){
+                uiActions.handleInterfaceClose(
+                    clientPackets.isAligned(),
+                    serverPackets,
+                    tag
+                );
+                continue;
+            }
+
+            if(request instanceof
+                    WidgetActionClientRequest){
+                WidgetActionClientRequest widget=
+                    (WidgetActionClientRequest)request;
+
+                uiActions.handleWidget(
+                    widget.widgetId(),
+                    serverPackets,
+                    tag
+                );
+                continue;
+            }
+
             if(request instanceof
                     CommandClientRequest){
                 CommandClientRequest command=
