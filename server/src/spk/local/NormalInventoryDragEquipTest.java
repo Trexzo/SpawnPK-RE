@@ -1,7 +1,7 @@
 package spk.local;
 
 import java.io.ByteArrayOutputStream;
-import java.util.Properties;
+import java.util.*;
 
 /**
  * Regression for the live WORLD-R7 report where dragging an inventory item into
@@ -17,9 +17,15 @@ public final class NormalInventoryDragEquipTest {
         ServerPacketWriter writer = new ServerPacketWriter(wire, new IsaacCipher(new int[]{0,0,0,0}));
 
         // Seed Osmumten's fang (or) into an ordinary inventory slot without opening bank.
-        Properties p = new Properties();
-        p.setProperty("inventory.14", "28548,1,0");
-        bank.loadAccountProperties(p);
+        SortedMap<String,String> p =
+            PersistenceSchemaTestSupport.values(
+                "inventory.14",
+                "28548,1,0"
+            );
+        PersistenceSchemaTestSupport.restoreBank(
+            bank,
+            p
+        );
 
         String r = bank.applyDrag(new ContainerDrag(BankState.NORMAL_INVENTORY_CONTAINER,0,14,26), writer);
         require(r.startsWith("INVENTORY_DRAG_OK"), "normal inventory drag rejected: "+r);
@@ -34,11 +40,19 @@ public final class NormalInventoryDragEquipTest {
             "displaced Bloodrend did not return to clicked slot 26");
 
         // Insert-mode drag is also an ordinary inventory operation and must not depend on bank-open state.
-        Properties p2 = new Properties();
-        p2.setProperty("inventory.0", "28505,1,0");
-        p2.setProperty("inventory.1", "28506,1,0");
-        p2.setProperty("inventory.2", "28507,1,0");
-        bank.loadAccountProperties(p2);
+        SortedMap<String,String> p2 =
+            PersistenceSchemaTestSupport.values(
+                "inventory.0",
+                "28505,1,0",
+                "inventory.1",
+                "28506,1,0",
+                "inventory.2",
+                "28507,1,0"
+            );
+        PersistenceSchemaTestSupport.restoreBank(
+            bank,
+            p2
+        );
         r = bank.applyDrag(new ContainerDrag(BankState.NORMAL_INVENTORY_CONTAINER,1,0,17), writer);
         require(r.startsWith("INVENTORY_DRAG_OK"), "normal inventory insert drag rejected: "+r);
         require(bank.inventoryAt(17)!=null && bank.inventoryAt(17).itemId==28505,

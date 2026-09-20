@@ -1,0 +1,185 @@
+package spk.local;
+
+import java.io.IOException;
+
+/**
+ * Typed ground-item interaction coordinator.
+ *
+ * Packet decoding stays in ClientPacketProbe. This coordinator owns the current
+ * Take semantic, deferred exact-tile arrival state, authoritative inventory/world
+ * mutation, and scene removal publication.
+ */
+final class LocalGroundItemInteractionHandler {
+    private final World world;
+    private final BankState bank;
+    private final MovementState movement;
+
+    private GroundItemInteraction pendingTake;
+    private long pendingTakeDeadlineMs;
+
+    LocalGroundItemInteractionHandler(
+        World world,
+        BankState bank,
+        MovementState movement
+    ){
+        this.world=java.util.Objects.requireNonNull(world,"world");
+        this.bank=java.util.Objects.requireNonNull(bank,"bank");
+        this.movement=java.util.Objects.requireNonNull(movement,"movement");
+    }
+
+    Result handle(
+        GroundItemInteraction action,
+        String username,
+        SceneUpdatePublisher scenePublisher,
+        ServerPacketWriter serverPackets
+    )throws IOException{
+        if(action==null)return null;
+
+        GroundItem ground=world.groundItems().find(
+            action.itemId,action.worldX,action.worldY,0);
+
+        if(ground==null ||
+           (ground.owner!=null&&!ground.owner.equalsIgnoreCase(username))){
+            return Result.log(
+                "V511_GROUND_ACTION "+action+
+                " result=REJECTED_NOT_VISIBLE_OR_MISSING"
+            );
+        }
+
+        String semantic=GroundItemActionRepository.action(
+            action.itemId,action.option);
+
+        if(semantic==null){
+            return Result.log(
+                "V511_GROUND_ACTION "+action+
+                " result=EMPTY_ACTION_SLOT authority=EXACT_CLIENT_DEF"
+            );
+        }
+
+        if(!"Take".equalsIgnoreCase(semantic)){
+            return Result.log(
+                "V511_GROUND_ACTION "+action+
+                " action="+semantic+
+                " result=DECODED_CONTENT_SEMANTIC_UNIMPLEMENTED"
+            );
+        }
+
+        if(!bank.canAddInventoryAmount(ground.itemId,ground.amount)){
+            return Result.log(
+                "V511_GROUND_TAKE "+action+
+                " result=REJECTED_INVENTORY_FULL amount="+ground.amount
+            );
+        }
+
+        if(onTile(ground.tile.x,ground.tile.y)){
+            return takeNow(
+                ground,scenePublisher,serverPackets,
+                "TAKE_ON_TILE_IMMEDIATE"
+            );
+        }
+
+        pendingTake=action;
+        pendingTakeDeadlineMs=System.currentTimeMillis()+10_000L;
+
+        return Result.log(
+            "V5122_GROUND_TAKE "+action+
+            " result=DEFERRED_UNTIL_EXACT_TILE distance="+
+            chebyshev(movement.x(),movement.y(),ground.tile.x,ground.tile.y)
+        );
+    }
+
+    Result tick(
+        long now,
+        SceneUpdatePublisher scenePublisher,
+        ServerPacketWriter serverPackets
+    )throws IOException{
+        GroundItemInteraction action=pendingTake;
+        if(action==null)return null;
+
+        GroundItem ground=world.groundItems().find(
+            action.itemId,action.worldX,action.worldY,0);
+
+        if(ground==null||now>pendingTakeDeadlineMs){
+            pendingTake=null;
+            return Result.log(
+                "V511_GROUND_TAKE "+action+
+                " result=CANCELLED_MISSING_OR_TIMEOUT"
+            );
+        }
+
+        if(!onTile(ground.tile.x,ground.tile.y)){
+            if(movement.queued()==0){
+                pendingTake=null;
+                return Result.log(
+                    "V5122_GROUND_TAKE "+action+
+                    " result=CANCELLED_PATH_ENDED_NOT_ON_TILE"
+                );
+            }
+            return null;
+        }
+
+        pendingTake=null;
+        movement.clearQueuedPath();
+        return takeNow(
+            ground,scenePublisher,serverPackets,
+            "TAKE_AFTER_EXACT_TILE_ARRIVAL"
+        );
+    }
+
+    boolean hasPendingTake(){
+        return pendingTake!=null;
+    }
+
+    private Result takeNow(
+        GroundItem ground,
+        SceneUpdatePublisher scenePublisher,
+        ServerPacketWriter serverPackets,
+        String reason
+    )throws IOException{
+        if(!bank.canAddInventoryAmount(ground.itemId,ground.amount)){
+            return Result.log(
+                "V511_GROUND_TAKE id="+ground.id+
+                " result=REJECTED_INVENTORY_FULL"
+            );
+        }
+
+        int destination=bank.addInventoryAmount(
+            ground.itemId,ground.amount,serverPackets);
+        if(destination<0)return null;
+
+        world.groundItems().remove(ground.id);
+        scenePublisher.groundRemove(ground);
+
+        return new Result(
+            "V511_GROUND_TAKE id="+ground.id+
+            " item="+ground.itemId+
+            " amount="+ground.amount+
+            " dst="+destination+
+            " world="+ground.tile+
+            " result="+reason,
+            "GROUND_TAKE"
+        );
+    }
+
+    private boolean onTile(int x,int y){
+        return movement.x()==x&&movement.y()==y;
+    }
+
+    private static int chebyshev(int x0,int y0,int x1,int y1){
+        return Math.max(Math.abs(x1-x0),Math.abs(y1-y0));
+    }
+
+    static final class Result {
+        final String logText;
+        final String saveReason;
+
+        Result(String logText,String saveReason){
+            this.logText=logText;
+            this.saveReason=saveReason;
+        }
+
+        static Result log(String text){
+            return new Result(text,null);
+        }
+    }
+}
