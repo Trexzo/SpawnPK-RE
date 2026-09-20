@@ -167,36 +167,45 @@ final class ContentRuntimeAdapters {
             ContentSkill skill,
             int experience,
             int currentLevel
-        )throws IOException{
-            writer.fixed(
-                134,
-                BootstrapPackets.skill134(
-                    skillIndex(skill),
-                    experience,
-                    currentLevel
+        ){
+            write(
+                "skill",
+                ()->writer.fixed(
+                    134,
+                    BootstrapPackets.skill134(
+                        skillIndex(skill),
+                        experience,
+                        currentLevel
+                    )
                 )
             );
         }
 
         @Override public void runEnergy(
             int energy
-        )throws IOException{
-            writer.fixed(
-                110,
-                BootstrapPackets.runEnergy110(
-                    energy
+        ){
+            write(
+                "runEnergy",
+                ()->writer.fixed(
+                    110,
+                    BootstrapPackets.runEnergy110(
+                        energy
+                    )
                 )
             );
         }
 
         @Override public void specialEnergy(
             int percent
-        )throws IOException{
-            writer.varShort(
-                126,
-                BootstrapPackets.widgetText126(
-                    149,
-                    percent+"%"
+        ){
+            write(
+                "specialEnergy",
+                ()->writer.varShort(
+                    126,
+                    BootstrapPackets.widgetText126(
+                        149,
+                        percent+"%"
+                    )
                 )
             );
         }
@@ -206,16 +215,40 @@ final class ContentRuntimeAdapters {
             int gfxId,
             int gfxHeight,
             int gfxDelay
-        )throws IOException{
-            writer.varShort(
-                81,
-                CombatSync.player81AnimationAndGfx(
-                    animationId,
-                    gfxId,
-                    gfxHeight,
-                    gfxDelay
+        ){
+            write(
+                "animationAndGfx",
+                ()->writer.varShort(
+                    81,
+                    CombatSync.player81AnimationAndGfx(
+                        animationId,
+                        gfxId,
+                        gfxHeight,
+                        gfxDelay
+                    )
                 )
             );
+        }
+
+        private void write(
+            String operation,
+            PacketWrite action
+        ){
+            try{
+                action.run();
+            }catch(IOException e){
+                throw new ContentPresentationException(
+                    "content presentation "+
+                    operation+
+                    " failed",
+                    e
+                );
+            }
+        }
+
+        @FunctionalInterface
+        private interface PacketWrite {
+            void run()throws IOException;
         }
     }
 
