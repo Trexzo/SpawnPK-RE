@@ -30,3 +30,4 @@ jobs:
           $bad = Select-String -Path $paths -Pattern "widgetId|opcode|subtype|ClientPacket|ServerPacket|spriteId|sceneIndex|worldX|worldY|objectId|buildPrice|materialRequirement" -CaseSensitive:$false
           if ($bad) { $bad | ForEach-Object { Write-Host $_ }; throw "Issue 167 authority/protocol boundary violation." }
           Write-Host "ISSUE167_PROTOCOL_AUTHORITY_BOUNDARY_PASS"
+# synchronize post-200 validation
