@@ -72,12 +72,11 @@ final class LocalSession implements Runnable {
     private final LocalPetDropPickupHandler petDropPickup;
     private final LocalMovementRequestHandler movementRequests;
     private final LocalRegionStreamHandler regionStreams;
+    private final LocalWorldTickCoordinator worldTicks;
     private SceneUpdatePublisher scenePublisher;
     private ServerPacketWriter sessionPackets;
     private OutboundPacketQueue outboundPackets;
     private long sessionWorldTick;
-    private long legacyTickCount;
-    private long movementTickCount;
     private long nextPetFollowAt=Long.MAX_VALUE;
     private boolean petFollowRealtimeScheduled;
     private boolean petTestRealtimeScheduled;
@@ -446,6 +445,88 @@ final class LocalSession implements Runnable {
                     LocalSession.this.petFollowRealtimeScheduled=false;
                 }
             });
+        this.worldTicks = new LocalWorldTickCoordinator(
+            movementEnabled,
+            world,
+            worldPlayer,
+            movement,
+            equipment,
+            combatStyles,
+            petEffects,
+            npcs,
+            homeWorld,
+            combat,
+            regionStreams,
+            playerInteractions,
+            bankObjectHandler,
+            routedNpcHandler,
+            groundItemHandler,
+            petDropPickup,
+            petRuntimeCommands,
+            new LocalWorldTickCoordinator.SessionBridge(){
+                @Override public Player81WorldSync.Context player81Sync(){
+                    return LocalSession.this.player81Sync;
+                }
+
+                @Override public SceneUpdatePublisher scenePublisher(){
+                    return LocalSession.this.scenePublisher;
+                }
+
+                @Override public void saveAccount(
+                    String tag,
+                    String reason
+                ){
+                    LocalSession.this.saveAccountQuiet(tag,reason);
+                }
+
+                @Override public void publishOpponentOverlay(
+                    NpcEntity target,
+                    ServerPacketWriter writer,
+                    String tag,
+                    String reason
+                )throws IOException{
+                    LocalSession.this.publishOpponentOverlay(
+                        target,
+                        writer,
+                        tag,
+                        reason
+                    );
+                }
+
+                @Override public void clearOpponentOverlay(
+                    ServerPacketWriter writer,
+                    String tag,
+                    String reason
+                )throws IOException{
+                    LocalSession.this.clearOpponentOverlay(
+                        writer,
+                        tag,
+                        reason
+                    );
+                }
+
+                @Override public long petFollowDeadline(){
+                    return LocalSession.this.nextPetFollowAt;
+                }
+
+                @Override public void setPetFollowDeadline(
+                    long value
+                ){
+                    LocalSession.this.nextPetFollowAt=value;
+                }
+
+                @Override public void ensurePetFollowScheduled(
+                    long now
+                ){
+                    LocalSession.this.ensurePetFollowScheduled(now);
+                }
+
+                @Override public void ensurePetTestSequenceScheduled(
+                    long now
+                ){
+                    LocalSession.this.ensurePetTestSequenceScheduled(now);
+                }
+            });
         if (movementEnabled && !bootstrap) throw new IllegalArgumentException("movement requires bootstrap");
     }
 
@@ -762,115 +843,22 @@ final class LocalSession implements Runnable {
     }
 
     /** Existing certified per-player gameplay tick, now invoked only by the one shared WorldPulse. */
-    private void onWorldTick(long worldTick,long now)throws Exception{
+    private void onWorldTick(
+        long worldTick,
+        long now
+    )throws Exception{
         sessionWorldTick=worldTick;
         if(!bootstrap||sessionPackets==null)return;
+
         sessionPackets.beginBatch();
         try{
-            String tag="[session "+socket.getRemoteSocketAddress()+"] ";
-            if(regionStreams.maybeStream(sessionPackets,tag)){
-                legacyTickCount++;
-                return;
-            }
-            if(movement.transientRegion()){
-                MovementState.Tick mt = movementEnabled ? movement.advance() : null;
-                if(mt==null) sessionPackets.varShort(81,BootstrapPackets.player81Idle());
-                else if(mt.running) sessionPackets.varShort(81,BootstrapPackets.player81RunSteps(mt.dir1,mt.dir2));
-                else sessionPackets.varShort(81,BootstrapPackets.player81WalkStep(mt.dir1));
-                if(mt!=null){movementTickCount++;saveAccountQuiet("[session "+socket.getRemoteSocketAddress()+"] ","TRANSIENT_REGION_POSITION_NONPERSISTENT");}
-                legacyTickCount++;
-                if(legacyTickCount==1||legacyTickCount%25==0)System.out.println("[session "+socket.getRemoteSocketAddress()+"] V5160_TRANSIENT_REGION_PULSE tick="+worldTick+" world="+movement.x()+","+movement.y()+","+movement.plane()+" base="+movement.loadedBaseX()+","+movement.loadedBaseY()+" queued="+movement.queued()+" staticCollision=true homeSystemsSuspended=true");
-                return;
-            }
-            String playerInteractionPrep=playerInteractions.prepareTick(worldTick,player81Sync);
-            if(playerInteractionPrep!=null)System.out.println(playerInteractionPrep);
-            MovementState.Tick mt = movementEnabled ? movement.advance() : null;
-            Integer measuredApproachTarget = mt==null ? null : combat.consumeApproachFacingTargetForMovement();
-            Integer playerApproachTarget = mt==null ? null : playerInteractions.movementInteractionTarget(player81Sync);
-            Integer movementFacingTarget = measuredApproachTarget!=null?measuredApproachTarget:playerApproachTarget;
-            if (mt == null) {
-                sessionPackets.varShort(81, BootstrapPackets.player81Idle());
-            } else if (mt.running) {
-                sessionPackets.varShort(81, movementFacingTarget==null
-                    ? BootstrapPackets.player81RunSteps(mt.dir1, mt.dir2)
-                    : Player81MeasuredSync.runStepsAndInteraction(mt.dir1,mt.dir2,movementFacingTarget.intValue()));
-                movementTickCount++;
-                System.out.println("[world player="+worldPlayer.id()+"] M5_AUTHORITATIVE_TICK mode=RUN tiles=2 from="+mt.fromX+","+mt.fromY
-                                 + " to="+mt.toX+","+mt.toY+" dirs="+mt.dir1+","+mt.dir2
-                                 + " combatFacing="+(movementFacingTarget==null?"NONE":movementFacingTarget)
-                                 + " remaining="+mt.remaining+" movementTick="+movementTickCount+" worldTick="+worldTick);
-            } else {
-                sessionPackets.varShort(81, movementFacingTarget==null
-                    ? BootstrapPackets.player81WalkStep(mt.dir1)
-                    : Player81MeasuredSync.walkStepAndInteraction(mt.dir1,movementFacingTarget.intValue()));
-                movementTickCount++;
-                System.out.println("[world player="+worldPlayer.id()+"] M5_AUTHORITATIVE_TICK mode=WALK tiles=1 from="+mt.fromX+","+mt.fromY
-                                 + " to="+mt.toX+","+mt.toY+" dir="+mt.dir1
-                                 + " combatFacing="+(movementFacingTarget==null?"NONE":movementFacingTarget)
-                                 + " remaining="+mt.remaining+" movementTick="+movementTickCount+" worldTick="+worldTick);
-            }
-            if(mt!=null)saveAccountQuiet(tag,"POSITION_TICK");
-            if(mt!=null){
-                String playerTradeTick=playerInteractions.afterMovement(player81Sync);
-                if(playerTradeTick!=null)System.out.println(tag+playerTradeTick);
-            }
-            String playerAttackTick=playerInteractions.tickAttack(worldTick,sessionPackets,player81Sync);
-            if(playerAttackTick!=null)System.out.println(tag+playerAttackTick);
-            String bankObjectTick=bankObjectHandler.tick(now,sessionPackets);
-            if(bankObjectTick!=null)System.out.println(tag+bankObjectTick);
-            String routedNpcTick=routedNpcHandler.tick(now,sessionPackets);
-            if(routedNpcTick!=null)System.out.println(tag+routedNpcTick);
-            applyGroundItemResult(
-                groundItemHandler.tick(now,scenePublisher,sessionPackets),tag);
-            petDropPickup.tick(sessionPackets,tag,now);
-            if (mt != null) {
-                if(!petDropPickup.pickupPending()){
-                    npcs.queueOwnerMovement(mt);
-                    // Broken/empty breadcrumb recovery is still active follow work.
-                    if(npcs.needsFollow(movement) && nextPetFollowAt==Long.MAX_VALUE) nextPetFollowAt = now + 200L;
-                } else {
-                    // R8.1 interaction ownership: once Pick-up is clicked the pet must
-                    // stop chasing the owner, otherwise the owner approaches a moving
-                    // target and the deferred interaction can terminate at a stale tile.
-                    nextPetFollowAt=Long.MAX_VALUE;
-                }
-            }
-            legacyTickCount++;
-            String npcPulse=npcs.tickHome(movement,sessionPackets,homeWorld,legacyTickCount);
-            SharedNpcWorldRelay.syncRemotePets(sessionPackets);
-            if(npcPulse!=null && (legacyTickCount==1 || legacyTickCount%25==0 || !npcPulse.contains("worldAdd=0 worldRemove=0 worldWalk=0")))
-                System.out.println(tag+"WORLD_R7_"+npcPulse+" sharedWorldTick="+worldTick);
-            String combatTick=combat.tick(movement,npcs,equipment,sessionPackets,legacyTickCount,
-                combatStyles.current(CombatInterfaceRepository.forWeapon(equipment.weapon())),scenePublisher);
-            if(combatTick!=null) {
-                System.out.println(tag+"V56_COMBAT "+combatTick+" sharedWorldTick="+worldTick);
-                if(combatTick.startsWith("TARGET_CLEARED")) clearOpponentOverlay(sessionPackets,tag,"COMBAT_TARGET_CLEARED");
-            }
-            int dealt=combat.consumeLastDamage();
-            if(dealt>0){
-                NpcEntity overlayTarget=npcs.scene(combat.state().targetSceneIndex);
-                if(overlayTarget!=null){
-                    publishOpponentOverlay(overlayTarget,sessionPackets,tag,"HIT_UPDATE");
-                    int baseline=combat.state().context==CombatContext.PLAYER_PVP?100:200;
-                    int remoteHitType=dealt>=baseline?6:1;
-                }
-                String petDamage=petRuntimeCommands.applyDamage(
-                    dealt,now,sessionPackets,"COMBAT_M2");
-                if(petDamage!=null)System.out.println(tag+petDamage);
-            }
-            if(petEffects.tick(now) && npcs.pet()!=null && PetPresentationProfile.supportsNativeState(npcs.pet().definitionId)){
-                String reset=npcs.setPetNativeState(0,sessionPackets);
-                System.out.println(tag+"V59_PET_CHARGE_TIMEOUT_RESET "+reset+" state="+petEffects.summary()+" sharedWorldTick="+worldTick);
-            }
-            ensurePetFollowScheduled(now);
-            ensurePetTestSequenceScheduled(now);
-            if (legacyTickCount == 1 || legacyTickCount % 25 == 0) {
-                System.out.println(tag + "V5121_WORLD_PULSE tick=" + worldTick + " playerAgeTicks="+legacyTickCount
-                                 + " playerId="+worldPlayer.id()+" world="+movement.x()+","+movement.y()
-                                 + " queued="+movement.queued()+" members="+world.players().size()
-                                 + " certification=M4_CERTIFIED M5_WEAPONS_ACTIVE ENGINE_R2_WORLD_PULSE");
-            }
-        } finally {
+            worldTicks.tick(
+                worldTick,
+                now,
+                sessionPackets,
+                "[session "+socket.getRemoteSocketAddress()+"] "
+            );
+        }finally{
             sessionPackets.endBatch();
         }
     }
