@@ -74,6 +74,7 @@ final class LocalSession implements Runnable {
     private final LocalWorldTickCoordinator worldTicks;
     private final LocalPendingRequestDispatcher pendingRequests;
     private final LocalSessionBootstrapPublisher bootstrapPublisher;
+    private final LocalSessionPlayerInitializer playerInitializer;
     private SceneUpdatePublisher scenePublisher;
     private ServerPacketWriter sessionPackets;
     private OutboundPacketQueue outboundPackets;
@@ -682,6 +683,17 @@ final class LocalSession implements Runnable {
                 tag,
                 reason
             ));
+        this.playerInitializer = new LocalSessionPlayerInitializer(
+            world,
+            worldPlayer,
+            bank,
+            equipment,
+            movement,
+            petState,
+            playerState,
+            petEffects,
+            petAccessoryState
+        );
         if (movementEnabled && !bootstrap) throw new IllegalArgumentException("movement requires bootstrap");
     }
 
@@ -698,39 +710,12 @@ final class LocalSession implements Runnable {
             System.out.println(tag + frame);
             if (frame.revision != 317) throw new IOException("expected protocol revision 317, got " + frame.revision);
 
-            // v5.12.3 two-profile selection/load remains byte/state compatible,
-            // but filesystem/profile orchestration now lives outside the socket session.
-            LocalAccountLifecycle.Selection account=LocalAccountLifecycle.select(world,loginAlias,tag);
-            username=account.username;
-            persistentAccount=account.persistent;
-            LocalAccountLifecycle.LoadResult accountLoad=LocalAccountLifecycle.load(
-                account,bank,equipment,movement,petState,playerState,PetAccessoryAuthority::isAccessory,tag);
-            petAccessoryState.setActiveItem(accountLoad.accessoryItem);
-
-            // One-time migration from the superseded LocalLab bug that stored native icons in AMMO.
-            if(!playerState.cosmetic().active() && ItemCatalog.isNativePlayerIcon(equipment.itemAt(EquipmentSlot.AMMO))){
-                int legacyIcon=equipment.unequip(EquipmentSlot.AMMO); playerState.cosmetic().set(legacyIcon);
-                System.out.println(tag+"V511_COSMETIC_MIGRATION legacyAmmoIcon="+legacyIcon+" -> dedicatedBs cosmetic=true ammoCleared=true");
-            }
-            playerState.syncEquipmentPresentation(equipment);
-            if(petState.active()) {
-                // Mapping data is authority; reconcile persisted item->NPC pairs so a
-                // corrected color/pet definition takes effect immediately after upgrade.
-                PetDefinitionRepository.Def persistedDef=PetDefinitionRepository.get(petState.itemId());
-                if(persistedDef!=null && persistedDef.npcId!=petState.npcId()){
-                    int oldNpc=petState.npcId(); petState.activate(persistedDef);
-                    System.out.println(tag+"V59_PET_MAPPING_RECONCILE item="+petState.itemId()+" npc="+oldNpc+"->"+petState.npcId()+" provenance="+persistedDef.provenance);
-                }
-                petEffects.onPetChanged(petState.itemId(),petState.npcId());
-            }
-            // Scopesight is a maintained-stat pet. Apply its baseline before the
-            // initial packet-134 skill publication so login starts coherent.
-            playerState.syncScopesightMaintenance(scopesightActive());
-
-            worldPlayerGeneration=world.registerPlayer(worldPlayer,username);
+            LocalSessionPlayerInitializer.Result playerInit=
+                playerInitializer.initialize(loginAlias,tag);
+            username=playerInit.username;
+            persistentAccount=playerInit.persistentAccount;
+            worldPlayerGeneration=playerInit.worldPlayerGeneration;
             worldRegistered=true;
-            world.start();
-            System.out.println(tag+"V512_WORLD_REGISTER playerId="+worldPlayer.id()+" generation="+worldPlayerGeneration+" username="+username+" members="+world.players().size()+" worldIdentity="+System.identityHashCode(world));
 
             LocalLoginTransport.Ciphers loginCiphers=
                 LocalLoginTransport.ciphers(frame);
