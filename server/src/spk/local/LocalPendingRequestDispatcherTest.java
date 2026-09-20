@@ -565,6 +565,15 @@ public final class LocalPendingRequestDispatcherTest {
                 new byte[]{1,0}
             );
 
+            typedWire.write(
+                (236+typedEncoder.nextInt())&255
+            );
+            // Ground option 3: worldY LE, item BE, worldX LE.
+            // Missing item id 0 at tile 0,0 must be consumed and fail closed.
+            typedWire.write(
+                new byte[]{0,0,0,0,0,0}
+            );
+
             ClientPacketProbe probe=
                 new ClientPacketProbe(
                     new ByteArrayInputStream(
@@ -599,6 +608,11 @@ public final class LocalPendingRequestDispatcherTest {
             if(!probe.readNextKnownPacket())
                 throw new AssertionError(
                     "typed player action fixture decode failed"
+                );
+
+            if(!probe.readNextKnownPacket())
+                throw new AssertionError(
+                    "typed ground item fixture decode failed"
                 );
 
             setPending(
@@ -681,7 +695,8 @@ public final class LocalPendingRequestDispatcherTest {
                 "LOCAL_PENDING_REQUEST_DISPATCHER_PASS "+
                 "widgetConsumed=true dropConsumed=true "+
                 "itemOnNpcConsumed=true objectInteractionConsumed=true "+
-                "playerActionConsumed=true movementConsumed=true "+
+                "playerActionConsumed=true groundItemConsumed=true "+
+                "movementConsumed=true "+
                 "runToggleBeforeMovement=true classifierCompatibility=true"
             );
         }finally{
