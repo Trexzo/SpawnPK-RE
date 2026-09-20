@@ -4,17 +4,16 @@ import java.io.*;
 import java.util.*;
 
 /**
- * v5.7 Combat M2 local dummy harness.
+ * Combat attack-cycle/presentation coordinator.
  *
- * v5.10.1 merges the R2 presentation-first weapon authority into the existing
- * v5.10 prayer/magic/combat-style branch. 145 weapon profiles can drive the
- * local dummy action loop; R2 timing/range fallbacks remain explicitly harness
- * authority, while damage is still the fixed 100 PvP / 200 PvM fixture rather
- * than a reconstructed SpawnPK combat formula.
+ * Recovered animation/GFX/projectile/timing authority stays separate from the
+ * injected damage rule provider. Standalone constructors retain the historical
+ * M2 dummy fixture; production LocalLab injects an explicitly custom fallback.
  */
 final class CombatEngine {
     private final CombatState state;
     private final DevAuthorityWorkbench dev;
+    private final CombatDamageRules damageRules;
     private long syntheticTick;
     private int lastDamageThisAction;
     private static final int DUMMY_HP_MAX=255;
@@ -50,16 +49,36 @@ final class CombatEngine {
     private boolean approachFacingPending;
 
     CombatEngine(){
-        this(new CombatState(),new DevAuthorityWorkbench());
+        this(
+            new CombatState(),
+            new DevAuthorityWorkbench(),
+            CombatDamageRules.dummyFixture()
+        );
     }
 
     CombatEngine(DevAuthorityWorkbench dev){
-        this(new CombatState(),dev);
+        this(
+            new CombatState(),
+            dev,
+            CombatDamageRules.dummyFixture()
+        );
     }
 
     CombatEngine(
         CombatState state,
         DevAuthorityWorkbench dev
+    ){
+        this(
+            state,
+            dev,
+            CombatDamageRules.dummyFixture()
+        );
+    }
+
+    CombatEngine(
+        CombatState state,
+        DevAuthorityWorkbench dev,
+        CombatDamageRules damageRules
     ){
         this.state=java.util.Objects.requireNonNull(
             state,
@@ -69,6 +88,10 @@ final class CombatEngine {
             dev==null
                 ?new DevAuthorityWorkbench()
                 :dev;
+        this.damageRules=java.util.Objects.requireNonNull(
+            damageRules,
+            "damageRules"
+        );
     }
 
     String request(NpcEntity npc,MovementState movement,int weaponId,long now){
@@ -97,7 +120,9 @@ final class CombatEngine {
             " speedTicks="+(weapon==null?-1:weapon.attackSpeedTicks)+
             " style="+(style==null?"UNSPECIFIED":style.label+"/"+style.mode+"/value"+style.value)+
             " clickFacing=false facingAuthority="+(deferred?"FIRST_AUTHORITATIVE_MOVEMENT":"ATTACK_TICK")+
-            " faceTarget="+npc.sceneIndex+" formula=LOCAL_M2_FIXED_DUMMY_HIT";
+            " faceTarget="+npc.sceneIndex+
+            " damageAuthority="+damageRules.authority()+
+            " formula="+damageRules.formula();
     }
 
     Integer consumeApproachFacingTargetForMovement(){
@@ -170,14 +195,47 @@ final class CombatEngine {
         } else {
             w.varShort(81,CombatSync.player81InteractionOnly(target.sceneIndex));
         }
-        int baselineDamage=state.context==CombatContext.PLAYER_PVP?100:200;
+        CombatDamageRules.Result calculatedDamage=null;
         int damage=0,hitType=-1,hp=DUMMY_HP_MAX;
         if(mechanicsResolved){
-            damage=nextDevDamage(baselineDamage);
-            hitType=effectiveHitType(damage,baselineDamage);
-            NpcSyncEncoder.Mask hitMask=NpcSyncEncoder.Mask.singleHit(damage,hitType,hp,DUMMY_HP_MAX);
-            if(targetGfx>=0)hitMask=hitMask.withGfx(targetGfx,0,0);
-            npcs.sendMask(target,hitMask,w);
+            calculatedDamage=
+                damageRules.calculate(
+                    new CombatDamageRules.Request(
+                        state.context,
+                        equipment.weapon(),
+                        style,
+                        worldTick
+                    )
+                );
+
+            damage=nextDevDamage(
+                calculatedDamage.damage
+            );
+            hitType=effectiveHitType(
+                damage,
+                calculatedDamage.maxHitReference
+            );
+
+            NpcSyncEncoder.Mask hitMask=
+                NpcSyncEncoder.Mask.singleHit(
+                    damage,
+                    hitType,
+                    hp,
+                    DUMMY_HP_MAX
+                );
+
+            if(targetGfx>=0)
+                hitMask=hitMask.withGfx(
+                    targetGfx,
+                    0,
+                    0
+                );
+
+            npcs.sendMask(
+                target,
+                hitMask,
+                w
+            );
             lastDamageThisAction=damage;
         } else if(targetGfx>=0){
             // Target-side GFX is direct presentation authority and does not imply a hit.
@@ -208,11 +266,21 @@ final class CombatEngine {
             " projectilePublication="+runtimeProjectilePublication+
             " runtimeSound="+(runtimeBasic&&runtime.soundId>=0?runtime.soundId:"NONE")+" runtimeSoundPublished="+runtimeSoundPublished+
             " speedTicks="+attackSpeedTicks+" tickMs=600 nextAttackTick="+state.nextAttackTick+
-            " mechanicsAuthority="+(mechanicsResolved?"RESOLVED_LOCAL_HARNESS":"UNRESOLVED_PRESENTATION_ONLY")+" legalRange="+legalRange+
-            " fixtureDamage="+(mechanicsResolved?Integer.toString(damage):"NOT_APPLIED")+" fixtureDamageMode="+(mechanicsResolved?devDamageSummary():"NOT_APPLIED")+" hpFixture="+(mechanicsResolved?(hp+"/"+DUMMY_HP_MAX):"UNCHANGED")+" hitsplatType="+(mechanicsResolved?Integer.toString(hitType):"NONE")+" hitsplatVariantMode="+(mechanicsResolved?(devHitVariantAuto?"auto(normal=1,max=6)":"manual"):"NONE")+" styleIcon="+(mechanicsResolved?Integer.toString(devHitStyleIcon):"NONE")+" placement="+(mechanicsResolved?devHitPlacement:"NONE")+" attackCount="+state.attackCount+
+            " mechanicsAuthority="+(mechanicsResolved?"RESOLVED_PRESENTATION_WITH_INJECTED_DAMAGE_RULES":"UNRESOLVED_PRESENTATION_ONLY")+" legalRange="+legalRange+
+            " damage="+(mechanicsResolved?Integer.toString(damage):"NOT_APPLIED")+
+            " damageAuthority="+(calculatedDamage==null?"NOT_APPLIED":calculatedDamage.authority)+
+            " damageFormula="+(calculatedDamage==null?"NOT_APPLIED":calculatedDamage.formula)+
+            " damageMode="+(mechanicsResolved?activeDamageMode(calculatedDamage):"NOT_APPLIED")+
+            " hpFixture="+(mechanicsResolved?(hp+"/"+DUMMY_HP_MAX):"UNCHANGED")+
+            " hitsplatType="+(mechanicsResolved?Integer.toString(hitType):"NONE")+
+            " hitsplatVariantMode="+(mechanicsResolved?(devHitVariantAuto?"auto(normal=1,max=6)":"manual"):"NONE")+
+            " styleIcon="+(mechanicsResolved?Integer.toString(devHitStyleIcon):"NONE")+
+            " placement="+(mechanicsResolved?devHitPlacement:"NONE")+
+            " attackCount="+state.attackCount+
             " style="+(style==null?"UNSPECIFIED":style.label+"/"+style.mode+"/value"+style.value)+
-            " styleMath=NOT_APPLIED_SERVER_FORMULA_UNKNOWN"+
-            " maxHit=DEFERRED accuracy=DEFERRED assetEvidence="+(runtimeBasic?runtime.evidence:profile.evidence);
+            " styleMath="+(calculatedDamage==null?"NOT_APPLIED":calculatedDamage.formula)+
+            " maxHit="+(calculatedDamage==null?"DEFERRED":Integer.toString(calculatedDamage.maxHitReference))+
+            " accuracy=DEFERRED assetEvidence="+(runtimeBasic?runtime.evidence:profile.evidence);
     }
 
     String magicFixtureHit(int sceneIndex,SpellDefinitionRepository.Spell spell,NpcRegistry npcs,ServerPacketWriter w)throws IOException{
@@ -321,6 +389,18 @@ final class CombatEngine {
         if(devHitDamage!=null)return "fixed:"+devHitDamage;
         return "legacy_context_fixture";
     }
+    private String activeDamageMode(
+        CombatDamageRules.Result calculated
+    ){
+        if(devHitDamageSequence!=null||
+           devHitDamage!=null)
+            return "DEV_OVERRIDE_"+devDamageSummary();
+
+        return calculated==null
+            ?"NOT_APPLIED"
+            :"RULES_"+calculated.formula;
+    }
+
     private int nextDevDamage(int fallback){
         if(devHitDamageSequence!=null && devHitDamageSequence.length>0){
             int v=devHitDamageSequence[devHitDamageSequenceIndex%devHitDamageSequence.length];
