@@ -84,7 +84,7 @@ final class Player81WorldSync {
         if(c==null)return;
         c.state.contexts.remove(c.owner.id());
         c.closed=true;
-        if(c.state.contexts.isEmpty() && c.state.world.players().size()==0)BY_WORLD.remove(c.state.world);
+        if(c.state.contexts.isEmpty())BY_WORLD.remove(c.state.world);
     }
 
     static byte[] transform(ServerPacketWriter writer,byte[] body){
