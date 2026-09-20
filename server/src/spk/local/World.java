@@ -14,6 +14,7 @@ final class World implements AutoCloseable {
     private final PlayerRegistry players=new PlayerRegistry();
     private final WorldNpcRegistry npcs=new WorldNpcRegistry();
     private final WorldHomeNpcService homeNpcs=new WorldHomeNpcService(npcs);
+    private final WorldPetNpcService petNpcs=new WorldPetNpcService(npcs);
     private final WorldCommandInbox commands=new WorldCommandInbox();
     private final LinkedHashMap<EntityId,WorldTickTarget> tickTargets=new LinkedHashMap<>();
     private final WorldPulse pulse;
@@ -30,6 +31,7 @@ final class World implements AutoCloseable {
     PlayerRegistry players(){return players;}
     WorldNpcRegistry npcs(){return npcs;}
     WorldHomeNpcService homeNpcs(){return homeNpcs;}
+    WorldPetNpcService petNpcs(){return petNpcs;}
     WorldCommandInbox commands(){return commands;}
     WorldPulse pulse(){return pulse;}
 
@@ -42,6 +44,7 @@ final class World implements AutoCloseable {
             synchronized(tickTargets){tickTargets.remove(player.id());}
             commands.cancelPlayer(player);
             realtime.cancelPlayer(player);
+            petNpcs.removeMainAndMini(player.id());
             return players.unregister(player);
         }
     }
