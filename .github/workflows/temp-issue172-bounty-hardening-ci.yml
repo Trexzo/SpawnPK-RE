@@ -1,0 +1,36 @@
+name: Temp Issue 172 Bounty Hardening CI
+
+on:
+  pull_request:
+
+jobs:
+  issue172:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Canonical server build
+        shell: pwsh
+        run: ./server/build.ps1
+      - name: Issue 172 focused regression
+        shell: pwsh
+        run: |
+          java -cp server/build/classes spk.local.BountyHunterServiceTest
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Bounty protocol boundary guard
+        shell: pwsh
+        run: |
+          $paths = @(
+            "server/src/spk/local/BountyHunterService.java",
+            "server/src/spk/local/BountyObjectivePort.java",
+            "server/src/spk/local/BountyTargetSelectionPolicy.java"
+          )
+          $bad = Select-String -Path $paths -Pattern "widgetId|opcode|subtype|ServerPacketWriter|ClientPacket|ApplicationBus|spriteId|sceneIndex|commandString" -CaseSensitive:$false
+          if ($bad) {
+            $bad | ForEach-Object { Write-Host $_ }
+            throw "Issue 172 domain source contains protocol identity."
+          }
+          Write-Host "ISSUE172_PROTOCOL_BOUNDARY_PASS"
