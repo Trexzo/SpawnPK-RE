@@ -222,25 +222,21 @@ public final class InteractionApproachResolverTest {
     }
 
     private static MovementState at(int x,int y){
-        Properties properties=
-            new Properties();
-        properties.setProperty(
-            "movement.worldX",
-            Integer.toString(x)
-        );
-        properties.setProperty(
-            "movement.worldY",
-            Integer.toString(y)
-        );
-        properties.setProperty(
-            "movement.plane",
-            "0"
-        );
+        SortedMap<String,String> values=
+            PersistenceSchemaTestSupport.values(
+                "movement.worldX",
+                Integer.toString(x),
+                "movement.worldY",
+                Integer.toString(y),
+                "movement.plane",
+                "0"
+            );
 
         MovementState movement=
             new MovementState();
-        movement.loadAccountProperties(
-            properties
+        PersistenceSchemaTestSupport.restoreMovement(
+            movement,
+            values
         );
 
         if(movement.x()!=x||
