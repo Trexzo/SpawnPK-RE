@@ -1,0 +1,36 @@
+name: Temp Issue 174 Item Death Condition Repair CI
+
+on:
+  pull_request:
+
+jobs:
+  issue174:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Canonical server build
+        shell: pwsh
+        run: ./server/build.ps1
+      - name: Issue 174 focused regression
+        shell: pwsh
+        run: |
+          java -cp server/build/classes spk.local.ItemDeathConditionRepairTest
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Item policy protocol-boundary guard
+        shell: pwsh
+        run: |
+          $paths = @(
+            "server/src/spk/local/ItemDeathPolicy.java",
+            "server/src/spk/local/ItemConditionService.java",
+            "server/src/spk/local/RepairFunding.java"
+          )
+          $bad = Select-String -Path $paths -Pattern "widgetId|opcode|subtype|ServerPacketWriter|ClientPacket|ApplicationBus|spriteId|slotIndex|cachePath" -CaseSensitive:$false
+          if ($bad) {
+            $bad | ForEach-Object { Write-Host $_ }
+            throw "Issue 174 domain source contains protocol/presentation identity."
+          }
+          Write-Host "ISSUE174_PROTOCOL_BOUNDARY_PASS"
