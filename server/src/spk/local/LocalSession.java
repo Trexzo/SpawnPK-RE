@@ -150,7 +150,10 @@ final class LocalSession implements Runnable {
         this.bankObjectHandler = new LocalBankObjectInteractionHandler(bank,movement);
         this.routedNpcHandler = new LocalRoutedNpcInteractionHandler(
             npcs,bank,movement);
-        this.genericInteractionHandler = new LocalGenericInteractionHandler();
+        this.genericInteractionHandler =
+            new LocalGenericInteractionHandler(
+                world.content()
+            );
         this.playerInteractions = new LocalPlayerInteractionHandler(
             world,worldPlayer,movement,equipment);
         this.equipmentItemActions = new LocalEquipmentItemActionHandler(
