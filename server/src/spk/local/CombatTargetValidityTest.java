@@ -312,8 +312,9 @@ public final class CombatTargetValidityTest {
                 interactions.handleResolved(
                     new PlayerAction(
                         128,
+                        1,
                         ownerSync.clientIndexFor(target),
-                        1
+                        "Attack"
                     ),
                     target,
                     ownerSync
