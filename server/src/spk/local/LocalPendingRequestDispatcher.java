@@ -146,11 +146,6 @@ final class LocalPendingRequestDispatcher {
             serverPackets,
             tag
         );
-        acceptItemAction(
-            clientPackets,
-            serverPackets,
-            tag
-        );
         acceptItemOnItem(
             clientPackets,
             serverPackets,
@@ -331,6 +326,19 @@ final class LocalPendingRequestDispatcher {
             }
 
             if(request instanceof
+                    ItemContainerActionClientRequest){
+                ItemContainerActionClientRequest item=
+                    (ItemContainerActionClientRequest)request;
+
+                routeItemAction(
+                    item.action(),
+                    serverPackets,
+                    tag
+                );
+                continue;
+            }
+
+            if(request instanceof
                     CommandClientRequest){
                 CommandClientRequest command=
                     (CommandClientRequest)request;
@@ -381,16 +389,11 @@ final class LocalPendingRequestDispatcher {
             System.out.println(tag+result);
     }
 
-    private void acceptItemAction(
-        ClientPacketProbe clientPackets,
+    private void routeItemAction(
+        ItemContainerAction action,
         ServerPacketWriter serverPackets,
         String tag
     )throws IOException{
-        ItemContainerAction action=
-            clientPackets.takeItemAction();
-
-        if(action==null)return;
-
         String tradeItem=
             TradeService.handleItemAction(
                 worldPlayer,
