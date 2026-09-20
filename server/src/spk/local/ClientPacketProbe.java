@@ -40,7 +40,6 @@ final class ClientPacketProbe {
     private long opcode0Count;
     private final ClientRequestQueue typedRequests=
         new ClientRequestQueue();
-    private ItemContainerAction pendingItemAction;
     private ItemOnItemAction pendingItemOnItem;
     private GroundItemInteraction pendingGroundItemInteraction;
 
@@ -52,12 +51,6 @@ final class ClientPacketProbe {
 
     boolean isAligned() { return aligned; }
     long decodedCount() { return decodedCount; }
-
-    ItemContainerAction takeItemAction() {
-        ItemContainerAction r = pendingItemAction;
-        pendingItemAction = null;
-        return r;
-    }
 
     ClientRequest takeTypedRequest(){
         return typedRequests.poll();
@@ -260,8 +253,20 @@ final class ClientPacketProbe {
                 int item = be(body,0);
                 int slot = beA(body,2);
                 int widget = beA(body,4);
-                pendingItemAction = new ItemContainerAction(opcode, widget, slot, item, 0,
-                                                            widget == BankState.NORMAL_INVENTORY_CONTAINER ? "WEAR_WIELD_EQUIP" : "ITEM_OPTION_2");
+                offerItemAction(
+                    new ItemContainerAction(
+                        opcode,
+                        widget,
+                        slot,
+                        item,
+                        0,
+                        widget == BankState.NORMAL_INVENTORY_CONTAINER
+                            ? "WEAR_WIELD_EQUIP"
+                            : "ITEM_OPTION_2"
+                    ),
+                    "FIXED6_ITEM_BE_SLOT_BE_A_WIDGET_BE_A",
+                    "PINNED_CLIENT_MENU_ACTION_454_WRITER"
+                );
                 System.out.printf("%sCLIENT_PACKET seq=%d opcode=41 len=6 inventoryItemAction=true widget=%d slot=%d itemId=%d semantic=%s schema=STATIC_EXACT_FIXED6%n",
                                   tag, decodedCount, widget, slot, item,
                                   widget == BankState.NORMAL_INVENTORY_CONTAINER ? "WEAR_WIELD_EQUIP" : "ITEM_OPTION_2");
@@ -281,7 +286,18 @@ final class ClientPacketProbe {
                 String semantic = (widget == BankState.NORMAL_INVENTORY_CONTAINER
                     && (item==23063 || item==21963 || item==21964))
                     ? "CUSTOMIZE_COMP_CAPE" : "ITEM_OPTION_4";
-                pendingItemAction = new ItemContainerAction(opcode, widget, slot, item, 0, semantic);
+                offerItemAction(
+                    new ItemContainerAction(
+                        opcode,
+                        widget,
+                        slot,
+                        item,
+                        0,
+                        semantic
+                    ),
+                    "FIXED6_WIDGET_LE_A_SLOT_LE_ITEM_BE_A",
+                    "PINNED_CLIENT_MENU_ACTION_493_WRITER"
+                );
                 System.out.printf("%sCLIENT_PACKET seq=%d opcode=75 len=6 inventoryItemAction=true widget=%d slot=%d itemId=%d semantic=%s schema=STATIC_EXACT_FIXED6%n",
                                   tag, decodedCount, widget, slot, item, semantic);
                 return true;
@@ -298,24 +314,65 @@ final class ClientPacketProbe {
                 byte[] body = Binary.readExactly(in, len);
                 int widget, slot, item, extra = 0;
                 String semantic;
+                String schema;
+                String source;
                 switch (opcode) {
                     case 145: // action 632 / W[0]
-                        widget = beA(body,0); slot = beA(body,2); item = beA(body,4); semantic=itemSemantic(widget,"1"); break;
+                        widget = beA(body,0); slot = beA(body,2); item = beA(body,4);
+                        semantic=itemSemantic(widget,"1");
+                        schema="FIXED6_WIDGET_BE_A_SLOT_BE_A_ITEM_BE_A";
+                        source="PINNED_CLIENT_MENU_ACTION_632_WRITER";
+                        break;
                     case 117: // action 78 / W[1]
-                        widget = leA(body,0); item = leA(body,2); slot = le(body,4); semantic=itemSemantic(widget,"5"); break;
+                        widget = leA(body,0); item = leA(body,2); slot = le(body,4);
+                        semantic=itemSemantic(widget,"5");
+                        schema="FIXED6_WIDGET_LE_A_ITEM_LE_A_SLOT_LE";
+                        source="PINNED_CLIENT_MENU_ACTION_78_WRITER";
+                        break;
                     case 43:  // action 867 / W[2]
-                        widget = le(body,0); item = beA(body,2); slot = beA(body,4); semantic=itemSemantic(widget,"10"); break;
+                        widget = le(body,0); item = beA(body,2); slot = beA(body,4);
+                        semantic=itemSemantic(widget,"10");
+                        schema="FIXED6_WIDGET_LE_ITEM_BE_A_SLOT_BE_A";
+                        source="PINNED_CLIENT_MENU_ACTION_867_WRITER";
+                        break;
                     case 129: // action 431 / W[3]
-                        slot = beA(body,0); widget = be(body,2); item = beA(body,4); semantic=itemSemantic(widget,"ALL"); break;
+                        slot = beA(body,0); widget = be(body,2); item = beA(body,4);
+                        semantic=itemSemantic(widget,"ALL");
+                        schema="FIXED6_SLOT_BE_A_WIDGET_BE_ITEM_BE_A";
+                        source="PINNED_CLIENT_MENU_ACTION_431_WRITER";
+                        break;
                     case 135: // action 53 / W[4]
-                        slot = le(body,0); widget = beA(body,2); item = le(body,4); semantic=itemSemantic(widget,"X"); break;
+                        slot = le(body,0); widget = beA(body,2); item = le(body,4);
+                        semantic=itemSemantic(widget,"X");
+                        schema="FIXED6_SLOT_LE_WIDGET_BE_A_ITEM_LE";
+                        source="PINNED_CLIENT_MENU_ACTION_53_WRITER";
+                        break;
                     case 140: // action 291 / bank W[6]: ordinary All-But-One, coins 995 Bag-exchange
-                        slot = beA(body,0); widget = be(body,2); item = beA(body,4); semantic=item==995?"BAG_EXCHANGE_REQUEST":"WITHDRAW_ALL_BUT_ONE"; break;
+                        slot = beA(body,0); widget = be(body,2); item = beA(body,4);
+                        semantic=item==995?"BAG_EXCHANGE_REQUEST":"WITHDRAW_ALL_BUT_ONE";
+                        schema="FIXED6_SLOT_BE_A_WIDGET_BE_ITEM_BE_A";
+                        source="PINNED_CLIENT_MENU_ACTION_291_WRITER";
+                        break;
                     case 141: // action 300 / bank W[5]: final i32 is current Client.ih configured amount
-                        slot = beA(body,0); widget = be(body,2); item = beA(body,4); extra = be32(body,6); semantic="WITHDRAW_CONFIGURED_AMOUNT"; break;
+                        slot = beA(body,0); widget = be(body,2); item = beA(body,4); extra = be32(body,6);
+                        semantic="WITHDRAW_CONFIGURED_AMOUNT";
+                        schema="FIXED10_SLOT_BE_A_WIDGET_BE_ITEM_BE_A_EXTRA_BE32";
+                        source="PINNED_CLIENT_MENU_ACTION_300_WRITER";
+                        break;
                     default: throw new AssertionError();
                 }
-                pendingItemAction = new ItemContainerAction(opcode, widget, slot, item, extra, semantic);
+                offerItemAction(
+                    new ItemContainerAction(
+                        opcode,
+                        widget,
+                        slot,
+                        item,
+                        extra,
+                        semantic
+                    ),
+                    schema,
+                    source
+                );
                 System.out.printf("%sCLIENT_PACKET seq=%d opcode=%d len=%d itemContainerAction=true widget=%d slot=%d itemId=%d semantic=%s%s schema=STATIC_EXACT%n",
                                   tag, decodedCount, opcode, len, widget, slot, item, semantic,
                                   opcode==141 ? " extra="+extra : "");
@@ -454,7 +511,18 @@ final class ClientPacketProbe {
                 byte[] body=Binary.readExactly(in,6);
                 int widget=leA(body,0), slot=beA(body,2), item=le(body,4);
                 String semantic=ItemActionResolver.inventoryOption1Semantic(item);
-                pendingItemAction=new ItemContainerAction(opcode,widget,slot,item,0,semantic==null?"ITEM_OPTION_1":semantic);
+                offerItemAction(
+                    new ItemContainerAction(
+                        opcode,
+                        widget,
+                        slot,
+                        item,
+                        0,
+                        semantic==null?"ITEM_OPTION_1":semantic
+                    ),
+                    "FIXED6_WIDGET_LE_A_SLOT_BE_A_ITEM_LE",
+                    "PINNED_CLIENT_INVENTORY_OPTION_1_WRITER"
+                );
                 System.out.printf("%sCLIENT_PACKET seq=%d opcode=122 len=6 itemOption1=true widget=%d slot=%d itemId=%d semantic=%s schema=STATIC_EXACT_FIXED6_LEA_BEA_LE%n",
                     tag,decodedCount,widget,slot,item,semantic);
                 return true;
@@ -757,13 +825,17 @@ final class ClientPacketProbe {
                 "ITEM_OPTION_3"
             );
 
-            pendingItemAction = new ItemContainerAction(
-                opcode,
-                widgetId,
-                slot,
-                itemId,
-                0,
-                semantic
+            offerItemAction(
+                new ItemContainerAction(
+                    opcode,
+                    widgetId,
+                    slot,
+                    itemId,
+                    0,
+                    semantic
+                ),
+                "FIXED6_ITEM_BE_A_SLOT_LE_A_WIDGET_LE_A",
+                "PINNED_CLIENT_OPCODE_16_ITEM_OPTION_3_WRITER"
             );
 
             System.out.printf(
@@ -871,6 +943,24 @@ final class ClientPacketProbe {
     private static int beA(byte[] b,int o){ return ((b[o]&255)<<8)|(((b[o+1]&255)-128)&255); }
     private static int leA(byte[] b,int o){ return (((b[o]&255)-128)&255)|((b[o+1]&255)<<8); }
     private static int be32(byte[] b,int o){ return ((b[o]&255)<<24)|((b[o+1]&255)<<16)|((b[o+2]&255)<<8)|(b[o+3]&255); }
+
+    private void offerItemAction(
+        ItemContainerAction action,
+        String schema,
+        String source
+    )throws IOException{
+        offerTypedRequest(
+            new ItemContainerActionClientRequest(
+                action,
+                ClientRequestMetadata.exactCurrent(
+                    action.opcode,
+                    schema,
+                    source
+                )
+            ),
+            action.opcode
+        );
+    }
 
     private void offerTypedRequest(
         ClientRequest request,
