@@ -39,6 +39,22 @@ final class LocalPlayerInteractionHandler {
         if(action==null||target==null)return null;
 
         if(action.optionSlot==1){
+            CombatTargetValidator.Result validity=
+                CombatTargetValidator.player(
+                    owner,
+                    target,
+                    sync
+                );
+
+            if(!validity.valid){
+                activeAttack=null;
+                nextAttackTick=0;
+                return "V5131_PLAYER_ATTACK_REJECTED "+action+
+                    " target="+target.username()+
+                    " reason="+validity.reason+
+                    " detail="+validity.detail;
+            }
+
             activeTrade=null;
             activeFollow=null;
             activeAttack=target.id();
@@ -49,6 +65,7 @@ final class LocalPlayerInteractionHandler {
                 " target="+target.username()+
                 " world="+target.movement().x()+","+target.movement().y()+
                 " clickFacing=false facingAuthority=FIRST_AUTHORITATIVE_MOVEMENT"+
+                " targetValidity=VALID"+
                 " damage=DEFERRED_SERVER_FORMULA_AUTHORITY";
         }
 
@@ -104,10 +121,29 @@ final class LocalPlayerInteractionHandler {
         if(id==null||sync==null)return null;
 
         WorldPlayer target=world.players().byId(id);
-        if(target==null||
-           !target.registered()||
-           target.movement().plane()!=movement.plane()||
-           sync.clientIndexFor(target)<0){
+
+        if(activeAttack!=null){
+            CombatTargetValidator.Result validity=
+                CombatTargetValidator.player(
+                    owner,
+                    target,
+                    sync
+                );
+
+            if(!validity.valid){
+                activeAttack=null;
+                nextAttackTick=0;
+                movement.clearQueuedPath();
+                return "[world player="+owner.id()+
+                    "] V5131_PLAYER_ATTACK_CANCELLED reason="+
+                    validity.reason+
+                    " detail="+validity.detail+
+                    " worldTick="+worldTick;
+            }
+        }else if(target==null||
+                 !target.registered()||
+                 target.movement().plane()!=movement.plane()||
+                 sync.clientIndexFor(target)<0){
             clearTargets();
             movement.clearQueuedPath();
             return null;
@@ -213,18 +249,24 @@ final class LocalPlayerInteractionHandler {
         if(activeAttack==null||sync==null)return null;
 
         WorldPlayer target=world.players().byId(activeAttack);
-        if(target==null||!target.registered()){
+        CombatTargetValidator.Result validity=
+            CombatTargetValidator.player(
+                owner,
+                target,
+                sync
+            );
+
+        if(!validity.valid){
             activeAttack=null;
             nextAttackTick=0;
-            return null;
+            movement.clearQueuedPath();
+            return "V5131_PLAYER_ATTACK_CANCELLED reason="+
+                validity.reason+
+                " detail="+validity.detail+
+                " worldTick="+worldTick;
         }
 
         int targetValue=sync.interactionTargetFor(target);
-        if(targetValue<0){
-            activeAttack=null;
-            nextAttackTick=0;
-            return null;
-        }
 
         int range=playerAttackRange();
         int dx=Math.abs(target.movement().x()-movement.x());
