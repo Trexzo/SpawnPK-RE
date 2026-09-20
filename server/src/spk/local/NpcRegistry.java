@@ -100,8 +100,14 @@ final class NpcRegistry {
         w.varShort(65,NpcSyncEncoder.initial(visible,movement.x(),movement.y()));
     }
 
-    NpcEntity pet(){ return pet; }
-    NpcEntity miniPet(){ return miniPet; }
+    NpcEntity pet(){
+        refreshCanonicalActorProjections();
+        return pet;
+    }
+    NpcEntity miniPet(){
+        refreshCanonicalActorProjections();
+        return miniPet;
+    }
     NpcEntity scene(int sceneIndex){ return findScene(sceneIndex); }
     NpcEntity canonical(EntityId canonicalId){
         if(canonicalId==null)return null;
