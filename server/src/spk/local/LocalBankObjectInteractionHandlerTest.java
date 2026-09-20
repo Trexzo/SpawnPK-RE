@@ -55,6 +55,19 @@ public final class LocalBankObjectInteractionHandlerTest {
         if(!h.hasPending())
             throw new AssertionError("deferred request not retained");
 
+        if(movement.queued()<=0)
+            throw new AssertionError(
+                "server-owned approach route was not queued");
+
+        String whileQueued=
+            h.tick(System.currentTimeMillis(),w);
+        if(whileQueued!=null)
+            throw new AssertionError(
+                "pending interaction resolved before queued approach completed="+
+                whileQueued);
+
+        movement.clearQueuedPath();
+
         String cancelled=h.tick(System.currentTimeMillis(),w);
         if(cancelled==null||
            !cancelled.contains("action=CANCELLED_PATH_ENDED_NOT_ADJACENT"))
@@ -63,6 +76,6 @@ public final class LocalBankObjectInteractionHandlerTest {
             throw new AssertionError("cancelled request still pending");
 
         System.out.println(
-            "LOCAL_BANK_OBJECT_HANDLER_PASS immediateOpen=true nonBankFailClosed=true deferredOwnership=true pathEndCancel=true");
+            "LOCAL_BANK_OBJECT_HANDLER_PASS immediateOpen=true nonBankFailClosed=true deferredOwnership=true serverApproachQueued=true pathEndCancel=true");
     }
 }
