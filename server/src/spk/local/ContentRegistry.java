@@ -369,7 +369,6 @@ final class ContentRegistry {
     ContentNpcOptionResult dispatchNpcOption(
         int npcDefinitionId,
         int option,
-        int sceneIndex,
         int worldX,
         int worldY
     ){
@@ -393,7 +392,6 @@ final class ContentRegistry {
             new NpcOptionContext(
                 npcDefinitionId,
                 option,
-                sceneIndex,
                 worldX,
                 worldY
             )
@@ -910,20 +908,17 @@ final class ContentRegistry {
 
         private final int npcDefinitionId;
         private final int option;
-        private final int sceneIndex;
         private final int worldX;
         private final int worldY;
 
         NpcOptionContext(
             int npcDefinitionId,
             int option,
-            int sceneIndex,
             int worldX,
             int worldY
         ){
             this.npcDefinitionId=npcDefinitionId;
             this.option=option;
-            this.sceneIndex=sceneIndex;
             this.worldX=worldX;
             this.worldY=worldY;
         }
@@ -934,10 +929,6 @@ final class ContentRegistry {
 
         @Override public int option(){
             return option;
-        }
-
-        @Override public int sceneIndex(){
-            return sceneIndex;
         }
 
         @Override public int worldX(){
