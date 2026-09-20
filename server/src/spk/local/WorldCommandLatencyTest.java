@@ -14,8 +14,15 @@ public final class WorldCommandLatencyTest {
         w.submit(p,ran::incrementAndGet).get(250,TimeUnit.MILLISECONDS);
         long ms=TimeUnit.NANOSECONDS.toMillis(System.nanoTime()-t0);
         long tickAtCompletion=w.clock().tick();
+
+        w.unregisterPlayer(p);
+        w.close();
+
+        // WorldPulse metrics are written by the world thread. Closing joins that
+        // thread, giving this test a deterministic happens-before edge before
+        // reading diagnostic counters.
         String metrics=w.metrics();
-        w.unregisterPlayer(p);w.close();
+
         if(ran.get()!=1)throw new AssertionError("command not run");
         if(ms>=200L)throw new AssertionError("artificial input latency ms="+ms);
         if(tickAtCompletion!=0L)throw new AssertionError("command waited for 600ms simulation tick tick="+tickAtCompletion);
