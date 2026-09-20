@@ -80,17 +80,123 @@ public final class MarketplaceServiceTest {
         expect(IllegalArgumentException.class,()->market.createDraft("player:x","item:x",0,1,"currency:x",sellerReserved,AtomicTransactionService.SourceAuthority.CUSTOM_LOCALLAB),"zero quantity");
         expect(IllegalArgumentException.class,()->market.createDraft("player:x","item:x",1,0,"currency:x",sellerReserved,AtomicTransactionService.SourceAuthority.CUSTOM_LOCALLAB),"zero price");
 
+        repositoryFailureRollbackRegression(tx);
+
         eq(MarketplaceListing.State.FILLED,repository.find(listingId).state,"repository latest filled");
         eq(MarketplaceListing.State.CANCELLED,repository.find(listing2).state,"repository latest cancelled");
         eq(3L,market.size(),"market size");
         assertNoProtocolLeaks(MarketplaceListing.class);assertNoProtocolLeaks(MarketplaceService.class);assertNoProtocolLeaks(MarketplaceListingRepository.class);
-        System.out.println("ISSUE165_MARKETPLACE_LIFECYCLE_PASS draft=true escrowGate=true sellerEscrowSingleUse=true partialFill=true settlementIdempotent=true ownerGuard=true immutableSnapshots=true repository=true protocolIndependent=true listings="+market.size());
+        System.out.println("ISSUE165_MARKETPLACE_LIFECYCLE_PASS draft=true escrowGate=true sellerEscrowSingleUse=true partialFill=true settlementIdempotent=true ownerGuard=true immutableSnapshots=true repository=true repositoryFailureRollback=true protocolIndependent=true listings="+market.size());
     }
 
-    static final class MemoryRepository implements MarketplaceListingRepository {
+    private static void repositoryFailureRollbackRegression(AtomicTransactionService tx){
+        FailingRepository repository=new FailingRepository();
+        MarketplaceService market=new MarketplaceService(repository);
+
+        AtomicTransactionService.TransactionId sellerTxn=tx.create(
+            "player:rollback-seller","fixture-repository-rollback-seller",
+            AtomicTransactionService.SourceAuthority.CUSTOM_LOCALLAB
+        );
+        AtomicTransactionService.Snapshot sellerReserved=tx.reserve(
+            sellerTxn,
+            Collections.singletonList(
+                new EscrowAsset(
+                    EscrowAsset.Kind.ITEM,"item:rollback",2,"player:rollback-seller",
+                    AtomicTransactionService.SourceAuthority.CUSTOM_LOCALLAB
+                )
+            )
+        );
+
+        repository.failNextSave();
+        expect(
+            IllegalStateException.class,
+            ()->market.createDraft(
+                "player:rollback-seller","item:rollback",2,5,"currency:rollback",
+                sellerReserved,AtomicTransactionService.SourceAuthority.CUSTOM_LOCALLAB
+            ),
+            "repository failure during create"
+        );
+        eq(0L,market.size(),"failed create not published");
+
+        MarketplaceListing.Id listing=market.createDraft(
+            "player:rollback-seller","item:rollback",2,5,"currency:rollback",
+            sellerReserved,AtomicTransactionService.SourceAuthority.CUSTOM_LOCALLAB
+        );
+
+        repository.failNextSave();
+        expect(
+            IllegalStateException.class,
+            ()->market.activate(listing,"player:rollback-seller",sellerReserved),
+            "repository failure during activate"
+        );
+        eq(MarketplaceListing.State.DRAFT,market.snapshot(listing).state,"activate rollback state");
+        market.activate(listing,"player:rollback-seller",sellerReserved);
+
+        AtomicTransactionService.TransactionId buyerTxn=tx.create(
+            "player:rollback-buyer","fixture-repository-rollback-buyer",
+            AtomicTransactionService.SourceAuthority.CUSTOM_LOCALLAB
+        );
+        tx.reserve(
+            buyerTxn,
+            Collections.singletonList(
+                new EscrowAsset(
+                    EscrowAsset.Kind.CURRENCY,"currency:rollback",5,"player:rollback-buyer",
+                    AtomicTransactionService.SourceAuthority.CUSTOM_LOCALLAB
+                )
+            )
+        );
+        AtomicTransactionService.Snapshot buyerCommitted=tx.commit(buyerTxn);
+
+        repository.failNextSave();
+        expect(
+            IllegalStateException.class,
+            ()->market.confirmFill(listing,"player:rollback-buyer",1,buyerCommitted),
+            "repository failure during fill"
+        );
+        eq(MarketplaceListing.State.ACTIVE,market.snapshot(listing).state,"fill rollback state");
+        eq(2L,market.snapshot(listing).remainingQuantity,"fill rollback quantity");
+
+        MarketplaceListing.Snapshot partial=
+            market.confirmFill(listing,"player:rollback-buyer",1,buyerCommitted);
+        eq(MarketplaceListing.State.PARTIALLY_FILLED,partial.state,"fill retry after rollback");
+        eq(1L,partial.remainingQuantity,"fill retry quantity");
+
+        repository.failNextSave();
+        expect(
+            IllegalStateException.class,
+            ()->market.cancel(listing,"player:rollback-seller"),
+            "repository failure during cancel"
+        );
+        eq(
+            MarketplaceListing.State.PARTIALLY_FILLED,
+            market.snapshot(listing).state,
+            "cancel rollback state"
+        );
+        eq(
+            MarketplaceListing.State.CANCELLED,
+            market.cancel(listing,"player:rollback-seller").listingId.equals(listing)
+                ?market.snapshot(listing).state
+                :null,
+            "cancel retry after rollback"
+        );
+    }
+
+    static class MemoryRepository implements MarketplaceListingRepository {
         final LinkedHashMap<MarketplaceListing.Id,MarketplaceListing.Snapshot> rows=new LinkedHashMap<>();
         public void save(MarketplaceListing.Snapshot snapshot){rows.put(snapshot.listingId,snapshot);}
         public MarketplaceListing.Snapshot find(MarketplaceListing.Id listingId){return rows.get(listingId);}
+    }
+
+    static final class FailingRepository extends MemoryRepository {
+        private boolean failNext;
+        void failNextSave(){failNext=true;}
+        @Override public void save(MarketplaceListing.Snapshot snapshot){
+            if(failNext){
+                failNext=false;
+                throw new IllegalStateException("fixture repository failure");
+            }
+            super.save(snapshot);
+        }
     }
     private static void assertNoProtocolLeaks(Class<?> root){ArrayDeque<Class<?>> q=new ArrayDeque<>();q.add(root);while(!q.isEmpty()){Class<?> c=q.removeFirst();for(Field f:c.getDeclaredFields()){if(f.isEnumConstant())continue;String s=(f.getName()+" "+f.getType().getName()).toLowerCase(Locale.ROOT);for(String x:new String[]{"widget","opcode","subtype","packet"})if(s.contains(x))fail("protocol leak "+c.getName()+"."+f.getName());}Collections.addAll(q,c.getDeclaredClasses());}}
     private static void expect(Class<? extends Throwable> type,Throwing run,String label){try{run.run();fail(label+" did not throw "+type.getSimpleName());}catch(Throwable t){if(!type.isInstance(t))fail(label+" threw "+t);}}
