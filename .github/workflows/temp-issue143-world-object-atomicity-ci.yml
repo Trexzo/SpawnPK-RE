@@ -6,6 +6,37 @@ on:
       - fix/issue-143-world-object-replacement-atomicity
 
 jobs:
+  baseline-stale-test-proof:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refactor/issue-16-npc-option-registry
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Canonical base build
+        shell: pwsh
+        run: ./server/build.ps1
+
+      - name: Prove inherited bank-object assertion is stale on base
+        shell: pwsh
+        run: |
+          $output = @(& java -cp server/build/SpawnPKLocalServer.jar spk.local.LocalBankObjectInteractionHandlerTest 2>&1)
+          $exit = $LASTEXITCODE
+          $text = $output -join "`n"
+          Write-Host $text
+          if ($exit -eq 0) {
+            throw "Expected the known stale base assertion to fail, but it passed."
+          }
+          if ($text -notmatch 'path-ended cancellation=null') {
+            throw "Base failed for an unexpected reason."
+          }
+          Write-Host "BASELINE_STALE_BANK_OBJECT_TEST_CONFIRMED pathEndedCancellationNull=true"
+
   validate:
     runs-on: windows-latest
     steps:
@@ -26,11 +57,11 @@ jobs:
           java -cp server/build/SpawnPKLocalServer.jar spk.local.WorldObjectRegistryReplacementAtomicityTest
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-      - name: Inherited object and world regressions
+      - name: Relevant object and world regressions
         shell: pwsh
         run: |
           $tests = @(
-            'spk.local.LocalBankObjectInteractionHandlerTest',
+            'spk.local.LocalDevWorldCommandHandlerTest',
             'spk.local.ObjectOptionContentRegistryParityTest',
             'spk.local.WorldPulseCommandExecutionTest',
             'spk.local.SharedWorldSocketIntegrationTest'
