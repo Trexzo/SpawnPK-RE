@@ -146,11 +146,6 @@ final class LocalPendingRequestDispatcher {
             serverPackets,
             tag
         );
-        acceptObjectInteraction(
-            clientPackets,
-            serverPackets,
-            tag
-        );
         acceptGenericInteraction(
             clientPackets,
             tag
@@ -284,6 +279,19 @@ final class LocalPendingRequestDispatcher {
             }
 
             if(request instanceof
+                    ObjectInteractionClientRequest){
+                ObjectInteractionClientRequest object=
+                    (ObjectInteractionClientRequest)request;
+
+                routeObjectInteraction(
+                    object.interaction(),
+                    serverPackets,
+                    tag
+                );
+                continue;
+            }
+
+            if(request instanceof
                     CommandClientRequest){
                 CommandClientRequest command=
                     (CommandClientRequest)request;
@@ -308,16 +316,11 @@ final class LocalPendingRequestDispatcher {
         }
     }
 
-    private void acceptObjectInteraction(
-        ClientPacketProbe clientPackets,
+    private void routeObjectInteraction(
+        ObjectInteraction request,
         ServerPacketWriter serverPackets,
         String tag
     )throws IOException{
-        ObjectInteraction request=
-            clientPackets.takeObjectInteraction();
-
-        if(request==null)return;
-
         String result=
             bankObjectHandler.handle(
                 request,
