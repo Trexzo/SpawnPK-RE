@@ -86,7 +86,7 @@ final class LocalSession implements Runnable {
     private String loginAlias = "localtest";
     private boolean persistentAccount;
     /** Persisted semantic global pet accessory. 0 means none. */
-    private final PetAccessoryState petAccessoryState = new PetAccessoryState();
+    private final PetAccessoryState petAccessoryState;
     private volatile boolean logoutRequested;
 
     LocalSession(Socket socket, boolean bootstrap) { this(socket, bootstrap, false, World.shared()); }
@@ -99,6 +99,7 @@ final class LocalSession implements Runnable {
         this.world = java.util.Objects.requireNonNull(world,"world");
         this.homeWorld = new HomeWorldRuntimePlan(this.world.homeNpcs());
         this.worldPlayer = new WorldPlayer();
+        this.petAccessoryState=worldPlayer.petAccessoryState();
         this.movement = worldPlayer.movement();
         this.bank = worldPlayer.bank();
         this.equipment = worldPlayer.equipment();
