@@ -11,11 +11,14 @@ import java.util.*;
  * opensrc remains byte-for-byte compatible with the historical AccountStore.
  * src uses an adjacent src.properties file with the same property schema and
  * atomic-save discipline. No credentials are stored here; this is gameplay state.
+ *
+ * Legacy profile I/O stays here as a compatibility adapter. Schema-v1 gameplay
+ * encoding is owned by PlayerSnapshotSchemaV1.
  */
 final class LocalAccountProfiles {
     static final String PRIMARY="opensrc";
     static final String SECONDARY="src";
-    private static final int FORMAT_VERSION=1;
+    private static final int FORMAT_VERSION=PlayerSnapshot.CURRENT_VERSION;
 
     private LocalAccountProfiles(){}
 
@@ -47,40 +50,67 @@ final class LocalAccountProfiles {
     static String load(String username,BankState bank,EquipmentState equipment,MovementState movement,PetState pet,PlayerState player)throws IOException{
         String u=clean(username);
         if(PRIMARY.equalsIgnoreCase(u)) return AccountStore.load(bank,equipment,movement,pet,player);
+
         Path file=accountFile(u);
         if(!Files.isRegularFile(file)) return "ACCOUNT_DEFAULTS_NO_FILE file="+file+" profile="+u;
-        Properties p=new Properties();
-        try(InputStream in=Files.newInputStream(file)){p.load(in);}
-        int version=parseInt(p.getProperty("format.version"),-1);
-        if(version!=FORMAT_VERSION) throw new IOException("unsupported account format "+version+" file="+file);
-        bank.loadAccountProperties(p);
-        equipment.loadAccountProperties(p);
-        movement.loadAccountProperties(p);
-        if(pet!=null)pet.loadAccountProperties(p);
-        if(player!=null)player.loadAccountProperties(p);
+
+        Properties properties=new Properties();
+        try(InputStream in=Files.newInputStream(file)){properties.load(in);}
+
+        PlayerSnapshot snapshot=
+            PlayerSnapshot.fromLegacyProperties(
+                u,
+                properties
+            );
+
+        PlayerSnapshotSchemaV1.apply(
+            snapshot.values(),
+            bank,
+            equipment,
+            movement,
+            pet,
+            player
+        );
+
         return summary("ACCOUNT_LOADED",file,u,bank,equipment,movement,pet,player);
     }
 
     static String save(String username,BankState bank,EquipmentState equipment,MovementState movement,PetState pet,PlayerState player)throws IOException{
         String u=clean(username);
         if(PRIMARY.equalsIgnoreCase(u)) return AccountStore.save(bank,equipment,movement,pet,player);
+
         Path file=accountFile(u);
         Files.createDirectories(file.getParent());
-        Properties p=new Properties();
-        p.setProperty("format.version",Integer.toString(FORMAT_VERSION));
-        p.setProperty("username",u);
-        p.setProperty("saved.at",Instant.now().toString());
-        bank.saveAccountProperties(p);
-        equipment.saveAccountProperties(p);
-        movement.saveAccountProperties(p);
-        if(pet!=null)pet.saveAccountProperties(p);
-        if(player!=null)player.saveAccountProperties(p);
+
+        PlayerSnapshot snapshot=
+            new PlayerSnapshot(
+                FORMAT_VERSION,
+                u,
+                PlayerSnapshotSchemaV1.capture(
+                    bank,
+                    equipment,
+                    movement,
+                    pet,
+                    player,
+                    0
+                )
+            );
+
+        Properties properties=
+            snapshot.toLegacyProperties();
+
+        properties.setProperty(
+            "saved.at",
+            Instant.now().toString()
+        );
+
         Path tmp=file.resolveSibling(file.getFileName().toString()+".tmp");
         try(OutputStream out=Files.newOutputStream(tmp,StandardOpenOption.CREATE,StandardOpenOption.TRUNCATE_EXISTING,StandardOpenOption.WRITE)){
-            p.store(out,"SpawnPK LocalLab localhost account state");
+            properties.store(out,"SpawnPK LocalLab localhost account state");
         }
         try{Files.move(tmp,file,StandardCopyOption.REPLACE_EXISTING,StandardCopyOption.ATOMIC_MOVE);}
         catch(AtomicMoveNotSupportedException e){Files.move(tmp,file,StandardCopyOption.REPLACE_EXISTING);}
+
         return summary("ACCOUNT_SAVED",file,u,bank,equipment,movement,pet,player);
     }
 
@@ -92,5 +122,4 @@ final class LocalAccountProfiles {
     }
 
     private static String clean(String s){return s==null?"":s.trim().toLowerCase(Locale.ROOT);}
-    private static int parseInt(String s,int fallback){try{return Integer.parseInt(s);}catch(Exception e){return fallback;}}
 }

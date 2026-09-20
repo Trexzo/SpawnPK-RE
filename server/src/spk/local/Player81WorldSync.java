@@ -55,6 +55,30 @@ final class Player81WorldSync {
         return t==null?-1L:t.lastEventSeq;
     }
 
+    static synchronized boolean sendSkillUpdate(
+        World world,
+        WorldPlayer player,
+        int skill,
+        int xp,
+        int currentLevel
+    )throws IOException{
+        if(world==null||player==null)return false;
+        WorldState state=BY_WORLD.get(world);
+        if(state==null)return false;
+        Context context=state.contexts.get(player.id());
+        if(context==null||context.closed)return false;
+
+        context.writer.fixed(
+            134,
+            BootstrapPackets.skill134(
+                skill,
+                xp,
+                currentLevel
+            )
+        );
+        return true;
+    }
+
     static synchronized void unregister(ServerPacketWriter writer){
         Context c=BY_WRITER.remove(writer);
         if(c==null)return;
