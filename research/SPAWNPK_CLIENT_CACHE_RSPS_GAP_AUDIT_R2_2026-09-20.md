@@ -1069,6 +1069,63 @@ The final jump is deliberate current-client behavior: when the dynamic ID counte
 
 This closes the room-selection transport contract. It does **not** prove original-server placement validation, adjacency/graph rules, hotspot semantics, material consumption, persistence or destruction rules.
 
+## R2.4 exact C2S closure: Item Enchantment item selection
+
+The native Item Enchantment Chest uses more than one client intent transport.
+
+Its visible category/action controls remain exact C2S185 widget actions:
+
+```
+49970..49985  Select enchantment category rows
+49990         Enchant
+50314         Search by name
+```
+
+The actual 60-slot selectable item grid is widget:
+
+```
+50253
+```
+
+and its first inventory action is exactly:
+
+```
+Select item
+```
+
+The generic inventory-action builder maps item action index 0 / `W[0]` to menu action 632.
+
+The exact current writer for menu action 632 emits:
+
+```
+C2S opcode 145
+widgetId  u16_be_low_sub128
+slot      u16_be_low_sub128
+itemId    u16_be_low_sub128
+```
+
+LocalLab's existing exact-current decoder independently carries the same authority:
+
+```
+case 145:
+  widget = BE-A
+  slot   = BE-A
+  item   = BE-A
+```
+
+Therefore the current Item Enchantment intent split is:
+
+```
+SELECT_ENCHANTMENT_CATEGORY -> C2S185(widget 49970..49985)
+SELECT_ITEM                  -> C2S145(widget=50253, slot, itemId)
+ATTEMPT_ENCHANT              -> C2S185(widget=49990)
+SEARCH_BY_NAME               -> C2S185(widget=50314)
+```
+
+S2C126 target 38 remains the stage/state projection and target 71 the selected/result sprite projection.
+
+This closes the native item-selection transport. It still does not prove authoritative ingredient requirements, consumption, success/failure probability, outputs or currency/material costs.
+
 ## Transport separation confirmed by R2
 
 Do not collapse these systems into one "custom packet" abstraction.
@@ -1134,10 +1191,13 @@ Acceptance should require:
 Continue research before opening raid/market/construction gameplay issues:
 
 1. resolve structural targets 22-24, 26, 29-34, 37, 39, 43, 46, 48-49, 57-61, 69-70 to domain owners where possible,
-2. enumerate Item Enchantment Chest outbound actions paired with targets 38/71,
-3. verify whether construction exposes any additional non-widget placement command after room selection,
-4. recover any raid invitation text-entry path if the server requests a player name after the invite widget,
+2. verify whether construction exposes any additional non-widget placement command after room selection,
+3. recover any raid invitation text-entry path if the server requests a player name after the invite widget,
+4. identify the Item Enchantment Search-by-name text submission path if it is client-local rather than server-requested,
 5. add packet-level fixtures before any production implementation.
+
+Closed in R2.4:
+- Item Enchantment widget 50253 `Select item` uses exact C2S145 with BE-A widget/slot/item fields; category, Enchant and Search controls remain C2S185.
 
 Closed in R2.3:
 - S2C126 target 35 is the exact update side of S2C255 `HIT_DROP_POPUP_EVENT(amount, opaque64, protectionStyle)`; it is combat hit/block popup presentation, not loot/drop-table state.
