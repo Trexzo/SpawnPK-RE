@@ -43,7 +43,6 @@ final class ClientPacketProbe {
     private MovementRequest pendingMovement;
     private ObjectInteraction pendingObjectInteraction;
     private ItemContainerAction pendingItemAction;
-    private DropItemAction pendingDropItem;
     private NpcAction pendingNpcAction;
     private PlayerAction pendingPlayerAction;
     private ItemOnItemAction pendingItemOnItem;
@@ -84,12 +83,6 @@ final class ClientPacketProbe {
 
     int typedRequestCount(){
         return typedRequests.size();
-    }
-
-    DropItemAction takeDropItem() {
-        DropItemAction v=pendingDropItem;
-        pendingDropItem=null;
-        return v;
     }
 
     NpcAction takeNpcAction() {
@@ -494,7 +487,21 @@ final class ClientPacketProbe {
                 int item=beA(body,0);
                 int widget=be(body,2);
                 int slot=beA(body,4);
-                pendingDropItem=new DropItemAction(item,widget,slot);
+                offerTypedRequest(
+                    new DropItemClientRequest(
+                        new DropItemAction(
+                            item,
+                            widget,
+                            slot
+                        ),
+                        ClientRequestMetadata.exactCurrent(
+                            87,
+                            "FIXED6_ITEM_BE_A_WIDGET_BE_SLOT_BE_A",
+                            "PINNED_CLIENT_INVENTORY_DROP_WRITER"
+                        )
+                    ),
+                    opcode
+                );
                 System.out.printf("%sCLIENT_PACKET seq=%d opcode=87 len=6 inventoryDrop=true widget=%d slot=%d itemId=%d schema=STATIC_EXACT_FIXED6%n",
                                   tag,decodedCount,widget,slot,item);
                 return true;

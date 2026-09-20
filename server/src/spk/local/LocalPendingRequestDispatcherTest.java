@@ -514,6 +514,17 @@ public final class LocalPendingRequestDispatcherTest {
             );
             typedWire.write(0);
             typedWire.write(152);
+            typedWire.write(
+                (87+typedEncoder.nextInt())&255
+            );
+            // item=0 BE-A, unsupported widget=0 BE, slot=0 BE-A.
+            typedWire.write(
+                new byte[]{
+                    0,(byte)128,
+                    0,0,
+                    0,(byte)128
+                }
+            );
 
             ClientPacketProbe probe=
                 new ClientPacketProbe(
@@ -529,6 +540,11 @@ public final class LocalPendingRequestDispatcherTest {
             if(!probe.readNextKnownPacket())
                 throw new AssertionError(
                     "typed widget fixture decode failed"
+                );
+
+            if(!probe.readNextKnownPacket())
+                throw new AssertionError(
+                    "typed drop fixture decode failed"
                 );
 
             setPending(
@@ -609,7 +625,8 @@ public final class LocalPendingRequestDispatcherTest {
 
             System.out.println(
                 "LOCAL_PENDING_REQUEST_DISPATCHER_PASS "+
-                "widgetConsumed=true movementConsumed=true "+
+                "widgetConsumed=true dropConsumed=true "+
+                "movementConsumed=true "+
                 "runToggleBeforeMovement=true classifierCompatibility=true"
             );
         }finally{

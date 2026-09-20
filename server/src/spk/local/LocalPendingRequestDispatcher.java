@@ -175,11 +175,6 @@ final class LocalPendingRequestDispatcher {
             serverPackets,
             tag
         );
-        acceptDropItem(
-            clientPackets,
-            serverPackets,
-            tag
-        );
         acceptGroundItemInteraction(
             clientPackets,
             serverPackets,
@@ -261,6 +256,19 @@ final class LocalPendingRequestDispatcher {
                 routeContainerDrag(
                     drag.drag(),
                     clientPackets,
+                    serverPackets,
+                    tag
+                );
+                continue;
+            }
+
+            if(request instanceof
+                    DropItemClientRequest){
+                DropItemClientRequest drop=
+                    (DropItemClientRequest)request;
+
+                routeDropItem(
+                    drop.action(),
                     serverPackets,
                     tag
                 );
@@ -499,16 +507,11 @@ final class LocalPendingRequestDispatcher {
         );
     }
 
-    private void acceptDropItem(
-        ClientPacketProbe clientPackets,
+    private void routeDropItem(
+        DropItemAction action,
         ServerPacketWriter serverPackets,
         String tag
     )throws IOException{
-        DropItemAction action=
-            clientPackets.takeDropItem();
-
-        if(action==null)return;
-
         petDropPickup.handleDrop(
             action,
             serverPackets,

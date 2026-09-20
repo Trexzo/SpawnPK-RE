@@ -12,13 +12,22 @@ public final class PetClientActionDecoderTest {
         wire.write((155+enc.nextInt())&255); putLE(wire,4);
         ClientPacketProbe p=new ClientPacketProbe(new ByteArrayInputStream(wire.toByteArray()),new IsaacCipher(seed.clone()),"[pet-decoder] ");
         if(!p.readNextKnownPacket())throw new AssertionError();
-        DropItemAction d=p.takeDropItem();
+        ClientRequest request=p.takeTypedRequest();
+        if(!(request instanceof DropItemClientRequest))throw new AssertionError(String.valueOf(request));
+        DropItemClientRequest typed=(DropItemClientRequest)request;
+        DropItemAction d=typed.action();
         if(d==null||d.itemId!=20776||d.widgetId!=3214||d.slot!=4)throw new AssertionError(String.valueOf(d));
+        ClientRequestMetadata metadata=typed.metadata();
+        if(metadata.opcode!=87||
+           !"FIXED6_ITEM_BE_A_WIDGET_BE_SLOT_BE_A".equals(metadata.schema)||
+           !"PINNED_CLIENT_INVENTORY_DROP_WRITER".equals(metadata.source)||
+           metadata.provenance!=ClientRequestProvenance.EXACT_CURRENT_CLIENT)
+            throw new AssertionError(String.valueOf(metadata));
         if(!p.readNextKnownPacket())throw new AssertionError();
         NpcAction n=p.takeNpcAction();
         if(n==null||n.opcode!=155||n.sceneIndex!=4)throw new AssertionError(String.valueOf(n));
         if(!p.isAligned())throw new AssertionError("decoder unaligned");
-        System.out.println("V53_PET_CLIENT_ACTION_DECODER_PASS opcode87=20776/3214/4 opcode155=scene4 aligned=true");
+        System.out.println("V53_PET_CLIENT_ACTION_DECODER_PASS opcode87=typed:20776/3214/4 opcode155=scene4 aligned=true metadata=true");
     }
     private static void putBE(OutputStream o,int v)throws IOException{o.write(v>>>8);o.write(v);}
     private static void putBEA(OutputStream o,int v)throws IOException{o.write(v>>>8);o.write((v+128)&255);}
