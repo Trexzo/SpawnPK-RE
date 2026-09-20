@@ -67,6 +67,23 @@ public final class ContentPublicApiBoundaryTest {
                         " exposes viewer-local scene identity"
                     );
 
+                if("protocolIndex".equals(
+                        method.getName()))
+                    violations.add(
+                        location+
+                        " exposes raw protocol index"
+                    );
+
+                if("percentageText".equals(
+                        method.getName())||
+                   method.getName()
+                        .toLowerCase(Locale.ROOT)
+                        .contains("widget"))
+                    violations.add(
+                        location+
+                        " exposes raw widget presentation identity"
+                    );
+
                 inspect(
                     method.getGenericReturnType(),
                     location+
@@ -147,7 +164,9 @@ public final class ContentPublicApiBoundaryTest {
             "spkLocalLeak=false "+
             "javaNetLeak=false "+
             "transportTypeLeak=false "+
-            "sceneIndex=false"
+            "sceneIndex=false "+
+            "protocolIndex=false "+
+            "widgetIdentity=false"
         );
     }
 
