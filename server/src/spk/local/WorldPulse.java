@@ -89,6 +89,14 @@ final class WorldPulse implements AutoCloseable,Runnable {
                 if(p==null||!p.accepts(target.ownerGeneration()))continue;
                 try{synchronized(p.mutationLock()){if(p.accepts(target.ownerGeneration()))target.onWorldTick(tick,nowMillis);}}catch(Throwable t){System.err.println("[world] tick target failed tick="+tick+" owner="+target.ownerId()+" error="+t);}
             }
+            try{
+                world.persistence().checkpointDue(tick);
+            }catch(Throwable t){
+                System.err.println(
+                    "[world] persistence checkpoint failed tick="+
+                    tick+" error="+t
+                );
+            }
         }finally{
             compatibilityExecutionThread=prior;
         }
@@ -96,5 +104,21 @@ final class WorldPulse implements AutoCloseable,Runnable {
 
     String metrics(){return "WorldPulse{tick="+world.clock().tick()+",running="+running()+",players="+world.players().size()+",commandsQueued="+world.commands().size()+",commandsProcessed="+commandsProcessed+",fastCommandsProcessed="+fastCommandsProcessed+",scheduled="+world.events().size()+",tasksProcessed="+tasksProcessed+",realtime="+world.realtime().size()+",lastTickMs="+(lastDurationNanos/1_000_000.0)+",maxTickMs="+(maxDurationNanos/1_000_000.0)+",overdue="+overdueTicks+"}";}
 
-    @Override public synchronized void close(){running.set(false);if(thread!=null)thread.interrupt();}
+    @Override public synchronized void close(){
+        running.set(false);
+
+        Thread active=thread;
+        if(active==null)return;
+
+        active.interrupt();
+
+        if(Thread.currentThread()==active)
+            return;
+
+        try{
+            active.join(2_000L);
+        }catch(InterruptedException e){
+            Thread.currentThread().interrupt();
+        }
+    }
 }
