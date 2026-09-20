@@ -1,0 +1,47 @@
+name: temp-issue123-content-provenance-ci
+
+on:
+  push:
+    branches:
+      - test/issue-123-content-provenance-authority
+
+jobs:
+  validate:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Canonical server build
+        shell: pwsh
+        run: ./server/build.ps1
+
+      - name: Provenance authority regression
+        shell: pwsh
+        run: |
+          java -cp server/build/SpawnPKLocalServer.jar spk.local.ContentProvenanceAuthorityBoundaryTest
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Inherited content regressions
+        shell: pwsh
+        run: |
+          $tests = @(
+            'spk.local.ContentRegistryTest',
+            'spk.local.NpcOptionContentRegistryParityTest',
+            'spk.local.ObjectOptionContentRegistryParityTest',
+            'spk.local.NurseContentRegistryParityTest',
+            'spk.local.ContentPublicApiBoundaryTest',
+            'spk.local.ContentNpcOptionPublicBoundaryTest'
+          )
+
+          foreach ($test in $tests) {
+            Write-Host "=== $test ==="
+            java -cp server/build/SpawnPKLocalServer.jar $test
+            if ($LASTEXITCODE -ne 0) {
+              throw "$test failed with exit code $LASTEXITCODE"
+            }
+          }
