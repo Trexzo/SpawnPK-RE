@@ -555,6 +555,16 @@ public final class LocalPendingRequestDispatcherTest {
                 }
             );
 
+            typedWire.write(
+                (153+typedEncoder.nextInt())&255
+            );
+            // Player option 2 / Follow, player index 1 LE.
+            // The test bridge intentionally has no player sync context,
+            // so routing must consume it and fail closed as sync-not-ready.
+            typedWire.write(
+                new byte[]{1,0}
+            );
+
             ClientPacketProbe probe=
                 new ClientPacketProbe(
                     new ByteArrayInputStream(
@@ -584,6 +594,11 @@ public final class LocalPendingRequestDispatcherTest {
             if(!probe.readNextKnownPacket())
                 throw new AssertionError(
                     "typed object interaction fixture decode failed"
+                );
+
+            if(!probe.readNextKnownPacket())
+                throw new AssertionError(
+                    "typed player action fixture decode failed"
                 );
 
             setPending(
@@ -666,7 +681,7 @@ public final class LocalPendingRequestDispatcherTest {
                 "LOCAL_PENDING_REQUEST_DISPATCHER_PASS "+
                 "widgetConsumed=true dropConsumed=true "+
                 "itemOnNpcConsumed=true objectInteractionConsumed=true "+
-                "movementConsumed=true "+
+                "playerActionConsumed=true movementConsumed=true "+
                 "runToggleBeforeMovement=true classifierCompatibility=true"
             );
         }finally{
