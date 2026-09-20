@@ -68,12 +68,7 @@ public final class LocalLabCoreContentModule
             );
 
         boolean scopesightActive=
-            player.skillLevel(
-                ContentSkill.RANGED
-            )==114&&
-            player.skillLevel(
-                ContentSkill.MAGIC
-            )==109;
+            player.maintainedPetEffectActive();
 
         String log=
             "V58_NURSE command="+
