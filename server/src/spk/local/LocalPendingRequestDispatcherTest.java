@@ -575,6 +575,16 @@ public final class LocalPendingRequestDispatcherTest {
                 new byte[]{0,0}
             );
 
+            typedWire.write(
+                (249+typedEncoder.nextInt())&255
+            );
+            // Spell-on-player: target index 0 BE-A, spell widget 0 LE.
+            // The handler must consume the typed request and reject the
+            // unknown spell semantically rather than leaving transport state.
+            typedWire.write(
+                new byte[]{0,(byte)128,0,0}
+            );
+
             ClientPacketProbe probe=
                 new ClientPacketProbe(
                     new ByteArrayInputStream(
@@ -614,6 +624,11 @@ public final class LocalPendingRequestDispatcherTest {
             if(!probe.readNextKnownPacket())
                 throw new AssertionError(
                     "typed npc action fixture decode failed"
+                );
+
+            if(!probe.readNextKnownPacket())
+                throw new AssertionError(
+                    "typed spell target fixture decode failed"
                 );
 
             setPending(
@@ -697,8 +712,8 @@ public final class LocalPendingRequestDispatcherTest {
                 "widgetConsumed=true dropConsumed=true "+
                 "itemOnNpcConsumed=true objectInteractionConsumed=true "+
                 "playerActionConsumed=true npcActionConsumed=true "+
-                "movementConsumed=true runToggleBeforeMovement=true "+
-                "classifierCompatibility=true"
+                "spellTargetConsumed=true movementConsumed=true "+
+                "runToggleBeforeMovement=true classifierCompatibility=true"
             );
         }finally{
             world.close();
