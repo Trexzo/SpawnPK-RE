@@ -25,6 +25,90 @@ final class LocalAccountLifecycle {
 
     static LoadResult load(
         Selection selection,
+        WorldPlayer player,
+        PlayerRepository repository,
+        IntPredicate accessoryAllowed,
+        String tag
+    ){
+        if(!selection.persistent)
+            return new LoadResult(0,false);
+
+        try{
+            java.util.Optional<PlayerSnapshot> loaded=
+                repository.load(
+                    selection.username
+                );
+
+            if(!loaded.isPresent()){
+                System.out.println(
+                    tag+
+                    "V5123_ACCOUNT ACCOUNT_DEFAULTS_NO_FILE"+
+                    " profile="+selection.username+
+                    " repository="+
+                    repository.getClass().getSimpleName()
+                );
+                return new LoadResult(0,false);
+            }
+
+            PlayerSnapshot source=
+                loaded.get();
+
+            PlayerSnapshot normalized=
+                PlayerSnapshotCodec.applyValidated(
+                    source,
+                    player
+                );
+
+            int persistedAccessory=
+                PetAccessoryPersistence.read(
+                    source.toLegacyProperties()
+                );
+
+            int accessoryItem=
+                accessoryAllowed.test(
+                    persistedAccessory
+                )
+                    ?persistedAccessory
+                    :0;
+
+            System.out.println(
+                tag+
+                "V5123_ACCOUNT ACCOUNT_LOADED"+
+                " profile="+selection.username+
+                " repository="+
+                repository.getClass().getSimpleName()+
+                " snapshot="+normalized
+            );
+
+            System.out.println(
+                tag+
+                "V5131_PET_ACCESSORY_PERSIST_LOAD item="+
+                (accessoryItem==0
+                    ?"NONE"
+                    :accessoryItem)+
+                " authority=ACCOUNT_SEMANTIC_STATE"
+            );
+
+            return new LoadResult(
+                accessoryItem,
+                true
+            );
+        }catch(Throwable e){
+            System.err.println(
+                tag+
+                "V5123_ACCOUNT_LOAD_FAILED"+
+                " profile="+selection.username+
+                " repository="+
+                repository.getClass().getSimpleName()+
+                " error="+e+
+                " action=KEEP_DEFAULTS"
+            );
+            return new LoadResult(0,false);
+        }
+    }
+
+    static LoadResult load(
+        Selection selection,
         BankState bank,
         EquipmentState equipment,
         MovementState movement,
