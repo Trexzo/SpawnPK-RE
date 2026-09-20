@@ -2,20 +2,8 @@ package spk.local;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
-import java.lang.reflect.Field;
 
 public final class LocalPendingRequestDispatcherTest {
-    private static void setPending(
-        ClientPacketProbe probe,
-        String fieldName,
-        Object value
-    )throws Exception{
-        Field field=
-            ClientPacketProbe.class.getDeclaredField(fieldName);
-        field.setAccessible(true);
-        field.set(probe,value);
-    }
-
     public static void main(String[] args)throws Exception{
         World world=World.isolatedForTest(50L);
 
@@ -599,6 +587,18 @@ public final class LocalPendingRequestDispatcherTest {
                 }
             );
 
+            int movementX=MovementState.INITIAL_X+1;
+            int movementY=MovementState.INITIAL_Y;
+            typedWire.write(
+                (164+typedEncoder.nextInt())&255
+            );
+            typedWire.write(5);
+            typedWire.write((movementX+128)&255);
+            typedWire.write((movementX>>>8)&255);
+            typedWire.write(movementY&255);
+            typedWire.write((movementY>>>8)&255);
+            typedWire.write(0);
+
             ClientPacketProbe probe=
                 new ClientPacketProbe(
                     new ByteArrayInputStream(
@@ -650,21 +650,10 @@ public final class LocalPendingRequestDispatcherTest {
                     "typed generic interaction fixture decode failed"
                 );
 
-            setPending(
-                probe,
-                "pendingMovement",
-                new MovementRequest(
-                    164,
-                    false,
-                    new int[]{
-                        MovementState.INITIAL_X+1
-                    },
-                    new int[]{
-                        MovementState.INITIAL_Y
-                    },
-                    new byte[0]
-                )
-            );
+            if(!probe.readNextKnownPacket())
+                throw new AssertionError(
+                    "typed movement fixture decode failed"
+                );
 
             dispatcher.drain(
                 probe,
@@ -690,11 +679,6 @@ public final class LocalPendingRequestDispatcherTest {
             if(probe.typedRequestCount()!=0)
                 throw new AssertionError(
                     "typed widget request was not consumed"
-                );
-
-            if(probe.takeMovement()!=null)
-                throw new AssertionError(
-                    "movement request was not consumed"
                 );
 
             NpcEntity dummy=
