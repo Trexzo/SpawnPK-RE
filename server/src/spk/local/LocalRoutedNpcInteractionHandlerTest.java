@@ -67,15 +67,22 @@ public final class LocalRoutedNpcInteractionHandlerTest {
         if(!h.hasPendingBank())
             throw new AssertionError("deferred bank scene not retained");
 
-        // This assertion is specifically the path-ended cancellation case.
-        // The generic RouteFinder now leaves the authoritative route queued,
-        // so end that route explicitly before asking the handler to cancel it.
+        // Generic RouteFinder ownership now reroutes a still-valid target when
+        // the previous path ends. Make that transition explicit, then prove the
+        // retained request still cancels deterministically on timeout.
         movement.clearQueuedPath();
 
-        String cancelled=h.tick(System.currentTimeMillis(),w);
+        String rerouted=h.tick(System.currentTimeMillis(),w);
+        if(rerouted==null||
+           !rerouted.contains("SERVER_REROUTED_MOVING_TARGET"))
+            throw new AssertionError("deferred reroute="+rerouted);
+        if(!h.hasPendingBank())
+            throw new AssertionError("rerouted bank scene was cleared");
+
+        String cancelled=h.tick(Long.MAX_VALUE,w);
         if(cancelled==null||
-           !cancelled.contains("CANCELLED_PATH_ENDED_NOT_ADJACENT"))
-            throw new AssertionError("deferred cancellation="+cancelled);
+           !cancelled.contains("CANCELLED_MISSING_OR_TIMEOUT"))
+            throw new AssertionError("deferred timeout cancellation="+cancelled);
         if(h.hasPendingBank())
             throw new AssertionError("cancelled bank scene still pending");
 
@@ -89,6 +96,6 @@ public final class LocalRoutedNpcInteractionHandlerTest {
             throw new AssertionError("generic route="+generic);
 
         System.out.println(
-            "LOCAL_ROUTED_NPC_INTERACTION_HANDLER_PASS bankerImmediate=true deferredOwnership=true pathEndCancel=true genericFailClosed=true");
+            "LOCAL_ROUTED_NPC_INTERACTION_HANDLER_PASS bankerImmediate=true deferredOwnership=true pathEndReroute=true timeoutCancel=true genericFailClosed=true");
     }
 }
