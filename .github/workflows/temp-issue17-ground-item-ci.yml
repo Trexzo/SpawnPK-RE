@@ -28,6 +28,7 @@ jobs:
         run: |
           $tests = @(
             'spk.local.ClientGroundItemRequestQueueTest',
+            'spk.local.EngineR1ClientDecodeTest',
             'spk.local.ClientPacketProbeTest',
             'spk.local.ClientPacketFramingAuthorityTest',
             'spk.local.LocalPendingRequestDispatcherTest',
