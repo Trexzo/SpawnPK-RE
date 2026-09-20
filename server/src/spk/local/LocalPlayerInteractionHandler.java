@@ -13,11 +13,14 @@ final class LocalPlayerInteractionHandler {
     private final WorldPlayer owner;
     private final MovementState movement;
     private final EquipmentState equipment;
+    private final CombatState combatState;
+    private final CombatDamageRules damageRules;
+    private final CombatAttackTimingRules timingRules;
+    private final CombatSystemHooks systemHooks;
+    private final PlayerCombatPresentationAdapter presentation;
 
     private EntityId activeFollow;
-    private EntityId activeAttack;
     private EntityId activeTrade;
-    private long nextAttackTick;
 
     LocalPlayerInteractionHandler(
         World world,
@@ -25,10 +28,37 @@ final class LocalPlayerInteractionHandler {
         MovementState movement,
         EquipmentState equipment
     ){
+        this(
+            world,
+            owner,
+            movement,
+            equipment,
+            CombatDamageRules.localLabFallback(),
+            CombatAttackTimingRules.recoveredCompatibility(),
+            CombatSystemHooks.forPlayer(owner),
+            new PlayerCombatPresentationAdapter()
+        );
+    }
+
+    LocalPlayerInteractionHandler(
+        World world,
+        WorldPlayer owner,
+        MovementState movement,
+        EquipmentState equipment,
+        CombatDamageRules damageRules,
+        CombatAttackTimingRules timingRules,
+        CombatSystemHooks systemHooks,
+        PlayerCombatPresentationAdapter presentation
+    ){
         this.world=java.util.Objects.requireNonNull(world,"world");
         this.owner=java.util.Objects.requireNonNull(owner,"owner");
         this.movement=java.util.Objects.requireNonNull(movement,"movement");
         this.equipment=java.util.Objects.requireNonNull(equipment,"equipment");
+        this.combatState=owner.combatState();
+        this.damageRules=java.util.Objects.requireNonNull(damageRules,"damageRules");
+        this.timingRules=java.util.Objects.requireNonNull(timingRules,"timingRules");
+        this.systemHooks=java.util.Objects.requireNonNull(systemHooks,"systemHooks");
+        this.presentation=java.util.Objects.requireNonNull(presentation,"presentation");
     }
 
     String handleResolved(
@@ -47,8 +77,7 @@ final class LocalPlayerInteractionHandler {
                 );
 
             if(!validity.valid){
-                activeAttack=null;
-                nextAttackTick=0;
+                combatState.clearPlayerTarget();
                 return "V5131_PLAYER_ATTACK_REJECTED "+action+
                     " target="+target.username()+
                     " reason="+validity.reason+
@@ -57,8 +86,10 @@ final class LocalPlayerInteractionHandler {
 
             activeTrade=null;
             activeFollow=null;
-            activeAttack=target.id();
-            nextAttackTick=0;
+            combatState.targetPlayer(
+                target,
+                System.currentTimeMillis()
+            );
             movement.clearQueuedPath();
 
             return "V5131_PLAYER_ATTACK_REQUEST "+action+
@@ -66,14 +97,15 @@ final class LocalPlayerInteractionHandler {
                 " world="+target.movement().x()+","+target.movement().y()+
                 " clickFacing=false facingAuthority=FIRST_AUTHORITATIVE_MOVEMENT"+
                 " targetValidity=VALID"+
-                " damage=DEFERRED_SERVER_FORMULA_AUTHORITY";
+                " combatState=CANONICAL_WORLD_PLAYER"+
+                " damageAuthority="+damageRules.authority()+
+                " damageFormula="+damageRules.formula();
         }
 
         if(action.optionSlot==2){
             activeTrade=null;
-            activeAttack=null;
+            combatState.clearPlayerTarget();
             activeFollow=target.id();
-            nextAttackTick=0;
             movement.clearQueuedPath();
 
             return "V5131_PLAYER_FOLLOW_REQUEST "+action+
@@ -84,8 +116,7 @@ final class LocalPlayerInteractionHandler {
 
         if(action.optionSlot==3){
             activeFollow=null;
-            activeAttack=null;
-            nextAttackTick=0;
+            combatState.clearPlayerTarget();
             movement.clearQueuedPath();
             activeTrade=target.id();
 
@@ -113,6 +144,7 @@ final class LocalPlayerInteractionHandler {
      * world tile. Returns a complete log line when this tick produces one.
      */
     String prepareTick(long worldTick,Player81WorldSync.Context sync)throws IOException{
+        EntityId activeAttack=activeAttackId();
         EntityId id=
             activeAttack!=null?activeAttack:
             activeFollow!=null?activeFollow:
@@ -131,8 +163,7 @@ final class LocalPlayerInteractionHandler {
                 );
 
             if(!validity.valid){
-                activeAttack=null;
-                nextAttackTick=0;
+                combatState.clearPlayerTarget();
                 movement.clearQueuedPath();
                 return "[world player="+owner.id()+
                     "] V5131_PLAYER_ATTACK_CANCELLED reason="+
@@ -231,6 +262,7 @@ final class LocalPlayerInteractionHandler {
     Integer movementInteractionTarget(Player81WorldSync.Context sync){
         if(sync==null)return null;
 
+        EntityId activeAttack=activeAttackId();
         EntityId id=activeAttack!=null?activeAttack:activeFollow;
         if(id==null)return null;
 
@@ -246,6 +278,7 @@ final class LocalPlayerInteractionHandler {
         ServerPacketWriter serverPackets,
         Player81WorldSync.Context sync
     )throws IOException{
+        EntityId activeAttack=activeAttackId();
         if(activeAttack==null||sync==null)return null;
 
         WorldPlayer target=world.players().byId(activeAttack);
@@ -257,8 +290,7 @@ final class LocalPlayerInteractionHandler {
             );
 
         if(!validity.valid){
-            activeAttack=null;
-            nextAttackTick=0;
+            combatState.clearPlayerTarget();
             movement.clearQueuedPath();
             return "V5131_PLAYER_ATTACK_CANCELLED reason="+
                 validity.reason+
@@ -277,48 +309,108 @@ final class LocalPlayerInteractionHandler {
                 ?dx+dy==1
                 :Math.max(dx,dy)<=range&&!(dx==0&&dy==0);
 
-        if(!inRange||worldTick<nextAttackTick)return null;
+        if(!inRange||worldTick<combatState.nextAttackTick)return null;
 
         CombatWeaponProfile profile=
             CombatWeaponRepository.resolve(equipment.weapon());
+        V913WeaponRuntimeAuthority.Profile runtime=
+            V913WeaponRuntimeAuthority.resolve(equipment.weapon());
 
-        int speed=
-            profile==null||profile.attackSpeedTicks<=0
-                ?4
-                :profile.attackSpeedTicks;
-
-        int animation=
-            profile==null?-1:profile.attackAnimation;
-
-        if(animation>=0){
-            serverPackets.varShort(
-                81,
-                CombatSync.player81AnimationAndInteraction(
-                    animation,
-                    targetValue
+        CombatAttackTimingRules.Result timing=
+            timingRules.resolve(
+                new CombatAttackTimingRules.Request(
+                    equipment.weapon(),
+                    profile,
+                    runtime
                 )
             );
-        }else{
-            serverPackets.varShort(
-                81,
-                CombatSync.player81InteractionOnly(targetValue)
-            );
+
+        int speed=timing.attackSpeedTicks;
+        String cadenceAuthority=
+            timing.cadenceAuthority;
+
+        if(speed<=0){
+            speed=4;
+            cadenceAuthority=
+                "CUSTOM_LOCALLAB_PVP_FALLBACK_4T";
         }
 
-        nextAttackTick=worldTick+Math.max(1,speed);
+        int animation=
+            runtime!=null&&
+            runtime.directBasicAttack&&
+            runtime.attackAnimation>=0
+                ?runtime.attackAnimation
+                :(profile==null
+                    ?-1
+                    :profile.attackAnimation);
 
-        return "V5131_PLAYER_ATTACK_PRESENTATION target="+target.username()+
+        CombatSystemHooks.Snapshot hookSnapshot=
+            systemHooks.beforeDamage(
+                CombatContext.PLAYER_PVP,
+                equipment.weapon(),
+                worldTick
+            );
+
+        CombatDamageRules.Result calculated=
+            damageRules.calculate(
+                new CombatDamageRules.Request(
+                    CombatContext.PLAYER_PVP,
+                    equipment.weapon(),
+                    null,
+                    worldTick
+                )
+            );
+
+        PlayerLifecycleService.DamageResult damage=
+            new PlayerLifecycleService(
+                target
+            ).applyDamage(
+                calculated.damage,
+                worldTick,
+                "PVP_ATTACK owner="+owner.id()
+            );
+
+        PlayerCombatPresentationAdapter.Result published=
+            presentation.publishAttackAndHp(
+                animation,
+                targetValue,
+                target,
+                serverPackets
+            );
+
+        combatState.lastAttackTick=worldTick;
+        combatState.attackCount++;
+
+        if(damage.died){
+            combatState.clear();
+        }else{
+            combatState.nextAttackTick=
+                worldTick+Math.max(1,speed);
+        }
+
+        return "V5131_PLAYER_ATTACK_APPLIED target="+target.username()+
             " clientTarget="+targetValue+
             " distance="+Math.max(dx,dy)+
             " range="+range+
             " weapon="+equipment.weapon()+
             " attackAnim="+(animation>=0?animation:"DEFERRED")+
             " speedTicks="+speed+
-            " damage=DEFERRED_FORMULA_AUTHORITY"+
-            " remoteMaskRelay=true nextAttackTick="+nextAttackTick;
+            " cadenceAuthority="+cadenceAuthority+
+            " damage="+damage.applied+
+            " requestedDamage="+calculated.damage+
+            " damageAuthority="+calculated.authority+
+            " damageFormula="+calculated.formula+
+            " hp="+damage.hpBefore+"->"+damage.hpAfter+
+            " died="+damage.died+
+            " lifecycleAuthority="+PlayerLifecycleService.AUTHORITY+
+            " systemHooks="+hookSnapshot+
+            " presentation="+published+
+            " remoteMaskRelay=true nextAttackTick="+
+                combatState.nextAttackTick;
     }
 
     Cancellation cancelActive(){
+        EntityId activeAttack=activeAttackId();
         boolean hadFacing=activeFollow!=null||activeAttack!=null;
         boolean hadTrade=activeTrade!=null;
         clearTargets();
@@ -327,19 +419,26 @@ final class LocalPlayerInteractionHandler {
 
     void clearTargets(){
         activeFollow=null;
-        activeAttack=null;
         activeTrade=null;
-        nextAttackTick=0;
+        combatState.clearPlayerTarget();
     }
 
     boolean hasActive(){
-        return activeFollow!=null||activeAttack!=null||activeTrade!=null;
+        return activeFollow!=null||
+            activeAttackId()!=null||
+            activeTrade!=null;
     }
 
     EntityId activeFollow(){return activeFollow;}
-    EntityId activeAttack(){return activeAttack;}
+    EntityId activeAttack(){return activeAttackId();}
     EntityId activeTrade(){return activeTrade;}
-    long nextAttackTick(){return nextAttackTick;}
+    long nextAttackTick(){return combatState.nextAttackTick;}
+
+    private EntityId activeAttackId(){
+        return combatState.activePlayer()
+            ?combatState.targetPlayerId
+            :null;
+    }
 
     private String dispatchTrade(
         WorldPlayer target,
