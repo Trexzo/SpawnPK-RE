@@ -447,7 +447,7 @@ final class LocalSession implements Runnable {
             npcs,
             new LocalMovementRequestHandler.SessionBridge(){
                 @Override public void clearDialogNumberKeys(){
-                    LocalSession.this.clearDialogNumberKeys();
+                    LocalSession.this.dialogNumberKeys.clear();
                 }
 
                 @Override public void clearOpponentOverlay(
