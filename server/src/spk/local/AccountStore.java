@@ -17,7 +17,7 @@ import java.util.Properties;
  */
 final class AccountStore {
     static final String CANONICAL_USERNAME = "opensrc";
-    static final int FORMAT_VERSION = 1;
+    static final int FORMAT_VERSION = PlayerSnapshot.CURRENT_VERSION;
 
     private AccountStore() {}
 
@@ -43,10 +43,6 @@ final class AccountStore {
 
         Properties properties = new Properties();
         try (InputStream in = Files.newInputStream(file)) { properties.load(in); }
-
-        int version = parseInt(properties.getProperty("format.version"), -1);
-        if (version != FORMAT_VERSION)
-            throw new IOException("unsupported account format version="+version+" file="+file);
 
         PlayerSnapshot snapshot =
             PlayerSnapshot.fromLegacyProperties(
@@ -121,7 +117,4 @@ final class AccountStore {
              +(player==null?"":" hp="+player.currentLevel(PlayerState.HITPOINTS)+" prayer="+player.currentLevel(PlayerState.PRAYER)+" comp="+player.compSelectorSummary());
     }
 
-    private static int parseInt(String s, int fallback) {
-        try { return Integer.parseInt(s); } catch (Exception e) { return fallback; }
-    }
 }
