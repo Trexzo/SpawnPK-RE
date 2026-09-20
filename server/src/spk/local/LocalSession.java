@@ -763,10 +763,9 @@ final class LocalSession implements Runnable {
             if(routedNpcTick!=null)System.out.println(tag+routedNpcTick);
             applyGroundItemResult(
                 groundItemHandler.tick(now,scenePublisher,sessionPackets),tag);
-            tryPickupDeferredPet(sessionPackets, tag, now);
-            tryCompletePetPickup(sessionPackets, tag, now);
+            petDropPickup.tick(sessionPackets,tag,now);
             if (mt != null) {
-                if(pendingPetPickupScene==null){
+                if(!petDropPickup.pickupPending()){
                     npcs.queueOwnerMovement(mt);
                     // Broken/empty breadcrumb recovery is still active follow work.
                     if(npcs.needsFollow(movement) && nextPetFollowAt==Long.MAX_VALUE) nextPetFollowAt = now + 200L;
@@ -880,17 +879,8 @@ final class LocalSession implements Runnable {
         return true;
     }
 
-    private boolean pendingPickupBlocksPetFollow(){
-        if(pendingPetPickupScene==null)return false;
-        NpcEntity pet=npcs.pet();
-        // A freshly dropped pet initially shares the owner tile. Production lets the
-        // pet perform its one-tile lifecycle egress before Pick-up completes. That
-        // single overlap state is the only pending-Pick-up case allowed to follow.
-        return pet==null||pet.sceneIndex!=pendingPetPickupScene.intValue()||pet.x!=movement.x()||pet.y!=movement.y();
-    }
-
     private void ensurePetFollowScheduled(long now){
-        if(!bootstrap||movement.transientRegion()||pendingPickupBlocksPetFollow()||petFollowRealtimeScheduled||npcs.followFrozen()||!npcs.needsFollow(movement))return;
+        if(!bootstrap||movement.transientRegion()||petDropPickup.pendingPickupBlocksPetFollow()||petFollowRealtimeScheduled||npcs.followFrozen()||!npcs.needsFollow(movement))return;
         if(nextPetFollowAt==Long.MAX_VALUE)nextPetFollowAt=now+200L;
         long at=Math.max(now,nextPetFollowAt);
         petFollowRealtimeScheduled=true;
@@ -899,7 +889,7 @@ final class LocalSession implements Runnable {
 
     private void runPetFollowRealtime(){
         petFollowRealtimeScheduled=false;
-        if(!bootstrap||movement.transientRegion()||pendingPickupBlocksPetFollow()||sessionPackets==null||npcs.followFrozen()||!npcs.needsFollow(movement)){nextPetFollowAt=Long.MAX_VALUE;return;}
+        if(!bootstrap||movement.transientRegion()||petDropPickup.pendingPickupBlocksPetFollow()||sessionPackets==null||npcs.followFrozen()||!npcs.needsFollow(movement)){nextPetFollowAt=Long.MAX_VALUE;return;}
         long now=System.currentTimeMillis();
         try{
             String tag="[session "+socket.getRemoteSocketAddress()+"] ";
@@ -1057,118 +1047,14 @@ final class LocalSession implements Runnable {
         System.out.println(tag+spellTargetHandler.handle(req,serverPackets));
     }
 
-    private void acceptPendingDropItem(ClientPacketProbe clientPackets, ServerPacketWriter serverPackets, String tag) throws IOException {
-        DropItemAction a=clientPackets.takeDropItem();
-        if(a==null) return;
-        if(a.widgetId!=BankState.NORMAL_INVENTORY_CONTAINER){
-            System.out.println(tag+"V53_ITEM_DROP "+a+" result=OBSERVED_UNSUPPORTED_WIDGET itemRetained=true");
-            return;
-        }
-
-        String option5=ItemActionResolver.inventoryOption5Semantic(a.itemId);
-        if(!"Drop".equalsIgnoreCase(option5)){
-            System.out.println(tag+"V511_INVENTORY_OPTION5 "+a+" semantic="+option5+" result=DECODED_NOT_DROP itemRetained=true authority=EXACT_ITEM_ACTION");
-            return;
-        }
-
-        PetDefinitionRepository.Def def=resolvePetDefinitionForDrop(a.itemId);
-        if(def==null){
-            if(PetDefinitionRepository.isAmbiguous(a.itemId)){
-                System.out.println(tag+"V591_PET_DROP "+a+" result=REJECTED_AMBIGUOUS_MAPPING itemRetained=true evidence="+PetDefinitionRepository.ambiguousEvidence(a.itemId)+
-                    " hint=use_::devpet_map_<itemId>_<npcId>_for_session_only_visual_binding");
-            } else {
-                dropOrdinaryGround(a,serverPackets,tag);
-            }
-            return;
-        }
-        BankState.Stack st=bank.inventoryAt(a.slot);
-        if(st==null || st.itemId!=a.itemId || st.qty<=0){
-            System.out.println(tag+"V53_PET_DROP "+a+" result=REJECTED_INVENTORY_MISMATCH itemRetained=true");
-            return;
-        }
-
-        boolean replacing=petState.active() || npcs.pet()!=null;
-        int oldItem=replacing?petState.itemId():-1;
-        int oldNpc=replacing?petState.npcId():-1;
-        if(replacing && (!petState.active() || npcs.pet()==null)){
-            // Persistent/runtime disagreement must never consume a new pet item.
-            System.out.println(tag+"V56_PET_REPLACE "+a+" result=REJECTED_ACTIVE_STATE_MISMATCH itemRetained=true");
-            return;
-        }
-
-        String inv=bank.consumeInventoryOne(a.slot,a.itemId,serverPackets);
-        if(!inv.startsWith("INVENTORY_CONSUME_OK")){
-            System.out.println(tag+"V56_PET_DROP "+a+" result="+inv+" itemRetained=true");
-            return;
-        }
-
-        int restoredOldSlot=-1;
-        if(replacing){
-            String despawn=npcs.removePet(serverPackets);
-            if(voidglass.active()){
-                Integer restore=voidglass.clearAndRestoreSelector();
-                npcs.devSetParticleSelector(restore,movement,serverPackets);
-                System.out.println(tag+"CUSTOM_PET_R1_VOIDGLASS state=CLEARED reason=PET_REPLACE restoredFx="+(restore==null?"AUTO":restore));
-            }
-            restoredOldSlot=bank.addInventoryOnePreferred(oldItem,a.slot,serverPackets);
-            if(restoredOldSlot<0){
-                int rollbackNew=bank.addInventoryOne(a.itemId,serverPackets);
-                throw new IllegalStateException("pet replacement could not restore old item="+oldItem+" despawn="+despawn+" rollbackNew="+rollbackNew);
-            }
-            petState.clear();
-        }
-
-        // A previous Pick-up may have temporarily targeted scene 4 so the player
-        // could face the pet during animation 827. Clear that target BEFORE a new
-        // scene-4 pet is added, otherwise the client keeps facing the new pet forever.
-        clearPetPickupFacingNow(serverPackets,tag,"PET_DROP_PRESPAWN");
-        if(def.npcId==1334 || def.npcId==8210){
-            String resetFx=LocalDevVisualOverrideStore.set("intrinsicfx",null);
-            System.out.println(tag+"V5128_SPECIAL_PET_DEFAULT_ACCESSORY_NONE npc="+def.npcId+" item="+def.itemId+" result="+resetFx+
-                " bodyTreatmentPreserved=true accessoryLayer=NONE");
-        }
-        String spawn=npcs.spawnPet(def,movement,serverPackets);
-        if(!spawn.startsWith("PET_SPAWN_OK")){
-            int rollbackNew=bank.addInventoryOne(a.itemId,serverPackets);
-            // spawnPet has no ordinary failure after preflight once the previous pet
-            // has been removed. Keep a loud diagnostic instead of risking item loss.
-            System.out.println(tag+"V56_PET_DROP "+a+" result="+spawn+" rollbackNewSlot="+rollbackNew+" oldPetItemAlreadyRestoredSlot="+restoredOldSlot);
-            return;
-        }
-        petState.activate(def);
-        petEffects.onPetChanged(def.itemId,def.npcId);
-        String accessorySpawn="NONE";
-        if(petAccessoryState.activeItem()!=0){
-            Integer selector=PetAccessoryAuthority.selector(petAccessoryState.activeItem());
-            accessorySpawn=npcs.devSetParticleSelector(selector,movement,serverPackets);
-        }
-        String miniSpawn=petState.miniConfigured()?miniPets.onMainPetSpawn(petState,npcs,movement,serverPackets):"MINIPET_NONE_CONFIGURED";
-        int passiveChanged=syncScopesightPassive(serverPackets);
-        // V9.08 production capture: every successful pet Drop uses owner animation 827, no GFX.
-        serverPackets.varShort(81,CombatSync.player81AnimationOnly(PetPresentationProfile.OWNER_DROP_PICKUP_ANIMATION));
-        saveAccountQuiet(tag,replacing?"PET_REPLACE":"PET_DROP_SUMMON");
-        System.out.println(tag+(replacing?"V56_PET_REPLACE ":"V56_PET_DROP ")+a+" result="+spawn
-                         +" inventoryMutation="+inv
-                         +(replacing?" replaced="+oldItem+"->"+oldNpc+" restoredOldItemSlot="+restoredOldSlot:"")
-                         +" scopesightSkillMask=0x"+Integer.toHexString(passiveChanged)
-                         +" ownerAnim="+PetPresentationProfile.OWNER_DROP_PICKUP_ANIMATION+" ownerGfx=NONE"
-                         +" accessory="+(petAccessoryState.activeItem()==0?"NONE":petAccessoryState.activeItem()+"/selector"+PetAccessoryAuthority.selector(petAccessoryState.activeItem())+"/"+accessorySpawn)
-                         +" mini="+miniSpawn+" persistent="+persistentAccount);
-    }
-
-    private void dropOrdinaryGround(DropItemAction a,ServerPacketWriter serverPackets,String tag)throws IOException {
-        BankState.Stack st=bank.inventoryAt(a.slot);
-        if(st==null||st.itemId!=a.itemId||st.qty<=0){System.out.println(tag+"V511_GROUND_DROP "+a+" result=REJECTED_INVENTORY_MISMATCH itemRetained=true");return;}
-        if(st.qty>0xffff){System.out.println(tag+"V511_GROUND_DROP "+a+" result=REJECTED_WIRE_AMOUNT_GT_65535 qty="+st.qty+" itemRetained=true authority=S2C44_U16_AMOUNT");return;}
-        Tile tile=new Tile(movement.x(),movement.y(),0);
-        GroundItem before=world.groundItems().findOwned(a.itemId,tile.x,tile.y,tile.plane,username);
-        int oldAmount=before==null?0:before.amount;
-        if((long)oldAmount+st.qty>0xffff){System.out.println(tag+"V511_GROUND_DROP "+a+" result=REJECTED_MERGED_WIRE_AMOUNT_GT_65535 existing="+oldAmount+" qty="+st.qty+" itemRetained=true");return;}
-        int qty=bank.consumeInventoryAll(a.slot,a.itemId,serverPackets); if(qty<=0){System.out.println(tag+"V511_GROUND_DROP "+a+" result=REJECTED_CONSUME_FAILED itemRetained=true");return;}
-        GroundItem g=world.groundItems().add(a.itemId,qty,tile,username,sessionWorldTick,false);
-        if(oldAmount>0)scenePublisher.groundAmount(g,oldAmount); else scenePublisher.groundSpawn(g);
-        saveAccountQuiet(tag,"GROUND_DROP");
-        System.out.println(tag+"V511_GROUND_DROP "+a+" result=DROP_OK amount="+qty+" world="+tile+" registryId="+g.id+" policy=LOCAL_PERSIST_UNTIL_PICKED owner="+username);
+    private void acceptPendingDropItem(
+        ClientPacketProbe clientPackets,
+        ServerPacketWriter serverPackets,
+        String tag
+    )throws IOException{
+        DropItemAction action=clientPackets.takeDropItem();
+        if(action==null)return;
+        petDropPickup.handleDrop(action,serverPackets,tag);
     }
 
     private void acceptPendingGroundItemInteraction(ClientPacketProbe clientPackets,ServerPacketWriter serverPackets,String tag)throws IOException{
@@ -1184,116 +1070,6 @@ final class LocalSession implements Runnable {
         if(result==null)return;
         if(result.saveReason!=null)saveAccountQuiet(tag,result.saveReason);
         System.out.println(tag+result.logText);
-    }
-
-    private boolean cardinalAdjacentTo(int x,int y){
-        return Math.abs(x-movement.x())+Math.abs(y-movement.y())==1;
-    }
-
-    private void freezePetFollowForPickup(String tag){
-        if(petPickupOwnedFollowFreeze||npcs.followFrozen())return;
-        npcs.devFollowFreeze(true);petPickupOwnedFollowFreeze=true;nextPetFollowAt=Long.MAX_VALUE;
-        System.out.println(tag+"V5181_PET_PICKUP_FOLLOW_FREEZE owned=true reason=APPROACH_TARGET_STABILITY");
-    }
-
-    private void releasePetFollowAfterPickup(String tag,String reason){
-        if(!petPickupOwnedFollowFreeze)return;
-        npcs.devFollowFreeze(false);petPickupOwnedFollowFreeze=false;nextPetFollowAt=Long.MAX_VALUE;
-        if(npcs.pet()!=null&&npcs.needsFollow(movement))ensurePetFollowScheduled(System.currentTimeMillis());
-        System.out.println(tag+"V5181_PET_PICKUP_FOLLOW_FREEZE owned=false reason="+reason);
-    }
-
-    private void tryPickupDeferredPet(ServerPacketWriter serverPackets,String tag,long now)throws IOException{
-        Integer scene=pendingPetPickupScene;
-        if(scene==null)return;
-        if(pendingPetPickupCompleteAtMs!=Long.MAX_VALUE)return;
-        NpcEntity pet=npcs.pet();
-        if(pet==null || pet.sceneIndex!=scene || !petState.active() || now>pendingPetPickupDeadlineMs){
-            pendingPetPickupScene=null;releasePetFollowAfterPickup(tag,"MISSING_OR_TIMEOUT");
-            System.out.println(tag+"V5126_PET_PICKUP scene="+scene+" action=CANCELLED_MISSING_OR_TIMEOUT");
-            return;
-        }
-        if(!cardinalAdjacentTo(pet.x,pet.y)){
-            // Immediately after Drop the pet is deliberately introduced on the
-            // owner's exact tile and then takes its one-tile lifecycle egress WALK.
-            // A fast Pick-up click during that brief overlap must wait for that
-            // egress rather than being treated as a failed approach route.
-            if(pet.x==movement.x() && pet.y==movement.y()) return;
-            if(movement.queued()==0){
-                pendingPetPickupScene=null;releasePetFollowAfterPickup(tag,"PATH_ENDED_NOT_ADJACENT");
-                System.out.println(tag+"V5126_PET_PICKUP scene="+scene+" action=CANCELLED_PATH_ENDED_NOT_CARDINAL_ADJACENT owner="+
-                    movement.x()+","+movement.y()+" pet="+pet.x+","+pet.y);
-            }
-            return;
-        }
-        movement.clearQueuedPath();
-        executePetPickupNow(new NpcAction(155,scene),serverPackets,tag,now,"PICKUP_AFTER_CARDINAL_ARRIVAL");
-    }
-
-    private void executePetPickupNow(NpcAction a,ServerPacketWriter serverPackets,String tag,long now,String reason)throws IOException{
-        NpcEntity pet=npcs.pet();
-        if(pet==null || !petState.active() || a==null || a.sceneIndex!=pet.sceneIndex){
-            pendingPetPickupScene=null;releasePetFollowAfterPickup(tag,"STALE_TARGET");
-            System.out.println(tag+"V5126_PET_PICKUP "+a+" result=CANCELLED_STALE_TARGET reason="+reason);
-            return;
-        }
-        if(!cardinalAdjacentTo(pet.x,pet.y)){
-            System.out.println(tag+"V5126_PET_PICKUP "+a+" result=REJECTED_NOT_CARDINAL_ADJACENT reason="+reason);
-            return;
-        }
-        if(!bank.canAddInventoryOne(petState.itemId())){
-            pendingPetPickupScene=null;releasePetFollowAfterPickup(tag,"INVENTORY_FULL");
-            System.out.println(tag+"V56_PET_PICKUP "+a+" result=REJECTED_INVENTORY_FULL petRemains=true reason="+reason);
-            return;
-        }
-        int item=petState.itemId(),npc=petState.npcId();
-        // V9.12 production measurement: pickup facing is NOT interaction-target m.
-        // S2C81 carries animation 827 + one-shot turn-to-tile Q/R where
-        // Q=2*petWorldX+1 and R=2*petWorldY+1. Pet removal then follows immediately.
-        serverPackets.varShort(81,Player81MeasuredSync.animationAndTurnToTile(
-            PetPresentationProfile.OWNER_DROP_PICKUP_ANIMATION,pet.x,pet.y));
-        int q=pet.x*2+1,r=pet.y*2+1;
-        pendingPetPickupItem=item; pendingPetPickupNpc=npc; pendingPetPickupCompleteScene=pet.sceneIndex;
-        pendingPetPickupCompleteReason=reason; pendingPetPickupCompleteAtMs=now+PET_PICKUP_REMOVE_DELAY_MS;
-        pendingPetFacingClearAtMs=Long.MAX_VALUE;
-        System.out.println(tag+"V51213_PET_PICKUP "+a+" result=TURN_TILE_ANIM_AND_REMOVE_SYNCHRONIZED item="+item+" npc="+npc+
-                         " turnQ="+q+" turnR="+r+" petTile="+pet.x+","+pet.y+
-                         " ownerAnim="+PetPresentationProfile.OWNER_DROP_PICKUP_ANIMATION+" ownerGfx=NONE"+
-                         " interactionTargetUsed=false removeAfterMs=0 sameWorldTick=true reason="+reason);
-        tryCompletePetPickup(serverPackets,tag,now);
-    }
-
-    private void tryCompletePetPickup(ServerPacketWriter serverPackets,String tag,long now)throws IOException {
-        if(pendingPetPickupCompleteAtMs==Long.MAX_VALUE || now<pendingPetPickupCompleteAtMs)return;
-        NpcEntity pet=npcs.pet(); int scene=pendingPetPickupCompleteScene;
-        if(pet==null || pet.sceneIndex!=scene || !petState.active()){
-            pendingPetPickupCompleteAtMs=Long.MAX_VALUE; pendingPetPickupScene=null;releasePetFollowAfterPickup(tag,"COMPLETE_STALE");
-            System.out.println(tag+"V5127_PET_PICKUP_COMPLETE scene="+scene+" result=CANCELLED_STALE"); return;
-        }
-        int item=pendingPetPickupItem,npc=pendingPetPickupNpc; String reason=pendingPetPickupCompleteReason;
-        String despawn=npcs.removePet(serverPackets);
-        if(voidglass.active()){Integer restore=voidglass.clearAndRestoreSelector();npcs.devSetParticleSelector(restore,movement,serverPackets);System.out.println(tag+"CUSTOM_PET_R1_VOIDGLASS state=CLEARED reason=PET_PICKUP restoredFx="+(restore==null?"AUTO":restore));}
-        int dst=bank.addInventoryOne(item,serverPackets); if(dst<0)throw new IllegalStateException("pet pickup inventory preflight mismatch");
-        petState.clear();petEffects.clear();pendingPetPickupScene=null;
-        pendingPetPickupCompleteAtMs=Long.MAX_VALUE;pendingPetPickupItem=-1;pendingPetPickupNpc=-1;pendingPetPickupCompleteScene=-1;pendingPetPickupCompleteReason=null;
-        releasePetFollowAfterPickup(tag,"PICKUP_COMPLETE");
-        int passiveChanged=syncScopesightPassive(serverPackets);saveAccountQuiet(tag,"PET_PICKUP");
-        System.out.println(tag+"V5127_PET_PICKUP_COMPLETE result="+despawn+" restoredItem="+item+" inventorySlot="+dst+" npc="+npc+
-            " scopesightSkillMask=0x"+Integer.toHexString(passiveChanged)+" reason="+reason+" persistent="+persistentAccount);
-    }
-
-    private void tryClearPetPickupFacing(ServerPacketWriter serverPackets,String tag,long now)throws IOException {
-        if(pendingPetFacingClearAtMs==Long.MAX_VALUE || now<pendingPetFacingClearAtMs)return;
-        serverPackets.varShort(81,CombatSync.player81InteractionOnly(-1));
-        pendingPetFacingClearAtMs=Long.MAX_VALUE;
-        System.out.println(tag+"V5126_PET_PICKUP_FACING_CLEAR target=-1 reason=POST_PICKUP_PRESENTATION");
-    }
-
-    private void clearPetPickupFacingNow(ServerPacketWriter serverPackets,String tag,String reason)throws IOException {
-        if(pendingPetFacingClearAtMs==Long.MAX_VALUE)return;
-        serverPackets.varShort(81,CombatSync.player81InteractionOnly(-1));
-        pendingPetFacingClearAtMs=Long.MAX_VALUE;
-        System.out.println(tag+"V5126_PET_PICKUP_FACING_CLEAR target=-1 reason="+reason);
     }
 
     private void acceptPendingPlayerAction(ClientPacketProbe clientPackets,ServerPacketWriter serverPackets,String tag)throws IOException{
@@ -1433,24 +1209,6 @@ final class LocalSession implements Runnable {
         );
     }
 
-
-    private PetDefinitionRepository.Def resolvePetDefinitionForDrop(int itemId){
-        Integer override=dev.petNpcBinding(itemId);
-        PetDefinitionRepository.Def base=PetDefinitionRepository.get(itemId);
-        if(override==null) return base;
-        if(base==null){
-            // Behemoth-family workbench can deliberately bind an otherwise ambiguous
-            // inventory item without persisting the experimental association.
-            PetDefinitionRepository.Def template=PetDefinitionRepository.get(24019);
-            if(template==null)return null;
-            return new PetDefinitionRepository.Def(itemId,override,ItemCatalog.name(itemId),"DEV NPC "+override,
-                template.standAnim,template.walkAnim,template.turn180Anim,template.turn90CWAnim,template.turn90CCWAnim,template.size,template.models,
-                "V593_SESSION_DEV_NPC_BINDING_NOT_PERSISTED");
-        }
-        return new PetDefinitionRepository.Def(base.itemId,override,base.itemName,"DEV NPC "+override,
-            base.standAnim,base.walkAnim,base.turn180Anim,base.turn90CWAnim,base.turn90CCWAnim,base.size,base.models,
-            base.provenance+"+V593_SESSION_DEV_NPC_BINDING");
-    }
 
     private boolean scopesightActive(){
         return petState.active() && petState.itemId()==ScopesightPetProfile.ITEM_ID && petState.npcId()==ScopesightPetProfile.NPC_ID;
@@ -1684,12 +1442,7 @@ final class LocalSession implements Runnable {
             System.out.println(tag+"V5141_PLAYER_INTERACTION_CANCEL reason=MANUAL_MOVEMENT clientInteractionTarget="+
                 (playerCancel.hadFacingInteraction?"CLEAR":"UNCHANGED")+" pendingTrade="+playerCancel.hadTrade);
         }
-        if(pendingPetPickupCompleteAtMs!=Long.MAX_VALUE){
-            pendingPetPickupCompleteAtMs=Long.MAX_VALUE;pendingPetPickupItem=-1;pendingPetPickupNpc=-1;pendingPetPickupCompleteScene=-1;pendingPetPickupCompleteReason=null;pendingPetPickupScene=null;
-            releasePetFollowAfterPickup(tag,"MOVEMENT_AFTER_PICKUP_ANIMATION");
-            System.out.println(tag+"V5127_PET_PICKUP_COMPLETE action=CANCELLED_BY_MOVEMENT petRemains=true");
-        }
-        clearPetPickupFacingNow(serverPackets,tag,"NEW_MOVEMENT_INTENT");
+        petDropPickup.cancelForMovement(serverPackets,tag);
         boolean replacingLiveRoute = npcs.pet()!=null && (movement.queued()>0 || npcs.needsFollow(movement));
         String result = movement.accept(req);
         String petRouteReset="NONE";
