@@ -151,7 +151,7 @@ final class LocalPendingRequestDispatcher {
             serverPackets,
             tag
         );
-        acceptCommand(
+        acceptTypedRequests(
             clientPackets,
             serverPackets,
             tag
@@ -255,24 +255,39 @@ final class LocalPendingRequestDispatcher {
         );
     }
 
-    private void acceptCommand(
+    private void acceptTypedRequests(
         ClientPacketProbe clientPackets,
         ServerPacketWriter serverPackets,
         String tag
     )throws IOException{
-        String command=clientPackets.takeCommand();
-        if(command==null)return;
+        for(
+            ClientRequest request;
+            (request=clientPackets
+                .takeTypedRequest())!=null;
+        ){
+            if(request instanceof
+                    CommandClientRequest){
+                CommandClientRequest command=
+                    (CommandClientRequest)request;
 
-        commandDispatcher.handle(
-            command,
-            clientPackets.isAligned(),
-            bridge.username(),
-            bridge.loginAlias(),
-            bridge.persistentAccount(),
-            bridge.sessionWorldTick(),
-            serverPackets,
-            tag
-        );
+                commandDispatcher.handle(
+                    command.command(),
+                    clientPackets.isAligned(),
+                    bridge.username(),
+                    bridge.loginAlias(),
+                    bridge.persistentAccount(),
+                    bridge.sessionWorldTick(),
+                    serverPackets,
+                    tag
+                );
+                continue;
+            }
+
+            throw new IOException(
+                "unrouted typed client request "+
+                request
+            );
+        }
     }
 
     private void acceptObjectInteraction(
