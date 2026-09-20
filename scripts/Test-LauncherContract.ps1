@@ -26,7 +26,7 @@ function Assert-Parses([string]$RelativePath) {
     $path = Join-Path $repo $RelativePath
     $tokens = $null
     $errors = $null
-    [void][Management.Automation.Language.Parser]::ParseFile(
+    [void][System.Management.Automation.Language.Parser]::ParseFile(
         $path,
         [ref]$tokens,
         [ref]$errors
