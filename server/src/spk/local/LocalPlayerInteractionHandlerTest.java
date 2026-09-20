@@ -61,7 +61,8 @@ public final class LocalPlayerInteractionHandlerTest {
             String attackRequest=h.handleResolved(attack,p2,sync1);
             if(attackRequest==null||
                !attackRequest.contains("V5131_PLAYER_ATTACK_REQUEST")||
-               !attackRequest.contains("damage=DEFERRED_SERVER_FORMULA_AUTHORITY"))
+               !attackRequest.contains("damageAuthority=CUSTOM_LOCALLAB")||
+               !attackRequest.contains("damageFormula=CUSTOM_LOCALLAB_FLAT_10_V1"))
                 throw new AssertionError("attack request="+attackRequest);
 
             if(h.activeAttack()==null||!h.activeAttack().equals(p2.id()))
@@ -74,8 +75,9 @@ public final class LocalPlayerInteractionHandlerTest {
             int before=wire1.size();
             String presentation=h.tickAttack(1L,w1,sync1);
             if(presentation==null||
-               !presentation.contains("V5131_PLAYER_ATTACK_PRESENTATION")||
-               !presentation.contains("damage=DEFERRED_FORMULA_AUTHORITY"))
+               !presentation.contains("V5131_PLAYER_ATTACK_RESOLVED")||
+               !presentation.contains("damageAuthority=CUSTOM_LOCALLAB")||
+               !presentation.contains("damageFormula=CUSTOM_LOCALLAB_FLAT_10_V1"))
                 throw new AssertionError("attack presentation="+presentation);
             if(wire1.size()<=before)
                 throw new AssertionError("attack presentation emitted no packet");
@@ -106,7 +108,7 @@ public final class LocalPlayerInteractionHandlerTest {
                 throw new AssertionError("cancel did not clear active state");
 
             System.out.println(
-                "LOCAL_PLAYER_INTERACTION_HANDLER_PASS attack=true follow=true trade=true presentation=true cancel=true damageAuthorityDeferred=true");
+                "LOCAL_PLAYER_INTERACTION_HANDLER_PASS attack=true follow=true trade=true presentation=true cancel=true damageAuthorityCustomLocalLab=true");
         }finally{
             if(w1!=null)Player81WorldSync.unregister(w1);
             if(w2!=null)Player81WorldSync.unregister(w2);
