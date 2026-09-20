@@ -155,27 +155,88 @@ The client constructs a sprite and installs it on the target widget.
 
 Confidence: HIGH.
 
-### 22 - Text state with [bl] newline conversion
+### 22 - Task-progress hover text
 
-Payload string has `[bl]` converted to newline and is retained in client state.
+Payload replaces `[bl]` with newline and is stored in the client task-progress hover field.
 
-Domain owner remains unresolved.
+The only audited renderer consumes this field when:
 
-Confidence: HIGH structural.
+```
+menu/widget hover id = 55761
+root interface       = 18559
+```
 
-### 23 - Nullable text state
+and prefixes the exact current-client label:
 
-Payload `"null"` becomes empty state; otherwise the literal payload is stored.
+```
+@yel@Task progress left:
+```
 
-Domain owner remains unresolved.
+before rendering the supplied multiline payload near the mouse cursor.
 
-Confidence: HIGH structural.
+This proves target 22 as task-progress hover/presentation state. The specific server task family that owns any individual payload remains server authority.
 
-### 24 - Keyed text/state map update
+Confidence: HIGH.
 
-Payload contains an integer key plus text and is stored in a client map.
+### 23 - Broadcast banner text
 
-Confidence: HIGH structural.
+Payload `"null"` clears the field; any other payload becomes the active broadcast text.
+
+The current client renders this field with the exact prefix:
+
+```
+<img=2> <col=FE610C>[Broadcast]:</col> <payload>
+```
+
+in both relevant overlay/menu rendering paths.
+
+Therefore target 23 is the exact current-client broadcast banner/message state channel.
+
+Confidence: HIGH.
+
+### 24 - Equipment-hover detail cache
+
+Target 24 populates the current client's equipment-hover detail cache.
+
+The payload begins with an item ID, which is used as the map key; the full payload is retained as the cached value.
+
+The consuming hover renderer first resolves the current item definition. Only equip/wear/wield-capable items (plus exact special item 21739) become equipment-hover candidates.
+
+When the cache has no entry for that item ID, the client queues exactly:
+
+```
+::equipstr <itemId>
+```
+
+The normal pending-command drain serializes it as C2S103 command text:
+
+```
+equipstr <itemId>
+```
+
+Until target 24 supplies the matching keyed payload, the hover UI displays `Loading, please wait..`.
+
+The exact S2C126 control token:
+
+```
+RESET_HOVER_EQUIPMENT
+```
+
+clears the same cache.
+
+The renderer consumes the returned structured fields to build native attack/defence/strength/prayer/ranged-strength/magic-damage equipment detail presentation.
+
+This gives a complete exact-current round trip:
+
+```
+equipment hover miss
+ -> C2S103 equipstr <itemId>
+ -> server equipment-detail lookup
+ -> S2C126 target 24 keyed payload
+ -> native equipment hover presentation
+```
+
+Confidence: HIGH.
 
 ### 25 - CombatOverlay state update
 
@@ -1190,7 +1251,7 @@ Acceptance should require:
 
 Continue research before opening raid/market/construction gameplay issues:
 
-1. resolve structural targets 22-24, 26, 29-34, 37, 39, 43, 46, 48-49, 57-61, 69-70 to domain owners where possible,
+1. resolve structural targets 26, 29-34, 37, 39, 43, 46, 48-49, 57-61, 69-70 to domain owners where possible,
 2. verify whether construction exposes any additional non-widget placement command after room selection,
 3. recover any raid invitation text-entry path if the server requests a player name after the invite widget,
 4. identify the Item Enchantment Search-by-name text submission path if it is client-local rather than server-requested,
@@ -1208,6 +1269,11 @@ Closed in R2.1/R2.2:
 - Construction room-selection widget IDs and C2S185 transport.
 - Named raid type/difficulty/member/start/leave/refresh/re-invite controls over C2S185.
 - Daily Money Making track/teleport/difficulty controls over C2S185 paired with S2C126 target 36.
+
+Closed in R2.5:
+- target 22 = task-progress hover text.
+- target 23 = broadcast banner text.
+- target 24 = equipment-hover detail cache, paired with exact C2S103 `equipstr <itemId>` and `RESET_HOVER_EQUIPMENT`.
 
 ## R2 conclusion
 
