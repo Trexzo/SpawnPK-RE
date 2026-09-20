@@ -43,7 +43,7 @@ jobs:
       - name: Run profile and lifecycle guards
         shell: pwsh
         run: |
-          $cp = 'server/build/classes/java/test;server/build/classes/java/main'
+          $cp = 'server/build/classes/java/test;server/build/classes/java/main;server/build/resources/test;server/build/resources/main'
 
           $tests = @(
             'SecondaryAccountSelectionTest',
