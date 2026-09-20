@@ -66,3 +66,5 @@ CONSTRUCTION_POH,BUILD_DUNGEON_STAIRS,185,FIXED2_WIDGET_U16_BE,"widget=39959","r
 CONSTRUCTION_POH,BUILD_DUNGEON_PIT,185,FIXED2_WIDGET_U16_BE,"widget=39963","rs.n.c.z -> action646",EXACT_CURRENT_CLIENT,
 CONSTRUCTION_POH,BUILD_TREASURE_ROOM,185,FIXED2_WIDGET_U16_BE,"widget=40300","rs.n.c.z -> action646",EXACT_CURRENT_CLIENT,"deliberate dynamic-ID jump after 39963"
 EQUIPMENT_HOVER,REQUEST_DETAILS,103,VAR_BYTE_COMMAND_TEXT,"equipstr <itemId>","Client equipment-hover cache miss queues ::equipstr <current itemId>; ordinary pending-command drain strips ::",EXACT_CURRENT_CLIENT,"pairs with S2C126 target24 and RESET_HOVER_EQUIPMENT"
+PET_LOADOUT,APPLY_CURRENT,103,VAR_BYTE_COMMAND_TEXT,"pet_loadout <arg0> <arg1>","stock clone/loadout UI imports S2C126 target43 Client.s/t and queues ::pet_loadout",EXACT_CURRENT_CLIENT,"argument semantics/order intentionally not renamed"
+TEXT_COLOR_SELECTION,CONFIRM,103,VAR_BYTE_COMMAND_TEXT,"<commandPrefix> <textColor> [shadowColor]","root63000 confirm63027 uses S2C126 target45 prefix; default setyellcolors; target44 supplies colors",EXACT_CURRENT_CLIENT,"dynamic exact grammar; completionist root63036 compcolors is separate"
