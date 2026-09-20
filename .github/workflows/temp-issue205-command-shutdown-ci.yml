@@ -18,7 +18,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up Temurin JDK 21
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '21'
@@ -27,15 +27,17 @@ jobs:
         shell: pwsh
         run: ./server/build.ps1
 
-      - name: Run focused command lifecycle regressions
+      - name: Run deterministic command lifecycle regressions
         shell: pwsh
         run: |
           $tests = @(
             'WorldCommandShutdownFenceTest',
             'WorldCommandLifecycleFenceTest',
             'WorldCommandFairnessTest',
-            'WorldCommandLatencyTest',
-            'WorldPulseCommandExecutionTest'
+            'WorldPulseCommandExecutionTest',
+            'WorldPersistenceThreadingTest',
+            'WorldAutosaveCheckpointTest',
+            'SharedWorldSocketIntegrationTest'
           )
 
           foreach ($test in $tests) {
