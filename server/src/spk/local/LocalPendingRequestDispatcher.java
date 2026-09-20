@@ -165,11 +165,6 @@ final class LocalPendingRequestDispatcher {
             serverPackets,
             tag
         );
-        acceptGroundItemInteraction(
-            clientPackets,
-            serverPackets,
-            tag
-        );
         acceptNpcAction(
             clientPackets,
             serverPackets,
@@ -293,6 +288,19 @@ final class LocalPendingRequestDispatcher {
 
                 routePlayerAction(
                     player.action(),
+                    serverPackets,
+                    tag
+                );
+                continue;
+            }
+
+            if(request instanceof
+                    GroundItemClientRequest){
+                GroundItemClientRequest ground=
+                    (GroundItemClientRequest)request;
+
+                routeGroundItemInteraction(
+                    ground.interaction(),
                     serverPackets,
                     tag
                 );
@@ -533,16 +541,11 @@ final class LocalPendingRequestDispatcher {
         );
     }
 
-    private void acceptGroundItemInteraction(
-        ClientPacketProbe clientPackets,
+    private void routeGroundItemInteraction(
+        GroundItemInteraction action,
         ServerPacketWriter serverPackets,
         String tag
     )throws IOException{
-        GroundItemInteraction action=
-            clientPackets.takeGroundItemInteraction();
-
-        if(action==null)return;
-
         applyGroundItemResult(
             groundItemHandler.handle(
                 action,
