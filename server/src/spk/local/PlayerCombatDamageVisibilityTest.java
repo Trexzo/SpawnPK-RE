@@ -244,7 +244,7 @@ public final class PlayerCombatDamageVisibilityTest {
                 );
 
             long deathTick=
-                defender.lifecycle().diedAtTick();
+                defender.lifecycle().deathTick();
 
             if(deathTick<0)
                 throw new AssertionError(
