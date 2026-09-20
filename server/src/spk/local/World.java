@@ -15,6 +15,7 @@ final class World implements AutoCloseable {
     private final WorldNpcRegistry npcs=new WorldNpcRegistry();
     private final WorldHomeNpcService homeNpcs=new WorldHomeNpcService(npcs);
     private final WorldPetNpcService petNpcs=new WorldPetNpcService(npcs);
+    private final WorldNpcPresentationEvents npcPresentationEvents=new WorldNpcPresentationEvents();
     private final WorldCommandInbox commands=new WorldCommandInbox();
     private final LinkedHashMap<EntityId,WorldTickTarget> tickTargets=new LinkedHashMap<>();
     private final WorldPulse pulse;
@@ -32,6 +33,7 @@ final class World implements AutoCloseable {
     WorldNpcRegistry npcs(){return npcs;}
     WorldHomeNpcService homeNpcs(){return homeNpcs;}
     WorldPetNpcService petNpcs(){return petNpcs;}
+    WorldNpcPresentationEvents npcPresentationEvents(){return npcPresentationEvents;}
     WorldCommandInbox commands(){return commands;}
     WorldPulse pulse(){return pulse;}
 
