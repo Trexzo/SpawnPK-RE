@@ -174,6 +174,14 @@ public final class CanonicalRemotePetProjectionTest {
                     "canonical remote actors missing"
                 );
 
+            if(!canonicalMain.id.equals(
+                    remoteMain.canonicalId())||
+               !canonicalMini.id.equals(
+                    remoteMini.canonicalId()))
+                throw new AssertionError(
+                    "remote projections lost canonical identity"
+                );
+
             if(remoteMain.x!=canonicalMainX||
                remoteMain.y!=canonicalMainY)
                 throw new AssertionError(
