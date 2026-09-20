@@ -134,21 +134,25 @@ public final class CanonicalRemotePetProjectionTest {
             int canonicalMiniX=canonicalMini.x();
             int canonicalMiniY=canonicalMini.y();
 
-            // Deliberately corrupt only the source session's presentation copies.
-            // A canonical remote projection must ignore this stale duplicate truth.
-            sourceNpcs.pet().x+=4;
-            sourceNpcs.pet().y+=1;
-            sourceNpcs.miniPet().x+=3;
-            sourceNpcs.miniPet().y+=1;
+            // Retain the raw projection references, then deliberately corrupt
+            // only those viewer copies. Calling NpcRegistry.pet()/miniPet() again
+            // would now correctly refresh them from canonical World state.
+            NpcEntity staleMainProjection=sourceNpcs.pet();
+            NpcEntity staleMiniProjection=sourceNpcs.miniPet();
 
-            if(sourceNpcs.pet().x==canonicalMainX&&
-               sourceNpcs.pet().y==canonicalMainY)
+            staleMainProjection.x+=4;
+            staleMainProjection.y+=1;
+            staleMiniProjection.x+=3;
+            staleMiniProjection.y+=1;
+
+            if(staleMainProjection.x==canonicalMainX&&
+               staleMainProjection.y==canonicalMainY)
                 throw new AssertionError(
                     "main presentation drift setup failed"
                 );
 
-            if(sourceNpcs.miniPet().x==canonicalMiniX&&
-               sourceNpcs.miniPet().y==canonicalMiniY)
+            if(staleMiniProjection.x==canonicalMiniX&&
+               staleMiniProjection.y==canonicalMiniY)
                 throw new AssertionError(
                     "mini presentation drift setup failed"
                 );
@@ -156,6 +160,14 @@ public final class CanonicalRemotePetProjectionTest {
             SharedNpcWorldRelay.syncRemotePets(
                 viewerWriter
             );
+
+            if(staleMainProjection.x!=canonicalMainX||
+               staleMainProjection.y!=canonicalMainY||
+               staleMiniProjection.x!=canonicalMiniX||
+               staleMiniProjection.y!=canonicalMiniY)
+                throw new AssertionError(
+                    "production source projection was not refreshed from canonical World state"
+                );
 
             NpcEntity remoteMain=
                 findDef(
