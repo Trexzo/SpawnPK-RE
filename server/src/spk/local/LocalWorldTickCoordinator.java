@@ -39,6 +39,7 @@ final class LocalWorldTickCoordinator {
     private final EquipmentState equipment;
     private final CombatStyleState combatStyles;
     private final PetEffectState petEffects;
+    private final PlayerStatusService statuses;
     private final NpcRegistry npcs;
     private final HomeWorldRuntimePlan homeWorld;
     private final CombatEngine combat;
@@ -62,6 +63,7 @@ final class LocalWorldTickCoordinator {
         EquipmentState equipment,
         CombatStyleState combatStyles,
         PetEffectState petEffects,
+        PlayerStatusService statuses,
         NpcRegistry npcs,
         HomeWorldRuntimePlan homeWorld,
         CombatEngine combat,
@@ -81,6 +83,7 @@ final class LocalWorldTickCoordinator {
         this.equipment=Objects.requireNonNull(equipment,"equipment");
         this.combatStyles=Objects.requireNonNull(combatStyles,"combatStyles");
         this.petEffects=Objects.requireNonNull(petEffects,"petEffects");
+        this.statuses=Objects.requireNonNull(statuses,"statuses");
         this.npcs=Objects.requireNonNull(npcs,"npcs");
         this.homeWorld=Objects.requireNonNull(homeWorld,"homeWorld");
         this.combat=Objects.requireNonNull(combat,"combat");
@@ -106,6 +109,18 @@ final class LocalWorldTickCoordinator {
         ServerPacketWriter writer,
         String tag
     )throws Exception{
+        PlayerStatusService.TickResult statusTick=
+            statuses.tick(worldTick);
+
+        if(statusTick.changed()){
+            System.out.println(
+                tag+
+                "PLAYER_STATUS_EXPIRY "+
+                statusTick+
+                " sharedWorldTick="+worldTick
+            );
+        }
+
         if(regionStreams.maybeStream(writer,tag)){
             legacyTickCount++;
             return;
