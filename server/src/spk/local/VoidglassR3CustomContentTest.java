@@ -11,6 +11,7 @@ public final class VoidglassR3CustomContentTest{
   if(PetDefinitionRepository.get(32760)!=null)throw new AssertionError("legacy invalid item mapping still present");
   for(int i=1;i<=4;i++){VoidglassR3CustomContent.Candidate c=VoidglassR3CustomContent.candidate(i);if(c==null||c.models.contains("36185")||c.stand==8233||c.walk==8232)throw new AssertionError("Hydra residue candidate="+i);}
   if(VoidglassR3CustomContent.PROC_GFX==4098)throw new AssertionError("Hydra proc retained");
-  System.out.println("V5185_VOIDGLASS_R3_CUSTOM_CONTENT_PASS item=29999 clientRangeValid=true candidates=4 hydraModel36185=false hydraAnims8233_8232=false procGfx5042=true legacy32760Retired=true");
+  if(!VoidglassR3CustomContent.PROVENANCE.startsWith("CUSTOM_LOCALLAB"))throw new AssertionError("provenance="+VoidglassR3CustomContent.PROVENANCE);
+  System.out.println("V5185_VOIDGLASS_R3_CUSTOM_CONTENT_PASS item=29999 clientRangeValid=true candidates=4 hydraModel36185=false hydraAnims8233_8232=false procGfx5042=true legacy32760Retired=true manifestDriven=true authority=CUSTOM_LOCALLAB");
  }
 }
