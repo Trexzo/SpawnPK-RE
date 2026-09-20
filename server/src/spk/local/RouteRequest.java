@@ -16,6 +16,7 @@ final class RouteRequest {
 
     enum Policy {
         HOME_COMBAT_COMPATIBILITY,
+        HOME_RECOVERED_STATIC_AUTHORITY,
         WORLD_STATIC_AUTHORITY
     }
 
@@ -71,6 +72,26 @@ final class RouteRequest {
             stopRange,
             Purpose.COMBAT_APPROACH,
             Policy.HOME_COMBAT_COMPATIBILITY
+        );
+    }
+
+    static RouteRequest interactionHomeRecovered(
+        int startX,
+        int startY,
+        int plane,
+        int targetX,
+        int targetY,
+        int stopRange
+    ){
+        return new RouteRequest(
+            startX,
+            startY,
+            plane,
+            targetX,
+            targetY,
+            stopRange,
+            Purpose.INTERACTION_APPROACH,
+            Policy.HOME_RECOVERED_STATIC_AUTHORITY
         );
     }
 
