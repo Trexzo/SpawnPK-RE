@@ -1,0 +1,31 @@
+name: Temporary Issue 14 status expiry validation
+
+on:
+  push:
+    branches:
+      - refactor/issue-14-status-expiry-service
+
+jobs:
+  validate:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Compile current source tree
+        shell: pwsh
+        run: ./server/build.ps1
+      - name: Run status expiry regression
+        shell: pwsh
+        run: java -cp server/build/classes spk.local.PlayerStatusServiceTest
+      - name: Run player lifecycle regression
+        shell: pwsh
+        run: java -cp server/build/classes spk.local.PlayerLifecycleServiceTest
+      - name: Run canonical combat-state ownership regression
+        shell: pwsh
+        run: java -cp server/build/classes spk.local.WorldPlayerCombatStateOwnershipTest
+      - name: Run movement runtime regression
+        shell: pwsh
+        run: java -cp server/build/classes spk.local.MovementRuntimeIntegrationTest
