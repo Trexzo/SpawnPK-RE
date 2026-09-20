@@ -1,0 +1,173 @@
+package spk.local;
+
+import java.util.Objects;
+
+/**
+ * Owns post-login player/account initialization before packet publication.
+ *
+ * This is a behavior-preserving extraction from LocalSession: account
+ * selection/load, persisted-state reconciliation and WorldPlayer registration.
+ */
+final class LocalSessionPlayerInitializer {
+    static final class Result {
+        final String username;
+        final boolean persistentAccount;
+        final long worldPlayerGeneration;
+
+        Result(
+            String username,
+            boolean persistentAccount,
+            long worldPlayerGeneration
+        ){
+            this.username=username;
+            this.persistentAccount=persistentAccount;
+            this.worldPlayerGeneration=worldPlayerGeneration;
+        }
+    }
+
+    private final World world;
+    private final WorldPlayer worldPlayer;
+    private final BankState bank;
+    private final EquipmentState equipment;
+    private final MovementState movement;
+    private final PetState petState;
+    private final PlayerState playerState;
+    private final PetEffectState petEffects;
+    private final PetAccessoryState petAccessoryState;
+
+    LocalSessionPlayerInitializer(
+        World world,
+        WorldPlayer worldPlayer,
+        BankState bank,
+        EquipmentState equipment,
+        MovementState movement,
+        PetState petState,
+        PlayerState playerState,
+        PetEffectState petEffects,
+        PetAccessoryState petAccessoryState
+    ){
+        this.world=Objects.requireNonNull(world,"world");
+        this.worldPlayer=Objects.requireNonNull(worldPlayer,"worldPlayer");
+        this.bank=Objects.requireNonNull(bank,"bank");
+        this.equipment=Objects.requireNonNull(equipment,"equipment");
+        this.movement=Objects.requireNonNull(movement,"movement");
+        this.petState=Objects.requireNonNull(petState,"petState");
+        this.playerState=Objects.requireNonNull(playerState,"playerState");
+        this.petEffects=Objects.requireNonNull(petEffects,"petEffects");
+        this.petAccessoryState=Objects.requireNonNull(
+            petAccessoryState,"petAccessoryState");
+    }
+
+    Result initialize(
+        String loginAlias,
+        String tag
+    ){
+        LocalAccountLifecycle.Selection account=
+            LocalAccountLifecycle.select(
+                world,
+                loginAlias,
+                tag
+            );
+
+        String username=account.username;
+        boolean persistentAccount=account.persistent;
+
+        LocalAccountLifecycle.LoadResult accountLoad=
+            LocalAccountLifecycle.load(
+                account,
+                bank,
+                equipment,
+                movement,
+                petState,
+                playerState,
+                PetAccessoryAuthority::isAccessory,
+                tag
+            );
+
+        petAccessoryState.setActiveItem(
+            accountLoad.accessoryItem
+        );
+
+        // One-time migration from the superseded LocalLab bug that stored native
+        // icons in AMMO.
+        if(!playerState.cosmetic().active()&&
+           ItemCatalog.isNativePlayerIcon(
+               equipment.itemAt(EquipmentSlot.AMMO)
+           )){
+            int legacyIcon=
+                equipment.unequip(EquipmentSlot.AMMO);
+            playerState.cosmetic().set(legacyIcon);
+
+            System.out.println(
+                tag+
+                "V511_COSMETIC_MIGRATION legacyAmmoIcon="+
+                legacyIcon+
+                " -> dedicatedBs cosmetic=true ammoCleared=true"
+            );
+        }
+
+        playerState.syncEquipmentPresentation(equipment);
+
+        if(petState.active()){
+            PetDefinitionRepository.Def persistedDef=
+                PetDefinitionRepository.get(
+                    petState.itemId()
+                );
+
+            if(persistedDef!=null&&
+               persistedDef.npcId!=petState.npcId()){
+                int oldNpc=petState.npcId();
+                petState.activate(persistedDef);
+
+                System.out.println(
+                    tag+
+                    "V59_PET_MAPPING_RECONCILE item="+
+                    petState.itemId()+
+                    " npc="+oldNpc+
+                    "->"+petState.npcId()+
+                    " provenance="+persistedDef.provenance
+                );
+            }
+
+            petEffects.onPetChanged(
+                petState.itemId(),
+                petState.npcId()
+            );
+        }
+
+        // Apply maintained Scopesight fixture values before the initial packet-134
+        // skill publication.
+        playerState.syncScopesightMaintenance(
+            scopesightActive()
+        );
+
+        long generation=
+            world.registerPlayer(
+                worldPlayer,
+                username
+            );
+
+        world.start();
+
+        System.out.println(
+            tag+"V512_WORLD_REGISTER playerId="+
+            worldPlayer.id()+
+            " generation="+generation+
+            " username="+username+
+            " members="+world.players().size()+
+            " worldIdentity="+System.identityHashCode(world)
+        );
+
+        return new Result(
+            username,
+            persistentAccount,
+            generation
+        );
+    }
+
+    private boolean scopesightActive(){
+        return petState.active()&&
+            petState.itemId()==ScopesightPetProfile.ITEM_ID&&
+            petState.npcId()==ScopesightPetProfile.NPC_ID;
+    }
+}
