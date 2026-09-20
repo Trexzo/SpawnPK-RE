@@ -79,16 +79,6 @@ try {
 
     foreach ($resource in $sourceResources) {
         $relative = $resource.FullName.Substring($sourceRoot.Length).TrimStart('\','/')
-
-        # These are research notes for the rejected native-compositor trial,
-        # not runtime classpath authority in the sealed R8.5 artifact.
-        if (
-            $relative -ieq "spk\local\data\custom_voidglass_r2\PROFILE.txt" -or
-            $relative -ieq "spk\local\data\custom_voidglass_r2\SERVER_RESOURCE_ROWS.tsv"
-        ) {
-            continue
-        }
-
         $dest = Join-Path $classRoot $relative
         $parent = Split-Path -Parent $dest
 
@@ -107,8 +97,11 @@ try {
     $dataFiles = @(
         "items.tsv",
         "equipment_slots.tsv",
+        "equipment_slot_overrides.tsv",
         "production_appearance_slots.tsv",
         "pet_mappings.tsv",
+        "custom_pet_mappings.tsv",
+        "custom_asset_manifest.tsv",
         "pet_ambiguous.tsv",
         "weapon_poses.tsv",
         "weapon_attack_r2.tsv",
