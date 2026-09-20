@@ -1634,6 +1634,310 @@ Important separation now recorded:
 
 No implementation work for those issues is performed from this R2 research branch.
 
+## R2.13 exact-current Adventure Book / chapter contract
+
+This continuation uses the supplied exact-current v308 JAR:
+
+```
+SHA-256 854f26ff9f134b0317572e7ac1688e6f40a231d5a4c66f8db5d655b7f45ce7c6
+client build/config = 308
+```
+
+The previously established v307 -> v308 delta is only the embedded build constant, so this also directly revalidates the Adventure application classes against v308.
+
+### Protocol split
+
+Adventure Book uses three distinct exact-current layers:
+
+```
+C2S103  adventurebook
+        opens/requests the Adventure Book compatibility path
+
+S2C126 target-1 controls
+        BEGIN_ADVENTURE
+        BEGIN_ADVENTURE_ORB
+        BEGIN_ADVENTURE_BOOK
+        END_ADVENTURE
+        toggle the broader client Adventure mode
+
+S2C250 subtype 22
+        owns the actual Adventure Book objective/chapter projection
+```
+
+Therefore the S2C126 controls must not be mistaken for the objective-record transport.
+
+### S2C250 subtype 22 exact operation grammar
+
+The application registry maps subtype 22 directly to the handler owned by the native Adventure Book controller `rs.n.c.c`.
+
+Every subtype-22 payload starts with:
+
+```
+op u8
+```
+
+Recovered operations:
+
+#### op 0 - clear/reset dynamic objective projection
+
+No additional payload.
+
+Exact client effect:
+
+- clears dynamic Adventure row widgets,
+- clears both objective lists,
+- resets the dynamic widget counter.
+
+This is the correct beginning of a full server reprojection.
+
+#### op 2 - finalize/rebuild current objective projection
+
+No additional payload.
+
+Exact client effect:
+
+1. renders every unclaimed record in insertion order,
+2. then every claimed record in insertion order,
+3. sets the scroll height to `recordCount * 74`,
+4. applies/rebuilds the dynamic container.
+
+This is **not** a second reset operation.
+
+Current LocalLab's wire helper named `chapterSecondaryReset()` emits the correct bytes but the name is semantically misleading; exact client behavior is closer to `finalize/rebuild`.
+
+#### op 3 - append one typed Adventure objective record
+
+Exact wire grammar:
+
+```
+subjectType          u8
+subjectId            i32_be
+textPartCount        u8
+primaryText          string_nl
+secondaryText?       string_nl   // read when textPartCount >= 2
+rewardCount          u8
+repeat rewardCount:
+    rewardItemId     i32_be
+    rewardAmount     i32_be
+current              u16_be
+target               u16_be
+claimed              u8          // true only when value == 1
+```
+
+Exact subject-type mapping:
+
+```
+1 -> ITEM
+2 -> NPC_HEAD
+3 -> OBJ
+```
+
+The `subjectId` is consumed according to that type as the item/NPC/object presentation identity.
+
+The reward pairs populate the native reward-item container.
+
+The final three fields are exact objective state:
+
+```
+current
+target
+claimed
+```
+
+Client state classification:
+
+```
+claimed == true       -> CLAIMED
+else current >= target -> CLAIMABLE
+else                   -> IN_PROGRESS
+```
+
+The client caps the combined objective lists at **25 records**.
+
+This also corrects loose current LocalLab helper names:
+
+```
+rewardType   -> subjectType
+definitionId -> subjectId
+valueA       -> current
+valueB       -> target
+flag         -> claimed
+```
+
+The existing encoder shape is wire-correct; this is a semantic naming/provenance correction only.
+
+#### op 5 / op 6 - immediate graphics operations
+
+No payload beyond the operation byte.
+
+Both issue fixed immediate drawing primitives directly against the client canvas.
+
+Their exact graphical effects are recoverable, but no trustworthy gameplay/domain semantic was found.
+
+Keep these operations structural/opaque rather than promoting the current convenience label `chapterAttentionA/B` into server-domain authority.
+
+#### op 7 - chapter reward claim-state projection
+
+Payload:
+
+```
+state u8
+```
+
+Exact presentation:
+
+```
+state 0:
+    hide widgets 30390 / 30391
+    text 30393 = "Complete the chapter ... to claim these items."
+    ordinary/default presentation
+
+state 1:
+    show widgets 30390 / 30391
+    text 30393 = "@yel@CLAIM!"
+    highlighted presentation / attention effect
+
+other:
+    hide widgets 30390 / 30391
+    text 30393 = green already-claimed message
+```
+
+Therefore the safe semantic states are:
+
+```
+0     -> INCOMPLETE / NOT_CLAIMABLE
+1     -> CLAIMABLE
+other -> CLAIMED presentation
+```
+
+The original server eligibility/reward policy is still server authority.
+
+#### op 8 - chapter progress numerator/denominator
+
+Payload:
+
+```
+current u16_be
+target  u16_be
+```
+
+The native Adventure renderer uses the pair as a progress fraction for the `Chapter Progress` circular renderer.
+
+The interface separately contains the visible `Chapter Progress` label and text surface; op 8 specifically drives the native progress-ring fraction.
+
+### Exact stable outbound Adventure actions
+
+The native controller creates these ordinary `M=1` buttons:
+
+```
+30380  Next chapter
+30383  Previous chapter
+30390  Claim rewards
+```
+
+All three use the generic menu-action-315 route:
+
+```
+C2S185
+u16_be widgetId
+```
+
+Widget `30393` is presentation text (`<img=9> Claim all` / claim-state text), **not** the clickable claim action.
+
+The clickable chapter-reward action is widget **30390**.
+
+### Exact dynamic objective-row action IDs
+
+Dynamic rows use a fixed **15-widget stride**.
+
+After a clear/rebuild cycle, rendered row index `i` (0-based) has:
+
+```
+Tips & Information  = 30400 + (15 * i)
+Teleport to Task    = 30403 + (15 * i)
+Claim reward        = 30407 + (15 * i)   // only materialized as a button when claimable
+```
+
+All are ordinary `M=1` buttons and therefore send only:
+
+```
+C2S185(widgetId)
+```
+
+No Adventure-specific packet transformation occurs in the exact menu-action handler.
+
+For the maximum 25 rows this yields:
+
+```
+Tips:      30400 .. 30760  step 15
+Teleport:  30403 .. 30763  step 15
+Claim:     30407 .. 30767  step 15
+```
+
+### Render-order coupling is an important server contract
+
+The client keeps two insertion-ordered lists:
+
+```
+unclaimed
+claimed
+```
+
+Finalize/rebuild renders:
+
+```
+all unclaimed first
+then all claimed
+```
+
+The dynamic row click contains **no semantic objective ID**, subject ID, or reward ID; it contains only the generated widget ID.
+
+Therefore the server/presentation adapter must retain the same projection ordering and resolve:
+
+```
+dynamic widget
+ -> action kind + rendered row ordinal
+ -> server-owned semantic objective identity
+```
+
+at the UI/protocol boundary.
+
+Raw dynamic widget arithmetic must **not** become the ObjectiveService domain identity.
+
+A claimable row is necessarily in the unclaimed list, so:
+
+```
+claim widget 30407 + 15*i
+ -> current unclaimed projection row i
+```
+
+but the authoritative objective/reward remains server-owned.
+
+### Authority consequence
+
+The client embeds starter objective definitions and reward tuples locally, but subtype 22 proves that the server can clear and republish the objective set and progress/claim state.
+
+Therefore:
+
+```
+client embedded objective definitions = presentation/reference evidence
+server objective definition/progress  = authoritative domain state
+client click widget ID                = presentation selection only
+```
+
+A modified client must never be allowed to define its own Adventure rewards or completion state.
+
+The safe architecture remains:
+
+```
+AdventureBookDefinitionRepository
+AdventureBookProgress / ObjectiveProgressService
+AdventureBookClaimService
+AdventureBookPresentationAdapter
+```
+
+with S2C250 subtype 22 and C2S185/C2S103 confined to the presentation/protocol adapter.
+
 ## R2 conclusion
 
 The first-pass gap assessment remains directionally correct, but the exact current client exposes a substantially larger recoverable presentation/control surface than R1 captured.
