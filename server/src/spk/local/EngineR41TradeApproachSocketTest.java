@@ -5,7 +5,7 @@ public final class EngineR41TradeApproachSocketTest{
   Path tmp=Files.createTempDirectory("spk-v5141-trade-approach-");String old=System.getProperty("spk.local.accountFile");System.setProperty("spk.local.accountFile",tmp.resolve("opensrc.properties").toString());World world=World.isolatedForTest(80L);InetAddress loop=InetAddress.getByName("127.0.0.1");
   try(ServerSocket ss=new ServerSocket(0,2,loop)){ExecutorService ex=Executors.newFixedThreadPool(3);Future<?> accept=ex.submit(()->{try{for(int i=0;i<2;i++){Socket s=ss.accept();ex.submit(()->new LocalSession(s,true,true,world).run());}}catch(IOException e){throw new RuntimeException(e);}});Client c1=null,c2=null;try{
    c1=login(loop,ss.getLocalPort(),"opensrc");waitFor(()->world.players().size()==1,3000,"primary");drainUntilQuiet(c1.s,1500,100);
-   c2=login(loop,ss.getLocalPort(),"opensrc");waitFor(()->world.players().size()==2,3000,"secondary");drainUntilQuiet(c1.s,2000,100);drainUntilQuiet(c2.s,2000,100);
+   c2=login(loop,ss.getLocalPort(),"opensrc");waitFor(()->world.players().size()==2,3000,"secondary");awaitPayload(c1.s,4000,80,"primary reciprocal visibility","Attack\\n","Follow\\n","Trade with\\n","src\\n");awaitPayload(c2.s,4000,80,"secondary reciprocal visibility","Attack\\n","Follow\\n","Trade with\\n","opensrc\\n");
    WorldPlayer p1=byName(world,"opensrc"),p2=byName(world,"src");if(p1==null||p2==null)throw new AssertionError("profiles missing");
    int before=Math.abs(p1.movement().x()-p2.movement().x())+Math.abs(p1.movement().y()-p2.movement().y());
    sendPlayerTrade(c1,2);
