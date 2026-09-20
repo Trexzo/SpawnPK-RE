@@ -218,14 +218,31 @@ final class LocalPlayerInteractionHandler {
             return null;
         }
 
+        RouteRequest routeRequest=
+            movement.transientRegion()
+                ?RouteRequest.worldStatic(
+                    movement.x(),
+                    movement.y(),
+                    movement.plane(),
+                    target.movement().x(),
+                    target.movement().y(),
+                    range,
+                    RouteRequest.Purpose.INTERACTION_APPROACH
+                )
+                :RouteRequest.interactionHomeRecovered(
+                    movement.x(),
+                    movement.y(),
+                    movement.plane(),
+                    target.movement().x(),
+                    target.movement().y(),
+                    range
+                );
+
+        RouteFinder.Result routeResult=
+            RouteFinder.find(routeRequest);
+
         java.util.List<int[]> route=
-            HomeCombatPathfinder.route(
-                movement.x(),
-                movement.y(),
-                target.movement().x(),
-                target.movement().y(),
-                range
-            );
+            routeResult.path;
 
         if(route==null||route.isEmpty())return null;
 
@@ -256,6 +273,7 @@ final class LocalPlayerInteractionHandler {
             " target="+target.username()+
             " range="+range+
             " steps="+n+
+            " routeAuthority="+routeResult.authority+
             " interaction="+
                 (activeTrade!=null?"TRADE":activeAttack!=null?"ATTACK":"FOLLOW")+
             " worldTick="+worldTick;
