@@ -165,11 +165,6 @@ final class LocalPendingRequestDispatcher {
             serverPackets,
             tag
         );
-        acceptItemOnNpc(
-            clientPackets,
-            serverPackets,
-            tag
-        );
         acceptSpellTarget(
             clientPackets,
             serverPackets,
@@ -269,6 +264,19 @@ final class LocalPendingRequestDispatcher {
 
                 routeDropItem(
                     drop.action(),
+                    serverPackets,
+                    tag
+                );
+                continue;
+            }
+
+            if(request instanceof
+                    ItemOnNpcClientRequest){
+                ItemOnNpcClientRequest itemOnNpc=
+                    (ItemOnNpcClientRequest)request;
+
+                routeItemOnNpc(
+                    itemOnNpc.action(),
                     serverPackets,
                     tag
                 );
@@ -461,16 +469,11 @@ final class LocalPendingRequestDispatcher {
         );
     }
 
-    private void acceptItemOnNpc(
-        ClientPacketProbe clientPackets,
+    private void routeItemOnNpc(
+        ItemOnNpcAction action,
         ServerPacketWriter serverPackets,
         String tag
     )throws IOException{
-        ItemOnNpcAction action=
-            clientPackets.takeItemOnNpc();
-
-        if(action==null)return;
-
         LocalItemOnNpcHandler.Result result=
             itemOnNpcHandler.handle(
                 action,
