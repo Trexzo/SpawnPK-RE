@@ -340,10 +340,100 @@ public final class LocalWorldTickCoordinatorTest {
             }
         }
 
+        try(Fixture respawning=new Fixture()){
+            TickBridge bridge=new TickBridge();
+            LocalWorldTickCoordinator coordinator=
+                respawning.coordinator(true,bridge);
+
+            String accepted=
+                respawning.movement.accept(
+                    new MovementRequest(
+                        164,
+                        false,
+                        new int[]{
+                            MovementState.INITIAL_X+1
+                        },
+                        new int[]{
+                            MovementState.INITIAL_Y
+                        },
+                        new byte[0]
+                    )
+                );
+
+            if(!accepted.startsWith("ACCEPTED"))
+                throw new AssertionError(
+                    "respawn movement setup rejected: "+
+                    accepted
+                );
+
+            respawning.movement.advance();
+
+            PlayerLifecycleService lifecycle=
+                new PlayerLifecycleService(
+                    respawning.player
+                );
+
+            PlayerLifecycleService.DamageResult lethal=
+                lifecycle.applyDamage(
+                    500,
+                    10L,
+                    "WORLD_TICK_RESPAWN_TEST"
+                );
+
+            if(!lethal.died||
+               !respawning.player.lifecycle().dead())
+                throw new AssertionError(
+                    "respawn fixture did not die "+
+                    lethal
+                );
+
+            int before=respawning.wire.size();
+
+            coordinator.tick(
+                15L,
+                3_000L,
+                respawning.writer,
+                "[tick-test] "
+            );
+
+            if(respawning.player.lifecycle().dead())
+                throw new AssertionError(
+                    "world tick did not respawn player"
+                );
+
+            if(respawning.player.playerState().currentLevel(
+                    PlayerState.HITPOINTS)!=99)
+                throw new AssertionError(
+                    "world tick did not restore HP"
+                );
+
+            if(respawning.movement.x()!=
+                    MovementState.INITIAL_X||
+               respawning.movement.y()!=
+                    MovementState.INITIAL_Y||
+               !respawning.movement.inHomeWindow())
+                throw new AssertionError(
+                    "world tick did not restore HOME"
+                );
+
+            if(!"PLAYER_RESPAWN".equals(
+                    bridge.lastSaveReason))
+                throw new AssertionError(
+                    "respawn save boundary missing: "+
+                    bridge.lastSaveReason
+                );
+
+            if(respawning.wire.size()<=before)
+                throw new AssertionError(
+                    "respawn emitted no client packets"
+                );
+        }
+
         System.out.println(
             "LOCAL_WORLD_TICK_COORDINATOR_PASS "+
             "idlePulse=true authoritativeMove=true "+
-            "tickCountersOwned=true schedulerHooks=true"
+            "tickCountersOwned=true schedulerHooks=true "+
+            "respawnLifecycle=true"
         );
     }
 }
