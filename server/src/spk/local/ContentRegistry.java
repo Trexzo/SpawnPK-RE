@@ -101,11 +101,60 @@ final class ContentRegistry {
         }
     }
 
+    private static final class NpcOptionKey {
+        final int npcDefinitionId;
+        final int option;
+
+        NpcOptionKey(
+            int npcDefinitionId,
+            int option
+        ){
+            this.npcDefinitionId=npcDefinitionId;
+            this.option=option;
+        }
+
+        String diagnosticKey(){
+            return npcDefinitionId+":"+option;
+        }
+
+        @Override public boolean equals(
+            Object other
+        ){
+            if(this==other)return true;
+            if(!(other instanceof NpcOptionKey))
+                return false;
+            NpcOptionKey key=
+                (NpcOptionKey)other;
+            return npcDefinitionId==
+                    key.npcDefinitionId&&
+                option==key.option;
+        }
+
+        @Override public int hashCode(){
+            return 31*npcDefinitionId+option;
+        }
+    }
+
+    private static final class NpcOptionBinding {
+        final BindingInfo info;
+        final ContentNpcOptionHandler handler;
+
+        NpcOptionBinding(
+            BindingInfo info,
+            ContentNpcOptionHandler handler
+        ){
+            this.info=info;
+            this.handler=handler;
+        }
+    }
+
     private final World world;
     private final LinkedHashMap<String,CommandBinding>
         commands=new LinkedHashMap<>();
     private final LinkedHashMap<ObjectOptionKey,ObjectOptionBinding>
         objectOptions=new LinkedHashMap<>();
+    private final LinkedHashMap<NpcOptionKey,NpcOptionBinding>
+        npcOptions=new LinkedHashMap<>();
     private final LinkedHashSet<String>
         installedModules=new LinkedHashSet<>();
 
@@ -180,6 +229,12 @@ final class ContentRegistry {
                         objectOptions
                     );
 
+            LinkedHashMap<NpcOptionKey,NpcOptionBinding>
+                nextNpcOptions=
+                    new LinkedHashMap<>(
+                        npcOptions
+                    );
+
             for(PendingCommand pending:
                     registrar.pendingCommands)
                 applyCommand(
@@ -194,12 +249,24 @@ final class ContentRegistry {
                     pending
                 );
 
+            for(PendingNpcOption pending:
+                    registrar.pendingNpcOptions)
+                applyNpcOption(
+                    nextNpcOptions,
+                    pending
+                );
+
             commands.clear();
             commands.putAll(nextCommands);
 
             objectOptions.clear();
             objectOptions.putAll(
                 nextObjectOptions
+            );
+
+            npcOptions.clear();
+            npcOptions.putAll(
+                nextNpcOptions
             );
 
             installedModules.add(moduleId);
@@ -299,6 +366,40 @@ final class ContentRegistry {
         );
     }
 
+    ContentNpcOptionResult dispatchNpcOption(
+        int npcDefinitionId,
+        int option,
+        int sceneIndex,
+        int worldX,
+        int worldY
+    ){
+        requireWorldThread();
+
+        NpcOptionBinding binding;
+
+        synchronized(this){
+            binding=npcOptions.get(
+                new NpcOptionKey(
+                    npcDefinitionId,
+                    option
+                )
+            );
+        }
+
+        if(binding==null)
+            return null;
+
+        return binding.handler.handle(
+            new NpcOptionContext(
+                npcDefinitionId,
+                option,
+                sceneIndex,
+                worldX,
+                worldY
+            )
+        );
+    }
+
     synchronized BindingInfo commandBinding(
         String name
     ){
@@ -327,6 +428,22 @@ final class ContentRegistry {
             :binding.info;
     }
 
+    synchronized BindingInfo npcOptionBinding(
+        int npcDefinitionId,
+        int option
+    ){
+        NpcOptionBinding binding=
+            npcOptions.get(
+                new NpcOptionKey(
+                    npcDefinitionId,
+                    option
+                )
+            );
+        return binding==null
+            ?null
+            :binding.info;
+    }
+
     synchronized List<BindingInfo> bindings(){
         ArrayList<BindingInfo> result=
             new ArrayList<>();
@@ -337,6 +454,10 @@ final class ContentRegistry {
 
         for(ObjectOptionBinding binding:
                 objectOptions.values())
+            result.add(binding.info);
+
+        for(NpcOptionBinding binding:
+                npcOptions.values())
             result.add(binding.info);
 
         return Collections.unmodifiableList(
@@ -350,6 +471,8 @@ final class ContentRegistry {
             ",commands="+commands.size()+
             ",objectOptions="+
                 objectOptions.size()+
+            ",npcOptions="+
+                npcOptions.size()+
             ",bindings="+bindings()+
             "}";
     }
@@ -438,6 +561,44 @@ final class ContentRegistry {
             );
     }
 
+    private static void applyNpcOption(
+        Map<NpcOptionKey,NpcOptionBinding> target,
+        PendingNpcOption pending
+    ){
+        NpcOptionBinding existing=
+            target.get(
+                pending.key
+            );
+
+        if(existing==null){
+            target.put(
+                pending.key,
+                new NpcOptionBinding(
+                    pending.info,
+                    pending.handler
+                )
+            );
+            return;
+        }
+
+        if(pending.info.priority==
+                existing.info.priority)
+            throw conflict(
+                pending.info,
+                existing.info
+            );
+
+        if(pending.info.priority>
+                existing.info.priority)
+            target.put(
+                pending.key,
+                new NpcOptionBinding(
+                    pending.info,
+                    pending.handler
+                )
+            );
+    }
+
     private static IllegalStateException conflict(
         BindingInfo incoming,
         BindingInfo existing
@@ -510,6 +671,22 @@ final class ContentRegistry {
         }
     }
 
+    private static final class PendingNpcOption {
+        final NpcOptionKey key;
+        final BindingInfo info;
+        final ContentNpcOptionHandler handler;
+
+        PendingNpcOption(
+            NpcOptionKey key,
+            BindingInfo info,
+            ContentNpcOptionHandler handler
+        ){
+            this.key=key;
+            this.info=info;
+            this.handler=handler;
+        }
+    }
+
     private static final class Registrar
         implements ContentRegistrar {
 
@@ -519,6 +696,9 @@ final class ContentRegistry {
             pendingCommands=new ArrayList<>();
         private final ArrayList<PendingObjectOption>
             pendingObjectOptions=
+                new ArrayList<>();
+        private final ArrayList<PendingNpcOption>
+            pendingNpcOptions=
                 new ArrayList<>();
 
         Registrar(
@@ -592,6 +772,48 @@ final class ContentRegistry {
                     key,
                     new BindingInfo(
                         "OBJECT_OPTION",
+                        key.diagnosticKey(),
+                        moduleId,
+                        priority,
+                        provenance
+                    ),
+                    handler
+                )
+            );
+        }
+
+        @Override public void npcOption(
+            int npcDefinitionId,
+            int option,
+            int priority,
+            ContentNpcOptionHandler handler
+        ){
+            if(npcDefinitionId<0)
+                throw new IllegalArgumentException(
+                    "npcDefinitionId"
+                );
+
+            if(option<1||option>5)
+                throw new IllegalArgumentException(
+                    "npc option"
+                );
+
+            Objects.requireNonNull(
+                handler,
+                "handler"
+            );
+
+            NpcOptionKey key=
+                new NpcOptionKey(
+                    npcDefinitionId,
+                    option
+                );
+
+            pendingNpcOptions.add(
+                new PendingNpcOption(
+                    key,
+                    new BindingInfo(
+                        "NPC_OPTION",
                         key.diagnosticKey(),
                         moduleId,
                         priority,
@@ -683,4 +905,48 @@ final class ContentRegistry {
             return worldY;
         }
     }
+    private static final class NpcOptionContext
+        implements ContentNpcOptionContext {
+
+        private final int npcDefinitionId;
+        private final int option;
+        private final int sceneIndex;
+        private final int worldX;
+        private final int worldY;
+
+        NpcOptionContext(
+            int npcDefinitionId,
+            int option,
+            int sceneIndex,
+            int worldX,
+            int worldY
+        ){
+            this.npcDefinitionId=npcDefinitionId;
+            this.option=option;
+            this.sceneIndex=sceneIndex;
+            this.worldX=worldX;
+            this.worldY=worldY;
+        }
+
+        @Override public int npcDefinitionId(){
+            return npcDefinitionId;
+        }
+
+        @Override public int option(){
+            return option;
+        }
+
+        @Override public int sceneIndex(){
+            return sceneIndex;
+        }
+
+        @Override public int worldX(){
+            return worldX;
+        }
+
+        @Override public int worldY(){
+            return worldY;
+        }
+    }
+
 }
