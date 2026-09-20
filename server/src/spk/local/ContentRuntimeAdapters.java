@@ -80,21 +80,22 @@ final class ContentRuntimeAdapters {
 
         @Override public Set<ContentSkill>
             syncMaintainedPetEffects(){
+            return skills(
+                player.syncScopesightMaintenance(
+                    maintainedPetEffectActive()
+                )
+            );
+        }
+
+        @Override public boolean maintainedPetEffectActive(){
             PetState pet=
                 worldPlayer.petState();
 
-            boolean scopesight=
-                pet.active()&&
+            return pet.active()&&
                 pet.itemId()==
                     ScopesightPetProfile.ITEM_ID&&
                 pet.npcId()==
                     ScopesightPetProfile.NPC_ID;
-
-            return skills(
-                player.syncScopesightMaintenance(
-                    scopesight
-                )
-            );
         }
 
         @Override public int runEnergy(){
