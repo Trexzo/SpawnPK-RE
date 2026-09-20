@@ -13,6 +13,7 @@ final class LocalRoutedNpcInteractionHandler {
     private final NpcRegistry npcs;
     private final BankState bank;
     private final MovementState movement;
+    private final InteractionApproachResolver approach;
 
     private Integer pendingBankScene;
     private long pendingBankDeadlineMs;
@@ -25,6 +26,7 @@ final class LocalRoutedNpcInteractionHandler {
         this.npcs=java.util.Objects.requireNonNull(npcs,"npcs");
         this.bank=java.util.Objects.requireNonNull(bank,"bank");
         this.movement=java.util.Objects.requireNonNull(movement,"movement");
+        this.approach=new InteractionApproachResolver(this.movement);
     }
 
     String handle(
@@ -49,6 +51,24 @@ final class LocalRoutedNpcInteractionHandler {
                 );
             }
 
+            InteractionApproachResolver.Result approachResult=
+                approach.queueAdjacent(
+                    clicked.x,
+                    clicked.y
+                );
+
+            if(!approachResult.queued()){
+                pendingBankScene=null;
+                return "V511_NPC_BANK "+request+
+                    " clicked="+clicked+
+                    " route="+route+
+                    " distance="+chebyshev(
+                        movement.x(),movement.y(),clicked.x,clicked.y)+
+                    " action=REJECTED_SERVER_APPROACH_"+
+                    approachResult.status+
+                    " approach="+approachResult;
+            }
+
             pendingBankScene=clicked.sceneIndex;
             pendingBankDeadlineMs=System.currentTimeMillis()+10_000L;
             return "V511_NPC_BANK "+request+
@@ -56,7 +76,8 @@ final class LocalRoutedNpcInteractionHandler {
                 " route="+route+
                 " distance="+chebyshev(
                     movement.x(),movement.y(),clicked.x,clicked.y)+
-                " action=DEFERRED_UNTIL_ADJACENT";
+                " action=DEFERRED_UNTIL_ADJACENT"+
+                " serverApproach="+approachResult;
         }
 
         NpcEntity pet=npcs.pet();
@@ -80,9 +101,21 @@ final class LocalRoutedNpcInteractionHandler {
 
         if(!adjacentTo(npc.x,npc.y)){
             if(movement.queued()==0){
+                InteractionApproachResolver.Result reroute=
+                    approach.queueAdjacent(
+                        npc.x,
+                        npc.y
+                    );
+
+                if(reroute.queued())
+                    return "V511_NPC_BANK scene="+scene+
+                        " action=SERVER_REROUTED_MOVING_TARGET"+
+                        " approach="+reroute;
+
                 pendingBankScene=null;
                 return "V511_NPC_BANK scene="+scene+
-                    " action=CANCELLED_PATH_ENDED_NOT_ADJACENT";
+                    " action=CANCELLED_PATH_ENDED_NOT_ADJACENT"+
+                    " approach="+reroute;
             }
             return null;
         }
