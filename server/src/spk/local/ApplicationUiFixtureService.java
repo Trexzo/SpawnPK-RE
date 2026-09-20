@@ -69,12 +69,12 @@ final class ApplicationUiFixtureService {
         w.fixed(97,BootstrapPackets.interface97(MAKE_X_FIXTURE_ROOT));
         ApplicationUiService.makeXReset(w);
         ApplicationUiService.makeXLayout(w,"LocalLab Make-X fixture","No production recipe/cost authority");
-        // Keep the synthetic fixture to the first proven preview/action row. This
-        // exercises every subtype-35 operation family without assuming how the
-        // production server chooses among the five native roots.
+        // Keep the live fixture cache-local: operation 4's npc_<id> path is exact,
+        // but it deliberately starts asynchronous NPC-sprite resolution. Packet-
+        // level tests cover that encoder without making the disconnect regression
+        // depend on async cache state.
         ApplicationUiService.makeXPreview(w,0,4151);
         ApplicationUiService.makeXRowAction(w,0,"Local fixture row");
-        ApplicationUiService.makeXRowResource(w,0,"npc_1");
         ApplicationUiService.makeXPreset(w,2);
     }
     private static void eventTask(ServerPacketWriter w)throws IOException{
