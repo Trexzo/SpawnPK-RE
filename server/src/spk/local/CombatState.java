@@ -1,6 +1,6 @@
 package spk.local;
 
-/** Per-session combat scheduler state. */
+/** Canonical player-owned combat scheduler state, independent of the connection wrapper. */
 final class CombatState {
     int targetSceneIndex=-1;
     int targetDefinitionId=-1;
