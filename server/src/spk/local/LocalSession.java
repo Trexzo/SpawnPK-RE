@@ -70,6 +70,7 @@ final class LocalSession implements Runnable {
     private final LocalDevPanelAmountHandler devPanelAmounts;
     private final LocalDevPanelWidgetHandler devPanelWidgets;
     private final LocalCommandDispatcher commandDispatcher;
+    private final LocalSessionUiActionHandler uiActions;
     private SceneUpdatePublisher scenePublisher;
     private ServerPacketWriter sessionPackets;
     private OutboundPacketQueue outboundPackets;
@@ -293,6 +294,55 @@ final class LocalSession implements Runnable {
                     String tag
                 ){
                     LocalSession.this.applyPetDialogResult(result,tag);
+                }
+            });
+        this.uiActions = new LocalSessionUiActionHandler(
+            worldPlayer,
+            itemLibrary,
+            devPanel,
+            bank,
+            compCapeCustomize,
+            petDialogs,
+            gameplayWidgetHandler,
+            movement,
+            movementEnabled,
+            equipment,
+            new LocalSessionUiActionHandler.SessionBridge(){
+                @Override public void saveAccount(
+                    String tag,
+                    String reason
+                ){
+                    LocalSession.this.saveAccountQuiet(tag,reason);
+                }
+
+                @Override public void clearDialogNumberKeys(){
+                    LocalSession.this.clearDialogNumberKeys();
+                }
+
+                @Override public void handleDevPanelWidget(
+                    int widget,
+                    ServerPacketWriter writer,
+                    String tag
+                )throws IOException{
+                    LocalSession.this.handleDevPanelWidget(
+                        widget,
+                        writer,
+                        tag
+                    );
+                }
+
+                @Override public void applyPetDialog(
+                    LocalPetInventoryDialogHandler.Result result,
+                    String tag
+                ){
+                    LocalSession.this.applyPetDialogResult(
+                        result,
+                        tag
+                    );
+                }
+
+                @Override public void requestLogout(){
+                    LocalSession.this.logoutRequested=true;
                 }
             });
         if (movementEnabled && !bootstrap) throw new IllegalArgumentException("movement requires bootstrap");
@@ -840,118 +890,31 @@ final class LocalSession implements Runnable {
         });
     }
 
-    private void acceptPendingInterfaceClose(ClientPacketProbe clientPackets, ServerPacketWriter serverPackets, String tag) throws IOException {
-        if (!clientPackets.takeInterfaceClose()) return;
-        boolean tradeWasOpen=TradeService.cancelIfActive(worldPlayer,"CLIENT_INTERFACE_CLOSE");
-        boolean itemLibraryWasOpen=itemLibrary.isOpen();
-        itemLibrary.close();
-        boolean devPanelWasOpen=devPanel.isOpen()||devPanel.hasPending();
-        devPanel.close();
-        clearDialogNumberKeys();
-        boolean wasOpen = bank.clientClosed();
-        boolean compWasOpen = compCapeCustomize.close();
-        LocalPetInventoryDialogHandler.CloseState petDialogClose=
-            petDialogs.clearAll();
-        boolean petColorWasOpen=petDialogClose.petColorWasOpen;
-        boolean miniConfigWasOpen=petDialogClose.miniConfigWasOpen;
-        boolean petAccessoryWasOpen=petDialogClose.petAccessoryWasOpen;
-        // Bank overlay inventory is widget 5064; once the overlay closes the normal
-        // inventory is widget 3214. Re-send 3214 so withdrawals remain visible.
-        if (wasOpen) bank.sendNormalInventory(serverPackets);
-        saveAccountQuiet(tag, "INTERFACE_CLOSE");
-        System.out.println(tag + "V522_INTERFACE_CLOSE opcode=130 bankWasOpen="+wasOpen
-                         + " bankOpen=false normalInventory3214Refresh="+wasOpen
-                         + " compCapeWasOpen="+compWasOpen+" tradeWasOpen="+tradeWasOpen+" itemLibraryWasOpen="+itemLibraryWasOpen+" devPanelWasOpen="+devPanelWasOpen
-                         + " petColorWasOpen="+petColorWasOpen+" miniConfigWasOpen="+miniConfigWasOpen+" petAccessoryWasOpen="+petAccessoryWasOpen
-                         + " decoderAligned="+clientPackets.isAligned());
+    private void acceptPendingInterfaceClose(
+        ClientPacketProbe clientPackets,
+        ServerPacketWriter serverPackets,
+        String tag
+    )throws IOException{
+        if(!clientPackets.takeInterfaceClose())return;
+        uiActions.handleInterfaceClose(
+            clientPackets.isAligned(),
+            serverPackets,
+            tag
+        );
     }
 
-    private void acceptPendingActions(ClientPacketProbe clientPackets, ServerPacketWriter serverPackets, String tag) throws IOException {
-        Integer widget = clientPackets.takeWidgetAction();
-        if (widget == null) return;
-
-        if(widget==2458){
-            saveAccountQuiet(tag,"LOGOUT_BUTTON");
-            serverPackets.fixed(109,new byte[0]);
-            logoutRequested=true;
-            System.out.println(tag+"V5124_LOGOUT widget=2458 result=S2C109_LOGOUT_DISCONNECT save=true");
-            return;
-        }
-
-        if(devPanel.isOpen() && (widget==54195 || (widget>=2482 && widget<=2485))){
-            handleDevPanelWidget(widget,serverPackets,tag);
-            return;
-        }
-
-        if(widget==NativeEquipmentDeathUi.EQUIPMENT_STATS_BUTTON){
-            String result=NativeEquipmentDeathUi.openEquipmentStats(serverPackets,equipment);
-            System.out.println(tag+"V5140_EQUIPMENT_STATS widget="+widget+" result="+result);
-            return;
-        }
-        if(widget==NativeEquipmentDeathUi.DEATH_BUTTON){
-            String result=NativeEquipmentDeathUi.openDeathPreview(serverPackets,bank,equipment);
-            System.out.println(tag+"V5140_DEATH_PREVIEW widget="+widget+" result="+result);
-            return;
-        }
-        String itemLibraryWidget=itemLibrary.handleWidget(serverPackets,widget);
-        if(itemLibraryWidget!=null){
-            System.out.println(tag+"V5150_ITEM_LIBRARY_WIDGET widget="+widget+" result="+itemLibraryWidget);
-            return;
-        }
-        String tradeWidget=TradeService.handleWidget(worldPlayer,widget);
-        if(tradeWidget!=null){
-            System.out.println(tag+"V5140_TRADE_WIDGET widget="+widget+" result="+tradeWidget);
-            return;
-        }
-
-        String gameplayWidget=gameplayWidgetHandler.handle(widget,serverPackets);
-        if(gameplayWidget!=null){
-            System.out.println(tag+gameplayWidget);
-            return;
-        }
-
-        LocalPetInventoryDialogHandler.Result petDialogWidget=
-            petDialogs.handleWidget(widget,serverPackets);
-        if(petDialogWidget!=null){
-            applyPetDialogResult(petDialogWidget,tag);
-            return;
-        }
-
-        String compCapeWidget=
-            compCapeCustomize.handleWidget(widget,serverPackets);
-        if(compCapeWidget!=null){
-            System.out.println(tag+compCapeWidget);
-            return;
-        }
-        if (widget == 152) {
-            if (!movementEnabled) {
-                System.out.println(tag + "M5_RUN_TOGGLE widget=152 action=OBSERVE_ONLY movementAuthority=false");
-                return;
-            }
-            boolean enabled = movement.togglePersistentRun();
-            serverPackets.fixed(36, BootstrapPackets.config36(173, enabled ? 1 : 0));
-            saveAccountQuiet(tag, "RUN_TOGGLE");
-            System.out.println(tag + "M5_RUN_TOGGLE widget=152 enabled=" + enabled
-                             + " opcode=36 setting=173 value=" + (enabled ? 1 : 0)
-                             + " authority=PERSISTENT_ACCOUNT_TOGGLE");
-            return;
-        }
-        if (widget == BankState.DEPOSIT_INVENTORY_WIDGET) {
-            String result = bank.depositInventory(serverPackets);
-            saveAccountQuiet(tag, "BANK_DEPOSIT_INVENTORY");
-            System.out.println(tag + "V4_BANK_WIDGET widget="+widget+" action=DEPOSIT_INVENTORY result="+result);
-            return;
-        }
-        if (widget == BankState.TOGGLE_PLACEHOLDERS_WIDGET) {
-            String result = bank.togglePlaceholders(serverPackets);
-            saveAccountQuiet(tag, "BANK_PLACEHOLDERS");
-            System.out.println(tag + "V4_BANK_WIDGET widget="+widget+" action=TOGGLE_PLACEHOLDERS result="+result);
-            return;
-        }
-        if (widget == 5384 || widget == 5380) {
-            bank.close(serverPackets);
-            System.out.println(tag + "V4_BANK_WIDGET widget="+widget+" action=CLOSE_BANK bankOpen="+bank.isOpen());
-        }
+    private void acceptPendingActions(
+        ClientPacketProbe clientPackets,
+        ServerPacketWriter serverPackets,
+        String tag
+    )throws IOException{
+        Integer widget=clientPackets.takeWidgetAction();
+        if(widget==null)return;
+        uiActions.handleWidget(
+            widget.intValue(),
+            serverPackets,
+            tag
+        );
     }
 
     private void applyPetDialogResult(
