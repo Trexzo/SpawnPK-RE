@@ -18,7 +18,7 @@ import java.util.*;
 final class LocalAccountProfiles {
     static final String PRIMARY="opensrc";
     static final String SECONDARY="src";
-    private static final int FORMAT_VERSION=1;
+    private static final int FORMAT_VERSION=PlayerSnapshot.CURRENT_VERSION;
 
     private LocalAccountProfiles(){}
 
@@ -56,9 +56,6 @@ final class LocalAccountProfiles {
 
         Properties properties=new Properties();
         try(InputStream in=Files.newInputStream(file)){properties.load(in);}
-
-        int version=parseInt(properties.getProperty("format.version"),-1);
-        if(version!=FORMAT_VERSION) throw new IOException("unsupported account format "+version+" file="+file);
 
         PlayerSnapshot snapshot=
             PlayerSnapshot.fromLegacyProperties(
@@ -125,5 +122,4 @@ final class LocalAccountProfiles {
     }
 
     private static String clean(String s){return s==null?"":s.trim().toLowerCase(Locale.ROOT);}
-    private static int parseInt(String s,int fallback){try{return Integer.parseInt(s);}catch(Exception e){return fallback;}}
 }
