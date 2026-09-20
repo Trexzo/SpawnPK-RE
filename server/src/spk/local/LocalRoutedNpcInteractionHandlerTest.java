@@ -67,6 +67,11 @@ public final class LocalRoutedNpcInteractionHandlerTest {
         if(!h.hasPendingBank())
             throw new AssertionError("deferred bank scene not retained");
 
+        // This assertion is specifically the path-ended cancellation case.
+        // The generic RouteFinder now leaves the authoritative route queued,
+        // so end that route explicitly before asking the handler to cancel it.
+        movement.clearQueuedPath();
+
         String cancelled=h.tick(System.currentTimeMillis(),w);
         if(cancelled==null||
            !cancelled.contains("CANCELLED_PATH_ENDED_NOT_ADJACENT"))
