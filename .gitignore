@@ -30,6 +30,8 @@ server/research/r83/source_archives/
 *.7z
 *.rar
 *.log
+*.lock
+*.pid
 tmp/
 temp/
 dist/
