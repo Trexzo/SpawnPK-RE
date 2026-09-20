@@ -36,6 +36,12 @@ final class WorldPetNpcService {
         if(ownerId==null)
             throw new NullPointerException("ownerId");
 
+        WorldNpc.validateSpawnParameters(
+            definitionId,
+            plane,
+            sourceItemId
+        );
+
         OwnerActors actors=
             byOwner.computeIfAbsent(
                 ownerId,
@@ -81,6 +87,12 @@ final class WorldPetNpcService {
     ){
         if(ownerId==null)
             throw new NullPointerException("ownerId");
+
+        WorldNpc.validateSpawnParameters(
+            definitionId,
+            plane,
+            sourceItemId
+        );
 
         OwnerActors actors=
             byOwner.computeIfAbsent(
