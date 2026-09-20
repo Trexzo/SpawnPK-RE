@@ -10,6 +10,39 @@ import java.util.Objects;
  * control strings stay inside the protocol layer.
  */
 final class ApplicationBus126Publisher {
+    /**
+     * Low-level generic packet-126 publisher retained for existing internal
+     * widget-text/dev-fixture callsites. Application control/state code should
+     * use the typed command overload below.
+     */
+    static void send(
+        ServerPacketWriter writer,
+        int targetKey,
+        String payload
+    )throws IOException{
+        Objects.requireNonNull(
+            writer,
+            "writer"
+        );
+
+        if(targetKey<=0||
+           targetKey>0xffff)
+            throw new IllegalArgumentException(
+                "targetKey="+
+                targetKey
+            );
+
+        writer.varShort(
+            126,
+            BootstrapPackets.widgetText126(
+                targetKey,
+                payload==null
+                    ?""
+                    :payload
+            )
+        );
+    }
+
     static void send(
         ServerPacketWriter writer,
         ApplicationControl126Command command
@@ -23,22 +56,10 @@ final class ApplicationBus126Publisher {
             "command"
         );
 
-        int targetKey=
-            command.target().key();
-
-        if(targetKey<=0||
-           targetKey>0xffff)
-            throw new IllegalArgumentException(
-                "targetKey="+
-                targetKey
-            );
-
-        writer.varShort(
-            126,
-            BootstrapPackets.widgetText126(
-                targetKey,
-                command.payload()
-            )
+        send(
+            writer,
+            command.target().key(),
+            command.payload()
         );
     }
 
