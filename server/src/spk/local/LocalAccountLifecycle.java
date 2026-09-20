@@ -5,9 +5,8 @@ import java.util.function.IntPredicate;
 /**
  * Session account/profile orchestration extracted from LocalSession.
  *
- * This is intentionally a compatibility boundary over the existing R8.5
- * Properties-based stores. PlayerRepository / immutable snapshot work belongs
- * to roadmap issue #15 and is not introduced here.
+ * Runtime persistence is repository/snapshot backed. Historical component-based
+ * overloads remain only as compatibility seams for inherited LocalLab fixtures.
  */
 final class LocalAccountLifecycle {
     static Selection select(World world,String loginAlias,String tag){
@@ -60,8 +59,8 @@ final class LocalAccountLifecycle {
                 );
 
             int persistedAccessory=
-                PetAccessoryPersistence.read(
-                    source.toLegacyProperties()
+                PlayerSnapshotCodec.accessoryItem(
+                    source
                 );
 
             int accessoryItem=
@@ -140,10 +139,25 @@ final class LocalAccountLifecycle {
         WorldPlayer player,
         PlayerRepository repository
     )throws java.io.IOException{
+        return captureAndSave(
+            username,
+            player,
+            repository,
+            0
+        );
+    }
+
+    static PlayerSnapshot captureAndSave(
+        String username,
+        WorldPlayer player,
+        PlayerRepository repository,
+        int activePetAccessoryItem
+    )throws java.io.IOException{
         PlayerSnapshot snapshot=
             PlayerSnapshotCodec.capture(
                 username,
-                player
+                player,
+                activePetAccessoryItem
             );
 
         repository.save(snapshot);
@@ -166,13 +180,9 @@ final class LocalAccountLifecycle {
                 captureAndSave(
                     username,
                     player,
-                    repository
+                    repository,
+                    activePetAccessoryItem
                 );
-
-            PetAccessoryPersistence.save(
-                username,
-                activePetAccessoryItem
-            );
 
             System.out.println(
                 tag+
