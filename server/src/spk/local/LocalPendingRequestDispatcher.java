@@ -170,11 +170,6 @@ final class LocalPendingRequestDispatcher {
             serverPackets,
             tag
         );
-        acceptNpcAction(
-            clientPackets,
-            serverPackets,
-            tag
-        );
         acceptMovement(
             clientPackets,
             serverPackets,
@@ -293,6 +288,19 @@ final class LocalPendingRequestDispatcher {
 
                 routePlayerAction(
                     player.action(),
+                    serverPackets,
+                    tag
+                );
+                continue;
+            }
+
+            if(request instanceof
+                    NpcActionClientRequest){
+                NpcActionClientRequest npc=
+                    (NpcActionClientRequest)request;
+
+                routeNpcAction(
+                    npc.action(),
                     serverPackets,
                     tag
                 );
@@ -629,16 +637,11 @@ final class LocalPendingRequestDispatcher {
             System.out.println(tag+result);
     }
 
-    private void acceptNpcAction(
-        ClientPacketProbe clientPackets,
+    private void routeNpcAction(
+        NpcAction action,
         ServerPacketWriter serverPackets,
         String tag
     )throws IOException{
-        NpcAction action=
-            clientPackets.takeNpcAction();
-
-        if(action==null)return;
-
         NpcEntity clicked=
             npcs.scene(action.sceneIndex);
 
