@@ -38,6 +38,15 @@ final class Player81WorldSync {
         return c==null?-1:c.clientIndexFor(target);
     }
 
+    static synchronized ServerPacketWriter writerFor(WorldPlayer player){
+        if(player==null)return null;
+        for(Context context:BY_WRITER.values()){
+            if(!context.closed&&context.owner==player)
+                return context.writer;
+        }
+        return null;
+    }
+
     /** Latest world-visible packet81 presentation event emitted by this source. */
     static synchronized long latestPublishedEventSequence(ServerPacketWriter sourceWriter){
         Context c=BY_WRITER.get(sourceWriter);
