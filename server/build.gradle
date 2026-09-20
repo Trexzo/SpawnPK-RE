@@ -1,0 +1,226 @@
+plugins {
+    id 'java'
+}
+
+group = 'spk.locallab'
+version = '5.18.5-r8.5-dev'
+
+def repoRoot = projectDir.parentFile
+def pinnedClientSha256 = '6232bae206846a4ba8d09766a2dee886b69016066a3f50f83b201bf705f93662'
+
+def runtimeDataFiles = [
+    'items.tsv',
+    'equipment_slots.tsv',
+    'production_appearance_slots.tsv',
+    'pet_mappings.tsv',
+    'pet_ambiguous.tsv',
+    'weapon_poses.tsv',
+    'weapon_attack_r2.tsv',
+    'weapon_pose_r2.tsv',
+    'home_landmarks_v906.tsv',
+    'home_npc_spawns_v906.tsv',
+    'home_npc_wander_edges_v906.tsv',
+    'home_object_overlay_v906.tsv',
+    'home_object_collision_defs_v906.tsv',
+    'home_collision_overlay_plan_v906.tsv'
+]
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
+sourceSets {
+    main {
+        java {
+            // Issue #1 owns the physical source-tree/package move. Until then,
+            // classify the sealed flat R8.5 tree without moving source files.
+            srcDirs = ['src']
+            exclude '**/*Test.java'
+        }
+        resources {
+            srcDirs = ['src']
+            exclude '**/*.java'
+            exclude 'spk/local/data/custom_voidglass_r2/PROFILE.txt'
+            exclude 'spk/local/data/custom_voidglass_r2/SERVER_RESOURCE_ROWS.tsv'
+            exclude 'spk/local/combat_weapon_coverage_m1.tsv'
+        }
+    }
+    test {
+        java {
+            srcDirs = ['src']
+            include '**/*Test.java'
+        }
+        resources {
+            srcDirs = []
+        }
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.release = 11
+    options.encoding = 'UTF-8'
+}
+
+tasks.named('processResources', ProcessResources) {
+    from('data') {
+        include runtimeDataFiles
+        into 'spk/local'
+    }
+}
+
+tasks.named('jar', Jar) {
+    archiveFileName = 'SpawnPKLocalServer.jar'
+    destinationDirectory = layout.buildDirectory
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+
+    manifest {
+        attributes('Main-Class': 'spk.local.Main')
+    }
+
+    // Keep the server artifact dependency-complete when JVM dependencies are
+    // introduced later. At R8.5 runtimeClasspath is intentionally empty.
+    from {
+        configurations.runtimeClasspath.collect { f ->
+            f.isDirectory() ? f : zipTree(f)
+        }
+    }
+
+    exclude 'META-INF/*.SF', 'META-INF/*.DSA', 'META-INF/*.RSA'
+}
+
+def readClassMajor = { File classFile ->
+    classFile.withInputStream { input ->
+        DataInputStream data = new DataInputStream(input)
+        int magic = data.readInt()
+        if (magic != (0xCAFEBABE as int)) {
+            throw new GradleException("Not a class file: ${classFile}")
+        }
+        data.readUnsignedShort() // minor
+        data.readUnsignedShort()
+    }
+}
+
+tasks.register('verifyJava11Bytecode') {
+    group = 'verification'
+    description = 'Verifies all compiled LocalLab classes use Java 11 class major version 55.'
+    dependsOn tasks.named('classes'), tasks.named('testClasses')
+
+    doLast {
+        def classFiles = files(
+            fileTree(new File(layout.buildDirectory.get().asFile, 'classes/java/main')) { include '**/*.class' },
+            fileTree(new File(layout.buildDirectory.get().asFile, 'classes/java/test')) { include '**/*.class' }
+        ).files
+
+        if (classFiles.empty) {
+            throw new GradleException('No compiled class files were produced.')
+        }
+
+        classFiles.each { f ->
+            int major = readClassMajor(f)
+            if (major != 55) {
+                throw new GradleException("Java bytecode compatibility failure: ${f} major=${major}, expected=55")
+            }
+        }
+
+        logger.lifecycle("LOCALLAB_BYTECODE_MAJOR_PASS major=55 classes=${classFiles.size()}")
+    }
+}
+
+def sha256 = { File f ->
+    def digest = java.security.MessageDigest.getInstance('SHA-256')
+    f.withInputStream { input ->
+        byte[] buf = new byte[8192]
+        int n
+        while ((n = input.read(buf)) > 0) {
+            digest.update(buf, 0, n)
+        }
+    }
+    digest.digest().collect { String.format('%02x', it & 0xff) }.join()
+}
+
+def findPinnedClient = {
+    def candidates = [
+        new File(repoRoot, 'evidence/client(6).jar'),
+        new File(repoRoot, 'evidence/client(4).jar'),
+        new File(repoRoot, 'evidence/client.jar'),
+        new File(repoRoot, 'client.jar')
+    ]
+
+    candidates.find { f ->
+        f.isFile() && sha256(f).equalsIgnoreCase(pinnedClientSha256)
+    }
+}
+
+def readR85Selftests = {
+    File harness = new File(repoRoot, 'RUN_V5185_FULL_SELFTEST.ps1')
+    if (!harness.isFile()) {
+        throw new GradleException("Missing R8.5 regression harness: ${harness}")
+    }
+
+    String text = harness.getText('UTF-8')
+    int start = text.indexOf('$tests=@(')
+    if (start < 0) {
+        throw new GradleException('Could not locate $tests block in RUN_V5185_FULL_SELFTEST.ps1')
+    }
+
+    int end = text.indexOf('\n)\n', start)
+    if (end < 0) {
+        end = text.indexOf('\r\n)\r\n', start)
+    }
+    if (end < 0) {
+        throw new GradleException('Could not locate end of $tests block in RUN_V5185_FULL_SELFTEST.ps1')
+    }
+
+    String block = text.substring(start, end)
+    def matcher = block =~ /'([A-Za-z0-9_]+Test)'/
+    def names = matcher.collect { it[1] }
+
+    if (names.size() != 179) {
+        throw new GradleException("R8.5 regression manifest drift: expected 179 tests, found ${names.size()}")
+    }
+    names
+}
+
+tasks.register('r85Regression') {
+    group = 'verification'
+    description = 'Runs the inherited 179/179 R8.5 main-method regression suite when the pinned client fixture is available.'
+    dependsOn tasks.named('jar'), tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+
+    doLast {
+        File client = findPinnedClient()
+        boolean requireClient = providers.gradleProperty('requireExactClient').map { it.toBoolean() }.getOrElse(false)
+
+        if (client == null) {
+            String message = 'Pinned exact client.jar is not present; R8.5 regression execution skipped. Supply external runtime or use -PrequireExactClient=true to make this fatal.'
+            if (requireClient) {
+                throw new GradleException(message)
+            }
+            logger.warn("R85_REGRESSION_SKIPPED ${message}")
+            return
+        }
+
+        def names = readR85Selftests()
+        File configDir = new File(System.getenv('USERPROFILE') ?: System.getProperty('user.home'), '.spawnpk/configs')
+
+        names.eachWithIndex { testName, index ->
+            logger.lifecycle("[GRADLE-R85] ${index + 1}/${names.size()} ${testName}")
+            project.javaexec {
+                workingDir repoRoot
+                classpath = sourceSets.test.runtimeClasspath + files(client)
+                mainClass.set("spk.local.${testName}")
+                if (testName == 'VoidglassR2ConfigPatchToolTest' || testName == 'VoidglassR3ConfigPatchToolTest') {
+                    jvmArgs "-Dspk.voidglass.configDir=${configDir.absolutePath}"
+                }
+            }
+        }
+
+        logger.lifecycle("GRADLE_R85_FULL_SELFTEST_PASS count=${names.size()} exactClient=true bytecodeMajor=55")
+    }
+}
+
+tasks.named('check') {
+    dependsOn tasks.named('verifyJava11Bytecode')
+    dependsOn tasks.named('r85Regression')
+}
