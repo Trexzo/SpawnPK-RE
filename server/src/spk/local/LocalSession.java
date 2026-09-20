@@ -23,7 +23,7 @@ final class LocalSession implements Runnable {
     private final VoidglassPetState voidglass = new VoidglassPetState();
     private final DevAuthorityWorkbench dev = new DevAuthorityWorkbench();
     private final PlayerPresentationService playerPresentation = new PlayerPresentationService(dev);
-    private final NpcRegistry npcs = new NpcRegistry(dev);
+    private final NpcRegistry npcs;
     private final HomeWorldRuntimePlan homeWorld;
     private final CombatEngine combat = new CombatEngine(dev);
     /** Engine R5 native Item Library server-side authority projection. */
@@ -108,6 +108,11 @@ final class LocalSession implements Runnable {
         this.combatStyles = worldPlayer.combatStyles();
         this.petEffects = worldPlayer.petEffects();
         this.miniPets = worldPlayer.miniPets();
+        this.npcs = new NpcRegistry(
+            dev,
+            this.world.petNpcs(),
+            worldPlayer.id()
+        );
         this.diagnosticCommands = new LocalDiagnosticCommandHandler(
             world,equipment,movement,prayers,magic,combatStyles,itemLibrary);
         this.prayerMagicCommands = new LocalPrayerMagicCommandHandler(prayers,magic);
