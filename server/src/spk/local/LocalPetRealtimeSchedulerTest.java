@@ -142,9 +142,9 @@ public final class LocalPetRealtimeSchedulerTest {
                 movement.accept(
                     new MovementRequest(
                         164,
-                        false,
+                        true,
                         new int[]{
-                            MovementState.INITIAL_X+1
+                            MovementState.INITIAL_X+2
                         },
                         new int[]{
                             MovementState.INITIAL_Y
@@ -164,6 +164,11 @@ public final class LocalPetRealtimeSchedulerTest {
             if(ownerTick==null)
                 throw new AssertionError(
                     "movement setup produced no tick"
+                );
+
+            if(!ownerTick.running||ownerTick.tiles!=2)
+                throw new AssertionError(
+                    "expected two-tile RUN follow setup"
                 );
 
             npcs.queueOwnerMovement(ownerTick);
