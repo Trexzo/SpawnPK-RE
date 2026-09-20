@@ -311,11 +311,6 @@ final class LocalWorldTickCoordinator {
                     dealt>=baseline
                         ?6
                         :1;
-
-                if(remoteHitType<0)
-                    throw new AssertionError(
-                        "unreachable hit type"
-                    );
             }
 
             String petDamage=
