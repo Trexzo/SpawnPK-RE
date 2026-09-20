@@ -4,17 +4,19 @@ import java.io.*;
 import java.util.*;
 
 /**
- * v5.7 Combat M2 local dummy harness.
+ * Combat attack-cycle/presentation coordinator.
  *
- * v5.10.1 merges the R2 presentation-first weapon authority into the existing
- * v5.10 prayer/magic/combat-style branch. 145 weapon profiles can drive the
- * local dummy action loop; R2 timing/range fallbacks remain explicitly harness
- * authority, while damage is still the fixed 100 PvP / 200 PvM fixture rather
- * than a reconstructed SpawnPK combat formula.
+ * Recovered animation/GFX/projectile/timing authority stays separate from the
+ * injected damage rule provider. Standalone constructors retain the historical
+ * M2 dummy fixture; production LocalLab injects an explicitly custom fallback.
  */
 final class CombatEngine {
-    private final CombatState state=new CombatState();
+    private final CombatState state;
     private final DevAuthorityWorkbench dev;
+    private final CombatDamageRules damageRules;
+    private final CombatAttackTimingRules timingRules;
+    private final CombatPresentationAdapter presentation;
+    private final CombatSystemHooks systemHooks;
     private long syntheticTick;
     private int lastDamageThisAction;
     private static final int DUMMY_HP_MAX=255;
@@ -49,8 +51,130 @@ final class CombatEngine {
     // click-time target. The first authoritative movement packet owns facing.
     private boolean approachFacingPending;
 
-    CombatEngine(){ this(new DevAuthorityWorkbench()); }
-    CombatEngine(DevAuthorityWorkbench dev){ this.dev=dev==null?new DevAuthorityWorkbench():dev; }
+    CombatEngine(){
+        this(
+            new CombatState(),
+            new DevAuthorityWorkbench(),
+            CombatDamageRules.dummyFixture(),
+            CombatAttackTimingRules.recoveredCompatibility()
+        );
+    }
+
+    CombatEngine(DevAuthorityWorkbench dev){
+        this(
+            new CombatState(),
+            dev,
+            CombatDamageRules.dummyFixture(),
+            CombatAttackTimingRules.recoveredCompatibility()
+        );
+    }
+
+    CombatEngine(
+        CombatState state,
+        DevAuthorityWorkbench dev
+    ){
+        this(
+            state,
+            dev,
+            CombatDamageRules.dummyFixture(),
+            CombatAttackTimingRules.recoveredCompatibility()
+        );
+    }
+
+    CombatEngine(
+        CombatState state,
+        DevAuthorityWorkbench dev,
+        CombatDamageRules damageRules
+    ){
+        this(
+            state,
+            dev,
+            damageRules,
+            CombatAttackTimingRules.recoveredCompatibility()
+        );
+    }
+
+    CombatEngine(
+        CombatState state,
+        DevAuthorityWorkbench dev,
+        CombatDamageRules damageRules,
+        CombatAttackTimingRules timingRules
+    ){
+        this(
+            state,
+            dev,
+            damageRules,
+            timingRules,
+            new CombatPresentationAdapter()
+        );
+    }
+
+    CombatEngine(
+        CombatState state,
+        DevAuthorityWorkbench dev,
+        CombatDamageRules damageRules,
+        CombatAttackTimingRules timingRules,
+        CombatPresentationAdapter presentation
+    ){
+        this(
+            state,
+            dev,
+            damageRules,
+            timingRules,
+            presentation,
+            CombatSystemHooks.none()
+        );
+    }
+
+    CombatEngine(
+        CombatState state,
+        DevAuthorityWorkbench dev,
+        CombatDamageRules damageRules,
+        CombatSystemHooks systemHooks
+    ){
+        this(
+            state,
+            dev,
+            damageRules,
+            CombatAttackTimingRules.recoveredCompatibility(),
+            new CombatPresentationAdapter(),
+            systemHooks
+        );
+    }
+
+    CombatEngine(
+        CombatState state,
+        DevAuthorityWorkbench dev,
+        CombatDamageRules damageRules,
+        CombatAttackTimingRules timingRules,
+        CombatPresentationAdapter presentation,
+        CombatSystemHooks systemHooks
+    ){
+        this.state=java.util.Objects.requireNonNull(
+            state,
+            "state"
+        );
+        this.dev=
+            dev==null
+                ?new DevAuthorityWorkbench()
+                :dev;
+        this.damageRules=java.util.Objects.requireNonNull(
+            damageRules,
+            "damageRules"
+        );
+        this.timingRules=java.util.Objects.requireNonNull(
+            timingRules,
+            "timingRules"
+        );
+        this.presentation=java.util.Objects.requireNonNull(
+            presentation,
+            "presentation"
+        );
+        this.systemHooks=java.util.Objects.requireNonNull(
+            systemHooks,
+            "systemHooks"
+        );
+    }
 
     String request(NpcEntity npc,MovementState movement,int weaponId,long now){
         return request(npc,movement,weaponId,now,null);
@@ -62,8 +186,13 @@ final class CombatEngine {
     }
 
     String request(NpcEntity npc,MovementState movement,int weaponId,long now,CombatStyleRepository.Style style,ServerPacketWriter writer)throws IOException{
-        CombatTargetRepository.Target target=CombatTargetRepository.forDefinition(npc.definitionId);
-        if(target==null) return "REJECTED_NOT_COMBAT_TARGET scene="+npc.sceneIndex+" def="+npc.definitionId;
+        CombatTargetValidator.Result validity=
+            CombatTargetValidator.acquireNpc(npc);
+        if(!validity.valid)
+            return "REJECTED_COMBAT_TARGET_"+validity.reason+
+                " detail="+validity.detail;
+        CombatTargetRepository.Target target=
+            CombatTargetRepository.forDefinition(npc.definitionId);
         CombatWeaponProfile weapon=CombatWeaponRepository.resolve(weaponId);
         int range=weapon!=null&&weapon.attackRange>0?weapon.attackRange:1;
         int dist=LocalSession.chebyshev(movement.x(),movement.y(),npc.x,npc.y);
@@ -78,7 +207,9 @@ final class CombatEngine {
             " speedTicks="+(weapon==null?-1:weapon.attackSpeedTicks)+
             " style="+(style==null?"UNSPECIFIED":style.label+"/"+style.mode+"/value"+style.value)+
             " clickFacing=false facingAuthority="+(deferred?"FIRST_AUTHORITATIVE_MOVEMENT":"ATTACK_TICK")+
-            " faceTarget="+npc.sceneIndex+" formula=LOCAL_M2_FIXED_DUMMY_HIT";
+            " faceTarget="+npc.sceneIndex+
+            " damageAuthority="+damageRules.authority()+
+            " formula="+damageRules.formula();
     }
 
     Integer consumeApproachFacingTargetForMovement(){
@@ -104,7 +235,25 @@ final class CombatEngine {
         lastDamageThisAction=0;
         if(!state.active()) return null;
         NpcEntity target=npcs.scene(state.targetSceneIndex);
-        if(target==null || target.definitionId!=state.targetDefinitionId){ state.clear(); approachFacingPending=false; return "TARGET_CLEARED_NOT_VISIBLE"; }
+        CombatTargetValidator.Result validity=
+            CombatTargetValidator.activeNpc(
+                target,
+                state
+            );
+        if(!validity.valid){
+            state.clear();
+            approachFacingPending=false;
+            clearApproachEcho();
+            return "TARGET_CLEARED_"+validity.reason+
+                " detail="+validity.detail;
+        }
+
+        String dueHitPublication=
+            publishDueHit(
+                worldTick,
+                npcs,
+                w
+            );
 
         CombatWeaponProfile profile=CombatWeaponRepository.resolve(equipment.weapon());
         V913WeaponRuntimeAuthority.Profile runtime=V913WeaponRuntimeAuthority.resolve(equipment.weapon());
@@ -112,22 +261,44 @@ final class CombatEngine {
         boolean mechanicsResolved=profile!=null&&profile.mechanicsResolved();
         boolean presentationOnly=!mechanicsResolved&&runtimeBasic;
         if(!mechanicsResolved&&!presentationOnly){
-            if(!state.readyEmitted){ state.readyEmitted=true; return "ATTACK_BLOCKED_UNRESOLVED_WEAPON weapon="+equipment.weapon()+" targetDef="+target.definitionId; }
-            return null;
+            if(!state.readyEmitted){
+                state.readyEmitted=true;
+                String blocked=
+                    "ATTACK_BLOCKED_UNRESOLVED_WEAPON weapon="+
+                    equipment.weapon()+
+                    " targetDef="+target.definitionId;
+                return dueHitPublication==null
+                    ?blocked
+                    :dueHitPublication+" "+blocked;
+            }
+            return dueHitPublication;
         }
         // Presentation-only runtime authority never invents weapon reach. Until the
         // production server range is recovered, require conservative adjacency.
         int legalRange=mechanicsResolved?profile.attackRange:1;
         int dist=LocalSession.chebyshev(movement.x(),movement.y(),target.x,target.y);
-        if(!inLegalRange(movement.x(),movement.y(),target.x,target.y,legalRange)){ state.pendingRange=true; return null; }
+        if(!inLegalRange(movement.x(),movement.y(),target.x,target.y,legalRange)){
+            state.pendingRange=true;
+            return dueHitPublication;
+        }
         state.pendingRange=false;
-        if(state.nextAttackTick>0 && worldTick<state.nextAttackTick) return null;
+        if(state.nextAttackTick>0 && worldTick<state.nextAttackTick)
+            return dueHitPublication;
+
+        CombatAttackTimingRules.Result timing=
+            timingRules.resolve(
+                new CombatAttackTimingRules.Request(
+                    equipment.weapon(),
+                    profile,
+                    runtime
+                )
+            );
 
         int attackAnimation=runtimeBasic&&runtime.attackAnimation>=0?runtime.attackAnimation:profile.attackAnimation;
         int actorGfx=runtimeBasic&&runtime.actorGfx>=0?runtime.actorGfx:((equipment.weapon()==11235)?profile.gfxId:-1);
         int targetGfx=runtimeBasic?runtime.targetGfx:-1;
         int projectileId=runtimeBasic&&runtime.projectileId>=0?runtime.projectileId:profile.projectileId;
-        int attackSpeedTicks=runtimeBasic&&runtime.speedTicks>0?runtime.speedTicks:profile.attackSpeedTicks;
+        int attackSpeedTicks=timing.attackSpeedTicks;
         String animationAuthority=runtimeBasic?"V9.13_DIRECT_RUNTIME":"PROFILE";
         if(dev.hasCombatAnimationOverride(equipment.weapon())){
             Integer v=dev.combatAnimationOverride(equipment.weapon());
@@ -140,44 +311,114 @@ final class CombatEngine {
             attackAnimation=-1;
             animationAuthority="SCORCHING_OBSOLETE_15624_FAIL_CLOSED";
         }
-        boolean runtimeActorGfxPublished=false;
-        if(attackAnimation>=0){
-            if(actorGfx>=0){
-                w.varShort(81,CombatSync.player81AnimationGfxAndInteraction(attackAnimation,actorGfx,0,0,target.sceneIndex));
-                runtimeActorGfxPublished=true;
-            } else {
-                w.varShort(81,CombatSync.player81AnimationAndInteraction(attackAnimation,target.sceneIndex));
-            }
-        } else {
-            w.varShort(81,CombatSync.player81InteractionOnly(target.sceneIndex));
-        }
-        int baselineDamage=state.context==CombatContext.PLAYER_PVP?100:200;
+        CombatPresentationAdapter.ActorPublication actorPublication=
+            presentation.publishActor(
+                attackAnimation,
+                actorGfx,
+                target,
+                w
+            );
+        boolean runtimeActorGfxPublished=
+            actorPublication.actorGfxPublished;
+        CombatDamageRules.Result calculatedDamage=null;
+        CombatSystemHooks.Snapshot hookSnapshot=null;
         int damage=0,hitType=-1,hp=DUMMY_HP_MAX;
         if(mechanicsResolved){
-            damage=nextDevDamage(baselineDamage);
-            hitType=effectiveHitType(damage,baselineDamage);
-            NpcSyncEncoder.Mask hitMask=NpcSyncEncoder.Mask.singleHit(damage,hitType,hp,DUMMY_HP_MAX);
-            if(targetGfx>=0)hitMask=hitMask.withGfx(targetGfx,0,0);
-            npcs.sendMask(target,hitMask,w);
-            lastDamageThisAction=damage;
+            hookSnapshot=
+                systemHooks.beforeDamage(
+                    state.context,
+                    equipment.weapon(),
+                    worldTick
+                );
+
+            calculatedDamage=
+                damageRules.calculate(
+                    new CombatDamageRules.Request(
+                        state.context,
+                        equipment.weapon(),
+                        style,
+                        worldTick
+                    )
+                );
+
+            damage=nextDevDamage(
+                calculatedDamage.damage
+            );
+            hitType=effectiveHitType(
+                damage,
+                calculatedDamage.maxHitReference
+            );
+
+            CombatHitScheduler.ScheduledHit scheduled=
+                CombatHitScheduler.schedule(
+                    state,
+                    new CombatHitScheduler.ScheduledHit(
+                        target.sceneIndex,
+                        target.definitionId,
+                        damage,
+                        hitType,
+                        hp,
+                        DUMMY_HP_MAX,
+                        targetGfx,
+                        calculatedDamage.authority,
+                        calculatedDamage.formula,
+                        worldTick+timing.hitDelayTicks
+                    )
+                );
+
+            CombatHitScheduler.ScheduledHit immediate=
+                CombatHitScheduler.consumeDue(
+                    state,
+                    worldTick
+                );
+
+            if(immediate!=null){
+                CombatPresentationAdapter.HitPublication hitPublication=
+                    presentation.publishHit(
+                        immediate,
+                        npcs,
+                        w
+                    );
+                if(hitPublication.published)
+                    lastDamageThisAction=
+                        hitPublication.damage;
+                String immediatePublication=
+                    hitPublication.log;
+                dueHitPublication=
+                    dueHitPublication==null
+                        ?immediatePublication
+                        :dueHitPublication+" "+immediatePublication;
+            }
         } else if(targetGfx>=0){
-            // Target-side GFX is direct presentation authority and does not imply a hit.
-            npcs.sendMask(target,NpcSyncEncoder.Mask.gfx(targetGfx,0,0),w);
+            presentation.publishTargetGfx(
+                target,
+                targetGfx,
+                npcs,
+                w
+            );
         }
-        String runtimeProjectilePublication="NONE";
-        if(runtimeBasic && projectileId>=0){
-            runtimeProjectilePublication=V913LiveProjectilePublisher.publish(runtime,movement,target,scene);
-        }
-        boolean runtimeSoundPublished=false;
-        if(runtimeBasic && runtime.hasBasicSound()){
-            w.fixed(174,new PacketPayloadWriter().putU16BE(runtime.soundId).putU16BE(runtime.soundParam2).putU16BE(runtime.soundParam3).toByteArray());
-            runtimeSoundPublished=true;
-        }
+
+        CombatPresentationAdapter.RuntimePublication runtimePresentation=
+            presentation.publishRuntimeEffects(
+                runtimeBasic,
+                projectileId,
+                runtime,
+                movement,
+                target,
+                scene,
+                w
+            );
+        String runtimeProjectilePublication=
+            runtimePresentation.projectilePublication;
+        boolean runtimeSoundPublished=
+            runtimePresentation.soundPublished;
         state.lastAttackTick=worldTick;
-        // Directly observed cadence is presentation authority. If cadence itself is
-        // unresolved, emit one presentation and require a fresh request rather than
-        // inventing a repeat rate.
-        state.nextAttackTick=attackSpeedTicks>0?worldTick+attackSpeedTicks:Long.MAX_VALUE;
+        // Cadence and hit delay now come from the explicit timing-rule boundary.
+        // Unresolved cadence still emits one presentation and requires a fresh request.
+        state.nextAttackTick=
+            attackSpeedTicks>0
+                ?worldTick+attackSpeedTicks
+                :Long.MAX_VALUE;
         state.attackCount++;
         state.readyEmitted=true;
         return (presentationOnly?"M2_PRESENTATION_ONLY_SENT":"M2_ATTACK_SENT")+" context="+state.context+" targetScene="+target.sceneIndex+" def="+target.definitionId+
@@ -188,12 +429,63 @@ final class CombatEngine {
             " projectileGeometry="+(runtimeBasic&&runtime.hasProjectileGeometry()?(runtime.projectileStartHeight+"/"+runtime.projectileEndHeight+" slope="+runtime.projectileSlope+" startDistance="+runtime.projectileStartDistance):"UNRESOLVED")+
             " projectilePublication="+runtimeProjectilePublication+
             " runtimeSound="+(runtimeBasic&&runtime.soundId>=0?runtime.soundId:"NONE")+" runtimeSoundPublished="+runtimeSoundPublished+
-            " speedTicks="+attackSpeedTicks+" tickMs=600 nextAttackTick="+state.nextAttackTick+
-            " mechanicsAuthority="+(mechanicsResolved?"RESOLVED_LOCAL_HARNESS":"UNRESOLVED_PRESENTATION_ONLY")+" legalRange="+legalRange+
-            " fixtureDamage="+(mechanicsResolved?Integer.toString(damage):"NOT_APPLIED")+" fixtureDamageMode="+(mechanicsResolved?devDamageSummary():"NOT_APPLIED")+" hpFixture="+(mechanicsResolved?(hp+"/"+DUMMY_HP_MAX):"UNCHANGED")+" hitsplatType="+(mechanicsResolved?Integer.toString(hitType):"NONE")+" hitsplatVariantMode="+(mechanicsResolved?(devHitVariantAuto?"auto(normal=1,max=6)":"manual"):"NONE")+" styleIcon="+(mechanicsResolved?Integer.toString(devHitStyleIcon):"NONE")+" placement="+(mechanicsResolved?devHitPlacement:"NONE")+" attackCount="+state.attackCount+
+            " speedTicks="+attackSpeedTicks+
+            " cadenceAuthority="+timing.cadenceAuthority+
+            " hitDelayTicks="+timing.hitDelayTicks+
+            " hitDelayAuthority="+timing.hitDelayAuthority+
+            " hitDelayRule="+timing.hitDelayRule+
+            " pendingHitTick="+
+                (state.pendingHit==null
+                    ?"NONE"
+                    :Long.toString(state.pendingHit.scheduledTick))+
+            " tickMs=600 nextAttackTick="+state.nextAttackTick+
+            " mechanicsAuthority="+(mechanicsResolved?"RESOLVED_PRESENTATION_WITH_INJECTED_DAMAGE_RULES":"UNRESOLVED_PRESENTATION_ONLY")+" legalRange="+legalRange+
+            " damage="+(mechanicsResolved?Integer.toString(damage):"NOT_APPLIED")+
+            " damageAuthority="+(calculatedDamage==null?"NOT_APPLIED":calculatedDamage.authority)+
+            " damageFormula="+(calculatedDamage==null?"NOT_APPLIED":calculatedDamage.formula)+
+            " damageMode="+(mechanicsResolved?activeDamageMode(calculatedDamage):"NOT_APPLIED")+
+            " systemHooks="+
+                (mechanicsResolved
+                    ?hookSnapshot
+                    :"NOT_APPLIED")+
+            " hpFixture="+(mechanicsResolved?(hp+"/"+DUMMY_HP_MAX):"UNCHANGED")+
+            " hitsplatType="+(mechanicsResolved?Integer.toString(hitType):"NONE")+
+            " hitsplatVariantMode="+(mechanicsResolved?(devHitVariantAuto?"auto(normal=1,max=6)":"manual"):"NONE")+
+            " styleIcon="+(mechanicsResolved?Integer.toString(devHitStyleIcon):"NONE")+
+            " placement="+(mechanicsResolved?devHitPlacement:"NONE")+
+            " attackCount="+state.attackCount+
             " style="+(style==null?"UNSPECIFIED":style.label+"/"+style.mode+"/value"+style.value)+
-            " styleMath=NOT_APPLIED_SERVER_FORMULA_UNKNOWN"+
-            " maxHit=DEFERRED accuracy=DEFERRED assetEvidence="+(runtimeBasic?runtime.evidence:profile.evidence);
+            " styleMath="+(calculatedDamage==null?"NOT_APPLIED":calculatedDamage.formula)+
+            " maxHit="+(calculatedDamage==null?"DEFERRED":Integer.toString(calculatedDamage.maxHitReference))+
+            " accuracy=DEFERRED assetEvidence="+(runtimeBasic?runtime.evidence:profile.evidence);
+    }
+
+    private String publishDueHit(
+        long worldTick,
+        NpcRegistry npcs,
+        ServerPacketWriter w
+    )throws IOException{
+        CombatHitScheduler.ScheduledHit due=
+            CombatHitScheduler.consumeDue(
+                state,
+                worldTick
+            );
+
+        if(due==null)
+            return null;
+
+        CombatPresentationAdapter.HitPublication publication=
+            presentation.publishHit(
+                due,
+                npcs,
+                w
+            );
+
+        if(publication.published)
+            lastDamageThisAction=
+                publication.damage;
+
+        return publication.log;
     }
 
     String magicFixtureHit(int sceneIndex,SpellDefinitionRepository.Spell spell,NpcRegistry npcs,ServerPacketWriter w)throws IOException{
@@ -302,6 +594,18 @@ final class CombatEngine {
         if(devHitDamage!=null)return "fixed:"+devHitDamage;
         return "legacy_context_fixture";
     }
+    private String activeDamageMode(
+        CombatDamageRules.Result calculated
+    ){
+        if(devHitDamageSequence!=null||
+           devHitDamage!=null)
+            return "DEV_OVERRIDE_"+devDamageSummary();
+
+        return calculated==null
+            ?"NOT_APPLIED"
+            :"RULES_"+calculated.formula;
+    }
+
     private int nextDevDamage(int fallback){
         if(devHitDamageSequence!=null && devHitDamageSequence.length>0){
             int v=devHitDamageSequence[devHitDamageSequenceIndex%devHitDamageSequence.length];
@@ -337,16 +641,26 @@ final class CombatEngine {
         int dist=LocalSession.chebyshev(movement.x(),movement.y(),npc.x,npc.y);
         if(inLegalRange(movement.x(),movement.y(),npc.x,npc.y,range)){ clearApproachEcho(); return "ALREADY_IN_RANGE distance="+dist+" range="+range; }
 
-        // R2.10: interaction movement must respect the same exact HOME collision
-        // overlay published to the client. The old direct single-waypoint route could
-        // walk straight through altars/objects because MovementState only guarantees
-        // adjacent stepping, not collision legality.
-        java.util.List<int[]> path=HomeCombatPathfinder.route(movement.x(),movement.y(),npc.x,npc.y,range);
+        // Route ownership now enters through the generic routing service. This
+        // first roadmap slice intentionally selects the exact recovered HOME combat
+        // compatibility policy, so path geometry/authority is unchanged.
+        RouteFinder.Result routeResult=
+            RouteFinder.find(
+                RouteRequest.combatCompatibility(
+                    movement.x(),
+                    movement.y(),
+                    movement.plane(),
+                    npc.x,
+                    npc.y,
+                    range
+                )
+            );
+        java.util.List<int[]> path=routeResult.path;
         if(path==null || path.isEmpty()){
             clearApproachEcho();
             return path==null?
                 "APPROACH_REJECTED_NO_COLLISION_SAFE_ROUTE target="+npc.x+","+npc.y+" range="+range+
-                    " blockedTiles="+HomeCombatPathfinder.blockedTileCount()+" blockedEdges="+HomeCombatPathfinder.blockedEdgeCount():
+                    " blockedTiles="+routeResult.blockedTileCount+" blockedEdges="+routeResult.blockedEdgeCount:
                 "ALREADY_IN_RANGE distance="+dist+" range="+range;
         }
         int[] xs=new int[path.size()], ys=new int[path.size()];
@@ -364,7 +678,7 @@ final class CombatEngine {
         // the fence short so a genuinely later ground click is never swallowed.
         approachEchoDeadlineMs=now+350L;
         return "SERVER_APPROACH_ACCEPTED_COLLISION_SAFE dest="+destX+","+destY+" range="+range+" distance="+dist+
-            " pathSteps="+path.size()+" blockedTiles="+HomeCombatPathfinder.blockedTileCount()+" blockedEdges="+HomeCombatPathfinder.blockedEdgeCount()+
+            " pathSteps="+path.size()+" blockedTiles="+routeResult.blockedTileCount+" blockedEdges="+routeResult.blockedEdgeCount+
             " queued="+movement.queued()+" echoFenceMs=350";
     }
 

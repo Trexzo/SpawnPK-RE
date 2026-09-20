@@ -31,8 +31,20 @@ public final class HomeWorldV55IntegrationTest {
         if(r.pet()==null||r.pet().sceneIndex!=NpcRegistry.PET_INDEX)throw new AssertionError("pet missing");
         if(countHome(r.snapshot())!=29)throw new AssertionError("HOME count changed after pet spawn");
 
-        int[] xs={3090,3095,3098};
-        int[] ys={3500,3505,3506};
+        // Issue #13 made recovered HOME collision authoritative for ordinary
+        // movement. The historical WORLD-R7 straight-line fixture crossed a
+        // now-canonical diagonal corner blocker at 3095,3505 -> 3096,3506.
+        // Preserve this test's north-population/visibility purpose while using
+        // an actually collision-valid HOME route to the same destination area.
+        List<int[]> northRoute=HomeCombatPathfinder.route(m.x(),m.y(),3098,3506,1);
+        if(northRoute==null||northRoute.isEmpty())throw new AssertionError("no collision-safe north HOME route");
+        int[] xs=new int[northRoute.size()];
+        int[] ys=new int[northRoute.size()];
+        for(int i=0;i<northRoute.size();i++){
+            xs[i]=northRoute.get(i)[0];
+            ys[i]=northRoute.get(i)[1];
+        }
+
         String accepted=m.accept(new MovementRequest(164,false,xs,ys,new byte[0]));
         if(!accepted.startsWith("ACCEPTED"))throw new AssertionError(accepted);
         long tick=0; boolean saw1488=false,saw1489=false,sawVisibilityDelta=false,sawPetTrail=false;
@@ -55,7 +67,7 @@ public final class HomeWorldV55IntegrationTest {
         if(r.pet()!=null && LocalSession.chebyshev(r.pet().x,r.pet().y,m.x(),m.y())>8)throw new AssertionError("pet separation regression");
 
         System.out.println("V561_WORLD_R7_MAINLINE_INTEGRATION_PASS scenePackets="+scene.totalPackets()+" initialHome=29 stableWorldScene=101..148 petScene=4 ticked="+tick+
-            " northDummiesVisible=true unifiedRegistry=true v56CardinalPet=true finalHomeVisible="+countHome(r.snapshot())+" finalTotalVisible="+r.visibleCount());
+            " northDummiesVisible=true unifiedRegistry=true v56CardinalPet=true collisionSafeRouteSteps="+northRoute.size()+" finalHomeVisible="+countHome(r.snapshot())+" finalTotalVisible="+r.visibleCount());
     }
 
     private static int countHome(List<NpcEntity> xs){int n=0;for(NpcEntity x:xs)if(HomeWorldRuntimePlan.isHomeWorldSceneIndex(x.sceneIndex))n++;return n;}

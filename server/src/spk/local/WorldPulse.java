@@ -18,6 +18,7 @@ final class WorldPulse implements AutoCloseable,Runnable {
     private final long tickMillis;
     private final AtomicBoolean running=new AtomicBoolean();
     private Thread thread;
+    private volatile Thread compatibilityExecutionThread;
     private long nextTickAt;
     private long overdueTicks;
     private long lastDurationNanos;
@@ -39,6 +40,11 @@ final class WorldPulse implements AutoCloseable,Runnable {
 
     boolean running(){return running.get();}
     Thread thread(){return thread;}
+    boolean inExecutionContext(){
+        Thread current=Thread.currentThread();
+        return current==thread||
+            current==compatibilityExecutionThread;
+    }
 
     @Override public void run(){
         while(running.get()){
@@ -69,17 +75,50 @@ final class WorldPulse implements AutoCloseable,Runnable {
     }
 
     void pulseOnce(long nowMillis){
-        long tick=world.clock().advance();
-        commandsProcessed+=world.commands().drain(MAX_COMMANDS_PER_TICK,MAX_COMMANDS_PER_PLAYER_PER_TICK);
-        try{tasksProcessed+=world.events().runDue(tick);}catch(Throwable t){System.err.println("[world] scheduled task error tick="+tick+" error="+t);}
-        for(WorldTickTarget target:world.tickTargetsSnapshot()){
-            WorldPlayer p=world.players().byId(target.ownerId());
-            if(p==null||!p.accepts(target.ownerGeneration()))continue;
-            try{synchronized(p.mutationLock()){if(p.accepts(target.ownerGeneration()))target.onWorldTick(tick,nowMillis);}}catch(Throwable t){System.err.println("[world] tick target failed tick="+tick+" owner="+target.ownerId()+" error="+t);}
+        Thread prior=
+            compatibilityExecutionThread;
+        compatibilityExecutionThread=
+            Thread.currentThread();
+
+        try{
+            long tick=world.clock().advance();
+            commandsProcessed+=world.commands().drain(MAX_COMMANDS_PER_TICK,MAX_COMMANDS_PER_PLAYER_PER_TICK);
+            try{tasksProcessed+=world.events().runDue(tick);}catch(Throwable t){System.err.println("[world] scheduled task error tick="+tick+" error="+t);}
+            for(WorldTickTarget target:world.tickTargetsSnapshot()){
+                WorldPlayer p=world.players().byId(target.ownerId());
+                if(p==null||!p.accepts(target.ownerGeneration()))continue;
+                try{synchronized(p.mutationLock()){if(p.accepts(target.ownerGeneration()))target.onWorldTick(tick,nowMillis);}}catch(Throwable t){System.err.println("[world] tick target failed tick="+tick+" owner="+target.ownerId()+" error="+t);}
+            }
+            try{
+                world.persistence().checkpointDue(tick);
+            }catch(Throwable t){
+                System.err.println(
+                    "[world] persistence checkpoint failed tick="+
+                    tick+" error="+t
+                );
+            }
+        }finally{
+            compatibilityExecutionThread=prior;
         }
     }
 
     String metrics(){return "WorldPulse{tick="+world.clock().tick()+",running="+running()+",players="+world.players().size()+",commandsQueued="+world.commands().size()+",commandsProcessed="+commandsProcessed+",fastCommandsProcessed="+fastCommandsProcessed+",scheduled="+world.events().size()+",tasksProcessed="+tasksProcessed+",realtime="+world.realtime().size()+",lastTickMs="+(lastDurationNanos/1_000_000.0)+",maxTickMs="+(maxDurationNanos/1_000_000.0)+",overdue="+overdueTicks+"}";}
 
-    @Override public synchronized void close(){running.set(false);if(thread!=null)thread.interrupt();}
+    @Override public synchronized void close(){
+        running.set(false);
+
+        Thread active=thread;
+        if(active==null)return;
+
+        active.interrupt();
+
+        if(Thread.currentThread()==active)
+            return;
+
+        try{
+            active.join(2_000L);
+        }catch(InterruptedException e){
+            Thread.currentThread().interrupt();
+        }
+    }
 }

@@ -40,31 +40,34 @@ final class MovementState {
     boolean transientRegion(){return transientRegion;}
     boolean inHomeWindow(){return loadedBaseX==REGION_BASE_X && loadedBaseY==REGION_BASE_Y && !transientRegion;}
 
-    void saveAccountProperties(Properties p){
-        p.setProperty("movement.runEnabled",Boolean.toString(persistentRun));
-        p.setProperty("movement.runEnergy",Integer.toString(runEnergy));
-        // Engine R6 world exploration is a dev projection, not a production
-        // arrival/spawn authority. Never strand an account in an unproven area.
-        int sx=transientRegion?INITIAL_X:x, sy=transientRegion?INITIAL_Y:y, sp=transientRegion?0:plane;
-        p.setProperty("movement.worldX",Integer.toString(sx));
-        p.setProperty("movement.worldY",Integer.toString(sy));
-        p.setProperty("movement.plane",Integer.toString(sp));
-    }
+    void restoreAccountState(
+        boolean runEnabled,
+        int energy,
+        int worldX,
+        int worldY,
+        int restoredPlane
+    ){
+        persistentRun=runEnabled;
+        setRunEnergy(energy);
 
-    void loadAccountProperties(Properties p){
-        persistentRun=Boolean.parseBoolean(p.getProperty("movement.runEnabled","false"));
-        try{setRunEnergy(Integer.parseInt(p.getProperty("movement.runEnergy","100")));}catch(Exception e){setRunEnergy(100);}
-        int px=INITIAL_X,py=INITIAL_Y,pp=0;
-        try{
-            px=Integer.parseInt(p.getProperty("movement.worldX",Integer.toString(INITIAL_X)));
-            py=Integer.parseInt(p.getProperty("movement.worldY",Integer.toString(INITIAL_Y)));
-            pp=Integer.parseInt(p.getProperty("movement.plane","0"));
-        }catch(Exception e){px=INITIAL_X;py=INITIAL_Y;pp=0;}
-        // R6 deliberately keeps persisted login authority HOME-only until exact
-        // non-HOME production arrival semantics are recovered.
-        if(insideLoadedRegion(px,py) && pp==0){x=px;y=py;plane=pp;}else{x=INITIAL_X;y=INITIAL_Y;plane=0;}
-        loadedBaseX=REGION_BASE_X;loadedBaseY=REGION_BASE_Y;transientRegion=false;
-        queue.clear();runByPacket=false;
+        if(insideLoadedRegion(
+                worldX,
+                worldY
+           )&&restoredPlane==0){
+            x=worldX;
+            y=worldY;
+            plane=restoredPlane;
+        }else{
+            x=INITIAL_X;
+            y=INITIAL_Y;
+            plane=0;
+        }
+
+        loadedBaseX=REGION_BASE_X;
+        loadedBaseY=REGION_BASE_Y;
+        transientRegion=false;
+        queue.clear();
+        runByPacket=false;
     }
 
     void clearQueuedPath(){queue.clear();runByPacket=false;}
@@ -116,9 +119,13 @@ final class MovementState {
                 int nx=cx+Integer.signum(tx-cx),ny=cy+Integer.signum(ty-cy);
                 int dir=direction(cx,cy,nx,ny);
                 if(dir<0){rejectedPaths++;return "REJECT_NON_ADJACENT_STEP from="+cx+","+cy+" to="+nx+","+ny;}
-                // HOME keeps the already-certified client-submitted path policy.
-                // External cache regions add exact-current static collision.
-                if(transientRegion && !WorldCollisionAuthority.canStep(cx,cy,plane,nx,ny)){
+                // Collision ownership is explicit even while HOME preserves the
+                // certified client-submitted compatibility policy.
+                CollisionStepAuthority.Policy collisionPolicy=
+                    CollisionStepAuthority.movementPolicy(this);
+                if(!CollisionStepAuthority.canStep(
+                        collisionPolicy,
+                        cx,cy,plane,nx,ny)){
                     rejectedPaths++;return "REJECT_STATIC_COLLISION from="+cx+","+cy+" to="+nx+","+ny+" plane="+plane;
                 }
                 proposed.addLast(new Step(nx,ny,dir));cx=nx;cy=ny;
