@@ -60,9 +60,17 @@ public final class ClientPacketProbeTest {
         ItemContainerAction equip=p.takeItemAction();
         if(equip==null||equip.opcode!=41||equip.widgetId!=3214||equip.slot!=0||equip.itemId!=4151)throw new AssertionError("equip41="+equip);
         if (!p.readNextKnownPacket()) throw new AssertionError("amount208 decode stopped");
-        Integer amount=p.takeAmount(); if(amount==null||amount!=123)throw new AssertionError("amount208="+amount);
+        ClientRequest amountRequest=p.takeTypedRequest();
+        if(!(amountRequest instanceof AmountEntryClientRequest)||
+           ((AmountEntryClientRequest)amountRequest).amount()!=123)
+            throw new AssertionError("amount208="+amountRequest);
         if (!p.readNextKnownPacket()) throw new AssertionError("drag214 decode stopped");
-        ContainerDrag drag=p.takeContainerDrag(); if(drag==null||drag.widgetId!=5064||drag.mode!=0||drag.sourceSlot!=0||drag.destinationSlot!=5)throw new AssertionError("drag214="+drag);
+        ClientRequest dragRequest=p.takeTypedRequest();
+        if(!(dragRequest instanceof ContainerDragClientRequest))
+            throw new AssertionError("drag214="+dragRequest);
+        ContainerDrag drag=((ContainerDragClientRequest)dragRequest).drag();
+        if(drag.widgetId!=5064||drag.mode!=0||drag.sourceSlot!=0||drag.destinationSlot!=5)
+            throw new AssertionError("drag214="+drag);
         if (!p.readNextKnownPacket()) throw new AssertionError("close130 decode stopped");
         ClientRequest closeRequest=p.takeTypedRequest();
         if(!(closeRequest instanceof InterfaceCloseClientRequest))
