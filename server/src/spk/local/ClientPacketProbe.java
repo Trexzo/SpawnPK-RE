@@ -38,13 +38,14 @@ final class ClientPacketProbe {
     private boolean aligned = true;
     private long decodedCount;
     private long opcode0Count;
+    private final ClientRequestQueue typedRequests=
+        new ClientRequestQueue();
     private MovementRequest pendingMovement;
     private Integer pendingWidgetAction;
     private ObjectInteraction pendingObjectInteraction;
     private ItemContainerAction pendingItemAction;
     private Integer pendingAmount;
     private ContainerDrag pendingContainerDrag;
-    private String pendingCommand;
     private DropItemAction pendingDropItem;
     private NpcAction pendingNpcAction;
     private PlayerAction pendingPlayerAction;
@@ -99,10 +100,12 @@ final class ClientPacketProbe {
         return v;
     }
 
-    String takeCommand() {
-        String v = pendingCommand;
-        pendingCommand = null;
-        return v;
+    ClientRequest takeTypedRequest(){
+        return typedRequests.poll();
+    }
+
+    int typedRequestCount(){
+        return typedRequests.size();
     }
 
     DropItemAction takeDropItem() {
@@ -492,7 +495,27 @@ final class ClientPacketProbe {
                 boolean newline = len > 0 && (body[len - 1] & 0xff) == 10;
                 int textLen = newline ? len - 1 : len;
                 String text = new String(body, 0, textLen, StandardCharsets.ISO_8859_1);
-                pendingCommand = text;
+
+                CommandClientRequest request=
+                    new CommandClientRequest(
+                        text,
+                        ClientRequestMetadata.exactCurrent(
+                            103,
+                            "VAR_BYTE_ISO_8859_1_OPTIONAL_LF",
+                            "PINNED_CLIENT_OPCODE_103_WRITER"
+                        )
+                    );
+
+                if(!typedRequests.offer(request)){
+                    aligned=false;
+                    throw new IOException(
+                        "CLIENT_REQUEST_QUEUE_FULL capacity="+
+                        typedRequests.capacity()+
+                        " opcode=103 decodedCount="+
+                        decodedCount
+                    );
+                }
+
                 System.out.printf("%sCLIENT_PACKET seq=%d opcode=103 len=%d command=%s newline=%s%n",
                                   tag, decodedCount, len, quote(text), newline);
                 return true;
