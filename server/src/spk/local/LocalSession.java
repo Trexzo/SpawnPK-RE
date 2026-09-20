@@ -8,8 +8,6 @@ import java.nio.file.*;
 
 final class LocalSession implements Runnable {
     private static final long SERVER_SEED = 0x0123456789ABCDEFL;
-    private static final long PET_PICKUP_REMOVE_DELAY_MS=0L;
-    private static final long PET_PICKUP_FACING_CLEAR_DELAY_MS=450L;
     private final Socket socket;
     private final boolean bootstrap;
     private final boolean movementEnabled;
@@ -71,6 +69,7 @@ final class LocalSession implements Runnable {
     private final LocalDevPanelWidgetHandler devPanelWidgets;
     private final LocalCommandDispatcher commandDispatcher;
     private final LocalSessionUiActionHandler uiActions;
+    private final LocalPetDropPickupHandler petDropPickup;
     private SceneUpdatePublisher scenePublisher;
     private ServerPacketWriter sessionPackets;
     private OutboundPacketQueue outboundPackets;
@@ -83,16 +82,6 @@ final class LocalSession implements Runnable {
     private boolean worldRegistered;
     private long worldPlayerGeneration;
     private boolean worldTickAttached;
-    private Integer pendingPetPickupScene;
-    private long pendingPetPickupDeadlineMs;
-    /** Legacy R2.12 field retained for binary/test compatibility; R2.13 pickup uses Q/R and never arms it. */
-    private long pendingPetFacingClearAtMs=Long.MAX_VALUE;
-    /** Pick-up completion is synchronized with animation 827 + Q/R turn-to-tile on a world pulse. */
-    private long pendingPetPickupCompleteAtMs=Long.MAX_VALUE;
-    private int pendingPetPickupItem=-1,pendingPetPickupNpc=-1,pendingPetPickupCompleteScene=-1;
-    private String pendingPetPickupCompleteReason;
-    /** R8.1 owns a temporary follow freeze while the player approaches a Pick-up target. */
-    private boolean petPickupOwnedFollowFreeze;
     private String username = AccountStore.CANONICAL_USERNAME;
     private String loginAlias = "localtest";
     private boolean persistentAccount;
@@ -343,6 +332,59 @@ final class LocalSession implements Runnable {
 
                 @Override public void requestLogout(){
                     LocalSession.this.logoutRequested=true;
+                }
+            });
+        this.petDropPickup = new LocalPetDropPickupHandler(
+            world,
+            bank,
+            movement,
+            petState,
+            petEffects,
+            miniPets,
+            npcs,
+            voidglass,
+            petAccessoryState,
+            dev,
+            new LocalPetDropPickupHandler.SessionBridge(){
+                @Override public String username(){
+                    return LocalSession.this.username;
+                }
+
+                @Override public boolean persistentAccount(){
+                    return LocalSession.this.persistentAccount;
+                }
+
+                @Override public long sessionWorldTick(){
+                    return LocalSession.this.sessionWorldTick;
+                }
+
+                @Override public SceneUpdatePublisher scenePublisher(){
+                    return LocalSession.this.scenePublisher;
+                }
+
+                @Override public void saveAccount(
+                    String tag,
+                    String reason
+                ){
+                    LocalSession.this.saveAccountQuiet(tag,reason);
+                }
+
+                @Override public int syncScopesightPassive(
+                    ServerPacketWriter writer
+                )throws IOException{
+                    return LocalSession.this.syncScopesightPassive(
+                        writer
+                    );
+                }
+
+                @Override public void resetPetFollowDeadline(){
+                    LocalSession.this.nextPetFollowAt=Long.MAX_VALUE;
+                }
+
+                @Override public void ensurePetFollowScheduled(
+                    long now
+                ){
+                    LocalSession.this.ensurePetFollowScheduled(now);
                 }
             });
         if (movementEnabled && !bootstrap) throw new IllegalArgumentException("movement requires bootstrap");
