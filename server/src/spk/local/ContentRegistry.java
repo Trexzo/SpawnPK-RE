@@ -155,6 +155,19 @@ final class ContentRegistry {
         objectOptions=new LinkedHashMap<>();
     private final LinkedHashMap<NpcOptionKey,NpcOptionBinding>
         npcOptions=new LinkedHashMap<>();
+
+    /*
+     * Keep every committed candidate, not just the current priority winner.
+     * This lets a lifecycle handle remove one binding by identity and then
+     * deterministically restore the next-highest candidate for that key.
+     */
+    private final ArrayList<CommandRegistration>
+        commandRegistrations=new ArrayList<>();
+    private final ArrayList<ObjectOptionRegistration>
+        objectOptionRegistrations=new ArrayList<>();
+    private final ArrayList<NpcOptionRegistration>
+        npcOptionRegistrations=new ArrayList<>();
+
     private final LinkedHashSet<String>
         installedModules=new LinkedHashSet<>();
 
@@ -207,69 +220,116 @@ final class ContentRegistry {
                 provenance
             );
 
-        module.register(registrar);
+        try{
+            module.register(registrar);
+        }catch(RuntimeException|Error failure){
+            registrar.invalidatePending();
+            throw failure;
+        }
 
         synchronized(this){
-            if(installedModules.contains(
-                    moduleId))
-                throw new IllegalStateException(
-                    "content module already installed: "+
-                    moduleId
-                );
-
-            LinkedHashMap<String,CommandBinding>
-                nextCommands=
-                    new LinkedHashMap<>(
-                        commands
+            try{
+                if(installedModules.contains(
+                        moduleId))
+                    throw new IllegalStateException(
+                        "content module already installed: "+
+                        moduleId
                     );
 
-            LinkedHashMap<ObjectOptionKey,ObjectOptionBinding>
-                nextObjectOptions=
-                    new LinkedHashMap<>(
-                        objectOptions
-                    );
+                ArrayList<CommandRegistration>
+                    nextCommandRegistrations=
+                        new ArrayList<>(
+                            commandRegistrations
+                        );
 
-            LinkedHashMap<NpcOptionKey,NpcOptionBinding>
-                nextNpcOptions=
-                    new LinkedHashMap<>(
-                        npcOptions
-                    );
+                ArrayList<ObjectOptionRegistration>
+                    nextObjectOptionRegistrations=
+                        new ArrayList<>(
+                            objectOptionRegistrations
+                        );
 
-            for(PendingCommand pending:
-                    registrar.pendingCommands)
-                applyCommand(
-                    nextCommands,
-                    pending
+                ArrayList<NpcOptionRegistration>
+                    nextNpcOptionRegistrations=
+                        new ArrayList<>(
+                            npcOptionRegistrations
+                        );
+
+                for(CommandRegistration registration:
+                        registrar.pendingCommands)
+                    if(registration.handle.pending())
+                        addCommandRegistration(
+                            nextCommandRegistrations,
+                            registration
+                        );
+
+                for(ObjectOptionRegistration registration:
+                        registrar.pendingObjectOptions)
+                    if(registration.handle.pending())
+                        addObjectOptionRegistration(
+                            nextObjectOptionRegistrations,
+                            registration
+                        );
+
+                for(NpcOptionRegistration registration:
+                        registrar.pendingNpcOptions)
+                    if(registration.handle.pending())
+                        addNpcOptionRegistration(
+                            nextNpcOptionRegistrations,
+                            registration
+                        );
+
+                LinkedHashMap<String,CommandBinding>
+                    nextCommands=
+                        buildCommandBindings(
+                            nextCommandRegistrations
+                        );
+
+                LinkedHashMap<ObjectOptionKey,ObjectOptionBinding>
+                    nextObjectOptions=
+                        buildObjectOptionBindings(
+                            nextObjectOptionRegistrations
+                        );
+
+                LinkedHashMap<NpcOptionKey,NpcOptionBinding>
+                    nextNpcOptions=
+                        buildNpcOptionBindings(
+                            nextNpcOptionRegistrations
+                        );
+
+                commandRegistrations.clear();
+                commandRegistrations.addAll(
+                    nextCommandRegistrations
                 );
 
-            for(PendingObjectOption pending:
-                    registrar.pendingObjectOptions)
-                applyObjectOption(
-                    nextObjectOptions,
-                    pending
+                objectOptionRegistrations.clear();
+                objectOptionRegistrations.addAll(
+                    nextObjectOptionRegistrations
                 );
 
-            for(PendingNpcOption pending:
-                    registrar.pendingNpcOptions)
-                applyNpcOption(
-                    nextNpcOptions,
-                    pending
+                npcOptionRegistrations.clear();
+                npcOptionRegistrations.addAll(
+                    nextNpcOptionRegistrations
                 );
 
-            commands.clear();
-            commands.putAll(nextCommands);
+                commands.clear();
+                commands.putAll(nextCommands);
 
-            objectOptions.clear();
-            objectOptions.putAll(
-                nextObjectOptions
-            );
+                objectOptions.clear();
+                objectOptions.putAll(
+                    nextObjectOptions
+                );
 
-            npcOptions.clear();
-            npcOptions.putAll(
-                nextNpcOptions
-            );
+                npcOptions.clear();
+                npcOptions.putAll(
+                    nextNpcOptions
+                );
 
-            installedModules.add(moduleId);
+                installedModules.add(moduleId);
+                registrar.activatePending();
+            }catch(RuntimeException|Error failure){
+                registrar.invalidatePending();
+                throw failure;
+            }
         }
     }
 
@@ -483,116 +543,293 @@ final class ContentRegistry {
             );
     }
 
+    private static void addCommandRegistration(
+        List<CommandRegistration> target,
+        CommandRegistration incoming
+    ){
+        for(CommandRegistration existing:
+                target)
+            if(existing.info.key.equals(
+                    incoming.info.key)&&
+               existing.info.priority==
+                    incoming.info.priority)
+                throw conflict(
+                    incoming.info,
+                    existing.info
+                );
+
+        target.add(incoming);
+    }
+
+    private static void addObjectOptionRegistration(
+        List<ObjectOptionRegistration> target,
+        ObjectOptionRegistration incoming
+    ){
+        for(ObjectOptionRegistration existing:
+                target)
+            if(existing.key.equals(
+                    incoming.key)&&
+               existing.info.priority==
+                    incoming.info.priority)
+                throw conflict(
+                    incoming.info,
+                    existing.info
+                );
+
+        target.add(incoming);
+    }
+
+    private static void addNpcOptionRegistration(
+        List<NpcOptionRegistration> target,
+        NpcOptionRegistration incoming
+    ){
+        for(NpcOptionRegistration existing:
+                target)
+            if(existing.key.equals(
+                    incoming.key)&&
+               existing.info.priority==
+                    incoming.info.priority)
+                throw conflict(
+                    incoming.info,
+                    existing.info
+                );
+
+        target.add(incoming);
+    }
+
+    private static LinkedHashMap<String,CommandBinding>
+        buildCommandBindings(
+            List<CommandRegistration> registrations
+        ){
+        LinkedHashMap<String,CommandBinding>
+            result=new LinkedHashMap<>();
+
+        for(CommandRegistration registration:
+                registrations)
+            applyCommand(
+                result,
+                registration
+            );
+
+        return result;
+    }
+
+    private static LinkedHashMap<ObjectOptionKey,ObjectOptionBinding>
+        buildObjectOptionBindings(
+            List<ObjectOptionRegistration> registrations
+        ){
+        LinkedHashMap<ObjectOptionKey,ObjectOptionBinding>
+            result=new LinkedHashMap<>();
+
+        for(ObjectOptionRegistration registration:
+                registrations)
+            applyObjectOption(
+                result,
+                registration
+            );
+
+        return result;
+    }
+
+    private static LinkedHashMap<NpcOptionKey,NpcOptionBinding>
+        buildNpcOptionBindings(
+            List<NpcOptionRegistration> registrations
+        ){
+        LinkedHashMap<NpcOptionKey,NpcOptionBinding>
+            result=new LinkedHashMap<>();
+
+        for(NpcOptionRegistration registration:
+                registrations)
+            applyNpcOption(
+                result,
+                registration
+            );
+
+        return result;
+    }
+
+    private synchronized boolean unregister(
+        RegistrationHandle handle
+    ){
+        if(handle.state==REGISTRATION_REMOVED)
+            return false;
+
+        if(handle.state==REGISTRATION_PENDING){
+            handle.state=REGISTRATION_REMOVED;
+            return true;
+        }
+
+        boolean removed=
+            commandRegistrations.removeIf(
+                registration->
+                    registration.handle==handle
+            );
+
+        removed=
+            objectOptionRegistrations.removeIf(
+                registration->
+                    registration.handle==handle
+            )||removed;
+
+        removed=
+            npcOptionRegistrations.removeIf(
+                registration->
+                    registration.handle==handle
+            )||removed;
+
+        if(!removed)
+            throw new IllegalStateException(
+                "active content registration missing"
+            );
+
+        handle.state=REGISTRATION_REMOVED;
+        rebuildEffectiveBindings();
+        return true;
+    }
+
+    private void rebuildEffectiveBindings(){
+        LinkedHashMap<String,CommandBinding>
+            nextCommands=
+                buildCommandBindings(
+                    commandRegistrations
+                );
+
+        LinkedHashMap<ObjectOptionKey,ObjectOptionBinding>
+            nextObjectOptions=
+                buildObjectOptionBindings(
+                    objectOptionRegistrations
+                );
+
+        LinkedHashMap<NpcOptionKey,NpcOptionBinding>
+            nextNpcOptions=
+                buildNpcOptionBindings(
+                    npcOptionRegistrations
+                );
+
+        commands.clear();
+        commands.putAll(nextCommands);
+
+        objectOptions.clear();
+        objectOptions.putAll(
+            nextObjectOptions
+        );
+
+        npcOptions.clear();
+        npcOptions.putAll(
+            nextNpcOptions
+        );
+    }
+
     private static void applyCommand(
         Map<String,CommandBinding> target,
-        PendingCommand pending
+        CommandRegistration registration
     ){
         CommandBinding existing=
             target.get(
-                pending.info.key
+                registration.info.key
             );
 
         if(existing==null){
             target.put(
-                pending.info.key,
+                registration.info.key,
                 new CommandBinding(
-                    pending.info,
-                    pending.handler
+                    registration.info,
+                    registration.handler
                 )
             );
             return;
         }
 
-        if(pending.info.priority==
+        if(registration.info.priority==
                 existing.info.priority)
             throw conflict(
-                pending.info,
+                registration.info,
                 existing.info
             );
 
-        if(pending.info.priority>
+        if(registration.info.priority>
                 existing.info.priority)
             target.put(
-                pending.info.key,
+                registration.info.key,
                 new CommandBinding(
-                    pending.info,
-                    pending.handler
+                    registration.info,
+                    registration.handler
                 )
             );
     }
 
     private static void applyObjectOption(
         Map<ObjectOptionKey,ObjectOptionBinding> target,
-        PendingObjectOption pending
+        ObjectOptionRegistration registration
     ){
         ObjectOptionBinding existing=
             target.get(
-                pending.key
+                registration.key
             );
 
         if(existing==null){
             target.put(
-                pending.key,
+                registration.key,
                 new ObjectOptionBinding(
-                    pending.info,
-                    pending.handler
+                    registration.info,
+                    registration.handler
                 )
             );
             return;
         }
 
-        if(pending.info.priority==
+        if(registration.info.priority==
                 existing.info.priority)
             throw conflict(
-                pending.info,
+                registration.info,
                 existing.info
             );
 
-        if(pending.info.priority>
+        if(registration.info.priority>
                 existing.info.priority)
             target.put(
-                pending.key,
+                registration.key,
                 new ObjectOptionBinding(
-                    pending.info,
-                    pending.handler
+                    registration.info,
+                    registration.handler
                 )
             );
     }
 
     private static void applyNpcOption(
         Map<NpcOptionKey,NpcOptionBinding> target,
-        PendingNpcOption pending
+        NpcOptionRegistration registration
     ){
         NpcOptionBinding existing=
             target.get(
-                pending.key
+                registration.key
             );
 
         if(existing==null){
             target.put(
-                pending.key,
+                registration.key,
                 new NpcOptionBinding(
-                    pending.info,
-                    pending.handler
+                    registration.info,
+                    registration.handler
                 )
             );
             return;
         }
 
-        if(pending.info.priority==
+        if(registration.info.priority==
                 existing.info.priority)
             throw conflict(
-                pending.info,
+                registration.info,
                 existing.info
             );
 
-        if(pending.info.priority>
+        if(registration.info.priority>
                 existing.info.priority)
             target.put(
-                pending.key,
+                registration.key,
                 new NpcOptionBinding(
-                    pending.info,
-                    pending.handler
+                    registration.info,
+                    registration.handler
                 )
             );
     }
@@ -640,62 +877,114 @@ final class ContentRegistry {
                 );
     }
 
-    private static final class PendingCommand {
+    private static final int REGISTRATION_PENDING=0;
+    private static final int REGISTRATION_ACTIVE=1;
+    private static final int REGISTRATION_REMOVED=2;
+
+    private static final class CommandRegistration {
         final BindingInfo info;
         final ContentCommandHandler handler;
+        final RegistrationHandle handle;
 
-        PendingCommand(
+        CommandRegistration(
             BindingInfo info,
-            ContentCommandHandler handler
+            ContentCommandHandler handler,
+            RegistrationHandle handle
         ){
             this.info=info;
             this.handler=handler;
+            this.handle=handle;
         }
     }
 
-    private static final class PendingObjectOption {
+    private static final class ObjectOptionRegistration {
         final ObjectOptionKey key;
         final BindingInfo info;
         final ContentObjectOptionHandler handler;
+        final RegistrationHandle handle;
 
-        PendingObjectOption(
+        ObjectOptionRegistration(
             ObjectOptionKey key,
             BindingInfo info,
-            ContentObjectOptionHandler handler
+            ContentObjectOptionHandler handler,
+            RegistrationHandle handle
         ){
             this.key=key;
             this.info=info;
             this.handler=handler;
+            this.handle=handle;
         }
     }
 
-    private static final class PendingNpcOption {
+    private static final class NpcOptionRegistration {
         final NpcOptionKey key;
         final BindingInfo info;
         final ContentNpcOptionHandler handler;
+        final RegistrationHandle handle;
 
-        PendingNpcOption(
+        NpcOptionRegistration(
             NpcOptionKey key,
             BindingInfo info,
-            ContentNpcOptionHandler handler
+            ContentNpcOptionHandler handler,
+            RegistrationHandle handle
         ){
             this.key=key;
             this.info=info;
             this.handler=handler;
+            this.handle=handle;
         }
     }
 
-    private static final class Registrar
+    private final class RegistrationHandle
+        implements ContentRegistration {
+
+        private int state=REGISTRATION_PENDING;
+
+        @Override public boolean active(){
+            synchronized(ContentRegistry.this){
+                return state==
+                    REGISTRATION_ACTIVE;
+            }
+        }
+
+        @Override public boolean unregister(){
+            return ContentRegistry.this
+                .unregister(this);
+        }
+
+        boolean pending(){
+            synchronized(ContentRegistry.this){
+                return state==
+                    REGISTRATION_PENDING;
+            }
+        }
+
+        void activatePending(){
+            synchronized(ContentRegistry.this){
+                if(state==REGISTRATION_PENDING)
+                    state=REGISTRATION_ACTIVE;
+            }
+        }
+
+        void invalidatePending(){
+            synchronized(ContentRegistry.this){
+                if(state==REGISTRATION_PENDING)
+                    state=REGISTRATION_REMOVED;
+            }
+        }
+    }
+
+    private final class Registrar
         implements ContentRegistrar {
 
         private final String moduleId;
         private final ContentProvenance provenance;
-        private final ArrayList<PendingCommand>
+        private final ArrayList<CommandRegistration>
             pendingCommands=new ArrayList<>();
-        private final ArrayList<PendingObjectOption>
+        private final ArrayList<ObjectOptionRegistration>
             pendingObjectOptions=
                 new ArrayList<>();
-        private final ArrayList<PendingNpcOption>
+        private final ArrayList<NpcOptionRegistration>
             pendingNpcOptions=
                 new ArrayList<>();
 
@@ -707,7 +996,7 @@ final class ContentRegistry {
             this.provenance=provenance;
         }
 
-        @Override public void command(
+        @Override public ContentRegistration command(
             String name,
             int priority,
             ContentCommandHandler handler
@@ -724,8 +1013,11 @@ final class ContentRegistry {
                 "handler"
             );
 
+            RegistrationHandle handle=
+                new RegistrationHandle();
+
             pendingCommands.add(
-                new PendingCommand(
+                new CommandRegistration(
                     new BindingInfo(
                         "COMMAND",
                         key,
@@ -733,12 +1025,15 @@ final class ContentRegistry {
                         priority,
                         provenance
                     ),
-                    handler
+                    handler,
+                    handle
                 )
             );
+
+            return handle;
         }
 
-        @Override public void objectOption(
+        @Override public ContentRegistration objectOption(
             int objectId,
             int option,
             int priority,
@@ -765,8 +1060,11 @@ final class ContentRegistry {
                     option
                 );
 
+            RegistrationHandle handle=
+                new RegistrationHandle();
+
             pendingObjectOptions.add(
-                new PendingObjectOption(
+                new ObjectOptionRegistration(
                     key,
                     new BindingInfo(
                         "OBJECT_OPTION",
@@ -775,12 +1073,15 @@ final class ContentRegistry {
                         priority,
                         provenance
                     ),
-                    handler
+                    handler,
+                    handle
                 )
             );
+
+            return handle;
         }
 
-        @Override public void npcOption(
+        @Override public ContentRegistration npcOption(
             int npcDefinitionId,
             int option,
             int priority,
@@ -807,8 +1108,11 @@ final class ContentRegistry {
                     option
                 );
 
+            RegistrationHandle handle=
+                new RegistrationHandle();
+
             pendingNpcOptions.add(
-                new PendingNpcOption(
+                new NpcOptionRegistration(
                     key,
                     new BindingInfo(
                         "NPC_OPTION",
@@ -817,9 +1121,46 @@ final class ContentRegistry {
                         priority,
                         provenance
                     ),
-                    handler
+                    handler,
+                    handle
                 )
             );
+
+            return handle;
+        }
+
+        void activatePending(){
+            for(CommandRegistration registration:
+                    pendingCommands)
+                registration.handle
+                    .activatePending();
+
+            for(ObjectOptionRegistration registration:
+                    pendingObjectOptions)
+                registration.handle
+                    .activatePending();
+
+            for(NpcOptionRegistration registration:
+                    pendingNpcOptions)
+                registration.handle
+                    .activatePending();
+        }
+
+        void invalidatePending(){
+            for(CommandRegistration registration:
+                    pendingCommands)
+                registration.handle
+                    .invalidatePending();
+
+            for(ObjectOptionRegistration registration:
+                    pendingObjectOptions)
+                registration.handle
+                    .invalidatePending();
+
+            for(NpcOptionRegistration registration:
+                    pendingNpcOptions)
+                registration.handle
+                    .invalidatePending();
         }
     }
 
