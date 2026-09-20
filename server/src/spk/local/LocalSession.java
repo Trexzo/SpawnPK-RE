@@ -10,6 +10,7 @@ final class LocalSession implements Runnable {
     private final boolean movementEnabled;
     private final World world;
     private final WorldPlayer worldPlayer;
+    private final PlayerRepository playerRepository;
     private final MovementState movement;
     private final BankState bank;
     private final EquipmentState equipment;
@@ -99,6 +100,7 @@ final class LocalSession implements Runnable {
         this.world = java.util.Objects.requireNonNull(world,"world");
         this.homeWorld = new HomeWorldRuntimePlan(this.world.homeNpcs());
         this.worldPlayer = new WorldPlayer();
+        this.playerRepository = new FilePlayerRepository();
         this.movement = worldPlayer.movement();
         this.bank = worldPlayer.bank();
         this.equipment = worldPlayer.equipment();
@@ -992,8 +994,14 @@ final class LocalSession implements Runnable {
 
     private void saveAccountQuiet(String tag, String reason) {
         LocalAccountLifecycle.saveQuiet(
-            username,persistentAccount,bank,equipment,movement,petState,playerState,
-            petAccessoryState.activeItem(),tag,reason);
+            username,
+            persistentAccount,
+            worldPlayer,
+            playerRepository,
+            petAccessoryState.activeItem(),
+            tag,
+            reason
+        );
     }
 
 
