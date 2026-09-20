@@ -14,6 +14,7 @@ final class WorldCommandInbox {
     private final HashMap<EntityId,Integer> queuedPerPlayer=new HashMap<>();
     private final int perPlayerLimit;
     private final int globalLimit;
+    private boolean closed;
 
     private static final class C {
         final long seq;
@@ -33,6 +34,10 @@ final class WorldCommandInbox {
     synchronized CompletableFuture<Void> submit(WorldPlayer player,Action action){
         if(player==null||action==null)throw new NullPointerException();
         CompletableFuture<Void> f=new CompletableFuture<>();
+        if(closed){
+            f.completeExceptionally(new RejectedExecutionException("WORLD_COMMAND_INBOX_CLOSED"));
+            return f;
+        }
         long generation=player.generation();
         if(!player.accepts(generation)){f.completeExceptionally(new CancellationException("PLAYER_NOT_REGISTERED"));return f;}
         int count=queuedPerPlayer.getOrDefault(player.id(),0);
@@ -51,6 +56,7 @@ final class WorldCommandInbox {
         ArrayList<C> run=new ArrayList<>();
         HashMap<EntityId,Integer> used=new HashMap<>();
         synchronized(this){
+            if(closed)return 0;
             int scan=queue.size();
             while(scan-->0 && run.size()<maxTotal){
                 C c=queue.removeFirst();
@@ -62,6 +68,10 @@ final class WorldCommandInbox {
             }
         }
         for(C c:run){
+            if(closed()){
+                c.future.completeExceptionally(new CancellationException("WORLD_COMMAND_INBOX_CLOSED"));
+                continue;
+            }
             if(!c.player.accepts(c.generation)){c.future.completeExceptionally(new CancellationException("PLAYER_LIFECYCLE_CHANGED"));continue;}
             try{synchronized(c.player.mutationLock()){if(!c.player.accepts(c.generation))throw new CancellationException("PLAYER_LIFECYCLE_CHANGED");c.action.run();}c.future.complete(null);}catch(Throwable t){c.future.completeExceptionally(t);}
         }
@@ -78,8 +88,23 @@ final class WorldCommandInbox {
         return n;
     }
 
+    int close(){
+        ArrayList<C> dropped;
+        synchronized(this){
+            if(closed)return 0;
+            closed=true;
+            dropped=new ArrayList<>(queue);
+            queue.clear();
+            queuedPerPlayer.clear();
+        }
+        for(C c:dropped)
+            c.future.completeExceptionally(new CancellationException("WORLD_COMMAND_INBOX_CLOSED"));
+        return dropped.size();
+    }
+
     synchronized int size(){return queue.size();}
     synchronized int queuedFor(EntityId id){return queuedPerPlayer.getOrDefault(id,0);}
+    synchronized boolean closed(){return closed;}
 
     private void decrement(EntityId id){int n=queuedPerPlayer.getOrDefault(id,0)-1;if(n<=0)queuedPerPlayer.remove(id);else queuedPerPlayer.put(id,n);}
 }

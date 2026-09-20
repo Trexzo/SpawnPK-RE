@@ -82,9 +82,9 @@ final class Player81WorldSync {
     static synchronized void unregister(ServerPacketWriter writer){
         Context c=BY_WRITER.remove(writer);
         if(c==null)return;
-        c.state.contexts.remove(c.owner.id());
+        c.state.removeOwner(c.owner.id());
         c.closed=true;
-        if(c.state.contexts.isEmpty() && c.state.world.players().size()==0)BY_WORLD.remove(c.state.world);
+        if(c.state.contexts.isEmpty())BY_WORLD.remove(c.state.world);
     }
 
     static byte[] transform(ServerPacketWriter writer,byte[] body){
@@ -337,6 +337,18 @@ final class Player81WorldSync {
         synchronized Event latestEvent(EntityId id){
             ArrayDeque<Event> q=events.get(id);
             return q==null||q.isEmpty()?null:q.peekLast();
+        }
+
+        synchronized void removeOwner(EntityId ownerId){
+            contexts.remove(ownerId);
+            motions.remove(ownerId);
+            events.remove(ownerId);
+            String prefix=ownerId+">";
+            String suffix=">"+ownerId;
+            for(Iterator<Map.Entry<String,Long>> it=tradeRequests.entrySet().iterator();it.hasNext();){
+                String key=it.next().getKey();
+                if(key.startsWith(prefix)||key.endsWith(suffix))it.remove();
+            }
         }
 
         synchronized String requestTrade(WorldPlayer from,WorldPlayer to,long now){
