@@ -1101,35 +1101,15 @@ final class LocalSession implements Runnable {
         // MAINLINE pet Pick-up is exact current-client opcode155 only.
         // Attack opcode72 must never despawn a follower merely because the scene
         // index happens to match the active pet.
-        if(isPetPickupAction(a,pet,petState)){
-            if(!bank.canAddInventoryOne(petState.itemId())){
-                System.out.println(tag+"V56_PET_PICKUP "+a+" result=REJECTED_INVENTORY_FULL petRemains=true");
-                return;
-            }
-            pendingPetPickupScene=pet.sceneIndex;
-            pendingPetPickupDeadlineMs=System.currentTimeMillis()+10_000L;
-            // Freeze ordinary follower advancement while the interaction route owns
-            // this pet. Existing breadcrumbs must not make the target walk away.
-            if(!cardinalAdjacentTo(pet.x,pet.y) && !(pet.x==movement.x()&&pet.y==movement.y()))freezePetFollowForPickup(tag);
-            nextPetFollowAt=Long.MAX_VALUE;
-            if(cardinalAdjacentTo(pet.x,pet.y)){
-                System.out.println(tag+"V51213_PET_PICKUP "+a+" result=QUEUED_FOR_NEXT_AUTHORITATIVE_WORLD_TICK"+
-                    " owner="+movement.x()+","+movement.y()+" pet="+pet.x+","+pet.y);
-            } else {
-                System.out.println(tag+"V51213_PET_PICKUP "+a+" result=DEFERRED_UNTIL_CARDINAL_ADJACENT distanceCheb="+
-                    chebyshev(movement.x(),movement.y(),pet.x,pet.y)+" owner="+movement.x()+","+movement.y()+" pet="+pet.x+","+pet.y);
-            }
-            return;
-        }
+        if(petDropPickup.handlePickupNpcAction(
+            a,
+            serverPackets,
+            tag
+        ))return;
 
-        // Any different NPC interaction supersedes a deferred pet pickup and the
-        // temporary post-pickup facing target. Clear the stale scene target BEFORE
-        // assigning a new combat/bank interaction target so scene-index reuse cannot
-        // wipe the new target on the following world tick.
-        if(pendingPetPickupScene!=null && pendingPetPickupCompleteAtMs==Long.MAX_VALUE){
-            Integer cancelled=pendingPetPickupScene; pendingPetPickupScene=null;releasePetFollowAfterPickup(tag,"NEW_NPC_INTERACTION");
-            System.out.println(tag+"V5127_PET_PICKUP scene="+cancelled+" action=CANCELLED_BY_NEW_NPC_INTERACTION new="+a);
-        }
+        // Any different NPC interaction supersedes a deferred pet pickup before
+        // a new combat/bank interaction target is assigned.
+        petDropPickup.cancelDeferredForNewNpcAction(a,tag);
 
         // Exact client exposes Yoshiganger NPC option 3 as Switch-effect, but the production
         // gameplay transition (Doppel-like vs Yoshi-like functionality) is not recovered.
@@ -1160,10 +1140,6 @@ final class LocalSession implements Runnable {
         if(routed!=null)System.out.println(tag+routed);
     }
 
-
-    static boolean isPetPickupAction(NpcAction a,NpcEntity pet,PetState petState){
-        return a!=null && a.opcode==155 && pet!=null && petState!=null && petState.active() && a.sceneIndex==pet.sceneIndex;
-    }
 
     static boolean isCombatAttackAction(NpcAction a,NpcEntity clicked){
         return a!=null && a.opcode==72 && clicked!=null && CombatTargetRepository.isCombatDummy(clicked.definitionId);
