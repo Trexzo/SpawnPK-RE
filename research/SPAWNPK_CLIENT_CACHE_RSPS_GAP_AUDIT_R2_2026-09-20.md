@@ -1599,6 +1599,41 @@ Therefore the correct provenance is:
 
 This supersedes any wording that might imply the client has one authoritative room-cost array.
 
+## R2.12 R5 roadmap coverage continuation
+
+A later exact-current R5 architecture pass narrowed the remaining reusable domain gaps further.
+
+Live repository coordination after that pass:
+
+```
+#164  durable global-event lifecycle above WorldEventQueue
+#165  Marketplace listing lifecycle above #159 escrow
+#166  read-only semantic item catalog query API
+#167  Construction / HouseInstance room-layout state above #158
+#168  conversion / recipe substrate for Enchantment/Fuser systems
+#169  durable Clan aggregate + Clan Wars configuration
+#171  versioned semantic PlayerLoadout / preset state
+#172  semantic Bounty Hunter target/task lifecycle
+#173  semantic MatchRules + MatchSession state
+#174  item DeathPolicy / Condition / Repair state above #14 death lifecycle
+#175  read-only NPC / DropTable / Knowledgebase query services
+```
+
+This fills the major R5 aggregate categories without changing any other chat's implementation branch.
+
+Important separation now recorded:
+
+- #158 owns Party / Matchmaking / WorldInstance lifecycle.
+- #173 owns active MatchSession / teams / scoring / semantic rules.
+- #169 owns durable Clan identity/membership/permissions.
+- #14 owns player death/respawn lifecycle.
+- #174 owns per-item death/condition/repair policy.
+- #159 owns generic atomic transaction/escrow.
+- #168 owns semantic conversion/recipe state on top of #159.
+- #166 owns item queries; #175 owns NPC/drop/knowledgebase queries.
+
+No implementation work for those issues is performed from this R2 research branch.
+
 ## R2 conclusion
 
 The first-pass gap assessment remains directionally correct, but the exact current client exposes a substantially larger recoverable presentation/control surface than R1 captured.
