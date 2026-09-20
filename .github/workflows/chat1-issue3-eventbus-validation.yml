@@ -1,0 +1,38 @@
+name: Chat1 Issue3 EventBus Validation
+
+on:
+  push:
+    branches:
+      - integration/post246-issue3-eventbus-chat1
+
+jobs:
+  windows-eventbus:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Gradle-backed canonical build
+        shell: pwsh
+        run: ./server/build.ps1
+      - name: EventBus focused regressions
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $cp = 'server/build/SpawnPKLocalServer.jar;server/build/classes/java/test'
+          $tests = @(
+            'spk.event.DomainEventBusTest',
+            'spk.local.DomainEventBusWorldContextTest',
+            'spk.local.ContentRegistryTest',
+            'spk.local.NpcOptionContentRegistryParityTest',
+            'spk.local.WorldCommandLifecycleFenceTest',
+            'spk.local.WorldPulseCommandExecutionTest'
+          )
+          foreach ($t in $tests) {
+            Write-Host "[ISSUE3] $t"
+            & java -cp $cp $t
+            if ($LASTEXITCODE -ne 0) { throw "Issue3 regression failed: $t" }
+          }
+          Write-Host "ISSUE3_EVENTBUS_FOUNDATION_PASS tests=$($tests.Count)"
