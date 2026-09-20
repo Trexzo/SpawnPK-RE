@@ -43,7 +43,6 @@ final class ClientPacketProbe {
     private MovementRequest pendingMovement;
     private ItemContainerAction pendingItemAction;
     private NpcAction pendingNpcAction;
-    private PlayerAction pendingPlayerAction;
     private ItemOnItemAction pendingItemOnItem;
     private SpellTargetRequest pendingSpellTarget;
     private GroundItemInteraction pendingGroundItemInteraction;
@@ -80,12 +79,6 @@ final class ClientPacketProbe {
     NpcAction takeNpcAction() {
         NpcAction v=pendingNpcAction;
         pendingNpcAction=null;
-        return v;
-    }
-
-    PlayerAction takePlayerAction(){
-        PlayerAction v=pendingPlayerAction;
-        pendingPlayerAction=null;
         return v;
     }
 
@@ -603,7 +596,28 @@ final class ClientPacketProbe {
                     case 139: slot=4; playerIndex=(body[0]&255)|((body[1]&255)<<8); semantic="Option 4"; break;
                     default:  slot=5; playerIndex=(body[0]&255)|((body[1]&255)<<8); semantic="Option 5"; break;
                 }
-                pendingPlayerAction=new PlayerAction(opcode,slot,playerIndex,semantic);
+
+                offerTypedRequest(
+                    new PlayerActionClientRequest(
+                        new PlayerAction(
+                            opcode,
+                            slot,
+                            playerIndex,
+                            semantic
+                        ),
+                        ClientRequestMetadata.exactCurrent(
+                            opcode,
+                            opcode==128
+                                ?"FIXED2_PLAYER_INDEX_BE"
+                                :"FIXED2_PLAYER_INDEX_LE",
+                            "PINNED_CLIENT_PLAYER_OPTION_"+
+                                slot+
+                                "_WRITER"
+                        )
+                    ),
+                    opcode
+                );
+
                 System.out.printf("%sCLIENT_PACKET seq=%d opcode=%d len=2 playerAction=true slot=%d playerIndex=%d semantic=%s schema=STATIC_EXACT_CURRENT_CLIENT%n",
                                   tag,decodedCount,opcode,slot,playerIndex,semantic);
                 return true;
