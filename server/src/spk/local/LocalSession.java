@@ -24,7 +24,7 @@ final class LocalSession implements Runnable {
     private final DevAuthorityWorkbench dev = new DevAuthorityWorkbench();
     private final PlayerPresentationService playerPresentation = new PlayerPresentationService(dev);
     private final NpcRegistry npcs = new NpcRegistry(dev);
-    private final HomeWorldRuntimePlan homeWorld = new HomeWorldRuntimePlan();
+    private final HomeWorldRuntimePlan homeWorld;
     private final CombatEngine combat = new CombatEngine(dev);
     /** Engine R5 native Item Library server-side authority projection. */
     private final NativeItemLibraryService itemLibrary = new NativeItemLibraryService();
@@ -96,6 +96,7 @@ final class LocalSession implements Runnable {
         this.bootstrap = bootstrap;
         this.movementEnabled = movementEnabled;
         this.world = java.util.Objects.requireNonNull(world,"world");
+        this.homeWorld = new HomeWorldRuntimePlan(this.world.homeNpcs());
         this.worldPlayer = new WorldPlayer();
         this.movement = worldPlayer.movement();
         this.bank = worldPlayer.bank();
