@@ -502,18 +502,34 @@ public final class LocalPendingRequestDispatcherTest {
                     }
                 );
 
+            int[] probeSeed={5,6,7,8};
+            ByteArrayOutputStream typedWire=
+                new ByteArrayOutputStream();
+            IsaacCipher typedEncoder=
+                new IsaacCipher(
+                    probeSeed.clone()
+                );
+            typedWire.write(
+                (185+typedEncoder.nextInt())&255
+            );
+            typedWire.write(0);
+            typedWire.write(152);
+
             ClientPacketProbe probe=
                 new ClientPacketProbe(
-                    new ByteArrayInputStream(new byte[0]),
-                    new IsaacCipher(new int[]{5,6,7,8}),
+                    new ByteArrayInputStream(
+                        typedWire.toByteArray()
+                    ),
+                    new IsaacCipher(
+                        probeSeed.clone()
+                    ),
                     "[pending-test] "
                 );
 
-            setPending(
-                probe,
-                "pendingWidgetAction",
-                Integer.valueOf(152)
-            );
+            if(!probe.readNextKnownPacket())
+                throw new AssertionError(
+                    "typed widget fixture decode failed"
+                );
 
             setPending(
                 probe,
@@ -552,9 +568,9 @@ public final class LocalPendingRequestDispatcherTest {
                     "movement request consumed more or less than once"
                 );
 
-            if(probe.takeWidgetAction()!=null)
+            if(probe.typedRequestCount()!=0)
                 throw new AssertionError(
-                    "widget request was not consumed"
+                    "typed widget request was not consumed"
                 );
 
             if(probe.takeMovement()!=null)
