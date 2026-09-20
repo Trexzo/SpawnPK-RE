@@ -98,25 +98,13 @@ This is therefore not merely cosmetic list clearing.
 
 Confidence: HIGH structural / MEDIUM original server intent.
 
-### 18 - Multi-group widget selection/highlight state
+### 18 - Gambling game-type selection
 
-Payload: widget/control integer.
+Canonical exact-current audit resolves the hard-coded sprite groups to the native gambling game-type/host-selection surface, including Flower Poker, 55x2, blackjack-like/BJ, Dice Duel and host-selection presentation.
 
-The client selects one entry and swaps active/inactive sprites over several hard-coded groups, including ranges around:
+The payload selects one current mode/control and the client swaps the relevant active/inactive sprites across the native gambling controller groups.
 
-- 240xx groups,
-- 51311 / 51313,
-- 59847-59852,
-- 25756-25758,
-- 25337-25338,
-- 54000,
-- 45912 / 45923,
-- 54105-54108,
-- 60271-60272.
-
-Exact state machine is proven; one universal gameplay name is not.
-
-Confidence: HIGH structural.
+Confidence: HIGH.
 
 ### 19 - Hitpoints orb condition fill
 
@@ -254,15 +242,26 @@ and resets related transient state.
 
 Confidence: HIGH.
 
-### 26 - Client text state
+### 26 - Daily Money Making tracking text
 
-Payload copied into a dedicated client string field.
+The stock Daily Money Making Activities renderer consumes this exact string and renders:
 
-Domain owner unresolved.
+```
+Tracking: @yel@<server value>
+```
 
-Confidence: HIGH structural.
+beside its native tracking widgets around 55008/55011.
 
-### 27 - Widget enabled/disabled sprite state
+Together with target 36, this forms the exact-current presentation pair:
+
+```
+target 26 -> tracking text
+target 36 -> Easy / Medium / Hard selected category/state
+```
+
+Confidence: HIGH.
+
+### 27 - Gambling/control widget selected-state
 
 Payload:
 
@@ -271,9 +270,9 @@ widgetId
 flag
 ```
 
-The target widget's active/inactive visual state is updated.
+The current client applies the active/inactive sprite state used by the native gambling/control selection UI.
 
-Confidence: HIGH structural.
+Confidence: HIGH.
 
 ### 28 - Client deadline/timer
 
@@ -295,11 +294,27 @@ Payload: one integer.
 
 Confidence: HIGH structural.
 
-### 31 - Floating-point state
+### 31 - Special-attack orb value
 
-Payload: double.
+The stock gameframe consumes this double for:
 
-Confidence: HIGH structural.
+```
+orbs/spec_fill
+orbs/spec_icon
+```
+
+Exact current-client display math is effectively:
+
+```
+fillPercent = int(value / 10 * 100)
+displayText = int(value * 10)
+```
+
+so current values 0.0 / 5.0 / 10.0 render as 0% / 50% / 100%.
+
+This is exact client presentation authority for special energy. It does not prove special-attack costs, restoration rate or gameplay mechanics.
+
+Confidence: HIGH.
 
 ### 32 - Local-player prayer/protection head icon
 
@@ -400,13 +415,17 @@ The client contains Easy / Medium / Hard task views, tracking and teleport prese
 
 Confidence: HIGH.
 
-### 37 - Integer list append
+### 37 - Blood Pool shop slot append
 
-Payload integer appended to a client list.
+The payload appends one native Blood Pool shop slot/value entry to the same client list cleared by the exact S2C126 control token:
 
-Domain owner unresolved.
+```
+RESET_BLOOD_POOL_SHOP_SLOTS
+```
 
-Confidence: HIGH structural.
+This is exact-current Blood Pool shop presentation state.
+
+Confidence: HIGH.
 
 ### 38 - Item Enchantment Chest state/stage
 
@@ -416,11 +435,21 @@ Payload integer changes its current internal state/stage.
 
 Confidence: HIGH.
 
-### 39 - Two-value timed state
+### 39 - World Tournament phase/deadline
 
-Payload: two integers, one of which contributes to a future deadline.
+Payload contains the tournament phase plus seconds-to-deadline.
 
-Confidence: HIGH structural.
+The stock client renders phase-dependent countdown semantics:
+
+```
+phase 1 -> Round starts in
+phase 2 -> Round ends in
+other   -> Tournament starts in
+```
+
+with the second value contributing to the absolute countdown deadline.
+
+Confidence: HIGH.
 
 ### 40 / 41 - Widget Boolean state
 
@@ -441,43 +470,71 @@ Payload integer writes a dedicated overlay field.
 
 Confidence: HIGH presentation / MEDIUM exact field meaning.
 
-### 43 - Two Bounty/PvP-adjacent client scalars
+### 43 - Current pet-loadout pair
 
-Payload: two integers into paired client fields.
+The two integers are stored in `Client.s` / `Client.t` and later consumed by the stock clone/loadout UI.
 
-Keep structural pending consumer proof.
-
-### 44 - Completionist/cosmetic selector text pair
-
-Payload can be either:
+That UI's apply path emits exactly:
 
 ```
-value
+::pet_loadout <arg0> <arg1>
 ```
 
-or:
+over generic C2S103.
+
+The business meaning/order of the two integers remains intentionally unnamed; only the exact current loadout transport/state relationship is claimed.
+
+Confidence: HIGH.
+
+### 44 - Text color and optional shadow color
+
+This is the native Text Color Selection Menu at root `63000`, not the separate completionist-cape color screen.
+
+Payload:
 
 ```
-value1,value2
+textColorHex[,shadowColorHex]
 ```
 
-It updates `rs/n/c/w` text state and immediately rebuilds that controller's visible label.
+updates the selector state and rebuilds preview widget `63026`:
 
-The controller is part of the native completionist/cosmetic color-selection surface.
+```
+Sample on chat background
+```
 
-Confidence: HIGH consumer / MEDIUM exact semantic label.
+with the selected color/shadow markup.
 
-### 45 - Completionist/cosmetic selector auxiliary text
+Confidence: HIGH.
 
-Payload stored in `rs/n/c/w.d`.
+### 45 - Text-color submit command prefix
 
-Confidence: HIGH consumer / MEDIUM exact semantic label.
+Target 45 supplies the command token used when the generic Text Color Selection Menu is confirmed.
 
-### 46 - Two-scalar client state
+Default/current-client prefix:
 
-Payload: two integers.
+```
+setyellcolors
+```
 
-Confidence: HIGH structural.
+Confirm widget `63027` constructs:
+
+```
+::<commandPrefix> <textColor> [shadowColor]
+```
+
+which enters generic C2S103 command transport.
+
+The completionist cape color interface is separate: root `63036` uses hardcoded `::compcolors` and must not be conflated with target 45.
+
+Confidence: HIGH.
+
+### 46 - Raid overlay points/total
+
+Payload contains the two integer values consumed by the exact-current raid overlay as its points/total state.
+
+This data is separate from the target-1 `RAID_INSTANCE_ON/OFF` controls and from S2C250 raid/party presentation.
+
+Confidence: HIGH.
 
 ### 47 - Debug/log text
 
@@ -485,17 +542,25 @@ Payload is printed to stdout.
 
 Confidence: HIGH.
 
-### 48 - Absolute future deadline
+### 48 - PvP Hotspot timer duration
 
-Payload long is added to current time and stored as a deadline.
+Payload is a duration in milliseconds and the client stores:
 
-Confidence: HIGH structural.
+```
+endTime = now + durationMs
+```
 
-### 49 - Multiline text state
+The native Hotspot interface uses widget `62150` for the Hotspot label and periodically formats the remaining time into widget `62151` with the current timer icon.
 
-Payload replaces `{n}` with newline and stores the result.
+Confidence: HIGH.
 
-Confidence: HIGH structural.
+### 49 - PvP Hotspot detail/body text
+
+Payload replaces `{n}` with newline and becomes the server-authored body inside the native PvP Hotspot presentation.
+
+The stock consumer surrounds it with the current Hotspot heading and casket/Blood-orb explanatory text.
+
+Confidence: HIGH.
 
 ### 50-52
 
@@ -537,26 +602,32 @@ and calls the native Daily Challenges summary/state updater.
 
 Confidence: HIGH.
 
-### 57 / 58 - Double state plus mode flag
+### 57 / 58 - Raid progress percentage/style
 
-Both parse a double into the same field.
+Both targets parse the raid progress percentage into the same current-client field.
 
 ```
-57 -> mode flag false
-58 -> mode flag true
+57 -> normal raid-progress style
+58 -> alternate raid-progress style
 ```
 
-Domain owner unresolved.
+These are exact raid-overlay data channels, separate from target 46 points/total and target-1 raid enable/disable controls.
 
-Confidence: HIGH structural.
+Confidence: HIGH.
 
-### 59 / 60 / 61 - Three related text channels
+### 59 / 60 / 61 - LMS lobby text lines
 
-Each stores one string into adjacent client fields.
+The three adjacent strings are the exact current-client Last Man Standing lobby text channels:
 
-Domain owner unresolved.
+```
+59 -> LMS lobby line 1
+60 -> LMS lobby line 2
+61 -> LMS lobby line 3
+```
 
-Confidence: HIGH structural.
+They pair with target-1 `LMS_LOBBY_OVERLAY_ON/OFF` control and target 62 fog state.
+
+Confidence: HIGH.
 
 ### 62 - Fog state
 
@@ -635,22 +706,28 @@ Domain owner unresolved.
 
 Confidence: HIGH structural.
 
-### 70 - Four-field timed/status state
+### 70 - Dormant structured timed state
 
-Payload has four components:
+Exact grammar:
 
 ```
-int
-int
-longDelta
-string
+int0,int1,durationOffset,string
 ```
 
-The long becomes an absolute deadline relative to current time.
+with exact storage:
 
-Domain owner unresolved.
+```
+aO = int0
+aP = int1
+aQ = now + durationOffset
+aR = string
+```
 
-Confidence: HIGH structural.
+A whole-JAR field-reference census found no stock runtime `getfield` reader for any of these four fields in the pinned client; they are initialized/reset and written by target 70 only.
+
+Therefore the exact grammar/storage/expiry model is known, while the feature name is deliberately **UNKNOWN**. This target must remain representable without inventing a gameplay semantic.
+
+Confidence: HIGH structural / DORMANT_CURRENT_CLIENT.
 
 ### 71 - Item Enchantment Chest selected/result sprite state
 
@@ -1288,7 +1365,7 @@ Acceptance should require:
 
 Continue research before opening raid/market/construction gameplay issues:
 
-1. resolve structural targets 26, 29-31, 37, 39, 43, 46, 48-49, 57-61, 69-70 to domain owners where possible,
+1. resolve the still-conservative targets 28-30 and 69 only where exact current consumers exist; otherwise retain structural/unknown labels,
 2. verify whether construction exposes any additional non-widget placement command after room selection,
 3. recover any raid invitation text-entry path if the server requests a player name after the invite widget,
 4. identify the Item Enchantment Search-by-name text submission path if it is client-local rather than server-requested,
@@ -1316,6 +1393,21 @@ Closed in R2.6:
 - target 32 = local-player prayer/protection head-icon index.
 - target 33 = indexed remote-player prayer/protection head-icon index.
 - target 34 = tile-scoped NPC/player scene suppression state in region 10806; feature/domain intentionally remains unnamed.
+
+Closed in canonical reconciliation R2.7:
+- target 18 = gambling game-type selection.
+- target 26 = Daily Money Making tracking text.
+- target 27 = gambling/control selected-state.
+- target 31 = special-attack orb value.
+- target 37 = Blood Pool shop slot append.
+- target 39 = World Tournament phase/deadline.
+- target 43 = current pet-loadout pair, paired with C2S103 `pet_loadout <arg0> <arg1>`.
+- targets 44/45 = generic Text Color Selection state + server-selectable submit command prefix.
+- target 46 + 57/58 = raid overlay points/total and progress/style state.
+- targets 48/49 = PvP Hotspot timer/body state.
+- targets 59-61 = LMS lobby text lines.
+- target 70 = exact dormant structured timed state with no stock reader.
+- Enchantment widget 50314 has no hardwired local `Client.fN` input-mode transition; follow-up text entry remains server-mediated/indirect or otherwise unresolved.
 
 ## R2 conclusion
 
