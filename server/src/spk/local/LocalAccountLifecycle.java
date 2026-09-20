@@ -29,12 +29,69 @@ final class LocalAccountLifecycle {
         IntPredicate accessoryAllowed,
         String tag
     ){
+        return loadSnapshot(
+            selection,
+            player,
+            new SnapshotSource(){
+                @Override public java.util.Optional<PlayerSnapshot> load(
+                    String username
+                )throws java.io.IOException{
+                    return repository.load(
+                        username
+                    );
+                }
+
+                @Override public String name(){
+                    return repository.getClass()
+                        .getSimpleName();
+                }
+            },
+            accessoryAllowed,
+            tag
+        );
+    }
+
+    static LoadResult load(
+        Selection selection,
+        WorldPlayer player,
+        WorldPlayerPersistence persistence,
+        IntPredicate accessoryAllowed,
+        String tag
+    ){
+        return loadSnapshot(
+            selection,
+            player,
+            new SnapshotSource(){
+                @Override public java.util.Optional<PlayerSnapshot> load(
+                    String username
+                )throws java.io.IOException{
+                    return persistence.load(
+                        username
+                    );
+                }
+
+                @Override public String name(){
+                    return persistence.repositoryName();
+                }
+            },
+            accessoryAllowed,
+            tag
+        );
+    }
+
+    private static LoadResult loadSnapshot(
+        Selection selection,
+        WorldPlayer player,
+        SnapshotSource source,
+        IntPredicate accessoryAllowed,
+        String tag
+    ){
         if(!selection.persistent)
             return new LoadResult(0,false);
 
         try{
             java.util.Optional<PlayerSnapshot> loaded=
-                repository.load(
+                source.load(
                     selection.username
                 );
 
@@ -44,23 +101,23 @@ final class LocalAccountLifecycle {
                     "V5123_ACCOUNT ACCOUNT_DEFAULTS_NO_FILE"+
                     " profile="+selection.username+
                     " repository="+
-                    repository.getClass().getSimpleName()
+                    source.name()
                 );
                 return new LoadResult(0,false);
             }
 
-            PlayerSnapshot source=
+            PlayerSnapshot sourceSnapshot=
                 loaded.get();
 
             PlayerSnapshot normalized=
                 PlayerSnapshotCodec.applyValidated(
-                    source,
+                    sourceSnapshot,
                     player
                 );
 
             int persistedAccessory=
                 PlayerSnapshotCodec.accessoryItem(
-                    source
+                    sourceSnapshot
                 );
 
             int accessoryItem=
@@ -75,7 +132,7 @@ final class LocalAccountLifecycle {
                 "V5123_ACCOUNT ACCOUNT_LOADED"+
                 " profile="+selection.username+
                 " repository="+
-                repository.getClass().getSimpleName()+
+                source.name()+
                 " snapshot="+normalized
             );
 
@@ -98,7 +155,7 @@ final class LocalAccountLifecycle {
                 "V5123_ACCOUNT_LOAD_FAILED"+
                 " profile="+selection.username+
                 " repository="+
-                repository.getClass().getSimpleName()+
+                source.name()+
                 " error="+e+
                 " action=KEEP_DEFAULTS"
             );
@@ -250,6 +307,14 @@ final class LocalAccountLifecycle {
             this.accessoryItem=accessoryItem;
             this.loaded=loaded;
         }
+    }
+
+    private interface SnapshotSource {
+        java.util.Optional<PlayerSnapshot> load(
+            String username
+        )throws java.io.IOException;
+
+        String name();
     }
 
     private LocalAccountLifecycle(){}
