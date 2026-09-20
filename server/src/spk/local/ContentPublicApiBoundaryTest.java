@@ -18,6 +18,7 @@ public final class ContentPublicApiBoundaryTest {
         ContentObjectOptionHandler.class,
         ContentPlayer.class,
         ContentPresentation.class,
+        ContentPresentationException.class,
         ContentProvenance.class,
         ContentRegistrar.class,
         ContentResult.class,
@@ -166,7 +167,8 @@ public final class ContentPublicApiBoundaryTest {
             "transportTypeLeak=false "+
             "sceneIndex=false "+
             "protocolIndex=false "+
-            "widgetIdentity=false"
+            "widgetIdentity=false "+
+            "javaIoLeak=false"
         );
     }
 
@@ -284,6 +286,13 @@ public final class ContentPublicApiBoundaryTest {
             violations.add(
                 location+
                 " -> network type "+
+                name
+            );
+
+        if(name.startsWith("java.io."))
+            violations.add(
+                location+
+                " -> transport I/O type "+
                 name
             );
 
