@@ -1,0 +1,48 @@
+name: TEMP Issue 273 Override Socket Reliability CI
+
+on:
+  pull_request:
+    branches:
+      - test/devpanel-socket-readiness-chat2
+    paths:
+      - 'server/src/spk/local/OverrideSocketIntegrationTest.java'
+      - '.github/workflows/temp-issue273-override-socket-ci.yml'
+
+jobs:
+  validate:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Temurin JDK 21
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Build server
+        shell: pwsh
+        run: ./server/build.ps1
+
+      - name: Stress Override socket regression
+        shell: pwsh
+        run: |
+          for ($i = 1; $i -le 15; $i++) {
+            & java -cp server/build/classes spk.local.OverrideSocketIntegrationTest
+            if ($LASTEXITCODE -ne 0) {
+              throw "OverrideSocketIntegrationTest failed iteration=$i exit=$LASTEXITCODE"
+            }
+          }
+
+          Write-Host "ISSUE273_OVERRIDE_SOCKET_STRESS_PASS iterations=15"
+
+      - name: Run parent dev-panel guard
+        shell: pwsh
+        run: |
+          & java -cp server/build/classes spk.local.EngineR7DevPanelSocketTest
+          if ($LASTEXITCODE -ne 0) {
+            throw "EngineR7DevPanelSocketTest failed exit=$LASTEXITCODE"
+          }
+
+          Write-Host "ISSUE273_PARENT_DEVPANEL_PASS tests=1"
