@@ -1,0 +1,37 @@
+name: Temporary Issue 14 PvP lifecycle validation
+
+on:
+  push:
+    branches:
+      - refactor/issue-14-pvp-lifecycle-integration
+
+jobs:
+  validate:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Compile current source tree
+        shell: pwsh
+        run: ./server/build.ps1
+      - name: Run PvP lifecycle integration regression
+        shell: pwsh
+        run: java -cp server/build/classes spk.local.PlayerPvpLifecycleIntegrationTest
+      - name: Run world tick coordinator regression
+        shell: pwsh
+        run: java -cp server/build/classes spk.local.LocalWorldTickCoordinatorTest
+      - name: Run player lifecycle service regression
+        shell: pwsh
+        run: java -cp server/build/classes spk.local.PlayerLifecycleServiceTest
+      - name: Run combat target validity regression
+        shell: pwsh
+        run: java -cp server/build/classes spk.local.CombatTargetValidityTest
+      - name: Run combat system hooks regression
+        shell: pwsh
+        run: java -cp server/build/classes spk.local.CombatSystemHooksTest
+      - name: Run combat timing regression
+        shell: pwsh
+        run: java -cp server/build/classes spk.local.CombatTimingHitSchedulerTest
