@@ -56,11 +56,38 @@ public final class AtomicTransactionServiceTest {
             "player:eve","fixture-empty",AtomicTransactionService.SourceAuthority.CUSTOM_LOCALLAB),Collections.emptyList()),"empty reserve");
         expect(IllegalArgumentException.class,()->service.create("   ","fixture",AtomicTransactionService.SourceAuthority.CUSTOM_LOCALLAB),"blank owner");
 
+        AtomicTransactionService exhausted=new AtomicTransactionService();
+        AtomicTransactionService.TransactionId exhaustedTxn=exhausted.create(
+            "player:overflow","fixture-escrow-sequence-exhaustion",
+            AtomicTransactionService.SourceAuthority.CUSTOM_LOCALLAB
+        );
+        setSequence(exhausted,"escrowSequence",Long.MAX_VALUE-1L);
+        expect(
+            IllegalStateException.class,
+            ()->exhausted.reserve(
+                exhaustedTxn,
+                Arrays.asList(
+                    new EscrowAsset(
+                        EscrowAsset.Kind.ITEM,"item:overflow-a",1,"player:overflow",
+                        AtomicTransactionService.SourceAuthority.CUSTOM_LOCALLAB
+                    ),
+                    new EscrowAsset(
+                        EscrowAsset.Kind.ITEM,"item:overflow-b",1,"player:overflow",
+                        AtomicTransactionService.SourceAuthority.CUSTOM_LOCALLAB
+                    )
+                )
+            ),
+            "escrow sequence exhaustion"
+        );
+        AtomicTransactionService.Snapshot exhaustedSnapshot=exhausted.snapshot(exhaustedTxn);
+        eq(AtomicTransactionService.TransactionState.CREATED,exhaustedSnapshot.state,"failed reserve state remains created");
+        eq(0L,exhaustedSnapshot.reservations.size(),"failed reserve leaves no partial escrow");
+
         assertNoProtocolLeaks(AtomicTransactionService.class);
         assertNoProtocolLeaks(EscrowAsset.class);
         if(service.size()!=5)fail("transaction count expected=5 actual="+service.size());
 
-        System.out.println("ISSUE159_ATOMIC_TRANSACTION_ESCROW_PASS lifecycle=true idempotent=true immutable=true protocolIndependent=true authorityPreserved=true transactions="+service.size());
+        System.out.println("ISSUE159_ATOMIC_TRANSACTION_ESCROW_PASS lifecycle=true idempotent=true immutable=true reservationFailureAtomic=true protocolIndependent=true authorityPreserved=true transactions="+service.size());
     }
 
     private static void assertNoProtocolLeaks(Class<?> root){
@@ -73,6 +100,15 @@ public final class AtomicTransactionServiceTest {
                 for(String forbidden:new String[]{"widget","opcode","subtype","packet"})if(text.contains(forbidden))fail("protocol leak "+c.getName()+"."+f.getName());
             }
             Collections.addAll(q,c.getDeclaredClasses());
+        }
+    }
+    private static void setSequence(AtomicTransactionService service,String fieldName,long value){
+        try{
+            Field field=AtomicTransactionService.class.getDeclaredField(fieldName);
+            field.setAccessible(true);
+            ((java.util.concurrent.atomic.AtomicLong)field.get(service)).set(value);
+        }catch(ReflectiveOperationException error){
+            throw new AssertionError("unable to set sequence "+fieldName,error);
         }
     }
     private static void immutable(List<?> list){
