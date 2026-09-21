@@ -709,9 +709,23 @@ final class SlayerTaskService {
     private static String normalizePlayer(
         String value
     ){
-        return PartyService.requireRef(
-            value
-        );
+        if(value==null)
+            throw new NullPointerException(
+                "playerRef"
+            );
+
+        String normalized=
+            value.trim()
+                .toLowerCase(
+                    Locale.ROOT
+                );
+
+        if(normalized.isEmpty())
+            throw new IllegalArgumentException(
+                "playerRef blank"
+            );
+
+        return normalized;
     }
 
     private static String normalizeKey(
