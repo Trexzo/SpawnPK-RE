@@ -132,7 +132,9 @@ public final class DomainEventPublicApiBoundaryTest {
             "widgetIdentity=false "+
             "sceneIndex=false "+
             "playerIndex=false "+
-            "inventorySlotIdentity=false"
+            "inventorySlotIdentity=false "+
+            "containerIdentity=false "+
+            "cacheIdentity=false"
         );
     }
 
@@ -152,6 +154,8 @@ public final class DomainEventPublicApiBoundaryTest {
            lower.contains("playerindex")||
            lower.contains("protocolindex")||
            exposesRawInventorySlotIdentity(lower)||
+           exposesRawContainerIdentity(lower)||
+           exposesRawCacheIdentity(lower)||
            lower.contains("isaac")||
            lower.contains("socket"))
             violations.add(
@@ -171,6 +175,23 @@ public final class DomainEventPublicApiBoundaryTest {
             "targetslot".equals(lower)||
             "sourceslot".equals(lower)||
             "destinationslot".equals(lower);
+    }
+
+    private static boolean exposesRawContainerIdentity(
+        String lower
+    ){
+        return lower.contains("containerid")||
+            "sourcecontainer".equals(lower)||
+            "targetcontainer".equals(lower)||
+            "selectedcontainer".equals(lower)||
+            "destinationcontainer".equals(lower);
+    }
+
+    private static boolean exposesRawCacheIdentity(
+        String lower
+    ){
+        return lower.contains("cacheoffset")||
+            lower.contains("archiveoffset");
     }
 
     private static void inspect(
