@@ -60,12 +60,49 @@ public final class DomainEventBus implements AutoCloseable {
         }
     }
 
+    private static final class SubscriptionHandle
+        implements Subscription {
+
+        private volatile DomainEventBus owner;
+        private volatile Binding<?> binding;
+
+        SubscriptionHandle(DomainEventBus owner) {
+            this.owner = owner;
+        }
+
+        void attach(Binding<?> binding) {
+            this.binding = binding;
+        }
+
+        void detach() {
+            binding = null;
+            owner = null;
+        }
+
+        @Override
+        public boolean active() {
+            Binding<?> current = binding;
+            return current != null && current.active;
+        }
+
+        @Override
+        public boolean unsubscribe() {
+            DomainEventBus currentOwner = owner;
+            Binding<?> current = binding;
+
+            return currentOwner != null &&
+                current != null &&
+                currentOwner.remove(current);
+        }
+    }
+
     private static final class Binding<E extends Event> {
         final long sequence;
         final Class<E> type;
         final Priority priority;
         final boolean receiveCancelled;
         final Listener<? super E> listener;
+        final SubscriptionHandle subscription;
         volatile boolean active = true;
 
         Binding(
@@ -73,13 +110,15 @@ public final class DomainEventBus implements AutoCloseable {
             Class<E> type,
             Priority priority,
             boolean receiveCancelled,
-            Listener<? super E> listener
+            Listener<? super E> listener,
+            SubscriptionHandle subscription
         ) {
             this.sequence = sequence;
             this.type = type;
             this.priority = priority;
             this.receiveCancelled = receiveCancelled;
             this.listener = listener;
+            this.subscription = subscription;
         }
     }
 
@@ -128,26 +167,20 @@ public final class DomainEventBus implements AutoCloseable {
         Objects.requireNonNull(priority, "priority");
         Objects.requireNonNull(listener, "listener");
 
-        final Binding<E> binding = new Binding<>(
+        SubscriptionHandle subscription =
+            new SubscriptionHandle(this);
+        Binding<E> binding = new Binding<>(
             ++sequence,
             type,
             priority,
             receiveCancelled,
-            listener
+            listener,
+            subscription
         );
+        subscription.attach(binding);
         bindings.add(binding);
 
-        return new Subscription() {
-            @Override
-            public boolean active() {
-                return binding.active;
-            }
-
-            @Override
-            public boolean unsubscribe() {
-                return remove(binding);
-            }
-        };
+        return subscription;
     }
 
     /**
@@ -198,6 +231,7 @@ public final class DomainEventBus implements AutoCloseable {
 
         for (Binding<?> binding : bindings) {
             binding.active = false;
+            binding.subscription.detach();
         }
 
         bindings.clear();
@@ -205,10 +239,14 @@ public final class DomainEventBus implements AutoCloseable {
 
     private synchronized boolean remove(Binding<?> binding) {
         if (!binding.active) {
+            binding.subscription.detach();
             return false;
         }
+
         binding.active = false;
-        return bindings.remove(binding);
+        boolean removed = bindings.remove(binding);
+        binding.subscription.detach();
+        return removed;
     }
 
     private void requireOpen() {
