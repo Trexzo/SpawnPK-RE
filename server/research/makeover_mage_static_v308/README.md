@@ -213,3 +213,54 @@ designer opens; this is specifically a designer-control initialization boundary.
 LocalLab does not patch or mutate the production client to invent such a channel.
 The recovered server flow opens the native designer and accepts the exact C2S101
 result the client submits.
+
+## Fresh-client designer reset / no-touch Accept boundary
+
+A deeper exact-class audit establishes the native designer's reset state, not just
+the absence of a packet-81 preload path.
+
+In exact `rs.Client`:
+
+- constructor state allocates `mu = new int[7]`, `lB = new int[5]`, and sets
+  `ml = true`;
+- full client reset/login method `Client.I()` again sets `ml = true`, calls
+  private `bs()`, then explicitly zeros all five `lB[]` colour entries;
+- `bs()` sets each `mu[0..6]` to the first non-disabled identity kit matching
+  the selected gender category;
+- outside reset/login, the only exact calls to `bs()` are content types 324/325
+  (Male/Female toggles);
+- content type 326 writes C2S101 directly from current `ml`, `mu[]`, and
+  `lB[]`.
+
+Therefore a newly reset/reconnected exact client starts the designer backing
+state at the first male kit in each category with colour indices all zero. The
+server-rendered packet-81 appearance does not overwrite those private designer
+arrays.
+
+This creates a hard exact-client UX boundary:
+
+1. reconnect can correctly render the persisted player appearance through packet
+   81;
+2. opening native root 3559 does not preload its controls from that rendered
+   appearance;
+3. pressing Accept without changing the controls can submit the client-local
+   reset/default profile rather than the currently persisted appearance.
+
+LocalLab cannot distinguish an untouched-default C2S101 from a player who
+legitimately selected those exact default values: both are the same exact
+13-byte protocol message. Adding a server-side heuristic would therefore invent
+behavior and could reject a valid design choice.
+
+Acceptance must treat these as separate claims:
+
+- **persistence/render acceptance:** reconnect shows the saved appearance through
+  packet 81;
+- **native designer control preload:** not recovered / no exact server channel
+  identified;
+- **no-touch Accept after reconnect:** may replace the persisted appearance with
+  the exact client-local defaults and must not be represented as preserved
+  current-look behavior.
+
+This boundary remains intentionally documented rather than patched until exact
+client/server authority proving a preload mechanism is recovered.
+
