@@ -1,11 +1,12 @@
-# Evidence Package — Staff Partyhat Override / Extra Appearance Item
+# Evidence Package — Staff Partyhat Override / Extra Appearance Item / Worn Rank Gate
 
 SYSTEM
-Staff/rank partyhat `Override` action and the exact-current extra player
-appearance item channel (`rs.a.k.bs`).
+Staff/rank partyhat `Override` action, the exact-current extra player
+appearance item channel (`rs.a.k.bs`), and the native worn-HEAD staff-rank
+overhead badge gate.
 
 STATUS
-CLOSED-CLIENT-CONTRACT / UNKNOWN-PRODUCTION-SERVER-MAPPING
+CLOSED-EXACT-CLIENT-CONTRACT / UNKNOWN-PRODUCTION-RANK-MAPPING
 
 ## AUTHORITY
 
@@ -36,6 +37,105 @@ Current item metadata exposes:
 
 The partyhats are ordinary partyhat/headwear-family item definitions. Their
 metadata does not directly point to the native icon-family roots.
+
+
+## CLIENT CONTRACT — WORN STAFF PARTYHAT OVERHEAD BADGE
+
+Revalidation against the exact-current v308 client proves the older staff-rank
+rendering finding directly on SHA-256 `854f26ff...`.
+
+Exact renderer:
+
+```
+rs.Client.o()
+```
+
+The native branch reads the ordinary HEAD appearance component:
+
+```
+headItem = player.br[0] - 512
+```
+
+and contains these exact gates:
+
+```
+23481 Mod partyhat
+  -> draw fE[ rs.l.h.b(0) ]
+
+22131 Admin partyhat
+22132 Owner partyhat
+23480 Support partyhat
+23482 Super mod partyhat
+23483 Grand mod partyhat
+  -> icon = rs.l.h.b(player.aC)
+  -> if icon > 0, draw fE[icon]
+
+22133 Wealthy partyhat
+  -> draw fE[ rs.l.h.b(31) ]
+
+22130 Tevins partyhat
+  -> draw fE[ rs.l.h.b(19) ]
+```
+
+So the Admin/Owner/Support/Super-mod/Grand-mod family uses the **worn partyhat
+as the gate**, while `player.aC` selects the native badge index.
+
+`rs.l.h.b(int)` is an exact client-side remap/animation lookup: if the key
+exists in `rs.l.j.b`, it returns that entry's current icon/frame index;
+otherwise it returns the input unchanged. The v308 static table contains mapped
+keys including 21, 32, 45, 291, 333, 340, 344, 348, 352 and 356. Constants
+0, 19 and 31 therefore pass through unchanged in that static table.
+
+### Exact packet-81 field feeding `aC`
+
+The exact `rs.a.k.a(rs.x.e)` appearance parser reads, before `br[12]`:
+
+```
+aY = y()   // u8
+bd = y()   // u8
+bf = y()   // u8
+bg = y()   // u8
+bh = y()   // u8
+aC = B()   // signed BE16
+```
+
+`rs.x.e.B()` is signed big-endian 16-bit. The client also updates `aC`
+from its player public-chat mask path, reinforcing that this is client-visible
+privilege/rank-like player state rather than an item id.
+
+### Current LocalLab publication gap
+
+Current `BootstrapPackets.appearanceBlock(...)` already occupies the exact
+wire field, but writes:
+
+```
+putU16(b, 0); // signed-short role aC; zero is safe in the parser
+```
+
+So the remaining LocalLab gap is now precise: there is no semantic rank/
+privilege state feeding `aC`. Chat 4 does **not** invent the missing original
+SpawnPK named-rank -> numeric-`aC` table.
+
+### Worn HEAD vs cosmetic `bs`
+
+This native overhead branch reads `br[0]` and `aC`. It does **not** read
+`bs`.
+
+Therefore exact v308 proves these are independent presentation paths:
+
+```
+Wear staff partyhat
+ -> br[0] HEAD gate
+ -> native fE[] overhead badge branch may activate
+
+Override staff partyhat
+ -> C2S16
+ -> server may publish separate bs wearable-model channel
+ -> bs alone does not satisfy the HEAD badge gate
+```
+
+This directly corrects any implementation that would treat cosmetic Override as
+equivalent to wearing the staff hat for the native overhead badge.
 
 ## CLIENT CONTRACT — INVENTORY ACTION
 
@@ -163,7 +263,12 @@ The exact current client/cache proves:
   `presence + bs:itemId`;
 - that `bs` item is merged as a thirteenth wearable-model component;
 - the ordinary partyhat/head equipment and the `bs` channel are structurally
-  independent.
+  independent;
+- exact v308 `rs.Client.o()` gates native staff overhead badges from
+  `br[0]-512`, not `bs`;
+- Admin/Owner/Support/Super-mod/Grand-mod hats use `rs.l.h.b(aC)` when positive;
+- Mod, Wealthy and Tevins hats use fixed native mappings 0, 31 and 19 respectively;
+- packet-81 appearance exposes `aC` as a signed BE16 field before `br[12]`.
 
 ## SERVER SEMANTICS UNKNOWN
 
@@ -173,9 +278,12 @@ The exact current client/cache proves:
   partyhat's own item id.
 - UNKNOWN_SERVER_AUTHORITY: whether production mapped each staff rank/partyhat to
   a different icon-family item id.
-- UNKNOWN_SERVER_AUTHORITY: whether permission/rank checks gated the action.
+- UNKNOWN_SERVER_AUTHORITY: the original named SpawnPK rank -> numeric `aC`
+  assignment table.
+- UNKNOWN_SERVER_AUTHORITY: permission/persistence rules for semantic rank state.
+- UNKNOWN_SERVER_AUTHORITY: whether permission/rank checks gated the Override action.
 - UNKNOWN_SERVER_AUTHORITY: persistence/replacement/refund/consumption rules for
-  the original server.
+  the original Override behavior.
 
 No exact-current client/cache mechanism maps:
 
@@ -261,6 +369,11 @@ Exact current v308:
 - `rs.x.e.p(int)`: LE short with low byte +128
 - `rs.a.k.a(rs.x.e)`: appearance parser / `bs` assignment
 - `rs.a.k.n()`: 12->13 model-component composition
+- `rs.Client.o()`: worn-HEAD staff-partyhat overhead badge gates
+- `rs.a.k.a(rs.x.e)`: `aC` signed-short appearance publication
+- `rs.x.e.B()`: signed BE16 decoder used for `aC`
+- `rs.l.h.b(int)`: native icon-index remap/animation lookup
+- `rs.l.j.b`: exact static remap/animation table
 - `rs.d.k.f(itemId).a(gender)`: wearable-model readiness
 - `rs.d.k.f(itemId).b(gender)`: wearable-model load
 
@@ -286,10 +399,14 @@ inside transport/runtime boundaries.
 
 ## READY FOR CHAT 3
 
-**yes — presentation primitive; no for original rank mapping**
+**yes — exact presentation primitives; no for original semantic rank mapping**
 
-Chat 3 can model a semantic extra/cosmetic appearance item independently of
-ordinary equipment.
+Chat 3 can model:
+- a semantic extra/cosmetic appearance item independently of ordinary equipment;
+- a semantic rank/privilege field that an internal presentation adapter can
+  eventually project to `aC`;
+- worn staff-partyhat HEAD gating separately from cosmetic `bs`.
 
-Chat 3 must not claim that a particular staff rank automatically owns a
-particular floating icon unless separate production-server evidence is recovered.
+Chat 3 must not invent the original named-rank -> numeric-`aC` table. That
+mapping remains `UNKNOWN_SERVER_AUTHORITY` until separate production evidence
+is recovered.
