@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - content/issue-291-item-option-registration-chat3
+  pull_request:
+    branches:
+      - main
 
 jobs:
   windows-item-option:
