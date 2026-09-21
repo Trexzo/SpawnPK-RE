@@ -146,11 +146,6 @@ final class LocalPendingRequestDispatcher {
             serverPackets,
             tag
         );
-        acceptItemOnItem(
-            clientPackets,
-            serverPackets,
-            tag
-        );
         long now=System.currentTimeMillis();
         petRealtime.ensureFollowScheduled(now);
         petRealtime.ensureTestSequenceScheduled(now);
@@ -224,6 +219,19 @@ final class LocalPendingRequestDispatcher {
 
                 routeDropItem(
                     drop.action(),
+                    serverPackets,
+                    tag
+                );
+                continue;
+            }
+
+            if(request instanceof
+                    ItemOnItemClientRequest){
+                ItemOnItemClientRequest itemOnItem=
+                    (ItemOnItemClientRequest)request;
+
+                routeItemOnItem(
+                    itemOnItem.action(),
                     serverPackets,
                     tag
                 );
@@ -488,16 +496,11 @@ final class LocalPendingRequestDispatcher {
         );
     }
 
-    private void acceptItemOnItem(
-        ClientPacketProbe clientPackets,
+    private void routeItemOnItem(
+        ItemOnItemAction action,
         ServerPacketWriter serverPackets,
         String tag
     )throws IOException{
-        ItemOnItemAction action=
-            clientPackets.takeItemOnItem();
-
-        if(action==null)return;
-
         LocalItemOnItemHandler.Result result=
             itemOnItemHandler.handle(
                 action,

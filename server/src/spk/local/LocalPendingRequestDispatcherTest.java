@@ -530,6 +530,23 @@ public final class LocalPendingRequestDispatcherTest {
             );
 
             typedWire.write(
+                (53+typedEncoder.nextInt())&255
+            );
+            // Item-on-item: unsupported widgets/items all zero.
+            // Exact opcode-53 transforms still travel through the typed FIFO;
+            // the existing semantic handler must consume and fail closed.
+            typedWire.write(
+                new byte[]{
+                    0,0,
+                    0,(byte)128,
+                    (byte)128,0,
+                    0,0,
+                    0,0,
+                    0,0
+                }
+            );
+
+            typedWire.write(
                 (132+typedEncoder.nextInt())&255
             );
             // worldX=0 LE-A, non-bank object=12345 BE,
@@ -650,6 +667,11 @@ public final class LocalPendingRequestDispatcherTest {
 
             if(!probe.readNextKnownPacket())
                 throw new AssertionError(
+                    "typed item-on-item fixture decode failed"
+                );
+
+            if(!probe.readNextKnownPacket())
+                throw new AssertionError(
                     "typed object interaction fixture decode failed"
                 );
 
@@ -746,7 +768,8 @@ public final class LocalPendingRequestDispatcherTest {
             System.out.println(
                 "LOCAL_PENDING_REQUEST_DISPATCHER_PASS "+
                 "widgetConsumed=true dropConsumed=true "+
-                "itemOnNpcConsumed=true objectInteractionConsumed=true "+
+                "itemOnNpcConsumed=true itemOnItemConsumed=true "+
+                "objectInteractionConsumed=true "+
                 "playerActionConsumed=true npcActionConsumed=true "+
                 "spellTargetConsumed=true genericInteractionConsumed=true "+
                 "itemActionConsumed=true groundItemConsumed=true "+
