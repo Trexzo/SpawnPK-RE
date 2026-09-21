@@ -107,7 +107,6 @@ public final class MakeoverMageFlowTest {
         LocalMakeoverMageHandler.Result result=
             handler.handleDesign(
                 request,
-                "makeovertest",
                 packets,
                 "[makeover-flow-test] "
             );
@@ -168,7 +167,7 @@ public final class MakeoverMageFlowTest {
             );
 
         System.out.println(
-            "MAKEOVER_MAGE_FLOW_PASS npc=599 route=TALK roots=4882->2459->3559 c2s101=true keyboardContinue4907=true gender=FEMALE femaleJaw=-1 packet81Refresh=true wireBytes="+
+            "MAKEOVER_MAGE_FLOW_PASS npc=599 route=TALK roots=4882->2459->3559 c2s101=true keyboardContinue4907=true gender=FEMALE femaleJaw=-1 appearanceStateApplied=true wireBytes="+
             wire.size()
         );
     }
