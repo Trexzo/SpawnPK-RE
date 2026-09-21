@@ -176,6 +176,8 @@ public final class LocalSessionRuntimeBindingsOwnershipFenceTest {
                                 ()->{
                                     actionEntered.countDown();
 
+                                    boolean interrupted=false;
+
                                     for(;;){
                                         try{
                                             releaseAction.await();
@@ -183,10 +185,13 @@ public final class LocalSessionRuntimeBindingsOwnershipFenceTest {
                                         }catch(
                                             InterruptedException ignored
                                         ){
-                                            Thread.currentThread()
-                                                .interrupt();
+                                            interrupted=true;
                                         }
                                     }
+
+                                    if(interrupted)
+                                        Thread.currentThread()
+                                            .interrupt();
                                 }
                             );
                         }catch(Throwable error){
