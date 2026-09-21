@@ -1,0 +1,61 @@
+Exact v308 World Tournament / Leaderboards transport notes
+
+Authority:
+SHA-256 854f26ff9f134b0317572e7ac1688e6f40a231d5a4c66f8db5d655b7f45ce7c6
+
+Classes:
+rs.n.c.aX
+rs.n.c.aW
+rs.n.e
+rs.Client
+rs.x.e
+
+Root correction:
+rs.n.c.aX.a():
+  d(27400)
+  children are primarily 56000+
+
+rs.n.c.aW.a():
+  d(61011)
+
+Hub action widgets:
+56044 tooltip "Enter tournament"
+56049 tooltip "Spectate tournament"
+56053 tooltip "View tournament shop"
+
+rs.n.e actionable sprite helper:
+  widget.aI = 5
+  widget.M = 1
+  widget.Q = tooltip
+
+Leaderboard filter widgets:
+61016 "This week" / "View weekly leaderboard"
+61017 "All time" / "View all time leaderboard"
+61020 "This week" / "View weekly leaderboard"
+61021 "All time" / "View all time leaderboard"
+
+rs.n.e actionable text helper:
+  widget.aI = 4
+  widget.M = 1
+  widget.Q = tooltip
+
+rs.Client menu builder:
+  action-enabled widget -> menu action 315
+
+rs.Client action 315:
+  fv.a(185)
+  fv.d(widgetId)
+
+rs.x.e.d(int):
+  byte 0 = value >> 8
+  byte 1 = value
+  => u16 big-endian
+
+Vectors:
+56044 -> DA EC
+56049 -> DA F1
+56053 -> DA F5
+61016 -> EE 58
+61017 -> EE 59
+61020 -> EE 5C
+61021 -> EE 5D
