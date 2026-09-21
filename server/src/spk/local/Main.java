@@ -53,11 +53,68 @@ public final class Main {
         System.out.println("ITEMS : "+ItemDefinitionRepository.count()+" current client-known ids; ::item / ::tabitem <id> [amount]");
         System.out.println("SPAWN : packet71 shortcut 0 -> native root 67027 on sidebar tab "+BootstrapPackets.SPAWN_TAB_INDEX);
 
-        pool.execute(() -> localAux(aux));
-        while (true) {
-            Socket s = game.accept();
-            if (!s.getInetAddress().isLoopbackAddress()) { s.close(); continue; }
-            pool.execute(new LocalSession(s, bootstrapFinal, movementFinal, world));
+        LocalServerShutdownCoordinator shutdown =
+            new LocalServerShutdownCoordinator(
+                world,
+                pool,
+                game,
+                aux
+            );
+
+        Thread shutdownHook =
+            new Thread(
+                shutdown::close,
+                "spk-local-shutdown"
+            );
+
+        Runtime runtime =
+            Runtime.getRuntime();
+
+        runtime.addShutdownHook(
+            shutdownHook
+        );
+
+        try {
+            if (!shutdown.submitAuxiliary(
+                    () -> localAux(aux)))
+                return;
+
+            while (!shutdown.closing()) {
+                Socket s;
+
+                try {
+                    s = game.accept();
+                } catch (SocketException error) {
+                    if (shutdown.closing())
+                        break;
+                    throw error;
+                }
+
+                if (!s.getInetAddress().isLoopbackAddress()) {
+                    s.close();
+                    continue;
+                }
+
+                if (!shutdown.submitSession(
+                        s,
+                        new LocalSession(
+                            s,
+                            bootstrapFinal,
+                            movementFinal,
+                            world
+                        )))
+                    break;
+            }
+        } finally {
+            shutdown.close();
+
+            try {
+                runtime.removeShutdownHook(
+                    shutdownHook
+                );
+            } catch (IllegalStateException ignored) {
+                // JVM shutdown is already in progress; the hook owns cleanup.
+            }
         }
     }
 
