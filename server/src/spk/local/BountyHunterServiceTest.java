@@ -8,23 +8,34 @@ import java.util.Set;
 /** Deterministic regression for Issue #172 semantic Bounty Hunter lifecycle. */
 public final class BountyHunterServiceTest {
     public static void main(String[] args) {
-        final Set<BountyHunterService.ObjectiveReference> known =
-            new HashSet<BountyHunterService.ObjectiveReference>();
-        final Set<BountyHunterService.ObjectiveReference> complete =
-            new HashSet<BountyHunterService.ObjectiveReference>();
+        final Set<String> known =
+            new HashSet<String>();
+        final Set<String> complete =
+            new HashSet<String>();
 
         BountyObjectivePort objectivePort = new BountyObjectivePort() {
-            @Override public boolean exists(BountyHunterService.ObjectiveReference objective) {
-                return known.contains(objective);
+            @Override public boolean exists(
+                BountyHunterService.PlayerId hunter,
+                BountyHunterService.ObjectiveReference objective
+            ) {
+                return known.contains(
+                    objectiveKey(hunter, objective)
+                );
             }
 
-            @Override public boolean isComplete(BountyHunterService.ObjectiveReference objective) {
-                return complete.contains(objective);
+            @Override public boolean isComplete(
+                BountyHunterService.PlayerId hunter,
+                BountyHunterService.ObjectiveReference objective
+            ) {
+                return complete.contains(
+                    objectiveKey(hunter, objective)
+                );
             }
         };
 
         BountyHunterService service = new BountyHunterService(objectivePort);
         BountyHunterService.PlayerId hunter = new BountyHunterService.PlayerId("hunter");
+        BountyHunterService.PlayerId hunter2 = new BountyHunterService.PlayerId("hunter-2");
         BountyHunterService.PlayerId target = new BountyHunterService.PlayerId("target");
         BountyHunterService.PlayerId candidate2 = new BountyHunterService.PlayerId("candidate-2");
         final BountyHunterService.PlayerId outsider = new BountyHunterService.PlayerId("outsider");
@@ -162,7 +173,8 @@ public final class BountyHunterServiceTest {
 
         BountyHunterService.ObjectiveReference objective =
             new BountyHunterService.ObjectiveReference("objective:bounty:test");
-        known.add(objective);
+        known.add(objectiveKey(hunter, objective));
+        known.add(objectiveKey(hunter2, objective));
 
         BountyHunterService.TaskSnapshot task = service.assignTask(
             new BountyHunterService.TaskId("task-1"),
@@ -170,11 +182,24 @@ public final class BountyHunterServiceTest {
             objective,
             60L
         );
-        require(task.state() == BountyHunterService.TaskState.ACTIVE, "task active");
-        require(service.refreshTask(task.id(), 61L).state() == BountyHunterService.TaskState.ACTIVE, "progress external");
+        BountyHunterService.TaskSnapshot taskHunter2 = service.assignTask(
+            new BountyHunterService.TaskId("task-1-hunter-2"),
+            hunter2,
+            objective,
+            60L
+        );
 
-        complete.add(objective);
+        require(task.state() == BountyHunterService.TaskState.ACTIVE, "task active");
+        require(taskHunter2.state() == BountyHunterService.TaskState.ACTIVE, "second hunter task active");
+        require(service.refreshTask(task.id(), 61L).state() == BountyHunterService.TaskState.ACTIVE, "progress external");
+        require(service.refreshTask(taskHunter2.id(), 61L).state() == BountyHunterService.TaskState.ACTIVE, "second hunter progress external");
+
+        complete.add(objectiveKey(hunter, objective));
         require(service.refreshTask(task.id(), 62L).state() == BountyHunterService.TaskState.COMPLETED, "objective completion reference");
+        require(service.refreshTask(taskHunter2.id(), 62L).state() == BountyHunterService.TaskState.ACTIVE, "hunter objective completion leaked across owners");
+
+        complete.add(objectiveKey(hunter2, objective));
+        require(service.refreshTask(taskHunter2.id(), 63L).state() == BountyHunterService.TaskState.COMPLETED, "second hunter own completion");
 
         BountyHunterService.TaskSnapshot skipTask = service.assignTask(
             new BountyHunterService.TaskId("task-2"),
@@ -219,9 +244,16 @@ public final class BountyHunterServiceTest {
         System.out.println(
             "ISSUE172_BOUNTY_HUNTER_PASS semanticPlayers=true externalMatcher=true matcherCandidateBoundary=true oneOpenAssignment=true " +
             "assignmentLifecycle=true deadlineHook=true targetUnavailable=true terminalIdempotent=true " +
-            "objectiveReferencePort=true duplicateProgress=false taskSkip=true statsSeparate=true " +
+            "objectiveReferencePort=true hunterScopedObjectives=true duplicateProgress=false taskSkip=true statsSeparate=true " +
             "streakFormulaInvented=false rewardGrant=false teleportMutation=false protocolIndependent=true"
         );
+    }
+
+    private static String objectiveKey(
+        BountyHunterService.PlayerId hunter,
+        BountyHunterService.ObjectiveReference objective
+    ) {
+        return hunter.value() + "|" + objective.value();
     }
 
     private static void assertProtocolIndependent(Class<?>... roots) {
