@@ -1,5 +1,7 @@
 package spk.event;
 
+import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -110,6 +112,7 @@ public final class DomainEventBusTest {
         if (removable.unsubscribe()) {
             throw new AssertionError("unsubscribe was not idempotent");
         }
+        assertHandleDetached(removable);
         bus.publish(new TestEvent());
         if (removableHits.get() != 0) {
             throw new AssertionError(
@@ -180,6 +183,8 @@ public final class DomainEventBusTest {
                 "closed subscription unsubscribe was not idempotent"
             );
         }
+        assertHandleDetached(closesBus);
+        assertHandleDetached(skippedAfterClose);
 
         terminalBus.close();
 
@@ -222,9 +227,39 @@ public final class DomainEventBusTest {
         System.out.println(
             "DOMAIN_EVENT_BUS_PASS priority=true cancellation=true " +
             "removable=true worldContextGuard=true terminalClose=true " +
-            "closeDuringPublish=true listeners=" +
+            "closeDuringPublish=true detachedHandles=true listeners=" +
             bus.listenerCount()
         );
+    }
+
+    private static void assertHandleDetached(
+        DomainEventBus.Subscription subscription
+    ) throws Exception {
+        for (Field field : subscription.getClass().getDeclaredFields()) {
+            if (Modifier.isStatic(field.getModifiers())) {
+                continue;
+            }
+
+            field.setAccessible(true);
+            Object value = field.get(subscription);
+
+            if (
+                value instanceof DomainEventBus ||
+                (
+                    value != null &&
+                    value.getClass().getName().contains(
+                        "DomainEventBus$Binding"
+                    )
+                )
+            ) {
+                throw new AssertionError(
+                    "inactive subscription retained event bus state field=" +
+                    field.getName() +
+                    " valueType=" +
+                    value.getClass().getName()
+                );
+            }
+        }
     }
 
     private static void assertTrace(
