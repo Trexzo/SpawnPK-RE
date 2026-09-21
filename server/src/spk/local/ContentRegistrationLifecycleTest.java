@@ -1,6 +1,7 @@
 package spk.local;
 
 import java.io.ByteArrayOutputStream;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 import spk.content.api.*;
 
@@ -59,6 +60,76 @@ public final class ContentRegistrationLifecycleTest {
                 registry,
                 "lateaftercommit"
             );
+
+            AtomicReference<ContentRegistration>
+                concurrentHandle=
+                    new AtomicReference<>();
+            AtomicReference<Throwable>
+                concurrentFailure=
+                    new AtomicReference<>();
+            CountDownLatch concurrentRegistrarHeld=
+                new CountDownLatch(1);
+            CountDownLatch concurrentRegisterAllowed=
+                new CountDownLatch(1);
+
+            registry.installCustom(
+                module(
+                    "lifecycle-concurrent-seal",
+                    registrar->{
+                        Thread worker=
+                            new Thread(
+                                ()->{
+                                    synchronized(registrar){
+                                        concurrentRegistrarHeld
+                                            .countDown();
+                                        await(
+                                            concurrentRegisterAllowed
+                                        );
+
+                                        try{
+                                            concurrentHandle.set(
+                                                registrar.command(
+                                                    "concurrentseal",
+                                                    1,
+                                                    context->
+                                                        ContentResult.handled(
+                                                            "CONCURRENT_SEAL",
+                                                            null
+                                                        )
+                                                )
+                                            );
+                                        }catch(Throwable failure){
+                                            concurrentFailure.set(
+                                                failure
+                                            );
+                                        }
+                                    }
+                                },
+                                "content-registrar-seal-test"
+                            );
+
+                        worker.start();
+                        await(
+                            concurrentRegistrarHeld
+                        );
+                        concurrentRegisterAllowed
+                            .countDown();
+                    }
+                )
+            );
+
+            if(concurrentFailure.get()!=null||
+               concurrentHandle.get()==null||
+               !concurrentHandle.get().active()||
+               registry.commandBinding(
+                   "concurrentseal"
+               )==null)
+                throw new AssertionError(
+                    "in-flight registrar mutation lost at seal boundary failure="+
+                    concurrentFailure.get()+
+                    " handle="+
+                    concurrentHandle.get()
+                );
 
             registry.installCustom(
                 module(
@@ -415,6 +486,7 @@ public final class ContentRegistrationLifecycleTest {
                 "failedInstallLeak=false "+
                 "pendingCancellation=true "+
                 "registrarSealed=true "+
+                "concurrentSealStable=true "+
                 "failedRegistrarSealed=true"
             );
         }finally{
@@ -472,6 +544,25 @@ public final class ContentRegistrationLifecycleTest {
             object.get(),
             npc.get()
         );
+    }
+
+    private static void await(
+        CountDownLatch latch
+    ){
+        boolean interrupted=false;
+
+        for(;;){
+            try{
+                latch.await();
+                break;
+            }catch(InterruptedException error){
+                interrupted=true;
+            }
+        }
+
+        if(interrupted)
+            Thread.currentThread()
+                .interrupt();
     }
 
     private static void assertLateRegistrarRejected(
