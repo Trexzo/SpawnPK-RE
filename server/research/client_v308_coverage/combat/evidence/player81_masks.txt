@@ -1,0 +1,66 @@
+Exact-current client SHA-256:
+854f26ff9f134b0317572e7ac1688e6f40a231d5a4c66f8db5d655b7f45ce7c6
+
+PLAYER PACKET-81 MASK EXTENSION
+
+rs.Client.a(rs.x.e):
+  low = rs.x.e.y()
+  if ((low & 0x40) != 0)
+      mask = low + (rs.x.e.y() << 8)
+
+0x40 in the low byte is therefore the exact extension sentinel.
+
+PLAYER MASKS FROM rs.Client.a(int,int,rs.x.e,rs.a.k)
+
+0x400 force movement
+  P(), P(), P(), P(), U()+cycle, T()+cycle, P()
+
+0x100 GFX
+  actor.z = S()
+  packed  = D()
+  actor.D = packed >> 16
+  actor.C = cycle + (packed & 0xffff)
+  65535 gfx id -> -1
+
+0x008 animation
+  id   = S(); 65535 -> -1
+  arg1 = O()
+  arg2 = O()
+
+0x004 forced chat
+  text = F()
+
+0x080 public chat
+  S(), B(), O(), then chat payload handling
+
+0x001 interaction
+  actor.m = S()
+  65535 -> -1
+
+0x010 appearance
+  length = O()
+  bytes[length]
+  actor.a(new rs.x.e(bytes))
+
+0x002 turn/presentation
+  actor.Q = U()
+  actor.R = S()
+
+0x020 hits/status
+  count = y()
+  repeat count:
+      A = o()   // reader overload: unsigned BE16
+      B = y()
+      C = y()
+      actor.a(B,A,clientCycle,C)
+  actor.L = clientCycle + 300
+  actor.M = o()
+  actor.N = o()
+
+READER TRANSFORMS
+
+S() = unsigned LE16
+D() = ordinary BE32
+O() = (-wireByte) & 255
+P() = (128-wireByte) & 255
+o() reader overload = ordinary unsigned BE16
