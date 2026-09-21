@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="360" viewBox="0 0 1200 360" role="img" aria-labelledby="title desc">
+  <title id="title">SpawnPK LocalLab workbench banner</title>
+  <desc id="desc">Dark terminal-inspired SpawnPK LocalLab research workbench banner with status chips.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0b1020"/>
+      <stop offset="0.55" stop-color="#121b2d"/>
+      <stop offset="1" stop-color="#090d16"/>
+    </linearGradient>
+    <linearGradient id="ice" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#54e7ff"/>
+      <stop offset="1" stop-color="#8b5cf6"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1200" height="360" rx="28" fill="url(#bg)"/>
+  <rect x="28" y="28" width="1144" height="304" rx="20" fill="none" stroke="#24304a" stroke-width="2"/>
+
+  <circle cx="72" cy="66" r="7" fill="#ff5f57"/>
+  <circle cx="96" cy="66" r="7" fill="#febc2e"/>
+  <circle cx="120" cy="66" r="7" fill="#28c840"/>
+  <text x="150" y="73" font-family="Consolas, 'Courier New', monospace" font-size="18" fill="#64748b">locallab://workbench</text>
+
+  <text x="72" y="156" font-family="Arial, Helvetica, sans-serif" font-weight="800" font-size="64" fill="#f8fafc">SpawnPK LocalLab</text>
+  <rect x="72" y="176" width="420" height="6" rx="3" fill="url(#ice)"/>
+  <text x="72" y="220" font-family="Consolas, 'Courier New', monospace" font-size="24" fill="#94a3b8">LOCAL RECONSTRUCTION // RESEARCH WORKBENCH</text>
+
+  <g font-family="Consolas, 'Courier New', monospace" font-size="17" font-weight="700">
+    <rect x="72" y="258" width="184" height="42" rx="12" fill="#102b2a" stroke="#1e6f68"/>
+    <text x="94" y="285" fill="#5eead4">CUSTOM_LOCALLAB</text>
+
+    <rect x="274" y="258" width="150" height="42" rx="12" fill="#12233d" stroke="#245b94"/>
+    <text x="298" y="285" fill="#7dd3fc">R8.5 BASELINE</text>
+
+    <rect x="442" y="258" width="130" height="42" rx="12" fill="#2a1a3f" stroke="#6d3ea8"/>
+    <text x="465" y="285" fill="#d8b4fe">179 / 179</text>
+
+    <rect x="590" y="258" width="205" height="42" rx="12" fill="#352312" stroke="#8a5b24"/>
+    <text x="614" y="285" fill="#fcd34d">PACKET GREMLINS</text>
+
+    <rect x="813" y="258" width="205" height="42" rx="12" fill="#261a2f" stroke="#75418a"/>
+    <text x="836" y="285" fill="#f0abfc">BING QILING READY</text>
+  </g>
+
+  <g transform="translate(1015 92)">
+    <path d="M0 90 L54 208 L108 90 Z" fill="#b7773c" stroke="#e0a66b" stroke-width="4"/>
+    <path d="M18 90 C8 65 30 48 52 58 C56 30 91 27 100 55 C126 54 134 88 112 102 L8 102 C-10 98 -8 80 18 90 Z"
+          fill="#dff8ff" stroke="#7dd3fc" stroke-width="4"/>
+    <circle cx="42" cy="80" r="5" fill="#111827"/>
+    <circle cx="74" cy="80" r="5" fill="#111827"/>
+    <path d="M48 90 Q58 100 68 90" fill="none" stroke="#111827" stroke-width="4" stroke-linecap="round"/>
+  </g>
+</svg>
