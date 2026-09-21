@@ -113,6 +113,36 @@ final class World implements AutoCloseable {
     ContentRegistry content(){return content;}
     Object loginInitializationLock(){return loginInitializationLock;}
 
+    interface OwnedPlayerIoAction {
+        void run() throws java.io.IOException;
+    }
+
+    void withOpenPlayerOwnership(
+        WorldPlayer player,
+        long expectedGeneration,
+        OwnedPlayerIoAction action
+    )throws java.io.IOException{
+        if(player==null||action==null)
+            throw new NullPointerException();
+
+        synchronized(lifecycleLock){
+            requireOpen();
+
+            synchronized(player.mutationLock()){
+                if(!players.owns(
+                        player,
+                        expectedGeneration
+                    ))
+                    throw new IllegalStateException(
+                        "player owner not registered in world: "+
+                        player.id()
+                    );
+
+                action.run();
+            }
+        }
+    }
+
     void start(){
         synchronized(lifecycleLock){
             requireOpen();
