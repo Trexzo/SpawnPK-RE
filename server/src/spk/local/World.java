@@ -29,6 +29,7 @@ final class World implements AutoCloseable {
     private final ContentRegistry content;
     private final Object loginInitializationLock=new Object();
     private final Object lifecycleLock=new Object();
+    private final CountDownLatch closeCompleted=new CountDownLatch(1);
     private volatile boolean closed;
 
     private World(long tickMillis){
@@ -214,17 +215,45 @@ final class World implements AutoCloseable {
     }
 
     @Override public void close(){
-        synchronized(lifecycleLock){
-            if(closed)
-                return;
+        boolean owner=false;
 
-            closed=true;
-            pulse.close();
+        synchronized(lifecycleLock){
+            if(!closed){
+                closed=true;
+                owner=true;
+            }
         }
 
-        commands.close();
-        realtime.close();
-        events.close();
-        persistence.close();
+        if(!owner){
+            awaitCloseCompleted();
+            return;
+        }
+
+        try{
+            pulse.close();
+            commands.close();
+            realtime.close();
+            events.close();
+            persistence.close();
+        }finally{
+            closeCompleted.countDown();
+        }
+    }
+
+    private void awaitCloseCompleted(){
+        boolean interrupted=false;
+
+        for(;;){
+            try{
+                closeCompleted.await();
+                break;
+            }catch(InterruptedException error){
+                interrupted=true;
+            }
+        }
+
+        if(interrupted)
+            Thread.currentThread()
+                .interrupt();
     }
 }
