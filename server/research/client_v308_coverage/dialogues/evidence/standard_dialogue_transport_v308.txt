@@ -1,0 +1,195 @@
+Exact-current SpawnPK client v308
+SHA-256 854f26ff9f134b0317572e7ac1688e6f40a231d5a4c66f8db5d655b7f45ce7c6
+Main-Class rs.gui.Launcher
+
+STATIC TARGETS
+- rs.Client menu builder and menu dispatcher
+- rs.Client.keyPressed(java.awt.event.KeyEvent)
+- rs.Client outbound command drain
+- rs.x.e
+- rs.n.c.A
+
+1. GENERIC CONTINUE WIDGET PATH
+
+Exact rs.Client menu construction:
+
+if widget.M == 6 and click is inside widget bounds:
+    menu action = 679
+    menu parameter eG = widget.aw
+
+Exact menu dispatch:
+
+if menuAction == 679 and !eZ:
+    write opcode 40
+    write widget id with rs.x.e.d(int)
+    eZ = true
+
+rs.x.e.d(int) is unsigned big-endian 16-bit serialization:
+
+    byte0 = value >> 8
+    byte1 = value
+
+Therefore:
+
+    action-6 Continue widget
+        -> menu action 679
+        -> C2S40(widgetId:u16_be)
+
+2. GENERIC ORDINARY BUTTON / OPTION PATH
+
+Exact rs.Client menu construction:
+
+if widget.M == 1 and local controller gating accepts it:
+    menu action = 315
+    menu parameter eG = widget.aw
+
+Exact menu dispatch action 315 eventually writes:
+
+    opcode 185
+    widget id via rs.x.e.d(int)
+
+Therefore:
+
+    ordinary action-1 widget
+        -> menu action 315
+        -> C2S185(widgetId:u16_be)
+
+This is the exact generic button transport used by many client interfaces.
+The semantic meaning of a widget still comes from its interface/controller
+context; C2S185 itself is not intrinsically a dialogue-option packet.
+
+3. STANDARD OPTION ROOT HOTKEY SET
+
+Exact rs.Client static array jy:
+
+    2459
+    2469
+    2480
+    2492
+    14170
+
+Exact rs.Client.keyPressed behavior:
+
+if current chatbox/root field gp equals one of jy[]:
+    top-row key codes 49..53 (1..5):
+        ap = "::dialogueoption " + (keyCode - 48)
+
+    numpad key codes 97..101 (NUMPAD1..NUMPAD5):
+        ap = "::dialogueoption " + (keyCode - 96)
+
+The normal outbound command drain later sees ap != null and writes:
+
+    C2S103
+    var-byte payload length = ap.length() - 1
+    payload string = ap.substring(2)
+    rs.x.e.a(String) appends newline byte 10
+
+So exact keyboard option selection is:
+
+    key 1..5 / numpad 1..5
+        -> C2S103
+        -> "dialogueoption N\n"
+
+It does NOT synthesize C2S185 and does not need to know the individual option
+widget id.
+
+4. STANDARD CONTINUE ROOT HOTKEY SET
+
+Exact rs.Client static array jz:
+
+    4882
+    4887
+    4893
+    4900
+    30700
+
+Exact rs.Client.keyPressed behavior:
+
+if keyCode == 32 (Space)
+and current root gp equals one of jz[]:
+    write opcode 40
+    write widget id 4907 with rs.x.e.d(int)
+    eZ = true
+
+Therefore the keyboard Continue path is exactly:
+
+    Space on one of jz roots
+        -> C2S40
+        -> widgetId 4907
+
+This is distinct from mouse Continue, where action 679 sends the clicked
+action-6 widget's own widget id.
+
+5. OPTION / DIALOGUE ROOT CONTROLLER EVIDENCE
+
+Exact rs.n.c.A constructor tracks:
+
+    6179
+    2459
+    2469
+    2480
+    2492
+
+Its j() helper appends the client's Close window / Cancel control to these
+roots.
+
+Exact rs.Client hotkey set jy[] includes:
+    2459, 2469, 2480, 2492, 14170
+
+Exact rs.n.c.A also directly manages root 14170 and visible text:
+    "Please confirm your choice."
+
+So 14170 belongs to the client's selection/confirmation UI family, although its
+exact production server meaning remains contextual.
+
+6. KNOWN EXACT MAKE-OVER INSTANCE
+
+Existing exact-current Make-over evidence already identifies:
+    root 2459
+    option widgets 2461 / 2462
+    root 4882
+    Continue widget 4886
+
+That concrete flow is one exact instance of the generic routes above:
+    mouse Continue 4886 -> C2S40(4886)
+    ordinary option widget -> generic C2S185(widgetId)
+    keyboard option -> C2S103("dialogueoption N")
+    keyboard Continue on root 4882 -> C2S40(4907)
+
+7. SERVER-AUTHORITY BOUNDARY
+
+The client proves:
+- transport;
+- root families;
+- local hotkey behavior;
+- generic widget action classes.
+
+It does NOT prove:
+- which dialogue node the original server is in;
+- which option text maps to which gameplay result;
+- permission/fee/reward/state-transition rules;
+- whether original server treated keyboard widget id 4907 specially or simply
+  as a generic Continue signal.
+
+Those remain server/content authority.
+
+8. IMPORTANT IMPLEMENTATION CONSEQUENCE
+
+A semantic dialogue layer should normalize at least three client input forms:
+
+    DialogueContinue(widgetId)
+      from C2S40 mouse action-6 Continue
+
+    DialogueContinue(4907)
+      from exact Space hotkey
+
+    DialogueOption(index)
+      from C2S103 "dialogueoption N"
+
+and, where a concrete option widget is proven:
+
+    DialogueOption/WidgetAction(widgetId)
+      from C2S185 ordinary action-1 widget
+
+Raw opcode/widget identity should remain transport/presentation evidence rather
+than become public gameplay API identity.
