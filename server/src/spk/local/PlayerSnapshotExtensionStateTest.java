@@ -168,6 +168,119 @@ public final class PlayerSnapshotExtensionStateTest {
             "recapture retained ordinary unknown key"
         );
 
+        SortedMap<String,String> socialNamespace=
+            live.snapshotExtensions()
+                .namespace("social");
+
+        require(
+            socialNamespace.size()==2&&
+            "1".equals(
+                socialNamespace.get("version")
+            )&&
+            "alice,bob".equals(
+                socialNamespace.get("friends")
+            ),
+            "social namespace projection incorrect"
+        );
+
+        TreeMap<String,String> replacementSocial=
+            new TreeMap<>();
+        replacementSocial.put(
+            "version",
+            "2"
+        );
+        replacementSocial.put(
+            "friends",
+            "charlie"
+        );
+
+        live.snapshotExtensions()
+            .replaceNamespace(
+                "social",
+                replacementSocial
+            );
+
+        SortedMap<String,String> afterSocialReplace=
+            live.snapshotExtensions()
+                .snapshot();
+
+        require(
+            "2".equals(
+                afterSocialReplace.get(
+                    "extension.social.version"
+                )
+            )&&
+            "charlie".equals(
+                afterSocialReplace.get(
+                    "extension.social.friends"
+                )
+            ),
+            "social namespace replacement failed"
+        );
+        require(
+            "room-3".equals(
+                afterSocialReplace.get(
+                    "extension.raid.progress"
+                )
+            ),
+            "social namespace replacement clobbered raid namespace"
+        );
+
+        SortedMap<String,String> beforeBadNamespaceReplace=
+            live.snapshotExtensions()
+                .snapshot();
+
+        TreeMap<String,String> badNamespaceValues=
+            new TreeMap<>();
+        badNamespaceValues.put(
+            "bad..key",
+            "x"
+        );
+
+        boolean namespaceReplaceRejected=false;
+
+        try{
+            live.snapshotExtensions()
+                .replaceNamespace(
+                    "social",
+                    badNamespaceValues
+                );
+        }catch(
+            IllegalArgumentException expected
+        ){
+            namespaceReplaceRejected=true;
+        }
+
+        require(
+            namespaceReplaceRejected,
+            "malformed namespace replacement accepted"
+        );
+        require(
+            beforeBadNamespaceReplace.equals(
+                live.snapshotExtensions()
+                    .snapshot()
+            ),
+            "failed namespace replacement mutated other state"
+        );
+
+        boolean namespaceImmutable=false;
+
+        try{
+            socialNamespace.put(
+                "late",
+                "mutation"
+            );
+        }catch(
+            UnsupportedOperationException expected
+        ){
+            namespaceImmutable=true;
+        }
+
+        require(
+            namespaceImmutable,
+            "namespace projection mutable"
+        );
+
         boolean immutable=false;
 
         try{
@@ -334,6 +447,8 @@ public final class PlayerSnapshotExtensionStateTest {
             "liveApplyPreserves=true "+
             "recapturePreserves=true "+
             "accountLifecyclePreserves=true "+
+            "namespaceIsolation=true "+
+            "namespaceFailureAtomic=true "+
             "unknownNotPromoted=true "+
             "immutable=true "+
             "replacementFailureAtomic=true "+
