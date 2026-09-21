@@ -25,6 +25,11 @@ public final class AccountPersistenceTest {
 
             PlayerState player=new PlayerState();
             if(!player.setCompSelectors(new int[]{1,2,3,4,5,6})) throw new AssertionError("comp selector setup");
+            if(!player.setCharacterAppearance(
+                    CharacterDesignProfile.FEMALE,
+                    new int[]{45,-1,56,61,67,70,79},
+                    new int[]{11,15,14,5,23}))
+                throw new AssertionError("character design setup");
             String saved=AccountStore.save(bank,equipment,movement,new PetState(),player);
             if(!Files.isRegularFile(file))throw new AssertionError("account file missing");
 
@@ -41,7 +46,10 @@ public final class AccountPersistenceTest {
             if(bank2.bankSlots()!=bank.bankSlots())throw new AssertionError("bank slots not persisted");
             if(player2.currentLevel(PlayerState.HITPOINTS)!=99 || player2.currentLevel(PlayerState.PRAYER)!=99) throw new AssertionError("player vitals not persisted");
             if(!java.util.Arrays.equals(player2.compSelectors(),new int[]{1,2,3,4,5,6})) throw new AssertionError("comp selectors not persisted");
-            System.out.println("V54_ACCOUNT_PERSISTENCE_PASS username=opensrc equipment=true inventory=true bank=true runToggle=true runEnergy=73 hp99=true prayer99=true compSelectors=true fileAtomic=true saved="+saved+" loaded="+loaded);
+            if(player2.characterGender()!=CharacterDesignProfile.FEMALE) throw new AssertionError("character gender not persisted");
+            if(!java.util.Arrays.equals(player2.characterKits(),new int[]{45,-1,56,61,67,70,79})) throw new AssertionError("character kits not persisted");
+            if(!java.util.Arrays.equals(player2.characterColours(),new int[]{11,15,14,5,23})) throw new AssertionError("character colours not persisted");
+            System.out.println("V54_ACCOUNT_PERSISTENCE_PASS username=opensrc equipment=true inventory=true bank=true runToggle=true runEnergy=73 hp99=true prayer99=true compSelectors=true characterDesign=true fileAtomic=true saved="+saved+" loaded="+loaded);
         } finally {
             System.clearProperty("spk.local.accountFile");
             try { Files.walk(dir).sorted(java.util.Comparator.reverseOrder()).forEach(x->{try{Files.deleteIfExists(x);}catch(IOException ignored){}}); } catch(IOException ignored){}
