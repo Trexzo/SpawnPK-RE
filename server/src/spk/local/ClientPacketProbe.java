@@ -52,6 +52,8 @@ final class ClientPacketProbe {
     private SpellTargetRequest pendingSpellTarget;
     private GroundItemInteraction pendingGroundItemInteraction;
     private ItemOnNpcAction pendingItemOnNpc;
+    private Integer pendingDialogueContinue;
+    private CharacterDesignRequest pendingCharacterDesign;
     private boolean pendingInterfaceClose;
 
     ClientPacketProbe(InputStream in, IsaacCipher cipher, String tag) {
@@ -147,6 +149,18 @@ final class ClientPacketProbe {
         return v;
     }
 
+    Integer takeDialogueContinue(){
+        Integer v=pendingDialogueContinue;
+        pendingDialogueContinue=null;
+        return v;
+    }
+
+    CharacterDesignRequest takeCharacterDesign(){
+        CharacterDesignRequest v=pendingCharacterDesign;
+        pendingCharacterDesign=null;
+        return v;
+    }
+
     boolean takeInterfaceClose() {
         boolean v = pendingInterfaceClose;
         pendingInterfaceClose = false;
@@ -226,6 +240,35 @@ final class ClientPacketProbe {
                 pendingWidgetAction = widget;
                 System.out.printf("%sCLIENT_PACKET seq=%d opcode=185 len=2 widget=%d schema=STATIC_EXACT_ALL_CALLSITES%n",
                                   tag, decodedCount, widget);
+                return true;
+            }
+
+
+            case 40: {
+                // Exact-current menu action 679: C2S40(widgetId u16_be).
+                byte[] body=Binary.readExactly(in,2);
+                int widget=Binary.u16(body,0);
+                pendingDialogueContinue=widget;
+                System.out.printf(
+                    "%sCLIENT_PACKET seq=%d opcode=40 len=2 dialogueContinue=true widget=%d schema=EXACT_CURRENT_CLIENT_U16_BE%n",
+                    tag,decodedCount,widget
+                );
+                return true;
+            }
+
+            case 101: {
+                // Exact-current widget content-type 326: gender + 7 identity kits + 5 colours.
+                byte[] body=Binary.readExactly(
+                    in,
+                    CharacterDesignRequest.WIRE_LENGTH
+                );
+                CharacterDesignRequest request=
+                    CharacterDesignRequest.decode(body);
+                pendingCharacterDesign=request;
+                System.out.printf(
+                    "%sCLIENT_PACKET seq=%d opcode=101 len=13 characterDesign=true request=%s schema=EXACT_CURRENT_CLIENT_FIXED13%n",
+                    tag,decodedCount,request
+                );
                 return true;
             }
 
