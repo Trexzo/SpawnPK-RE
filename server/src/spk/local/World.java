@@ -222,6 +222,7 @@ final class World implements AutoCloseable {
             pulse.close();
         }
 
+        npcPresentationEvents.close();
         commands.close();
         realtime.close();
         events.close();
