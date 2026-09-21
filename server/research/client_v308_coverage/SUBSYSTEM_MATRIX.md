@@ -5,7 +5,7 @@ authority would unblock Chat 2/3 without inventing server mechanics.
 
 | Priority | Subsystem | Current evidence | Status | Main unknown / next proof | Consumer |
 |---|---|---|---|---|---|
-| P0 | C2S/S2C packet writer/reader census | exact v308 C2S census: 188 writer sites / 86 opcodes / 86 framed; 51 semantically decoded in main, 7 control/telemetry, 6 exact-research semantics not yet current-main, 22 residual framing-only | STRONG-PARTIAL | C2S framing is closed; classify the 22 residual writer families, then continue S2C reader census | Chat 2 |
+| P0 | C2S/S2C packet writer/reader census | exact v308 C2S census: 188 writer sites / 86 opcodes / 86 framed; 51 semantically decoded in main, 20 control/telemetry, 11 exact-research semantics not yet current-main, 4 serializer-only semantic unknowns | STRONG-PARTIAL | C2S framing is closed; in-JAR C2S classification closed; keep serializer-only 2/6/78/109 explicit unknowns, then continue S2C reader census | Chat 2 |
 | P0 | Combat-facing client contracts | exact 854f attack writers, packet-81 player masks, packet-65 NPC masks, combat-interface roots/style labels | STRONG-PARTIAL | core client transport/presentation package closed; authoritative formulas/timing/spec/death rules remain `UNKNOWN_SERVER_AUTHORITY` | Chat 3 |
 | P0 | Prayer + magic presentation | exact 854f C2S185 prayer/direct widgets, local-only spell selection, five target writer families, prayer `bd` headicon channel, 51 prayer/126 spell client census | STRONG-PARTIAL | client-facing contract packaged; drain/formulas/secondary effects/consumption remain `UNKNOWN_SERVER_AUTHORITY` | Chat 3 |
 | P0 | Appearance + equipment + ranks/icons | exact v308 worn HEAD→`fE[rs.l.h.b(aC)]` staff-rank gate, packet-81 `aC` + `bs` fields, Override/C2S16, native icon family | STRONG-PARTIAL | client presentation contract closed; LocalLab currently publishes `aC=0`; original named-rank→numeric-`aC` and production Override policy remain `UNKNOWN_SERVER_AUTHORITY` | Chat 3 |
@@ -32,10 +32,11 @@ authority would unblock Chat 2/3 without inventing server mechanics.
    - core standard option/Continue input routing is now packaged;
    - close player/item/statement dialogue roots plus close/cancel presentation;
    - keep wording and server-authored branch semantics evidence-gated.
-2. **Residual C2S semantics + S2C reader census**
-   - C2S framing is now closed at 86/86 on exact v308 authority;
-   - classify the 22 residual framing-only C2S writer families;
-   - continue remaining exact-current S2C reader gaps;
+2. **Global S2C reader census**
+   - C2S framing is closed at 86/86 on exact v308 authority;
+   - normal in-JAR C2S writer classification is now closed;
+   - C2S2/6/78/109 are exact serializer-only contracts with unknown semantic identity;
+   - enumerate and classify the remaining exact-current S2C reader families;
    - hand only proven typed transport facts to Chat 2.
 3. **Items + NPC definition field census**
    - exact-current model/action/animation/GFX/recolour/retexture ownership;
