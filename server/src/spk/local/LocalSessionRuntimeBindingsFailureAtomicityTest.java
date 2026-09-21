@@ -59,7 +59,7 @@ public final class LocalSessionRuntimeBindingsFailureAtomicityTest {
                 "BY_WRITER"
             );
         int tradeWorldBaseline=
-            tradeStates().size();
+            tradeWorldCount();
 
         World world=
             World.isolatedForTest(60_000L);
@@ -263,7 +263,7 @@ public final class LocalSessionRuntimeBindingsFailureAtomicityTest {
                 SharedNpcWorldRelay.class,
                 "BY_WRITER"
             )!=npcWriterBaseline||
-           tradeStates().size()!=
+           tradeWorldCount()!=
                 tradeWorldBaseline)
             throw new AssertionError(
                 stage+
@@ -307,6 +307,13 @@ public final class LocalSessionRuntimeBindingsFailureAtomicityTest {
         field.setAccessible(true);
         return (IdentityHashMap<Object,Object>)
             field.get(null);
+    }
+
+    private static int tradeWorldCount()
+        throws Exception{
+        synchronized(TradeService.class){
+            return tradeStates().size();
+        }
     }
 
     private static boolean tradeWriterRetained(
