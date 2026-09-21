@@ -601,6 +601,36 @@ final class PlayerSnapshotSchemaV1 {
 
         put(
             values,
+            "appearance.gender",
+            Integer.toString(
+                player.characterGender()
+            )
+        );
+
+        int[] characterKits=
+            player.characterKits();
+        for(int i=0;i<characterKits.length;i++)
+            put(
+                values,
+                "appearance.kit."+i,
+                Integer.toString(
+                    characterKits[i]
+                )
+            );
+
+        int[] characterColours=
+            player.characterColours();
+        for(int i=0;i<characterColours.length;i++)
+            put(
+                values,
+                "appearance.colour."+i,
+                Integer.toString(
+                    characterColours[i]
+                )
+            );
+
+        put(
+            values,
             "combat.special.energy",
             Integer.toString(
                 player.specialEnergy()
@@ -689,6 +719,52 @@ final class PlayerSnapshotSchemaV1 {
                 selectors))
             throw new IllegalStateException(
                 "invalid comp selectors"
+            );
+
+        int characterGender=
+            boundedInt(
+                values.get(
+                    "appearance.gender"
+                ),
+                CharacterDesignProfile.MALE,
+                CharacterDesignProfile.MALE,
+                CharacterDesignProfile.FEMALE
+            );
+
+        int[] characterKits=
+            CharacterDesignProfile.defaultKits(
+                characterGender
+            );
+        for(int i=0;i<characterKits.length;i++)
+            characterKits[i]=
+                boundedInt(
+                    values.get(
+                        "appearance.kit."+i
+                    ),
+                    characterKits[i],
+                    -1,
+                    255
+                );
+
+        int[] characterColours=
+            CharacterDesignProfile.defaultColours();
+        for(int i=0;i<characterColours.length;i++)
+            characterColours[i]=
+                boundedInt(
+                    values.get(
+                        "appearance.colour."+i
+                    ),
+                    characterColours[i],
+                    0,
+                    CharacterDesignProfile.colourCount(i)-1
+                );
+
+        if(!player.setCharacterAppearance(
+                characterGender,
+                characterKits,
+                characterColours))
+            throw new IllegalStateException(
+                "invalid character appearance"
             );
 
         player.setSpecialEnergy(
