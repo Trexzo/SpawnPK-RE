@@ -79,6 +79,13 @@ final class ClanWarSessionService {
                     Lifecycle.CANCELLED;
         }
 
+        boolean terminal(){
+            return lifecycle==
+                    Lifecycle.COMPLETED||
+                lifecycle==
+                    Lifecycle.CANCELLED;
+        }
+
         MatchTeamId teamForClan(
             ClanAggregate.ClanId clanId
         ){
@@ -332,6 +339,15 @@ final class ClanWarSessionService {
                 MatchRules.TeamMode.TEAMS)
             throw new IllegalArgumentException(
                 "Clan War MatchRules must use TEAMS"
+            );
+
+        if(!policyAuthority.equals(
+                rules.sourceAuthority))
+            throw new IllegalArgumentException(
+                "Clan War MatchRules authority "+
+                rules.sourceAuthority+
+                " does not match gameplay policy authority "+
+                policyAuthority
             );
 
         matches.create(
