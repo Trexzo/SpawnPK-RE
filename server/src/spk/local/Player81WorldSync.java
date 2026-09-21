@@ -27,7 +27,8 @@ final class Player81WorldSync {
         WorldState ws=BY_WORLD.get(world);
         if(ws==null){ws=new WorldState(world);BY_WORLD.put(world,ws);}
         Context old=BY_WRITER.remove(writer);
-        if(old!=null)old.state.contexts.remove(old.owner.id());
+        if(old!=null)
+            cleanupContext(old);
         Context c=new Context(writer,ws,owner,dev);
         BY_WRITER.put(writer,c);ws.contexts.put(owner.id(),c);
         return c;
@@ -82,9 +83,14 @@ final class Player81WorldSync {
     static synchronized void unregister(ServerPacketWriter writer){
         Context c=BY_WRITER.remove(writer);
         if(c==null)return;
+        cleanupContext(c);
+    }
+
+    private static void cleanupContext(Context c){
         c.state.removeOwner(c.owner.id());
         c.closed=true;
-        if(c.state.contexts.isEmpty())BY_WORLD.remove(c.state.world);
+        if(c.state.contexts.isEmpty())
+            BY_WORLD.remove(c.state.world);
     }
 
     static byte[] transform(ServerPacketWriter writer,byte[] body){
