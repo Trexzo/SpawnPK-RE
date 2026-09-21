@@ -6,14 +6,24 @@ import spk.content.api.*;
 import spk.content.builtin.RuntimeProvenNpcInteractionModule;
 
 public final class ContentProvenanceAuthorityBoundaryTest {
+    public interface InheritedProvenanceAssignmentParent {
+        void assign(ContentProvenance provenance);
+    }
+
+    public interface InheritedProvenanceAssignmentChild
+        extends InheritedProvenanceAssignmentParent {
+    }
+
     public static void main(String[] args)throws Exception{
         assertPublicApiCannotAssignProvenance();
+        assertInheritedProvenanceAssignmentIsDetected();
         assertTrustedInstallIsCoreInternal();
         assertCustomRegistrationsAreForcedCustom();
 
         System.out.println(
             "CONTENT_PROVENANCE_AUTHORITY_BOUNDARY_PASS "+
             "publicAssignment=false "+
+            "inheritedAssignmentGuard=true "+
             "trustedInstallPublic=false "+
             "customCommand=CUSTOM_LOCALLAB "+
             "customObject=CUSTOM_LOCALLAB "+
@@ -29,14 +39,41 @@ public final class ContentProvenanceAuthorityBoundaryTest {
     }
 
     private static void assertPublicApiCannotAssignProvenance(){
+        List<String> violations=
+            provenanceAssignmentViolations(
+                ContentModule.class,
+                ContentRegistrar.class
+            );
+
+        if(!violations.isEmpty())
+            throw new AssertionError(
+                "content provenance assignment leaked into public API "+
+                violations
+            );
+    }
+
+    private static void assertInheritedProvenanceAssignmentIsDetected(){
+        List<String> violations=
+            provenanceAssignmentViolations(
+                InheritedProvenanceAssignmentChild.class
+            );
+
+        if(violations.size()!=1||
+           !violations.get(0).contains(
+               "#assign accepts ContentProvenance"))
+            throw new AssertionError(
+                "inherited provenance assignment escaped guard "+
+                violations
+            );
+    }
+
+    private static List<String> provenanceAssignmentViolations(
+        Class<?>... apiTypes
+    ){
         ArrayList<String> violations=
             new ArrayList<>();
 
-        for(Class<?> api:
-                new Class<?>[]{
-                    ContentModule.class,
-                    ContentRegistrar.class
-                }){
+        for(Class<?> api:apiTypes){
             for(Method method:
                     api.getMethods()){
                 if(!Modifier.isPublic(
@@ -63,11 +100,7 @@ public final class ContentProvenanceAuthorityBoundaryTest {
             }
         }
 
-        if(!violations.isEmpty())
-            throw new AssertionError(
-                "content provenance assignment leaked into public API "+
-                violations
-            );
+        return violations;
     }
 
     private static void assertTrustedInstallIsCoreInternal()
