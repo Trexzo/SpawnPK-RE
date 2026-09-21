@@ -64,6 +64,18 @@ final class CharacterDesignProfile {
         return true;
     }
 
+    static boolean validKit(
+        int gender,
+        int index,
+        int kit
+    ){
+        requireGender(gender);
+        if(index<0||index>=KIT_COUNT)
+            throw new IllegalArgumentException("kit index");
+        int[][] source=gender==MALE?MALE_KITS:FEMALE_KITS;
+        return contains(source[index],kit);
+    }
+
     static int colourCount(int index){
         if(index<0||index>=COLOUR_COUNT)
             throw new IllegalArgumentException("colour index");
