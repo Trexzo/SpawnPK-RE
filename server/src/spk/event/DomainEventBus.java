@@ -18,7 +18,7 @@ import java.util.function.BooleanSupplier;
  * listeners that do not opt into cancelled events are skipped once an event is
  * cancelled.</p>
  */
-public final class DomainEventBus {
+public final class DomainEventBus implements AutoCloseable {
     /** Marker for validated domain events. */
     public interface Event {}
 
@@ -100,6 +100,7 @@ public final class DomainEventBus {
     private final BooleanSupplier executionContext;
     private final ArrayList<Binding<?>> bindings = new ArrayList<>();
     private long sequence;
+    private boolean closed;
 
     public DomainEventBus(BooleanSupplier executionContext) {
         this.executionContext = Objects.requireNonNull(
@@ -122,6 +123,7 @@ public final class DomainEventBus {
         boolean receiveCancelled,
         Listener<? super E> listener
     ) {
+        requireOpen();
         Objects.requireNonNull(type, "type");
         Objects.requireNonNull(priority, "priority");
         Objects.requireNonNull(listener, "listener");
@@ -157,12 +159,14 @@ public final class DomainEventBus {
      */
     public void publish(Event event) throws Exception {
         Objects.requireNonNull(event, "event");
-        requireExecutionContext();
 
         List<Binding<?>> snapshot;
         synchronized (this) {
+            requireOpen();
             snapshot = new ArrayList<>(bindings);
         }
+
+        requireExecutionContext();
         snapshot.sort(ORDER);
 
         for (Binding<?> binding : snapshot) {
@@ -184,12 +188,35 @@ public final class DomainEventBus {
         return bindings.size();
     }
 
+    @Override
+    public synchronized void close() {
+        if (closed) {
+            return;
+        }
+
+        closed = true;
+
+        for (Binding<?> binding : bindings) {
+            binding.active = false;
+        }
+
+        bindings.clear();
+    }
+
     private synchronized boolean remove(Binding<?> binding) {
         if (!binding.active) {
             return false;
         }
         binding.active = false;
         return bindings.remove(binding);
+    }
+
+    private void requireOpen() {
+        if (closed) {
+            throw new IllegalStateException(
+                "domain event bus closed"
+            );
+        }
     }
 
     private void requireExecutionContext() {
