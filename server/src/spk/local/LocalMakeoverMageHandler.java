@@ -22,6 +22,7 @@ final class LocalMakeoverMageHandler {
     static final int INTRO_NAME_WIDGET=4884;
     static final int INTRO_TEXT_WIDGET=4885;
     static final int INTRO_CONTINUE_WIDGET=4886;
+    static final int KEYBOARD_CONTINUE_WIDGET=4907;
 
     static final int OPTIONS_ROOT=2459;
     static final int OPTIONS_TITLE_WIDGET=2460;
@@ -115,7 +116,8 @@ final class LocalMakeoverMageHandler {
         String tag
     )throws IOException{
         if(stage!=Stage.INTRO||
-           widget!=INTRO_CONTINUE_WIDGET)
+           (widget!=INTRO_CONTINUE_WIDGET&&
+            widget!=KEYBOARD_CONTINUE_WIDGET))
             return false;
 
         packets.varShort(
