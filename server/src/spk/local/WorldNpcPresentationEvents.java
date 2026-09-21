@@ -8,7 +8,8 @@ import java.util.*;
  * This owns cross-viewer event identity, recipient state, duplicate suppression
  * and expiry. Viewer packet scene translation remains in SharedNpcWorldRelay.
  */
-final class WorldNpcPresentationEvents {
+final class WorldNpcPresentationEvents
+    implements AutoCloseable {
     static final long EVENT_TTL_MS=5000L;
 
     static final class Target {
@@ -121,6 +122,7 @@ final class WorldNpcPresentationEvents {
     private final ArrayDeque<Event> events=
         new ArrayDeque<>();
     private long sequence;
+    private boolean closed;
 
     synchronized boolean enqueue(
         long now,
@@ -130,6 +132,9 @@ final class WorldNpcPresentationEvents {
         long playerBarrierSequence,
         Collection<EntityId> recipients
     ){
+        if(closed)
+            return false;
+
         if(sourceId==null||
            target==null||
            mask==null)
@@ -183,7 +188,7 @@ final class WorldNpcPresentationEvents {
         EntityId viewerId,
         long now
     ){
-        if(viewerId==null)
+        if(closed||viewerId==null)
             return Collections.emptyList();
 
         pruneExpired(now);
@@ -202,7 +207,8 @@ final class WorldNpcPresentationEvents {
         EntityId viewerId,
         long now
     ){
-        if(viewerId==null)return;
+        if(closed||viewerId==null)
+            return;
 
         for(Event event:events)
             if(event.sequence==eventSequence){
@@ -213,10 +219,37 @@ final class WorldNpcPresentationEvents {
         pruneDelivered(now);
     }
 
+    synchronized int removeSource(
+        EntityId sourceId,
+        long now
+    ){
+        if(closed||sourceId==null)
+            return 0;
+
+        int removed=0;
+
+        for(Iterator<Event> iterator=
+                events.iterator();
+                iterator.hasNext();){
+            Event event=iterator.next();
+
+            if(event.sourceId.equals(sourceId)){
+                iterator.remove();
+                removed++;
+            }
+        }
+
+        pruneExpired(now);
+        return removed;
+    }
+
     synchronized void retainRecipients(
         Collection<EntityId> liveRecipients,
         long now
     ){
+        if(closed)
+            return;
+
         HashSet<EntityId> live=
             liveRecipients==null
                 ?new HashSet<>()
@@ -230,6 +263,18 @@ final class WorldNpcPresentationEvents {
 
     synchronized int size(){
         return events.size();
+    }
+
+    synchronized boolean closed(){
+        return closed;
+    }
+
+    @Override public synchronized void close(){
+        if(closed)
+            return;
+
+        closed=true;
+        events.clear();
     }
 
     private void pruneExpired(long now){
