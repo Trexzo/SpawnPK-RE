@@ -18,19 +18,51 @@ final class TradeService {
     private TradeService(){}
 
     static synchronized void register(World world,WorldPlayer player,BankState bank,ServerPacketWriter writer,Runnable save){
-        state(world).contexts.put(player.id(),new Context(world,player,bank,writer,save));
+        Objects.requireNonNull(world,"world");
+        Objects.requireNonNull(player,"player");
+        Objects.requireNonNull(bank,"bank");
+        Objects.requireNonNull(writer,"writer");
+
+        removePlayerContexts(
+            player,
+            null,
+            "CONTEXT_REPLACED",
+            true
+        );
+
+        state(world).contexts.put(
+            player.id(),
+            new Context(
+                world,
+                player,
+                bank,
+                writer,
+                save
+            )
+        );
     }
     static synchronized void unregister(WorldPlayer player){
         if(player==null)return;
-        for(Iterator<Map.Entry<World,State>> it=STATES.entrySet().iterator();it.hasNext();){
-            State s=it.next().getValue();
-            Context c=s.contexts.get(player.id());
-            if(c==null)continue;
-            cancel0(s,c,"DISCONNECT",true);
-            s.contexts.remove(player.id());
-            if(s.contexts.isEmpty()&&s.trades.isEmpty())it.remove();
-            break;
-        }
+        removePlayerContexts(
+            player,
+            null,
+            "DISCONNECT",
+            true
+        );
+    }
+
+    static synchronized void unregister(
+        WorldPlayer player,
+        ServerPacketWriter writer
+    ){
+        if(player==null||writer==null)return;
+
+        removePlayerContexts(
+            player,
+            writer,
+            "DISCONNECT",
+            true
+        );
     }
     static synchronized String start(World world,WorldPlayer a,WorldPlayer b)throws IOException{
         State s=state(world);Context ca=s.contexts.get(a.id()),cb=s.contexts.get(b.id());
@@ -189,6 +221,40 @@ final class TradeService {
     private static boolean simAdd(int[] ids,int[] qs,int item,int amount){if(amount<=0)return true;if(BankState.isStackable(item)){for(int i=0;i<ids.length;i++)if(ids[i]==item){long x=(long)qs[i]+amount;if(x>Integer.MAX_VALUE)return false;qs[i]=(int)x;return true;}for(int i=0;i<ids.length;i++)if(ids[i]<0){ids[i]=item;qs[i]=amount;return true;}return false;}int empty=0;for(int id:ids)if(id<0)empty++;if(empty<amount)return false;for(int i=0;i<ids.length&&amount>0;i++)if(ids[i]<0){ids[i]=item;qs[i]=1;amount--;}return amount==0;}
     private static void removeOffer(BankState bank,LinkedHashMap<Integer,Integer> offer,ServerPacketWriter w)throws IOException{for(Map.Entry<Integer,Integer> e:offer.entrySet()){int item=e.getKey(),rem=e.getValue();for(int i=0;i<bank.inventoryCapacity()&&rem>0;i++){BankState.Stack s=bank.inventoryAt(i);if(s==null||s.itemId!=item)continue;if(s.qty<=rem){int q=s.qty;int got=bank.consumeInventoryAll(i,item,w);if(got<0)throw new IOException("trade remove failed item="+item+" slot="+i);rem-=q;}else{s.qty-=rem;rem=0;bank.sendNormalInventory(w);}}if(rem!=0)throw new IOException("trade remove remainder item="+item+" rem="+rem);}}
     private static void addOffer(BankState bank,LinkedHashMap<Integer,Integer> offer,ServerPacketWriter w)throws IOException{for(Map.Entry<Integer,Integer> e:offer.entrySet())if(bank.addInventoryAmount(e.getKey(),e.getValue(),w)<0)throw new IOException("trade add failed item="+e.getKey()+" qty="+e.getValue());}
+
+    private static int removePlayerContexts(
+        WorldPlayer player,
+        ServerPacketWriter expectedWriter,
+        String reason,
+        boolean notify
+    ){
+        int removed=0;
+
+        for(
+            Iterator<Map.Entry<World,State>> it=
+                STATES.entrySet().iterator();
+            it.hasNext();
+        ){
+            State s=it.next().getValue();
+            Context c=s.contexts.get(player.id());
+
+            if(c==null)
+                continue;
+
+            if(expectedWriter!=null&&
+               c.writer!=expectedWriter)
+                continue;
+
+            cancel0(s,c,reason,notify);
+            s.contexts.remove(player.id());
+            removed++;
+
+            if(s.contexts.isEmpty()&&s.trades.isEmpty())
+                it.remove();
+        }
+
+        return removed;
+    }
 
     private static State state(World w){State s=STATES.get(w);if(s==null){s=new State(w);STATES.put(w,s);}return s;}
     private static Context context(WorldPlayer p){if(p==null)return null;for(State s:STATES.values()){Context c=s.contexts.get(p.id());if(c!=null)return c;}return null;}

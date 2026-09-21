@@ -13,15 +13,15 @@ final class World implements AutoCloseable {
     private static final World SHARED=new World(GameClock.TICK_MILLIS);
     private final GameClock clock=new GameClock();
     private final WorldEventQueue events=new WorldEventQueue();
-    private final WorldRealtimeQueue realtime=new WorldRealtimeQueue();
     private final GroundItemRegistry groundItems=new GroundItemRegistry();
     private final WorldObjectRegistry objects=new WorldObjectRegistry();
     private final PlayerRegistry players=new PlayerRegistry();
+    private final WorldRealtimeQueue realtime;
     private final WorldNpcRegistry npcs=new WorldNpcRegistry();
     private final WorldHomeNpcService homeNpcs=new WorldHomeNpcService(npcs);
     private final WorldPetNpcService petNpcs=new WorldPetNpcService(npcs);
     private final WorldNpcPresentationEvents npcPresentationEvents=new WorldNpcPresentationEvents();
-    private final WorldCommandInbox commands=new WorldCommandInbox();
+    private final WorldCommandInbox commands;
     private final DomainEventBus domainEvents;
     private final LinkedHashMap<EntityId,WorldTickTarget> tickTargets=new LinkedHashMap<>();
     private final WorldPulse pulse;
@@ -29,6 +29,7 @@ final class World implements AutoCloseable {
     private final ContentRegistry content;
     private final Object loginInitializationLock=new Object();
     private final Object lifecycleLock=new Object();
+    private final CountDownLatch closeCompleted=new CountDownLatch(1);
     private volatile boolean closed;
 
     private World(long tickMillis){
@@ -42,6 +43,22 @@ final class World implements AutoCloseable {
         long tickMillis,
         PlayerRepository repository
     ){
+        realtime=
+            new WorldRealtimeQueue(
+                (player,generation)->
+                    players.owns(
+                        player,
+                        generation
+                    )
+            );
+        commands=
+            new WorldCommandInbox(
+                (player,generation)->
+                    players.owns(
+                        player,
+                        generation
+                    )
+            );
         pulse=new WorldPulse(this,tickMillis);
         domainEvents=new DomainEventBus(
             () -> pulse.inExecutionContext()
@@ -96,6 +113,36 @@ final class World implements AutoCloseable {
     ContentRegistry content(){return content;}
     Object loginInitializationLock(){return loginInitializationLock;}
 
+    interface OwnedPlayerIoAction {
+        void run() throws java.io.IOException;
+    }
+
+    void withOpenPlayerOwnership(
+        WorldPlayer player,
+        long expectedGeneration,
+        OwnedPlayerIoAction action
+    )throws java.io.IOException{
+        if(player==null||action==null)
+            throw new NullPointerException();
+
+        synchronized(lifecycleLock){
+            requireOpen();
+
+            synchronized(player.mutationLock()){
+                if(!players.owns(
+                        player,
+                        expectedGeneration
+                    ))
+                    throw new IllegalStateException(
+                        "player owner not registered in world: "+
+                        player.id()
+                    );
+            }
+
+            action.run();
+        }
+    }
+
     void start(){
         synchronized(lifecycleLock){
             requireOpen();
@@ -107,12 +154,20 @@ final class World implements AutoCloseable {
         WorldPlayer player,
         String username
     ){
+        if(player==null)
+            throw new NullPointerException(
+                "player"
+            );
+
         synchronized(lifecycleLock){
             requireOpen();
-            return players.register(
-                player,
-                username
-            );
+
+            synchronized(player.mutationLock()){
+                return players.register(
+                    player,
+                    username
+                );
+            }
         }
     }
 
@@ -120,14 +175,23 @@ final class World implements AutoCloseable {
         WorldPlayer player,
         String username
     ){
+        if(player==null)
+            throw new NullPointerException(
+                "player"
+            );
+
         synchronized(lifecycleLock){
             requireOpen();
 
-            long generation=
-                players.register(
-                    player,
-                    username
-                );
+            long generation;
+
+            synchronized(player.mutationLock()){
+                generation=
+                    players.register(
+                        player,
+                        username
+                    );
+            }
 
             pulse.start();
             return generation;
@@ -135,12 +199,54 @@ final class World implements AutoCloseable {
     }
     boolean unregisterPlayer(WorldPlayer player){
         if(player==null)return false;
-        synchronized(player.mutationLock()){
-            synchronized(tickTargets){tickTargets.remove(player.id());}
-            commands.cancelPlayer(player);
-            realtime.cancelPlayer(player);
-            petNpcs.removeMainAndMini(player.id());
-            return players.unregister(player);
+        return unregisterPlayer(
+            player,
+            player.generation()
+        );
+    }
+
+    boolean unregisterPlayer(
+        WorldPlayer player,
+        long expectedGeneration
+    ){
+        if(player==null)return false;
+
+        synchronized(lifecycleLock){
+            synchronized(player.mutationLock()){
+                if(!players.owns(
+                        player,
+                        expectedGeneration
+                    ))
+                    return false;
+
+                synchronized(tickTargets){
+                    WorldTickTarget target=
+                        tickTargets.get(
+                            player.id()
+                        );
+
+                    if(target!=null &&
+                       target.ownerGeneration()==
+                           expectedGeneration)
+                        tickTargets.remove(
+                            player.id()
+                        );
+                }
+
+                if(!players.unregister(
+                        player,
+                        expectedGeneration
+                    ))
+                    return false;
+
+                commands.cancelPlayer(player);
+                realtime.cancelPlayer(player);
+                petNpcs.removeMainAndMini(
+                    player.id()
+                );
+
+                return true;
+            }
         }
     }
 
@@ -174,7 +280,29 @@ final class World implements AutoCloseable {
             }
         }
     }
-    void detachTickTarget(EntityId id){synchronized(tickTargets){tickTargets.remove(id);}}
+    void detachTickTarget(EntityId id){
+        synchronized(tickTargets){
+            tickTargets.remove(id);
+        }
+    }
+
+    boolean detachTickTarget(
+        EntityId id,
+        long expectedGeneration
+    ){
+        synchronized(tickTargets){
+            WorldTickTarget target=
+                tickTargets.get(id);
+
+            if(target==null ||
+               target.ownerGeneration()!=
+                   expectedGeneration)
+                return false;
+
+            tickTargets.remove(id);
+            return true;
+        }
+    }
     List<WorldTickTarget> tickTargetsSnapshot(){synchronized(tickTargets){return new ArrayList<>(tickTargets.values());}}
 
     CompletableFuture<Void> submit(WorldPlayer player,WorldCommandInbox.Action action){return commands.submit(player,action);}
@@ -214,17 +342,46 @@ final class World implements AutoCloseable {
     }
 
     @Override public void close(){
-        synchronized(lifecycleLock){
-            if(closed)
-                return;
+        boolean owner=false;
 
-            closed=true;
-            pulse.close();
+        synchronized(lifecycleLock){
+            if(!closed){
+                closed=true;
+                owner=true;
+            }
         }
 
-        commands.close();
-        realtime.close();
-        events.close();
-        persistence.close();
+        if(!owner){
+            awaitCloseCompleted();
+            return;
+        }
+
+        try{
+            pulse.close();
+            domainEvents.close();
+            commands.close();
+            realtime.close();
+            events.close();
+            persistence.close();
+        }finally{
+            closeCompleted.countDown();
+        }
+    }
+
+    private void awaitCloseCompleted(){
+        boolean interrupted=false;
+
+        for(;;){
+            try{
+                closeCompleted.await();
+                break;
+            }catch(InterruptedException error){
+                interrupted=true;
+            }
+        }
+
+        if(interrupted)
+            Thread.currentThread()
+                .interrupt();
     }
 }

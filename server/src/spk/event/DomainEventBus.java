@@ -18,7 +18,7 @@ import java.util.function.BooleanSupplier;
  * listeners that do not opt into cancelled events are skipped once an event is
  * cancelled.</p>
  */
-public final class DomainEventBus {
+public final class DomainEventBus implements AutoCloseable {
     /** Marker for validated domain events. */
     public interface Event {}
 
@@ -60,12 +60,49 @@ public final class DomainEventBus {
         }
     }
 
+    private static final class SubscriptionHandle
+        implements Subscription {
+
+        private volatile DomainEventBus owner;
+        private volatile Binding<?> binding;
+
+        SubscriptionHandle(DomainEventBus owner) {
+            this.owner = owner;
+        }
+
+        void attach(Binding<?> binding) {
+            this.binding = binding;
+        }
+
+        void detach() {
+            binding = null;
+            owner = null;
+        }
+
+        @Override
+        public boolean active() {
+            Binding<?> current = binding;
+            return current != null && current.active;
+        }
+
+        @Override
+        public boolean unsubscribe() {
+            DomainEventBus currentOwner = owner;
+            Binding<?> current = binding;
+
+            return currentOwner != null &&
+                current != null &&
+                currentOwner.remove(current);
+        }
+    }
+
     private static final class Binding<E extends Event> {
         final long sequence;
         final Class<E> type;
         final Priority priority;
         final boolean receiveCancelled;
         final Listener<? super E> listener;
+        final SubscriptionHandle subscription;
         volatile boolean active = true;
 
         Binding(
@@ -73,13 +110,15 @@ public final class DomainEventBus {
             Class<E> type,
             Priority priority,
             boolean receiveCancelled,
-            Listener<? super E> listener
+            Listener<? super E> listener,
+            SubscriptionHandle subscription
         ) {
             this.sequence = sequence;
             this.type = type;
             this.priority = priority;
             this.receiveCancelled = receiveCancelled;
             this.listener = listener;
+            this.subscription = subscription;
         }
     }
 
@@ -100,6 +139,7 @@ public final class DomainEventBus {
     private final BooleanSupplier executionContext;
     private final ArrayList<Binding<?>> bindings = new ArrayList<>();
     private long sequence;
+    private boolean closed;
 
     public DomainEventBus(BooleanSupplier executionContext) {
         this.executionContext = Objects.requireNonNull(
@@ -122,30 +162,25 @@ public final class DomainEventBus {
         boolean receiveCancelled,
         Listener<? super E> listener
     ) {
+        requireOpen();
         Objects.requireNonNull(type, "type");
         Objects.requireNonNull(priority, "priority");
         Objects.requireNonNull(listener, "listener");
 
-        final Binding<E> binding = new Binding<>(
+        SubscriptionHandle subscription =
+            new SubscriptionHandle(this);
+        Binding<E> binding = new Binding<>(
             ++sequence,
             type,
             priority,
             receiveCancelled,
-            listener
+            listener,
+            subscription
         );
+        subscription.attach(binding);
         bindings.add(binding);
 
-        return new Subscription() {
-            @Override
-            public boolean active() {
-                return binding.active;
-            }
-
-            @Override
-            public boolean unsubscribe() {
-                return remove(binding);
-            }
-        };
+        return subscription;
     }
 
     /**
@@ -157,12 +192,14 @@ public final class DomainEventBus {
      */
     public void publish(Event event) throws Exception {
         Objects.requireNonNull(event, "event");
-        requireExecutionContext();
 
         List<Binding<?>> snapshot;
         synchronized (this) {
+            requireOpen();
             snapshot = new ArrayList<>(bindings);
         }
+
+        requireExecutionContext();
         snapshot.sort(ORDER);
 
         for (Binding<?> binding : snapshot) {
@@ -184,12 +221,40 @@ public final class DomainEventBus {
         return bindings.size();
     }
 
+    @Override
+    public synchronized void close() {
+        if (closed) {
+            return;
+        }
+
+        closed = true;
+
+        for (Binding<?> binding : bindings) {
+            binding.active = false;
+            binding.subscription.detach();
+        }
+
+        bindings.clear();
+    }
+
     private synchronized boolean remove(Binding<?> binding) {
         if (!binding.active) {
+            binding.subscription.detach();
             return false;
         }
+
         binding.active = false;
-        return bindings.remove(binding);
+        boolean removed = bindings.remove(binding);
+        binding.subscription.detach();
+        return removed;
+    }
+
+    private void requireOpen() {
+        if (closed) {
+            throw new IllegalStateException(
+                "domain event bus closed"
+            );
+        }
     }
 
     private void requireExecutionContext() {

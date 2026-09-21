@@ -7,6 +7,12 @@ import java.util.concurrent.atomic.AtomicLong;
 /** Bounded deterministic command inbox. Commands are executed only by WorldPulse. */
 final class WorldCommandInbox {
     interface Action { void run() throws Exception; }
+    interface Ownership {
+        boolean owns(
+            WorldPlayer player,
+            long generation
+        );
+    }
     private static final int DEFAULT_PER_PLAYER_LIMIT=64;
     private static final int DEFAULT_GLOBAL_LIMIT=2048;
     private final AtomicLong sequence=new AtomicLong();
@@ -14,6 +20,7 @@ final class WorldCommandInbox {
     private final HashMap<EntityId,Integer> queuedPerPlayer=new HashMap<>();
     private final int perPlayerLimit;
     private final int globalLimit;
+    private final Ownership ownership;
     private boolean closed;
 
     private static final class C {
@@ -25,10 +32,49 @@ final class WorldCommandInbox {
         C(long seq,WorldPlayer p,long g,Action a,CompletableFuture<Void> f){this.seq=seq;player=p;generation=g;action=a;future=f;}
     }
 
-    WorldCommandInbox(){this(DEFAULT_PER_PLAYER_LIMIT,DEFAULT_GLOBAL_LIMIT);}
-    WorldCommandInbox(int perPlayerLimit,int globalLimit){
-        if(perPlayerLimit<1||globalLimit<1)throw new IllegalArgumentException();
-        this.perPlayerLimit=perPlayerLimit;this.globalLimit=globalLimit;
+    WorldCommandInbox(){
+        this(
+            DEFAULT_PER_PLAYER_LIMIT,
+            DEFAULT_GLOBAL_LIMIT,
+            (player,generation)->
+                player.accepts(generation)
+        );
+    }
+
+    WorldCommandInbox(
+        int perPlayerLimit,
+        int globalLimit
+    ){
+        this(
+            perPlayerLimit,
+            globalLimit,
+            (player,generation)->
+                player.accepts(generation)
+        );
+    }
+
+    WorldCommandInbox(Ownership ownership){
+        this(
+            DEFAULT_PER_PLAYER_LIMIT,
+            DEFAULT_GLOBAL_LIMIT,
+            ownership
+        );
+    }
+
+    WorldCommandInbox(
+        int perPlayerLimit,
+        int globalLimit,
+        Ownership ownership
+    ){
+        if(perPlayerLimit<1||globalLimit<1)
+            throw new IllegalArgumentException();
+        this.perPlayerLimit=perPlayerLimit;
+        this.globalLimit=globalLimit;
+        this.ownership=
+            Objects.requireNonNull(
+                ownership,
+                "ownership"
+            );
     }
 
     synchronized CompletableFuture<Void> submit(WorldPlayer player,Action action){
@@ -39,7 +85,25 @@ final class WorldCommandInbox {
             return f;
         }
         long generation=player.generation();
-        if(!player.accepts(generation)){f.completeExceptionally(new CancellationException("PLAYER_NOT_REGISTERED"));return f;}
+        if(!player.accepts(generation)){
+            f.completeExceptionally(
+                new CancellationException(
+                    "PLAYER_NOT_REGISTERED"
+                )
+            );
+            return f;
+        }
+        if(!ownership.owns(
+                player,
+                generation
+            )){
+            f.completeExceptionally(
+                new CancellationException(
+                    "PLAYER_NOT_OWNED_BY_WORLD"
+                )
+            );
+            return f;
+        }
         int count=queuedPerPlayer.getOrDefault(player.id(),0);
         if(queue.size()>=globalLimit||count>=perPlayerLimit){
             f.completeExceptionally(new RejectedExecutionException("WORLD_COMMAND_QUEUE_FULL player="+player.id()));
@@ -72,8 +136,36 @@ final class WorldCommandInbox {
                 c.future.completeExceptionally(new CancellationException("WORLD_COMMAND_INBOX_CLOSED"));
                 continue;
             }
-            if(!c.player.accepts(c.generation)){c.future.completeExceptionally(new CancellationException("PLAYER_LIFECYCLE_CHANGED"));continue;}
-            try{synchronized(c.player.mutationLock()){if(!c.player.accepts(c.generation))throw new CancellationException("PLAYER_LIFECYCLE_CHANGED");c.action.run();}c.future.complete(null);}catch(Throwable t){c.future.completeExceptionally(t);}
+            if(!c.player.accepts(c.generation)||
+               !ownership.owns(
+                   c.player,
+                   c.generation
+               )){
+                c.future.completeExceptionally(
+                    new CancellationException(
+                        "PLAYER_LIFECYCLE_CHANGED"
+                    )
+                );
+                continue;
+            }
+            try{
+                synchronized(c.player.mutationLock()){
+                    if(!c.player.accepts(
+                            c.generation
+                        )||
+                       !ownership.owns(
+                            c.player,
+                            c.generation
+                        ))
+                        throw new CancellationException(
+                            "PLAYER_LIFECYCLE_CHANGED"
+                        );
+                    c.action.run();
+                }
+                c.future.complete(null);
+            }catch(Throwable t){
+                c.future.completeExceptionally(t);
+            }
         }
         return run.size();
     }

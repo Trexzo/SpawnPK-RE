@@ -53,36 +53,49 @@ final class LocalSessionRuntimeBindings {
     )throws IOException{
         if(player81Sync!=null)return;
 
-        player81Sync=
-            Player81WorldSync.register(
-                serverPackets,
-                world,
-                worldPlayer,
-                dev
-            );
+        long generation=
+            worldPlayer.generation();
 
-        registeredPackets=serverPackets;
-
-        SharedNpcWorldRelay.register(
-            serverPackets,
-            world,
+        world.withOpenPlayerOwnership(
             worldPlayer,
-            npcs,
-            movement
-        );
+            generation,
+            ()->{
+                player81Sync=
+                    Player81WorldSync.register(
+                        serverPackets,
+                        world,
+                        worldPlayer,
+                        dev
+                    );
 
-        TradeService.register(
-            world,
-            worldPlayer,
-            bank,
-            serverPackets,
-            ()->bridge.saveAccount(
-                tag,
-                "TRADE_COMMIT"
-            )
-        );
+                registeredPackets=
+                    serverPackets;
 
-        Player81WorldSync.sendPlayerOptionsIfMultiplayer(world);
+                SharedNpcWorldRelay.register(
+                    serverPackets,
+                    world,
+                    worldPlayer,
+                    npcs,
+                    movement
+                );
+
+                TradeService.register(
+                    world,
+                    worldPlayer,
+                    bank,
+                    serverPackets,
+                    ()->bridge.saveAccount(
+                        tag,
+                        "TRADE_COMMIT"
+                    )
+                );
+
+                Player81WorldSync
+                    .sendPlayerOptionsIfMultiplayer(
+                        world
+                    );
+            }
+        );
 
         System.out.println(
             tag+
@@ -104,7 +117,10 @@ final class LocalSessionRuntimeBindings {
             return;
         }
 
-        TradeService.unregister(worldPlayer);
+        TradeService.unregister(
+            worldPlayer,
+            registeredPackets
+        );
         SharedNpcWorldRelay.unregister(registeredPackets);
         Player81WorldSync.unregister(registeredPackets);
 

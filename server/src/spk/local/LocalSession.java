@@ -869,12 +869,23 @@ final class LocalSession implements Runnable {
         } catch (Throwable t) {
             System.err.println(tag + "closed: " + t);
         } finally {
-            if(worldTickAttached){world.detachTickTarget(worldPlayer.id());worldTickAttached=false;}
+            if(worldTickAttached){
+                world.detachTickTarget(
+                    worldPlayer.id(),
+                    worldPlayerGeneration
+                );
+                worldTickAttached=false;
+            }
             runtimeBindings.unregister();
             devPanelCoordinator.closeSession();
             saveAccountFinal(tag,"SESSION_END");
             if(worldRegistered){
-                boolean removed=world.unregisterPlayer(worldPlayer);worldRegistered=false;
+                boolean removed=
+                    world.unregisterPlayer(
+                        worldPlayer,
+                        worldPlayerGeneration
+                    );
+                worldRegistered=false;
                 System.out.println(tag+"V512_WORLD_UNREGISTER playerId="+worldPlayer.id()+" removed="+removed+" members="+world.players().size()+" queuedCommands="+world.commands().size());
             }
         }
