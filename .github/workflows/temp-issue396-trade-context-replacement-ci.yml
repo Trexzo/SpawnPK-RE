@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - 'server/src/spk/local/TradeService.java'
+      - 'server/src/spk/local/LocalSessionRuntimeBindings.java'
       - 'server/src/spk/local/TradeServiceContextReplacementCleanupTest.java'
       - '.github/workflows/temp-issue396-trade-context-replacement-ci.yml'
 
