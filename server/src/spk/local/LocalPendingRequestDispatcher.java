@@ -18,6 +18,9 @@ final class LocalPendingRequestDispatcher {
         long sessionWorldTick();
         SceneUpdatePublisher scenePublisher();
         Player81WorldSync.Context player81Sync();
+        void refreshPlayerAppearance(
+            ServerPacketWriter writer
+        )throws IOException;
         void saveAccount(String tag,String reason);
         void applyPetDialogResult(
             LocalPetInventoryDialogHandler.Result result,
@@ -321,7 +324,6 @@ final class LocalPendingRequestDispatcher {
         LocalMakeoverMageHandler.Result result=
             makeoverMage.handleDesign(
                 request,
-                bridge.username(),
                 serverPackets,
                 tag
             );
@@ -335,11 +337,15 @@ final class LocalPendingRequestDispatcher {
             return;
         }
 
-        if(result.saveReason!=null)
+        if(result.saveReason!=null){
+            bridge.refreshPlayerAppearance(
+                serverPackets
+            );
             bridge.saveAccount(
                 tag,
                 result.saveReason
             );
+        }
 
         if(result.logText!=null)
             System.out.println(
