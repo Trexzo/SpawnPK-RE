@@ -25,7 +25,7 @@ final class PlayerRegistry {
     synchronized boolean unregister(WorldPlayer player){
         if(player==null)return false;
         WorldPlayer present=byId.remove(player.id());
-        if(present==null){player.markUnregistered();return false;}
+        if(present==null)return false;
         String name=present.username();
         if(name!=null)byName.remove(canonical(name),present.id());
         present.markUnregistered();
