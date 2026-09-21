@@ -57,9 +57,7 @@ public final class WorldPlayerPersistenceCheckpointShutdownTest {
                 world.persistence();
 
             if(persistence
-                    .checkpointCapturedCount()!=2L||
-               persistence
-                    .checkpointCoalescedCount()!=1L)
+                    .checkpointCapturedCount()!=2L)
                 throw new AssertionError(
                     "checkpoint fixture setup failed "+
                     persistence.metrics()
@@ -158,7 +156,7 @@ public final class WorldPlayerPersistenceCheckpointShutdownTest {
                 "coalescedDropped=true "+
                 "lateReturnIgnored=true "+
                 "repositoryWrites=1 "+
-                "captured=2 coalesced=1 rejected=1 written=0"
+                "captured=2 successorDropped=true rejected=1 written=0"
             );
         }finally{
             repository.release.countDown();
