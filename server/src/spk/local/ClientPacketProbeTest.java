@@ -21,6 +21,14 @@ public final class ClientPacketProbeTest {
         opcode(wire, enc, 36); wire.write(new byte[]{0,0,0,0});
         opcode(wire, enc, 164); wire.write(5); wire.write(new byte[]{(byte)0x8F,0x0C,(byte)0xA7,0x0D,0x00});
         opcode(wire, enc, 185); wire.write(0x00); wire.write(0x98); // live regression: widget 152
+        // Exact dialogue Continue: widget 4886, C2S40 u16_be.
+        opcode(wire, enc, 40); wire.write(new byte[]{0x13,0x16});
+        // Exact character-design submit: female + seven kits + five colours.
+        opcode(wire, enc, 101); wire.write(new byte[]{
+            1,
+            45,(byte)255,56,61,67,70,79,
+            11,15,14,5,23
+        });
         // Live bank/object regression vector: x=3095 objectId=26972 y=3493.
         opcode(wire, enc, 132); wire.write(new byte[]{(byte)0x97,0x0C,0x69,0x5C,0x0D,0x25});
         // Exact v3.1 live blocker: opcode41 item=4151 slot=0 widget=3214.
@@ -44,6 +52,16 @@ public final class ClientPacketProbeTest {
         if (!p.readNextKnownPacket()) throw new AssertionError("generic 185 decode stopped");
         Integer wa=p.takeWidgetAction();
         if (wa==null || wa!=152) throw new AssertionError("widget action mismatch: "+wa);
+        if (!p.readNextKnownPacket()) throw new AssertionError("dialogue40 decode stopped");
+        Integer continueWidget=p.takeDialogueContinue();
+        if(continueWidget==null||continueWidget!=4886)
+            throw new AssertionError("dialogue continue="+continueWidget);
+        if (!p.readNextKnownPacket()) throw new AssertionError("character101 decode stopped");
+        CharacterDesignRequest design=p.takeCharacterDesign();
+        if(design==null||!design.valid()||design.gender()!=CharacterDesignProfile.FEMALE)
+            throw new AssertionError("character design="+design);
+        if(design.kits()[1]!=-1)
+            throw new AssertionError("female jaw not normalized: "+design);
         if (!p.readNextKnownPacket()) throw new AssertionError("object132 decode stopped");
         ObjectInteraction oi=p.takeObjectInteraction();
         if (oi==null || oi.opcode!=132 || oi.objectId!=26972 || oi.worldX!=3095 || oi.worldY!=3493)
@@ -65,8 +83,8 @@ public final class ClientPacketProbeTest {
         MovementRequest m3=p.takeMovement();
         if (m3==null || m3.opcode!=248 || m3.finalX()!=3088 || m3.finalY()!=3496 || m3.telemetry.length!=14)
             throw new AssertionError("minimap movement decode mismatch: "+m3);
-        if (!p.isAligned() || p.decodedCount()!=18) throw new AssertionError("aligned="+p.isAligned()+" count="+p.decodedCount());
-        System.out.println("CLIENT_PACKET_PROBE_V521_PASS decoded=18 aligned=true opcode226Varbyte=true opcode202Fixed0=true opcode36Fixed4=true walk164->widget185->object132->item41->amount208->drag214->close130->walk164->minimap248 telemetry14=preserved");
+        if (!p.isAligned() || p.decodedCount()!=20) throw new AssertionError("aligned="+p.isAligned()+" count="+p.decodedCount());
+        System.out.println("CLIENT_PACKET_PROBE_V521_PASS decoded=20 aligned=true opcode226Varbyte=true opcode202Fixed0=true opcode36Fixed4=true walk164->widget185->dialogue40->character101->object132->item41->amount208->drag214->close130->walk164->minimap248 telemetry14=preserved makeoverFemaleJaw255ToMinus1=true");
     }
     private static void opcode(ByteArrayOutputStream out, IsaacCipher c, int op) {
         out.write((op + c.nextInt()) & 0xff);
