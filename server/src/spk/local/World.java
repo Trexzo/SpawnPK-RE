@@ -113,6 +113,36 @@ final class World implements AutoCloseable {
     ContentRegistry content(){return content;}
     Object loginInitializationLock(){return loginInitializationLock;}
 
+    interface OwnedPlayerIoAction {
+        void run() throws java.io.IOException;
+    }
+
+    void withOpenPlayerOwnership(
+        WorldPlayer player,
+        long expectedGeneration,
+        OwnedPlayerIoAction action
+    )throws java.io.IOException{
+        if(player==null||action==null)
+            throw new NullPointerException();
+
+        synchronized(lifecycleLock){
+            requireOpen();
+
+            synchronized(player.mutationLock()){
+                if(!players.owns(
+                        player,
+                        expectedGeneration
+                    ))
+                    throw new IllegalStateException(
+                        "player owner not registered in world: "+
+                        player.id()
+                    );
+            }
+
+            action.run();
+        }
+    }
+
     void start(){
         synchronized(lifecycleLock){
             requireOpen();
@@ -181,40 +211,42 @@ final class World implements AutoCloseable {
     ){
         if(player==null)return false;
 
-        synchronized(player.mutationLock()){
-            if(!players.owns(
-                    player,
-                    expectedGeneration
-                ))
-                return false;
+        synchronized(lifecycleLock){
+            synchronized(player.mutationLock()){
+                if(!players.owns(
+                        player,
+                        expectedGeneration
+                    ))
+                    return false;
 
-            synchronized(tickTargets){
-                WorldTickTarget target=
-                    tickTargets.get(
-                        player.id()
-                    );
+                synchronized(tickTargets){
+                    WorldTickTarget target=
+                        tickTargets.get(
+                            player.id()
+                        );
 
-                if(target!=null &&
-                   target.ownerGeneration()==
-                       expectedGeneration)
-                    tickTargets.remove(
-                        player.id()
-                    );
+                    if(target!=null &&
+                       target.ownerGeneration()==
+                           expectedGeneration)
+                        tickTargets.remove(
+                            player.id()
+                        );
+                }
+
+                if(!players.unregister(
+                        player,
+                        expectedGeneration
+                    ))
+                    return false;
+
+                commands.cancelPlayer(player);
+                realtime.cancelPlayer(player);
+                petNpcs.removeMainAndMini(
+                    player.id()
+                );
+
+                return true;
             }
-
-            if(!players.unregister(
-                    player,
-                    expectedGeneration
-                ))
-                return false;
-
-            commands.cancelPlayer(player);
-            realtime.cancelPlayer(player);
-            petNpcs.removeMainAndMini(
-                player.id()
-            );
-
-            return true;
         }
     }
 
