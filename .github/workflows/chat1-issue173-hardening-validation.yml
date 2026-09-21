@@ -1,0 +1,39 @@
+name: Chat1 Issue173 Hardening Validation
+
+on:
+  push:
+    branches:
+      - integration/issue-173-match-session-chat1
+
+jobs:
+  windows-issue173-hardening:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Gradle-backed canonical build
+        shell: pwsh
+        run: ./server/build.ps1
+      - name: Inherited and focused match regressions
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $cp = 'server/build/SpawnPKLocalServer.jar;server/build/classes/java/test'
+
+          & java -cp $cp spk.local.PartyMatchmakingWorldInstanceFoundationTest
+          if ($LASTEXITCODE -ne 0) {
+            throw "Inherited #158 regression failed: exit=$LASTEXITCODE"
+          }
+
+          for ($round = 1; $round -le 10; $round++) {
+            Write-Host "[MATCH173] round=$round"
+            & java -cp $cp spk.local.MatchSessionFoundationTest
+            if ($LASTEXITCODE -ne 0) {
+              throw "MatchSessionFoundationTest failed: round=$round exit=$LASTEXITCODE"
+            }
+          }
+
+          Write-Host "CHAT1_ISSUE173_HARDENING_PASS inherited158=1 issue173=10"
