@@ -9,6 +9,8 @@ public final class ContentPublicApiBoundaryTest {
         ContentCommandContext.class,
         ContentCommandHandler.class,
         ContentInteractionResult.class,
+        ContentItemOnNpcContext.class,
+        ContentItemOnNpcHandler.class,
         ContentItemOptionContext.class,
         ContentItemOptionHandler.class,
         ContentModule.class,
@@ -77,14 +79,25 @@ public final class ContentPublicApiBoundaryTest {
                         " exposes raw protocol index"
                     );
 
+                String methodName=
+                    method.getName()
+                        .toLowerCase(Locale.ROOT);
+
                 if("percentageText".equals(
                         method.getName())||
-                   method.getName()
-                        .toLowerCase(Locale.ROOT)
-                        .contains("widget"))
+                   methodName.contains("widget"))
                     violations.add(
                         location+
                         " exposes raw widget presentation identity"
+                    );
+
+                if(methodName.equals("slot")||
+                   methodName.contains("opcode")||
+                   methodName.contains("schema")||
+                   methodName.contains("packet"))
+                    violations.add(
+                        location+
+                        " exposes raw transport identity"
                     );
 
                 inspect(
