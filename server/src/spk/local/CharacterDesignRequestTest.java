@@ -26,6 +26,42 @@ public final class CharacterDesignRequestTest {
         if(!f.valid())throw new AssertionError("female request invalid: "+f);
         if(f.kits()[1]!=-1)throw new AssertionError("female jaw wire255 not normalized");
 
+        byte[] freshClientReset={
+            0,
+            0,10,18,26,33,36,42,
+            0,0,0,0,0
+        };
+        CharacterDesignRequest reset=
+            CharacterDesignRequest.decode(
+                freshClientReset
+            );
+        if(!reset.valid())
+            throw new AssertionError(
+                "fresh-client reset request invalid: "+
+                reset
+            );
+        if(reset.gender()!=
+                CharacterDesignProfile.MALE)
+            throw new AssertionError(
+                "fresh-client reset gender"
+            );
+        if(!Arrays.equals(
+                reset.kits(),
+                CharacterDesignProfile.defaultKits(
+                    CharacterDesignProfile.MALE
+                )))
+            throw new AssertionError(
+                "fresh-client reset kits "+
+                Arrays.toString(reset.kits())
+            );
+        if(!Arrays.equals(
+                reset.colours(),
+                CharacterDesignProfile.defaultColours()))
+            throw new AssertionError(
+                "fresh-client reset colours "+
+                Arrays.toString(reset.colours())
+            );
+
         byte[] invalidMale=male.clone();
         invalidMale[2]=(byte)255;
         if(CharacterDesignRequest.decode(invalidMale).valid())
@@ -42,7 +78,7 @@ public final class CharacterDesignRequestTest {
         if(!shortRejected)throw new AssertionError("short payload accepted");
 
         System.out.println(
-            "CHARACTER_DESIGN_REQUEST_PASS fixed13=true gender01=true femaleJaw255ToMinus1=true rangesFailClosed=true"
+            "CHARACTER_DESIGN_REQUEST_PASS fixed13=true gender01=true femaleJaw255ToMinus1=true freshClientResetMaleDefaults=true rangesFailClosed=true"
         );
     }
 }
