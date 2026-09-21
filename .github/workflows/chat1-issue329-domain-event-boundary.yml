@@ -28,7 +28,7 @@ jobs:
           $tests = @(
             'spk.event.DomainEventPublicApiBoundaryTest',
             'spk.event.DomainEventBusTest',
-            'spk.event.DomainEventBusWorldContextTest'
+            'spk.local.DomainEventBusWorldContextTest'
           )
           foreach ($t in $tests) {
             Write-Host "[ISSUE329] $t"
