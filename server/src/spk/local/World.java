@@ -29,7 +29,7 @@ final class World implements AutoCloseable {
     private final ContentRegistry content;
     private final Object loginInitializationLock=new Object();
     private final Object lifecycleLock=new Object();
-    private boolean closed;
+    private volatile boolean closed;
 
     private World(long tickMillis){
         this(
@@ -200,6 +200,10 @@ final class World implements AutoCloseable {
             persistence.metrics()+
             " "+
             content.summary();
+    }
+
+    boolean closed(){
+        return closed;
     }
 
     private void requireOpen(){
