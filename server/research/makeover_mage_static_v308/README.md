@@ -237,6 +237,17 @@ state at the first male kit in each category with colour indices all zero. The
 server-rendered packet-81 appearance does not overwrite those private designer
 arrays.
 
+The exact untouched fresh-reset C2S101 payload is therefore:
+
+```
+00 00 0A 12 1A 21 24 2A 00 00 00 00 00
+```
+
+which is semantic:
+- gender: male (`0`)
+- kits: `[0,10,18,26,33,36,42]`
+- colours: `[0,0,0,0,0]`
+
 This creates a hard exact-client UX boundary:
 
 1. reconnect can correctly render the persisted player appearance through packet
