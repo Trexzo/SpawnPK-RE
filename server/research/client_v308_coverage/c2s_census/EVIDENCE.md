@@ -74,22 +74,27 @@ The 86 exact-current opcodes currently divide into:
 
 ```
 51  semantically decoded / normalized transports in current main
- 7  client control / telemetry families
- 6  exact semantics closed by exact-v308 research but not current main
-22  exact framing only; server semantic still unpromoted/unknown
+20  client control / telemetry families
+11  exact semantics closed by exact-v308 research but not current main
+ 4  serializer-only exact wire contracts; semantic identity unknown
 ---
 86  exact-current C2S opcodes
 ```
 
-The six exact research-semantic gaps are:
+The eleven exact research-semantic gaps are:
 
 ```
+C2S4   public chat message
 C2S40  dialogue Continue
+C2S60  generic name-entry response
 C2S74  remove ignore (i64 name key)
+C2S95  chat-mode settings
 C2S101 character design / Make-over submission
+C2S126 private message
 C2S133 add ignore (i64 name key)
 C2S188 add friend (i64 name key)
 C2S215 remove friend (i64 name key)
+C2S218 report-abuse submission
 ```
 
 C2S40 is now proven from exact v308 as:
@@ -150,27 +155,34 @@ transport.
 Issue #17 has been notified so keyboard and mouse option paths can converge on
 one semantic dialogue intent without exposing raw opcode/widget identity.
 
-## 22 FRAMING-ONLY OPCODES
+## FOUR SERIALIZER-ONLY SEMANTIC UNKNOWNS
 
 Current main safely frames but does not promote server semantics for:
 
 ```
-2,4,6,60,78,85,86,95,109,120,126,136,148,150,152,183,189,200,210,218,
-230,246
+2,6,78,109
 ```
 
-These are now the residual C2S archaeology queue.
+These four are not unidentified normal-gameplay callsites. Their only exact
+writers are concrete implementations of the parallel `rs.o.a.a.a` serializer
+API, and a whole-JAR constant-pool scan found no direct references to those
+concrete serializers outside their own classfiles. The generic
+`Client.a(rs.o.a.a.a)` extension seam is present, but no supplied class calls
+it either.
 
-Chat 4 must inspect exact v308 writer callsites for each family and classify
-them as one of:
+Exact byte contracts:
 
-- client telemetry/control;
-- known semantic request suitable for Chat 2 typed transport;
-- client-local/application helper traffic;
-- exact framing with production semantic still unknown.
+- C2S2: one BE16 field;
+- C2S6: one BE16 field;
+- C2S78: empty;
+- C2S109: six 16-bit fields with exact LE/BE/A transforms.
 
-No gameplay meaning should be assigned merely from packet length or historical
-317 conventions.
+Reflective or external construction remains possible. Their semantic identity
+is therefore `UNKNOWN_SERVER_AUTHORITY`, not a reason to invent gameplay
+meaning.
+
+The complete R2 classification and bytecode evidence is recorded in
+`RESIDUAL_CLASSIFICATION_R2.md`.
 
 ## LOCAL LAB BOUNDARY
 
@@ -182,18 +194,19 @@ This research package does **not** claim:
 - v308 has passed the inherited 179/179 runtime gate;
 - the existing test's provenance text has been updated;
 - every framed opcode has domain semantics;
-- production server behavior for the 22 residual families.
+- production server behavior for the four serializer-only unknowns.
 
 Those are separate implementation/acceptance tasks.
 
 ## NEXT CHAT 4 ORDER
 
-1. Resolve the 22 framing-only opcode writer families directly from v308.
-2. Prioritize any writer tied to dialogue/chatbox, item/NPC interaction or
-   application UI.
-3. Emit typed-transport handoffs to Chat 2 only where exact semantics are proven.
-4. Keep telemetry and unknown production behavior fail-closed.
-5. After C2S residuals, return to exact item/NPC definition-field census.
+1. Treat the in-JAR C2S writer classification as closed.
+2. Keep C2S2/6/78/109 explicitly serializer-only / semantic-unknown unless
+   external authority appears.
+3. Begin the global exact-current S2C reader census.
+4. Continue high-value application/UI contracts from Issue #427.
+5. Return to exact item/NPC definition-field census after the highest-value
+   S2C/application handoffs.
 
 ## READY FOR CHAT 2
 
