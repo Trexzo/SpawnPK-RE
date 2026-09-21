@@ -735,8 +735,8 @@ final class PlayerSnapshotSchemaV1 {
             CharacterDesignProfile.defaultKits(
                 characterGender
             );
-        for(int i=0;i<characterKits.length;i++)
-            characterKits[i]=
+        for(int i=0;i<characterKits.length;i++){
+            int persistedKit=
                 boundedInt(
                     values.get(
                         "appearance.kit."+i
@@ -745,6 +745,17 @@ final class PlayerSnapshotSchemaV1 {
                     -1,
                     255
                 );
+
+            // Snapshot restore is intentionally tolerant: malformed/out-of-range
+            // scalar values already fall back through boundedInt.  An in-range
+            // identity-kit id from the wrong gender/body slot must do the same
+            // rather than making the whole account snapshot unrecoverable.
+            if(CharacterDesignProfile.validKit(
+                    characterGender,
+                    i,
+                    persistedKit))
+                characterKits[i]=persistedKit;
+        }
 
         int[] characterColours=
             CharacterDesignProfile.defaultColours();
