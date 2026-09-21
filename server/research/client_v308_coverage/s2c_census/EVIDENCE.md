@@ -256,16 +256,66 @@ contracts for major direct handlers including:
 - S2C134 skill update;
 - S2C110 run energy.
 
-The R1 TSV records the complete 75-family client effect names, while keeping
-three less-resolved labels deliberately conservative:
+The R1 TSV now records a closed client-presentation family name for all 75
+handled opcodes.
+
+Three labels were tightened after following their exact field consumers:
+
+### S2C218 — dialog/chat-area interface root
+
+The fixed-two-byte handler assigns the decoded interface id to `Client.en` and
+marks the relevant screen region dirty. Exact consumers render
+`rs.n.e.H[en]` whenever `en != -1`, and the broader client UI state treats
+that value as an active dialog/chat-area interface root.
+
+This proves client presentation. It does not prove which server content should
+open a particular root.
+
+### S2C221 — friend-server connection status
+
+The fixed-one-byte handler assigns `Client.kB`. Exact UI consumers distinguish:
 
 ```
-218 -> exact field en update, higher semantic name not yet closed
-221 -> exact field kB/status update, higher semantic name not yet closed
-255 -> exact custom tuple dispatch to rs.l.e.h, application meaning not yet closed
+0 -> "Loading friend list"
+1 -> "Connecting to friendserver"
+2 -> friend-list ready/interactive state
 ```
 
-No production server meaning is invented for these three.
+Friend add/remove controls also require `kB == 2`.
+
+This closes the client-visible status meaning without inventing the original
+friend-server implementation.
+
+### S2C255 — hit/block-drop popup event
+
+The fixed-12-byte handler reads:
+
+```
+u16
+i64
+u16
+```
+
+and passes them to `rs.l.e.h.a(int,long,int)`.
+
+That manager constructs `rs.l.e.g` popup entries using exact assets:
+
+```
+popups/drop bar
+popups/block drop
+popups/hit drop
+popups/protmelee
+popups/protmagic
+popups/protrange
+```
+
+The first integer becomes/accumulates the displayed numeric popup value, the
+long is retained as a correlation key used by later client-side update controls,
+and the final integer selects the optional protection-style icon channel.
+
+Therefore the exact presentation family is a native hit/block-drop popup event.
+Damage attribution, combat timing and why/when the production server emitted
+the event remain server authority.
 
 ## CLIENT EFFECT != SERVER POLICY
 
@@ -302,17 +352,15 @@ This Chat 4 package does not rewrite runtime packet writers.
 
 ## NEXT S2C WORK
 
-1. Close the higher semantic identity of 218 / 221 / 255 if exact evidence
-   exists.
-2. Add per-family field-schema rows for the 75 handlers, prioritizing:
+1. Add per-family field-schema rows for the 75 handlers, prioritizing:
    - interfaces/containers/configs;
    - social/chat;
    - camera/audio;
    - regional entity/object presentation.
-3. Compare all 75 client effects against current LocalLab S2C writers and
+2. Compare all 75 client effects against current LocalLab S2C writers and
    identify concrete missing publisher families.
-4. Link the finite S2C census into Issue #427 application/UI recovery.
-5. Keep original server invocation/business rules evidence-gated.
+3. Link the finite S2C census into Issue #427 application/UI recovery.
+4. Keep original server invocation/business rules evidence-gated.
 
 ## READY FOR CHAT 2
 
