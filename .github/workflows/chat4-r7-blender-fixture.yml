@@ -1,4 +1,4 @@
-name: Chat4 R7-R8 Blender fixtures
+name: Chat4 R7-R9 Blender fixtures
 
 on:
   push:
@@ -32,11 +32,8 @@ jobs:
           set -euo pipefail
           mkdir -p r7-output
           export R7_OUT="$PWD/r7-output"
-          ./blender-4.5.14-linux-x64/blender \
-            --background \
-            --factory-startup \
-            --python tools/research/chat4_r7_blender_fixture.py \
-            2>&1 | tee r7-output/blender-run.log
+          ./blender-4.5.14-linux-x64/blender --background --factory-startup \
+            --python tools/research/chat4_r7_blender_fixture.py 2>&1 | tee r7-output/blender-run.log
           grep -F 'R7_BLENDER_RUNTIME_EXECUTED_PASS' r7-output/blender-run.log
           grep -F 'R7_BLENDER_NATIVE_KEYFRAMES_PASS' r7-output/blender-run.log
           grep -F 'R7_BLENDER_AXIS_CONTRACT_EMIT_PASS' r7-output/blender-run.log
@@ -49,17 +46,29 @@ jobs:
           set -euo pipefail
           mkdir -p r8-output
           export R8_OUT="$PWD/r8-output"
-          ./blender-4.5.14-linux-x64/blender \
-            --background \
-            --factory-startup \
-            --python tools/research/chat4_r8_blender_armature_fixture.py \
-            2>&1 | tee r8-output/blender-run.log
+          ./blender-4.5.14-linux-x64/blender --background --factory-startup \
+            --python tools/research/chat4_r8_blender_armature_fixture.py 2>&1 | tee r8-output/blender-run.log
           grep -F 'R8_BLENDER_ARMATURE_RUNTIME_PASS' r8-output/blender-run.log
           grep -F 'R8_BLENDER_TWO_BONE_RIG_PASS' r8-output/blender-run.log
           grep -F 'R8_BLENDER_POSE_KEYFRAMES_PASS' r8-output/blender-run.log
           grep -F 'R8_BLENDER_ARMATURE_RIG_V1_EXPORT_PASS' r8-output/blender-run.log
           grep -F 'R8_BLENDER_ARMATURE_AXIS_CONTRACT_PASS' r8-output/blender-run.log
           cp blender-fixture-binary-sha256.txt r8-output/
+
+      - name: Execute R9 parent-child hierarchy bake fixture
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p r9-output
+          export R9_OUT="$PWD/r9-output"
+          ./blender-4.5.14-linux-x64/blender --background --factory-startup \
+            --python tools/research/chat4_r9_blender_hierarchy_fixture.py 2>&1 | tee r9-output/blender-run.log
+          grep -F 'R9_BLENDER_HIERARCHY_RUNTIME_PASS' r9-output/blender-run.log
+          grep -F 'R9_BLENDER_PARENT_CHILD_PASS' r9-output/blender-run.log
+          grep -F 'R9_HIERARCHY_GLOBAL_DELTA_BAKE_PASS' r9-output/blender-run.log
+          grep -F 'R9_HIERARCHY_NO_SHEAR_GUARD_PASS' r9-output/blender-run.log
+          grep -F 'R9_BLENDER_HIERARCHY_RIG_V1_EXPORT_PASS' r9-output/blender-run.log
+          cp blender-fixture-binary-sha256.txt r9-output/
 
       - name: Upload R7 authored fixture evidence
         uses: actions/upload-artifact@v4
@@ -74,5 +83,13 @@ jobs:
         with:
           name: chat4-r8-blender-armature-fixture
           path: r8-output/
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Upload R9 hierarchy fixture evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: chat4-r9-blender-hierarchy-fixture
+          path: r9-output/
           if-no-files-found: error
           retention-days: 7
