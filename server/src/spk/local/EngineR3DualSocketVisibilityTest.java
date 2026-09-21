@@ -29,7 +29,8 @@ public final class EngineR3DualSocketVisibilityTest {
             try{
                 c1=login(loop,ss.getLocalPort(),"opensrc");
                 waitFor(() -> world.players().size()==1,3000,"primary login");
-                Socket s1=socket(c1);Thread.sleep(250);drain(s1);
+                waitFor(() -> world.tickTargetsSnapshot().size()==1,3000,"primary session ready");
+                Socket s1=socket(c1);drainUntilQuiet(s1,1500,100);
 
                 c2=login(loop,ss.getLocalPort(),"opensrc");
                 waitFor(() -> world.players().size()==2,3000,"dual membership");
@@ -87,9 +88,26 @@ public final class EngineR3DualSocketVisibilityTest {
     private static Socket socket(AutoCloseable c)throws Exception{
         Field f=c.getClass().getDeclaredField("socket");f.setAccessible(true);return (Socket)f.get(c);
     }
-    private static byte[] drain(Socket s)throws Exception{
-        InputStream in=s.getInputStream();ByteArrayOutputStream out=new ByteArrayOutputStream();long until=System.currentTimeMillis()+350;
-        while(System.currentTimeMillis()<until){int n=in.available();if(n>0){byte[] b=new byte[Math.min(n,8192)];int r=in.read(b);if(r>0){out.write(b,0,r);until=System.currentTimeMillis()+80;}}else Thread.sleep(5);}
+    private static byte[] drainUntilQuiet(Socket s,long timeout,long quietMillis)throws Exception{
+        InputStream in=s.getInputStream();
+        ByteArrayOutputStream out=new ByteArrayOutputStream();
+        long end=System.currentTimeMillis()+timeout;
+        long quietUntil=System.currentTimeMillis()+quietMillis;
+        while(System.currentTimeMillis()<end){
+            int n=in.available();
+            if(n>0){
+                byte[] b=new byte[Math.min(n,8192)];
+                int r=in.read(b);
+                if(r>0){
+                    out.write(b,0,r);
+                    quietUntil=System.currentTimeMillis()+quietMillis;
+                }
+            }else{
+                if(System.currentTimeMillis()>=quietUntil)
+                    return out.toByteArray();
+                Thread.sleep(5);
+            }
+        }
         return out.toByteArray();
     }
     private static byte[] awaitContains(Socket s,long timeout,String label,String... needles)throws Exception{
