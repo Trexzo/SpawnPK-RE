@@ -1,0 +1,44 @@
+name: TEMP Issue 350 Runtime Weapon Response CI
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'server/src/spk/local/EngineR72RuntimeWeaponPanelSocketTest.java'
+      - '.github/workflows/temp-issue350-runtime-weapon-response-ci.yml'
+
+jobs:
+  validate:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Temurin JDK 21
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Compile test classes
+        shell: pwsh
+        run: ./server/gradlew.bat --no-daemon testClasses
+      - name: Stress runtime weapon panel response readiness
+        shell: pwsh
+        run: |
+          $cp = 'server/build/classes/java/test;server/build/classes/java/main;server/build/resources/test;server/build/resources/main'
+          for ($i = 1; $i -le 10; $i++) {
+            & java -cp $cp spk.local.EngineR72RuntimeWeaponPanelSocketTest
+            if ($LASTEXITCODE -ne 0) {
+              throw "EngineR72RuntimeWeaponPanelSocketTest failed iteration=$i exit=$LASTEXITCODE"
+            }
+          }
+          Write-Host "ISSUE350_RUNTIME_WEAPON_RESPONSE_STRESS_PASS iterations=10"
+      - name: Run parent dev-panel socket regression
+        shell: pwsh
+        run: |
+          $cp = 'server/build/classes/java/test;server/build/classes/java/main;server/build/resources/test;server/build/resources/main'
+          & java -cp $cp spk.local.EngineR7DevPanelSocketTest
+          if ($LASTEXITCODE -ne 0) {
+            throw "EngineR7DevPanelSocketTest failed exit=$LASTEXITCODE"
+          }
+          Write-Host "ISSUE350_PARENT_DEVPANEL_PASS tests=1"
