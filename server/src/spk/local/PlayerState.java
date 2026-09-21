@@ -21,6 +21,13 @@ final class PlayerState {
     private final int[] current=new int[COMBAT_SKILL_COUNT];
     private final int[] xp=new int[COMBAT_SKILL_COUNT];
     private final int[] compSelectors=DEFAULT_COMP_SELECTORS.clone();
+    private int characterGender=CharacterDesignProfile.MALE;
+    private final int[] characterKits=
+        CharacterDesignProfile.defaultKits(
+            CharacterDesignProfile.MALE
+        );
+    private final int[] characterColours=
+        CharacterDesignProfile.defaultColours();
 
     /** Exact-current optional extra player appearance item (rs.a.k.bs), -1 absent. */
     private int nativeIconItemId=-1;
@@ -42,6 +49,9 @@ final class PlayerState {
     int xp(int skill){ return xp[skill]; }
     int combatLevel(){ return DEFAULT_COMBAT_LEVEL; }
     int[] compSelectors(){ return compSelectors.clone(); }
+    int characterGender(){ return characterGender; }
+    int[] characterKits(){ return characterKits.clone(); }
+    int[] characterColours(){ return characterColours.clone(); }
     int nativeIconItemId(){ return nativeIconItemId; }
     CosmeticState cosmetic(){ return cosmetic; }
     int specialEnergy(){ return specialEnergy; }
@@ -142,6 +152,41 @@ final class PlayerState {
         for(int v:values) if(v<0 || v>19) return false;
         System.arraycopy(values,0,compSelectors,0,6);
         return true;
+    }
+
+    boolean setCharacterAppearance(
+        int gender,
+        int[] kits,
+        int[] colours
+    ){
+        if(!CharacterDesignProfile.valid(
+                gender,
+                kits,
+                colours))
+            return false;
+
+        characterGender=gender;
+        System.arraycopy(
+            kits,
+            0,
+            characterKits,
+            0,
+            characterKits.length
+        );
+        System.arraycopy(
+            colours,
+            0,
+            characterColours,
+            0,
+            characterColours.length
+        );
+        return true;
+    }
+
+    String characterAppearanceSummary(){
+        return "gender="+characterGender+
+            " kits="+Arrays.toString(characterKits)+
+            " colours="+Arrays.toString(characterColours);
     }
 
     String compSelectorSummary(){ return Arrays.toString(compSelectors); }
