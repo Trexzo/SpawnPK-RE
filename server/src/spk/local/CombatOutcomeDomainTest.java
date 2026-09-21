@@ -7,6 +7,7 @@ public final class CombatOutcomeDomainTest {
             "player:a",
             "player:b",
             CombatOutcomeType.PLAYER_KILL,
+            CombatOutcomeContext.PLAYER_PVP,
             42L,
             "CUSTOM_LOCALLAB"
         );
@@ -26,13 +27,19 @@ public final class CombatOutcomeDomainTest {
             throw new AssertionError("observer did not receive outcome");
         }
 
-        if (!"CUSTOM_LOCALLAB".equals(outcome.context())) {
-            throw new AssertionError("context changed");
+        if (outcome.context() != CombatOutcomeContext.PLAYER_PVP) {
+            throw new AssertionError("combat context changed");
+        }
+
+        if (!"CUSTOM_LOCALLAB".equals(outcome.sourceAuthority())) {
+            throw new AssertionError("source authority changed");
         }
 
         System.out.println(
             "COMBAT_OUTCOME_DOMAIN_PASS " +
             "immutable=true " +
+            "typedContext=true " +
+            "authoritySeparated=true " +
             "protocolIndependent=true " +
             "consumerBoundary=true " +
             "rewardMutation=false"
