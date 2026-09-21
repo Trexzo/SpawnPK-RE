@@ -1,0 +1,13 @@
+# exact/current item metadata subset
+# id	name	actions	clone	equipClone	fullClone
+10556	Attacker icon		-1	-1	-1
+10557	Collector icon		-1	-1	-1
+10558	Defender icon		-1	-1	-1
+10559	Healder icon		-1	-1	-1
+22130	Tevins partyhat	|Wear|Override||Drop	1038	-1	-1
+22131	Admin partyhat	|Wear|Override||Drop	1038	-1	-1
+22132	Owner partyhat	|Wear|Override||Drop	1038	-1	-1
+23480	Support partyhat	|Wear|Override||Drop	1038	-1	-1
+23481	Mod partyhat	|Wear|Override||Drop	1038	-1	-1
+23482	Super mod partyhat	|Wear|Override||Drop	1038	-1	-1
+23483	Grand mod partyhat	|Wear|Override||Drop	1038	-1	-1
