@@ -11,6 +11,8 @@ public final class ContentPublicApiBoundaryTest {
         ContentInteractionResult.class,
         ContentItemOnGroundItemContext.class,
         ContentItemOnGroundItemHandler.class,
+        ContentItemOnItemContext.class,
+        ContentItemOnItemHandler.class,
         ContentItemOnNpcContext.class,
         ContentItemOnNpcHandler.class,
         ContentItemOnObjectContext.class,
