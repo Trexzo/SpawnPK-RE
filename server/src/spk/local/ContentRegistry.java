@@ -193,6 +193,140 @@ final class ContentRegistry {
         }
     }
 
+    private static final class ItemOnGroundItemKey {
+        final int itemId;
+        final int groundItemId;
+
+        ItemOnGroundItemKey(
+            int itemId,
+            int groundItemId
+        ){
+            this.itemId=itemId;
+            this.groundItemId=groundItemId;
+        }
+
+        String diagnosticKey(){
+            return itemId+":"+groundItemId;
+        }
+
+        @Override public boolean equals(
+            Object other
+        ){
+            if(this==other)return true;
+            if(!(other instanceof ItemOnGroundItemKey))
+                return false;
+            ItemOnGroundItemKey key=
+                (ItemOnGroundItemKey)other;
+            return itemId==key.itemId&&
+                groundItemId==key.groundItemId;
+        }
+
+        @Override public int hashCode(){
+            return 31*itemId+groundItemId;
+        }
+    }
+
+    private static final class ItemOnGroundItemBinding {
+        final BindingInfo info;
+        final ContentItemOnGroundItemHandler handler;
+
+        ItemOnGroundItemBinding(
+            BindingInfo info,
+            ContentItemOnGroundItemHandler handler
+        ){
+            this.info=info;
+            this.handler=handler;
+        }
+    }
+
+    private static final class ItemOnObjectKey {
+        final int itemId;
+        final int objectId;
+
+        ItemOnObjectKey(
+            int itemId,
+            int objectId
+        ){
+            this.itemId=itemId;
+            this.objectId=objectId;
+        }
+
+        String diagnosticKey(){
+            return itemId+":"+objectId;
+        }
+
+        @Override public boolean equals(
+            Object other
+        ){
+            if(this==other)return true;
+            if(!(other instanceof ItemOnObjectKey))
+                return false;
+            ItemOnObjectKey key=
+                (ItemOnObjectKey)other;
+            return itemId==key.itemId&&
+                objectId==key.objectId;
+        }
+
+        @Override public int hashCode(){
+            return 31*itemId+objectId;
+        }
+    }
+
+    private static final class ItemOnObjectBinding {
+        final BindingInfo info;
+        final ContentItemOnObjectHandler handler;
+
+        ItemOnObjectBinding(
+            BindingInfo info,
+            ContentItemOnObjectHandler handler
+        ){
+            this.info=info;
+            this.handler=handler;
+        }
+    }
+
+    private static final class ItemOnPlayerKey {
+        final int itemId;
+
+        ItemOnPlayerKey(
+            int itemId
+        ){
+            this.itemId=itemId;
+        }
+
+        String diagnosticKey(){
+            return Integer.toString(itemId);
+        }
+
+        @Override public boolean equals(
+            Object other
+        ){
+            if(this==other)return true;
+            if(!(other instanceof ItemOnPlayerKey))
+                return false;
+            ItemOnPlayerKey key=
+                (ItemOnPlayerKey)other;
+            return itemId==key.itemId;
+        }
+
+        @Override public int hashCode(){
+            return itemId;
+        }
+    }
+
+    private static final class ItemOnPlayerBinding {
+        final BindingInfo info;
+        final ContentItemOnPlayerHandler handler;
+
+        ItemOnPlayerBinding(
+            BindingInfo info,
+            ContentItemOnPlayerHandler handler
+        ){
+            this.info=info;
+            this.handler=handler;
+        }
+    }
+
     private static final class NpcOptionKey {
         final int npcDefinitionId;
         final int option;
@@ -249,6 +383,12 @@ final class ContentRegistry {
         itemOptions=new LinkedHashMap<>();
     private final LinkedHashMap<ItemOnNpcKey,ItemOnNpcBinding>
         itemOnNpcActions=new LinkedHashMap<>();
+    private final LinkedHashMap<ItemOnGroundItemKey,ItemOnGroundItemBinding>
+        itemOnGroundItemActions=new LinkedHashMap<>();
+    private final LinkedHashMap<ItemOnObjectKey,ItemOnObjectBinding>
+        itemOnObjectActions=new LinkedHashMap<>();
+    private final LinkedHashMap<ItemOnPlayerKey,ItemOnPlayerBinding>
+        itemOnPlayerActions=new LinkedHashMap<>();
     private final LinkedHashMap<NpcOptionKey,NpcOptionBinding>
         npcOptions=new LinkedHashMap<>();
 
@@ -265,6 +405,12 @@ final class ContentRegistry {
         itemOptionRegistrations=new ArrayList<>();
     private final ArrayList<ItemOnNpcRegistration>
         itemOnNpcRegistrations=new ArrayList<>();
+    private final ArrayList<ItemOnGroundItemRegistration>
+        itemOnGroundItemRegistrations=new ArrayList<>();
+    private final ArrayList<ItemOnObjectRegistration>
+        itemOnObjectRegistrations=new ArrayList<>();
+    private final ArrayList<ItemOnPlayerRegistration>
+        itemOnPlayerRegistrations=new ArrayList<>();
     private final ArrayList<NpcOptionRegistration>
         npcOptionRegistrations=new ArrayList<>();
 
@@ -360,6 +506,24 @@ final class ContentRegistry {
                             itemOnNpcRegistrations
                         );
 
+                ArrayList<ItemOnGroundItemRegistration>
+                    nextItemOnGroundItemRegistrations=
+                        new ArrayList<>(
+                            itemOnGroundItemRegistrations
+                        );
+
+                ArrayList<ItemOnObjectRegistration>
+                    nextItemOnObjectRegistrations=
+                        new ArrayList<>(
+                            itemOnObjectRegistrations
+                        );
+
+                ArrayList<ItemOnPlayerRegistration>
+                    nextItemOnPlayerRegistrations=
+                        new ArrayList<>(
+                            itemOnPlayerRegistrations
+                        );
+
                 ArrayList<NpcOptionRegistration>
                     nextNpcOptionRegistrations=
                         new ArrayList<>(
@@ -398,6 +562,30 @@ final class ContentRegistry {
                             registration
                         );
 
+                for(ItemOnGroundItemRegistration registration:
+                        registrar.pendingItemOnGroundItem)
+                    if(registration.handle.pending())
+                        addItemOnGroundItemRegistration(
+                            nextItemOnGroundItemRegistrations,
+                            registration
+                        );
+
+                for(ItemOnObjectRegistration registration:
+                        registrar.pendingItemOnObject)
+                    if(registration.handle.pending())
+                        addItemOnObjectRegistration(
+                            nextItemOnObjectRegistrations,
+                            registration
+                        );
+
+                for(ItemOnPlayerRegistration registration:
+                        registrar.pendingItemOnPlayer)
+                    if(registration.handle.pending())
+                        addItemOnPlayerRegistration(
+                            nextItemOnPlayerRegistrations,
+                            registration
+                        );
+
                 for(NpcOptionRegistration registration:
                         registrar.pendingNpcOptions)
                     if(registration.handle.pending())
@@ -430,6 +618,24 @@ final class ContentRegistry {
                             nextItemOnNpcRegistrations
                         );
 
+                LinkedHashMap<ItemOnGroundItemKey,ItemOnGroundItemBinding>
+                    nextItemOnGroundItemActions=
+                        buildItemOnGroundItemBindings(
+                            nextItemOnGroundItemRegistrations
+                        );
+
+                LinkedHashMap<ItemOnObjectKey,ItemOnObjectBinding>
+                    nextItemOnObjectActions=
+                        buildItemOnObjectBindings(
+                            nextItemOnObjectRegistrations
+                        );
+
+                LinkedHashMap<ItemOnPlayerKey,ItemOnPlayerBinding>
+                    nextItemOnPlayerActions=
+                        buildItemOnPlayerBindings(
+                            nextItemOnPlayerRegistrations
+                        );
+
                 LinkedHashMap<NpcOptionKey,NpcOptionBinding>
                     nextNpcOptions=
                         buildNpcOptionBindings(
@@ -456,6 +662,21 @@ final class ContentRegistry {
                     nextItemOnNpcRegistrations
                 );
 
+                itemOnGroundItemRegistrations.clear();
+                itemOnGroundItemRegistrations.addAll(
+                    nextItemOnGroundItemRegistrations
+                );
+
+                itemOnObjectRegistrations.clear();
+                itemOnObjectRegistrations.addAll(
+                    nextItemOnObjectRegistrations
+                );
+
+                itemOnPlayerRegistrations.clear();
+                itemOnPlayerRegistrations.addAll(
+                    nextItemOnPlayerRegistrations
+                );
+
                 npcOptionRegistrations.clear();
                 npcOptionRegistrations.addAll(
                     nextNpcOptionRegistrations
@@ -477,6 +698,21 @@ final class ContentRegistry {
                 itemOnNpcActions.clear();
                 itemOnNpcActions.putAll(
                     nextItemOnNpcActions
+                );
+
+                itemOnGroundItemActions.clear();
+                itemOnGroundItemActions.putAll(
+                    nextItemOnGroundItemActions
+                );
+
+                itemOnObjectActions.clear();
+                itemOnObjectActions.putAll(
+                    nextItemOnObjectActions
+                );
+
+                itemOnPlayerActions.clear();
+                itemOnPlayerActions.putAll(
+                    nextItemOnPlayerActions
                 );
 
                 npcOptions.clear();
@@ -646,6 +882,103 @@ final class ContentRegistry {
         );
     }
 
+    ContentInteractionResult dispatchItemOnGroundItem(
+        int itemId,
+        int groundItemId,
+        int worldX,
+        int worldY
+    ){
+        requireWorldThread();
+
+        ItemOnGroundItemBinding binding;
+
+        synchronized(this){
+            binding=itemOnGroundItemActions.get(
+                new ItemOnGroundItemKey(
+                    itemId,
+                    groundItemId
+                )
+            );
+        }
+
+        if(binding==null)
+            return null;
+
+        return binding.handler.handle(
+            new ItemOnGroundItemContext(
+                itemId,
+                groundItemId,
+                worldX,
+                worldY
+            )
+        );
+    }
+
+    ContentInteractionResult dispatchItemOnObject(
+        int itemId,
+        int objectId,
+        int worldX,
+        int worldY
+    ){
+        requireWorldThread();
+
+        ItemOnObjectBinding binding;
+
+        synchronized(this){
+            binding=itemOnObjectActions.get(
+                new ItemOnObjectKey(
+                    itemId,
+                    objectId
+                )
+            );
+        }
+
+        if(binding==null)
+            return null;
+
+        return binding.handler.handle(
+            new ItemOnObjectContext(
+                itemId,
+                objectId,
+                worldX,
+                worldY
+            )
+        );
+    }
+
+    ContentInteractionResult dispatchItemOnPlayer(
+        int itemId,
+        WorldPlayer target
+    ){
+        requireWorldThread();
+        Objects.requireNonNull(
+            target,
+            "target"
+        );
+
+        ItemOnPlayerBinding binding;
+
+        synchronized(this){
+            binding=itemOnPlayerActions.get(
+                new ItemOnPlayerKey(
+                    itemId
+                )
+            );
+        }
+
+        if(binding==null)
+            return null;
+
+        return binding.handler.handle(
+            new ItemOnPlayerContext(
+                itemId,
+                ContentRuntimeAdapters.player(
+                    target
+                )
+            )
+        );
+    }
+
     ContentNpcOptionResult dispatchNpcOption(
         int npcDefinitionId,
         int option,
@@ -738,6 +1071,52 @@ final class ContentRegistry {
             :binding.info;
     }
 
+    synchronized BindingInfo itemOnGroundItemBinding(
+        int itemId,
+        int groundItemId
+    ){
+        ItemOnGroundItemBinding binding=
+            itemOnGroundItemActions.get(
+                new ItemOnGroundItemKey(
+                    itemId,
+                    groundItemId
+                )
+            );
+        return binding==null
+            ?null
+            :binding.info;
+    }
+
+    synchronized BindingInfo itemOnObjectBinding(
+        int itemId,
+        int objectId
+    ){
+        ItemOnObjectBinding binding=
+            itemOnObjectActions.get(
+                new ItemOnObjectKey(
+                    itemId,
+                    objectId
+                )
+            );
+        return binding==null
+            ?null
+            :binding.info;
+    }
+
+    synchronized BindingInfo itemOnPlayerBinding(
+        int itemId
+    ){
+        ItemOnPlayerBinding binding=
+            itemOnPlayerActions.get(
+                new ItemOnPlayerKey(
+                    itemId
+                )
+            );
+        return binding==null
+            ?null
+            :binding.info;
+    }
+
     synchronized BindingInfo npcOptionBinding(
         int npcDefinitionId,
         int option
@@ -774,6 +1153,18 @@ final class ContentRegistry {
                 itemOnNpcActions.values())
             result.add(binding.info);
 
+        for(ItemOnGroundItemBinding binding:
+                itemOnGroundItemActions.values())
+            result.add(binding.info);
+
+        for(ItemOnObjectBinding binding:
+                itemOnObjectActions.values())
+            result.add(binding.info);
+
+        for(ItemOnPlayerBinding binding:
+                itemOnPlayerActions.values())
+            result.add(binding.info);
+
         for(NpcOptionBinding binding:
                 npcOptions.values())
             result.add(binding.info);
@@ -793,6 +1184,12 @@ final class ContentRegistry {
                 itemOptions.size()+
             ",itemOnNpc="+
                 itemOnNpcActions.size()+
+            ",itemOnGroundItem="+
+                itemOnGroundItemActions.size()+
+            ",itemOnObject="+
+                itemOnObjectActions.size()+
+            ",itemOnPlayer="+
+                itemOnPlayerActions.size()+
             ",npcOptions="+
                 npcOptions.size()+
             ",bindings="+bindings()+
@@ -866,6 +1263,60 @@ final class ContentRegistry {
         ItemOnNpcRegistration incoming
     ){
         for(ItemOnNpcRegistration existing:
+                target)
+            if(existing.key.equals(
+                    incoming.key)&&
+               existing.info.priority==
+                    incoming.info.priority)
+                throw conflict(
+                    incoming.info,
+                    existing.info
+                );
+
+        target.add(incoming);
+    }
+
+    private static void addItemOnGroundItemRegistration(
+        List<ItemOnGroundItemRegistration> target,
+        ItemOnGroundItemRegistration incoming
+    ){
+        for(ItemOnGroundItemRegistration existing:
+                target)
+            if(existing.key.equals(
+                    incoming.key)&&
+               existing.info.priority==
+                    incoming.info.priority)
+                throw conflict(
+                    incoming.info,
+                    existing.info
+                );
+
+        target.add(incoming);
+    }
+
+    private static void addItemOnObjectRegistration(
+        List<ItemOnObjectRegistration> target,
+        ItemOnObjectRegistration incoming
+    ){
+        for(ItemOnObjectRegistration existing:
+                target)
+            if(existing.key.equals(
+                    incoming.key)&&
+               existing.info.priority==
+                    incoming.info.priority)
+                throw conflict(
+                    incoming.info,
+                    existing.info
+                );
+
+        target.add(incoming);
+    }
+
+    private static void addItemOnPlayerRegistration(
+        List<ItemOnPlayerRegistration> target,
+        ItemOnPlayerRegistration incoming
+    ){
+        for(ItemOnPlayerRegistration existing:
                 target)
             if(existing.key.equals(
                     incoming.key)&&
@@ -965,6 +1416,57 @@ final class ContentRegistry {
         return result;
     }
 
+    private static LinkedHashMap<ItemOnGroundItemKey,ItemOnGroundItemBinding>
+        buildItemOnGroundItemBindings(
+            List<ItemOnGroundItemRegistration> registrations
+        ){
+        LinkedHashMap<ItemOnGroundItemKey,ItemOnGroundItemBinding>
+            result=new LinkedHashMap<>();
+
+        for(ItemOnGroundItemRegistration registration:
+                registrations)
+            applyItemOnGroundItem(
+                result,
+                registration
+            );
+
+        return result;
+    }
+
+    private static LinkedHashMap<ItemOnObjectKey,ItemOnObjectBinding>
+        buildItemOnObjectBindings(
+            List<ItemOnObjectRegistration> registrations
+        ){
+        LinkedHashMap<ItemOnObjectKey,ItemOnObjectBinding>
+            result=new LinkedHashMap<>();
+
+        for(ItemOnObjectRegistration registration:
+                registrations)
+            applyItemOnObject(
+                result,
+                registration
+            );
+
+        return result;
+    }
+
+    private static LinkedHashMap<ItemOnPlayerKey,ItemOnPlayerBinding>
+        buildItemOnPlayerBindings(
+            List<ItemOnPlayerRegistration> registrations
+        ){
+        LinkedHashMap<ItemOnPlayerKey,ItemOnPlayerBinding>
+            result=new LinkedHashMap<>();
+
+        for(ItemOnPlayerRegistration registration:
+                registrations)
+            applyItemOnPlayer(
+                result,
+                registration
+            );
+
+        return result;
+    }
+
     private static LinkedHashMap<NpcOptionKey,NpcOptionBinding>
         buildNpcOptionBindings(
             List<NpcOptionRegistration> registrations
@@ -1018,6 +1520,24 @@ final class ContentRegistry {
             )||removed;
 
         removed=
+            itemOnGroundItemRegistrations.removeIf(
+                registration->
+                    registration.handle==handle
+            )||removed;
+
+        removed=
+            itemOnObjectRegistrations.removeIf(
+                registration->
+                    registration.handle==handle
+            )||removed;
+
+        removed=
+            itemOnPlayerRegistrations.removeIf(
+                registration->
+                    registration.handle==handle
+            )||removed;
+
+        removed=
             npcOptionRegistrations.removeIf(
                 registration->
                     registration.handle==handle
@@ -1058,6 +1578,24 @@ final class ContentRegistry {
                     itemOnNpcRegistrations
                 );
 
+        LinkedHashMap<ItemOnGroundItemKey,ItemOnGroundItemBinding>
+            nextItemOnGroundItemActions=
+                buildItemOnGroundItemBindings(
+                    itemOnGroundItemRegistrations
+                );
+
+        LinkedHashMap<ItemOnObjectKey,ItemOnObjectBinding>
+            nextItemOnObjectActions=
+                buildItemOnObjectBindings(
+                    itemOnObjectRegistrations
+                );
+
+        LinkedHashMap<ItemOnPlayerKey,ItemOnPlayerBinding>
+            nextItemOnPlayerActions=
+                buildItemOnPlayerBindings(
+                    itemOnPlayerRegistrations
+                );
+
         LinkedHashMap<NpcOptionKey,NpcOptionBinding>
             nextNpcOptions=
                 buildNpcOptionBindings(
@@ -1080,6 +1618,21 @@ final class ContentRegistry {
         itemOnNpcActions.clear();
         itemOnNpcActions.putAll(
             nextItemOnNpcActions
+        );
+
+        itemOnGroundItemActions.clear();
+        itemOnGroundItemActions.putAll(
+            nextItemOnGroundItemActions
+        );
+
+        itemOnObjectActions.clear();
+        itemOnObjectActions.putAll(
+            nextItemOnObjectActions
+        );
+
+        itemOnPlayerActions.clear();
+        itemOnPlayerActions.putAll(
+            nextItemOnPlayerActions
         );
 
         npcOptions.clear();
@@ -1234,6 +1787,120 @@ final class ContentRegistry {
             target.put(
                 registration.key,
                 new ItemOnNpcBinding(
+                    registration.info,
+                    registration.handler
+                )
+            );
+    }
+
+    private static void applyItemOnGroundItem(
+        Map<ItemOnGroundItemKey,ItemOnGroundItemBinding> target,
+        ItemOnGroundItemRegistration registration
+    ){
+        ItemOnGroundItemBinding existing=
+            target.get(
+                registration.key
+            );
+
+        if(existing==null){
+            target.put(
+                registration.key,
+                new ItemOnGroundItemBinding(
+                    registration.info,
+                    registration.handler
+                )
+            );
+            return;
+        }
+
+        if(registration.info.priority==
+                existing.info.priority)
+            throw conflict(
+                registration.info,
+                existing.info
+            );
+
+        if(registration.info.priority>
+                existing.info.priority)
+            target.put(
+                registration.key,
+                new ItemOnGroundItemBinding(
+                    registration.info,
+                    registration.handler
+                )
+            );
+    }
+
+    private static void applyItemOnObject(
+        Map<ItemOnObjectKey,ItemOnObjectBinding> target,
+        ItemOnObjectRegistration registration
+    ){
+        ItemOnObjectBinding existing=
+            target.get(
+                registration.key
+            );
+
+        if(existing==null){
+            target.put(
+                registration.key,
+                new ItemOnObjectBinding(
+                    registration.info,
+                    registration.handler
+                )
+            );
+            return;
+        }
+
+        if(registration.info.priority==
+                existing.info.priority)
+            throw conflict(
+                registration.info,
+                existing.info
+            );
+
+        if(registration.info.priority>
+                existing.info.priority)
+            target.put(
+                registration.key,
+                new ItemOnObjectBinding(
+                    registration.info,
+                    registration.handler
+                )
+            );
+    }
+
+    private static void applyItemOnPlayer(
+        Map<ItemOnPlayerKey,ItemOnPlayerBinding> target,
+        ItemOnPlayerRegistration registration
+    ){
+        ItemOnPlayerBinding existing=
+            target.get(
+                registration.key
+            );
+
+        if(existing==null){
+            target.put(
+                registration.key,
+                new ItemOnPlayerBinding(
+                    registration.info,
+                    registration.handler
+                )
+            );
+            return;
+        }
+
+        if(registration.info.priority==
+                existing.info.priority)
+            throw conflict(
+                registration.info,
+                existing.info
+            );
+
+        if(registration.info.priority>
+                existing.info.priority)
+            target.put(
+                registration.key,
+                new ItemOnPlayerBinding(
                     registration.info,
                     registration.handler
                 )
@@ -1398,6 +2065,63 @@ final class ContentRegistry {
         }
     }
 
+    private static final class ItemOnGroundItemRegistration {
+        final ItemOnGroundItemKey key;
+        final BindingInfo info;
+        final ContentItemOnGroundItemHandler handler;
+        final RegistrationHandle handle;
+
+        ItemOnGroundItemRegistration(
+            ItemOnGroundItemKey key,
+            BindingInfo info,
+            ContentItemOnGroundItemHandler handler,
+            RegistrationHandle handle
+        ){
+            this.key=key;
+            this.info=info;
+            this.handler=handler;
+            this.handle=handle;
+        }
+    }
+
+    private static final class ItemOnObjectRegistration {
+        final ItemOnObjectKey key;
+        final BindingInfo info;
+        final ContentItemOnObjectHandler handler;
+        final RegistrationHandle handle;
+
+        ItemOnObjectRegistration(
+            ItemOnObjectKey key,
+            BindingInfo info,
+            ContentItemOnObjectHandler handler,
+            RegistrationHandle handle
+        ){
+            this.key=key;
+            this.info=info;
+            this.handler=handler;
+            this.handle=handle;
+        }
+    }
+
+    private static final class ItemOnPlayerRegistration {
+        final ItemOnPlayerKey key;
+        final BindingInfo info;
+        final ContentItemOnPlayerHandler handler;
+        final RegistrationHandle handle;
+
+        ItemOnPlayerRegistration(
+            ItemOnPlayerKey key,
+            BindingInfo info,
+            ContentItemOnPlayerHandler handler,
+            RegistrationHandle handle
+        ){
+            this.key=key;
+            this.info=info;
+            this.handler=handler;
+            this.handle=handle;
+        }
+    }
+
     private static final class NpcOptionRegistration {
         final NpcOptionKey key;
         final BindingInfo info;
@@ -1471,6 +2195,15 @@ final class ContentRegistry {
                 new ArrayList<>();
         private final ArrayList<ItemOnNpcRegistration>
             pendingItemOnNpc=
+                new ArrayList<>();
+        private final ArrayList<ItemOnGroundItemRegistration>
+            pendingItemOnGroundItem=
+                new ArrayList<>();
+        private final ArrayList<ItemOnObjectRegistration>
+            pendingItemOnObject=
+                new ArrayList<>();
+        private final ArrayList<ItemOnPlayerRegistration>
+            pendingItemOnPlayer=
                 new ArrayList<>();
         private final ArrayList<NpcOptionRegistration>
             pendingNpcOptions=
@@ -1665,6 +2398,143 @@ final class ContentRegistry {
             return handle;
         }
 
+        @Override public ContentRegistration itemOnGroundItem(
+            int itemId,
+            int groundItemId,
+            int priority,
+            ContentItemOnGroundItemHandler handler
+        ){
+            if(itemId<0)
+                throw new IllegalArgumentException(
+                    "itemId"
+                );
+
+            if(groundItemId<0)
+                throw new IllegalArgumentException(
+                    "groundItemId"
+                );
+
+            Objects.requireNonNull(
+                handler,
+                "handler"
+            );
+
+            ItemOnGroundItemKey key=
+                new ItemOnGroundItemKey(
+                    itemId,
+                    groundItemId
+                );
+
+            RegistrationHandle handle=
+                new RegistrationHandle();
+
+            pendingItemOnGroundItem.add(
+                new ItemOnGroundItemRegistration(
+                    key,
+                    new BindingInfo(
+                        "ITEM_ON_GROUND_ITEM",
+                        key.diagnosticKey(),
+                        moduleId,
+                        priority,
+                        provenance
+                    ),
+                    handler,
+                    handle
+                )
+            );
+
+            return handle;
+        }
+
+        @Override public ContentRegistration itemOnObject(
+            int itemId,
+            int objectId,
+            int priority,
+            ContentItemOnObjectHandler handler
+        ){
+            if(itemId<0)
+                throw new IllegalArgumentException(
+                    "itemId"
+                );
+
+            if(objectId<0)
+                throw new IllegalArgumentException(
+                    "objectId"
+                );
+
+            Objects.requireNonNull(
+                handler,
+                "handler"
+            );
+
+            ItemOnObjectKey key=
+                new ItemOnObjectKey(
+                    itemId,
+                    objectId
+                );
+
+            RegistrationHandle handle=
+                new RegistrationHandle();
+
+            pendingItemOnObject.add(
+                new ItemOnObjectRegistration(
+                    key,
+                    new BindingInfo(
+                        "ITEM_ON_OBJECT",
+                        key.diagnosticKey(),
+                        moduleId,
+                        priority,
+                        provenance
+                    ),
+                    handler,
+                    handle
+                )
+            );
+
+            return handle;
+        }
+
+        @Override public ContentRegistration itemOnPlayer(
+            int itemId,
+            int priority,
+            ContentItemOnPlayerHandler handler
+        ){
+            if(itemId<0)
+                throw new IllegalArgumentException(
+                    "itemId"
+                );
+
+            Objects.requireNonNull(
+                handler,
+                "handler"
+            );
+
+            ItemOnPlayerKey key=
+                new ItemOnPlayerKey(
+                    itemId
+                );
+
+            RegistrationHandle handle=
+                new RegistrationHandle();
+
+            pendingItemOnPlayer.add(
+                new ItemOnPlayerRegistration(
+                    key,
+                    new BindingInfo(
+                        "ITEM_ON_PLAYER",
+                        key.diagnosticKey(),
+                        moduleId,
+                        priority,
+                        provenance
+                    ),
+                    handler,
+                    handle
+                )
+            );
+
+            return handle;
+        }
+
         @Override public ContentRegistration npcOption(
             int npcDefinitionId,
             int option,
@@ -1734,6 +2604,21 @@ final class ContentRegistry {
                 registration.handle
                     .activatePending();
 
+            for(ItemOnGroundItemRegistration registration:
+                    pendingItemOnGroundItem)
+                registration.handle
+                    .activatePending();
+
+            for(ItemOnObjectRegistration registration:
+                    pendingItemOnObject)
+                registration.handle
+                    .activatePending();
+
+            for(ItemOnPlayerRegistration registration:
+                    pendingItemOnPlayer)
+                registration.handle
+                    .activatePending();
+
             for(NpcOptionRegistration registration:
                     pendingNpcOptions)
                 registration.handle
@@ -1758,6 +2643,21 @@ final class ContentRegistry {
 
             for(ItemOnNpcRegistration registration:
                     pendingItemOnNpc)
+                registration.handle
+                    .invalidatePending();
+
+            for(ItemOnGroundItemRegistration registration:
+                    pendingItemOnGroundItem)
+                registration.handle
+                    .invalidatePending();
+
+            for(ItemOnObjectRegistration registration:
+                    pendingItemOnObject)
+                registration.handle
+                    .invalidatePending();
+
+            for(ItemOnPlayerRegistration registration:
+                    pendingItemOnPlayer)
                 registration.handle
                     .invalidatePending();
 
@@ -1905,6 +2805,106 @@ final class ContentRegistry {
 
         @Override public int worldY(){
             return worldY;
+        }
+    }
+
+    private static final class ItemOnGroundItemContext
+        implements ContentItemOnGroundItemContext {
+
+        private final int itemId;
+        private final int groundItemId;
+        private final int worldX;
+        private final int worldY;
+
+        ItemOnGroundItemContext(
+            int itemId,
+            int groundItemId,
+            int worldX,
+            int worldY
+        ){
+            this.itemId=itemId;
+            this.groundItemId=groundItemId;
+            this.worldX=worldX;
+            this.worldY=worldY;
+        }
+
+        @Override public int itemId(){
+            return itemId;
+        }
+
+        @Override public int groundItemId(){
+            return groundItemId;
+        }
+
+        @Override public int worldX(){
+            return worldX;
+        }
+
+        @Override public int worldY(){
+            return worldY;
+        }
+    }
+
+    private static final class ItemOnObjectContext
+        implements ContentItemOnObjectContext {
+
+        private final int itemId;
+        private final int objectId;
+        private final int worldX;
+        private final int worldY;
+
+        ItemOnObjectContext(
+            int itemId,
+            int objectId,
+            int worldX,
+            int worldY
+        ){
+            this.itemId=itemId;
+            this.objectId=objectId;
+            this.worldX=worldX;
+            this.worldY=worldY;
+        }
+
+        @Override public int itemId(){
+            return itemId;
+        }
+
+        @Override public int objectId(){
+            return objectId;
+        }
+
+        @Override public int worldX(){
+            return worldX;
+        }
+
+        @Override public int worldY(){
+            return worldY;
+        }
+    }
+
+    private static final class ItemOnPlayerContext
+        implements ContentItemOnPlayerContext {
+
+        private final int itemId;
+        private final ContentPlayer target;
+
+        ItemOnPlayerContext(
+            int itemId,
+            ContentPlayer target
+        ){
+            this.itemId=itemId;
+            this.target=Objects.requireNonNull(
+                target,
+                "target"
+            );
+        }
+
+        @Override public int itemId(){
+            return itemId;
+        }
+
+        @Override public ContentPlayer target(){
+            return target;
         }
     }
 
