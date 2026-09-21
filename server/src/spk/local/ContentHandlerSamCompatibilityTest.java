@@ -5,6 +5,15 @@ import java.util.*;
 import spk.content.api.*;
 
 public final class ContentHandlerSamCompatibilityTest {
+    public interface InheritedExtraAbstractMethod {
+        void audit();
+    }
+
+    public interface InheritedExtraHandler
+        extends ContentCommandHandler,
+                InheritedExtraAbstractMethod {
+    }
+
     private static final class Contract {
         final Class<?> handler;
         final Class<?> context;
@@ -79,6 +88,10 @@ public final class ContentHandlerSamCompatibilityTest {
                 violations
             );
 
+        assertInheritedSecondAbstractMethodRejected(
+            violations
+        );
+
         if(!violations.isEmpty())
             throw new AssertionError(
                 "content handler SAM compatibility violations="+
@@ -89,7 +102,8 @@ public final class ContentHandlerSamCompatibilityTest {
             "CONTENT_HANDLER_SAM_COMPATIBILITY_PASS "+
             "handlers="+CONTRACTS.length+" "+
             "singleAbstractMethod=true "+
-            "semanticSignature=true"
+            "semanticSignature=true "+
+            "inheritedExtraRejected=true"
         );
     }
 
@@ -183,6 +197,30 @@ public final class ContentHandlerSamCompatibilityTest {
                 contract.result.getName()+
                 " actual="+
                 method.getReturnType().getName()
+            );
+    }
+
+    private static void assertInheritedSecondAbstractMethodRejected(
+        List<String> violations
+    ){
+        ArrayList<String> synthetic=
+            new ArrayList<>();
+
+        inspect(
+            new Contract(
+                InheritedExtraHandler.class,
+                ContentCommandContext.class,
+                ContentResult.class
+            ),
+            synthetic
+        );
+
+        if(synthetic.size()!=1||
+           !synthetic.get(0).contains(
+               "abstractMethodCount=2"))
+            violations.add(
+                "inherited second abstract method escaped SAM guard "+
+                synthetic
             );
     }
 
