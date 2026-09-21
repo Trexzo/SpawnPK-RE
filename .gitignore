@@ -30,6 +30,8 @@ server/research/r83/source_archives/
 *.7z
 *.rar
 *.log
+*.lock
+*.pid
 tmp/
 temp/
 dist/
@@ -77,7 +79,3 @@ server/data/dev_pet_visual.properties
 *.bak
 *~
 desktop.ini
-
-# Gradle local state
-server/.gradle/
-.gradle/
