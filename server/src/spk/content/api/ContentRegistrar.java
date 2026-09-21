@@ -41,6 +41,12 @@ public interface ContentRegistrar {
         ContentItemOnObjectHandler handler
     );
 
+    ContentRegistration itemOnPlayer(
+        int itemId,
+        int priority,
+        ContentItemOnPlayerHandler handler
+    );
+
     ContentRegistration npcOption(
         int npcDefinitionId,
         int option,
