@@ -21,6 +21,83 @@ final class PlayerSnapshotExtensionState {
         );
     }
 
+    synchronized SortedMap<String,String> namespace(
+        String namespace
+    ){
+        String prefix=
+            namespacePrefix(namespace);
+        TreeMap<String,String> result=
+            new TreeMap<>();
+
+        for(Map.Entry<String,String> entry:
+                values.entrySet()){
+            if(!entry.getKey().startsWith(prefix))
+                continue;
+
+            result.put(
+                entry.getKey().substring(
+                    prefix.length()
+                ),
+                entry.getValue()
+            );
+        }
+
+        return Collections.unmodifiableSortedMap(
+            result
+        );
+    }
+
+    synchronized void replaceNamespace(
+        String namespace,
+        Map<String,String> replacement
+    ){
+        String prefix=
+            namespacePrefix(namespace);
+        Objects.requireNonNull(
+            replacement,
+            "replacement"
+        );
+
+        TreeMap<String,String> checked=
+            new TreeMap<>();
+
+        for(Map.Entry<String,String> entry:
+                replacement.entrySet()){
+            String key=entry.getKey();
+            String value=entry.getValue();
+
+            validateRelativeKey(key);
+
+            if(value==null)
+                throw new IllegalArgumentException(
+                    "null snapshot extension value namespace="+
+                    namespace+
+                    " key="+key
+                );
+
+            checked.put(
+                prefix+key,
+                value
+            );
+        }
+
+        TreeMap<String,String> next=
+            new TreeMap<>(values);
+
+        for(Iterator<String> iterator=
+                next.keySet().iterator();
+                iterator.hasNext();){
+            if(iterator.next().startsWith(prefix))
+                iterator.remove();
+        }
+
+        next.putAll(checked);
+        values=
+            Collections.unmodifiableSortedMap(
+                next
+            );
+    }
+
     synchronized void replace(
         Map<String,String> replacement
     ){
@@ -91,6 +168,56 @@ final class PlayerSnapshotExtensionState {
         return Collections.unmodifiableSortedMap(
             checked
         );
+    }
+
+    private static String namespacePrefix(
+        String namespace
+    ){
+        if(namespace==null)
+            throw new NullPointerException(
+                "namespace"
+            );
+
+        String clean=
+            namespace.trim().toLowerCase(
+                Locale.ROOT
+            );
+
+        if(clean.isEmpty())
+            throw new IllegalArgumentException(
+                "snapshot extension namespace blank"
+            );
+
+        for(int i=0;i<clean.length();i++){
+            char c=clean.charAt(i);
+            boolean valid=
+                c>='a'&&c<='z'||
+                c>='0'&&c<='9'||
+                c=='_'||
+                c=='-';
+
+            if(!valid)
+                throw new IllegalArgumentException(
+                    "invalid snapshot extension namespace="+
+                    namespace
+                );
+        }
+
+        return PREFIX+clean+".";
+    }
+
+    private static void validateRelativeKey(
+        String key
+    ){
+        if(key==null||
+           key.isEmpty()||
+           key.startsWith(".")||
+           key.endsWith(".")||
+           key.indexOf("..")>=0)
+            throw new IllegalArgumentException(
+                "invalid snapshot extension relative key="+
+                key
+            );
     }
 
     private static void validateKey(
