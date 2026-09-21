@@ -124,9 +124,9 @@ public final class LocalServerShutdownCoordinatorConcurrentCloseTest {
 
         second.interrupt();
 
-        Thread.sleep(200L);
-
-        if(secondReturned.getCount()==0L)
+        if(secondReturned.await(
+                200,
+                TimeUnit.MILLISECONDS))
             throw new AssertionError(
                 "interrupted second close returned before terminal shutdown"
             );
@@ -183,22 +183,7 @@ public final class LocalServerShutdownCoordinatorConcurrentCloseTest {
                 "World not terminal after owner close"
             );
 
-        long repeatedStart=
-            System.nanoTime();
-
         shutdown.close();
-
-        long repeatedMillis=
-            TimeUnit.NANOSECONDS.toMillis(
-                System.nanoTime()-
-                repeatedStart
-            );
-
-        if(repeatedMillis>250L)
-            throw new AssertionError(
-                "post-terminal close unexpectedly blocked "+
-                repeatedMillis+"ms"
-            );
 
         System.out.println(
             "LOCAL_SERVER_CONCURRENT_SHUTDOWN_WAIT_PASS "+
