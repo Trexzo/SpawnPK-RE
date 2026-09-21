@@ -48,6 +48,9 @@ final class WorldPulse implements AutoCloseable,Runnable {
 
     @Override public void run(){
         while(running.get()){
+            if(world.closed())
+                return;
+
             long now=System.currentTimeMillis();
             try{world.realtime().runDue(now);}catch(Throwable t){System.err.println("[world] realtime queue error: "+t);}
             // Low-latency command phase. Commands still execute exclusively on this
@@ -81,14 +84,39 @@ final class WorldPulse implements AutoCloseable,Runnable {
             Thread.currentThread();
 
         try{
+            if(world.closed())
+                return;
+
             long tick=world.clock().advance();
+
+            if(world.closed())
+                return;
+
             commandsProcessed+=world.commands().drain(MAX_COMMANDS_PER_TICK,MAX_COMMANDS_PER_PLAYER_PER_TICK);
+
+            if(world.closed())
+                return;
+
             try{tasksProcessed+=world.events().runDue(tick);}catch(Throwable t){System.err.println("[world] scheduled task error tick="+tick+" error="+t);}
+
+            if(world.closed())
+                return;
+
             for(WorldTickTarget target:world.tickTargetsSnapshot()){
+                if(world.closed())
+                    return;
+
                 WorldPlayer p=world.players().byId(target.ownerId());
                 if(p==null||!p.accepts(target.ownerGeneration()))continue;
                 try{synchronized(p.mutationLock()){if(p.accepts(target.ownerGeneration()))target.onWorldTick(tick,nowMillis);}}catch(Throwable t){System.err.println("[world] tick target failed tick="+tick+" owner="+target.ownerId()+" error="+t);}
+
+                if(world.closed())
+                    return;
             }
+
+            if(world.closed())
+                return;
+
             try{
                 world.persistence().checkpointDue(tick);
             }catch(Throwable t){
