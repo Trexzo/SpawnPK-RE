@@ -55,47 +55,63 @@ final class LocalSessionRuntimeBindings {
 
         long generation=
             worldPlayer.generation();
+        boolean[] bindingStarted=
+            new boolean[]{false};
 
-        world.withOpenPlayerOwnership(
-            worldPlayer,
-            generation,
-            ()->{
-                player81Sync=
-                    Player81WorldSync.register(
+        try{
+            world.withOpenPlayerOwnership(
+                worldPlayer,
+                generation,
+                ()->{
+                    bindingStarted[0]=true;
+
+                    player81Sync=
+                        Player81WorldSync.register(
+                            serverPackets,
+                            world,
+                            worldPlayer,
+                            dev
+                        );
+
+                    registeredPackets=
+                        serverPackets;
+
+                    SharedNpcWorldRelay.register(
                         serverPackets,
                         world,
                         worldPlayer,
-                        dev
+                        npcs,
+                        movement
                     );
 
-                registeredPackets=
-                    serverPackets;
-
-                SharedNpcWorldRelay.register(
-                    serverPackets,
-                    world,
-                    worldPlayer,
-                    npcs,
-                    movement
-                );
-
-                TradeService.register(
-                    world,
-                    worldPlayer,
-                    bank,
-                    serverPackets,
-                    ()->bridge.saveAccount(
-                        tag,
-                        "TRADE_COMMIT"
-                    )
-                );
-
-                Player81WorldSync
-                    .sendPlayerOptionsIfMultiplayer(
-                        world
+                    TradeService.register(
+                        world,
+                        worldPlayer,
+                        bank,
+                        serverPackets,
+                        ()->bridge.saveAccount(
+                            tag,
+                            "TRADE_COMMIT"
+                        )
                     );
-            }
-        );
+
+                    Player81WorldSync
+                        .sendPlayerOptionsIfMultiplayer(
+                            world
+                        );
+                }
+            );
+        }catch(Throwable failure){
+            if(bindingStarted[0])
+                rollbackRegistration(
+                    serverPackets,
+                    failure
+                );
+
+            rethrowRegistrationFailure(
+                failure
+            );
+        }
 
         System.out.println(
             tag+
@@ -126,5 +142,56 @@ final class LocalSessionRuntimeBindings {
 
         registeredPackets=null;
         player81Sync=null;
+    }
+
+    private void rollbackRegistration(
+        ServerPacketWriter writer,
+        Throwable primary
+    ){
+        try{
+            TradeService.unregister(
+                worldPlayer,
+                writer
+            );
+        }catch(Throwable cleanup){
+            primary.addSuppressed(cleanup);
+        }
+
+        try{
+            SharedNpcWorldRelay.unregister(
+                writer
+            );
+        }catch(Throwable cleanup){
+            primary.addSuppressed(cleanup);
+        }
+
+        try{
+            Player81WorldSync.unregister(
+                writer
+            );
+        }catch(Throwable cleanup){
+            primary.addSuppressed(cleanup);
+        }
+
+        registeredPackets=null;
+        player81Sync=null;
+    }
+
+    private static void rethrowRegistrationFailure(
+        Throwable failure
+    )throws IOException{
+        if(failure instanceof IOException)
+            throw (IOException)failure;
+
+        if(failure instanceof RuntimeException)
+            throw (RuntimeException)failure;
+
+        if(failure instanceof Error)
+            throw (Error)failure;
+
+        throw new IOException(
+            "runtime binding registration failed",
+            failure
+        );
     }
 }
