@@ -25,6 +25,7 @@ final class TradeService {
 
         removePlayerContexts(
             player,
+            null,
             "CONTEXT_REPLACED",
             true
         );
@@ -44,6 +45,21 @@ final class TradeService {
         if(player==null)return;
         removePlayerContexts(
             player,
+            null,
+            "DISCONNECT",
+            true
+        );
+    }
+
+    static synchronized void unregister(
+        WorldPlayer player,
+        ServerPacketWriter writer
+    ){
+        if(player==null||writer==null)return;
+
+        removePlayerContexts(
+            player,
+            writer,
             "DISCONNECT",
             true
         );
@@ -208,6 +224,7 @@ final class TradeService {
 
     private static int removePlayerContexts(
         WorldPlayer player,
+        ServerPacketWriter expectedWriter,
         String reason,
         boolean notify
     ){
@@ -222,6 +239,10 @@ final class TradeService {
             Context c=s.contexts.get(player.id());
 
             if(c==null)
+                continue;
+
+            if(expectedWriter!=null&&
+               c.writer!=expectedWriter)
                 continue;
 
             cancel0(s,c,reason,notify);
