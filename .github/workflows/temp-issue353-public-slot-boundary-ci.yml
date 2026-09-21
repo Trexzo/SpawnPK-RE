@@ -4,6 +4,13 @@ on:
   push:
     branches:
       - test/issue-353-public-slot-boundary-chat3
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'server/src/spk/local/ContentPublicApiBoundaryTest.java'
+      - 'server/src/spk/event/DomainEventPublicApiBoundaryTest.java'
+      - '.github/workflows/temp-issue353-public-slot-boundary-ci.yml'
 
 jobs:
   validate:
