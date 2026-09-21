@@ -215,9 +215,9 @@ final class MatchSessionService {
                 "match has no teams"
             );
 
-        if(entry.participants.isEmpty())
+        if(!hasPresentParticipant(entry))
             throw new IllegalStateException(
-                "match has no participants"
+                "match has no present participants"
             );
 
         entry.state=MatchSession.State.READY;
@@ -235,6 +235,11 @@ final class MatchSessionService {
         if(entry.instanceId==null)
             throw new IllegalStateException(
                 "match has no WorldInstance reference"
+            );
+
+        if(!hasPresentParticipant(entry))
+            throw new IllegalStateException(
+                "match has no present participants"
             );
 
         entry.state=MatchSession.State.ACTIVE;
@@ -454,6 +459,16 @@ final class MatchSessionService {
 
         participant.status=status;
         return snapshot(entry);
+    }
+
+    private static boolean hasPresentParticipant(Entry entry){
+        for(ParticipantState participant:
+                entry.participants.values())
+            if(participant.status==
+                    MatchSession.ParticipantStatus.PRESENT)
+                return true;
+
+        return false;
     }
 
     private Entry requireActive(MatchId id){
