@@ -3,6 +3,11 @@ package spk.content.api;
 /**
  * Language-neutral registration surface.
  *
+ * This registrar is scoped to one {@link ContentModule#register(ContentRegistrar)}
+ * invocation. Modules may retain the returned {@link ContentRegistration}
+ * lifecycle handles, but must not retain/use the registrar after register(...)
+ * returns; late registration attempts are rejected.
+ *
  * Provenance is intentionally absent: registry/core installation assigns it so
  * module code cannot self-label custom behavior as recovered authority.
  */
