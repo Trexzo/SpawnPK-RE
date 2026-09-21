@@ -3,11 +3,12 @@ package spk.local;
 import java.net.*;import java.nio.file.*;import java.util.*;import java.util.concurrent.*;
 
 public final class EngineR72RuntimeWeaponPanelSocketTest {
+ private static final int ROOT_RESPONSE_TIMEOUT_MILLIS=5000;
  public static void main(String[]args)throws Exception{
   Path tmp=Files.createTempDirectory("spk-v5172-runtime-weapon-panel-");String old=System.getProperty("spk.local.accountFile");System.setProperty("spk.local.accountFile",tmp.resolve("opensrc.properties").toString());World world=World.isolatedForTest(80L);InetAddress loop=InetAddress.getByName("127.0.0.1");
   try(ServerSocket ss=new ServerSocket(0,1,loop)){ExecutorService ex=Executors.newFixedThreadPool(2);Future<?> accept=ex.submit(()->{try{Socket s=ss.accept();new LocalSession(s,true,true,world).run();}catch(Exception e){throw new RuntimeException(e);}});EngineR7DevPanelSocketTest.Client c=null;try{
    c=EngineR7DevPanelSocketTest.login(loop,ss.getLocalPort(),"opensrc");EngineR7DevPanelSocketTest.waitFor(()->world.players().size()==1,3000,"login");EngineR7DevPanelSocketTest.waitFor(()->world.tickTargetsSnapshot().size()==1,3000,"session ready");EngineR7DevPanelSocketTest.drainUntilQuiet(c.s,1500,100);
-   EngineR7DevPanelSocketTest.sendCommand(c,"devpanel");EngineR7DevPanelSocketTest.drainUntil(c.s,2500,"LocalLab Dev Control Center | v5.18.5\n");
+   EngineR7DevPanelSocketTest.sendCommand(c,"devpanel");EngineR7DevPanelSocketTest.drainUntil(c.s,ROOT_RESPONSE_TIMEOUT_MILLIS,"LocalLab Dev Control Center | v5.18.5\n");
    EngineR7DevPanelSocketTest.sendWidget(c,2482);byte[] combat=EngineR7DevPanelSocketTest.drainUntil(c.s,2500,"More combat...\n");EngineR7DevPanelSocketTest.has(combat,"More combat...\n");
    EngineR7DevPanelSocketTest.sendWidget(c,2485);byte[] more=EngineR7DevPanelSocketTest.drainUntil(c.s,2500,"Combat systems | runtime=");EngineR7DevPanelSocketTest.has(more,"Combat systems | runtime=");EngineR7DevPanelSocketTest.has(more,"Runtime weapon lab...\n");EngineR7DevPanelSocketTest.has(more,"Current authority summary\n");
    EngineR7DevPanelSocketTest.sendWidget(c,2482);byte[] lab=EngineR7DevPanelSocketTest.drainUntil(c.s,2500,"Runtime weapon lab | ");EngineR7DevPanelSocketTest.has(lab,"Runtime weapon lab | ");EngineR7DevPanelSocketTest.has(lab,"Browse runtime item ID...\n");EngineR7DevPanelSocketTest.has(lab,"Preview safe presentation\n");
