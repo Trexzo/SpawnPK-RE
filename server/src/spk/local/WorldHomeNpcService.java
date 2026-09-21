@@ -11,11 +11,46 @@ import java.util.*;
 final class WorldHomeNpcService {
     static final class VisibleNpc {
         final int ordinal;
-        final WorldNpc npc;
+        final EntityId canonicalId;
+        final int definitionId;
+        final int x;
+        final int y;
+        final int plane;
 
-        VisibleNpc(int ordinal,WorldNpc npc){
+        VisibleNpc(
+            int ordinal,
+            EntityId canonicalId,
+            int definitionId,
+            int x,
+            int y,
+            int plane
+        ){
             this.ordinal=ordinal;
-            this.npc=Objects.requireNonNull(npc,"npc");
+            this.canonicalId=
+                Objects.requireNonNull(
+                    canonicalId,
+                    "canonicalId"
+                );
+            this.definitionId=definitionId;
+            this.x=x;
+            this.y=y;
+            this.plane=plane;
+        }
+
+        NpcEntity project(int sceneIndex){
+            NpcEntity projection=
+                new NpcEntity(
+                    sceneIndex,
+                    definitionId,
+                    x,
+                    y
+                );
+
+            projection.bindCanonicalId(
+                canonicalId
+            );
+
+            return projection;
         }
     }
 
@@ -110,14 +145,19 @@ final class WorldHomeNpcService {
                     actor.spawn.ordinal
                 );
 
-            int dx=npc.x()-playerX;
-            int dy=npc.y()-playerY;
+            Tile tile=npc.tile();
+            int dx=tile.x-playerX;
+            int dy=tile.y-playerY;
 
             if(dx>=-16&&dx<=15&&dy>=-16&&dy<=15)
                 out.add(
                     new VisibleNpc(
                         actor.spawn.ordinal,
-                        npc
+                        npc.id,
+                        npc.definitionId,
+                        tile.x,
+                        tile.y,
+                        tile.plane
                     )
                 );
         }
@@ -146,17 +186,11 @@ final class WorldHomeNpcService {
                 HomeNpcRuntimePlan.sceneIndexForOrdinal(
                     visible.ordinal
                 );
-            NpcEntity projection=
-                new NpcEntity(
-                    sceneIndex,
-                    visible.npc.definitionId,
-                    visible.npc.x(),
-                    visible.npc.y()
-                );
-            projection.bindCanonicalId(
-                visible.npc.id
+            out.add(
+                visible.project(
+                    sceneIndex
+                )
             );
-            out.add(projection);
         }
         return Collections.unmodifiableList(out);
     }
