@@ -1,9 +1,12 @@
 name: Chat1 Issue326 ContentRegistration Boundary
 
 on:
-  push:
+  pull_request:
     branches:
-      - integration/issue326-content-registration-boundary-chat1
+      - main
+    paths:
+      - 'server/src/spk/local/ContentPublicApiBoundaryTest.java'
+      - '.github/workflows/chat1-issue326-content-registration-boundary.yml'
 
 jobs:
   focused:
