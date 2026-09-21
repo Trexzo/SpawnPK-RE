@@ -898,6 +898,7 @@ final class LocalSession implements Runnable {
     )throws Exception{
         world.submitAndWait(
             worldPlayer,
+            worldPlayerGeneration,
             ()->pendingRequests.drain(
                 clientPackets,
                 serverPackets,
@@ -1041,6 +1042,7 @@ final class LocalSession implements Runnable {
 
         world.submitAndWait(
             worldPlayer,
+            worldPlayerGeneration,
             ()->ticket.set(
                 world.persistence().captureAndSave(
                     username,
