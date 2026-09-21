@@ -64,6 +64,7 @@ final class LocalSessionPlayerInitializer {
         String loginAlias,
         String tag
     ){
+        synchronized(world.loginInitializationLock()){
         LocalAccountLifecycle.Selection account=
             LocalAccountLifecycle.select(
                 world,
@@ -162,6 +163,7 @@ final class LocalSessionPlayerInitializer {
             persistentAccount,
             generation
         );
+        }
     }
 
     private boolean scopesightActive(){
