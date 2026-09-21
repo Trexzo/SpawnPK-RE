@@ -1,0 +1,48 @@
+Exact v308 Blood Slayer selector transport notes
+
+Authority:
+854f26ff9f134b0317572e7ac1688e6f40a231d5a4c66f8db5d655b7f45ce7c6
+
+Class:
+rs.n.c.l
+
+Root:
+54100
+
+Action widgets:
+54109 Monster hunter (PvM) / "Select timed task"
+54110 Boss hunter (PvM) / "Select boss hunter task"
+54111 Bounty hunter (PK) / "Select man hunter task"
+54112 Slaughter (PK) / "Select man slaughter task"
+54113 Get task / "Get a blood slayer task"
+
+Action-enabled text helper:
+widget.aI=4
+widget.M=1
+
+Action-enabled button helper:
+widget.aI=5
+widget.M=1
+
+rs.Client:
+action-enabled widget -> menu action 315
+menu action 315 -> C2S185
+body writer rs.x.e.d(widgetId) -> u16_be
+
+Vectors:
+54109 D3 5D
+54110 D3 5E
+54111 D3 5F
+54112 D3 60
+54113 D3 61
+
+Point text widgets:
+54118 Blood slayer points
+54119 Slayer points
+54120 blank extra row
+
+Generic task/status labels elsewhere:
+"Slayer task"
+"Blood slayer task"
+"Slayer task (normal)"
+"Soul hunter task"
