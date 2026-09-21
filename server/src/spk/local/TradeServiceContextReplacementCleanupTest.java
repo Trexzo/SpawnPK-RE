@@ -21,6 +21,7 @@ public final class TradeServiceContextReplacementCleanupTest {
             "TRADE_CONTEXT_REPLACEMENT_CLEANUP_PASS "+
             "sameWorldTradeCancelled=true "+
             "oldWriterReleased=true "+
+            "staleUnregisterFenced=true "+
             "replacementCanRetrade=true "+
             "crossWorldUniqueContext=true "+
             "finalBaseline="+baseline
@@ -121,7 +122,26 @@ public final class TradeServiceContextReplacementCleanupTest {
                     "replacement trade not active"
                 );
 
-            TradeService.unregister(a);
+            TradeService.unregister(
+                a,
+                writerA1
+            );
+
+            if(!TradeService.active(a)||
+               !TradeService.active(b))
+                throw new AssertionError(
+                    "stale writer unregister cancelled replacement trade"
+                );
+
+            if(writerFor(world,a)!=writerA2)
+                throw new AssertionError(
+                    "stale writer unregister removed replacement context"
+                );
+
+            TradeService.unregister(
+                a,
+                writerA2
+            );
 
             if(TradeService.active(a)||
                TradeService.active(b))
@@ -219,7 +239,21 @@ public final class TradeServiceContextReplacementCleanupTest {
                     " tracked="+trackedWorlds()
                 );
 
-            TradeService.unregister(player);
+            TradeService.unregister(
+                player,
+                writerFirst
+            );
+
+            if(countPlayerContexts(player)!=1||
+               writerFor(second,player)!=writerSecond)
+                throw new AssertionError(
+                    "stale cross-world writer unregister removed current context"
+                );
+
+            TradeService.unregister(
+                player,
+                writerSecond
+            );
 
             if(countPlayerContexts(player)!=0)
                 throw new AssertionError(
