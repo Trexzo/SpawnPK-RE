@@ -1,0 +1,45 @@
+Exact-current client SHA-256:
+854f26ff9f134b0317572e7ac1688e6f40a231d5a4c66f8db5d655b7f45ce7c6
+
+PACKET-81 APPEARANCE PREFIX
+
+rs.a.k.a(rs.x.e):
+  aY = y()
+  bd = y()
+  bf = y()
+  bg = y()
+  bh = y()
+
+PRAYER HEADICON ASSETS
+
+Client startup:
+  allocates mW[21]
+  loads each from cache sprite group "headicons_prayer"
+
+Client render:
+  after special-case handling,
+  if bd < 21:
+      draw mW[bd]
+
+PK/STATUS ICON ASSETS
+
+Client separately allocates eK[] and loads "headicons_pk".
+The adjacent bf field drives PK/status/custom head-icon rendering branches.
+Do not conflate bf with prayer bd.
+
+EXISTING R82 CURRENT-PRODUCTION OBSERVATIONS
+(authority = LOCAL_RUNTIME_OBSERVATION / CURRENT_PRODUCTION_PROVEN)
+
+bd=0  Protect from Melee
+bd=1  Protect from Missiles
+bd=2  Protect from Magic
+bd=3  Retribution
+bd=4  Smite
+bd=5  Redemption
+bd=12 Wrath
+bd=13 Deflect Melee
+bd=14 Deflect Magic
+bd=15 Deflect Missiles
+bd=20 Soul Split
+
+Deflect Summoning index was not closed by the recorded observation corpus.
