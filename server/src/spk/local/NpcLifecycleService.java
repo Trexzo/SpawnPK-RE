@@ -300,9 +300,9 @@ final class NpcLifecycleService {
             );
 
         ordered.sort(
-            Comparator.comparing(
+            Comparator.comparingLong(
                 entry->
-                    entry.npc.id
+                    entry.npc.id.value
             )
         );
 
