@@ -38,7 +38,7 @@ public final class ContentProvenanceAuthorityBoundaryTest {
                     ContentRegistrar.class
                 }){
             for(Method method:
-                    api.getDeclaredMethods()){
+                    api.getMethods()){
                 if(!Modifier.isPublic(
                         method.getModifiers()))
                     continue;
