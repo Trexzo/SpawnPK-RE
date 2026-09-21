@@ -13,15 +13,15 @@ final class World implements AutoCloseable {
     private static final World SHARED=new World(GameClock.TICK_MILLIS);
     private final GameClock clock=new GameClock();
     private final WorldEventQueue events=new WorldEventQueue();
-    private final WorldRealtimeQueue realtime=new WorldRealtimeQueue();
     private final GroundItemRegistry groundItems=new GroundItemRegistry();
     private final WorldObjectRegistry objects=new WorldObjectRegistry();
     private final PlayerRegistry players=new PlayerRegistry();
+    private final WorldRealtimeQueue realtime;
     private final WorldNpcRegistry npcs=new WorldNpcRegistry();
     private final WorldHomeNpcService homeNpcs=new WorldHomeNpcService(npcs);
     private final WorldPetNpcService petNpcs=new WorldPetNpcService(npcs);
     private final WorldNpcPresentationEvents npcPresentationEvents=new WorldNpcPresentationEvents();
-    private final WorldCommandInbox commands=new WorldCommandInbox();
+    private final WorldCommandInbox commands;
     private final DomainEventBus domainEvents;
     private final LinkedHashMap<EntityId,WorldTickTarget> tickTargets=new LinkedHashMap<>();
     private final WorldPulse pulse;
@@ -43,6 +43,22 @@ final class World implements AutoCloseable {
         long tickMillis,
         PlayerRepository repository
     ){
+        realtime=
+            new WorldRealtimeQueue(
+                (player,generation)->
+                    players.owns(
+                        player,
+                        generation
+                    )
+            );
+        commands=
+            new WorldCommandInbox(
+                (player,generation)->
+                    players.owns(
+                        player,
+                        generation
+                    )
+            );
         pulse=new WorldPulse(this,tickMillis);
         domainEvents=new DomainEventBus(
             () -> pulse.inExecutionContext()
