@@ -137,9 +137,9 @@ final class World implements AutoCloseable {
                         "player owner not registered in world: "+
                         player.id()
                     );
-
-                action.run();
             }
+
+            action.run();
         }
     }
 
@@ -211,40 +211,42 @@ final class World implements AutoCloseable {
     ){
         if(player==null)return false;
 
-        synchronized(player.mutationLock()){
-            if(!players.owns(
-                    player,
-                    expectedGeneration
-                ))
-                return false;
+        synchronized(lifecycleLock){
+            synchronized(player.mutationLock()){
+                if(!players.owns(
+                        player,
+                        expectedGeneration
+                    ))
+                    return false;
 
-            synchronized(tickTargets){
-                WorldTickTarget target=
-                    tickTargets.get(
-                        player.id()
-                    );
+                synchronized(tickTargets){
+                    WorldTickTarget target=
+                        tickTargets.get(
+                            player.id()
+                        );
 
-                if(target!=null &&
-                   target.ownerGeneration()==
-                       expectedGeneration)
-                    tickTargets.remove(
-                        player.id()
-                    );
+                    if(target!=null &&
+                       target.ownerGeneration()==
+                           expectedGeneration)
+                        tickTargets.remove(
+                            player.id()
+                        );
+                }
+
+                if(!players.unregister(
+                        player,
+                        expectedGeneration
+                    ))
+                    return false;
+
+                commands.cancelPlayer(player);
+                realtime.cancelPlayer(player);
+                petNpcs.removeMainAndMini(
+                    player.id()
+                );
+
+                return true;
             }
-
-            if(!players.unregister(
-                    player,
-                    expectedGeneration
-                ))
-                return false;
-
-            commands.cancelPlayer(player);
-            realtime.cancelPlayer(player);
-            petNpcs.removeMainAndMini(
-                player.id()
-            );
-
-            return true;
         }
     }
 
