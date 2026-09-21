@@ -85,6 +85,12 @@ public final class TradeServiceContextReplacementCleanupTest {
                     "replacement did not cancel stale trade"
                 );
 
+            if(tradeEntries(world)!=0)
+                throw new AssertionError(
+                    "stale trade entries="+
+                    tradeEntries(world)
+                );
+
             if(countPlayerContexts(a)!=1)
                 throw new AssertionError(
                     "A context count="+
@@ -271,6 +277,24 @@ public final class TradeServiceContextReplacementCleanupTest {
             }
 
             return count;
+        }
+    }
+
+    private static int tradeEntries(
+        World world
+    )throws Exception{
+        synchronized(TradeService.class){
+            Object state=states().get(world);
+            if(state==null)
+                return 0;
+
+            Field field=
+                state.getClass()
+                    .getDeclaredField("trades");
+            field.setAccessible(true);
+
+            return ((Map<?,?>)field.get(state))
+                .size();
         }
     }
 
