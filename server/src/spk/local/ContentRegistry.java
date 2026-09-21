@@ -193,6 +193,52 @@ final class ContentRegistry {
         }
     }
 
+    private static final class ItemOnObjectKey {
+        final int itemId;
+        final int objectId;
+
+        ItemOnObjectKey(
+            int itemId,
+            int objectId
+        ){
+            this.itemId=itemId;
+            this.objectId=objectId;
+        }
+
+        String diagnosticKey(){
+            return itemId+":"+objectId;
+        }
+
+        @Override public boolean equals(
+            Object other
+        ){
+            if(this==other)return true;
+            if(!(other instanceof ItemOnObjectKey))
+                return false;
+            ItemOnObjectKey key=
+                (ItemOnObjectKey)other;
+            return itemId==key.itemId&&
+                objectId==key.objectId;
+        }
+
+        @Override public int hashCode(){
+            return 31*itemId+objectId;
+        }
+    }
+
+    private static final class ItemOnObjectBinding {
+        final BindingInfo info;
+        final ContentItemOnObjectHandler handler;
+
+        ItemOnObjectBinding(
+            BindingInfo info,
+            ContentItemOnObjectHandler handler
+        ){
+            this.info=info;
+            this.handler=handler;
+        }
+    }
+
     private static final class NpcOptionKey {
         final int npcDefinitionId;
         final int option;
@@ -249,6 +295,8 @@ final class ContentRegistry {
         itemOptions=new LinkedHashMap<>();
     private final LinkedHashMap<ItemOnNpcKey,ItemOnNpcBinding>
         itemOnNpcActions=new LinkedHashMap<>();
+    private final LinkedHashMap<ItemOnObjectKey,ItemOnObjectBinding>
+        itemOnObjectActions=new LinkedHashMap<>();
     private final LinkedHashMap<NpcOptionKey,NpcOptionBinding>
         npcOptions=new LinkedHashMap<>();
 
@@ -265,6 +313,8 @@ final class ContentRegistry {
         itemOptionRegistrations=new ArrayList<>();
     private final ArrayList<ItemOnNpcRegistration>
         itemOnNpcRegistrations=new ArrayList<>();
+    private final ArrayList<ItemOnObjectRegistration>
+        itemOnObjectRegistrations=new ArrayList<>();
     private final ArrayList<NpcOptionRegistration>
         npcOptionRegistrations=new ArrayList<>();
 
@@ -360,6 +410,12 @@ final class ContentRegistry {
                             itemOnNpcRegistrations
                         );
 
+                ArrayList<ItemOnObjectRegistration>
+                    nextItemOnObjectRegistrations=
+                        new ArrayList<>(
+                            itemOnObjectRegistrations
+                        );
+
                 ArrayList<NpcOptionRegistration>
                     nextNpcOptionRegistrations=
                         new ArrayList<>(
@@ -398,6 +454,14 @@ final class ContentRegistry {
                             registration
                         );
 
+                for(ItemOnObjectRegistration registration:
+                        registrar.pendingItemOnObject)
+                    if(registration.handle.pending())
+                        addItemOnObjectRegistration(
+                            nextItemOnObjectRegistrations,
+                            registration
+                        );
+
                 for(NpcOptionRegistration registration:
                         registrar.pendingNpcOptions)
                     if(registration.handle.pending())
@@ -430,6 +494,12 @@ final class ContentRegistry {
                             nextItemOnNpcRegistrations
                         );
 
+                LinkedHashMap<ItemOnObjectKey,ItemOnObjectBinding>
+                    nextItemOnObjectActions=
+                        buildItemOnObjectBindings(
+                            nextItemOnObjectRegistrations
+                        );
+
                 LinkedHashMap<NpcOptionKey,NpcOptionBinding>
                     nextNpcOptions=
                         buildNpcOptionBindings(
@@ -456,6 +526,11 @@ final class ContentRegistry {
                     nextItemOnNpcRegistrations
                 );
 
+                itemOnObjectRegistrations.clear();
+                itemOnObjectRegistrations.addAll(
+                    nextItemOnObjectRegistrations
+                );
+
                 npcOptionRegistrations.clear();
                 npcOptionRegistrations.addAll(
                     nextNpcOptionRegistrations
@@ -477,6 +552,11 @@ final class ContentRegistry {
                 itemOnNpcActions.clear();
                 itemOnNpcActions.putAll(
                     nextItemOnNpcActions
+                );
+
+                itemOnObjectActions.clear();
+                itemOnObjectActions.putAll(
+                    nextItemOnObjectActions
                 );
 
                 npcOptions.clear();
@@ -646,6 +726,38 @@ final class ContentRegistry {
         );
     }
 
+    ContentInteractionResult dispatchItemOnObject(
+        int itemId,
+        int objectId,
+        int worldX,
+        int worldY
+    ){
+        requireWorldThread();
+
+        ItemOnObjectBinding binding;
+
+        synchronized(this){
+            binding=itemOnObjectActions.get(
+                new ItemOnObjectKey(
+                    itemId,
+                    objectId
+                )
+            );
+        }
+
+        if(binding==null)
+            return null;
+
+        return binding.handler.handle(
+            new ItemOnObjectContext(
+                itemId,
+                objectId,
+                worldX,
+                worldY
+            )
+        );
+    }
+
     ContentNpcOptionResult dispatchNpcOption(
         int npcDefinitionId,
         int option,
@@ -738,6 +850,22 @@ final class ContentRegistry {
             :binding.info;
     }
 
+    synchronized BindingInfo itemOnObjectBinding(
+        int itemId,
+        int objectId
+    ){
+        ItemOnObjectBinding binding=
+            itemOnObjectActions.get(
+                new ItemOnObjectKey(
+                    itemId,
+                    objectId
+                )
+            );
+        return binding==null
+            ?null
+            :binding.info;
+    }
+
     synchronized BindingInfo npcOptionBinding(
         int npcDefinitionId,
         int option
@@ -774,6 +902,10 @@ final class ContentRegistry {
                 itemOnNpcActions.values())
             result.add(binding.info);
 
+        for(ItemOnObjectBinding binding:
+                itemOnObjectActions.values())
+            result.add(binding.info);
+
         for(NpcOptionBinding binding:
                 npcOptions.values())
             result.add(binding.info);
@@ -793,6 +925,8 @@ final class ContentRegistry {
                 itemOptions.size()+
             ",itemOnNpc="+
                 itemOnNpcActions.size()+
+            ",itemOnObject="+
+                itemOnObjectActions.size()+
             ",npcOptions="+
                 npcOptions.size()+
             ",bindings="+bindings()+
@@ -866,6 +1000,24 @@ final class ContentRegistry {
         ItemOnNpcRegistration incoming
     ){
         for(ItemOnNpcRegistration existing:
+                target)
+            if(existing.key.equals(
+                    incoming.key)&&
+               existing.info.priority==
+                    incoming.info.priority)
+                throw conflict(
+                    incoming.info,
+                    existing.info
+                );
+
+        target.add(incoming);
+    }
+
+    private static void addItemOnObjectRegistration(
+        List<ItemOnObjectRegistration> target,
+        ItemOnObjectRegistration incoming
+    ){
+        for(ItemOnObjectRegistration existing:
                 target)
             if(existing.key.equals(
                     incoming.key)&&
@@ -965,6 +1117,23 @@ final class ContentRegistry {
         return result;
     }
 
+    private static LinkedHashMap<ItemOnObjectKey,ItemOnObjectBinding>
+        buildItemOnObjectBindings(
+            List<ItemOnObjectRegistration> registrations
+        ){
+        LinkedHashMap<ItemOnObjectKey,ItemOnObjectBinding>
+            result=new LinkedHashMap<>();
+
+        for(ItemOnObjectRegistration registration:
+                registrations)
+            applyItemOnObject(
+                result,
+                registration
+            );
+
+        return result;
+    }
+
     private static LinkedHashMap<NpcOptionKey,NpcOptionBinding>
         buildNpcOptionBindings(
             List<NpcOptionRegistration> registrations
@@ -1018,6 +1187,12 @@ final class ContentRegistry {
             )||removed;
 
         removed=
+            itemOnObjectRegistrations.removeIf(
+                registration->
+                    registration.handle==handle
+            )||removed;
+
+        removed=
             npcOptionRegistrations.removeIf(
                 registration->
                     registration.handle==handle
@@ -1058,6 +1233,12 @@ final class ContentRegistry {
                     itemOnNpcRegistrations
                 );
 
+        LinkedHashMap<ItemOnObjectKey,ItemOnObjectBinding>
+            nextItemOnObjectActions=
+                buildItemOnObjectBindings(
+                    itemOnObjectRegistrations
+                );
+
         LinkedHashMap<NpcOptionKey,NpcOptionBinding>
             nextNpcOptions=
                 buildNpcOptionBindings(
@@ -1080,6 +1261,11 @@ final class ContentRegistry {
         itemOnNpcActions.clear();
         itemOnNpcActions.putAll(
             nextItemOnNpcActions
+        );
+
+        itemOnObjectActions.clear();
+        itemOnObjectActions.putAll(
+            nextItemOnObjectActions
         );
 
         npcOptions.clear();
@@ -1234,6 +1420,44 @@ final class ContentRegistry {
             target.put(
                 registration.key,
                 new ItemOnNpcBinding(
+                    registration.info,
+                    registration.handler
+                )
+            );
+    }
+
+    private static void applyItemOnObject(
+        Map<ItemOnObjectKey,ItemOnObjectBinding> target,
+        ItemOnObjectRegistration registration
+    ){
+        ItemOnObjectBinding existing=
+            target.get(
+                registration.key
+            );
+
+        if(existing==null){
+            target.put(
+                registration.key,
+                new ItemOnObjectBinding(
+                    registration.info,
+                    registration.handler
+                )
+            );
+            return;
+        }
+
+        if(registration.info.priority==
+                existing.info.priority)
+            throw conflict(
+                registration.info,
+                existing.info
+            );
+
+        if(registration.info.priority>
+                existing.info.priority)
+            target.put(
+                registration.key,
+                new ItemOnObjectBinding(
                     registration.info,
                     registration.handler
                 )
@@ -1398,6 +1622,25 @@ final class ContentRegistry {
         }
     }
 
+    private static final class ItemOnObjectRegistration {
+        final ItemOnObjectKey key;
+        final BindingInfo info;
+        final ContentItemOnObjectHandler handler;
+        final RegistrationHandle handle;
+
+        ItemOnObjectRegistration(
+            ItemOnObjectKey key,
+            BindingInfo info,
+            ContentItemOnObjectHandler handler,
+            RegistrationHandle handle
+        ){
+            this.key=key;
+            this.info=info;
+            this.handler=handler;
+            this.handle=handle;
+        }
+    }
+
     private static final class NpcOptionRegistration {
         final NpcOptionKey key;
         final BindingInfo info;
@@ -1471,6 +1714,9 @@ final class ContentRegistry {
                 new ArrayList<>();
         private final ArrayList<ItemOnNpcRegistration>
             pendingItemOnNpc=
+                new ArrayList<>();
+        private final ArrayList<ItemOnObjectRegistration>
+            pendingItemOnObject=
                 new ArrayList<>();
         private final ArrayList<NpcOptionRegistration>
             pendingNpcOptions=
@@ -1665,6 +1911,54 @@ final class ContentRegistry {
             return handle;
         }
 
+        @Override public ContentRegistration itemOnObject(
+            int itemId,
+            int objectId,
+            int priority,
+            ContentItemOnObjectHandler handler
+        ){
+            if(itemId<0)
+                throw new IllegalArgumentException(
+                    "itemId"
+                );
+
+            if(objectId<0)
+                throw new IllegalArgumentException(
+                    "objectId"
+                );
+
+            Objects.requireNonNull(
+                handler,
+                "handler"
+            );
+
+            ItemOnObjectKey key=
+                new ItemOnObjectKey(
+                    itemId,
+                    objectId
+                );
+
+            RegistrationHandle handle=
+                new RegistrationHandle();
+
+            pendingItemOnObject.add(
+                new ItemOnObjectRegistration(
+                    key,
+                    new BindingInfo(
+                        "ITEM_ON_OBJECT",
+                        key.diagnosticKey(),
+                        moduleId,
+                        priority,
+                        provenance
+                    ),
+                    handler,
+                    handle
+                )
+            );
+
+            return handle;
+        }
+
         @Override public ContentRegistration npcOption(
             int npcDefinitionId,
             int option,
@@ -1734,6 +2028,11 @@ final class ContentRegistry {
                 registration.handle
                     .activatePending();
 
+            for(ItemOnObjectRegistration registration:
+                    pendingItemOnObject)
+                registration.handle
+                    .activatePending();
+
             for(NpcOptionRegistration registration:
                     pendingNpcOptions)
                 registration.handle
@@ -1758,6 +2057,11 @@ final class ContentRegistry {
 
             for(ItemOnNpcRegistration registration:
                     pendingItemOnNpc)
+                registration.handle
+                    .invalidatePending();
+
+            for(ItemOnObjectRegistration registration:
+                    pendingItemOnObject)
                 registration.handle
                     .invalidatePending();
 
@@ -1897,6 +2201,43 @@ final class ContentRegistry {
 
         @Override public int npcDefinitionId(){
             return npcDefinitionId;
+        }
+
+        @Override public int worldX(){
+            return worldX;
+        }
+
+        @Override public int worldY(){
+            return worldY;
+        }
+    }
+
+    private static final class ItemOnObjectContext
+        implements ContentItemOnObjectContext {
+
+        private final int itemId;
+        private final int objectId;
+        private final int worldX;
+        private final int worldY;
+
+        ItemOnObjectContext(
+            int itemId,
+            int objectId,
+            int worldX,
+            int worldY
+        ){
+            this.itemId=itemId;
+            this.objectId=objectId;
+            this.worldX=worldX;
+            this.worldY=worldY;
+        }
+
+        @Override public int itemId(){
+            return itemId;
+        }
+
+        @Override public int objectId(){
+            return objectId;
         }
 
         @Override public int worldX(){
