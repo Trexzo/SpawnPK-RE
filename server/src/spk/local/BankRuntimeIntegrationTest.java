@@ -49,7 +49,7 @@ public final class BankRuntimeIntegrationTest {
                 if(ih[0]!=5064||ih[1]!=28)throw new AssertionError("store inventory="+Arrays.toString(ih));
                 if(itemAt53(inv,0)[0]!=-1)throw new AssertionError("store must clear same inventory slot");
 
-                send0(out,c2s,130);Thread.sleep(20);
+                send0(out,c2s,130);
                 send132(out,c2s,3090,26972,3495);
                 open=expectEventuallyFixed(in,s2c,248,4);bank=expectEventuallyVarShort(in,s2c,53);inv=expectEventuallyVarShort(in,s2c,53);
                 if(header53(inv)[1]!=28||itemAt53(inv,0)[0]!=-1)throw new AssertionError("reopen inventory not empty");
