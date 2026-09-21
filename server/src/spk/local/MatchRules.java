@@ -92,10 +92,16 @@ final class MatchRules {
                 "winConditionKind"
             );
 
-        if(scoreTarget!=NO_SCORE_TARGET&&
-           scoreTarget<=0)
+        if(winConditionKind==WinConditionKind.SCORE_TARGET){
+            if(scoreTarget<=0)
+                throw new IllegalArgumentException(
+                    "scoreTarget="+scoreTarget+
+                    " required for SCORE_TARGET"
+                );
+        }else if(scoreTarget!=NO_SCORE_TARGET)
             throw new IllegalArgumentException(
-                "scoreTarget="+scoreTarget
+                "scoreTarget="+scoreTarget+
+                " invalid for "+winConditionKind
             );
 
         this.scoreTarget=scoreTarget;
