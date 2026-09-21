@@ -1,0 +1,65 @@
+name: TEMP Issue 312 World Admission Close Fence CI
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'server/src/spk/local/World.java'
+      - 'server/src/spk/local/LocalSessionPlayerInitializer.java'
+      - 'server/src/spk/local/WorldAdmissionCloseFenceTest.java'
+      - '.github/workflows/temp-issue312-world-admission-ci.yml'
+
+jobs:
+  validate:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Temurin JDK 21
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Compile test classes
+        shell: pwsh
+        run: ./server/gradlew.bat --no-daemon testClasses
+
+      - name: Stress World admission close fence
+        shell: pwsh
+        run: |
+          $cp = 'server/build/classes/java/test;server/build/classes/java/main;server/build/resources/test;server/build/resources/main'
+
+          for ($i = 1; $i -le 10; $i++) {
+            & java -cp $cp spk.local.WorldAdmissionCloseFenceTest
+            if ($LASTEXITCODE -ne 0) {
+              throw "WorldAdmissionCloseFenceTest failed iteration=$i exit=$LASTEXITCODE"
+            }
+          }
+
+          Write-Host "ISSUE312_WORLD_ADMISSION_STRESS_PASS iterations=10"
+
+      - name: Run admission and lifecycle guards
+        shell: pwsh
+        run: |
+          $cp = 'server/build/classes/java/test;server/build/classes/java/main;server/build/resources/test;server/build/resources/main'
+
+          $tests = @(
+            'WorldCloseScheduledWorkFenceTest',
+            'LocalSessionPlayerInitializerTest',
+            'ConcurrentCanonicalProfileAllocationTest',
+            'DuplicateSrcProfilePreloadGuardTest',
+            'SecondaryAccountSelectionTest',
+            'WorldCommandShutdownFenceTest'
+          )
+
+          foreach ($test in $tests) {
+            & java -cp $cp "spk.local.$test"
+            if ($LASTEXITCODE -ne 0) {
+              throw "$test failed exit=$LASTEXITCODE"
+            }
+          }
+
+          Write-Host "ISSUE312_ADMISSION_LIFECYCLE_GUARDS_PASS tests=$($tests.Count)"
