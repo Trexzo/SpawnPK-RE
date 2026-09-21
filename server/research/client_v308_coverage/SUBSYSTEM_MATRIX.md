@@ -32,12 +32,13 @@ authority would unblock Chat 2/3 without inventing server mechanics.
    - core standard option/Continue input routing is now packaged;
    - close player/item/statement dialogue roots plus close/cancel presentation;
    - keep wording and server-authored branch semantics evidence-gated.
-2. **Global S2C reader census**
-   - C2S framing is closed at 86/86 on exact v308 authority;
-   - normal in-JAR C2S writer classification is now closed;
-   - C2S2/6/78/109 are exact serializer-only contracts with unknown semantic identity;
-   - enumerate and classify the remaining exact-current S2C reader families;
-   - hand only proven typed transport facts to Chat 2.
+2. **S2C publisher parity + field schemas**
+   - exact handled S2C set is now finite at 75 opcodes;
+   - exact framing is closed: 63 fixed / 8 var-short / 4 var-byte;
+   - all 75 have client-presentation family classifications;
+   - compare each family against current LocalLab publisher support;
+   - deepen exact per-field schemas for missing/high-value publishers;
+   - hand only proven transport/presentation facts to Chat 2/3.
 3. **Items + NPC definition field census**
    - exact-current model/action/animation/GFX/recolour/retexture ownership;
    - keep server mechanics unknown unless separately proven.
