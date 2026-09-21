@@ -27,6 +27,7 @@ final class World implements AutoCloseable {
     private final WorldPulse pulse;
     private final WorldPlayerPersistence persistence;
     private final ContentRegistry content;
+    private final Object loginInitializationLock=new Object();
 
     private World(long tickMillis){
         this(
@@ -91,6 +92,7 @@ final class World implements AutoCloseable {
     WorldPulse pulse(){return pulse;}
     WorldPlayerPersistence persistence(){return persistence;}
     ContentRegistry content(){return content;}
+    Object loginInitializationLock(){return loginInitializationLock;}
 
     void start(){pulse.start();}
 
