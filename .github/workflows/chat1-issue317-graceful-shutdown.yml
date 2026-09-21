@@ -1,0 +1,45 @@
+name: Chat1 Issue317 Graceful LocalServer Shutdown
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'server/src/spk/local/Main.java'
+      - 'server/src/spk/local/LocalServerShutdownCoordinator.java'
+      - 'server/src/spk/local/LocalServerShutdownCoordinatorTest.java'
+      - '.github/workflows/chat1-issue317-graceful-shutdown.yml'
+
+jobs:
+  focused:
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Compile test classes
+        shell: pwsh
+        run: .\server\gradlew.bat --no-daemon testClasses verifyJava11Bytecode
+      - name: Run graceful shutdown and lifecycle guards
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $cp = 'server/build/classes/java/test;server/build/classes/java/main;server/build/resources/test;server/build/resources/main'
+          $tests = @(
+            'LocalServerShutdownCoordinatorTest',
+            'WorldAdmissionCloseFenceTest',
+            'WorldPulseCloseTailFenceTest',
+            'WorldCloseScheduledWorkFenceTest',
+            'WorldCommandShutdownFenceTest',
+            'WorldPlayerPersistenceShutdownTest',
+            'WorldPlayerPersistenceCheckpointShutdownTest'
+          )
+          foreach ($t in $tests) {
+            Write-Host "[ISSUE317] $t"
+            & java -cp $cp "spk.local.$t"
+            if ($LASTEXITCODE -ne 0) { throw "Issue317 regression failed: $t" }
+          }
+          Write-Host "CHAT1_ISSUE317_GRACEFUL_SHUTDOWN_PASS tests=$($tests.Count)"
