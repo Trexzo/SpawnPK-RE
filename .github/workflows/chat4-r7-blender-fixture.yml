@@ -1,4 +1,4 @@
-name: Chat4 R7-R10 Blender fixtures
+name: Chat4 R7-R11 Blender fixtures
 
 on:
   push:
@@ -84,6 +84,21 @@ jobs:
           grep -F 'R10_BLENDER_FULL_AUTHORING_EXPORT_PASS' r10-output/blender-run.log
           cp blender-fixture-binary-sha256.txt r10-output/
 
+      - name: Execute R11 Blender UV + skin + hierarchy fixture
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p r11-output
+          export R11_OUT="$PWD/r11-output"
+          ./blender-4.5.14-linux-x64/blender --background --factory-startup \
+            --python tools/research/chat4_r11_blender_uv_skin_fixture.py 2>&1 | tee r11-output/blender-run.log
+          grep -F 'R11_BLENDER_UV_RUNTIME_PASS' r11-output/blender-run.log
+          grep -F 'R11_BLENDER_UV_LAYER_PASS' r11-output/blender-run.log
+          grep -F 'R11_BLENDER_UV_SKIN_EXPORT_PASS' r11-output/blender-run.log
+          grep -F 'R11_BLENDER_MATERIAL_BINDING_PASS' r11-output/blender-run.log
+          grep -F 'R11_BLENDER_HIERARCHY_UV_RIG_V1_EXPORT_PASS' r11-output/blender-run.log
+          cp blender-fixture-binary-sha256.txt r11-output/
+
       - name: Upload R7 authored fixture evidence
         uses: actions/upload-artifact@v4
         with:
@@ -113,5 +128,13 @@ jobs:
         with:
           name: chat4-r10-blender-full-authoring-fixture
           path: r10-output/
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Upload R11 Blender UV skin hierarchy fixture evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: chat4-r11-blender-uv-skin-hierarchy-fixture
+          path: r11-output/
           if-no-files-found: error
           retention-days: 7
