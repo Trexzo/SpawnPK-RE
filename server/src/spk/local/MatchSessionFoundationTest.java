@@ -7,6 +7,8 @@ import java.util.*;
 /** Deterministic regressions for Issue #173 semantic match-session foundation. */
 public final class MatchSessionFoundationTest {
     public static void main(String[] args){
+        ruleShapeValidation();
+        presentParticipantTransitionGuards();
         lifecycleAndScoring();
         cancellationLifecycle();
         protocolBoundaryGuard();
@@ -14,6 +16,8 @@ public final class MatchSessionFoundationTest {
         System.out.println(
             "ISSUE173_MATCH_SESSION_FOUNDATION_PASS "+
             "rulesImmutable=true "+
+            "ruleShapeFailClosed=true "+
+            "presentParticipantGate=true "+
             "lifecycleDeterministic=true "+
             "teamsSemantic=true "+
             "scoringActiveOnly=true "+
@@ -23,6 +27,115 @@ public final class MatchSessionFoundationTest {
             "worldInstanceReferenceOnly=true "+
             "protocolIndependent=true "+
             "productionRulesInvented=false"
+        );
+    }
+
+    private static void ruleShapeValidation(){
+        expect(
+            IllegalArgumentException.class,
+            ()->new MatchRules(
+                MatchRules.TeamMode.TEAMS,
+                MatchRules.SpellPolicy.UNRESTRICTED,
+                MatchRules.PrayerPolicy.UNRESTRICTED,
+                MatchRules.RestrictionPolicy.ALLOWED,
+                MatchRules.RestrictionPolicy.ALLOWED,
+                MatchRules.WinConditionKind.SCORE_TARGET,
+                MatchRules.NO_SCORE_TARGET,
+                "custom:invalid-score-target",
+                "CUSTOM_LOCALLAB"
+            ),
+            "score target win requires positive target"
+        );
+
+        expect(
+            IllegalArgumentException.class,
+            ()->new MatchRules(
+                MatchRules.TeamMode.FREE_FOR_ALL,
+                MatchRules.SpellPolicy.UNRESTRICTED,
+                MatchRules.PrayerPolicy.UNRESTRICTED,
+                MatchRules.RestrictionPolicy.ALLOWED,
+                MatchRules.RestrictionPolicy.ALLOWED,
+                MatchRules.WinConditionKind.CALLER_RESOLVED,
+                1L,
+                "custom:invalid-caller-target",
+                "CUSTOM_LOCALLAB"
+            ),
+            "caller-resolved forbids score target"
+        );
+
+        expect(
+            IllegalArgumentException.class,
+            ()->new MatchRules(
+                MatchRules.TeamMode.TEAMS,
+                MatchRules.SpellPolicy.UNRESTRICTED,
+                MatchRules.PrayerPolicy.UNRESTRICTED,
+                MatchRules.RestrictionPolicy.ALLOWED,
+                MatchRules.RestrictionPolicy.ALLOWED,
+                MatchRules.WinConditionKind.LAST_TEAM_STANDING,
+                2L,
+                "custom:invalid-last-team-target",
+                "CUSTOM_LOCALLAB"
+            ),
+            "last-team-standing forbids score target"
+        );
+    }
+
+    private static void presentParticipantTransitionGuards(){
+        MatchRules rules=new MatchRules(
+            MatchRules.TeamMode.FREE_FOR_ALL,
+            MatchRules.SpellPolicy.UNRESTRICTED,
+            MatchRules.PrayerPolicy.UNRESTRICTED,
+            MatchRules.RestrictionPolicy.ALLOWED,
+            MatchRules.RestrictionPolicy.ALLOWED,
+            MatchRules.WinConditionKind.CALLER_RESOLVED,
+            MatchRules.NO_SCORE_TARGET,
+            "custom:present-gate",
+            "CUSTOM_LOCALLAB"
+        );
+
+        MatchSessionService beforeReady=new MatchSessionService();
+        MatchId createdId=MatchId.of("custom:departed-before-ready");
+        MatchTeamId createdTeam=MatchTeamId.of("custom:ready-team");
+
+        beforeReady.create(createdId,rules);
+        beforeReady.addTeam(createdId,createdTeam);
+        beforeReady.join(createdId,createdTeam,"player:early-leaver");
+        beforeReady.leave(createdId,"player:early-leaver");
+
+        expect(
+            IllegalStateException.class,
+            ()->beforeReady.markReady(createdId),
+            "ready requires present participant"
+        );
+        eq(
+            MatchSession.State.CREATED,
+            beforeReady.get(createdId).state,
+            "failed ready leaves created"
+        );
+
+        MatchSessionService beforeActive=new MatchSessionService();
+        MatchId readyId=MatchId.of("custom:departed-before-active");
+        MatchTeamId readyTeam=MatchTeamId.of("custom:active-team");
+
+        beforeActive.create(readyId,rules);
+        beforeActive.addTeam(readyId,readyTeam);
+        beforeActive.join(readyId,readyTeam,"player:late-leaver");
+        beforeActive.attachInstance(
+            readyId,
+            WorldInstanceId.of("custom:present-gate-instance")
+        );
+        beforeActive.markReady(readyId);
+        beforeActive.disconnect(readyId,"player:late-leaver");
+
+        expect(
+            IllegalStateException.class,
+            ()->beforeActive.activate(readyId),
+            "activate requires present participant"
+        );
+        eq(
+            MatchSession.State.READY,
+            beforeActive.get(readyId).state,
+            "failed activate leaves ready"
         );
     }
 
