@@ -409,10 +409,14 @@ final class NpcRespawnService {
                     )
                 );
             }catch(RuntimeException failure){
-                if(fresh!=null)
+                if(fresh!=null){
+                    lifecycle.unregister(
+                        fresh.id
+                    );
                     npcs.remove(
                         fresh.id
                     );
+                }
 
                 failed.add(
                     ticket.id
