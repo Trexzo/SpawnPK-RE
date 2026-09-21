@@ -144,30 +144,37 @@ public final class ContentHandlerSamCompatibilityTest {
             return;
         }
 
-        Method method=
-            abstractMethods.values()
-                .iterator()
-                .next();
+        String expectedSignature=
+            "handle("+
+            contract.context.getName()+
+            ")";
 
-        if(!"handle".equals(method.getName()))
+        if(!abstractMethods.containsKey(
+                expectedSignature)){
             violations.add(
                 handler.getName()+
-                " SAM method changed name to "+
-                method.getName()
-            );
-
-        Class<?>[] parameters=
-            method.getParameterTypes();
-
-        if(parameters.length!=1||
-           parameters[0]!=contract.context)
-            violations.add(
-                handler.getName()+
-                " context signature changed expected="+
-                contract.context.getName()+
+                " SAM signature changed expected="+
+                expectedSignature+
                 " actual="+
-                Arrays.toString(parameters)
+                abstractMethods.keySet()
             );
+            return;
+        }
+
+        Method method;
+
+        try{
+            method=handler.getMethod(
+                "handle",
+                contract.context
+            );
+        }catch(NoSuchMethodException error){
+            violations.add(
+                handler.getName()+
+                " expected handle method missing"
+            );
+            return;
+        }
 
         if(method.getReturnType()!=contract.result)
             violations.add(
