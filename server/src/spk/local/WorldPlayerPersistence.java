@@ -58,6 +58,7 @@ final class WorldPlayerPersistence
     }
 
     private static final class DroppedTaskCounts {
+        int loads;
         int saves;
         int checkpoints;
         int unknown;
@@ -69,6 +70,8 @@ final class WorldPlayerPersistence
     private final World world;
     private final PlayerRepository repository;
     private final ThreadPoolExecutor io;
+    private final AtomicReference<LoadTask> inFlightLoad=
+        new AtomicReference<>();
     private final AtomicReference<SaveTask> inFlightSave=
         new AtomicReference<>();
     private final Object checkpointLock=
@@ -146,7 +149,80 @@ final class WorldPlayerPersistence
                 "repository load on World execution context"
             );
 
-        return repository.load(username);
+        LoadTask task=
+            new LoadTask(username);
+
+        enqueueLoad(task);
+
+        boolean interrupted=false;
+
+        try{
+            for(;;){
+                try{
+                    return task.future.get();
+                }catch(InterruptedException ignored){
+                    interrupted=true;
+                }catch(ExecutionException failure){
+                    Throwable cause=
+                        failure.getCause();
+
+                    if(cause instanceof IOException)
+                        throw (IOException)cause;
+
+                    if(cause instanceof Error)
+                        throw (Error)cause;
+
+                    throw new IOException(
+                        "repository load failed profile="+
+                        username,
+                        cause
+                    );
+                }
+            }
+        }finally{
+            if(interrupted)
+                Thread.currentThread()
+                    .interrupt();
+        }
+    }
+
+    private void enqueueLoad(
+        LoadTask task
+    )throws IOException{
+        boolean interrupted=false;
+
+        try{
+            synchronized(io){
+                if(io.isShutdown())
+                    throw new IOException(
+                        "persistence closed before repository load"
+                    );
+
+                try{
+                    io.execute(task);
+                    return;
+                }catch(RejectedExecutionException full){
+                    if(io.isShutdown())
+                        throw new IOException(
+                            "persistence closed before repository load",
+                            full
+                        );
+
+                    for(;;){
+                        try{
+                            io.getQueue().put(task);
+                            return;
+                        }catch(InterruptedException ignored){
+                            interrupted=true;
+                        }
+                    }
+                }
+            }
+        }finally{
+            if(interrupted)
+                Thread.currentThread()
+                    .interrupt();
+        }
     }
 
     SaveTicket captureAndSave(
@@ -423,6 +499,49 @@ final class WorldPlayerPersistence
         }
     }
 
+    private final class LoadTask
+        implements Runnable {
+
+        private final String username;
+        private final CompletableFuture<
+            Optional<PlayerSnapshot>
+        > future=new CompletableFuture<>();
+
+        LoadTask(String username){
+            this.username=username;
+        }
+
+        @Override public void run(){
+            inFlightLoad.set(this);
+
+            try{
+                if(future.isDone())
+                    return;
+
+                future.complete(
+                    repository.load(username)
+                );
+            }catch(Throwable error){
+                future.completeExceptionally(
+                    error
+                );
+            }finally{
+                inFlightLoad.compareAndSet(
+                    this,
+                    null
+                );
+            }
+        }
+
+        boolean reject(
+            RejectedExecutionException error
+        ){
+            return future.completeExceptionally(
+                error
+            );
+        }
+    }
+
     private final class SaveTask
         implements Runnable {
 
@@ -661,6 +780,14 @@ final class WorldPlayerPersistence
                     " dropped queued task"
                 );
 
+            if(runnable instanceof LoadTask){
+                counts.loads++;
+                ((LoadTask)runnable).reject(
+                    error
+                );
+                continue;
+            }
+
             if(runnable instanceof SaveTask){
                 counts.saves++;
                 ((SaveTask)runnable).reject(
@@ -762,6 +889,23 @@ final class WorldPlayerPersistence
         return settled;
     }
 
+    private boolean rejectInFlightLoad(
+        String stage
+    ){
+        LoadTask active=
+            inFlightLoad.get();
+
+        if(active==null)
+            return false;
+
+        return active.reject(
+            new RejectedExecutionException(
+                "persistence "+stage+
+                " active load did not terminate"
+            )
+        );
+    }
+
     private boolean rejectInFlightSave(
         String stage
     ){
@@ -802,7 +946,9 @@ final class WorldPlayerPersistence
     }
 
     @Override public void close(){
-        io.shutdown();
+        synchronized(io){
+            io.shutdown();
+        }
 
         boolean clean=false;
 
@@ -829,6 +975,11 @@ final class WorldPlayerPersistence
                         TimeUnit.SECONDS
                     );
 
+                boolean inFlightLoadSettled=
+                    !clean&&
+                    rejectInFlightLoad(
+                        "SHUTDOWN_LOAD_IN_FLIGHT"
+                    );
                 boolean inFlightSettled=
                     !clean&&
                     rejectInFlightSave(
@@ -843,11 +994,14 @@ final class WorldPlayerPersistence
                 System.err.println(
                     "[world] V5123_PERSISTENCE_SHUTDOWN_FORCED"+
                     " droppedTasks="+dropped.size()+
+                    " droppedLoads="+counts.loads+
                     " droppedSaves="+counts.saves+
                     " droppedCheckpoints="+
                         counts.checkpoints+
                     " droppedUnknown="+
                         counts.unknown+
+                    " inFlightLoadSettled="+
+                        inFlightLoadSettled+
                     " inFlightSettled="+
                         inFlightSettled+
                     " checkpointInFlightSettled="+
@@ -868,6 +1022,10 @@ final class WorldPlayerPersistence
                     "SHUTDOWN_INTERRUPTED"
                 );
 
+            boolean inFlightLoadSettled=
+                rejectInFlightLoad(
+                    "SHUTDOWN_INTERRUPTED_LOAD_IN_FLIGHT"
+                );
             boolean inFlightSettled=
                 rejectInFlightSave(
                     "SHUTDOWN_INTERRUPTED_IN_FLIGHT"
@@ -880,11 +1038,14 @@ final class WorldPlayerPersistence
             System.err.println(
                 "[world] V5123_PERSISTENCE_SHUTDOWN_INTERRUPTED"+
                 " droppedTasks="+dropped.size()+
+                " droppedLoads="+counts.loads+
                 " droppedSaves="+counts.saves+
                 " droppedCheckpoints="+
                     counts.checkpoints+
                 " droppedUnknown="+
                     counts.unknown+
+                " inFlightLoadSettled="+
+                    inFlightLoadSettled+
                 " inFlightSettled="+
                     inFlightSettled+
                 " checkpointInFlightSettled="+
