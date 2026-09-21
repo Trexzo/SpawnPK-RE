@@ -6,8 +6,7 @@ package spk.local;
  * LocalLab without promoting server-owned mechanics.
  */
 final class ClientAssetAlignmentAuthority {
-    static final String CLIENT_SHA256="854f26ff9f134b0317572e7ac1688e6f40a231d5a4c66f8db5d655b7f45ce7c6";
-    static final String LEGACY_V307_CLIENT_SHA256="6232bae206846a4ba8d09766a2dee886b69016066a3f50f83b201bf705f93662";
+    static final String CLIENT_SHA256="6232bae206846a4ba8d09766a2dee886b69016066a3f50f83b201bf705f93662";
     static final String SPAWNPK_ASSET_BUNDLE_SHA256="607425ad3fe69f4cfcaaf82220d9a0d4ebff9954e896819245f37271713d299a";
     static final String SPAWNPK_AUTHORITY_SHA256="60aa028ed2299cc9dc0851bc6283e4b79262c8db0df694ccd05518bf889478cc";
     static final String WORLD_AUTHORITY_SHA256="95b7de0236b1fc717ac564914446a5d3d89af11e2e19732f1a04f9765338e5bc";

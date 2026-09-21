@@ -6,8 +6,7 @@ group = 'spk.locallab'
 version = '5.18.5-r8.5-dev'
 
 def repoRoot = projectDir.parentFile
-def exactCurrentClientSha256 = '854f26ff9f134b0317572e7ac1688e6f40a231d5a4c66f8db5d655b7f45ce7c6'
-def legacyCertifiedClientSha256 = '6232bae206846a4ba8d09766a2dee886b69016066a3f50f83b201bf705f93662'
+def pinnedClientSha256 = '6232bae206846a4ba8d09766a2dee886b69016066a3f50f83b201bf705f93662'
 
 def runtimeDataFiles = [
     'items.tsv',
@@ -150,7 +149,7 @@ def findPinnedClient = {
     ]
 
     candidates.find { f ->
-        f.isFile() && sha256(f).equalsIgnoreCase(exactCurrentClientSha256)
+        f.isFile() && sha256(f).equalsIgnoreCase(pinnedClientSha256)
     }
 }
 
@@ -186,7 +185,7 @@ def readR85Selftests = {
 
 tasks.register('r85Regression') {
     group = 'verification'
-    description = 'Runs the inherited 179/179 R8.5 main-method regression suite against the exact-current v308 client fixture when available.'
+    description = 'Runs the inherited 179/179 R8.5 main-method regression suite when the pinned client fixture is available.'
     dependsOn tasks.named('jar'), tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
 
     doLast {
@@ -194,16 +193,13 @@ tasks.register('r85Regression') {
         boolean requireClient = providers.gradleProperty('requireExactClient').map { it.toBoolean() }.getOrElse(false)
 
         if (client == null) {
-            String message = 'Exact-current v308 client.jar is not present; R8.5 regression execution skipped. Supply the v308 fixture or use -PrequireExactClient=true to make this fatal.'
+            String message = 'Pinned exact client.jar is not present; R8.5 regression execution skipped. Supply external runtime or use -PrequireExactClient=true to make this fatal.'
             if (requireClient) {
                 throw new GradleException(message)
             }
             logger.warn("R85_REGRESSION_SKIPPED ${message}")
             return
         }
-
-        String clientSha = sha256(client)
-        logger.lifecycle("R85_REGRESSION_CLIENT build=308 sha256=${clientSha} exactCurrent=true legacyCertifiedV307=${legacyCertifiedClientSha256}")
 
         def names = readR85Selftests()
         File configDir = new File(System.getenv('USERPROFILE') ?: System.getProperty('user.home'), '.spawnpk/configs')
