@@ -3,8 +3,9 @@ package spk.local;
 import spk.content.api.ContentInteractionResult;
 
 /**
- * Typed fail-closed routing for the exact-current generic R8.5 interaction
- * bridge. Transport/framing remains in R85GenericC2SBridge.
+ * Typed fail-closed routing for exact-current promoted generic interactions.
+ * Transport/framing authority lives in GenericInteractionPacketDecoder and
+ * ClientPacketProbe; this handler owns only semantic/domain routing.
  */
 final class LocalGenericInteractionHandler {
     private final ContentRegistry contentRegistry;

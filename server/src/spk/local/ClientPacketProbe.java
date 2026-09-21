@@ -38,21 +38,9 @@ final class ClientPacketProbe {
     private boolean aligned = true;
     private long decodedCount;
     private long opcode0Count;
-    private MovementRequest pendingMovement;
-    private Integer pendingWidgetAction;
-    private ObjectInteraction pendingObjectInteraction;
-    private ItemContainerAction pendingItemAction;
-    private Integer pendingAmount;
-    private ContainerDrag pendingContainerDrag;
-    private String pendingCommand;
-    private DropItemAction pendingDropItem;
-    private NpcAction pendingNpcAction;
-    private PlayerAction pendingPlayerAction;
+    private final ClientRequestQueue typedRequests=
+        new ClientRequestQueue();
     private ItemOnItemAction pendingItemOnItem;
-    private SpellTargetRequest pendingSpellTarget;
-    private GroundItemInteraction pendingGroundItemInteraction;
-    private ItemOnNpcAction pendingItemOnNpc;
-    private boolean pendingInterfaceClose;
 
     ClientPacketProbe(InputStream in, IsaacCipher cipher, String tag) {
         this.in = in;
@@ -63,93 +51,17 @@ final class ClientPacketProbe {
     boolean isAligned() { return aligned; }
     long decodedCount() { return decodedCount; }
 
-    MovementRequest takeMovement() {
-        MovementRequest r = pendingMovement;
-        pendingMovement = null;
-        return r;
+    ClientRequest takeTypedRequest(){
+        return typedRequests.poll();
     }
 
-    Integer takeWidgetAction() {
-        Integer w = pendingWidgetAction;
-        pendingWidgetAction = null;
-        return w;
-    }
-
-    ObjectInteraction takeObjectInteraction() {
-        ObjectInteraction r = pendingObjectInteraction;
-        pendingObjectInteraction = null;
-        return r;
-    }
-
-    ItemContainerAction takeItemAction() {
-        ItemContainerAction r = pendingItemAction;
-        pendingItemAction = null;
-        return r;
-    }
-
-    Integer takeAmount() {
-        Integer v = pendingAmount;
-        pendingAmount = null;
-        return v;
-    }
-
-    ContainerDrag takeContainerDrag() {
-        ContainerDrag v = pendingContainerDrag;
-        pendingContainerDrag = null;
-        return v;
-    }
-
-    String takeCommand() {
-        String v = pendingCommand;
-        pendingCommand = null;
-        return v;
-    }
-
-    DropItemAction takeDropItem() {
-        DropItemAction v=pendingDropItem;
-        pendingDropItem=null;
-        return v;
-    }
-
-    NpcAction takeNpcAction() {
-        NpcAction v=pendingNpcAction;
-        pendingNpcAction=null;
-        return v;
-    }
-
-    PlayerAction takePlayerAction(){
-        PlayerAction v=pendingPlayerAction;
-        pendingPlayerAction=null;
-        return v;
+    int typedRequestCount(){
+        return typedRequests.size();
     }
 
     ItemOnItemAction takeItemOnItem(){
         ItemOnItemAction v=pendingItemOnItem;
         pendingItemOnItem=null;
-        return v;
-    }
-
-    SpellTargetRequest takeSpellTarget(){
-        SpellTargetRequest v=pendingSpellTarget;
-        pendingSpellTarget=null;
-        return v;
-    }
-
-    GroundItemInteraction takeGroundItemInteraction(){
-        GroundItemInteraction v=pendingGroundItemInteraction;
-        pendingGroundItemInteraction=null;
-        return v;
-    }
-
-    ItemOnNpcAction takeItemOnNpc(){
-        ItemOnNpcAction v=pendingItemOnNpc;
-        pendingItemOnNpc=null;
-        return v;
-    }
-
-    boolean takeInterfaceClose() {
-        boolean v = pendingInterfaceClose;
-        pendingInterfaceClose = false;
         return v;
     }
 
@@ -223,7 +135,19 @@ final class ClientPacketProbe {
                 // decoder to pause on later widget actions such as 152.
                 byte[] body = Binary.readExactly(in, 2);
                 int widget = Binary.u16(body, 0);
-                pendingWidgetAction = widget;
+
+                offerTypedRequest(
+                    new WidgetActionClientRequest(
+                        widget,
+                        ClientRequestMetadata.exactCurrent(
+                            185,
+                            "FIXED2_WIDGET_U16_BE",
+                            "PINNED_CLIENT_OPCODE_185_ALL_CALLSITES"
+                        )
+                    ),
+                    opcode
+                );
+
                 System.out.printf("%sCLIENT_PACKET seq=%d opcode=185 len=2 widget=%d schema=STATIC_EXACT_ALL_CALLSITES%n",
                                   tag, decodedCount, widget);
                 return true;
@@ -242,7 +166,19 @@ final class ClientPacketProbe {
                 int targetNpc=decoded.targetNpcIndex;
                 int selectedSlot=decoded.slot;
                 int selectedWidget=decoded.widgetId;
-                pendingItemOnNpc=decoded;
+
+                offerTypedRequest(
+                    new ItemOnNpcClientRequest(
+                        decoded,
+                        ClientRequestMetadata.exactCurrent(
+                            57,
+                            "FIXED8_ITEM_BE_A_NPC_BE_A_SLOT_LE_WIDGET_BE_A",
+                            "PINNED_CLIENT_ITEM_ON_NPC_WRITER"
+                        )
+                    ),
+                    opcode
+                );
+
                 System.out.printf("%sCLIENT_PACKET seq=%d opcode=57 len=8 itemOnNpc=true itemId=%d slot=%d widget=%d targetNpc=%d schema=STATIC_EXACT_FIXED8%n",
                                   tag,decodedCount,selectedItem,selectedSlot,selectedWidget,targetNpc);
                 return true;
@@ -252,7 +188,16 @@ final class ClientPacketProbe {
                 // Exact pinned-client writer (Client.bQ): fv.a(130) with no payload.
                 // This is emitted when the client closes an interface. v3 paused here,
                 // which made subsequent bank clicks and movement look frozen.
-                pendingInterfaceClose = true;
+                offerTypedRequest(
+                    new InterfaceCloseClientRequest(
+                        ClientRequestMetadata.exactCurrent(
+                            130,
+                            "FIXED0_INTERFACE_CLOSE",
+                            "PINNED_CLIENT_CLIENT_BQ"
+                        )
+                    ),
+                    opcode
+                );
                 System.out.printf("%sCLIENT_PACKET seq=%d opcode=130 len=0 interfaceClose=true schema=STATIC_EXACT_FIXED0%n",
                                   tag, decodedCount);
                 return true;
@@ -267,7 +212,24 @@ final class ClientPacketProbe {
                 int worldX = (((body[0] & 0xff) - 128) & 0xff) | ((body[1] & 0xff) << 8);
                 int objectId = ((body[2] & 0xff) << 8) | (body[3] & 0xff);
                 int worldY = ((body[4] & 0xff) << 8) | (((body[5] & 0xff) - 128) & 0xff);
-                pendingObjectInteraction = new ObjectInteraction(opcode, objectId, worldX, worldY);
+
+                offerTypedRequest(
+                    new ObjectInteractionClientRequest(
+                        new ObjectInteraction(
+                            opcode,
+                            objectId,
+                            worldX,
+                            worldY
+                        ),
+                        ClientRequestMetadata.exactCurrent(
+                            132,
+                            "FIXED6_WORLD_X_LE_A_OBJECT_BE_WORLD_Y_BE_A",
+                            "PINNED_CLIENT_MENU_ACTION_502_AND_N_SERIALIZER"
+                        )
+                    ),
+                    opcode
+                );
+
                 System.out.printf("%sCLIENT_PACKET seq=%d opcode=132 len=6 objectAction=true objectId=%d worldX=%d worldY=%d schema=STATIC_EXACT_FIXED6%n",
                                   tag, decodedCount, objectId, worldX, worldY);
                 return true;
@@ -284,8 +246,20 @@ final class ClientPacketProbe {
                 int item = be(body,0);
                 int slot = beA(body,2);
                 int widget = beA(body,4);
-                pendingItemAction = new ItemContainerAction(opcode, widget, slot, item, 0,
-                                                            widget == BankState.NORMAL_INVENTORY_CONTAINER ? "WEAR_WIELD_EQUIP" : "ITEM_OPTION_2");
+                offerItemAction(
+                    new ItemContainerAction(
+                        opcode,
+                        widget,
+                        slot,
+                        item,
+                        0,
+                        widget == BankState.NORMAL_INVENTORY_CONTAINER
+                            ? "WEAR_WIELD_EQUIP"
+                            : "ITEM_OPTION_2"
+                    ),
+                    "FIXED6_ITEM_BE_SLOT_BE_A_WIDGET_BE_A",
+                    "PINNED_CLIENT_MENU_ACTION_454_WRITER"
+                );
                 System.out.printf("%sCLIENT_PACKET seq=%d opcode=41 len=6 inventoryItemAction=true widget=%d slot=%d itemId=%d semantic=%s schema=STATIC_EXACT_FIXED6%n",
                                   tag, decodedCount, widget, slot, item,
                                   widget == BankState.NORMAL_INVENTORY_CONTAINER ? "WEAR_WIELD_EQUIP" : "ITEM_OPTION_2");
@@ -305,7 +279,18 @@ final class ClientPacketProbe {
                 String semantic = (widget == BankState.NORMAL_INVENTORY_CONTAINER
                     && (item==23063 || item==21963 || item==21964))
                     ? "CUSTOMIZE_COMP_CAPE" : "ITEM_OPTION_4";
-                pendingItemAction = new ItemContainerAction(opcode, widget, slot, item, 0, semantic);
+                offerItemAction(
+                    new ItemContainerAction(
+                        opcode,
+                        widget,
+                        slot,
+                        item,
+                        0,
+                        semantic
+                    ),
+                    "FIXED6_WIDGET_LE_A_SLOT_LE_ITEM_BE_A",
+                    "PINNED_CLIENT_MENU_ACTION_493_WRITER"
+                );
                 System.out.printf("%sCLIENT_PACKET seq=%d opcode=75 len=6 inventoryItemAction=true widget=%d slot=%d itemId=%d semantic=%s schema=STATIC_EXACT_FIXED6%n",
                                   tag, decodedCount, widget, slot, item, semantic);
                 return true;
@@ -322,24 +307,65 @@ final class ClientPacketProbe {
                 byte[] body = Binary.readExactly(in, len);
                 int widget, slot, item, extra = 0;
                 String semantic;
+                String schema;
+                String source;
                 switch (opcode) {
                     case 145: // action 632 / W[0]
-                        widget = beA(body,0); slot = beA(body,2); item = beA(body,4); semantic=itemSemantic(widget,"1"); break;
+                        widget = beA(body,0); slot = beA(body,2); item = beA(body,4);
+                        semantic=itemSemantic(widget,"1");
+                        schema="FIXED6_WIDGET_BE_A_SLOT_BE_A_ITEM_BE_A";
+                        source="PINNED_CLIENT_MENU_ACTION_632_WRITER";
+                        break;
                     case 117: // action 78 / W[1]
-                        widget = leA(body,0); item = leA(body,2); slot = le(body,4); semantic=itemSemantic(widget,"5"); break;
+                        widget = leA(body,0); item = leA(body,2); slot = le(body,4);
+                        semantic=itemSemantic(widget,"5");
+                        schema="FIXED6_WIDGET_LE_A_ITEM_LE_A_SLOT_LE";
+                        source="PINNED_CLIENT_MENU_ACTION_78_WRITER";
+                        break;
                     case 43:  // action 867 / W[2]
-                        widget = le(body,0); item = beA(body,2); slot = beA(body,4); semantic=itemSemantic(widget,"10"); break;
+                        widget = le(body,0); item = beA(body,2); slot = beA(body,4);
+                        semantic=itemSemantic(widget,"10");
+                        schema="FIXED6_WIDGET_LE_ITEM_BE_A_SLOT_BE_A";
+                        source="PINNED_CLIENT_MENU_ACTION_867_WRITER";
+                        break;
                     case 129: // action 431 / W[3]
-                        slot = beA(body,0); widget = be(body,2); item = beA(body,4); semantic=itemSemantic(widget,"ALL"); break;
+                        slot = beA(body,0); widget = be(body,2); item = beA(body,4);
+                        semantic=itemSemantic(widget,"ALL");
+                        schema="FIXED6_SLOT_BE_A_WIDGET_BE_ITEM_BE_A";
+                        source="PINNED_CLIENT_MENU_ACTION_431_WRITER";
+                        break;
                     case 135: // action 53 / W[4]
-                        slot = le(body,0); widget = beA(body,2); item = le(body,4); semantic=itemSemantic(widget,"X"); break;
+                        slot = le(body,0); widget = beA(body,2); item = le(body,4);
+                        semantic=itemSemantic(widget,"X");
+                        schema="FIXED6_SLOT_LE_WIDGET_BE_A_ITEM_LE";
+                        source="PINNED_CLIENT_MENU_ACTION_53_WRITER";
+                        break;
                     case 140: // action 291 / bank W[6]: ordinary All-But-One, coins 995 Bag-exchange
-                        slot = beA(body,0); widget = be(body,2); item = beA(body,4); semantic=item==995?"BAG_EXCHANGE_REQUEST":"WITHDRAW_ALL_BUT_ONE"; break;
+                        slot = beA(body,0); widget = be(body,2); item = beA(body,4);
+                        semantic=item==995?"BAG_EXCHANGE_REQUEST":"WITHDRAW_ALL_BUT_ONE";
+                        schema="FIXED6_SLOT_BE_A_WIDGET_BE_ITEM_BE_A";
+                        source="PINNED_CLIENT_MENU_ACTION_291_WRITER";
+                        break;
                     case 141: // action 300 / bank W[5]: final i32 is current Client.ih configured amount
-                        slot = beA(body,0); widget = be(body,2); item = beA(body,4); extra = be32(body,6); semantic="WITHDRAW_CONFIGURED_AMOUNT"; break;
+                        slot = beA(body,0); widget = be(body,2); item = beA(body,4); extra = be32(body,6);
+                        semantic="WITHDRAW_CONFIGURED_AMOUNT";
+                        schema="FIXED10_SLOT_BE_A_WIDGET_BE_ITEM_BE_A_EXTRA_BE32";
+                        source="PINNED_CLIENT_MENU_ACTION_300_WRITER";
+                        break;
                     default: throw new AssertionError();
                 }
-                pendingItemAction = new ItemContainerAction(opcode, widget, slot, item, extra, semantic);
+                offerItemAction(
+                    new ItemContainerAction(
+                        opcode,
+                        widget,
+                        slot,
+                        item,
+                        extra,
+                        semantic
+                    ),
+                    schema,
+                    source
+                );
                 System.out.printf("%sCLIENT_PACKET seq=%d opcode=%d len=%d itemContainerAction=true widget=%d slot=%d itemId=%d semantic=%s%s schema=STATIC_EXACT%n",
                                   tag, decodedCount, opcode, len, widget, slot, item, semantic,
                                   opcode==141 ? " extra="+extra : "");
@@ -352,7 +378,19 @@ final class ClientPacketProbe {
                 // rs.x.e.g(int) is ordinary big-endian 32-bit.
                 byte[] body = Binary.readExactly(in, 4);
                 int amount = be32(body,0);
-                pendingAmount = amount;
+
+                offerTypedRequest(
+                    new AmountEntryClientRequest(
+                        amount,
+                        ClientRequestMetadata.exactCurrent(
+                            208,
+                            "FIXED4_BE_SIGNED_AMOUNT",
+                            "PINNED_CLIENT_AMOUNT_ENTRY_WRITER"
+                        )
+                    ),
+                    opcode
+                );
+
                 System.out.printf("%sCLIENT_PACKET seq=%d opcode=208 len=4 amount=%d amountEntry=true schema=STATIC_EXACT_FIXED4_BE%n",
                                   tag, decodedCount, amount);
                 return true;
@@ -367,7 +405,24 @@ final class ClientPacketProbe {
                 int mode = (-(body[2] & 0xff)) & 0xff;
                 int source = leA(body,3);
                 int destination = le(body,5);
-                pendingContainerDrag = new ContainerDrag(widget,mode,source,destination);
+
+                offerTypedRequest(
+                    new ContainerDragClientRequest(
+                        new ContainerDrag(
+                            widget,
+                            mode,
+                            source,
+                            destination
+                        ),
+                        ClientRequestMetadata.exactCurrent(
+                            214,
+                            "FIXED7_WIDGET_LE_A_MODE_NEG_SOURCE_LE_A_DEST_LE",
+                            "PINNED_CLIENT_CONTAINER_DRAG_WRITER"
+                        )
+                    ),
+                    opcode
+                );
+
                 System.out.printf("%sCLIENT_PACKET seq=%d opcode=214 len=7 containerDrag=true widget=%d mode=%d source=%d destination=%d schema=STATIC_EXACT_FIXED7%n",
                                   tag, decodedCount, widget, mode, source, destination);
                 return true;
@@ -397,9 +452,50 @@ final class ClientPacketProbe {
             case 237: {
                 int len=(opcode==249||opcode==131)?4:8;
                 byte[] body=Binary.readExactly(in,len);
-                pendingSpellTarget=decodeSpellTarget(opcode,body);
+                SpellTargetRequest decoded=
+                    decodeSpellTarget(opcode,body);
+
+                String schema;
+                String source;
+                switch(opcode){
+                    case 249:
+                        schema="FIXED4_PLAYER_BE_A_SPELL_LE";
+                        source="PINNED_CLIENT_SPELL_ON_PLAYER_WRITER";
+                        break;
+                    case 131:
+                        schema="FIXED4_NPC_LE_A_SPELL_BE_A";
+                        source="PINNED_CLIENT_SPELL_ON_NPC_WRITER";
+                        break;
+                    case 35:
+                        schema="FIXED8_WORLD_X_LE_SPELL_BE_A_WORLD_Y_BE_A_OBJECT_LE";
+                        source="PINNED_CLIENT_SPELL_ON_OBJECT_WRITER";
+                        break;
+                    case 181:
+                        schema="FIXED8_WORLD_Y_LE_ITEM_BE_WORLD_X_LE_SPELL_BE_A";
+                        source="PINNED_CLIENT_SPELL_ON_GROUND_ITEM_WRITER";
+                        break;
+                    case 237:
+                        schema="FIXED8_SLOT_BE_ITEM_BE_A_WIDGET_BE_SPELL_BE_A";
+                        source="PINNED_CLIENT_SPELL_ON_INVENTORY_ITEM_WRITER";
+                        break;
+                    default:
+                        throw new AssertionError();
+                }
+
+                offerTypedRequest(
+                    new SpellTargetClientRequest(
+                        decoded,
+                        ClientRequestMetadata.exactCurrent(
+                            opcode,
+                            schema,
+                            source
+                        )
+                    ),
+                    opcode
+                );
+
                 System.out.printf("%sCLIENT_PACKET seq=%d opcode=%d len=%d spellTarget=%s schema=R25_EXACT_CURRENT%n",
-                                  tag,decodedCount,opcode,len,pendingSpellTarget);
+                                  tag,decodedCount,opcode,len,decoded);
                 return true;
             }
 
@@ -408,7 +504,18 @@ final class ClientPacketProbe {
                 byte[] body=Binary.readExactly(in,6);
                 int widget=leA(body,0), slot=beA(body,2), item=le(body,4);
                 String semantic=ItemActionResolver.inventoryOption1Semantic(item);
-                pendingItemAction=new ItemContainerAction(opcode,widget,slot,item,0,semantic==null?"ITEM_OPTION_1":semantic);
+                offerItemAction(
+                    new ItemContainerAction(
+                        opcode,
+                        widget,
+                        slot,
+                        item,
+                        0,
+                        semantic==null?"ITEM_OPTION_1":semantic
+                    ),
+                    "FIXED6_WIDGET_LE_A_SLOT_BE_A_ITEM_LE",
+                    "PINNED_CLIENT_INVENTORY_OPTION_1_WRITER"
+                );
                 System.out.printf("%sCLIENT_PACKET seq=%d opcode=122 len=6 itemOption1=true widget=%d slot=%d itemId=%d semantic=%s schema=STATIC_EXACT_FIXED6_LEA_BEA_LE%n",
                     tag,decodedCount,widget,slot,item,semantic);
                 return true;
@@ -419,12 +526,31 @@ final class ClientPacketProbe {
             case 18: {
                 byte[] body=Binary.readExactly(in,2);
                 int sceneIndex;
-                if(opcode==17) sceneIndex=leA(body,0);      // NPC option 3
-                else if(opcode==21) sceneIndex=be(body,0); // NPC option 4
-                else sceneIndex=le(body,0);                // NPC option 5
-                pendingNpcAction=new NpcAction(opcode,sceneIndex);
+                String schema;
+                int option=NpcInteractionRouter.optionForOpcode(opcode);
+                if(opcode==17){
+                    sceneIndex=leA(body,0);                 // NPC option 3
+                    schema="FIXED2_NPC_SCENE_INDEX_LE_A";
+                }else if(opcode==21){
+                    sceneIndex=be(body,0);                  // NPC option 4
+                    schema="FIXED2_NPC_SCENE_INDEX_BE";
+                }else{
+                    sceneIndex=le(body,0);                  // NPC option 5
+                    schema="FIXED2_NPC_SCENE_INDEX_LE";
+                }
+                offerTypedRequest(
+                    new NpcActionClientRequest(
+                        new NpcAction(opcode,sceneIndex),
+                        ClientRequestMetadata.exactCurrent(
+                            opcode,
+                            schema,
+                            "PINNED_CLIENT_NPC_OPTION_"+option+"_WRITER"
+                        )
+                    ),
+                    opcode
+                );
                 System.out.printf("%sCLIENT_PACKET seq=%d opcode=%d len=2 npcOption=%d sceneIndex=%d schema=STATIC_EXACT%n",
-                    tag,decodedCount,opcode,NpcInteractionRouter.optionForOpcode(opcode),sceneIndex);
+                    tag,decodedCount,opcode,option,sceneIndex);
                 return true;
             }
 
@@ -435,12 +561,44 @@ final class ClientPacketProbe {
             case 79: {
                 byte[] body=Binary.readExactly(in,6);
                 int option,worldX,worldY,item;
-                if(opcode==156){ option=1; worldX=beA(body,0); worldY=le(body,2); item=leA(body,4); }
-                else if(opcode==23){ option=2; worldY=le(body,0); item=le(body,2); worldX=le(body,4); }
-                else if(opcode==236){ option=3; worldY=le(body,0); item=be(body,2); worldX=le(body,4); }
-                else if(opcode==253){ option=4; worldX=le(body,0); worldY=leA(body,2); item=beA(body,4); }
-                else { option=5; worldY=le(body,0); item=be(body,2); worldX=beA(body,4); }
-                pendingGroundItemInteraction=new GroundItemInteraction(opcode,option,item,worldX,worldY);
+                String requestSchema;
+                if(opcode==156){
+                    option=1; worldX=beA(body,0); worldY=le(body,2); item=leA(body,4);
+                    requestSchema="FIXED6_WORLD_X_BE_A_WORLD_Y_LE_ITEM_LE_A";
+                }else if(opcode==23){
+                    option=2; worldY=le(body,0); item=le(body,2); worldX=le(body,4);
+                    requestSchema="FIXED6_WORLD_Y_LE_ITEM_LE_WORLD_X_LE";
+                }else if(opcode==236){
+                    option=3; worldY=le(body,0); item=be(body,2); worldX=le(body,4);
+                    requestSchema="FIXED6_WORLD_Y_LE_ITEM_BE_WORLD_X_LE";
+                }else if(opcode==253){
+                    option=4; worldX=le(body,0); worldY=leA(body,2); item=beA(body,4);
+                    requestSchema="FIXED6_WORLD_X_LE_WORLD_Y_LE_A_ITEM_BE_A";
+                }else{
+                    option=5; worldY=le(body,0); item=be(body,2); worldX=beA(body,4);
+                    requestSchema="FIXED6_WORLD_Y_LE_ITEM_BE_WORLD_X_BE_A";
+                }
+
+                offerTypedRequest(
+                    new GroundItemClientRequest(
+                        new GroundItemInteraction(
+                            opcode,
+                            option,
+                            item,
+                            worldX,
+                            worldY
+                        ),
+                        ClientRequestMetadata.exactCurrent(
+                            opcode,
+                            requestSchema,
+                            "PINNED_CLIENT_GROUND_ITEM_OPTION_"+
+                                option+
+                                "_WRITER"
+                        )
+                    ),
+                    opcode
+                );
+
                 System.out.printf("%sCLIENT_PACKET seq=%d opcode=%d len=6 groundOption=%d item=%d world=%d,%d schema=STATIC_EXACT%n",
                     tag,decodedCount,opcode,option,item,worldX,worldY);
                 return true;
@@ -455,7 +613,17 @@ final class ClientPacketProbe {
                 // 00 01 -> scene 129 (def 1489), 00 06 -> scene 134 (def 1488).
                 byte[] body=Binary.readExactly(in,2);
                 int sceneIndex=beA(body,0);
-                pendingNpcAction=new NpcAction(opcode,sceneIndex);
+                offerTypedRequest(
+                    new NpcActionClientRequest(
+                        new NpcAction(opcode,sceneIndex),
+                        ClientRequestMetadata.exactCurrent(
+                            72,
+                            "FIXED2_NPC_SCENE_INDEX_BE_A",
+                            "PINNED_CLIENT_NPC_OPTION_2_ATTACK_WRITER"
+                        )
+                    ),
+                    opcode
+                );
                 System.out.printf("%sCLIENT_PACKET seq=%d opcode=72 len=2 npcAttack=true sceneIndex=%d schema=STATIC_EXACT_FIXED2_BE_A%n",
                                   tag,decodedCount,sceneIndex);
                 return true;
@@ -469,7 +637,21 @@ final class ClientPacketProbe {
                 int item=beA(body,0);
                 int widget=be(body,2);
                 int slot=beA(body,4);
-                pendingDropItem=new DropItemAction(item,widget,slot);
+                offerTypedRequest(
+                    new DropItemClientRequest(
+                        new DropItemAction(
+                            item,
+                            widget,
+                            slot
+                        ),
+                        ClientRequestMetadata.exactCurrent(
+                            87,
+                            "FIXED6_ITEM_BE_A_WIDGET_BE_SLOT_BE_A",
+                            "PINNED_CLIENT_INVENTORY_DROP_WRITER"
+                        )
+                    ),
+                    opcode
+                );
                 System.out.printf("%sCLIENT_PACKET seq=%d opcode=87 len=6 inventoryDrop=true widget=%d slot=%d itemId=%d schema=STATIC_EXACT_FIXED6%n",
                                   tag,decodedCount,widget,slot,item);
                 return true;
@@ -480,7 +662,17 @@ final class ClientPacketProbe {
                 // The scene NPC index is a plain little-endian short.
                 byte[] body=Binary.readExactly(in,2);
                 int sceneIndex=le(body,0);
-                pendingNpcAction=new NpcAction(opcode,sceneIndex);
+                offerTypedRequest(
+                    new NpcActionClientRequest(
+                        new NpcAction(opcode,sceneIndex),
+                        ClientRequestMetadata.exactCurrent(
+                            155,
+                            "FIXED2_NPC_SCENE_INDEX_LE",
+                            "PINNED_CLIENT_NPC_OPTION_1_WRITER"
+                        )
+                    ),
+                    opcode
+                );
                 System.out.printf("%sCLIENT_PACKET seq=%d opcode=155 len=2 npcFirstOption=true sceneIndex=%d schema=STATIC_EXACT_FIXED2_LE%n",
                                   tag,decodedCount,sceneIndex);
                 return true;
@@ -492,7 +684,22 @@ final class ClientPacketProbe {
                 boolean newline = len > 0 && (body[len - 1] & 0xff) == 10;
                 int textLen = newline ? len - 1 : len;
                 String text = new String(body, 0, textLen, StandardCharsets.ISO_8859_1);
-                pendingCommand = text;
+
+                CommandClientRequest request=
+                    new CommandClientRequest(
+                        text,
+                        ClientRequestMetadata.exactCurrent(
+                            103,
+                            "VAR_BYTE_ISO_8859_1_OPTIONAL_LF",
+                            "PINNED_CLIENT_OPCODE_103_WRITER"
+                        )
+                    );
+
+                offerTypedRequest(
+                    request,
+                    opcode
+                );
+
                 System.out.printf("%sCLIENT_PACKET seq=%d opcode=103 len=%d command=%s newline=%s%n",
                                   tag, decodedCount, len, quote(text), newline);
                 return true;
@@ -541,7 +748,28 @@ final class ClientPacketProbe {
                     case 139: slot=4; playerIndex=(body[0]&255)|((body[1]&255)<<8); semantic="Option 4"; break;
                     default:  slot=5; playerIndex=(body[0]&255)|((body[1]&255)<<8); semantic="Option 5"; break;
                 }
-                pendingPlayerAction=new PlayerAction(opcode,slot,playerIndex,semantic);
+
+                offerTypedRequest(
+                    new PlayerActionClientRequest(
+                        new PlayerAction(
+                            opcode,
+                            slot,
+                            playerIndex,
+                            semantic
+                        ),
+                        ClientRequestMetadata.exactCurrent(
+                            opcode,
+                            opcode==128
+                                ?"FIXED2_PLAYER_INDEX_BE"
+                                :"FIXED2_PLAYER_INDEX_LE",
+                            "PINNED_CLIENT_PLAYER_OPTION_"+
+                                slot+
+                                "_WRITER"
+                        )
+                    ),
+                    opcode
+                );
+
                 System.out.printf("%sCLIENT_PACKET seq=%d opcode=%d len=2 playerAction=true slot=%d playerIndex=%d semantic=%s schema=STATIC_EXACT_CURRENT_CLIENT%n",
                                   tag,decodedCount,opcode,slot,playerIndex,semantic);
                 return true;
@@ -574,7 +802,39 @@ final class ClientPacketProbe {
      * 86 distinct opcodes, zero dynamic opcode sites.
      */
     private boolean consumeFramingOnly(int opcode) throws IOException {
-        if (R85GenericC2SBridge.tryConsume(this, opcode)) {
+        int genericLength=
+            GenericInteractionPacketDecoder.length(opcode);
+        if(genericLength>=0){
+            byte[] payload=
+                Binary.readExactly(in,genericLength);
+            GenericInteractionEvent event=
+                GenericInteractionPacketDecoder.decode(
+                    opcode,
+                    payload
+                );
+
+            offerTypedRequest(
+                new GenericInteractionClientRequest(
+                    event,
+                    ClientRequestMetadata.exactCurrent(
+                        opcode,
+                        GenericInteractionPacketDecoder
+                            .schema(opcode),
+                        GenericInteractionPacketDecoder
+                            .source(opcode)
+                    )
+                ),
+                opcode
+            );
+
+            System.out.printf(
+                "%sCLIENT_PACKET seq=%d opcode=%d len=%d genericInteraction=%s schema=STATIC_EXACT_TYPED%n",
+                tag,
+                decodedCount,
+                opcode,
+                genericLength,
+                event
+            );
             return true;
         }
 
@@ -590,13 +850,17 @@ final class ClientPacketProbe {
                 "ITEM_OPTION_3"
             );
 
-            pendingItemAction = new ItemContainerAction(
-                opcode,
-                widgetId,
-                slot,
-                itemId,
-                0,
-                semantic
+            offerItemAction(
+                new ItemContainerAction(
+                    opcode,
+                    widgetId,
+                    slot,
+                    itemId,
+                    0,
+                    semantic
+                ),
+                "FIXED6_ITEM_BE_A_SLOT_LE_A_WIDGET_LE_A",
+                "PINNED_CLIENT_OPCODE_16_ITEM_OPTION_3_WRITER"
             );
 
             System.out.printf(
@@ -705,6 +969,40 @@ final class ClientPacketProbe {
     private static int leA(byte[] b,int o){ return (((b[o]&255)-128)&255)|((b[o+1]&255)<<8); }
     private static int be32(byte[] b,int o){ return ((b[o]&255)<<24)|((b[o+1]&255)<<16)|((b[o+2]&255)<<8)|(b[o+3]&255); }
 
+    private void offerItemAction(
+        ItemContainerAction action,
+        String schema,
+        String source
+    )throws IOException{
+        offerTypedRequest(
+            new ItemContainerActionClientRequest(
+                action,
+                ClientRequestMetadata.exactCurrent(
+                    action.opcode,
+                    schema,
+                    source
+                )
+            ),
+            action.opcode
+        );
+    }
+
+    private void offerTypedRequest(
+        ClientRequest request,
+        int opcode
+    )throws IOException{
+        if(typedRequests.offer(request))
+            return;
+
+        aligned=false;
+        throw new IOException(
+            "CLIENT_REQUEST_QUEUE_FULL capacity="+
+            typedRequests.capacity()+
+            " opcode="+opcode+
+            " decodedCount="+decodedCount
+        );
+    }
+
     private int readU8() throws IOException {
         int v = in.read();
         if (v < 0) throw new EOFException("EOF reading packet length");
@@ -719,7 +1017,7 @@ final class ClientPacketProbe {
      * v2 reconstructs absolute turning-point waypoints but does not itself move
      * anything. LocalSession owns the authoritative movement state/tick.
      */
-    private void logMovement(int opcode, byte[] body) {
+    private void logMovement(int opcode, byte[] body) throws IOException {
         int coreLen = body.length;
         byte[] telemetry = new byte[0];
         if (opcode == 248) {
@@ -767,7 +1065,48 @@ final class ClientPacketProbe {
             if (i != 0) deltas.append(';');
             deltas.append(dx).append(',').append(dy);
         }
-        pendingMovement = new MovementRequest(opcode, run, xs, ys, telemetry);
+        MovementRequest movement=
+            new MovementRequest(
+                opcode,
+                run,
+                xs,
+                ys,
+                telemetry
+            );
+
+        String schema=
+            opcode==248
+                ?"VARBYTE_PATH_X_LE_A_SIGNED_DELTAS_Y_LE_RUN_NEG_PLUS_OPAQUE14"
+                :"VARBYTE_PATH_X_LE_A_SIGNED_DELTAS_Y_LE_RUN_NEG";
+
+        String source;
+        switch(opcode){
+            case 164:
+                source="PINNED_CLIENT_MOVEMENT_OPCODE_164_WRITER";
+                break;
+            case 98:
+                source="PINNED_CLIENT_MOVEMENT_OPCODE_98_WRITER";
+                break;
+            case 248:
+                source="PINNED_CLIENT_MINIMAP_MOVEMENT_OPCODE_248_WRITER";
+                break;
+            default:
+                throw new AssertionError(
+                    "unexpected movement opcode="+opcode
+                );
+        }
+
+        offerTypedRequest(
+            new MovementClientRequest(
+                movement,
+                ClientRequestMetadata.exactCurrent(
+                    opcode,
+                    schema,
+                    source
+                )
+            ),
+            opcode
+        );
 
         System.out.printf("%sCLIENT_PACKET seq=%d opcode=%d len=%d movementFamily=true steps=%d startX=%d startY=%d run=%d deltas=[%s] decodedWaypoints=true%s%n",
                           tag, decodedCount, opcode, body.length, steps, startX, startY, run?1:0, deltas,

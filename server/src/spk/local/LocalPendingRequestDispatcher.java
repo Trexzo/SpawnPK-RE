@@ -141,31 +141,7 @@ final class LocalPendingRequestDispatcher {
         Objects.requireNonNull(clientPackets,"clientPackets");
         Objects.requireNonNull(serverPackets,"serverPackets");
 
-        acceptInterfaceClose(
-            clientPackets,
-            serverPackets,
-            tag
-        );
-        acceptWidgetAction(
-            clientPackets,
-            serverPackets,
-            tag
-        );
-        acceptCommand(
-            clientPackets,
-            serverPackets,
-            tag
-        );
-        acceptObjectInteraction(
-            clientPackets,
-            serverPackets,
-            tag
-        );
-        acceptGenericInteraction(
-            clientPackets,
-            tag
-        );
-        acceptItemAction(
+        acceptTypedRequests(
             clientPackets,
             serverPackets,
             tag
@@ -175,116 +151,231 @@ final class LocalPendingRequestDispatcher {
             serverPackets,
             tag
         );
-        acceptItemOnNpc(
-            clientPackets,
-            serverPackets,
-            tag
-        );
-        acceptSpellTarget(
-            clientPackets,
-            serverPackets,
-            tag
-        );
-        acceptDropItem(
-            clientPackets,
-            serverPackets,
-            tag
-        );
-        acceptGroundItemInteraction(
-            clientPackets,
-            serverPackets,
-            tag
-        );
-        acceptPlayerAction(
-            clientPackets,
-            serverPackets,
-            tag
-        );
-        acceptNpcAction(
-            clientPackets,
-            serverPackets,
-            tag
-        );
-        acceptAmount(
-            clientPackets,
-            serverPackets,
-            tag
-        );
-        acceptContainerDrag(
-            clientPackets,
-            serverPackets,
-            tag
-        );
-        acceptMovement(
-            clientPackets,
-            serverPackets,
-            tag
-        );
-
         long now=System.currentTimeMillis();
         petRealtime.ensureFollowScheduled(now);
         petRealtime.ensureTestSequenceScheduled(now);
     }
 
-    private void acceptInterfaceClose(
+    private void acceptTypedRequests(
         ClientPacketProbe clientPackets,
         ServerPacketWriter serverPackets,
         String tag
     )throws IOException{
-        if(!clientPackets.takeInterfaceClose())return;
+        for(
+            ClientRequest request;
+            (request=clientPackets
+                .takeTypedRequest())!=null;
+        ){
+            if(request instanceof
+                    InterfaceCloseClientRequest){
+                uiActions.handleInterfaceClose(
+                    clientPackets.isAligned(),
+                    serverPackets,
+                    tag
+                );
+                continue;
+            }
 
-        uiActions.handleInterfaceClose(
-            clientPackets.isAligned(),
-            serverPackets,
-            tag
-        );
+            if(request instanceof
+                    WidgetActionClientRequest){
+                WidgetActionClientRequest widget=
+                    (WidgetActionClientRequest)request;
+
+                uiActions.handleWidget(
+                    widget.widgetId(),
+                    serverPackets,
+                    tag
+                );
+                continue;
+            }
+
+            if(request instanceof
+                    AmountEntryClientRequest){
+                AmountEntryClientRequest amount=
+                    (AmountEntryClientRequest)request;
+
+                routeAmount(
+                    amount.amount(),
+                    clientPackets,
+                    serverPackets,
+                    tag
+                );
+                continue;
+            }
+
+            if(request instanceof
+                    ContainerDragClientRequest){
+                ContainerDragClientRequest drag=
+                    (ContainerDragClientRequest)request;
+
+                routeContainerDrag(
+                    drag.drag(),
+                    clientPackets,
+                    serverPackets,
+                    tag
+                );
+                continue;
+            }
+
+            if(request instanceof
+                    DropItemClientRequest){
+                DropItemClientRequest drop=
+                    (DropItemClientRequest)request;
+
+                routeDropItem(
+                    drop.action(),
+                    serverPackets,
+                    tag
+                );
+                continue;
+            }
+
+            if(request instanceof
+                    ItemOnNpcClientRequest){
+                ItemOnNpcClientRequest itemOnNpc=
+                    (ItemOnNpcClientRequest)request;
+
+                routeItemOnNpc(
+                    itemOnNpc.action(),
+                    serverPackets,
+                    tag
+                );
+                continue;
+            }
+
+            if(request instanceof
+                    ObjectInteractionClientRequest){
+                ObjectInteractionClientRequest object=
+                    (ObjectInteractionClientRequest)request;
+
+                routeObjectInteraction(
+                    object.interaction(),
+                    serverPackets,
+                    tag
+                );
+                continue;
+            }
+
+            if(request instanceof
+                    PlayerActionClientRequest){
+                PlayerActionClientRequest player=
+                    (PlayerActionClientRequest)request;
+
+                routePlayerAction(
+                    player.action(),
+                    serverPackets,
+                    tag
+                );
+                continue;
+            }
+
+            if(request instanceof
+                    NpcActionClientRequest){
+                NpcActionClientRequest npc=
+                    (NpcActionClientRequest)request;
+
+                routeNpcAction(
+                    npc.action(),
+                    serverPackets,
+                    tag
+                );
+                continue;
+            }
+
+            if(request instanceof
+                    SpellTargetClientRequest){
+                SpellTargetClientRequest spell=
+                    (SpellTargetClientRequest)request;
+
+                routeSpellTarget(
+                    spell.request(),
+                    serverPackets,
+                    tag
+                );
+                continue;
+            }
+
+            if(request instanceof
+                    GenericInteractionClientRequest){
+                GenericInteractionClientRequest generic=
+                    (GenericInteractionClientRequest)request;
+
+                routeGenericInteraction(
+                    generic.event(),
+                    tag
+                );
+                continue;
+            }
+
+            if(request instanceof
+                    MovementClientRequest){
+                MovementClientRequest movement=
+                    (MovementClientRequest)request;
+
+                routeMovement(
+                    movement.movement(),
+                    serverPackets,
+                    tag
+                );
+                continue;
+            }
+
+            if(request instanceof
+                    ItemContainerActionClientRequest){
+                ItemContainerActionClientRequest item=
+                    (ItemContainerActionClientRequest)request;
+
+                routeItemAction(
+                    item.action(),
+                    serverPackets,
+                    tag
+                );
+                continue;
+            }
+
+            if(request instanceof
+                    GroundItemClientRequest){
+                GroundItemClientRequest ground=
+                    (GroundItemClientRequest)request;
+
+                routeGroundItemInteraction(
+                    ground.interaction(),
+                    serverPackets,
+                    tag
+                );
+                continue;
+            }
+
+            if(request instanceof
+                    CommandClientRequest){
+                CommandClientRequest command=
+                    (CommandClientRequest)request;
+
+                commandDispatcher.handle(
+                    command.command(),
+                    clientPackets.isAligned(),
+                    bridge.username(),
+                    bridge.loginAlias(),
+                    bridge.persistentAccount(),
+                    bridge.sessionWorldTick(),
+                    serverPackets,
+                    tag
+                );
+                continue;
+            }
+
+            throw new IOException(
+                "unrouted typed client request "+
+                request
+            );
+        }
     }
 
-    private void acceptWidgetAction(
-        ClientPacketProbe clientPackets,
+    private void routeObjectInteraction(
+        ObjectInteraction request,
         ServerPacketWriter serverPackets,
         String tag
     )throws IOException{
-        Integer widget=clientPackets.takeWidgetAction();
-        if(widget==null)return;
-
-        uiActions.handleWidget(
-            widget.intValue(),
-            serverPackets,
-            tag
-        );
-    }
-
-    private void acceptCommand(
-        ClientPacketProbe clientPackets,
-        ServerPacketWriter serverPackets,
-        String tag
-    )throws IOException{
-        String command=clientPackets.takeCommand();
-        if(command==null)return;
-
-        commandDispatcher.handle(
-            command,
-            clientPackets.isAligned(),
-            bridge.username(),
-            bridge.loginAlias(),
-            bridge.persistentAccount(),
-            bridge.sessionWorldTick(),
-            serverPackets,
-            tag
-        );
-    }
-
-    private void acceptObjectInteraction(
-        ClientPacketProbe clientPackets,
-        ServerPacketWriter serverPackets,
-        String tag
-    )throws IOException{
-        ObjectInteraction request=
-            clientPackets.takeObjectInteraction();
-
-        if(request==null)return;
-
         String result=
             bankObjectHandler.handle(
                 request,
@@ -295,34 +386,22 @@ final class LocalPendingRequestDispatcher {
             System.out.println(tag+result);
     }
 
-    private void acceptGenericInteraction(
-        ClientPacketProbe clientPackets,
+    private void routeGenericInteraction(
+        GenericInteractionEvent event,
         String tag
     ){
-        for(
-            GenericInteractionEvent event;
-            (event=R85GenericC2SBridge.take(
-                clientPackets
-            ))!=null;
-        ){
-            String result=
-                genericInteractionHandler.handle(event);
+        String result=
+            genericInteractionHandler.handle(event);
 
-            if(result!=null)
-                System.out.println(tag+result);
-        }
+        if(result!=null)
+            System.out.println(tag+result);
     }
 
-    private void acceptItemAction(
-        ClientPacketProbe clientPackets,
+    private void routeItemAction(
+        ItemContainerAction action,
         ServerPacketWriter serverPackets,
         String tag
     )throws IOException{
-        ItemContainerAction action=
-            clientPackets.takeItemAction();
-
-        if(action==null)return;
-
         String tradeItem=
             TradeService.handleItemAction(
                 worldPlayer,
@@ -436,16 +515,11 @@ final class LocalPendingRequestDispatcher {
         );
     }
 
-    private void acceptItemOnNpc(
-        ClientPacketProbe clientPackets,
+    private void routeItemOnNpc(
+        ItemOnNpcAction action,
         ServerPacketWriter serverPackets,
         String tag
     )throws IOException{
-        ItemOnNpcAction action=
-            clientPackets.takeItemOnNpc();
-
-        if(action==null)return;
-
         LocalItemOnNpcHandler.Result result=
             itemOnNpcHandler.handle(
                 action,
@@ -463,16 +537,11 @@ final class LocalPendingRequestDispatcher {
         );
     }
 
-    private void acceptSpellTarget(
-        ClientPacketProbe clientPackets,
+    private void routeSpellTarget(
+        SpellTargetRequest request,
         ServerPacketWriter serverPackets,
         String tag
     )throws IOException{
-        SpellTargetRequest request=
-            clientPackets.takeSpellTarget();
-
-        if(request==null)return;
-
         System.out.println(
             tag+
             spellTargetHandler.handle(
@@ -482,16 +551,11 @@ final class LocalPendingRequestDispatcher {
         );
     }
 
-    private void acceptDropItem(
-        ClientPacketProbe clientPackets,
+    private void routeDropItem(
+        DropItemAction action,
         ServerPacketWriter serverPackets,
         String tag
     )throws IOException{
-        DropItemAction action=
-            clientPackets.takeDropItem();
-
-        if(action==null)return;
-
         petDropPickup.handleDrop(
             action,
             serverPackets,
@@ -499,16 +563,11 @@ final class LocalPendingRequestDispatcher {
         );
     }
 
-    private void acceptGroundItemInteraction(
-        ClientPacketProbe clientPackets,
+    private void routeGroundItemInteraction(
+        GroundItemInteraction action,
         ServerPacketWriter serverPackets,
         String tag
     )throws IOException{
-        GroundItemInteraction action=
-            clientPackets.takeGroundItemInteraction();
-
-        if(action==null)return;
-
         applyGroundItemResult(
             groundItemHandler.handle(
                 action,
@@ -537,16 +596,11 @@ final class LocalPendingRequestDispatcher {
         );
     }
 
-    private void acceptPlayerAction(
-        ClientPacketProbe clientPackets,
+    private void routePlayerAction(
+        PlayerAction action,
         ServerPacketWriter serverPackets,
         String tag
     )throws IOException{
-        PlayerAction action=
-            clientPackets.takePlayerAction();
-
-        if(action==null)return;
-
         Player81WorldSync.Context playerSync=
             bridge.player81Sync();
 
@@ -600,16 +654,11 @@ final class LocalPendingRequestDispatcher {
             System.out.println(tag+result);
     }
 
-    private void acceptNpcAction(
-        ClientPacketProbe clientPackets,
+    private void routeNpcAction(
+        NpcAction action,
         ServerPacketWriter serverPackets,
         String tag
     )throws IOException{
-        NpcAction action=
-            clientPackets.takeNpcAction();
-
-        if(action==null)return;
-
         NpcEntity clicked=
             npcs.scene(action.sceneIndex);
 
@@ -706,17 +755,15 @@ final class LocalPendingRequestDispatcher {
             System.out.println(tag+routed);
     }
 
-    private void acceptAmount(
+    private void routeAmount(
+        int amount,
         ClientPacketProbe clientPackets,
         ServerPacketWriter serverPackets,
         String tag
     )throws IOException{
-        Integer amount=clientPackets.takeAmount();
-        if(amount==null)return;
-
         if(devPanel.hasPending()){
             bridge.handleDevPanelAmount(
-                amount.intValue(),
+                amount,
                 serverPackets,
                 tag
             );
@@ -725,7 +772,7 @@ final class LocalPendingRequestDispatcher {
 
         LocalBankRequestHandler.Result result=
             bankRequests.handleAmount(
-                amount.intValue(),
+                amount,
                 serverPackets
             );
 
@@ -743,16 +790,12 @@ final class LocalPendingRequestDispatcher {
         );
     }
 
-    private void acceptContainerDrag(
+    private void routeContainerDrag(
+        ContainerDrag drag,
         ClientPacketProbe clientPackets,
         ServerPacketWriter serverPackets,
         String tag
     )throws IOException{
-        ContainerDrag drag=
-            clientPackets.takeContainerDrag();
-
-        if(drag==null)return;
-
         LocalBankRequestHandler.Result result=
             bankRequests.handleDrag(
                 drag,
@@ -773,16 +816,11 @@ final class LocalPendingRequestDispatcher {
         );
     }
 
-    private void acceptMovement(
-        ClientPacketProbe clientPackets,
+    private void routeMovement(
+        MovementRequest request,
         ServerPacketWriter serverPackets,
         String tag
     )throws IOException{
-        MovementRequest request=
-            clientPackets.takeMovement();
-
-        if(request==null)return;
-
         movementRequests.handle(
             request,
             serverPackets,

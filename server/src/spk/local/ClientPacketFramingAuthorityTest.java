@@ -33,7 +33,14 @@ public final class ClientPacketFramingAuthorityTest {
         ClientPacketProbe q=new ClientPacketProbe(new ByteArrayInputStream(blocker.toByteArray()),new IsaacCipher(seed.clone()),"[202-regression] ");
         if(!q.readNextKnownPacket()||!q.readNextKnownPacket()||!q.readNextKnownPacket()||!q.isAligned())
             throw new AssertionError("185->202->164 regression");
-        if(q.takeMovement()==null) throw new AssertionError("movement missing after 202");
+        ClientRequest blockerWidget=q.takeTypedRequest();
+        if(!(blockerWidget instanceof WidgetActionClientRequest))
+            throw new AssertionError("widget missing before movement: "+blockerWidget);
+        ClientRequest blockerMovement=q.takeTypedRequest();
+        if(!(blockerMovement instanceof MovementClientRequest))
+            throw new AssertionError("movement missing after 202: "+blockerMovement);
+        if(((MovementClientRequest)blockerMovement).movement().opcode!=164)
+            throw new AssertionError("wrong movement after 202: "+blockerMovement);
 
         // Out-of-authority remains fail-closed.
         ByteArrayOutputStream bad=new ByteArrayOutputStream();

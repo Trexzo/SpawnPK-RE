@@ -21,12 +21,39 @@ public final class BankClientActionDecoderTest {
         ClientPacketProbe p=new ClientPacketProbe(new ByteArrayInputStream(w.toByteArray()),new IsaacCipher(seed.clone()),"[bank-decoder-test] ");
         int[] ops={145,117,43,129,135,141,140};
         String[] sem={"WITHDRAW_1","WITHDRAW_5","WITHDRAW_10","WITHDRAW_ALL","WITHDRAW_X","WITHDRAW_14","WITHDRAW_ALL_BUT_ONE"};
+        String[] schemas={
+            "FIXED6_WIDGET_BE_A_SLOT_BE_A_ITEM_BE_A",
+            "FIXED6_WIDGET_LE_A_ITEM_LE_A_SLOT_LE",
+            "FIXED6_WIDGET_LE_ITEM_BE_A_SLOT_BE_A",
+            "FIXED6_SLOT_BE_A_WIDGET_BE_ITEM_BE_A",
+            "FIXED6_SLOT_LE_WIDGET_BE_A_ITEM_LE",
+            "FIXED10_SLOT_BE_A_WIDGET_BE_ITEM_BE_A_EXTRA_BE32",
+            "FIXED6_SLOT_BE_A_WIDGET_BE_ITEM_BE_A"
+        };
+        String[] sources={
+            "PINNED_CLIENT_MENU_ACTION_632_WRITER",
+            "PINNED_CLIENT_MENU_ACTION_78_WRITER",
+            "PINNED_CLIENT_MENU_ACTION_867_WRITER",
+            "PINNED_CLIENT_MENU_ACTION_431_WRITER",
+            "PINNED_CLIENT_MENU_ACTION_53_WRITER",
+            "PINNED_CLIENT_MENU_ACTION_300_WRITER",
+            "PINNED_CLIENT_MENU_ACTION_291_WRITER"
+        };
         for(int i=0;i<ops.length;i++){
             if(!p.readNextKnownPacket())throw new AssertionError("stopped at "+ops[i]);
-            ItemContainerAction a=p.takeItemAction();
-            if(a==null||a.opcode!=ops[i]||a.widgetId!=widget||a.slot!=slot||a.itemId!=item||!sem[i].equals(a.semantic))
+            ClientRequest request=p.takeTypedRequest();
+            if(!(request instanceof ItemContainerActionClientRequest))
+                throw new AssertionError("typed item request missing op="+ops[i]+" got="+request);
+            ItemContainerAction a=((ItemContainerActionClientRequest)request).action();
+            if(a.opcode!=ops[i]||a.widgetId!=widget||a.slot!=slot||a.itemId!=item||!sem[i].equals(a.semantic))
                 throw new AssertionError("mismatch op="+ops[i]+" got="+a);
             if(ops[i]==141 && a.extra!=14)throw new AssertionError("withdraw14 extra="+a.extra);
+            ClientRequestMetadata metadata=request.metadata();
+            if(metadata.opcode!=ops[i]||
+               !schemas[i].equals(metadata.schema)||
+               !sources[i].equals(metadata.source)||
+               metadata.provenance!=ClientRequestProvenance.EXACT_CURRENT_CLIENT)
+                throw new AssertionError("metadata op="+ops[i]+" got="+metadata);
         }
         if(!p.isAligned()||p.decodedCount()!=7)throw new AssertionError("alignment/count");
         System.out.println("V3_BANK_CLIENT_ACTION_DECODER_PASS opcodes=145,117,43,129,135,141,140 aligned=true");

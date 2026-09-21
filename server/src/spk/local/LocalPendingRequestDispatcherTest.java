@@ -2,20 +2,8 @@ package spk.local;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
-import java.lang.reflect.Field;
 
 public final class LocalPendingRequestDispatcherTest {
-    private static void setPending(
-        ClientPacketProbe probe,
-        String fieldName,
-        Object value
-    )throws Exception{
-        Field field=
-            ClientPacketProbe.class.getDeclaredField(fieldName);
-        field.setAccessible(true);
-        field.set(probe,value);
-    }
-
     public static void main(String[] args)throws Exception{
         World world=World.isolatedForTest(50L);
 
@@ -502,34 +490,203 @@ public final class LocalPendingRequestDispatcherTest {
                     }
                 );
 
+            int[] probeSeed={5,6,7,8};
+            ByteArrayOutputStream typedWire=
+                new ByteArrayOutputStream();
+            IsaacCipher typedEncoder=
+                new IsaacCipher(
+                    probeSeed.clone()
+                );
+            typedWire.write(
+                (185+typedEncoder.nextInt())&255
+            );
+            typedWire.write(0);
+            typedWire.write(152);
+            typedWire.write(
+                (87+typedEncoder.nextInt())&255
+            );
+            // item=0 BE-A, unsupported widget=0 BE, slot=0 BE-A.
+            typedWire.write(
+                new byte[]{
+                    0,(byte)128,
+                    0,0,
+                    0,(byte)128
+                }
+            );
+
+            typedWire.write(
+                (57+typedEncoder.nextInt())&255
+            );
+            // item=0 BE-A, targetNpc=0 BE-A,
+            // slot=0 LE, widget=0 BE-A. The semantic handler
+            // must consume it and fail closed on missing inventory source.
+            typedWire.write(
+                new byte[]{
+                    0,(byte)128,
+                    0,(byte)128,
+                    0,0,
+                    0,(byte)128
+                }
+            );
+
+            typedWire.write(
+                (132+typedEncoder.nextInt())&255
+            );
+            // worldX=0 LE-A, non-bank object=12345 BE,
+            // worldY=0 BE-A. The semantic handler must consume it
+            // and preserve fail-closed non-bank behavior.
+            typedWire.write(
+                new byte[]{
+                    (byte)128,0,
+                    0x30,0x39,
+                    0,(byte)128
+                }
+            );
+
+            typedWire.write(
+                (153+typedEncoder.nextInt())&255
+            );
+            // Player option 2 / Follow, player index 1 LE.
+            // The test bridge intentionally has no player sync context,
+            // so routing must consume it and fail closed as sync-not-ready.
+            typedWire.write(
+                new byte[]{1,0}
+            );
+
+            typedWire.write(
+                (18+typedEncoder.nextInt())&255
+            );
+            // NPC option 5, scene index 0 LE. No matching scene NPC is
+            // required; the typed request must still be consumed and routed
+            // through the existing fail-closed NPC domain path.
+            typedWire.write(
+                new byte[]{0,0}
+            );
+
+            typedWire.write(
+                (249+typedEncoder.nextInt())&255
+            );
+            // Spell-on-player: target index 0 BE-A, spell widget 0 LE.
+            // The handler must consume the typed request and reject the
+            // unknown spell semantically rather than leaving transport state.
+            typedWire.write(
+                new byte[]{0,(byte)128,0,0}
+            );
+
+            typedWire.write(
+                (70+typedEncoder.nextInt())&255
+            );
+            // Promoted object option 3: worldY LE=0x3456,
+            // worldX BE=0x2345, objectId LE-A=0x1234.
+            // Generic semantics remain deliberately fail-closed.
+            typedWire.write(
+                new byte[]{
+                    0x56,0x34,
+                    0x23,0x45,
+                    (byte)0xB4,0x12
+                }
+            );
+
+            typedWire.write(
+                (41+typedEncoder.nextInt())&255
+            );
+            // Benign item option 2 fixture: item 0 BE,
+            // slot 0 BE-A, widget 0 BE-A. Existing semantic
+            // routing must consume it without transport fallback.
+            typedWire.write(
+                new byte[]{
+                    0,0,
+                    0,(byte)128,
+                    0,(byte)128
+                }
+            );
+
+            typedWire.write(
+                (236+typedEncoder.nextInt())&255
+            );
+            // Ground option 3: worldY LE, item BE, worldX LE.
+            // Missing item id 0 at tile 0,0 must be consumed and fail closed.
+            typedWire.write(
+                new byte[]{0,0,0,0,0,0}
+            );
+
+            int movementX=MovementState.INITIAL_X+1;
+            int movementY=MovementState.INITIAL_Y;
+            typedWire.write(
+                (164+typedEncoder.nextInt())&255
+            );
+            typedWire.write(5);
+            typedWire.write((movementX+128)&255);
+            typedWire.write((movementX>>>8)&255);
+            typedWire.write(movementY&255);
+            typedWire.write((movementY>>>8)&255);
+            typedWire.write(0);
+
             ClientPacketProbe probe=
                 new ClientPacketProbe(
-                    new ByteArrayInputStream(new byte[0]),
-                    new IsaacCipher(new int[]{5,6,7,8}),
+                    new ByteArrayInputStream(
+                        typedWire.toByteArray()
+                    ),
+                    new IsaacCipher(
+                        probeSeed.clone()
+                    ),
                     "[pending-test] "
                 );
 
-            setPending(
-                probe,
-                "pendingWidgetAction",
-                Integer.valueOf(152)
-            );
+            if(!probe.readNextKnownPacket())
+                throw new AssertionError(
+                    "typed widget fixture decode failed"
+                );
 
-            setPending(
-                probe,
-                "pendingMovement",
-                new MovementRequest(
-                    164,
-                    false,
-                    new int[]{
-                        MovementState.INITIAL_X+1
-                    },
-                    new int[]{
-                        MovementState.INITIAL_Y
-                    },
-                    new byte[0]
-                )
-            );
+            if(!probe.readNextKnownPacket())
+                throw new AssertionError(
+                    "typed drop fixture decode failed"
+                );
+
+            if(!probe.readNextKnownPacket())
+                throw new AssertionError(
+                    "typed item-on-npc fixture decode failed"
+                );
+
+            if(!probe.readNextKnownPacket())
+                throw new AssertionError(
+                    "typed object interaction fixture decode failed"
+                );
+
+            if(!probe.readNextKnownPacket())
+                throw new AssertionError(
+                    "typed player action fixture decode failed"
+                );
+
+            if(!probe.readNextKnownPacket())
+                throw new AssertionError(
+                    "typed npc action fixture decode failed"
+                );
+
+            if(!probe.readNextKnownPacket())
+                throw new AssertionError(
+                    "typed spell target fixture decode failed"
+                );
+
+            if(!probe.readNextKnownPacket())
+                throw new AssertionError(
+                    "typed generic interaction fixture decode failed"
+                );
+
+            if(!probe.readNextKnownPacket())
+                throw new AssertionError(
+                    "typed item-container fixture decode failed"
+                );
+
+            if(!probe.readNextKnownPacket())
+                throw new AssertionError(
+                    "typed ground item fixture decode failed"
+                );
+
+            if(!probe.readNextKnownPacket())
+                throw new AssertionError(
+                    "typed movement fixture decode failed"
+                );
 
             dispatcher.drain(
                 probe,
@@ -552,14 +709,9 @@ public final class LocalPendingRequestDispatcherTest {
                     "movement request consumed more or less than once"
                 );
 
-            if(probe.takeWidgetAction()!=null)
+            if(probe.typedRequestCount()!=0)
                 throw new AssertionError(
-                    "widget request was not consumed"
-                );
-
-            if(probe.takeMovement()!=null)
-                throw new AssertionError(
-                    "movement request was not consumed"
+                    "typed widget request was not consumed"
                 );
 
             NpcEntity dummy=
@@ -593,8 +745,13 @@ public final class LocalPendingRequestDispatcherTest {
 
             System.out.println(
                 "LOCAL_PENDING_REQUEST_DISPATCHER_PASS "+
-                "widgetConsumed=true movementConsumed=true "+
-                "runToggleBeforeMovement=true classifierCompatibility=true"
+                "widgetConsumed=true dropConsumed=true "+
+                "itemOnNpcConsumed=true objectInteractionConsumed=true "+
+                "playerActionConsumed=true npcActionConsumed=true "+
+                "spellTargetConsumed=true genericInteractionConsumed=true "+
+                "itemActionConsumed=true groundItemConsumed=true "+
+                "movementConsumed=true runToggleBeforeMovement=true "+
+                "classifierCompatibility=true"
             );
         }finally{
             world.close();
