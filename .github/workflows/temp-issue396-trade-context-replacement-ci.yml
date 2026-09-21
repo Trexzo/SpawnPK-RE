@@ -1,0 +1,58 @@
+name: TEMP Issue 396 Trade Context Replacement CI
+
+on:
+  pull_request:
+    paths:
+      - 'server/src/spk/local/TradeService.java'
+      - 'server/src/spk/local/TradeServiceContextReplacementCleanupTest.java'
+      - '.github/workflows/temp-issue396-trade-context-replacement-ci.yml'
+
+jobs:
+  validate:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Temurin JDK 21
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Compile test classes
+        shell: pwsh
+        run: ./server/gradlew.bat --no-daemon testClasses
+
+      - name: Stress replacement cleanup
+        shell: pwsh
+        run: |
+          $cp = 'server/build/classes/java/test;server/build/classes/java/main;server/build/resources/test;server/build/resources/main'
+
+          for ($i = 1; $i -le 10; $i++) {
+            & java -cp $cp spk.local.TradeServiceContextReplacementCleanupTest
+            if ($LASTEXITCODE -ne 0) {
+              throw "TradeServiceContextReplacementCleanupTest failed iteration=$i exit=$LASTEXITCODE"
+            }
+          }
+
+          Write-Host "ISSUE396_TRADE_CONTEXT_REPLACEMENT_STRESS_PASS iterations=10"
+
+      - name: Run trade/session lifecycle guards
+        shell: pwsh
+        run: |
+          $cp = 'server/build/classes/java/test;server/build/classes/java/main;server/build/resources/test;server/build/resources/main'
+
+          $tests = @(
+            'TradeServiceWorldStateCleanupTest',
+            'LocalSessionRuntimeBindingsTest'
+          )
+
+          foreach ($test in $tests) {
+            & java -cp $cp "spk.local.$test"
+            if ($LASTEXITCODE -ne 0) {
+              throw "$test failed exit=$LASTEXITCODE"
+            }
+          }
+
+          Write-Host "ISSUE396_TRADE_LIFECYCLE_GUARDS_PASS tests=$($tests.Count)"
