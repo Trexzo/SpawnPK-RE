@@ -1,7 +1,11 @@
 package spk.local;
 
+import java.io.*;
+import java.net.*;
 import java.lang.reflect.*;
+import java.nio.file.*;
 import java.util.*;
+import java.util.jar.*;
 import spk.content.api.*;
 
 public final class ContentPublicApiBoundaryTest {
@@ -55,6 +59,8 @@ public final class ContentPublicApiBoundaryTest {
     public static void main(String[] args){
         ArrayList<String> violations=
             new ArrayList<>();
+
+        assertApiTypeCoverage(violations);
 
         for(Class<?> api:API_TYPES){
             if(!Modifier.isPublic(api.getModifiers()))
@@ -214,8 +220,192 @@ public final class ContentPublicApiBoundaryTest {
             "protocolIndex=false "+
             "widgetIdentity=false "+
             "inventorySlotIdentity=false "+
+            "apiCoverageComplete=true "+
             "javaIoLeak=false"
         );
+    }
+
+    private static void assertApiTypeCoverage(
+        List<String> violations
+    ){
+        Set<String> declared=
+            new TreeSet<>();
+
+        for(Class<?> api:API_TYPES)
+            declared.add(api.getName());
+
+        Set<String> discovered=
+            discoverPublicApiTypes();
+
+        for(String name:discovered)
+            if(!declared.contains(name))
+                violations.add(
+                    name+
+                    " public content API type missing from boundary audit"
+                );
+
+        for(String name:declared)
+            if(!discovered.contains(name))
+                violations.add(
+                    name+
+                    " boundary audit entry is not a public top-level content API type"
+                );
+    }
+
+    private static Set<String> discoverPublicApiTypes(){
+        TreeSet<String> names=
+            new TreeSet<>();
+
+        try{
+            URL location=
+                ContentRegistrar.class
+                    .getProtectionDomain()
+                    .getCodeSource()
+                    .getLocation();
+
+            if(location==null)
+                throw new IllegalStateException(
+                    "content API code source unavailable"
+                );
+
+            File source=
+                new File(location.toURI());
+
+            if(source.isDirectory())
+                discoverDirectoryApiTypes(
+                    source,
+                    names
+                );
+            else
+                discoverJarApiTypes(
+                    source,
+                    names
+                );
+        }catch(Exception error){
+            throw new AssertionError(
+                "could not discover public content API types",
+                error
+            );
+        }
+
+        if(names.isEmpty())
+            throw new AssertionError(
+                "no public spk.content.api types discovered"
+            );
+
+        return names;
+    }
+
+    private static void discoverDirectoryApiTypes(
+        File root,
+        Set<String> names
+    )throws Exception{
+        Path directory=
+            root.toPath()
+                .resolve("spk")
+                .resolve("content")
+                .resolve("api");
+
+        if(!Files.isDirectory(directory))
+            throw new IllegalStateException(
+                "content API directory missing: "+
+                directory
+            );
+
+        try(DirectoryStream<Path> entries=
+                Files.newDirectoryStream(
+                    directory,
+                    "*.class"
+                )){
+            for(Path entry:entries){
+                String fileName=
+                    entry.getFileName()
+                        .toString();
+
+                if(fileName.indexOf('$')>=0)
+                    continue;
+
+                String simpleName=
+                    fileName.substring(
+                        0,
+                        fileName.length()-6
+                    );
+
+                addIfPublicTopLevel(
+                    "spk.content.api."+
+                    simpleName,
+                    names
+                );
+            }
+        }
+    }
+
+    private static void discoverJarApiTypes(
+        File source,
+        Set<String> names
+    )throws Exception{
+        if(!source.isFile())
+            throw new IllegalStateException(
+                "content API code source is not a directory or jar: "+
+                source
+            );
+
+        final String prefix=
+            "spk/content/api/";
+
+        try(JarFile jar=new JarFile(source)){
+            Enumeration<JarEntry> entries=
+                jar.entries();
+
+            while(entries.hasMoreElements()){
+                JarEntry entry=
+                    entries.nextElement();
+
+                if(entry.isDirectory())
+                    continue;
+
+                String name=entry.getName();
+
+                if(!name.startsWith(prefix)||
+                   !name.endsWith(".class"))
+                    continue;
+
+                String remainder=
+                    name.substring(
+                        prefix.length(),
+                        name.length()-6
+                    );
+
+                if(remainder.isEmpty()||
+                   remainder.indexOf('/')>=0||
+                   remainder.indexOf('$')>=0)
+                    continue;
+
+                addIfPublicTopLevel(
+                    "spk.content.api."+
+                    remainder,
+                    names
+                );
+            }
+        }
+    }
+
+    private static void addIfPublicTopLevel(
+        String binaryName,
+        Set<String> names
+    )throws Exception{
+        Class<?> type=
+            Class.forName(
+                binaryName,
+                false,
+                ContentRegistrar.class
+                    .getClassLoader()
+            );
+
+        if(Modifier.isPublic(type.getModifiers())&&
+           type.getEnclosingClass()==null&&
+           !type.isSynthetic())
+            names.add(binaryName);
     }
 
     private static boolean exposesRawInventorySlotIdentity(
