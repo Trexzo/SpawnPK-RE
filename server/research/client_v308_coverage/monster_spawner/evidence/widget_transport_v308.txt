@@ -1,0 +1,53 @@
+Exact v308 Monster Spawner notes
+
+Authority:
+854f26ff9f134b0317572e7ac1688e6f40a231d5a4c66f8db5d655b7f45ce7c6
+
+Class:
+rs.n.c.T
+
+Root:
+41000
+
+Static root children:
+41001
+41002
+41004
+41006
+41007
+41008
+41016
+41010
+41011
+41012
+41013
+41014
+41019
+41020
+
+41017 "Spawn distanced" and 41018 "Spawn x3" are constructed but NOT attached
+to root 41000 by the static builder.
+
+Action:
+41007 tooltip "Toggle spawner"
+menu action 315 -> C2S185 -> A0 2F
+
+Visible label:
+41016 "<img=57> Activate @gre@(x5)"
+
+Selection scroll:
+41020
+22 rows
+41021..41042
+tooltip "Spawn this NPC"
+
+Row default concat recipe:
+NPC IDX @yel@<rowIndex> (<widgetId>)
+
+Rows are action-enabled text widgets:
+menu action 315 -> C2S185
+41021 -> A0 3D
+41042 -> A0 52
+
+Selected display:
+41019 "You have selected: @yel@NPC Name"
