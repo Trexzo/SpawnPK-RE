@@ -444,7 +444,7 @@ final class BountyHunterService {
         if (activeTaskByHunter.containsKey(hunter)) {
             throw new IllegalStateException("Hunter already has an active Bounty task");
         }
-        if (!objectivePort.exists(objective)) {
+        if (!objectivePort.exists(hunter, objective)) {
             throw new IllegalArgumentException("Objective reference does not exist: " + objective);
         }
 
@@ -458,7 +458,7 @@ final class BountyHunterService {
         Task task = requireTask(taskId);
         requireTaskTick(task, tick);
         if (task.state != TaskState.ACTIVE) return taskSnapshot(taskId);
-        if (objectivePort.isComplete(task.objective)) {
+        if (objectivePort.isComplete(task.hunter, task.objective)) {
             task.state = TaskState.COMPLETED;
             task.lastTransitionTick = tick;
             activeTaskByHunter.remove(task.hunter);
