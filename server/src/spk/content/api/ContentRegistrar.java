@@ -20,6 +20,13 @@ public interface ContentRegistrar {
         ContentObjectOptionHandler handler
     );
 
+    ContentRegistration itemOption(
+        int itemId,
+        int option,
+        int priority,
+        ContentItemOptionHandler handler
+    );
+
     ContentRegistration npcOption(
         int npcDefinitionId,
         int option,
