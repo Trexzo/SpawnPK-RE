@@ -1,0 +1,67 @@
+Exact-current client SHA-256:
+854f26ff9f134b0317572e7ac1688e6f40a231d5a4c66f8db5d655b7f45ce7c6
+
+NPC PACKET-65 MASK READER
+
+rs.Client.b(rs.x.e):
+  mask = A() // ordinary unsigned BE16
+
+0x100 force movement
+  P(), P(), P(), P(), U()+cycle, T()+cycle, P()
+
+0x010 animation
+  id = S(); 65535 -> -1
+  delay = y()
+
+0x008 repeated/multi-hit presentation
+  count = y()
+  repeat count:
+      A = o() // reader overload: unsigned BE16
+      B = y()
+      C = y()
+      npc.a(B,A,clientCycle,C)
+  npc.L = clientCycle + 300
+  npc.M = o()
+  npc.N = o()
+
+0x040 single hit/status
+  A = O()
+  B = P()
+  C = y()
+  npc.a(B,A,clientCycle,C)
+  npc.L = clientCycle + 300
+  npc.M = P()
+  npc.N = O()
+
+0x080 GFX
+  npc.z = A()
+  packed = D()
+  npc.D = packed >> 16
+  npc.C = clientCycle + (packed & 0xffff)
+  65535 gfx id -> -1
+
+0x020 interaction
+  npc.m = A()
+  65535 -> -1
+
+0x001 forced text
+  npc.q = F()
+  presentation timer npc.O = 100
+
+0x002 definition/state branch
+  begins with y(); zero branch reads U() NPC definition and refreshes definition-derived actor fields.
+  Keep business meaning beyond definition/state replacement unpromoted until separately corroborated.
+
+0x004 two actor presentation fields
+  npc.Q = S()
+  npc.R = S()
+
+READER TRANSFORMS
+
+A() = ordinary unsigned BE16
+S() = unsigned LE16
+D() = ordinary BE32
+O() = (-wireByte) & 255
+P() = (128-wireByte) & 255
+o() reader overload = ordinary unsigned BE16
+F() = newline-terminated string
