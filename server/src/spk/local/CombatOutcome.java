@@ -13,18 +13,20 @@ public final class CombatOutcome {
     private final String attacker;
     private final String victim;
     private final CombatOutcomeType type;
+    private final CombatOutcomeContext context;
     private final long worldTick;
-    private final String context;
+    private final String sourceAuthority;
 
     public CombatOutcome(
         String attacker,
         String victim,
         CombatOutcomeType type,
+        CombatOutcomeContext context,
         long worldTick,
-        String context
+        String sourceAuthority
     ) {
-        this.attacker = Objects.requireNonNull(attacker, "attacker");
-        this.victim = Objects.requireNonNull(victim, "victim");
+        this.attacker = requireRef(attacker, "attacker");
+        this.victim = requireRef(victim, "victim");
         this.type = Objects.requireNonNull(type, "type");
         this.context = Objects.requireNonNull(context, "context");
 
@@ -33,6 +35,7 @@ public final class CombatOutcome {
         }
 
         this.worldTick = worldTick;
+        this.sourceAuthority = requireRef(sourceAuthority, "sourceAuthority");
     }
 
     public String attacker() {
@@ -47,11 +50,26 @@ public final class CombatOutcome {
         return type;
     }
 
+    public CombatOutcomeContext context() {
+        return context;
+    }
+
     public long worldTick() {
         return worldTick;
     }
 
-    public String context() {
-        return context;
+    public String sourceAuthority() {
+        return sourceAuthority;
+    }
+
+    private static String requireRef(String value, String label) {
+        Objects.requireNonNull(value, label);
+        String normalized = value.trim();
+
+        if (normalized.isEmpty()) {
+            throw new IllegalArgumentException(label);
+        }
+
+        return normalized;
     }
 }
