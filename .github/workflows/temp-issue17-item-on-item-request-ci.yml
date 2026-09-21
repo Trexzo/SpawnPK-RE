@@ -1,0 +1,65 @@
+name: TEMP Issue 17 Item-on-Item Typed Request CI
+
+on:
+  pull_request:
+    paths:
+      - 'server/src/spk/local/ClientPacketProbe.java'
+      - 'server/src/spk/local/LocalPendingRequestDispatcher.java'
+      - 'server/src/spk/local/ItemOnItemClientRequest.java'
+      - 'server/src/spk/local/ClientItemOnItemRequestQueueTest.java'
+      - 'server/src/spk/local/ItemOnItemOpcode53Test.java'
+      - 'server/src/spk/local/LocalPendingRequestDispatcherTest.java'
+      - '.github/workflows/temp-issue17-item-on-item-request-ci.yml'
+
+jobs:
+  validate:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Temurin JDK 21
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Compile test classes
+        shell: pwsh
+        run: ./server/gradlew.bat --no-daemon testClasses
+
+      - name: Stress opcode 53 typed FIFO
+        shell: pwsh
+        run: |
+          $cp = 'server/build/classes/java/test;server/build/classes/java/main;server/build/resources/test;server/build/resources/main'
+
+          for ($i = 1; $i -le 10; $i++) {
+            & java -cp $cp spk.local.ClientItemOnItemRequestQueueTest
+            if ($LASTEXITCODE -ne 0) {
+              throw "ClientItemOnItemRequestQueueTest failed iteration=$i exit=$LASTEXITCODE"
+            }
+          }
+
+          Write-Host "ISSUE17_ITEM_ON_ITEM_QUEUE_STRESS_PASS iterations=10"
+
+      - name: Run typed-request and semantic guards
+        shell: pwsh
+        run: |
+          $cp = 'server/build/classes/java/test;server/build/classes/java/main;server/build/resources/test;server/build/resources/main'
+
+          $tests = @(
+            'ItemOnItemOpcode53Test',
+            'LocalPendingRequestDispatcherTest',
+            'LocalItemOnItemHandlerTest',
+            'ClientItemOnNpcRequestQueueTest',
+            'ClientItemContainerRequestQueueTest'
+          )
+
+          foreach ($test in $tests) {
+            & java -cp $cp "spk.local.$test"
+            if ($LASTEXITCODE -ne 0) {
+              throw "$test failed exit=$LASTEXITCODE"
+            }
+          }
+
+          Write-Host "ISSUE17_ITEM_ON_ITEM_TYPED_GUARDS_PASS tests=$($tests.Count)"
