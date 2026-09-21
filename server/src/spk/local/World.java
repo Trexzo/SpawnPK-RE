@@ -28,6 +28,8 @@ final class World implements AutoCloseable {
     private final WorldPlayerPersistence persistence;
     private final ContentRegistry content;
     private final Object loginInitializationLock=new Object();
+    private final Object lifecycleLock=new Object();
+    private boolean closed;
 
     private World(long tickMillis){
         this(
@@ -94,7 +96,12 @@ final class World implements AutoCloseable {
     ContentRegistry content(){return content;}
     Object loginInitializationLock(){return loginInitializationLock;}
 
-    void start(){pulse.start();}
+    void start(){
+        synchronized(lifecycleLock){
+            requireOpen();
+            pulse.start();
+        }
+    }
 
     long registerPlayer(WorldPlayer player,String username){return players.register(player,username);}
     boolean unregisterPlayer(WorldPlayer player){
@@ -124,7 +131,14 @@ final class World implements AutoCloseable {
     }
 
     /** Compatibility hook for older tests/tools; the real server uses WorldPulse.start(). */
-    synchronized long observePulse(long nowMillis){if(!pulse.running())pulse.pulseOnce(nowMillis);return clock.tick();}
+    synchronized long observePulse(long nowMillis){
+        synchronized(lifecycleLock){
+            requireOpen();
+            if(!pulse.running())
+                pulse.pulseOnce(nowMillis);
+            return clock.tick();
+        }
+    }
 
     String summary(){return "World{tick="+clock.tick()+",players="+players.size()+",groundItems="+groundItems.size()+",objects="+objects.size()+",commands="+commands.size()+",scheduled="+events.size()+",pulseRunning="+pulse.running()+"}";}
     String metrics(){
@@ -135,9 +149,25 @@ final class World implements AutoCloseable {
             content.summary();
     }
 
+    private void requireOpen(){
+        if(closed)
+            throw new IllegalStateException(
+                "world closed"
+            );
+    }
+
     @Override public void close(){
-        pulse.close();
+        synchronized(lifecycleLock){
+            if(closed)
+                return;
+
+            closed=true;
+            pulse.close();
+        }
+
         commands.close();
+        realtime.close();
+        events.close();
         persistence.close();
     }
 }
