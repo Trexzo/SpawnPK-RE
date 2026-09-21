@@ -10,7 +10,7 @@ authority would unblock Chat 2/3 without inventing server mechanics.
 | P0 | Prayer + magic presentation | exact 854f C2S185 prayer/direct widgets, local-only spell selection, five target writer families, prayer `bd` headicon channel, 51 prayer/126 spell client census | STRONG-PARTIAL | client-facing contract packaged; drain/formulas/secondary effects/consumption remain `UNKNOWN_SERVER_AUTHORITY` | Chat 3 |
 | P0 | Appearance + equipment + ranks/icons | exact v308 worn HEAD→`fE[rs.l.h.b(aC)]` staff-rank gate, packet-81 `aC` + `bs` fields, Override/C2S16, native icon family | STRONG-PARTIAL | client presentation contract closed; LocalLab currently publishes `aC=0`; original named-rank→numeric-`aC` and production Override policy remain `UNKNOWN_SERVER_AUTHORITY` | Chat 3 |
 | P0 | Make-over Mage / character design | exact v308 C2S40/C2S101, roots 4882/2459/3559, exact kit/colour domain | PARTIAL-CLOSED-CONTRACT | server fee/restrictions/persistence policy unknown; native designer cannot preload persisted appearance from packet 81 | Chat 3 |
-| P1 | Dialogues / chatbox state machines | dialog key state, many interface/widget contracts | PARTIAL | systematic roots, continue/option writers, close/cancel state machines, historical wording separation | Chat 3 |
+| P1 | Dialogues / chatbox state machines | exact v308 option roots `2459/2469/2480/2492/14170`, Continue roots `4882/4887/4893/4900/30700`, mouse C2S40/C2S185 and keyboard `dialogueoption N`/C2S40(4907) | STRONG-PARTIAL | core standard input state machine closed; normalize remaining player/item/statement roots and close/cancel presentation families | Chat 2/3 |
 | P1 | Items / item definitions / equipment models | item authority R5, item catalog, equipment audits, cache extraction corpus | PARTIAL | exact-current definition-field census, model/colour/retexture semantics, action/menu ownership gaps | Chat 3 |
 | P1 | NPC definitions / interaction presentation | Home NPC corpus, NPC resolver, packet-65 parity | PARTIAL | exact-current definition fields, head/model/animation/GFX/menu-option presentation and unresolved NPC families | Chat 3 |
 | P1 | Teleports / UI navigation | R82 teleport candidates, application/widget research | PARTIAL | exact navigation roots/buttons/configs and which destination semantics are client-visible vs server-only | Chat 3 |
@@ -28,10 +28,10 @@ authority would unblock Chat 2/3 without inventing server mechanics.
 
 ## Immediate campaign order
 
-1. **Dialogue/interface state-machine atlas**
-   - normalize root/widget/continue/close/option contracts;
-   - separate native client state from server-authored dialogue/content;
-   - give Chat 3 semantic dialogue evidence without raw opcode coupling.
+1. **Dialogue/interface state-machine atlas — remaining families**
+   - core standard option/Continue input routing is now packaged;
+   - close player/item/statement dialogue roots plus close/cancel presentation;
+   - keep wording and server-authored branch semantics evidence-gated.
 2. **Residual C2S/S2C packet census**
    - close remaining exact-current writer/reader gaps;
    - hand only typed transport facts to Chat 2.
