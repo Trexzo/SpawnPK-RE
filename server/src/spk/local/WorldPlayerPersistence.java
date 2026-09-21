@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * World-owned persistence boundary.
@@ -68,6 +69,8 @@ final class WorldPlayerPersistence
     private final World world;
     private final PlayerRepository repository;
     private final ThreadPoolExecutor io;
+    private final AtomicReference<SaveTask> inFlightSave=
+        new AtomicReference<>();
     private final Object checkpointLock=
         new Object();
     private final HashMap<EntityId,CheckpointSlot> checkpoints=
@@ -406,26 +409,39 @@ final class WorldPlayerPersistence
         }
 
         @Override public void run(){
-            write(
-                saveSequence,
-                snapshot,
-                petAccessoryItem,
-                tag,
-                reason,
-                future,
-                false
-            );
+            inFlightSave.set(this);
+            try{
+                write(
+                    saveSequence,
+                    snapshot,
+                    petAccessoryItem,
+                    tag,
+                    reason,
+                    future,
+                    false
+                );
+            }finally{
+                inFlightSave.compareAndSet(
+                    this,
+                    null
+                );
+            }
         }
 
-        void reject(
+        boolean reject(
             RejectedExecutionException error,
             String stage
         ){
-            if(!future.completeExceptionally(
-                    error))
-                return;
+            synchronized(future){
+                if(future.isDone())
+                    return false;
 
-            failed.incrementAndGet();
+                failed.incrementAndGet();
+                future.completeExceptionally(
+                    error
+                );
+            }
+
             logRejected(
                 snapshot,
                 saveSequence,
@@ -434,6 +450,7 @@ final class WorldPlayerPersistence
                 stage,
                 error
             );
+            return true;
         }
     }
 
@@ -501,11 +518,19 @@ final class WorldPlayerPersistence
     ){
         try{
             repository.save(snapshot);
-            completed.incrementAndGet();
 
-            if(checkpoint)
-                checkpointWritten
-                    .incrementAndGet();
+            synchronized(future){
+                if(future.isDone())
+                    return;
+
+                completed.incrementAndGet();
+
+                if(checkpoint)
+                    checkpointWritten
+                        .incrementAndGet();
+
+                future.complete(null);
+            }
 
             System.out.println(
                 tag+
@@ -521,10 +546,14 @@ final class WorldPlayerPersistence
                 Thread.currentThread().getName()+
                 " checkpoint="+checkpoint
             );
-
-            future.complete(null);
         }catch(Throwable e){
-            failed.incrementAndGet();
+            synchronized(future){
+                if(future.isDone())
+                    return;
+
+                failed.incrementAndGet();
+                future.completeExceptionally(e);
+            }
 
             System.err.println(
                 tag+
@@ -535,8 +564,6 @@ final class WorldPlayerPersistence
                 " checkpoint="+checkpoint+
                 " error="+e
             );
-
-            future.completeExceptionally(e);
         }
     }
 
@@ -673,6 +700,23 @@ final class WorldPlayerPersistence
                         TimeUnit.SECONDS
                     );
 
+                boolean inFlightSettled=false;
+
+                if(!clean){
+                    SaveTask active=
+                        inFlightSave.get();
+
+                    if(active!=null)
+                        inFlightSettled=
+                            active.reject(
+                                new RejectedExecutionException(
+                                    "persistence SHUTDOWN_IN_FLIGHT "+
+                                    "worker did not terminate"
+                                ),
+                                "SHUTDOWN_IN_FLIGHT"
+                            );
+                }
+
                 System.err.println(
                     "[world] V5123_PERSISTENCE_SHUTDOWN_FORCED"+
                     " droppedTasks="+dropped.size()+
@@ -681,6 +725,8 @@ final class WorldPlayerPersistence
                         counts.checkpoints+
                     " droppedUnknown="+
                         counts.unknown+
+                    " inFlightSettled="+
+                        inFlightSettled+
                     " cleanAfterForce="+clean+
                     " "+metrics()
                 );
