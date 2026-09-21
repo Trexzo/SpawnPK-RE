@@ -208,7 +208,6 @@ final class LocalMakeoverMageHandler {
 
     Result handleDesign(
         CharacterDesignRequest request,
-        String username,
         ServerPacketWriter packets,
         String tag
     )throws IOException{
@@ -250,15 +249,6 @@ final class LocalMakeoverMageHandler {
             219,
             new byte[0]
         );
-        packets.varShort(
-            81,
-            BootstrapPackets.player81AppearanceOnly(
-                username,
-                equipment.appearanceItems(),
-                player
-            )
-        );
-
         stage=Stage.NONE;
 
         return Result.handled(
@@ -273,7 +263,7 @@ final class LocalMakeoverMageHandler {
                 java.util.Arrays.toString(
                     request.colours()
                 )+
-                " packet81Refresh=true"
+                " appearanceStateApplied=true"
         );
     }
 
