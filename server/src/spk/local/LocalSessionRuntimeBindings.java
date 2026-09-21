@@ -53,6 +53,23 @@ final class LocalSessionRuntimeBindings {
     )throws IOException{
         if(player81Sync!=null)return;
 
+        if(world.closed())
+            throw new IllegalStateException(
+                "runtime binding world closed"
+            );
+
+        long generation=
+            worldPlayer.generation();
+
+        if(!world.players().owns(
+                worldPlayer,
+                generation
+            ))
+            throw new IllegalStateException(
+                "runtime binding owner not registered in world: "+
+                worldPlayer.id()
+            );
+
         player81Sync=
             Player81WorldSync.register(
                 serverPackets,
