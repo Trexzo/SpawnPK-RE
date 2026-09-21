@@ -18,6 +18,48 @@ public final class ContentRegistrationLifecycleTest {
             Handles low=new Handles();
             Handles high=new Handles();
 
+            AtomicReference<ContentRegistrar>
+                retainedRegistrar=
+                    new AtomicReference<>();
+            AtomicReference<ContentRegistration>
+                retainedCommitted=
+                    new AtomicReference<>();
+
+            registry.installCustom(
+                module(
+                    "lifecycle-retained-registrar",
+                    registrar->{
+                        retainedRegistrar.set(
+                            registrar
+                        );
+                        retainedCommitted.set(
+                            registrar.command(
+                                "retainedinitial",
+                                1,
+                                context->
+                                    ContentResult.handled(
+                                        "RETAINED_INITIAL",
+                                        null
+                                    )
+                            )
+                        );
+                    }
+                )
+            );
+
+            if(retainedRegistrar.get()==null||
+               retainedCommitted.get()==null||
+               !retainedCommitted.get().active())
+                throw new AssertionError(
+                    "retained registrar setup did not commit"
+                );
+
+            assertLateRegistrarRejected(
+                retainedRegistrar.get(),
+                registry,
+                "lateaftercommit"
+            );
+
             registry.installCustom(
                 module(
                     "lifecycle-low",
@@ -259,13 +301,19 @@ public final class ContentRegistrationLifecycleTest {
             AtomicReference<ContentRegistration>
                 failedHandle=
                     new AtomicReference<>();
+            AtomicReference<ContentRegistrar>
+                failedRegistrar=
+                    new AtomicReference<>();
 
             boolean conflict=false;
             try{
                 registry.installCustom(
                     module(
                         "lifecycle-conflict",
-                        registrar->
+                        registrar->{
+                            failedRegistrar.set(
+                                registrar
+                            );
                             failedHandle.set(
                                 registrar.command(
                                     "lifecyclecmd",
@@ -276,7 +324,8 @@ public final class ContentRegistrationLifecycleTest {
                                             null
                                         )
                                 )
-                            )
+                            );
+                        }
                     )
                 );
             }catch(IllegalStateException expected){
@@ -287,12 +336,19 @@ public final class ContentRegistrationLifecycleTest {
             }
 
             if(!conflict||
+               failedRegistrar.get()==null||
                failedHandle.get()==null||
                failedHandle.get().active()||
                failedHandle.get().unregister())
                 throw new AssertionError(
                     "failed install leaked active handle"
                 );
+
+            assertLateRegistrarRejected(
+                failedRegistrar.get(),
+                registry,
+                "lateafterrollback"
+            );
 
             assertWinner(
                 registry.commandBinding(
@@ -357,7 +413,9 @@ public final class ContentRegistrationLifecycleTest {
                 "npcFallback=true "+
                 "idempotent=true "+
                 "failedInstallLeak=false "+
-                "pendingCancellation=true"
+                "pendingCancellation=true "+
+                "registrarSealed=true "+
+                "failedRegistrarSealed=true"
             );
         }finally{
             if(player.registered())
@@ -414,6 +472,41 @@ public final class ContentRegistrationLifecycleTest {
             object.get(),
             npc.get()
         );
+    }
+
+    private static void assertLateRegistrarRejected(
+        ContentRegistrar registrar,
+        ContentRegistry registry,
+        String command
+    ){
+        boolean rejected=false;
+
+        try{
+            registrar.command(
+                command,
+                1,
+                context->
+                    ContentResult.handled(
+                        "SHOULD_NOT_REGISTER",
+                        null
+                    )
+            );
+        }catch(IllegalStateException expected){
+            rejected=
+                expected.getMessage()!=null&&
+                expected.getMessage().contains(
+                    "content registrar closed"
+                );
+        }
+
+        if(!rejected||
+           registry.commandBinding(
+               command
+           )!=null)
+            throw new AssertionError(
+                "late registrar mutation accepted command="+
+                command
+            );
     }
 
     private static void assertPending(
