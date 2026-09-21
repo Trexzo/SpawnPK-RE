@@ -1,0 +1,43 @@
+Exact v308 Normal Duel transport notes
+
+Authority:
+854f26ff9f134b0317572e7ac1688e6f40a231d5a4c66f8db5d655b7f45ce7c6
+
+Selector:
+class rs.n.c.E
+root 25754
+25759 Standard duel
+25760 Whip only
+25761 Whip + dds only
+25763 Invite
+65418 Close Window
+
+All action-enabled selector widgets:
+menu action 315 -> C2S185 -> rs.x.e.d(widgetId) -> u16_be
+
+Vectors:
+25759 64 9F
+25760 64 A0
+25761 64 A1
+25763 64 A3
+65418 FF 8A
+
+Load-last augmentation:
+class rs.n.c.D
+existing root 6575
+68439 sprite
+68440 "Load last rules", tooltip "Load last duel"
+
+68440 uses action-enabled text helper -> menu action 315 -> C2S185.
+rs.x.e.d(int) writes only two bytes.
+
+68440 = 0x10B58
+wire low16 = 0x0B58 = 2904
+body = 0B 58
+
+Incoming native S2C253 request suffixes:
+:duelreq: -> "wishes to duel with you."
+:whipduelreq: -> "wishes to whip duel with you."
+:whipddsreq: -> "wishes to whip + dds duel with you."
+
+Escape generic-close logic explicitly excludes active roots 25754 and 6575.
