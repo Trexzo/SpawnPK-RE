@@ -18,7 +18,10 @@ public final class ContentProvenanceAuthorityBoundaryTest {
             "customCommand=CUSTOM_LOCALLAB "+
             "customObject=CUSTOM_LOCALLAB "+
             "customItem=CUSTOM_LOCALLAB "+
+            "customItemOnGroundItem=CUSTOM_LOCALLAB "+
             "customItemOnNpc=CUSTOM_LOCALLAB "+
+            "customItemOnObject=CUSTOM_LOCALLAB "+
+            "customItemOnPlayer=CUSTOM_LOCALLAB "+
             "customNpc=CUSTOM_LOCALLAB "+
             "trustedRuntimeProven=true"
         );
@@ -143,9 +146,41 @@ public final class ContentProvenanceAuthorityBoundaryTest {
                                         )
                             );
 
+                            registrar.itemOnGroundItem(
+                                65_436,
+                                65_437,
+                                321,
+                                context->
+                                    ContentInteractionResult
+                                        .handled(
+                                            "CUSTOM_ONLY"
+                                        )
+                            );
+
                             registrar.itemOnNpc(
                                 65_433,
                                 12_346,
+                                321,
+                                context->
+                                    ContentInteractionResult
+                                        .handled(
+                                            "CUSTOM_ONLY"
+                                        )
+                            );
+
+                            registrar.itemOnObject(
+                                65_434,
+                                54_322,
+                                321,
+                                context->
+                                    ContentInteractionResult
+                                        .handled(
+                                            "CUSTOM_ONLY"
+                                        )
+                            );
+
+                            registrar.itemOnPlayer(
+                                65_435,
                                 321,
                                 context->
                                     ContentInteractionResult
@@ -198,11 +233,40 @@ public final class ContentProvenanceAuthorityBoundaryTest {
             );
 
             assertCustom(
+                "itemOnGroundItem",
+                world.content()
+                    .itemOnGroundItemBinding(
+                        65_436,
+                        65_437
+                    ),
+                misleadingModuleId
+            );
+
+            assertCustom(
                 "itemOnNpc",
                 world.content()
                     .itemOnNpcBinding(
                         65_433,
                         12_346
+                    ),
+                misleadingModuleId
+            );
+
+            assertCustom(
+                "itemOnObject",
+                world.content()
+                    .itemOnObjectBinding(
+                        65_434,
+                        54_322
+                    ),
+                misleadingModuleId
+            );
+
+            assertCustom(
+                "itemOnPlayer",
+                world.content()
+                    .itemOnPlayerBinding(
+                        65_435
                     ),
                 misleadingModuleId
             );
