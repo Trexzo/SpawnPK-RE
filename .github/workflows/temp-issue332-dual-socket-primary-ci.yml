@@ -1,0 +1,61 @@
+name: TEMP Issue 332 Dual Socket Primary Readiness CI
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'server/src/spk/local/EngineR3DualSocketVisibilityTest.java'
+      - '.github/workflows/temp-issue332-dual-socket-primary-ci.yml'
+
+jobs:
+  validate:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Temurin JDK 21
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Compile test classes
+        shell: pwsh
+        run: ./server/gradlew.bat --no-daemon testClasses
+
+      - name: Stress dual-socket visibility
+        shell: pwsh
+        run: |
+          $cp = 'server/build/classes/java/test;server/build/classes/java/main;server/build/resources/test;server/build/resources/main'
+
+          for ($i = 1; $i -le 15; $i++) {
+            & java -cp $cp spk.local.EngineR3DualSocketVisibilityTest
+            if ($LASTEXITCODE -ne 0) {
+              throw "EngineR3DualSocketVisibilityTest failed iteration=$i exit=$LASTEXITCODE"
+            }
+          }
+
+          Write-Host "ISSUE332_DUAL_SOCKET_PRIMARY_STRESS_PASS iterations=15"
+
+      - name: Run related shared-world guards
+        shell: pwsh
+        run: |
+          $cp = 'server/build/classes/java/test;server/build/classes/java/main;server/build/resources/test;server/build/resources/main'
+
+          $tests = @(
+            'EngineR3PlayerSyncTest',
+            'SharedWorldSocketIntegrationTest',
+            'LocalSessionRuntimeBindingsTest',
+            'DualProfileSocketIntegrationTest'
+          )
+
+          foreach ($test in $tests) {
+            & java -cp $cp "spk.local.$test"
+            if ($LASTEXITCODE -ne 0) {
+              throw "$test failed exit=$LASTEXITCODE"
+            }
+          }
+
+          Write-Host "ISSUE332_RELATED_SHARED_WORLD_PASS tests=$($tests.Count)"
