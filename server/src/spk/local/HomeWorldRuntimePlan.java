@@ -171,21 +171,15 @@ final class HomeWorldRuntimePlan {
         WorldHomeNpcService.VisibleNpc visible
     ){
         int sceneIndex=viewIndexes.bind(
-            visible.npc.id,
+            visible.canonicalId,
             HomeNpcRuntimePlan.sceneIndexForOrdinal(
                 visible.ordinal
             )
         );
-        NpcEntity projection=new NpcEntity(
-            sceneIndex,
-            visible.npc.definitionId,
-            visible.npc.x(),
-            visible.npc.y()
+
+        return visible.project(
+            sceneIndex
         );
-        projection.bindCanonicalId(
-            visible.npc.id
-        );
-        return projection;
     }
 
     Integer sceneIndexForCanonical(
