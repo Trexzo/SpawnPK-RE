@@ -3,7 +3,38 @@ package spk.local;
 import java.util.*;
 
 public final class PlayerSnapshotExtensionStateTest {
-    public static void main(String[] args){
+    private static final class MemoryRepository
+        implements PlayerRepository {
+
+        private PlayerSnapshot snapshot;
+
+        MemoryRepository(
+            PlayerSnapshot snapshot
+        ){
+            this.snapshot=snapshot;
+        }
+
+        @Override public Optional<PlayerSnapshot> load(
+            String username
+        ){
+            return snapshot==null
+                ?Optional.empty()
+                :Optional.of(snapshot);
+        }
+
+        @Override public void save(
+            PlayerSnapshot snapshot
+        ){
+            this.snapshot=snapshot;
+        }
+
+        PlayerSnapshot snapshot(){
+            return snapshot;
+        }
+    }
+
+    public static void main(String[] args)
+        throws Exception{
         WorldPlayer source=
             new WorldPlayer();
 
@@ -195,6 +226,74 @@ public final class PlayerSnapshotExtensionStateTest {
             "failed replacement partially mutated extension state"
         );
 
+        MemoryRepository repository=
+            new MemoryRepository(
+                snapshot
+            );
+        WorldPlayer lifecyclePlayer=
+            new WorldPlayer();
+
+        LocalAccountLifecycle.LoadResult load=
+            LocalAccountLifecycle.load(
+                new LocalAccountLifecycle.Selection(
+                    "extension-owner",
+                    true
+                ),
+                lifecyclePlayer,
+                repository,
+                value->true,
+                "[extension-state-test] "
+            );
+
+        require(
+            load.loaded,
+            "real account lifecycle did not load snapshot"
+        );
+        require(
+            lifecyclePlayer.snapshotExtensions()
+                .snapshot()
+                .equals(
+                    PlayerSnapshotExtensionState
+                        .extract(
+                            snapshot.values()
+                        )
+                ),
+            "real account lifecycle lost extension state"
+        );
+
+        PlayerSnapshot lifecycleSaved=
+            LocalAccountLifecycle.captureAndSave(
+                "extension-owner",
+                lifecyclePlayer,
+                repository,
+                0
+            );
+
+        require(
+            repository.snapshot()==
+                lifecycleSaved,
+            "repository did not receive recaptured snapshot"
+        );
+        require(
+            "alice,bob".equals(
+                lifecycleSaved.value(
+                    "extension.social.friends"
+                )
+            )&&
+            "room-3".equals(
+                lifecycleSaved.value(
+                    "extension.raid.progress"
+                )
+            ),
+            "real account lifecycle save lost extensions"
+        );
+        require(
+            lifecycleSaved.value(
+                "unknown.fixture"
+            )==null,
+            "real account lifecycle promoted ordinary unknown key"
+        );
+
         TreeMap<String,String> malformedSnapshotValues=
             new TreeMap<>(
                 PlayerSnapshotSchemaV1.capture(
@@ -234,6 +333,7 @@ public final class PlayerSnapshotExtensionStateTest {
             "normalizePreserves=true "+
             "liveApplyPreserves=true "+
             "recapturePreserves=true "+
+            "accountLifecyclePreserves=true "+
             "unknownNotPromoted=true "+
             "immutable=true "+
             "replacementFailureAtomic=true "+
