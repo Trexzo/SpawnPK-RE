@@ -18,6 +18,9 @@ final class LocalPendingRequestDispatcher {
         long sessionWorldTick();
         SceneUpdatePublisher scenePublisher();
         Player81WorldSync.Context player81Sync();
+        void refreshPlayerAppearance(
+            ServerPacketWriter writer
+        )throws IOException;
         void saveAccount(String tag,String reason);
         void applyPetDialogResult(
             LocalPetInventoryDialogHandler.Result result,
@@ -49,6 +52,7 @@ final class LocalPendingRequestDispatcher {
     private final LocalGenericInteractionHandler genericInteractionHandler;
     private final LocalEquipmentItemActionHandler equipmentItemActions;
     private final LocalPetInventoryDialogHandler petDialogs;
+    private final LocalMakeoverMageHandler makeoverMage;
     private final LocalCompCapeCustomizeHandler compCapeCustomize;
     private final LocalItemOnItemHandler itemOnItemHandler;
     private final LocalItemOnNpcHandler itemOnNpcHandler;
@@ -108,6 +112,11 @@ final class LocalPendingRequestDispatcher {
         this.equipmentItemActions=Objects.requireNonNull(
             equipmentItemActions,"equipmentItemActions");
         this.petDialogs=Objects.requireNonNull(petDialogs,"petDialogs");
+        this.makeoverMage=
+            new LocalMakeoverMageHandler(
+                worldPlayer,
+                equipment
+            );
         this.compCapeCustomize=Objects.requireNonNull(
             compCapeCustomize,"compCapeCustomize");
         this.itemOnItemHandler=Objects.requireNonNull(
@@ -163,6 +172,14 @@ final class LocalPendingRequestDispatcher {
         ){
             if(request instanceof
                     InterfaceCloseClientRequest){
+                boolean makeoverCancelled=
+                    makeoverMage.cancel();
+                if(makeoverCancelled)
+                    System.out.println(
+                        tag+
+                        "MAKEOVER_MAGE_DIALOG_CANCEL reason=CLIENT_INTERFACE_CLOSE"
+                    );
+
                 uiActions.handleInterfaceClose(
                     clientPackets.isAligned(),
                     serverPackets,
@@ -172,9 +189,87 @@ final class LocalPendingRequestDispatcher {
             }
 
             if(request instanceof
+                    DialogueContinueClientRequest){
+                DialogueContinueClientRequest dialogue=
+                    (DialogueContinueClientRequest)request;
+
+                if(!makeoverMage.handleContinue(
+                        dialogue.widgetId(),
+                        serverPackets,
+                        tag))
+                    System.out.println(
+                        tag+
+                        "DIALOGUE_CONTINUE_UNHANDLED widget="+
+                        dialogue.widgetId()+
+                        " framingPreserved=true"
+                    );
+                continue;
+            }
+
+            if(request instanceof
+                    DialogueOptionClientRequest){
+                DialogueOptionClientRequest option=
+                    (DialogueOptionClientRequest)request;
+
+                if(!makeoverMage.handleOption(
+                        option.optionIndex(),
+                        serverPackets,
+                        tag))
+                    System.out.println(
+                        tag+
+                        "DIALOGUE_OPTION_UNHANDLED index="+
+                        option.optionIndex()+
+                        " framingPreserved=true"
+                    );
+                continue;
+            }
+
+            if(request instanceof
+                    CharacterDesignClientRequest){
+                CharacterDesignClientRequest design=
+                    (CharacterDesignClientRequest)request;
+
+                LocalMakeoverMageHandler.Result result=
+                    makeoverMage.handleDesign(
+                        design.design(),
+                        serverPackets,
+                        tag
+                    );
+
+                if(result.handled){
+                    if(result.saveReason!=null){
+                        bridge.refreshPlayerAppearance(
+                            serverPackets
+                        );
+                        bridge.saveAccount(
+                            tag,
+                            result.saveReason
+                        );
+                    }
+                    if(result.logText!=null)
+                        System.out.println(
+                            tag+result.logText
+                        );
+                }else{
+                    System.out.println(
+                        tag+
+                        "CHARACTER_DESIGN_UNHANDLED request="+
+                        design.design()
+                    );
+                }
+                continue;
+            }
+
+            if(request instanceof
                     WidgetActionClientRequest){
                 WidgetActionClientRequest widget=
                     (WidgetActionClientRequest)request;
+
+                if(makeoverMage.handleWidget(
+                        widget.widgetId(),
+                        serverPackets,
+                        tag))
+                    continue;
 
                 uiActions.handleWidget(
                     widget.widgetId(),
@@ -699,6 +794,13 @@ final class LocalPendingRequestDispatcher {
             );
             return;
         }
+
+        if(makeoverMage.beginIfSupported(
+                action,
+                clicked,
+                serverPackets,
+                tag))
+            return;
 
         if(isCombatAttackAction(
             action,

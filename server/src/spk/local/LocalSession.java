@@ -648,6 +648,17 @@ final class LocalSession implements Runnable {
                     return LocalSession.this.runtimeBindings.context();
                 }
 
+                @Override public void refreshPlayerAppearance(
+                    ServerPacketWriter writer
+                )throws IOException{
+                    LocalSession.this.playerPresentation.refresh(
+                        LocalSession.this.username,
+                        LocalSession.this.equipment,
+                        LocalSession.this.playerState,
+                        writer
+                    );
+                }
+
                 @Override public void saveAccount(
                     String tag,
                     String reason

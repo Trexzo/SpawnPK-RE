@@ -72,11 +72,12 @@ public final class ClientPacketFramingAuthorityTest {
         switch(op){
             case 0:case 121:case 130:case 202:return 0;
             case 3:return 1;
-            case 72:case 155:case 185:return 2;
+            case 40:case 72:case 155:case 185:return 2;
             case 36:case 208:return 4;
             case 41:case 43:case 75:case 87:case 117:case 129:case 132:case 135:case 140:case 145:return 6;
             case 214:return 7;
             case 53:return 12;
+            case 101:return 13;
             case 141:return 10;
             default:return -1;
         }

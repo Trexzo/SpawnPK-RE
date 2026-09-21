@@ -146,6 +146,55 @@ final class ClientPacketProbe {
                 return true;
             }
 
+            case 40: {
+                byte[] body=Binary.readExactly(in,2);
+                int widget=Binary.u16(body,0);
+
+                offerTypedRequest(
+                    new DialogueContinueClientRequest(
+                        widget,
+                        ClientRequestMetadata.exactCurrent(
+                            40,
+                            "FIXED2_WIDGET_U16_BE",
+                            "V308_CLIENT_DIALOGUE_CONTINUE_WRITER"
+                        )
+                    ),
+                    opcode
+                );
+
+                System.out.printf(
+                    "%sCLIENT_PACKET seq=%d opcode=40 len=2 dialogueContinue=true widget=%d schema=EXACT_CURRENT_CLIENT_U16_BE%n",
+                    tag,decodedCount,widget
+                );
+                return true;
+            }
+
+            case 101: {
+                byte[] body=Binary.readExactly(
+                    in,
+                    CharacterDesignRequest.WIRE_LENGTH
+                );
+                CharacterDesignRequest design=
+                    CharacterDesignRequest.decode(body);
+
+                offerTypedRequest(
+                    new CharacterDesignClientRequest(
+                        design,
+                        ClientRequestMetadata.exactCurrent(
+                            101,
+                            "FIXED13_GENDER_KITS7_COLOURS5",
+                            "V308_CLIENT_CHARACTER_DESIGN_WRITER"
+                        )
+                    ),
+                    opcode
+                );
+
+                System.out.printf(
+                    "%sCLIENT_PACKET seq=%d opcode=101 len=13 characterDesign=true request=%s schema=EXACT_CURRENT_CLIENT_FIXED13%n",
+                    tag,decodedCount,design
+                );
+                return true;
+            }
 
             case 57: {
                 // Exact-current client item-on-NPC writer (menu action 582):
@@ -699,8 +748,20 @@ final class ClientPacketProbe {
                 int textLen = newline ? len - 1 : len;
                 String text = new String(body, 0, textLen, StandardCharsets.ISO_8859_1);
 
-                CommandClientRequest request=
-                    new CommandClientRequest(
+                int dialogueOption=
+                    dialogueOptionIndex(text);
+
+                ClientRequest request=
+                    dialogueOption>0
+                    ? new DialogueOptionClientRequest(
+                        dialogueOption,
+                        ClientRequestMetadata.exactCurrent(
+                            103,
+                            "VAR_BYTE_DIALOGUEOPTION_INDEX_OPTIONAL_LF",
+                            "V308_CLIENT_DIALOGUE_OPTION_HOTKEY"
+                        )
+                    )
+                    : new CommandClientRequest(
                         text,
                         ClientRequestMetadata.exactCurrent(
                             103,
@@ -714,8 +775,10 @@ final class ClientPacketProbe {
                     opcode
                 );
 
-                System.out.printf("%sCLIENT_PACKET seq=%d opcode=103 len=%d command=%s newline=%s%n",
-                                  tag, decodedCount, len, quote(text), newline);
+                System.out.printf(
+                    "%sCLIENT_PACKET seq=%d opcode=103 len=%d command=%s dialogueOption=%d newline=%s%n",
+                    tag,decodedCount,len,quote(text),dialogueOption,newline
+                );
                 return true;
             }
 
@@ -914,7 +977,7 @@ final class ClientPacketProbe {
                 return 0;
             case 85: case 120: case 152: case 189: case 230:
                 return 1;
-            case 2: case 6: case 17: case 18: case 21: case 39: case 40:
+            case 2: case 6: case 17: case 18: case 21: case 39:
             case 73: case 128: case 139: case 153: case 200:
                 return 2;
             case 95: case 183:
@@ -931,11 +994,21 @@ final class ClientPacketProbe {
                 return 10;
             case 25: case 109: case 192:
                 return 12;
-            case 101:
-                return 13;
             default:
                 return -1;
         }
+    }
+
+    static int dialogueOptionIndex(String text){
+        if(text==null)return -1;
+        String prefix="dialogueoption ";
+        if(text.length()!=prefix.length()+1||
+           !text.startsWith(prefix))
+            return -1;
+        char value=text.charAt(prefix.length());
+        return value>='1'&&value<='5'
+            ? value-'0'
+            : -1;
     }
 
     static boolean isFramingOnlyVarByte(int opcode) {
