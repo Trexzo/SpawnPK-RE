@@ -133,9 +133,96 @@ public final class DomainEventBusTest {
             }
         }
 
+        DomainEventBus terminalBus =
+            new DomainEventBus(() -> true);
+        AtomicInteger terminalHits =
+            new AtomicInteger();
+
+        DomainEventBus.Subscription closesBus =
+            terminalBus.subscribe(
+                TestEvent.class,
+                DomainEventBus.Priority.HIGH,
+                e -> {
+                    terminalHits.incrementAndGet();
+                    terminalBus.close();
+                }
+            );
+        DomainEventBus.Subscription skippedAfterClose =
+            terminalBus.subscribe(
+                TestEvent.class,
+                DomainEventBus.Priority.NORMAL,
+                e -> terminalHits.addAndGet(100)
+            );
+
+        terminalBus.publish(new TestEvent());
+
+        if (terminalHits.get() != 1) {
+            throw new AssertionError(
+                "closed publication invoked later snapshot listener hits=" +
+                terminalHits.get()
+            );
+        }
+        if (
+            closesBus.active() ||
+            skippedAfterClose.active() ||
+            terminalBus.listenerCount() != 0
+        ) {
+            throw new AssertionError(
+                "terminal close retained active subscriptions listeners=" +
+                terminalBus.listenerCount()
+            );
+        }
+        if (
+            closesBus.unsubscribe() ||
+            skippedAfterClose.unsubscribe()
+        ) {
+            throw new AssertionError(
+                "closed subscription unsubscribe was not idempotent"
+            );
+        }
+
+        terminalBus.close();
+
+        boolean subscribeAfterCloseRejected = false;
+        try {
+            terminalBus.subscribe(
+                TestEvent.class,
+                DomainEventBus.Priority.NORMAL,
+                e -> {}
+            );
+        } catch (IllegalStateException expected) {
+            subscribeAfterCloseRejected =
+                expected.getMessage().contains(
+                    "domain event bus closed"
+                );
+        }
+
+        if (!subscribeAfterCloseRejected) {
+            throw new AssertionError(
+                "subscribe after terminal close was accepted"
+            );
+        }
+
+        boolean publishAfterCloseRejected = false;
+        try {
+            terminalBus.publish(new TestEvent());
+        } catch (IllegalStateException expected) {
+            publishAfterCloseRejected =
+                expected.getMessage().contains(
+                    "domain event bus closed"
+                );
+        }
+
+        if (!publishAfterCloseRejected) {
+            throw new AssertionError(
+                "publish after terminal close was accepted"
+            );
+        }
+
         System.out.println(
             "DOMAIN_EVENT_BUS_PASS priority=true cancellation=true " +
-            "removable=true worldContextGuard=true listeners=" +
+            "removable=true worldContextGuard=true terminalClose=true " +
+            "closeDuringPublish=true listeners=" +
             bus.listenerCount()
         );
     }
