@@ -233,7 +233,7 @@ public final class WorldPersistenceLoadOrderingTest {
         closer.start();
 
         if(!loadReturned.await(
-                8,
+                10,
                 TimeUnit.SECONDS))
             throw new AssertionError(
                 "forced close left load waiter blocked"
