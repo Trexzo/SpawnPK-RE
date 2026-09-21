@@ -2,7 +2,6 @@ package spk.local;
 
 import java.util.*;
 import java.util.concurrent.*;
-import java.util.concurrent.atomic.AtomicBoolean;
 import spk.content.api.ContentProvenance;
 import spk.content.builtin.LocalLabCoreContentModule;
 import spk.content.builtin.UnknownServerInteractionModule;
@@ -29,7 +28,8 @@ final class World implements AutoCloseable {
     private final WorldPlayerPersistence persistence;
     private final ContentRegistry content;
     private final Object loginInitializationLock=new Object();
-    private final AtomicBoolean closed=new AtomicBoolean();
+    private final Object lifecycleLock=new Object();
+    private boolean closed;
 
     private World(long tickMillis){
         this(
@@ -97,8 +97,10 @@ final class World implements AutoCloseable {
     Object loginInitializationLock(){return loginInitializationLock;}
 
     void start(){
-        requireOpen();
-        pulse.start();
+        synchronized(lifecycleLock){
+            requireOpen();
+            pulse.start();
+        }
     }
 
     long registerPlayer(WorldPlayer player,String username){return players.register(player,username);}
@@ -130,10 +132,12 @@ final class World implements AutoCloseable {
 
     /** Compatibility hook for older tests/tools; the real server uses WorldPulse.start(). */
     synchronized long observePulse(long nowMillis){
-        requireOpen();
-        if(!pulse.running())
-            pulse.pulseOnce(nowMillis);
-        return clock.tick();
+        synchronized(lifecycleLock){
+            requireOpen();
+            if(!pulse.running())
+                pulse.pulseOnce(nowMillis);
+            return clock.tick();
+        }
     }
 
     String summary(){return "World{tick="+clock.tick()+",players="+players.size()+",groundItems="+groundItems.size()+",objects="+objects.size()+",commands="+commands.size()+",scheduled="+events.size()+",pulseRunning="+pulse.running()+"}";}
@@ -146,19 +150,21 @@ final class World implements AutoCloseable {
     }
 
     private void requireOpen(){
-        if(closed.get())
+        if(closed)
             throw new IllegalStateException(
                 "world closed"
             );
     }
 
     @Override public void close(){
-        if(!closed.compareAndSet(
-                false,
-                true))
-            return;
+        synchronized(lifecycleLock){
+            if(closed)
+                return;
 
-        pulse.close();
+            closed=true;
+            pulse.close();
+        }
+
         commands.close();
         realtime.close();
         events.close();
