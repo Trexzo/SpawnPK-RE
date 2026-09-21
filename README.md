@@ -1,6 +1,10 @@
 # SpawnPK LocalLab
 
+![SpawnPK LocalLab workbench](assets/locallab-workbench.svg)
+
 Local/offline reconstruction and research environment for the current SpawnPK client.
+
+> **Presentation note:** the console theme, status copy, meme lines and artwork in this repository are deliberately `CUSTOM_LOCALLAB`. They are not recovered SpawnPK server/client authority.
 
 ## Baseline
 
@@ -8,6 +12,20 @@ Local/offline reconstruction and research environment for the current SpawnPK cl
 - certified server SHA-256: `589635cef6244f1282aee487fdb0649150ded5b60bdc7e3fefd28bba8a86372c`
 - pinned client SHA-256: `6232bae206846a4ba8d09766a2dee886b69016066a3f50f83b201bf705f93662`
 - R8.5 regression contract: `179/179`
+
+## Workbench presentation
+
+The repository front door now uses a small shared PowerShell presentation layer:
+
+- consistent LocalLab headers and status rows;
+- clearer launch/bootstrap/runtime-import progress;
+- dedicated server-window title and banner;
+- a few intentionally low-noise meme lines such as **BING QILING** and **PACKET GREMLINS**;
+- original SVG artwork that stays separate from exact client/cache evidence.
+
+![Bing Qiling LocalLab meme card](assets/bing-qiling.svg)
+
+The jokes never change authority, protocol, gameplay, cache, client or regression semantics.
 
 ## Existing developer quick start
 
@@ -44,6 +62,7 @@ See `docs/AUTHORITY_MODEL.md`.
 - Prefer the portable `RUN_LOCAL_LAB.ps1` wrapper over the historical launchers.
 
 Keep the repo private until licensing/provenance review is complete.
+
 ## Build toolchain
 
 The certified R8.5 server artifact is preserved under:
