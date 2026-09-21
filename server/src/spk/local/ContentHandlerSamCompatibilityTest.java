@@ -112,31 +112,42 @@ public final class ContentHandlerSamCompatibilityTest {
                 " is not public"
             );
 
-        ArrayList<Method> abstractMethods=
-            new ArrayList<>();
+        LinkedHashMap<String,Method> abstractMethods=
+            new LinkedHashMap<>();
 
         for(Method method:
-                handler.getDeclaredMethods()){
+                handler.getMethods()){
             int modifiers=method.getModifiers();
 
-            if(Modifier.isPublic(modifiers)&&
-               Modifier.isAbstract(modifiers)&&
-               !Modifier.isStatic(modifiers)&&
-               !method.isSynthetic()&&
-               !method.isBridge())
-                abstractMethods.add(method);
+            if(!Modifier.isPublic(modifiers)||
+               !Modifier.isAbstract(modifiers)||
+               Modifier.isStatic(modifiers)||
+               method.isSynthetic()||
+               method.isBridge()||
+               isPublicObjectMethod(method))
+                continue;
+
+            abstractMethods.put(
+                erasedSignature(method),
+                method
+            );
         }
 
         if(abstractMethods.size()!=1){
             violations.add(
                 handler.getName()+
                 " abstractMethodCount="+
-                abstractMethods.size()
+                abstractMethods.size()+
+                " methods="+
+                abstractMethods.keySet()
             );
             return;
         }
 
-        Method method=abstractMethods.get(0);
+        Method method=
+            abstractMethods.values()
+                .iterator()
+                .next();
 
         if(!"handle".equals(method.getName()))
             violations.add(
@@ -166,6 +177,50 @@ public final class ContentHandlerSamCompatibilityTest {
                 " actual="+
                 method.getReturnType().getName()
             );
+    }
+
+    private static String erasedSignature(
+        Method method
+    ){
+        StringBuilder result=
+            new StringBuilder(
+                method.getName()
+            );
+
+        result.append('(');
+
+        Class<?>[] parameters=
+            method.getParameterTypes();
+
+        for(int i=0;i<parameters.length;i++){
+            if(i>0)
+                result.append(',');
+
+            result.append(
+                parameters[i].getName()
+            );
+        }
+
+        result.append(')');
+        return result.toString();
+    }
+
+    private static boolean isPublicObjectMethod(
+        Method method
+    ){
+        try{
+            Method objectMethod=
+                Object.class.getMethod(
+                    method.getName(),
+                    method.getParameterTypes()
+                );
+
+            return Modifier.isPublic(
+                objectMethod.getModifiers()
+            );
+        }catch(NoSuchMethodException ignored){
+            return false;
+        }
     }
 
     private ContentHandlerSamCompatibilityTest(){}
