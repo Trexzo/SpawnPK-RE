@@ -1,0 +1,51 @@
+name: Chat1 Issue357 Relay Replacement CI
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'server/src/spk/local/Player81WorldSync.java'
+      - 'server/src/spk/local/SharedNpcWorldRelay.java'
+      - 'server/src/spk/local/RelayWriterReplacementCleanupTest.java'
+      - '.github/workflows/chat1-issue357-relay-replacement.yml'
+
+jobs:
+  validate:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Compile test classes
+        shell: pwsh
+        run: ./server/gradlew.bat --no-daemon testClasses
+      - name: Stress relay replacement cleanup
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $cp = 'server/build/classes/java/test;server/build/classes/java/main;server/build/resources/test;server/build/resources/main'
+          for ($i=1; $i -le 10; $i++) {
+            & java -cp $cp spk.local.RelayWriterReplacementCleanupTest
+            if ($LASTEXITCODE -ne 0) { throw "RelayWriterReplacementCleanupTest failed iteration=$i" }
+          }
+          Write-Host "CHAT1_ISSUE357_RELAY_REPLACEMENT_STRESS_PASS iterations=10"
+      - name: Run relay lifecycle guards
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $cp = 'server/build/classes/java/test;server/build/classes/java/main;server/build/resources/test;server/build/resources/main'
+          $tests = @(
+            'Player81OwnerStatePruneTest',
+            'Player81WorldStateCleanupTest',
+            'EngineR31SharedNpcRelayTest',
+            'LocalSessionRuntimeBindingsTest'
+          )
+          foreach ($t in $tests) {
+            Write-Host "[ISSUE357] $t"
+            & java -cp $cp "spk.local.$t"
+            if ($LASTEXITCODE -ne 0) { throw "Issue357 guard failed: $t" }
+          }
+          Write-Host "CHAT1_ISSUE357_RELAY_GUARDS_PASS tests=$($tests.Count)"
