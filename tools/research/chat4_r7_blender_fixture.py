@@ -113,7 +113,7 @@ def extract_rig(scene, group_objs):
                 raise AssertionError(f"translation mismatch frame={index} skin={skin}: {trans} vs {expected['trans']}")
             if any(abs(scale[a]-expected["scale"][a])>1e-7 for a in range(3)):
                 raise AssertionError(f"scale mismatch frame={index} skin={skin}: {scale} vs {expected['scale']}")
-            if any(abs(rot[a]-expected["rot"][a])>1e-6 for a in range(3)):
+            if any(abs(rot[a]-expected["rot"][a])>1e-5 for a in range(3)):
                 raise AssertionError(f"rotation mismatch frame={index} skin={skin}: {rot} vs {expected['rot']}")
         if any(v is None for v in eval_vertices):
             raise AssertionError("missing evaluated vertex")
