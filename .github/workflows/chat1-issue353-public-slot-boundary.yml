@@ -1,0 +1,41 @@
+name: Chat1 Issue353 Public Slot Boundary CI
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'server/src/spk/content/**'
+      - 'server/src/spk/event/**'
+      - 'server/src/spk/local/ContentPublicApiBoundaryTest.java'
+      - 'server/src/spk/local/ContentProvenanceAuthorityBoundaryTest.java'
+      - '.github/workflows/chat1-issue353-public-slot-boundary.yml'
+
+jobs:
+  validate:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Compile test classes
+        shell: pwsh
+        run: ./server/gradlew.bat --no-daemon testClasses
+      - name: Run public API boundary guards
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $cp = 'server/build/classes/java/test;server/build/classes/java/main;server/build/resources/test;server/build/resources/main'
+          $tests = @(
+            'spk.local.ContentPublicApiBoundaryTest',
+            'spk.local.ContentProvenanceAuthorityBoundaryTest',
+            'spk.event.DomainEventPublicApiBoundaryTest'
+          )
+          foreach ($t in $tests) {
+            Write-Host "[ISSUE353] $t"
+            & java -cp $cp $t
+            if ($LASTEXITCODE -ne 0) { throw "Issue353 boundary regression failed: $t" }
+          }
+          Write-Host "CHAT1_ISSUE353_PUBLIC_SLOT_BOUNDARY_PASS tests=$($tests.Count)"
