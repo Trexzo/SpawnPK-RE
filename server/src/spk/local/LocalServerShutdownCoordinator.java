@@ -201,15 +201,20 @@ final class LocalServerShutdownCoordinator
     }
 
     private void awaitClosed(){
-        try{
-            closed.await(
-                7,
-                TimeUnit.SECONDS
-            );
-        }catch(InterruptedException error){
+        boolean interrupted=false;
+
+        for(;;){
+            try{
+                closed.await();
+                break;
+            }catch(InterruptedException error){
+                interrupted=true;
+            }
+        }
+
+        if(interrupted)
             Thread.currentThread()
                 .interrupt();
-        }
     }
 
     private static void closeQuietly(
