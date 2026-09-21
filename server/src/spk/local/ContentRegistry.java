@@ -101,6 +101,52 @@ final class ContentRegistry {
         }
     }
 
+    private static final class ItemOptionKey {
+        final int itemId;
+        final int option;
+
+        ItemOptionKey(
+            int itemId,
+            int option
+        ){
+            this.itemId=itemId;
+            this.option=option;
+        }
+
+        String diagnosticKey(){
+            return itemId+":"+option;
+        }
+
+        @Override public boolean equals(
+            Object other
+        ){
+            if(this==other)return true;
+            if(!(other instanceof ItemOptionKey))
+                return false;
+            ItemOptionKey key=
+                (ItemOptionKey)other;
+            return itemId==key.itemId&&
+                option==key.option;
+        }
+
+        @Override public int hashCode(){
+            return 31*itemId+option;
+        }
+    }
+
+    private static final class ItemOptionBinding {
+        final BindingInfo info;
+        final ContentItemOptionHandler handler;
+
+        ItemOptionBinding(
+            BindingInfo info,
+            ContentItemOptionHandler handler
+        ){
+            this.info=info;
+            this.handler=handler;
+        }
+    }
+
     private static final class NpcOptionKey {
         final int npcDefinitionId;
         final int option;
@@ -153,6 +199,8 @@ final class ContentRegistry {
         commands=new LinkedHashMap<>();
     private final LinkedHashMap<ObjectOptionKey,ObjectOptionBinding>
         objectOptions=new LinkedHashMap<>();
+    private final LinkedHashMap<ItemOptionKey,ItemOptionBinding>
+        itemOptions=new LinkedHashMap<>();
     private final LinkedHashMap<NpcOptionKey,NpcOptionBinding>
         npcOptions=new LinkedHashMap<>();
 
@@ -165,6 +213,8 @@ final class ContentRegistry {
         commandRegistrations=new ArrayList<>();
     private final ArrayList<ObjectOptionRegistration>
         objectOptionRegistrations=new ArrayList<>();
+    private final ArrayList<ItemOptionRegistration>
+        itemOptionRegistrations=new ArrayList<>();
     private final ArrayList<NpcOptionRegistration>
         npcOptionRegistrations=new ArrayList<>();
 
@@ -248,6 +298,12 @@ final class ContentRegistry {
                             objectOptionRegistrations
                         );
 
+                ArrayList<ItemOptionRegistration>
+                    nextItemOptionRegistrations=
+                        new ArrayList<>(
+                            itemOptionRegistrations
+                        );
+
                 ArrayList<NpcOptionRegistration>
                     nextNpcOptionRegistrations=
                         new ArrayList<>(
@@ -267,6 +323,14 @@ final class ContentRegistry {
                     if(registration.handle.pending())
                         addObjectOptionRegistration(
                             nextObjectOptionRegistrations,
+                            registration
+                        );
+
+                for(ItemOptionRegistration registration:
+                        registrar.pendingItemOptions)
+                    if(registration.handle.pending())
+                        addItemOptionRegistration(
+                            nextItemOptionRegistrations,
                             registration
                         );
 
@@ -290,6 +354,12 @@ final class ContentRegistry {
                             nextObjectOptionRegistrations
                         );
 
+                LinkedHashMap<ItemOptionKey,ItemOptionBinding>
+                    nextItemOptions=
+                        buildItemOptionBindings(
+                            nextItemOptionRegistrations
+                        );
+
                 LinkedHashMap<NpcOptionKey,NpcOptionBinding>
                     nextNpcOptions=
                         buildNpcOptionBindings(
@@ -306,6 +376,11 @@ final class ContentRegistry {
                     nextObjectOptionRegistrations
                 );
 
+                itemOptionRegistrations.clear();
+                itemOptionRegistrations.addAll(
+                    nextItemOptionRegistrations
+                );
+
                 npcOptionRegistrations.clear();
                 npcOptionRegistrations.addAll(
                     nextNpcOptionRegistrations
@@ -317,6 +392,11 @@ final class ContentRegistry {
                 objectOptions.clear();
                 objectOptions.putAll(
                     nextObjectOptions
+                );
+
+                itemOptions.clear();
+                itemOptions.putAll(
+                    nextItemOptions
                 );
 
                 npcOptions.clear();
@@ -426,6 +506,34 @@ final class ContentRegistry {
         );
     }
 
+    ContentInteractionResult dispatchItemOption(
+        int itemId,
+        int option
+    ){
+        requireWorldThread();
+
+        ItemOptionBinding binding;
+
+        synchronized(this){
+            binding=itemOptions.get(
+                new ItemOptionKey(
+                    itemId,
+                    option
+                )
+            );
+        }
+
+        if(binding==null)
+            return null;
+
+        return binding.handler.handle(
+            new ItemOptionContext(
+                itemId,
+                option
+            )
+        );
+    }
+
     ContentNpcOptionResult dispatchNpcOption(
         int npcDefinitionId,
         int option,
@@ -486,6 +594,22 @@ final class ContentRegistry {
             :binding.info;
     }
 
+    synchronized BindingInfo itemOptionBinding(
+        int itemId,
+        int option
+    ){
+        ItemOptionBinding binding=
+            itemOptions.get(
+                new ItemOptionKey(
+                    itemId,
+                    option
+                )
+            );
+        return binding==null
+            ?null
+            :binding.info;
+    }
+
     synchronized BindingInfo npcOptionBinding(
         int npcDefinitionId,
         int option
@@ -514,6 +638,10 @@ final class ContentRegistry {
                 objectOptions.values())
             result.add(binding.info);
 
+        for(ItemOptionBinding binding:
+                itemOptions.values())
+            result.add(binding.info);
+
         for(NpcOptionBinding binding:
                 npcOptions.values())
             result.add(binding.info);
@@ -529,6 +657,8 @@ final class ContentRegistry {
             ",commands="+commands.size()+
             ",objectOptions="+
                 objectOptions.size()+
+            ",itemOptions="+
+                itemOptions.size()+
             ",npcOptions="+
                 npcOptions.size()+
             ",bindings="+bindings()+
@@ -566,6 +696,24 @@ final class ContentRegistry {
         ObjectOptionRegistration incoming
     ){
         for(ObjectOptionRegistration existing:
+                target)
+            if(existing.key.equals(
+                    incoming.key)&&
+               existing.info.priority==
+                    incoming.info.priority)
+                throw conflict(
+                    incoming.info,
+                    existing.info
+                );
+
+        target.add(incoming);
+    }
+
+    private static void addItemOptionRegistration(
+        List<ItemOptionRegistration> target,
+        ItemOptionRegistration incoming
+    ){
+        for(ItemOptionRegistration existing:
                 target)
             if(existing.key.equals(
                     incoming.key)&&
@@ -631,6 +779,23 @@ final class ContentRegistry {
         return result;
     }
 
+    private static LinkedHashMap<ItemOptionKey,ItemOptionBinding>
+        buildItemOptionBindings(
+            List<ItemOptionRegistration> registrations
+        ){
+        LinkedHashMap<ItemOptionKey,ItemOptionBinding>
+            result=new LinkedHashMap<>();
+
+        for(ItemOptionRegistration registration:
+                registrations)
+            applyItemOption(
+                result,
+                registration
+            );
+
+        return result;
+    }
+
     private static LinkedHashMap<NpcOptionKey,NpcOptionBinding>
         buildNpcOptionBindings(
             List<NpcOptionRegistration> registrations
@@ -672,6 +837,12 @@ final class ContentRegistry {
             )||removed;
 
         removed=
+            itemOptionRegistrations.removeIf(
+                registration->
+                    registration.handle==handle
+            )||removed;
+
+        removed=
             npcOptionRegistrations.removeIf(
                 registration->
                     registration.handle==handle
@@ -700,6 +871,12 @@ final class ContentRegistry {
                     objectOptionRegistrations
                 );
 
+        LinkedHashMap<ItemOptionKey,ItemOptionBinding>
+            nextItemOptions=
+                buildItemOptionBindings(
+                    itemOptionRegistrations
+                );
+
         LinkedHashMap<NpcOptionKey,NpcOptionBinding>
             nextNpcOptions=
                 buildNpcOptionBindings(
@@ -712,6 +889,11 @@ final class ContentRegistry {
         objectOptions.clear();
         objectOptions.putAll(
             nextObjectOptions
+        );
+
+        itemOptions.clear();
+        itemOptions.putAll(
+            nextItemOptions
         );
 
         npcOptions.clear();
@@ -790,6 +972,44 @@ final class ContentRegistry {
             target.put(
                 registration.key,
                 new ObjectOptionBinding(
+                    registration.info,
+                    registration.handler
+                )
+            );
+    }
+
+    private static void applyItemOption(
+        Map<ItemOptionKey,ItemOptionBinding> target,
+        ItemOptionRegistration registration
+    ){
+        ItemOptionBinding existing=
+            target.get(
+                registration.key
+            );
+
+        if(existing==null){
+            target.put(
+                registration.key,
+                new ItemOptionBinding(
+                    registration.info,
+                    registration.handler
+                )
+            );
+            return;
+        }
+
+        if(registration.info.priority==
+                existing.info.priority)
+            throw conflict(
+                registration.info,
+                existing.info
+            );
+
+        if(registration.info.priority>
+                existing.info.priority)
+            target.put(
+                registration.key,
+                new ItemOptionBinding(
                     registration.info,
                     registration.handler
                 )
@@ -916,6 +1136,25 @@ final class ContentRegistry {
         }
     }
 
+    private static final class ItemOptionRegistration {
+        final ItemOptionKey key;
+        final BindingInfo info;
+        final ContentItemOptionHandler handler;
+        final RegistrationHandle handle;
+
+        ItemOptionRegistration(
+            ItemOptionKey key,
+            BindingInfo info,
+            ContentItemOptionHandler handler,
+            RegistrationHandle handle
+        ){
+            this.key=key;
+            this.info=info;
+            this.handler=handler;
+            this.handle=handle;
+        }
+    }
+
     private static final class NpcOptionRegistration {
         final NpcOptionKey key;
         final BindingInfo info;
@@ -983,6 +1222,9 @@ final class ContentRegistry {
             pendingCommands=new ArrayList<>();
         private final ArrayList<ObjectOptionRegistration>
             pendingObjectOptions=
+                new ArrayList<>();
+        private final ArrayList<ItemOptionRegistration>
+            pendingItemOptions=
                 new ArrayList<>();
         private final ArrayList<NpcOptionRegistration>
             pendingNpcOptions=
@@ -1081,6 +1323,54 @@ final class ContentRegistry {
             return handle;
         }
 
+        @Override public ContentRegistration itemOption(
+            int itemId,
+            int option,
+            int priority,
+            ContentItemOptionHandler handler
+        ){
+            if(itemId<0)
+                throw new IllegalArgumentException(
+                    "itemId"
+                );
+
+            if(option<1)
+                throw new IllegalArgumentException(
+                    "item option"
+                );
+
+            Objects.requireNonNull(
+                handler,
+                "handler"
+            );
+
+            ItemOptionKey key=
+                new ItemOptionKey(
+                    itemId,
+                    option
+                );
+
+            RegistrationHandle handle=
+                new RegistrationHandle();
+
+            pendingItemOptions.add(
+                new ItemOptionRegistration(
+                    key,
+                    new BindingInfo(
+                        "ITEM_OPTION",
+                        key.diagnosticKey(),
+                        moduleId,
+                        priority,
+                        provenance
+                    ),
+                    handler,
+                    handle
+                )
+            );
+
+            return handle;
+        }
+
         @Override public ContentRegistration npcOption(
             int npcDefinitionId,
             int option,
@@ -1140,6 +1430,11 @@ final class ContentRegistry {
                 registration.handle
                     .activatePending();
 
+            for(ItemOptionRegistration registration:
+                    pendingItemOptions)
+                registration.handle
+                    .activatePending();
+
             for(NpcOptionRegistration registration:
                     pendingNpcOptions)
                 registration.handle
@@ -1154,6 +1449,11 @@ final class ContentRegistry {
 
             for(ObjectOptionRegistration registration:
                     pendingObjectOptions)
+                registration.handle
+                    .invalidatePending();
+
+            for(ItemOptionRegistration registration:
+                    pendingItemOptions)
                 registration.handle
                     .invalidatePending();
 
@@ -1244,6 +1544,29 @@ final class ContentRegistry {
             return worldY;
         }
     }
+    private static final class ItemOptionContext
+        implements ContentItemOptionContext {
+
+        private final int itemId;
+        private final int option;
+
+        ItemOptionContext(
+            int itemId,
+            int option
+        ){
+            this.itemId=itemId;
+            this.option=option;
+        }
+
+        @Override public int itemId(){
+            return itemId;
+        }
+
+        @Override public int option(){
+            return option;
+        }
+    }
+
     private static final class NpcOptionContext
         implements ContentNpcOptionContext {
 
