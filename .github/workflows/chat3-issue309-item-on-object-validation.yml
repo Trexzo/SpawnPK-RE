@@ -17,6 +17,7 @@ jobs:
         with:
           distribution: temurin
           java-version: '21'
+          cache: gradle
       - name: Gradle-backed canonical build
         shell: pwsh
         run: ./server/build.ps1
