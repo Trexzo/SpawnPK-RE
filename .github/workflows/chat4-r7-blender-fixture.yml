@@ -1,4 +1,4 @@
-name: Chat4 R7-R9 Blender fixtures
+name: Chat4 R7-R10 Blender fixtures
 
 on:
   push:
@@ -70,6 +70,20 @@ jobs:
           grep -F 'R9_BLENDER_HIERARCHY_RIG_V1_EXPORT_PASS' r9-output/blender-run.log
           cp blender-fixture-binary-sha256.txt r9-output/
 
+      - name: Execute R10 full Blender authoring fixture
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p r10-output
+          export R10_OUT="$PWD/r10-output"
+          ./blender-4.5.14-linux-x64/blender --background --factory-startup \
+            --python tools/research/chat4_r10_blender_full_authoring_fixture.py 2>&1 | tee r10-output/blender-run.log
+          grep -F 'R10_BLENDER_RUNTIME_PASS' r10-output/blender-run.log
+          grep -F 'R10_BLENDER_MESH_SKIN_EXPORT_PASS' r10-output/blender-run.log
+          grep -F 'R10_BLENDER_HIERARCHY_BAKE_REUSE_PASS' r10-output/blender-run.log
+          grep -F 'R10_BLENDER_FULL_AUTHORING_EXPORT_PASS' r10-output/blender-run.log
+          cp blender-fixture-binary-sha256.txt r10-output/
+
       - name: Upload R7 authored fixture evidence
         uses: actions/upload-artifact@v4
         with:
@@ -91,5 +105,13 @@ jobs:
         with:
           name: chat4-r9-blender-hierarchy-fixture
           path: r9-output/
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Upload R10 full authoring fixture evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: chat4-r10-blender-full-authoring-fixture
+          path: r10-output/
           if-no-files-found: error
           retention-days: 7
