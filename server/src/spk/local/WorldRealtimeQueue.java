@@ -7,7 +7,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * Narrow sub-tick queue for presentation timings already proven below 600 ms
  * (for example the pet egress/follow reaction). Gameplay timers should use WorldEventQueue.
  */
-final class WorldRealtimeQueue {
+final class WorldRealtimeQueue implements AutoCloseable {
     private static final class E implements Comparable<E>{
         final long at,seq; final WorldPlayer owner; final long generation; final Runnable task;
         E(long at,long seq,WorldPlayer owner,long generation,Runnable task){this.at=at;this.seq=seq;this.owner=owner;this.generation=generation;this.task=task;}
@@ -15,6 +15,7 @@ final class WorldRealtimeQueue {
     }
     private final PriorityQueue<E> q=new PriorityQueue<>();
     private final AtomicLong seq=new AtomicLong();
+    private boolean closed;
 
     void schedule(
         long atMillis,
@@ -35,6 +36,11 @@ final class WorldRealtimeQueue {
                 );
 
             synchronized(this){
+                if(closed)
+                    throw new IllegalStateException(
+                        "world realtime queue closed"
+                    );
+
                 q.add(
                     new E(
                         atMillis,
@@ -48,8 +54,17 @@ final class WorldRealtimeQueue {
             }
         }
     }
-    int runDue(long nowMillis){int n=0;for(;;){E e;synchronized(this){e=q.peek();if(e==null||e.at>nowMillis)return n;q.remove();}if(e.owner.accepts(e.generation)){try{synchronized(e.owner.mutationLock()){if(e.owner.accepts(e.generation))e.task.run();}}catch(Throwable t){System.err.println("[world-realtime] task failed owner="+e.owner.id()+" error="+t);}}n++;}}
+    int runDue(long nowMillis){int n=0;for(;;){E e;synchronized(this){if(closed)return n;e=q.peek();if(e==null||e.at>nowMillis)return n;q.remove();}if(e.owner.accepts(e.generation)){try{synchronized(e.owner.mutationLock()){if(e.owner.accepts(e.generation))e.task.run();}}catch(Throwable t){System.err.println("[world-realtime] task failed owner="+e.owner.id()+" error="+t);}}n++;}}
     synchronized int cancelPlayer(WorldPlayer player){int n=0;for(Iterator<E>it=q.iterator();it.hasNext();){if(it.next().owner.id().equals(player.id())){it.remove();n++;}}return n;}
     synchronized long nextDueMillis(){E e=q.peek();return e==null?Long.MAX_VALUE:e.at;}
     synchronized int size(){return q.size();}
+
+    @Override public synchronized void close(){
+        if(closed)
+            return;
+
+        closed=true;
+        q.clear();
+        notifyAll();
+    }
 }
