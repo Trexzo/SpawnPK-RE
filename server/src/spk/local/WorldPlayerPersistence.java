@@ -651,6 +651,24 @@ final class WorldPlayerPersistence
         return counts;
     }
 
+    private boolean rejectInFlightSave(
+        String stage
+    ){
+        SaveTask active=
+            inFlightSave.get();
+
+        if(active==null)
+            return false;
+
+        return active.reject(
+            new RejectedExecutionException(
+                "persistence "+stage+
+                " active save did not terminate"
+            ),
+            stage
+        );
+    }
+
     private void requireWorldExecutionContext(){
         if(!world.pulse().inExecutionContext())
             throw new IllegalStateException(
@@ -700,22 +718,11 @@ final class WorldPlayerPersistence
                         TimeUnit.SECONDS
                     );
 
-                boolean inFlightSettled=false;
-
-                if(!clean){
-                    SaveTask active=
-                        inFlightSave.get();
-
-                    if(active!=null)
-                        inFlightSettled=
-                            active.reject(
-                                new RejectedExecutionException(
-                                    "persistence SHUTDOWN_IN_FLIGHT "+
-                                    "worker did not terminate"
-                                ),
-                                "SHUTDOWN_IN_FLIGHT"
-                            );
-                }
+                boolean inFlightSettled=
+                    !clean&&
+                    rejectInFlightSave(
+                        "SHUTDOWN_IN_FLIGHT"
+                    );
 
                 System.err.println(
                     "[world] V5123_PERSISTENCE_SHUTDOWN_FORCED"+
@@ -743,6 +750,11 @@ final class WorldPlayerPersistence
                     "SHUTDOWN_INTERRUPTED"
                 );
 
+            boolean inFlightSettled=
+                rejectInFlightSave(
+                    "SHUTDOWN_INTERRUPTED_IN_FLIGHT"
+                );
+
             System.err.println(
                 "[world] V5123_PERSISTENCE_SHUTDOWN_INTERRUPTED"+
                 " droppedTasks="+dropped.size()+
@@ -751,6 +763,8 @@ final class WorldPlayerPersistence
                     counts.checkpoints+
                 " droppedUnknown="+
                     counts.unknown+
+                " inFlightSettled="+
+                    inFlightSettled+
                 " "+metrics()
             );
             return;
