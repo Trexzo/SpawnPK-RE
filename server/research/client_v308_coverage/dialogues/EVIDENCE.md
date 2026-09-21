@@ -185,6 +185,83 @@ This confirms that the standard option roots and `14170` belong to the
 client's choice/confirmation presentation family. The precise production
 business meaning of any one root remains contextual.
 
+## DIALOGUE MODEL / HEAD PRESENTATION
+
+Exact v308 also exposes separate native model-on-widget presentation channels.
+
+### S2C75 — NPC model/head on widget
+
+The exact inbound handler reads:
+
+```
+npcDefinitionId = U()
+widgetId        = U()
+```
+
+and switches the target widget to NPC-model presentation.
+
+Existing exact Make-over evidence provides a concrete instance:
+
+```
+NPC 599 -> widget 4883
+```
+
+### S2C185 — local-player model/head on widget
+
+The exact inbound handler reads one widget id with `U()`, switches that target
+to player-model presentation, and builds its model identity from the local
+player's current appearance/morph state.
+
+This **inbound S2C185** is directionally distinct from **outbound C2S185**
+generic widget actions even though both use numeric opcode 185.
+
+### S2C200 — model animation + dialogue camera special cases
+
+Exact S2C200 reads a widget id and signed animation id, then updates model
+animation state.
+
+For these exact widget ids:
+
+```
+4883
+4888
+4894
+4901
+969
+974
+980
+987
+```
+
+the client applies dialogue-style model camera defaults:
+
+```
+zoom/presentation = 2000 / 100 / 1900
+```
+
+The first four pair exactly with the standard Continue roots:
+
+```
+4882 -> 4883
+4887 -> 4888
+4893 -> 4894
+4900 -> 4901
+```
+
+The second four are an exact parallel dialogue-model widget family. Their
+semantic root names remain unassigned here until the cache/interface
+relationship is separately proven.
+
+This gives Chat 3 a protocol-independent presentation shape such as:
+
+```
+showNpcDialogueModel(...)
+showLocalPlayerDialogueModel(...)
+animateDialogueModel(...)
+```
+
+without exposing raw widget ids.
+
 ## SEMANTIC NORMALIZATION BOUNDARY
 
 A protocol-independent dialogue/content layer should be able to receive semantic
@@ -222,8 +299,8 @@ IDs into public content API concepts.
   branches.
 - UNKNOWN_SERVER_AUTHORITY: whether the original server interpreted the keyboard
   Continue's literal `4907` specially or only as a Continue signal.
-- UNKNOWN_SERVER_AUTHORITY: remaining player/item/statement dialogue families not
-  yet normalized in this package.
+- UNKNOWN_SERVER_AUTHORITY: exact semantic root names/relationships for the parallel `969/974/980/987` dialogue-model family until cache/interface proof is added.
+- UNKNOWN_SERVER_AUTHORITY: remaining item/statement/close presentation families not yet normalized in this package.
 
 ## FILES / METHODS
 
@@ -235,6 +312,9 @@ Exact v308:
 - `rs.x.e.d(int)`: BE16 writer
 - `rs.x.e.a(String)`: string + newline writer
 - `rs.n.c.A`: option/confirmation root controller
+- inbound S2C75 handler: NPC model-on-widget
+- inbound S2C185 handler: local-player model-on-widget
+- inbound S2C200 handler: model animation + dialogue camera special cases
 
 Raw evidence:
 - `server/research/client_v308_coverage/dialogues/evidence/standard_dialogue_transport_v308.txt`
