@@ -56,6 +56,10 @@ public final class ContentPublicApiBoundaryTest {
         ArrayList<String> violations=
             new ArrayList<>();
 
+        assertReconstructionIdentityGuards(
+            violations
+        );
+
         for(Class<?> api:API_TYPES){
             if(!Modifier.isPublic(api.getModifiers()))
                 violations.add(
@@ -250,6 +254,41 @@ public final class ContentPublicApiBoundaryTest {
             "cacheIdentity=false "+
             "javaIoLeak=false"
         );
+    }
+
+    private static void assertReconstructionIdentityGuards(
+        List<String> violations
+    ){
+        for(String raw:
+                Arrays.asList(
+                    "containerid",
+                    "sourcecontainer",
+                    "targetcontainerid",
+                    "destinationcontainer",
+                    "cacheoffset",
+                    "archiveoffset"
+                ))
+            if(!exposesRawContainerIdentity(raw)&&
+               !exposesRawCacheIdentity(raw))
+                violations.add(
+                    "raw reconstruction identity guard missed "+
+                    raw
+                );
+
+        for(String semantic:
+                Arrays.asList(
+                    "itemid",
+                    "objectid",
+                    "npcdefinitionid",
+                    "worldx",
+                    "commandname"
+                ))
+            if(exposesRawContainerIdentity(semantic)||
+               exposesRawCacheIdentity(semantic))
+                violations.add(
+                    "semantic API name falsely rejected "+
+                    semantic
+                );
     }
 
     private static boolean exposesRawInventorySlotIdentity(
