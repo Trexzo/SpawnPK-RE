@@ -107,12 +107,20 @@ final class World implements AutoCloseable {
         WorldPlayer player,
         String username
     ){
+        if(player==null)
+            throw new NullPointerException(
+                "player"
+            );
+
         synchronized(lifecycleLock){
             requireOpen();
-            return players.register(
-                player,
-                username
-            );
+
+            synchronized(player.mutationLock()){
+                return players.register(
+                    player,
+                    username
+                );
+            }
         }
     }
 
@@ -120,14 +128,23 @@ final class World implements AutoCloseable {
         WorldPlayer player,
         String username
     ){
+        if(player==null)
+            throw new NullPointerException(
+                "player"
+            );
+
         synchronized(lifecycleLock){
             requireOpen();
 
-            long generation=
-                players.register(
-                    player,
-                    username
-                );
+            long generation;
+
+            synchronized(player.mutationLock()){
+                generation=
+                    players.register(
+                        player,
+                        username
+                    );
+            }
 
             pulse.start();
             return generation;
@@ -147,39 +164,40 @@ final class World implements AutoCloseable {
     ){
         if(player==null)return false;
 
-        synchronized(lifecycleLock){
-            synchronized(player.mutationLock()){
-                if(!players.owns(
-                        player,
-                        expectedGeneration
-                    ))
-                    return false;
-
-                synchronized(tickTargets){
-                    WorldTickTarget target=
-                        tickTargets.get(
-                            player.id()
-                        );
-
-                    if(target!=null &&
-                       target.ownerGeneration()==
-                           expectedGeneration)
-                        tickTargets.remove(
-                            player.id()
-                        );
-                }
-
-                commands.cancelPlayer(player);
-                realtime.cancelPlayer(player);
-                petNpcs.removeMainAndMini(
-                    player.id()
-                );
-
-                return players.unregister(
+        synchronized(player.mutationLock()){
+            if(!players.owns(
                     player,
                     expectedGeneration
-                );
+                ))
+                return false;
+
+            synchronized(tickTargets){
+                WorldTickTarget target=
+                    tickTargets.get(
+                        player.id()
+                    );
+
+                if(target!=null &&
+                   target.ownerGeneration()==
+                       expectedGeneration)
+                    tickTargets.remove(
+                        player.id()
+                    );
             }
+
+            if(!players.unregister(
+                    player,
+                    expectedGeneration
+                ))
+                return false;
+
+            commands.cancelPlayer(player);
+            realtime.cancelPlayer(player);
+            petNpcs.removeMainAndMini(
+                player.id()
+            );
+
+            return true;
         }
     }
 
