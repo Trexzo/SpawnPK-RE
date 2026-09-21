@@ -50,7 +50,9 @@ jobs:
             'WorldHomeNpcOwnershipTest',
             'HomeWorldRuntimePlanTest',
             'CanonicalNpcViewerLifecycleAcceptanceTest',
-            'NpcPacket65ClientParityTest',
+            'HomeScenePacketCodecTest',
+            'NpcPacket65ForceTextCodecTest',
+            'NpcPacket65GfxCodecTest',
             'EngineR31SharedNpcRelayTest',
             'HomeWorldV55IntegrationTest'
           )
