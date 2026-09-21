@@ -474,6 +474,8 @@ final class ShopService {
         }
     }
 
+    private final AtomicTransactionService transactions;
+
     private final AtomicLong purchaseSequence=
         new AtomicLong();
 
@@ -492,6 +494,16 @@ final class ShopService {
         PurchaseId
     > settlementUses=
         new LinkedHashMap<>();
+
+    ShopService(
+        AtomicTransactionService transactions
+    ){
+        this.transactions=
+            Objects.requireNonNull(
+                transactions,
+                "transactions"
+            );
+    }
 
     synchronized ShopSnapshot register(
         ShopDefinition definition
@@ -606,8 +618,8 @@ final class ShopService {
 
     synchronized PurchaseSnapshot confirmSettlement(
         PurchaseId purchaseId,
-        AtomicTransactionService.Snapshot
-            committedSettlement
+        AtomicTransactionService.TransactionId
+            settlementTransactionId
     ){
         Purchase purchase=
             requirePurchase(
@@ -615,9 +627,11 @@ final class ShopService {
             );
 
         AtomicTransactionService.Snapshot settlement=
-            Objects.requireNonNull(
-                committedSettlement,
-                "committedSettlement"
+            transactions.snapshot(
+                Objects.requireNonNull(
+                    settlementTransactionId,
+                    "settlementTransactionId"
+                )
             );
 
         if(purchase.state==
