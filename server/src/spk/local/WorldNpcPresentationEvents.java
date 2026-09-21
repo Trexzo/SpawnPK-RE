@@ -213,6 +213,30 @@ final class WorldNpcPresentationEvents {
         pruneDelivered(now);
     }
 
+    synchronized int removeSource(
+        EntityId sourceId,
+        long now
+    ){
+        if(sourceId==null)
+            return 0;
+
+        int removed=0;
+
+        for(Iterator<Event> iterator=
+                events.iterator();
+                iterator.hasNext();){
+            Event event=iterator.next();
+
+            if(event.sourceId.equals(sourceId)){
+                iterator.remove();
+                removed++;
+            }
+        }
+
+        pruneExpired(now);
+        return removed;
+    }
+
     synchronized void retainRecipients(
         Collection<EntityId> liveRecipients,
         long now
