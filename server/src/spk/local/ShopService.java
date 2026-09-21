@@ -622,15 +622,20 @@ final class ShopService {
 
         if(purchase.state==
                 PurchaseState.SETTLED){
-            if(purchase.settlementTransactionId
+            if(!purchase.settlementTransactionId
                     .equals(
                         settlement.transactionId))
-                return purchase.snapshot();
+                throw new IllegalStateException(
+                    "purchase already settled with "+
+                    purchase.settlementTransactionId
+                );
 
-            throw new IllegalStateException(
-                "purchase already settled with "+
-                purchase.settlementTransactionId
+            verifySettlement(
+                purchase,
+                settlement
             );
+
+            return purchase.snapshot();
         }
 
         if(purchase.state==
