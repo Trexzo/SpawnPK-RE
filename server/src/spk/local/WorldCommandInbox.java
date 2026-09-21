@@ -77,25 +77,54 @@ final class WorldCommandInbox {
             );
     }
 
-    synchronized CompletableFuture<Void> submit(WorldPlayer player,Action action){
-        if(player==null||action==null)throw new NullPointerException();
-        CompletableFuture<Void> f=new CompletableFuture<>();
+    synchronized CompletableFuture<Void> submit(
+        WorldPlayer player,
+        Action action
+    ){
+        if(player==null||action==null)
+            throw new NullPointerException();
+
+        return submit(
+            player,
+            player.generation(),
+            action
+        );
+    }
+
+    synchronized CompletableFuture<Void> submit(
+        WorldPlayer player,
+        long expectedGeneration,
+        Action action
+    ){
+        if(player==null||action==null)
+            throw new NullPointerException();
+
+        CompletableFuture<Void> f=
+            new CompletableFuture<>();
+
         if(closed){
-            f.completeExceptionally(new RejectedExecutionException("WORLD_COMMAND_INBOX_CLOSED"));
-            return f;
-        }
-        long generation=player.generation();
-        if(!player.accepts(generation)){
             f.completeExceptionally(
-                new CancellationException(
-                    "PLAYER_NOT_REGISTERED"
+                new RejectedExecutionException(
+                    "WORLD_COMMAND_INBOX_CLOSED"
                 )
             );
             return f;
         }
+
+        if(!player.accepts(
+                expectedGeneration
+            )){
+            f.completeExceptionally(
+                new CancellationException(
+                    "PLAYER_LIFECYCLE_CHANGED"
+                )
+            );
+            return f;
+        }
+
         if(!ownership.owns(
                 player,
-                generation
+                expectedGeneration
             )){
             f.completeExceptionally(
                 new CancellationException(
@@ -104,13 +133,37 @@ final class WorldCommandInbox {
             );
             return f;
         }
-        int count=queuedPerPlayer.getOrDefault(player.id(),0);
-        if(queue.size()>=globalLimit||count>=perPlayerLimit){
-            f.completeExceptionally(new RejectedExecutionException("WORLD_COMMAND_QUEUE_FULL player="+player.id()));
+
+        int count=
+            queuedPerPlayer.getOrDefault(
+                player.id(),
+                0
+            );
+
+        if(queue.size()>=globalLimit||
+           count>=perPlayerLimit){
+            f.completeExceptionally(
+                new RejectedExecutionException(
+                    "WORLD_COMMAND_QUEUE_FULL player="+
+                    player.id()
+                )
+            );
             return f;
         }
-        queue.addLast(new C(sequence.incrementAndGet(),player,generation,action,f));
-        queuedPerPlayer.put(player.id(),count+1);
+
+        queue.addLast(
+            new C(
+                sequence.incrementAndGet(),
+                player,
+                expectedGeneration,
+                action,
+                f
+            )
+        );
+        queuedPerPlayer.put(
+            player.id(),
+            count+1
+        );
         notifyAll();
         return f;
     }

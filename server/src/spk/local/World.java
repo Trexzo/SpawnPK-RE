@@ -305,10 +305,82 @@ final class World implements AutoCloseable {
     }
     List<WorldTickTarget> tickTargetsSnapshot(){synchronized(tickTargets){return new ArrayList<>(tickTargets.values());}}
 
-    CompletableFuture<Void> submit(WorldPlayer player,WorldCommandInbox.Action action){return commands.submit(player,action);}
-    void submitAndWait(WorldPlayer player,WorldCommandInbox.Action action,long timeoutMillis)throws Exception{
-        CompletableFuture<Void> f=submit(player,action);
-        try{f.get(timeoutMillis,TimeUnit.MILLISECONDS);}catch(ExecutionException e){Throwable c=e.getCause();if(c instanceof Exception)throw (Exception)c;if(c instanceof Error)throw (Error)c;throw new RuntimeException(c);}
+    CompletableFuture<Void> submit(
+        WorldPlayer player,
+        WorldCommandInbox.Action action
+    ){
+        return commands.submit(
+            player,
+            action
+        );
+    }
+
+    CompletableFuture<Void> submit(
+        WorldPlayer player,
+        long expectedGeneration,
+        WorldCommandInbox.Action action
+    ){
+        return commands.submit(
+            player,
+            expectedGeneration,
+            action
+        );
+    }
+
+    void submitAndWait(
+        WorldPlayer player,
+        WorldCommandInbox.Action action,
+        long timeoutMillis
+    )throws Exception{
+        CompletableFuture<Void> f=
+            submit(
+                player,
+                action
+            );
+        awaitCommand(
+            f,
+            timeoutMillis
+        );
+    }
+
+    void submitAndWait(
+        WorldPlayer player,
+        long expectedGeneration,
+        WorldCommandInbox.Action action,
+        long timeoutMillis
+    )throws Exception{
+        CompletableFuture<Void> f=
+            submit(
+                player,
+                expectedGeneration,
+                action
+            );
+        awaitCommand(
+            f,
+            timeoutMillis
+        );
+    }
+
+    private static void awaitCommand(
+        CompletableFuture<Void> future,
+        long timeoutMillis
+    )throws Exception{
+        try{
+            future.get(
+                timeoutMillis,
+                TimeUnit.MILLISECONDS
+            );
+        }catch(ExecutionException error){
+            Throwable cause=error.getCause();
+
+            if(cause instanceof Exception)
+                throw (Exception)cause;
+
+            if(cause instanceof Error)
+                throw (Error)cause;
+
+            throw new RuntimeException(cause);
+        }
     }
 
     /** Compatibility hook for older tests/tools; the real server uses WorldPulse.start(). */
