@@ -75,17 +75,21 @@ The 86 exact-current opcodes currently divide into:
 ```
 51  semantically decoded / normalized transports in current main
  7  client control / telemetry families
- 2  exact semantics newly closed by Chat 4 research but not current main
-26  exact framing only; server semantic still unpromoted/unknown
+ 6  exact semantics closed by exact-v308 research but not current main
+22  exact framing only; server semantic still unpromoted/unknown
 ---
 86  exact-current C2S opcodes
 ```
 
-The two exact research-semantic gaps are:
+The six exact research-semantic gaps are:
 
 ```
 C2S40  dialogue Continue
+C2S74  remove ignore (i64 name key)
 C2S101 character design / Make-over submission
+C2S133 add ignore (i64 name key)
+C2S188 add friend (i64 name key)
+C2S215 remove friend (i64 name key)
 ```
 
 C2S40 is now proven from exact v308 as:
@@ -99,6 +103,33 @@ C2S101 is proven from exact v308 as the 13-byte character-design payload:
 
 These should be integrated through the typed request pipeline, not by restoring
 legacy mutable pending slots.
+
+## FRIEND / IGNORE EXACT SEMANTICS
+
+Issue #198 and its integrated exact-v308 authority artifact close four packet
+families that this census previously left in the residual framing-only bucket:
+
+```
+C2S188  add friend     -> i64 name key
+C2S215  remove friend  -> i64 name key
+C2S133  add ignore     -> i64 name key
+C2S74   remove ignore  -> i64 name key
+```
+
+Exact v308 also proves client-local preflight and presentation facts:
+- friends local cap 350;
+- ignores local cap 100;
+- cross-list duplicate prevention;
+- self rejection on friend add;
+- friend presence rendering 0=Offline, 10=Online, 11=AFK.
+
+Those limits/statuses are exact **client-side** facts. They do not prove original
+server persistence, privacy, mutual-friend, cross-account consistency or
+capacity policy.
+
+Current main still frames these four packets generically; the packet semantics
+are therefore `EXACT_RESEARCH_SEMANTIC_NOT_CURRENT_MAIN`, not archaeology
+unknowns.
 
 ## IMPORTANT C2S103 FINDING
 
@@ -119,13 +150,13 @@ transport.
 Issue #17 has been notified so keyboard and mouse option paths can converge on
 one semantic dialogue intent without exposing raw opcode/widget identity.
 
-## 26 FRAMING-ONLY OPCODES
+## 22 FRAMING-ONLY OPCODES
 
 Current main safely frames but does not promote server semantics for:
 
 ```
-2,4,6,60,74,78,85,86,95,109,120,126,133,136,148,150,152,183,188,189,
-200,210,215,218,230,246
+2,4,6,60,78,85,86,95,109,120,126,136,148,150,152,183,189,200,210,218,
+230,246
 ```
 
 These are now the residual C2S archaeology queue.
@@ -151,13 +182,13 @@ This research package does **not** claim:
 - v308 has passed the inherited 179/179 runtime gate;
 - the existing test's provenance text has been updated;
 - every framed opcode has domain semantics;
-- production server behavior for the 26 residual families.
+- production server behavior for the 22 residual families.
 
 Those are separate implementation/acceptance tasks.
 
 ## NEXT CHAT 4 ORDER
 
-1. Resolve the 26 framing-only opcode writer families directly from v308.
+1. Resolve the 22 framing-only opcode writer families directly from v308.
 2. Prioritize any writer tied to dialogue/chatbox, item/NPC interaction or
    application UI.
 3. Emit typed-transport handoffs to Chat 2 only where exact semantics are proven.
