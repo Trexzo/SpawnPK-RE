@@ -1,0 +1,74 @@
+Exact-current client SHA-256:
+854f26ff9f134b0317572e7ac1688e6f40a231d5a4c66f8db5d655b7f45ce7c6
+
+PRAYER / DIRECT WIDGET
+
+menu action 169:
+  C2S185
+  rs.x.e.d(widgetId) -> u16_be
+  then, for expression opcode-5 widgets:
+      dP[varp] = 1 - dP[varp]
+      B(varp)
+
+menu action 315:
+  generic direct-widget path
+  C2S185
+  rs.x.e.d(widgetId) -> u16_be
+  subject to exact client-local special-case interception
+
+TARGETED SPELL SELECTION
+
+menu action 626:
+  selected state = active
+  selected widget id -> Client.nl
+  target mask -> Client.nm = widget.ai
+  no outgoing packet
+  returns from action handler
+
+SPELL ON PLAYER
+
+menu action 365:
+  C2S249
+  target player index -> rs.x.e.o(int) = u16_be_low_add128
+  selected spell nl   -> rs.x.e.n(int) = u16_le
+
+SPELL ON NPC
+
+menu action 413:
+  C2S131
+  target NPC index  -> rs.x.e.p(int) = u16_le_low_add128
+  selected spell nl -> rs.x.e.o(int) = u16_be_low_add128
+
+SPELL ON OBJECT
+
+menu action 956:
+  C2S35
+  worldX          -> n(int) = u16_le
+  selected spell  -> o(int) = u16_be_low_add128
+  worldY          -> o(int) = u16_be_low_add128
+  objectId        -> n(int) = u16_le
+
+SPELL ON GROUND ITEM
+
+menu action 94:
+  C2S181
+  worldY          -> n(int) = u16_le
+  itemId          -> d(int) = u16_be
+  worldX          -> n(int) = u16_le
+  selected spell  -> o(int) = u16_be_low_add128
+
+SPELL ON INVENTORY ITEM
+
+menu action 543:
+  C2S237
+  slot            -> d(int) = u16_be
+  itemId          -> o(int) = u16_be_low_add128
+  widgetId        -> d(int) = u16_be
+  selected spell  -> o(int) = u16_be_low_add128
+
+WRITER TRANSFORMS
+
+d(int) = u16_be
+n(int) = u16_le
+o(int) = u16_be_low_add128
+p(int) = u16_le_low_add128
