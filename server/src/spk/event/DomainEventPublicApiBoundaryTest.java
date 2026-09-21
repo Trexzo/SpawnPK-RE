@@ -1,7 +1,11 @@
 package spk.event;
 
+import java.io.*;
+import java.net.*;
 import java.lang.reflect.*;
+import java.nio.file.*;
 import java.util.*;
+import java.util.jar.*;
 
 public final class DomainEventPublicApiBoundaryTest {
     private static final Class<?>[] API_TYPES={
@@ -33,6 +37,8 @@ public final class DomainEventPublicApiBoundaryTest {
     public static void main(String[] args){
         ArrayList<String> violations=
             new ArrayList<>();
+
+        assertApiTypeCoverage(violations);
 
         for(Class<?> api:API_TYPES){
             if(!Modifier.isPublic(api.getModifiers()))
@@ -132,8 +138,197 @@ public final class DomainEventPublicApiBoundaryTest {
             "widgetIdentity=false "+
             "sceneIndex=false "+
             "playerIndex=false "+
-            "inventorySlotIdentity=false"
+            "inventorySlotIdentity=false "+
+            "apiCoverageComplete=true"
         );
+    }
+
+    private static void assertApiTypeCoverage(
+        List<String> violations
+    ){
+        Set<String> declaredTopLevel=
+            new TreeSet<>();
+
+        for(Class<?> api:API_TYPES)
+            if(api.getEnclosingClass()==null&&
+               "spk.event".equals(
+                    api.getPackage().getName()
+               ))
+                declaredTopLevel.add(
+                    api.getName()
+                );
+
+        Set<String> discovered=
+            discoverPublicEventTypes();
+
+        for(String name:discovered)
+            if(!declaredTopLevel.contains(name))
+                violations.add(
+                    name+
+                    " public event API type missing from boundary audit"
+                );
+
+        for(String name:declaredTopLevel)
+            if(!discovered.contains(name))
+                violations.add(
+                    name+
+                    " boundary audit entry is not a public top-level event API type"
+                );
+    }
+
+    private static Set<String> discoverPublicEventTypes(){
+        TreeSet<String> names=
+            new TreeSet<>();
+
+        try{
+            URL location=
+                DomainEventBus.class
+                    .getProtectionDomain()
+                    .getCodeSource()
+                    .getLocation();
+
+            if(location==null)
+                throw new IllegalStateException(
+                    "event API code source unavailable"
+                );
+
+            File source=
+                new File(location.toURI());
+
+            if(source.isDirectory())
+                discoverDirectoryEventTypes(
+                    source,
+                    names
+                );
+            else
+                discoverJarEventTypes(
+                    source,
+                    names
+                );
+        }catch(Exception error){
+            throw new AssertionError(
+                "could not discover public event API types",
+                error
+            );
+        }
+
+        if(names.isEmpty())
+            throw new AssertionError(
+                "no public spk.event types discovered"
+            );
+
+        return names;
+    }
+
+    private static void discoverDirectoryEventTypes(
+        File root,
+        Set<String> names
+    )throws Exception{
+        Path directory=
+            root.toPath()
+                .resolve("spk")
+                .resolve("event");
+
+        if(!Files.isDirectory(directory))
+            throw new IllegalStateException(
+                "event API directory missing: "+
+                directory
+            );
+
+        try(DirectoryStream<Path> entries=
+                Files.newDirectoryStream(
+                    directory,
+                    "*.class"
+                )){
+            for(Path entry:entries){
+                String fileName=
+                    entry.getFileName()
+                        .toString();
+
+                if(fileName.indexOf('$')>=0)
+                    continue;
+
+                String simpleName=
+                    fileName.substring(
+                        0,
+                        fileName.length()-6
+                    );
+
+                addIfPublicTopLevel(
+                    "spk.event."+
+                    simpleName,
+                    names
+                );
+            }
+        }
+    }
+
+    private static void discoverJarEventTypes(
+        File source,
+        Set<String> names
+    )throws Exception{
+        if(!source.isFile())
+            throw new IllegalStateException(
+                "event API code source is not a directory or jar: "+
+                source
+            );
+
+        final String prefix=
+            "spk/event/";
+
+        try(JarFile jar=new JarFile(source)){
+            Enumeration<JarEntry> entries=
+                jar.entries();
+
+            while(entries.hasMoreElements()){
+                JarEntry entry=
+                    entries.nextElement();
+
+                if(entry.isDirectory())
+                    continue;
+
+                String name=entry.getName();
+
+                if(!name.startsWith(prefix)||
+                   !name.endsWith(".class"))
+                    continue;
+
+                String remainder=
+                    name.substring(
+                        prefix.length(),
+                        name.length()-6
+                    );
+
+                if(remainder.isEmpty()||
+                   remainder.indexOf('/')>=0||
+                   remainder.indexOf('$')>=0)
+                    continue;
+
+                addIfPublicTopLevel(
+                    "spk.event."+
+                    remainder,
+                    names
+                );
+            }
+        }
+    }
+
+    private static void addIfPublicTopLevel(
+        String binaryName,
+        Set<String> names
+    )throws Exception{
+        Class<?> type=
+            Class.forName(
+                binaryName,
+                false,
+                DomainEventBus.class
+                    .getClassLoader()
+            );
+
+        if(Modifier.isPublic(type.getModifiers())&&
+           type.getEnclosingClass()==null&&
+           !type.isSynthetic())
+            names.add(binaryName);
     }
 
     private static void inspectName(
