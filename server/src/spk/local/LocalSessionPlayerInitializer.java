@@ -142,12 +142,10 @@ final class LocalSessionPlayerInitializer {
         );
 
         long generation=
-            world.registerPlayer(
+            world.registerPlayerAndStart(
                 worldPlayer,
                 username
             );
-
-        world.start();
 
         System.out.println(
             tag+"V512_WORLD_REGISTER playerId="+
