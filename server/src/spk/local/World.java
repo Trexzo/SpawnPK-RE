@@ -135,12 +135,51 @@ final class World implements AutoCloseable {
     }
     boolean unregisterPlayer(WorldPlayer player){
         if(player==null)return false;
-        synchronized(player.mutationLock()){
-            synchronized(tickTargets){tickTargets.remove(player.id());}
-            commands.cancelPlayer(player);
-            realtime.cancelPlayer(player);
-            petNpcs.removeMainAndMini(player.id());
-            return players.unregister(player);
+        return unregisterPlayer(
+            player,
+            player.generation()
+        );
+    }
+
+    boolean unregisterPlayer(
+        WorldPlayer player,
+        long expectedGeneration
+    ){
+        if(player==null)return false;
+
+        synchronized(lifecycleLock){
+            synchronized(player.mutationLock()){
+                if(!players.owns(
+                        player,
+                        expectedGeneration
+                    ))
+                    return false;
+
+                synchronized(tickTargets){
+                    WorldTickTarget target=
+                        tickTargets.get(
+                            player.id()
+                        );
+
+                    if(target!=null &&
+                       target.ownerGeneration()==
+                           expectedGeneration)
+                        tickTargets.remove(
+                            player.id()
+                        );
+                }
+
+                commands.cancelPlayer(player);
+                realtime.cancelPlayer(player);
+                petNpcs.removeMainAndMini(
+                    player.id()
+                );
+
+                return players.unregister(
+                    player,
+                    expectedGeneration
+                );
+            }
         }
     }
 
@@ -174,7 +213,29 @@ final class World implements AutoCloseable {
             }
         }
     }
-    void detachTickTarget(EntityId id){synchronized(tickTargets){tickTargets.remove(id);}}
+    void detachTickTarget(EntityId id){
+        synchronized(tickTargets){
+            tickTargets.remove(id);
+        }
+    }
+
+    boolean detachTickTarget(
+        EntityId id,
+        long expectedGeneration
+    ){
+        synchronized(tickTargets){
+            WorldTickTarget target=
+                tickTargets.get(id);
+
+            if(target==null ||
+               target.ownerGeneration()!=
+                   expectedGeneration)
+                return false;
+
+            tickTargets.remove(id);
+            return true;
+        }
+    }
     List<WorldTickTarget> tickTargetsSnapshot(){synchronized(tickTargets){return new ArrayList<>(tickTargets.values());}}
 
     CompletableFuture<Void> submit(WorldPlayer player,WorldCommandInbox.Action action){return commands.submit(player,action);}
