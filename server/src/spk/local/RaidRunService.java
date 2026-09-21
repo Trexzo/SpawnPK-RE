@@ -101,7 +101,7 @@ final class RaidRunService {
         final WorldInstanceId instanceId;
         final long startTick;
         final long terminalTick;
-        final String sourceAuthority;
+        final String presentationAuthority;
         final String policyAuthority;
 
         Snapshot(
@@ -135,8 +135,8 @@ final class RaidRunService {
             this.startTick=entry.startTick;
             this.terminalTick=
                 entry.terminalTick;
-            this.sourceAuthority=
-                entry.sourceAuthority;
+            this.presentationAuthority=
+                entry.presentationAuthority;
             this.policyAuthority=
                 entry.policyAuthority;
         }
@@ -221,7 +221,7 @@ final class RaidRunService {
         final LinkedHashMap<String,Participant>
             participants=
                 new LinkedHashMap<>();
-        final String sourceAuthority;
+        final String presentationAuthority;
         final String policyAuthority;
 
         Lifecycle lifecycle=
@@ -238,7 +238,7 @@ final class RaidRunService {
             String difficultyKey,
             String leaderRef,
             Collection<String> participantRefs,
-            String sourceAuthority,
+            String presentationAuthority,
             String policyAuthority
         ){
             this.id=id;
@@ -247,8 +247,8 @@ final class RaidRunService {
             this.difficultyKey=
                 difficultyKey;
             this.leaderRef=leaderRef;
-            this.sourceAuthority=
-                sourceAuthority;
+            this.presentationAuthority=
+                presentationAuthority;
             this.policyAuthority=
                 policyAuthority;
 
@@ -309,7 +309,7 @@ final class RaidRunService {
         PartyId partyId,
         String raidKey,
         String difficultyKey,
-        String sourceAuthority,
+        String presentationAuthority,
         String policyAuthority
     ){
         RaidRunId checkedId=
@@ -365,8 +365,8 @@ final class RaidRunService {
                 ),
                 party.members,
                 requireAuthority(
-                    sourceAuthority,
-                    "sourceAuthority"
+                    presentationAuthority,
+                    "presentationAuthority"
                 ),
                 requireAuthority(
                     policyAuthority,
@@ -447,7 +447,7 @@ final class RaidRunService {
         instances.create(
             instance,
             entry.partyId.toString(),
-            entry.sourceAuthority
+            entry.policyAuthority
         );
 
         for(Participant participant:
