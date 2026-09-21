@@ -1,0 +1,36 @@
+name: Chat3 Issue291 Item Option Validation
+
+on:
+  push:
+    branches:
+      - content/issue-291-item-option-registration-chat3
+
+jobs:
+  windows-item-option:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Gradle-backed canonical build
+        shell: pwsh
+        run: ./server/build.ps1
+      - name: Focused content API regressions
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $cp = 'server/build/SpawnPKLocalServer.jar;server/build/classes/java/test'
+          $tests = @(
+            'ContentItemOptionRegistrationTest',
+            'ContentPublicApiBoundaryTest',
+            'ContentRegistrationLifecycleTest',
+            'ContentProvenanceAuthorityBoundaryTest'
+          )
+          foreach ($t in $tests) {
+            Write-Host "[ISSUE291] $t"
+            & java -cp $cp "spk.local.$t"
+            if ($LASTEXITCODE -ne 0) { throw "Issue 291 regression failed: $t" }
+          }
+          Write-Host "CHAT3_ISSUE291_ITEM_OPTION_PASS tests=$($tests.Count)"
