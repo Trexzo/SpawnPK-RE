@@ -169,6 +169,9 @@ final class WorldPlayerPersistence
                     if(cause instanceof IOException)
                         throw (IOException)cause;
 
+                    if(cause instanceof RuntimeException)
+                        throw (RuntimeException)cause;
+
                     if(cause instanceof Error)
                         throw (Error)cause;
 
