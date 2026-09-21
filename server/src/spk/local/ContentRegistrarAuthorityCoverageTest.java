@@ -46,7 +46,7 @@ public final class ContentRegistrarAuthorityCoverageTest {
             new TreeSet<>();
 
         for(Method method:
-                registrar.getDeclaredMethods()){
+                registrar.getMethods()){
             int modifiers=
                 method.getModifiers();
 
