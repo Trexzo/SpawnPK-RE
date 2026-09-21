@@ -1,4 +1,4 @@
-name: Chat4 R7 Blender fixture
+name: Chat4 R7-R8 Blender fixtures
 
 on:
   push:
@@ -9,7 +9,7 @@ permissions:
   contents: read
 
 jobs:
-  blender-fixture:
+  blender-fixtures:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -23,10 +23,10 @@ jobs:
           curl -fsSLO "$base/blender-4.5.14.sha256"
           curl -fsSLO "$base/blender-4.5.14-linux-x64.tar.xz"
           grep 'blender-4.5.14-linux-x64.tar.xz' blender-4.5.14.sha256 | sha256sum -c -
-          sha256sum blender-4.5.14-linux-x64.tar.xz | tee blender-r7-binary-sha256.txt
+          sha256sum blender-4.5.14-linux-x64.tar.xz | tee blender-fixture-binary-sha256.txt
           tar -xf blender-4.5.14-linux-x64.tar.xz
 
-      - name: Execute real Blender fixture headlessly
+      - name: Execute R7 rigid-object fixture
         shell: bash
         run: |
           set -euo pipefail
@@ -41,12 +41,38 @@ jobs:
           grep -F 'R7_BLENDER_NATIVE_KEYFRAMES_PASS' r7-output/blender-run.log
           grep -F 'R7_BLENDER_AXIS_CONTRACT_EMIT_PASS' r7-output/blender-run.log
           grep -F 'R7_BLENDER_RIG_V1_EXPORT_PASS' r7-output/blender-run.log
-          cp blender-r7-binary-sha256.txt r7-output/
+          cp blender-fixture-binary-sha256.txt r7-output/
+
+      - name: Execute R8 two-bone armature fixture
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p r8-output
+          export R8_OUT="$PWD/r8-output"
+          ./blender-4.5.14-linux-x64/blender \
+            --background \
+            --factory-startup \
+            --python tools/research/chat4_r8_blender_armature_fixture.py \
+            2>&1 | tee r8-output/blender-run.log
+          grep -F 'R8_BLENDER_ARMATURE_RUNTIME_PASS' r8-output/blender-run.log
+          grep -F 'R8_BLENDER_TWO_BONE_RIG_PASS' r8-output/blender-run.log
+          grep -F 'R8_BLENDER_POSE_KEYFRAMES_PASS' r8-output/blender-run.log
+          grep -F 'R8_BLENDER_ARMATURE_RIG_V1_EXPORT_PASS' r8-output/blender-run.log
+          grep -F 'R8_BLENDER_ARMATURE_AXIS_CONTRACT_PASS' r8-output/blender-run.log
+          cp blender-fixture-binary-sha256.txt r8-output/
 
       - name: Upload R7 authored fixture evidence
         uses: actions/upload-artifact@v4
         with:
           name: chat4-r7-blender-fixture
           path: r7-output/
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Upload R8 armature fixture evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: chat4-r8-blender-armature-fixture
+          path: r8-output/
           if-no-files-found: error
           retention-days: 7
