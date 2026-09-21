@@ -60,6 +60,25 @@ public final class MakeoverMageFlowTest {
                 "Make-over dialogue did not start"
             );
 
+        LocalMakeoverMageHandler keyboardAlias=
+            new LocalMakeoverMageHandler(
+                player,
+                player.equipment()
+            );
+
+        if(!keyboardAlias.beginIfSupported(
+                talk,
+                mage,
+                packets,
+                "[makeover-flow-test] ")||
+           !keyboardAlias.handleContinue(
+                LocalMakeoverMageHandler.KEYBOARD_CONTINUE_WIDGET,
+                packets,
+                "[makeover-flow-test] "))
+            throw new AssertionError(
+                "keyboard Continue 4907 was not accepted"
+            );
+
         if(!handler.handleContinue(
                 LocalMakeoverMageHandler.INTRO_CONTINUE_WIDGET,
                 packets,
@@ -149,7 +168,7 @@ public final class MakeoverMageFlowTest {
             );
 
         System.out.println(
-            "MAKEOVER_MAGE_FLOW_PASS npc=599 route=TALK roots=4882->2459->3559 c2s101=true gender=FEMALE femaleJaw=-1 packet81Refresh=true wireBytes="+
+            "MAKEOVER_MAGE_FLOW_PASS npc=599 route=TALK roots=4882->2459->3559 c2s101=true keyboardContinue4907=true gender=FEMALE femaleJaw=-1 packet81Refresh=true wireBytes="+
             wire.size()
         );
     }
