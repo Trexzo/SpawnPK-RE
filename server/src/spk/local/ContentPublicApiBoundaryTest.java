@@ -102,8 +102,14 @@ public final class ContentPublicApiBoundaryTest {
                         " exposes raw widget presentation identity"
                     );
 
-                if(methodName.equals("slot")||
-                   methodName.contains("opcode")||
+                if(exposesRawInventorySlotIdentity(
+                        methodName))
+                    violations.add(
+                        location+
+                        " exposes raw inventory/container slot identity"
+                    );
+
+                if(methodName.contains("opcode")||
                    methodName.contains("schema")||
                    methodName.contains("packet"))
                     violations.add(
@@ -146,6 +152,19 @@ public final class ContentPublicApiBoundaryTest {
                 if(!Modifier.isPublic(
                         field.getModifiers()))
                     continue;
+
+                String fieldName=
+                    field.getName()
+                        .toLowerCase(Locale.ROOT);
+
+                if(exposesRawInventorySlotIdentity(
+                        fieldName))
+                    violations.add(
+                        api.getName()+
+                        "#"+
+                        field.getName()+
+                        " exposes raw inventory/container slot identity"
+                    );
 
                 inspect(
                     field.getGenericType(),
@@ -194,8 +213,22 @@ public final class ContentPublicApiBoundaryTest {
             "sceneIndex=false "+
             "protocolIndex=false "+
             "widgetIdentity=false "+
+            "inventorySlotIdentity=false "+
             "javaIoLeak=false"
         );
+    }
+
+    private static boolean exposesRawInventorySlotIdentity(
+        String lower
+    ){
+        return "slot".equals(lower)||
+            "inventoryslot".equals(lower)||
+            "containerslot".equals(lower)||
+            "itemslot".equals(lower)||
+            "selectedslot".equals(lower)||
+            "targetslot".equals(lower)||
+            "sourceslot".equals(lower)||
+            "destinationslot".equals(lower);
     }
 
     private static void inspect(
