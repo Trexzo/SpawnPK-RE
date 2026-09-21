@@ -341,7 +341,7 @@ public final class RaidRunServiceTest {
 
         require(
             "EXACT_CURRENT_CLIENT".equals(
-                completed.sourceAuthority
+                completed.presentationAuthority
             )&&
             "LOCAL_LAB_POLICY".equals(
                 completed.policyAuthority
