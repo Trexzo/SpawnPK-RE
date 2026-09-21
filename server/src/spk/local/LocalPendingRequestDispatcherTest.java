@@ -481,6 +481,9 @@ public final class LocalPendingRequestDispatcherTest {
                         @Override public Player81WorldSync.Context player81Sync(){
                             return null;
                         }
+                        @Override public void refreshPlayerAppearance(
+                            ServerPacketWriter serverPackets
+                        ){}
                         @Override public void saveAccount(
                             String tag,
                             String reason
