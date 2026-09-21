@@ -12,7 +12,9 @@ public final class ShopServiceTest {
 
     public static void main(String[] args){
         ShopService shops=
-            new ShopService();
+            new ShopService(
+                transactions
+            );
 
         ShopService.ShopId shopId=
             ShopService.ShopId.of(
@@ -49,17 +51,20 @@ public final class ShopServiceTest {
         ShopService.PurchaseSnapshot settled=
             assertFiniteSettlement(
                 shops,
-                shopId
+                shopId,
+                transactions
             );
 
         assertUnlimitedStock(
             shops,
-            shopId
+            shopId,
+            transactions
         );
 
         assertSettlementGuards(
             shops,
-            shopId
+            shopId,
+            transactions
         );
 
         assertOverflowFailClosed(
@@ -94,6 +99,7 @@ public final class ShopServiceTest {
             "wrongAuthorityRejected=true "+
             "transactionReuseRejected=true "+
             "settlementIdempotent=true "+
+            "canonicalTransactionNamespace=true "+
             "priceOverflowFailClosed=true "+
             "inventoryMutation=false "+
             "currencyMutation=false "+
@@ -188,7 +194,8 @@ public final class ShopServiceTest {
     private static ShopService.PurchaseSnapshot
         assertFiniteSettlement(
             ShopService shops,
-            ShopService.ShopId shopId
+            ShopService.ShopId shopId,
+            AtomicTransactionService transactions
         ){
         ShopService.PurchaseSnapshot purchase=
             shops.requestPurchase(
@@ -206,9 +213,6 @@ public final class ShopServiceTest {
             )==1L,
             "finite stock reservation before settlement"
         );
-
-        AtomicTransactionService transactions=
-            new AtomicTransactionService();
 
         AtomicTransactionService.TransactionId
             transactionId=
@@ -246,13 +250,13 @@ public final class ShopServiceTest {
         ShopService.PurchaseSnapshot settled=
             shops.confirmSettlement(
                 purchase.purchaseId,
-                committed
+                committed.transactionId
             );
 
         ShopService.PurchaseSnapshot again=
             shops.confirmSettlement(
                 purchase.purchaseId,
-                committed
+                committed.transactionId
             );
 
         require(
@@ -301,7 +305,8 @@ public final class ShopServiceTest {
 
     private static void assertUnlimitedStock(
         ShopService shops,
-        ShopService.ShopId shopId
+        ShopService.ShopId shopId,
+        AtomicTransactionService transactions
     ){
         ShopService.OfferSnapshot before=
             shops.getShop(shopId)
@@ -325,9 +330,6 @@ public final class ShopServiceTest {
                 "item:potion",
                 100L
             );
-
-        AtomicTransactionService transactions=
-            new AtomicTransactionService();
 
         AtomicTransactionService.TransactionId id=
             transactions.create(
@@ -376,32 +378,38 @@ public final class ShopServiceTest {
 
     private static void assertSettlementGuards(
         ShopService shops,
-        ShopService.ShopId shopId
+        ShopService.ShopId shopId,
+        AtomicTransactionService transactions
     ){
         assertMissingItemCoverage(
             shops,
-            shopId
+            shopId,
+            transactions
         );
 
         assertWrongBuyer(
             shops,
-            shopId
+            shopId,
+            transactions
         );
 
         assertWrongAuthority(
             shops,
-            shopId
+            shopId,
+            transactions
         );
 
         assertTransactionReuse(
             shops,
-            shopId
+            shopId,
+            transactions
         );
     }
 
     private static void assertMissingItemCoverage(
         ShopService shops,
-        ShopService.ShopId shopId
+        ShopService.ShopId shopId,
+        AtomicTransactionService transactions
     ){
         ShopService.PurchaseSnapshot purchase=
             shops.requestPurchase(
@@ -410,9 +418,6 @@ public final class ShopServiceTest {
                 "item:sword",
                 1L
             );
-
-        AtomicTransactionService transactions=
-            new AtomicTransactionService();
 
         AtomicTransactionService.TransactionId id=
             transactions.create(
@@ -437,10 +442,11 @@ public final class ShopServiceTest {
         boolean rejected=false;
 
         try{
-            shops.confirmSettlement(
-                purchase.purchaseId,
-                transactions.commit(id)
-            );
+            transactions.commit(id);
+        shops.confirmSettlement(
+            purchase.purchaseId,
+            id
+        );
         }catch(
             IllegalArgumentException expected
         ){
@@ -472,7 +478,8 @@ public final class ShopServiceTest {
 
     private static void assertWrongBuyer(
         ShopService shops,
-        ShopService.ShopId shopId
+        ShopService.ShopId shopId,
+        AtomicTransactionService transactions
     ){
         ShopService.PurchaseSnapshot purchase=
             shops.requestPurchase(
@@ -481,9 +488,6 @@ public final class ShopServiceTest {
                 "item:potion",
                 1L
             );
-
-        AtomicTransactionService transactions=
-            new AtomicTransactionService();
 
         AtomicTransactionService.TransactionId id=
             transactions.create(
@@ -515,10 +519,11 @@ public final class ShopServiceTest {
         boolean rejected=false;
 
         try{
-            shops.confirmSettlement(
-                purchase.purchaseId,
-                transactions.commit(id)
-            );
+            transactions.commit(id);
+        shops.confirmSettlement(
+            purchase.purchaseId,
+            id
+        );
         }catch(
             SecurityException expected
         ){
@@ -537,7 +542,8 @@ public final class ShopServiceTest {
 
     private static void assertWrongAuthority(
         ShopService shops,
-        ShopService.ShopId shopId
+        ShopService.ShopId shopId,
+        AtomicTransactionService transactions
     ){
         ShopService.PurchaseSnapshot purchase=
             shops.requestPurchase(
@@ -546,9 +552,6 @@ public final class ShopServiceTest {
                 "item:potion",
                 1L
             );
-
-        AtomicTransactionService transactions=
-            new AtomicTransactionService();
 
         AtomicTransactionService.SourceAuthority other=
             AtomicTransactionService
@@ -585,10 +588,11 @@ public final class ShopServiceTest {
         boolean rejected=false;
 
         try{
-            shops.confirmSettlement(
-                purchase.purchaseId,
-                transactions.commit(id)
-            );
+            transactions.commit(id);
+        shops.confirmSettlement(
+            purchase.purchaseId,
+            id
+        );
         }catch(
             IllegalArgumentException expected
         ){
@@ -607,7 +611,8 @@ public final class ShopServiceTest {
 
     private static void assertTransactionReuse(
         ShopService shops,
-        ShopService.ShopId shopId
+        ShopService.ShopId shopId,
+        AtomicTransactionService transactions
     ){
         ShopService.PurchaseSnapshot first=
             shops.requestPurchase(
@@ -623,9 +628,6 @@ public final class ShopServiceTest {
                 "item:potion",
                 1L
             );
-
-        AtomicTransactionService transactions=
-            new AtomicTransactionService();
 
         AtomicTransactionService.TransactionId id=
             transactions.create(
@@ -667,7 +669,7 @@ public final class ShopServiceTest {
         try{
             shops.confirmSettlement(
                 second.purchaseId,
-                committed
+                committed.transactionId
             );
         }catch(
             IllegalStateException expected
