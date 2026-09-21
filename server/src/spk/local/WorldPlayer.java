@@ -20,6 +20,8 @@ final class WorldPlayer {
     private final PetEffectState petEffects=new PetEffectState();
     private final MiniPetService miniPets=new MiniPetService();
     private final PetAccessoryState petAccessoryState=new PetAccessoryState();
+    private final PlayerSnapshotExtensionState snapshotExtensions=
+        new PlayerSnapshotExtensionState();
     private final Object mutationLock=new Object();
     private String username;
     private long generation;
@@ -40,6 +42,9 @@ final class WorldPlayer {
     PetEffectState petEffects(){return petEffects;}
     MiniPetService miniPets(){return miniPets;}
     PetAccessoryState petAccessoryState(){return petAccessoryState;}
+    PlayerSnapshotExtensionState snapshotExtensions(){
+        return snapshotExtensions;
+    }
     Object mutationLock(){return mutationLock;}
 
     synchronized String username(){return username;}
