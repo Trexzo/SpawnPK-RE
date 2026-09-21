@@ -13,6 +13,8 @@ public final class ContentPublicApiBoundaryTest {
         ContentItemOnNpcHandler.class,
         ContentItemOnObjectContext.class,
         ContentItemOnObjectHandler.class,
+        ContentItemOnPlayerContext.class,
+        ContentItemOnPlayerHandler.class,
         ContentItemOptionContext.class,
         ContentItemOptionHandler.class,
         ContentModule.class,
@@ -75,6 +77,8 @@ public final class ContentPublicApiBoundaryTest {
                     );
 
                 if("protocolIndex".equals(
+                        method.getName())||
+                   "playerIndex".equals(
                         method.getName()))
                     violations.add(
                         location+
