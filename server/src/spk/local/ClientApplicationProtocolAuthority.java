@@ -6,7 +6,8 @@ import java.util.*;
 
 /** R8.5 exact-current client application-protocol authority. Read-only; server outcomes remain external. */
 final class ClientApplicationProtocolAuthority {
-    static final String CLIENT_SHA256="6232bae206846a4ba8d09766a2dee886b69016066a3f50f83b201bf705f93662";
+    static final String CLIENT_SHA256="854f26ff9f134b0317572e7ac1688e6f40a231d5a4c66f8db5d655b7f45ce7c6";
+    static final String LEGACY_V307_CLIENT_SHA256="6232bae206846a4ba8d09766a2dee886b69016066a3f50f83b201bf705f93662";
     static final String R31_SHA256="ef4796cbfdcf5017ac56b549c8d6b2720ec7e52d57ced0940a52e7a84aeba898";
     static final String R4_SHA256="a6a86e356a27f9b7949455c72f530bea5b53338072f4ed8c17edd751ae38a773";
     static final String R5_SHA256="3f421df4e6d4b660fb86fd32f45b599c86bb9df73bd2fcacc57da042988ba75d";

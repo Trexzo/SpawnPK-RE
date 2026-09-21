@@ -43,7 +43,7 @@ final class LoginFrame {
         int[] seeds = new int[4];
         for (int i = 0; i < 4; i++, p += 4) seeds[i] = Binary.i32(payload, p);
 
-        // Exact current client(6).jar path (rs/f/a.c=307, rs/f/a.h=false): two ints, then 4 newline strings.
+        // Exact current exact-current v308 client(6).jar path (rs/f/a.c=308, rs/f/a.h=false): two ints, then 4 newline strings.
         int cfg1 = Binary.i32(payload, p); p += 4;
         int cfg2 = Binary.i32(payload, p); p += 4;
         Binary.Cursor c = new Binary.Cursor(p);

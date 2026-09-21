@@ -6,7 +6,8 @@ Local/offline reconstruction and research environment for the current SpawnPK cl
 
 - v5.18.5 / Engine R8.5
 - certified server SHA-256: `589635cef6244f1282aee487fdb0649150ded5b60bdc7e3fefd28bba8a86372c`
-- pinned client SHA-256: `6232bae206846a4ba8d09766a2dee886b69016066a3f50f83b201bf705f93662`
+- exact-current client SHA-256 (v308): `854f26ff9f134b0317572e7ac1688e6f40a231d5a4c66f8db5d655b7f45ce7c6`
+- historical certified client SHA-256 (v307): `6232bae206846a4ba8d09766a2dee886b69016066a3f50f83b201bf705f93662`
 - R8.5 regression contract: `179/179`
 
 ## Existing developer quick start

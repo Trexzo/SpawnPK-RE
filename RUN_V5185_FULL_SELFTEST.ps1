@@ -9,13 +9,13 @@ $javaInfo=Set-R85Java11Plus
 $javaExe=$javaInfo.Path
 $jar=Join-Path $lab 'server\build\SpawnPKLocalServer.jar'
 $expected='589635cef6244f1282aee487fdb0649150ded5b60bdc7e3fefd28bba8a86372c'
-$expectedClient='6232bae206846a4ba8d09766a2dee886b69016066a3f50f83b201bf705f93662'
+$expectedClient='854f26ff9f134b0317572e7ac1688e6f40a231d5a4c66f8db5d655b7f45ce7c6'
 if(-not(Test-Path -LiteralPath $jar -PathType Leaf)){throw "Missing server JAR: $jar"}
 $actual=(Get-FileHash -LiteralPath $jar -Algorithm SHA256).Hash.ToLowerInvariant()
 if($actual -ne $expected -and $env:SPK_ALLOW_DEV_BUILD -ne '1'){throw "v5.18.5 server hash mismatch. expected=$expected actual=$actual"}
 $client=$null
 foreach($p in @((Join-Path $lab 'evidence\client(6).jar'),(Join-Path $lab 'evidence\client(4).jar'),(Join-Path $lab 'evidence\client.jar'),(Join-Path $lab 'client.jar'))){if(Test-Path -LiteralPath $p -PathType Leaf){if((Get-FileHash -LiteralPath $p -Algorithm SHA256).Hash.ToLowerInvariant() -eq $expectedClient){$client=$p;break}}}
-if(-not $client){throw 'Pinned exact client.jar not found for parity tests.'}
+if(-not $client){throw 'Exact-current v308 client.jar not found for parity tests.'}
 $tests=@(
     'NormalInventoryDragEquipTest',
     'NormalInventoryDragRuntimeIntegrationTest',
