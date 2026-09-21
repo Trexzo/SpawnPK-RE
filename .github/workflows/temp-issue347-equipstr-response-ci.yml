@@ -1,0 +1,52 @@
+name: TEMP Issue 347 Equipstr Response Readiness CI
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'server/src/spk/local/EngineR81EquipstrFailClosedSocketTest.java'
+      - '.github/workflows/temp-issue347-equipstr-response-ci.yml'
+
+jobs:
+  validate:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Temurin JDK 21
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Compile test classes
+        shell: pwsh
+        run: ./server/gradlew.bat --no-daemon testClasses
+
+      - name: Stress equipstr fail-closed response
+        shell: pwsh
+        run: |
+          $cp = 'server/build/classes/java/test;server/build/classes/java/main;server/build/resources/test;server/build/resources/main'
+
+          for ($i = 1; $i -le 15; $i++) {
+            & java -cp $cp spk.local.EngineR81EquipstrFailClosedSocketTest
+            if ($LASTEXITCODE -ne 0) {
+              throw "EngineR81EquipstrFailClosedSocketTest failed iteration=$i exit=$LASTEXITCODE"
+            }
+          }
+
+          Write-Host "ISSUE347_EQUIPSTR_RESPONSE_STRESS_PASS iterations=15"
+
+      - name: Run parent item-library socket regression
+        shell: pwsh
+        run: |
+          $cp = 'server/build/classes/java/test;server/build/classes/java/main;server/build/resources/test;server/build/resources/main'
+
+          & java -cp $cp spk.local.EngineR5ItemLibrarySocketTest
+          if ($LASTEXITCODE -ne 0) {
+            throw "EngineR5ItemLibrarySocketTest failed exit=$LASTEXITCODE"
+          }
+
+          Write-Host "ISSUE347_PARENT_ITEM_LIBRARY_PASS tests=1"
