@@ -2405,28 +2405,14 @@ final class ContentRegistry {
             }
         }
 
-        private void requireAccepting(){
-            if(!accepting)
-                throw new IllegalStateException(
-                    "content registrar closed module="+
-                    moduleId
-                );
-        }
-
-        synchronized void seal(){
-            accepting=false;
-        }
-
-        synchronized void activatePending(){
-            accepting=false;
+        void activatePending(){
             synchronized(ContentRegistry.this){
                 if(state==REGISTRATION_PENDING)
                     state=REGISTRATION_ACTIVE;
             }
         }
 
-        synchronized void invalidatePending(){
-            accepting=false;
+        void invalidatePending(){
             synchronized(ContentRegistry.this){
                 if(state==REGISTRATION_PENDING)
                     state=REGISTRATION_REMOVED;
@@ -2907,7 +2893,20 @@ final class ContentRegistry {
             return handle;
         }
 
-        void activatePending(){
+        private void requireAccepting(){
+            if(!accepting)
+                throw new IllegalStateException(
+                    "content registrar closed module="+
+                    moduleId
+                );
+        }
+
+        synchronized void seal(){
+            accepting=false;
+        }
+
+        synchronized void activatePending(){
+            accepting=false;
             for(CommandRegistration registration:
                     pendingCommands)
                 registration.handle
@@ -2954,7 +2953,8 @@ final class ContentRegistry {
                     .activatePending();
         }
 
-        void invalidatePending(){
+        synchronized void invalidatePending(){
+            accepting=false;
             for(CommandRegistration registration:
                     pendingCommands)
                 registration.handle
