@@ -193,3 +193,83 @@ and, where a concrete option widget is proven:
 
 Raw opcode/widget identity should remain transport/presentation evidence rather
 than become public gameplay API identity.
+
+
+9. DIALOGUE MODEL / HEAD PRESENTATION PACKETS
+
+Exact inbound S2C75:
+
+    npcDefinitionId = U()
+    widgetId        = U()
+
+The target widget is switched to client model type 2 and receives the NPC
+definition id. Existing exact Make-over evidence uses this path for:
+
+    NPC 599 -> widget 4883
+
+Exact inbound S2C185:
+
+    widgetId = U()
+
+The target widget is switched to client model type 3 and its model identity is
+built from the local player's current appearance (or player morph identity).
+
+Therefore exact v308 has separate native presentation channels for:
+- NPC model/head on an interface widget: S2C75
+- local-player model/head on an interface widget: S2C185
+
+These inbound packet numbers are direction-specific and must not be confused
+with outbound C2S185 generic widget actions.
+
+10. PACKET-200 DIALOGUE MODEL WIDGET SPECIAL CASES
+
+Exact inbound S2C200 reads:
+
+    widgetId = A()
+    animationId = B()
+
+and updates the target widget's model animation state.
+
+The exact client applies dialogue-style camera defaults when widgetId is one of:
+
+    4883
+    4888
+    4894
+    4901
+    969
+    974
+    980
+    987
+
+For those targets it forces:
+
+    aT = 2000
+    aU = 100
+    aV = 1900
+
+The first four line up exactly with the standard Continue-root family:
+
+    root 4882 -> model widget 4883
+    root 4887 -> model widget 4888
+    root 4893 -> model widget 4894
+    root 4900 -> model widget 4901
+
+The second four are a parallel exact dialogue-model widget family, but this
+package does not assign semantic root names to them until the exact interface
+definitions/cache relationship is separately proven.
+
+11. PRESENTATION BOUNDARY
+
+The exact client therefore supports a clean semantic presentation adapter:
+
+    showNpcDialogueModel(npcDefId, widget)
+       -> S2C75
+
+    showLocalPlayerDialogueModel(widget)
+       -> S2C185
+
+    animateDialogueModel(widget, animationId)
+       -> S2C200
+
+The model widget ids remain presentation details. Dialogue content/state should
+not own these raw ids.
