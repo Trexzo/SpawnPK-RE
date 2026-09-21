@@ -184,6 +184,42 @@ meaning.
 The complete R2 classification and bytecode evidence is recorded in
 `RESIDUAL_CLASSIFICATION_R2.md`.
 
+## C2S185 HIGH-WIDGET-ID WIRE ALIASING
+
+Exact v308 normal-Duel recovery closes an important transport invariant.
+
+The client may hold custom widget ids above 65535 internally. Ordinary widget
+action menu path 315 still emits:
+
+```
+C2S185
+rs.x.e.d(widgetId)
+```
+
+and `rs.x.e.d(int)` writes exactly two bytes, high byte then low byte.
+
+Therefore only the low 16 bits are transmitted.
+
+Concrete exact example:
+
+```
+native widget id: 68440 = 0x10B58
+wire u16:         2904  = 0x0B58
+C2S185 body:      0B 58
+```
+
+No special 68440 remap occurs in the exact client before the write.
+
+This means the raw typed C2S185 request must preserve the exact wire u16 and
+must **not fabricate the lost high bits**.
+
+If a semantic system needs to distinguish a high custom widget from a genuine
+low-id alias, that reconstruction requires higher-level context such as the
+active interface/domain state.
+
+The exact client proves the truncation. It does not prove the original server's
+context-resolution architecture.
+
 ## LOCAL LAB BOUNDARY
 
 `ClientPacketFramingAuthorityTest` still names the older pinned artifact in its
