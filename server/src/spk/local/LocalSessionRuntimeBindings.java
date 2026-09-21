@@ -53,53 +53,49 @@ final class LocalSessionRuntimeBindings {
     )throws IOException{
         if(player81Sync!=null)return;
 
-        if(world.closed())
-            throw new IllegalStateException(
-                "runtime binding world closed"
-            );
-
         long generation=
             worldPlayer.generation();
 
-        if(!world.players().owns(
-                worldPlayer,
-                generation
-            ))
-            throw new IllegalStateException(
-                "runtime binding owner not registered in world: "+
-                worldPlayer.id()
-            );
-
-        player81Sync=
-            Player81WorldSync.register(
-                serverPackets,
-                world,
-                worldPlayer,
-                dev
-            );
-
-        registeredPackets=serverPackets;
-
-        SharedNpcWorldRelay.register(
-            serverPackets,
-            world,
+        world.withOpenPlayerOwnership(
             worldPlayer,
-            npcs,
-            movement
-        );
+            generation,
+            ()->{
+                player81Sync=
+                    Player81WorldSync.register(
+                        serverPackets,
+                        world,
+                        worldPlayer,
+                        dev
+                    );
 
-        TradeService.register(
-            world,
-            worldPlayer,
-            bank,
-            serverPackets,
-            ()->bridge.saveAccount(
-                tag,
-                "TRADE_COMMIT"
-            )
-        );
+                registeredPackets=
+                    serverPackets;
 
-        Player81WorldSync.sendPlayerOptionsIfMultiplayer(world);
+                SharedNpcWorldRelay.register(
+                    serverPackets,
+                    world,
+                    worldPlayer,
+                    npcs,
+                    movement
+                );
+
+                TradeService.register(
+                    world,
+                    worldPlayer,
+                    bank,
+                    serverPackets,
+                    ()->bridge.saveAccount(
+                        tag,
+                        "TRADE_COMMIT"
+                    )
+                );
+
+                Player81WorldSync
+                    .sendPlayerOptionsIfMultiplayer(
+                        world
+                    );
+            }
+        );
 
         System.out.println(
             tag+
