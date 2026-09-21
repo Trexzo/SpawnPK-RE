@@ -1,0 +1,38 @@
+name: Chat1 Issue329 Domain Event Boundary Validation
+
+on:
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'server/src/spk/event/**'
+      - '.github/workflows/chat1-issue329-domain-event-boundary.yml'
+
+jobs:
+  windows-event-boundary:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Compile test classes
+        shell: pwsh
+        run: ./server/gradlew.bat --no-daemon testClasses
+      - name: Run event API boundary guards
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $cp = 'server/build/classes/java/test;server/build/classes/java/main;server/build/resources/test;server/build/resources/main'
+          $tests = @(
+            'spk.event.DomainEventPublicApiBoundaryTest',
+            'spk.event.DomainEventBusTest',
+            'spk.event.DomainEventBusWorldContextTest'
+          )
+          foreach ($t in $tests) {
+            Write-Host "[ISSUE329] $t"
+            & java -cp $cp $t
+            if ($LASTEXITCODE -ne 0) { throw "Issue329 regression failed: $t" }
+          }
+          Write-Host "CHAT1_ISSUE329_DOMAIN_EVENT_BOUNDARY_PASS tests=$($tests.Count)"
