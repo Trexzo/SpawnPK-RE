@@ -190,32 +190,39 @@ final class WorldPlayerPersistence
         LoadTask task
     )throws IOException{
         boolean interrupted=false;
+        boolean executeAttempted=false;
 
         try{
-            synchronized(io){
-                if(io.isShutdown())
-                    throw new IOException(
-                        "persistence closed before repository load"
-                    );
-
-                try{
-                    io.execute(task);
-                    return;
-                }catch(RejectedExecutionException full){
+            for(;;){
+                synchronized(io){
                     if(io.isShutdown())
                         throw new IOException(
-                            "persistence closed before repository load",
-                            full
+                            "persistence closed before repository load"
                         );
 
-                    for(;;){
+                    if(!executeAttempted){
+                        executeAttempted=true;
+
                         try{
-                            io.getQueue().put(task);
+                            io.execute(task);
                             return;
-                        }catch(InterruptedException ignored){
-                            interrupted=true;
+                        }catch(RejectedExecutionException full){
+                            if(io.isShutdown())
+                                throw new IOException(
+                                    "persistence closed before repository load",
+                                    full
+                                );
                         }
                     }
+
+                    if(io.getQueue().offer(task))
+                        return;
+                }
+
+                try{
+                    Thread.sleep(5L);
+                }catch(InterruptedException ignored){
+                    interrupted=true;
                 }
             }
         }finally{
