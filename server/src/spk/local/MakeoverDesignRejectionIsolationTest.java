@@ -68,12 +68,19 @@ public final class MakeoverDesignRejectionIsolationTest {
                 "unsolicited submit activated handler"
             );
 
-        int wireBeforeInvalid=wire.size();
+        packets.flush();
+        if(wire.size()!=0)
+            throw new AssertionError(
+                "unsolicited submit emitted server output bytes="+
+                wire.size()
+            );
 
         openDesigner(
             handler,
             packets
         );
+        packets.flush();
+        int wireBeforeInvalid=wire.size();
 
         byte[] invalidBody={
             1,
