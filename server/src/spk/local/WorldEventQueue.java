@@ -5,7 +5,7 @@ import java.util.PriorityQueue;
 import java.util.concurrent.atomic.AtomicLong;
 
 /** Deterministic tick scheduler. Equal-tick tasks run in insertion order. */
-final class WorldEventQueue {
+final class WorldEventQueue implements AutoCloseable {
     static final class Handle {
         private final long id;
         private volatile boolean cancelled;
@@ -45,6 +45,13 @@ final class WorldEventQueue {
 
         void detach(){
             synchronized(this){
+                owner=null;
+            }
+        }
+
+        void discard(){
+            synchronized(this){
+                cancelled=true;
                 owner=null;
             }
         }
@@ -90,11 +97,17 @@ final class WorldEventQueue {
         q=new PriorityQueue<>();
     private final AtomicLong
         seq=new AtomicLong();
+    private boolean closed;
 
     synchronized Handle schedule(
         long tick,
         Runnable task
     ){
+        if(closed)
+            throw new IllegalStateException(
+                "world event queue closed"
+            );
+
         if(task==null)
             throw new NullPointerException(
                 "task"
@@ -132,6 +145,9 @@ final class WorldEventQueue {
             E event;
 
             synchronized(this){
+                if(closed)
+                    return count;
+
                 event=q.peek();
 
                 if(event==null||
@@ -158,6 +174,16 @@ final class WorldEventQueue {
 
             count++;
         }
+    }
+
+    @Override public synchronized void close(){
+        if(closed)
+            return;
+
+        closed=true;
+
+        while(!q.isEmpty())
+            q.remove().handle.discard();
     }
 
     private synchronized void remove(
