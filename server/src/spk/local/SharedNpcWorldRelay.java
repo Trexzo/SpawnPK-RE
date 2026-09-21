@@ -63,6 +63,14 @@ final class SharedNpcWorldRelay {
 
     private static void cleanupContext(Context c){
         c.state.contexts.remove(c.owner.id());
+
+        c.state.world
+            .npcPresentationEvents()
+            .removeSource(
+                c.owner.id(),
+                System.currentTimeMillis()
+            );
+
         try{c.removeAllRemotePets();}catch(Throwable ignored){}
         c.state.pruneDeadRecipients();
         if(c.state.contexts.isEmpty())
