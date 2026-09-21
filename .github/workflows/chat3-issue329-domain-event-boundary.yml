@@ -1,14 +1,17 @@
 name: Chat3 Issue329 Domain Event Boundary
-# workflow-only retrigger
 
 on:
-  push:
+  pull_request:
     branches:
-      - test/issue-329-domain-event-public-boundary-chat3
+      - main
+    paths:
+      - 'server/src/spk/event/DomainEventPublicApiBoundaryTest.java'
+      - '.github/workflows/chat3-issue329-domain-event-boundary.yml'
 
 jobs:
   focused:
     runs-on: windows-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
