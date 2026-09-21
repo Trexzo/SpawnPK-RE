@@ -36,7 +36,7 @@ public final class SlayerTaskServiceTest {
 
         SlayerTaskService.Snapshot taskA=
             service.assign(
-                "player:a",
+                " Player:A ",
                 "task:blood-revenant",
                 10L
             );
@@ -49,6 +49,9 @@ public final class SlayerTaskServiceTest {
             );
 
         require(
+            "player:a".equals(
+                taskA.playerRef
+            )&&
             taskA.state==
                 SlayerTaskService.State.ACTIVE&&
             taskB.state==
@@ -200,6 +203,7 @@ public final class SlayerTaskServiceTest {
         System.out.println(
             "SLAYER_TASK_SERVICE_PASS "+
             "playerScopedLedger=true "+
+            "normalizedPlayerIdentity=true "+
             "oneActiveTask=true "+
             "sharedDefinitionIndependent=true "+
             "targetMismatchIgnored=true "+
