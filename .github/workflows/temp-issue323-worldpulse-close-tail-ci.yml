@@ -1,0 +1,66 @@
+name: TEMP Issue 323 WorldPulse Close Tail CI
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'server/src/spk/local/World.java'
+      - 'server/src/spk/local/WorldPulse.java'
+      - 'server/src/spk/local/WorldPulseCloseTailFenceTest.java'
+      - '.github/workflows/temp-issue323-worldpulse-close-tail-ci.yml'
+
+jobs:
+  validate:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Temurin JDK 21
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Compile test classes
+        shell: pwsh
+        run: ./server/gradlew.bat --no-daemon testClasses
+
+      - name: Stress WorldPulse close tail fence
+        shell: pwsh
+        run: |
+          $cp = 'server/build/classes/java/test;server/build/classes/java/main;server/build/resources/test;server/build/resources/main'
+
+          for ($i = 1; $i -le 5; $i++) {
+            & java -cp $cp spk.local.WorldPulseCloseTailFenceTest
+            if ($LASTEXITCODE -ne 0) {
+              throw "WorldPulseCloseTailFenceTest failed iteration=$i exit=$LASTEXITCODE"
+            }
+          }
+
+          Write-Host "ISSUE323_WORLDPULSE_CLOSE_TAIL_STRESS_PASS iterations=5"
+
+      - name: Run World lifecycle guards
+        shell: pwsh
+        run: |
+          $cp = 'server/build/classes/java/test;server/build/classes/java/main;server/build/resources/test;server/build/resources/main'
+
+          $tests = @(
+            'WorldCloseScheduledWorkFenceTest',
+            'WorldCommandShutdownFenceTest',
+            'WorldCommandLifecycleFenceTest',
+            'WorldEventQueueCancellationTest',
+            'WorldRealtimeQueueLifecycleFenceTest',
+            'WorldPulseCommandExecutionTest',
+            'WorldPersistenceThreadingTest'
+          )
+
+          foreach ($test in $tests) {
+            & java -cp $cp "spk.local.$test"
+            if ($LASTEXITCODE -ne 0) {
+              throw "$test failed exit=$LASTEXITCODE"
+            }
+          }
+
+          Write-Host "ISSUE323_WORLD_LIFECYCLE_GUARDS_PASS tests=$($tests.Count)"
