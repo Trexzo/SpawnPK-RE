@@ -41,6 +41,13 @@ public interface ContentRegistrar {
         ContentItemOnGroundItemHandler handler
     );
 
+    ContentRegistration itemOnItem(
+        int selectedItemId,
+        int targetItemId,
+        int priority,
+        ContentItemOnItemHandler handler
+    );
+
     ContentRegistration itemOnObject(
         int itemId,
         int objectId,
