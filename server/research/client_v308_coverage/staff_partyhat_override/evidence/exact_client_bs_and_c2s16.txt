@@ -1,0 +1,93 @@
+Exact-current client SHA-256:
+854f26ff9f134b0317572e7ac1688e6f40a231d5a4c66f8db5d655b7f45ce7c6
+
+=== rs.a.k.a(rs.x.e) :: extra appearance item parse ===
+254: aload_1
+255: invokevirtual rs/x/e.y:()I
+258: istore_2
+259: iload_2
+260: iconst_1
+261: if_icmpne 275
+264: aload_0
+265: aload_1
+266: invokevirtual rs/x/e.A:()I
+269: putfield rs/a/k.bs:I
+272: goto 280
+275: aload_0
+276: iconst_m1
+277: putfield rs/a/k.bs:I
+
+=== rs.a.k.n() :: model readiness / component count ===
+120: aload_0
+121: getfield rs/a/k.bs:I
+124: ifle 146
+127: aload_0
+128: getfield rs/a/k.bs:I
+131: invokestatic rs/d/k.f:(I)Lrs/d/k;
+134: aload_0
+135: getfield rs/a/k.aY:I
+138: invokevirtual rs/d/k.a:(I)Z
+
+152: aload_0
+153: getfield rs/a/k.bs:I
+156: ifle 164
+159: bipush 13
+164: bipush 12
+166: anewarray rs/a/h
+
+=== rs.a.k.n() :: insertion after ordinary appearance index 1 ===
+391: iload 4
+393: iconst_1
+394: if_icmpne 433
+397: aload_0
+398: getfield rs/a/k.bs:I
+401: ifle 433
+404: aload_0
+405: getfield rs/a/k.bs:I
+408: invokestatic rs/d/k.f:(I)Lrs/d/k;
+411: aload_0
+412: getfield rs/a/k.aY:I
+415: invokevirtual rs/d/k.b:(I)Lrs/a/h;
+425: aload_2
+426: iload_3
+427: iinc 3, 1
+430: aload 6
+432: aastore
+
+=== rs.Client item-menu builder ===
+item action array field: rs/d/k.L:[Ljava/lang/String;
+action index 2:
+3600: aload_0.eI
+3604: aload_0.eV
+3608: sipush 539
+3611: iastore
+
+=== rs.Client menu action 539 dispatch ===
+private void a(int,int,int,int,int,String)
+
+3190: iload_1
+3191: sipush 539
+3194: if_icmpne 3364
+3197: getstatic rs/Client.fv:Lrs/x/e;
+3200: bipush 16
+3202: invokevirtual rs/x/e.a:(I)V
+3205: getstatic rs/Client.fv:Lrs/x/e;
+3208: iload_2
+3209: invokevirtual rs/x/e.o:(I)V
+3212: getstatic rs/Client.fv:Lrs/x/e;
+3215: iload_3
+3216: invokevirtual rs/x/e.p:(I)V
+3219: getstatic rs/Client.fv:Lrs/x/e;
+3222: iload 4
+3224: invokevirtual rs/x/e.p:(I)V
+
+=== rs.x.e transforms ===
+o(int):
+  high byte first
+  low byte written as value+128
+=> u16_be_low_add128
+
+p(int):
+  low byte written as value+128
+  high byte second
+=> u16_le_low_add128
