@@ -1,0 +1,38 @@
+name: Chat1 Make-X Validation
+
+on:
+  push:
+    branches:
+      - integration/issue8-makex-chat1
+
+jobs:
+  windows-makex:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Gradle-backed canonical build
+        shell: pwsh
+        run: ./server/build.ps1
+      - name: Make-X protocol and fixture regressions
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $cp = 'server/build/SpawnPKLocalServer.jar;server/build/classes/java/test'
+          $tests = @(
+            'EngineR84Packet250WriterTest',
+            'ApplicationUiServiceTest',
+            'ApplicationUiFixtureServiceTest',
+            'EngineR84ApplicationProtocolAuthorityTest',
+            'EngineR85ApplicationProtocolAuthorityTest',
+            'EngineR84ApplicationPanelSocketTest'
+          )
+          foreach ($t in $tests) {
+            Write-Host "[MAKEX] $t"
+            & java -cp $cp "spk.local.$t"
+            if ($LASTEXITCODE -ne 0) { throw "Make-X regression failed: $t" }
+          }
+          Write-Host "CHAT1_MAKEX_STATIC_PASS tests=$($tests.Count)"
