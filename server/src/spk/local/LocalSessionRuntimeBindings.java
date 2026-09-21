@@ -104,7 +104,10 @@ final class LocalSessionRuntimeBindings {
             return;
         }
 
-        TradeService.unregister(worldPlayer);
+        TradeService.unregister(
+            worldPlayer,
+            registeredPackets
+        );
         SharedNpcWorldRelay.unregister(registeredPackets);
         Player81WorldSync.unregister(registeredPackets);
 
