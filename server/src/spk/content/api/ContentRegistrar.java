@@ -34,6 +34,13 @@ public interface ContentRegistrar {
         ContentItemOnNpcHandler handler
     );
 
+    ContentRegistration itemOnGroundItem(
+        int itemId,
+        int groundItemId,
+        int priority,
+        ContentItemOnGroundItemHandler handler
+    );
+
     ContentRegistration itemOnObject(
         int itemId,
         int objectId,
