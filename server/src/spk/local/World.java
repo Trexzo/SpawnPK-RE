@@ -103,7 +103,36 @@ final class World implements AutoCloseable {
         }
     }
 
-    long registerPlayer(WorldPlayer player,String username){return players.register(player,username);}
+    long registerPlayer(
+        WorldPlayer player,
+        String username
+    ){
+        synchronized(lifecycleLock){
+            requireOpen();
+            return players.register(
+                player,
+                username
+            );
+        }
+    }
+
+    long registerPlayerAndStart(
+        WorldPlayer player,
+        String username
+    ){
+        synchronized(lifecycleLock){
+            requireOpen();
+
+            long generation=
+                players.register(
+                    player,
+                    username
+                );
+
+            pulse.start();
+            return generation;
+        }
+    }
     boolean unregisterPlayer(WorldPlayer player){
         if(player==null)return false;
         synchronized(player.mutationLock()){
@@ -116,10 +145,34 @@ final class World implements AutoCloseable {
     }
 
     void attachTickTarget(WorldTickTarget target){
-        if(target==null)throw new NullPointerException("target");
-        WorldPlayer p=players.byId(target.ownerId());
-        if(p==null||!p.accepts(target.ownerGeneration()))throw new IllegalStateException("tick target owner not registered: "+target.ownerId());
-        synchronized(tickTargets){tickTargets.put(target.ownerId(),target);}
+        if(target==null)
+            throw new NullPointerException(
+                "target"
+            );
+
+        synchronized(lifecycleLock){
+            requireOpen();
+
+            WorldPlayer p=
+                players.byId(
+                    target.ownerId()
+                );
+
+            if(p==null||
+               !p.accepts(
+                   target.ownerGeneration()))
+                throw new IllegalStateException(
+                    "tick target owner not registered: "+
+                    target.ownerId()
+                );
+
+            synchronized(tickTargets){
+                tickTargets.put(
+                    target.ownerId(),
+                    target
+                );
+            }
+        }
     }
     void detachTickTarget(EntityId id){synchronized(tickTargets){tickTargets.remove(id);}}
     List<WorldTickTarget> tickTargetsSnapshot(){synchronized(tickTargets){return new ArrayList<>(tickTargets.values());}}
