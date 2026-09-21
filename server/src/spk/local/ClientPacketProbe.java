@@ -40,7 +40,6 @@ final class ClientPacketProbe {
     private long opcode0Count;
     private final ClientRequestQueue typedRequests=
         new ClientRequestQueue();
-    private ItemOnItemAction pendingItemOnItem;
 
     ClientPacketProbe(InputStream in, IsaacCipher cipher, String tag) {
         this.in = in;
@@ -57,12 +56,6 @@ final class ClientPacketProbe {
 
     int typedRequestCount(){
         return typedRequests.size();
-    }
-
-    ItemOnItemAction takeItemOnItem(){
-        ItemOnItemAction v=pendingItemOnItem;
-        pendingItemOnItem=null;
-        return v;
     }
 
     /** Decode the one login-success packet statically proven in the current client. */
@@ -439,7 +432,28 @@ final class ClientPacketProbe {
                 int selectedWidget=be(body,6);
                 int selectedItem=le(body,8);
                 int targetWidget=be(body,10);
-                pendingItemOnItem=new ItemOnItemAction(targetSlot,selectedSlot,targetItem,selectedWidget,selectedItem,targetWidget);
+                ItemOnItemAction action=
+                    new ItemOnItemAction(
+                        targetSlot,
+                        selectedSlot,
+                        targetItem,
+                        selectedWidget,
+                        selectedItem,
+                        targetWidget
+                    );
+
+                offerTypedRequest(
+                    new ItemOnItemClientRequest(
+                        action,
+                        ClientRequestMetadata.exactCurrent(
+                            53,
+                            "FIXED12_TARGET_SLOT_BE_SELECTED_SLOT_BE_A_TARGET_ITEM_LE_A_SELECTED_WIDGET_BE_SELECTED_ITEM_LE_TARGET_WIDGET_BE",
+                            "PINNED_CLIENT_ITEM_ON_ITEM_WRITER"
+                        )
+                    ),
+                    opcode
+                );
+
                 System.out.printf("%sCLIENT_PACKET seq=%d opcode=53 len=12 itemOnItem=true selected=%d@%d/%d target=%d@%d/%d schema=STATIC_EXACT_FIXED12%n",
                     tag,decodedCount,selectedItem,selectedSlot,selectedWidget,targetItem,targetSlot,targetWidget);
                 return true;
