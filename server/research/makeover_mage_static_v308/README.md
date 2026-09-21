@@ -131,6 +131,10 @@ C2S40 dialogue Continue:
 u16_be widgetId
 ```
 
+The visible NPC one-line dialogue uses widget `4886`. The exact client's
+keyboard-continue path can emit `4907`; LocalLab accepts either only while the
+Make-over intro stage is active.
+
 C2S101 character-design submit:
 ```
 fixed length 13
@@ -185,3 +189,27 @@ appearance.colour.0 .. appearance.colour.4
 ```
 
 Older snapshots have no such keys and therefore normalize to the exact male defaults.
+
+
+## Designer-state initialization boundary
+
+A static whole-class reference audit of exact `rs.Client` shows that the private
+designer state is not populated from packet-81 player appearance when interface
+`3559` opens:
+
+- `mu[0..6]` is written by the designer-default initializer and the 300..313
+  arrow handlers, then read by preview/content-type 326 submit.
+- `lB[0..4]` is zeroed by client reset, written by the 314..323 colour arrow
+  handlers, then read by preview/content-type 326 submit.
+- `ml` is set by client reset and toggled by content types 324/325.
+- no additional assignment path copies local-player `br[]`, `aV[]`, or
+  packet-81 gender `aY` into `mu[]`, `lB[]`, or `ml`.
+
+Therefore a fresh exact client does not have a server packet that seeds the
+designer controls from a persisted current appearance merely by opening root
+`3559`. Packet-81 still renders the persisted appearance correctly before the
+designer opens; this is specifically a designer-control initialization boundary.
+
+LocalLab does not patch or mutate the production client to invent such a channel.
+The recovered server flow opens the native designer and accepts the exact C2S101
+result the client submits.
