@@ -518,6 +518,7 @@ final class ContentRegistry {
 
         try{
             module.register(registrar);
+            registrar.seal();
         }catch(RuntimeException|Error failure){
             registrar.invalidatePending();
             throw failure;
@@ -2404,14 +2405,28 @@ final class ContentRegistry {
             }
         }
 
-        void activatePending(){
+        private void requireAccepting(){
+            if(!accepting)
+                throw new IllegalStateException(
+                    "content registrar closed module="+
+                    moduleId
+                );
+        }
+
+        synchronized void seal(){
+            accepting=false;
+        }
+
+        synchronized void activatePending(){
+            accepting=false;
             synchronized(ContentRegistry.this){
                 if(state==REGISTRATION_PENDING)
                     state=REGISTRATION_ACTIVE;
             }
         }
 
-        void invalidatePending(){
+        synchronized void invalidatePending(){
+            accepting=false;
             synchronized(ContentRegistry.this){
                 if(state==REGISTRATION_PENDING)
                     state=REGISTRATION_REMOVED;
@@ -2424,6 +2439,7 @@ final class ContentRegistry {
 
         private final String moduleId;
         private final ContentProvenance provenance;
+        private boolean accepting=true;
         private final ArrayList<CommandRegistration>
             pendingCommands=new ArrayList<>();
         private final ArrayList<ObjectOptionRegistration>
@@ -2459,11 +2475,13 @@ final class ContentRegistry {
             this.provenance=provenance;
         }
 
-        @Override public ContentRegistration command(
+        @Override public synchronized ContentRegistration command(
             String name,
             int priority,
             ContentCommandHandler handler
         ){
+            requireAccepting();
+
             String key=canonical(name);
 
             if(key.isEmpty())
@@ -2496,12 +2514,14 @@ final class ContentRegistry {
             return handle;
         }
 
-        @Override public ContentRegistration objectOption(
+        @Override public synchronized ContentRegistration objectOption(
             int objectId,
             int option,
             int priority,
             ContentObjectOptionHandler handler
         ){
+            requireAccepting();
+
             if(objectId<0)
                 throw new IllegalArgumentException(
                     "objectId"
@@ -2544,12 +2564,14 @@ final class ContentRegistry {
             return handle;
         }
 
-        @Override public ContentRegistration itemOption(
+        @Override public synchronized ContentRegistration itemOption(
             int itemId,
             int option,
             int priority,
             ContentItemOptionHandler handler
         ){
+            requireAccepting();
+
             if(itemId<0)
                 throw new IllegalArgumentException(
                     "itemId"
@@ -2592,12 +2614,14 @@ final class ContentRegistry {
             return handle;
         }
 
-        @Override public ContentRegistration itemOnNpc(
+        @Override public synchronized ContentRegistration itemOnNpc(
             int itemId,
             int npcDefinitionId,
             int priority,
             ContentItemOnNpcHandler handler
         ){
+            requireAccepting();
+
             if(itemId<0)
                 throw new IllegalArgumentException(
                     "itemId"
@@ -2640,12 +2664,14 @@ final class ContentRegistry {
             return handle;
         }
 
-        @Override public ContentRegistration itemOnGroundItem(
+        @Override public synchronized ContentRegistration itemOnGroundItem(
             int itemId,
             int groundItemId,
             int priority,
             ContentItemOnGroundItemHandler handler
         ){
+            requireAccepting();
+
             if(itemId<0)
                 throw new IllegalArgumentException(
                     "itemId"
@@ -2688,12 +2714,14 @@ final class ContentRegistry {
             return handle;
         }
 
-        @Override public ContentRegistration itemOnItem(
+        @Override public synchronized ContentRegistration itemOnItem(
             int selectedItemId,
             int targetItemId,
             int priority,
             ContentItemOnItemHandler handler
         ){
+            requireAccepting();
+
             if(selectedItemId<0)
                 throw new IllegalArgumentException(
                     "selectedItemId"
@@ -2736,12 +2764,14 @@ final class ContentRegistry {
             return handle;
         }
 
-        @Override public ContentRegistration itemOnObject(
+        @Override public synchronized ContentRegistration itemOnObject(
             int itemId,
             int objectId,
             int priority,
             ContentItemOnObjectHandler handler
         ){
+            requireAccepting();
+
             if(itemId<0)
                 throw new IllegalArgumentException(
                     "itemId"
@@ -2784,11 +2814,13 @@ final class ContentRegistry {
             return handle;
         }
 
-        @Override public ContentRegistration itemOnPlayer(
+        @Override public synchronized ContentRegistration itemOnPlayer(
             int itemId,
             int priority,
             ContentItemOnPlayerHandler handler
         ){
+            requireAccepting();
+
             if(itemId<0)
                 throw new IllegalArgumentException(
                     "itemId"
@@ -2825,12 +2857,14 @@ final class ContentRegistry {
             return handle;
         }
 
-        @Override public ContentRegistration npcOption(
+        @Override public synchronized ContentRegistration npcOption(
             int npcDefinitionId,
             int option,
             int priority,
             ContentNpcOptionHandler handler
         ){
+            requireAccepting();
+
             if(npcDefinitionId<0)
                 throw new IllegalArgumentException(
                     "npcDefinitionId"
