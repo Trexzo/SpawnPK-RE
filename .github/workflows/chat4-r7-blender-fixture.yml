@@ -1,0 +1,52 @@
+name: Chat4 R7 Blender fixture
+
+on:
+  push:
+    branches:
+      - research/chat4-r7-blender-rig-fixture
+
+permissions:
+  contents: read
+
+jobs:
+  blender-fixture:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download and checksum official Blender 4.5.14 LTS
+        shell: bash
+        run: |
+          set -euo pipefail
+          base='https://download.blender.org/release/Blender4.5'
+          curl -fsSLO "$base/blender-4.5.14.sha256"
+          curl -fsSLO "$base/blender-4.5.14-linux-x64.tar.xz"
+          grep 'blender-4.5.14-linux-x64.tar.xz' blender-4.5.14.sha256 | sha256sum -c -
+          sha256sum blender-4.5.14-linux-x64.tar.xz | tee blender-r7-binary-sha256.txt
+          tar -xf blender-4.5.14-linux-x64.tar.xz
+
+      - name: Execute real Blender fixture headlessly
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p r7-output
+          export R7_OUT="$PWD/r7-output"
+          ./blender-4.5.14-linux-x64/blender \
+            --background \
+            --factory-startup \
+            --python tools/research/chat4_r7_blender_fixture.py \
+            2>&1 | tee r7-output/blender-run.log
+          grep -F 'R7_BLENDER_RUNTIME_EXECUTED_PASS' r7-output/blender-run.log
+          grep -F 'R7_BLENDER_NATIVE_KEYFRAMES_PASS' r7-output/blender-run.log
+          grep -F 'R7_BLENDER_AXIS_CONTRACT_EMIT_PASS' r7-output/blender-run.log
+          grep -F 'R7_BLENDER_RIG_V1_EXPORT_PASS' r7-output/blender-run.log
+          cp blender-r7-binary-sha256.txt r7-output/
+
+      - name: Upload R7 authored fixture evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: chat4-r7-blender-fixture
+          path: r7-output/
+          if-no-files-found: error
+          retention-days: 7
