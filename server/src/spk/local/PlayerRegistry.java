@@ -22,14 +22,42 @@ final class PlayerRegistry {
         return generation;
     }
 
-    synchronized boolean unregister(WorldPlayer player){
+    synchronized boolean owns(
+        WorldPlayer player,
+        long expectedGeneration
+    ){
         if(player==null)return false;
+        WorldPlayer present=byId.get(player.id());
+        return present==player &&
+            player.accepts(expectedGeneration);
+    }
+
+    synchronized boolean unregister(
+        WorldPlayer player,
+        long expectedGeneration
+    ){
+        if(!owns(player,expectedGeneration))
+            return false;
+
         WorldPlayer present=byId.remove(player.id());
-        if(present==null)return false;
         String name=present.username();
-        if(name!=null)byName.remove(canonical(name),present.id());
+        if(name!=null)
+            byName.remove(
+                canonical(name),
+                present.id()
+            );
         present.markUnregistered();
         return true;
+    }
+
+    synchronized boolean unregister(WorldPlayer player){
+        if(player==null)return false;
+        WorldPlayer present=byId.get(player.id());
+        if(present!=player)return false;
+        return unregister(
+            player,
+            present.generation()
+        );
     }
 
     synchronized WorldPlayer byId(EntityId id){return byId.get(id);}

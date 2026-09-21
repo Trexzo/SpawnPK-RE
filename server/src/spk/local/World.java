@@ -108,12 +108,20 @@ final class World implements AutoCloseable {
         WorldPlayer player,
         String username
     ){
+        if(player==null)
+            throw new NullPointerException(
+                "player"
+            );
+
         synchronized(lifecycleLock){
             requireOpen();
-            return players.register(
-                player,
-                username
-            );
+
+            synchronized(player.mutationLock()){
+                return players.register(
+                    player,
+                    username
+                );
+            }
         }
     }
 
@@ -121,14 +129,23 @@ final class World implements AutoCloseable {
         WorldPlayer player,
         String username
     ){
+        if(player==null)
+            throw new NullPointerException(
+                "player"
+            );
+
         synchronized(lifecycleLock){
             requireOpen();
 
-            long generation=
-                players.register(
-                    player,
-                    username
-                );
+            long generation;
+
+            synchronized(player.mutationLock()){
+                generation=
+                    players.register(
+                        player,
+                        username
+                    );
+            }
 
             pulse.start();
             return generation;
@@ -136,12 +153,52 @@ final class World implements AutoCloseable {
     }
     boolean unregisterPlayer(WorldPlayer player){
         if(player==null)return false;
+        return unregisterPlayer(
+            player,
+            player.generation()
+        );
+    }
+
+    boolean unregisterPlayer(
+        WorldPlayer player,
+        long expectedGeneration
+    ){
+        if(player==null)return false;
+
         synchronized(player.mutationLock()){
-            synchronized(tickTargets){tickTargets.remove(player.id());}
+            if(!players.owns(
+                    player,
+                    expectedGeneration
+                ))
+                return false;
+
+            synchronized(tickTargets){
+                WorldTickTarget target=
+                    tickTargets.get(
+                        player.id()
+                    );
+
+                if(target!=null &&
+                   target.ownerGeneration()==
+                       expectedGeneration)
+                    tickTargets.remove(
+                        player.id()
+                    );
+            }
+
+            if(!players.unregister(
+                    player,
+                    expectedGeneration
+                ))
+                return false;
+
             commands.cancelPlayer(player);
             realtime.cancelPlayer(player);
-            petNpcs.removeMainAndMini(player.id());
-            return players.unregister(player);
+            petNpcs.removeMainAndMini(
+                player.id()
+            );
+
+            return true;
         }
     }
 
@@ -175,7 +232,29 @@ final class World implements AutoCloseable {
             }
         }
     }
-    void detachTickTarget(EntityId id){synchronized(tickTargets){tickTargets.remove(id);}}
+    void detachTickTarget(EntityId id){
+        synchronized(tickTargets){
+            tickTargets.remove(id);
+        }
+    }
+
+    boolean detachTickTarget(
+        EntityId id,
+        long expectedGeneration
+    ){
+        synchronized(tickTargets){
+            WorldTickTarget target=
+                tickTargets.get(id);
+
+            if(target==null ||
+               target.ownerGeneration()!=
+                   expectedGeneration)
+                return false;
+
+            tickTargets.remove(id);
+            return true;
+        }
+    }
     List<WorldTickTarget> tickTargetsSnapshot(){synchronized(tickTargets){return new ArrayList<>(tickTargets.values());}}
 
     CompletableFuture<Void> submit(WorldPlayer player,WorldCommandInbox.Action action){return commands.submit(player,action);}
