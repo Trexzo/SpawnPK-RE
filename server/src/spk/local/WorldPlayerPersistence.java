@@ -75,6 +75,11 @@ final class WorldPlayerPersistence
         new Object();
     private final HashMap<EntityId,CheckpointSlot> checkpoints=
         new HashMap<>();
+    private boolean checkpointAbort;
+    private PendingCheckpoint activeCheckpoint;
+    private CompletableFuture<Void> activeCheckpointCompletion;
+    private CheckpointSlot activeCheckpointSlot;
+    private EntityId activeCheckpointPlayerId;
 
     private final AtomicLong sequence=
         new AtomicLong();
@@ -348,8 +353,20 @@ final class WorldPlayerPersistence
     ){
         while(true){
             PendingCheckpoint pending;
+            CompletableFuture<Void> completion=
+                new CompletableFuture<>();
 
             synchronized(checkpointLock){
+                if(checkpointAbort){
+                    slot.latest=null;
+                    slot.scheduled=false;
+                    checkpoints.remove(
+                        playerId,
+                        slot
+                    );
+                    return;
+                }
+
                 pending=slot.latest;
                 slot.latest=null;
 
@@ -361,13 +378,17 @@ final class WorldPlayerPersistence
                     );
                     return;
                 }
+
+                activeCheckpoint=pending;
+                activeCheckpointCompletion=
+                    completion;
+                activeCheckpointSlot=slot;
+                activeCheckpointPlayerId=
+                    playerId;
             }
 
             long saveSequence=
                 sequence.incrementAndGet();
-
-            CompletableFuture<Void> completion=
-                new CompletableFuture<>();
 
             write(
                 saveSequence,
@@ -379,6 +400,26 @@ final class WorldPlayerPersistence
                 completion,
                 true
             );
+
+            synchronized(checkpointLock){
+                if(activeCheckpointCompletion==
+                        completion){
+                    activeCheckpoint=null;
+                    activeCheckpointCompletion=null;
+                    activeCheckpointSlot=null;
+                    activeCheckpointPlayerId=null;
+                }
+
+                if(checkpointAbort){
+                    slot.latest=null;
+                    slot.scheduled=false;
+                    checkpoints.remove(
+                        playerId,
+                        slot
+                    );
+                    return;
+                }
+            }
         }
     }
 
@@ -651,6 +692,76 @@ final class WorldPlayerPersistence
         return counts;
     }
 
+    private boolean abortInFlightCheckpoint(
+        String stage
+    ){
+        PendingCheckpoint active;
+        PendingCheckpoint queued=null;
+        CompletableFuture<Void> completion;
+        RejectedExecutionException error=
+            new RejectedExecutionException(
+                "persistence "+stage+
+                " active checkpoint did not terminate"
+            );
+
+        synchronized(checkpointLock){
+            checkpointAbort=true;
+            active=activeCheckpoint;
+            completion=
+                activeCheckpointCompletion;
+
+            if(activeCheckpointSlot!=null){
+                queued=
+                    activeCheckpointSlot.latest;
+                activeCheckpointSlot.latest=null;
+                activeCheckpointSlot.scheduled=false;
+                checkpoints.remove(
+                    activeCheckpointPlayerId,
+                    activeCheckpointSlot
+                );
+            }
+        }
+
+        boolean settled=false;
+
+        if(completion!=null){
+            synchronized(completion){
+                if(!completion.isDone()){
+                    checkpointRejected.incrementAndGet();
+                    failed.incrementAndGet();
+                    completion.completeExceptionally(
+                        error
+                    );
+                    settled=true;
+                }
+            }
+        }
+
+        if(!settled&&queued!=null){
+            checkpointRejected.incrementAndGet();
+            failed.incrementAndGet();
+            settled=true;
+        }
+
+        PendingCheckpoint rejected=
+            active!=null
+                ?active
+                :queued;
+
+        if(settled&&rejected!=null)
+            logRejected(
+                rejected.snapshot,
+                sequence.incrementAndGet(),
+                "[world] ",
+                "AUTOSAVE_TICK_"+
+                    rejected.tick,
+                stage,
+                error
+            );
+
+        return settled;
+    }
+
     private boolean rejectInFlightSave(
         String stage
     ){
@@ -723,6 +834,11 @@ final class WorldPlayerPersistence
                     rejectInFlightSave(
                         "SHUTDOWN_IN_FLIGHT"
                     );
+                boolean checkpointInFlightSettled=
+                    !clean&&
+                    abortInFlightCheckpoint(
+                        "SHUTDOWN_CHECKPOINT_IN_FLIGHT"
+                    );
 
                 System.err.println(
                     "[world] V5123_PERSISTENCE_SHUTDOWN_FORCED"+
@@ -734,6 +850,8 @@ final class WorldPlayerPersistence
                         counts.unknown+
                     " inFlightSettled="+
                         inFlightSettled+
+                    " checkpointInFlightSettled="+
+                        checkpointInFlightSettled+
                     " cleanAfterForce="+clean+
                     " "+metrics()
                 );
@@ -754,6 +872,10 @@ final class WorldPlayerPersistence
                 rejectInFlightSave(
                     "SHUTDOWN_INTERRUPTED_IN_FLIGHT"
                 );
+            boolean checkpointInFlightSettled=
+                abortInFlightCheckpoint(
+                    "SHUTDOWN_INTERRUPTED_CHECKPOINT_IN_FLIGHT"
+                );
 
             System.err.println(
                 "[world] V5123_PERSISTENCE_SHUTDOWN_INTERRUPTED"+
@@ -765,6 +887,8 @@ final class WorldPlayerPersistence
                     counts.unknown+
                 " inFlightSettled="+
                     inFlightSettled+
+                " checkpointInFlightSettled="+
+                    checkpointInFlightSettled+
                 " "+metrics()
             );
             return;
