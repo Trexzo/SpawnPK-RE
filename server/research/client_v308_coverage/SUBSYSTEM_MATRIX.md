@@ -8,7 +8,7 @@ authority would unblock Chat 2/3 without inventing server mechanics.
 | P0 | C2S/S2C packet writer/reader census | R84/R85 protocol research; exact menu-action and application buses | PARTIAL | close remaining exact-current transport gaps and map each to semantic family without exposing raw transport publicly | Chat 2 |
 | P0 | Combat-facing client contracts | exact 854f attack writers, packet-81 player masks, packet-65 NPC masks, combat-interface roots/style labels | STRONG-PARTIAL | core client transport/presentation package closed; authoritative formulas/timing/spec/death rules remain `UNKNOWN_SERVER_AUTHORITY` | Chat 3 |
 | P0 | Prayer + magic presentation | exact 854f C2S185 prayer/direct widgets, local-only spell selection, five target writer families, prayer `bd` headicon channel, 51 prayer/126 spell client census | STRONG-PARTIAL | client-facing contract packaged; drain/formulas/secondary effects/consumption remain `UNKNOWN_SERVER_AUTHORITY` | Chat 3 |
-| P0 | Appearance + equipment + ranks/icons | packet-81 parity, exact `bs` parser/model contract, staff-partyhat Override/C2S16 package, native icon family work | STRONG-PARTIAL | client-side staff-partyhat/`bs` contract closed; original production rank→`bs` mapping remains `UNKNOWN_SERVER_AUTHORITY` | Chat 3 |
+| P0 | Appearance + equipment + ranks/icons | exact v308 worn HEAD→`fE[rs.l.h.b(aC)]` staff-rank gate, packet-81 `aC` + `bs` fields, Override/C2S16, native icon family | STRONG-PARTIAL | client presentation contract closed; LocalLab currently publishes `aC=0`; original named-rank→numeric-`aC` and production Override policy remain `UNKNOWN_SERVER_AUTHORITY` | Chat 3 |
 | P0 | Make-over Mage / character design | exact v308 C2S40/C2S101, roots 4882/2459/3559, exact kit/colour domain | PARTIAL-CLOSED-CONTRACT | server fee/restrictions/persistence policy unknown; native designer cannot preload persisted appearance from packet 81 | Chat 3 |
 | P1 | Dialogues / chatbox state machines | dialog key state, many interface/widget contracts | PARTIAL | systematic roots, continue/option writers, close/cancel state machines, historical wording separation | Chat 3 |
 | P1 | Items / item definitions / equipment models | item authority R5, item catalog, equipment audits, cache extraction corpus | PARTIAL | exact-current definition-field census, model/colour/retexture semantics, action/menu ownership gaps | Chat 3 |
@@ -28,20 +28,24 @@ authority would unblock Chat 2/3 without inventing server mechanics.
 
 ## Immediate campaign order
 
-1. **Rank / overhead-icon / staff-partyhat rendering**
-   - high user-visible value;
-   - directly adjacent to already-strong packet-81 appearance authority;
-   - likely recoverable entirely from client/cache.
-2. **Combat-facing client contract package**
-   - consolidate attack menus, hit blocks, animations, GFX, combat interfaces,
-     special-attack presentation, and client-local state.
-3. **Prayer + magic package**
-   - consolidate the existing R82/R83 evidence and mark every server mechanic
-     that remains unknown.
-4. **Dialogue/interface state-machine atlas**
-   - normalize root/widget/continue/close/option contracts so Chat 3 can implement
-     content without raw opcode coupling.
-5. Continue assets/minigames/items/NPCs by dependency demand from Chat 3.
+1. **Dialogue/interface state-machine atlas**
+   - normalize root/widget/continue/close/option contracts;
+   - separate native client state from server-authored dialogue/content;
+   - give Chat 3 semantic dialogue evidence without raw opcode coupling.
+2. **Residual C2S/S2C packet census**
+   - close remaining exact-current writer/reader gaps;
+   - hand only typed transport facts to Chat 2.
+3. **Items + NPC definition field census**
+   - exact-current model/action/animation/GFX/recolour/retexture ownership;
+   - keep server mechanics unknown unless separately proven.
+4. **Teleports / UI navigation**
+   - close exact roots/buttons/configs and client-visible destination semantics.
+5. Continue minigames/assets/settings/social surfaces by dependency demand.
+
+Completed high-value P0 packages now include the exact v308 worn staff-rank
+overhead gate, combat-facing contracts, prayer/magic presentation, Make-over
+Mage wire/cache contracts, and the separate staff-partyhat Override/`bs`
+channel.
 
 ## Existing high-value corpus
 
