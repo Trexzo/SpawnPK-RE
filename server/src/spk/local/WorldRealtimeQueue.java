@@ -48,41 +48,73 @@ final class WorldRealtimeQueue implements AutoCloseable {
             throw new NullPointerException();
 
         synchronized(owner.mutationLock()){
-            long generation=
-                owner.generation();
+            scheduleOwned(
+                atMillis,
+                owner,
+                owner.generation(),
+                task
+            );
+        }
+    }
 
-            if(!owner.accepts(generation))
+    void schedule(
+        long atMillis,
+        WorldPlayer owner,
+        long expectedGeneration,
+        Runnable task
+    ){
+        if(owner==null||task==null)
+            throw new NullPointerException();
+
+        synchronized(owner.mutationLock()){
+            scheduleOwned(
+                atMillis,
+                owner,
+                expectedGeneration,
+                task
+            );
+        }
+    }
+
+    private void scheduleOwned(
+        long atMillis,
+        WorldPlayer owner,
+        long expectedGeneration,
+        Runnable task
+    ){
+        if(!owner.accepts(expectedGeneration))
+            throw new IllegalStateException(
+                "realtime owner generation changed: "+
+                owner.id()+
+                " expected="+expectedGeneration+
+                " actual="+owner.generation()
+            );
+
+        if(!ownership.owns(
+                owner,
+                expectedGeneration
+            ))
+            throw new IllegalStateException(
+                "realtime owner not owned by world: "+
+                owner.id()
+            );
+
+        synchronized(this){
+            if(closed)
                 throw new IllegalStateException(
-                    "realtime owner not registered: "+
-                    owner.id()
+                    "world realtime queue closed"
                 );
 
-            if(!ownership.owns(
+            q.add(
+                new E(
+                    atMillis,
+                    seq.incrementAndGet(),
                     owner,
-                    generation
-                ))
-                throw new IllegalStateException(
-                    "realtime owner not owned by world: "+
-                    owner.id()
-                );
-
-            synchronized(this){
-                if(closed)
-                    throw new IllegalStateException(
-                        "world realtime queue closed"
-                    );
-
-                q.add(
-                    new E(
-                        atMillis,
-                        seq.incrementAndGet(),
-                        owner,
-                        generation,
-                        task
-                    )
-                );
-                notifyAll();
-            }
+                    expectedGeneration,
+                    task
+                )
+            );
+            notifyAll();
         }
     }
     int runDue(long nowMillis){
