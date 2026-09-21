@@ -24,11 +24,33 @@ final class Player81WorldSync {
 
     static synchronized Context register(ServerPacketWriter writer,World world,WorldPlayer owner,DevAuthorityWorkbench dev){
         if(writer==null||world==null||owner==null)throw new NullPointerException();
+
+        Context oldWriter=BY_WRITER.remove(writer);
+        if(oldWriter!=null)
+            cleanupContext(oldWriter);
+
+        WorldState existingState=
+            BY_WORLD.get(world);
+        Context oldOwner=
+            existingState==null
+                ?null
+                :existingState.contexts.get(
+                    owner.id()
+                );
+
+        if(oldOwner!=null){
+            BY_WRITER.remove(
+                oldOwner.writer
+            );
+            cleanupContext(oldOwner);
+        }
+
         WorldState ws=BY_WORLD.get(world);
-        if(ws==null){ws=new WorldState(world);BY_WORLD.put(world,ws);}
-        Context old=BY_WRITER.remove(writer);
-        if(old!=null)
-            cleanupContext(old);
+        if(ws==null){
+            ws=new WorldState(world);
+            BY_WORLD.put(world,ws);
+        }
+
         Context c=new Context(writer,ws,owner,dev);
         BY_WRITER.put(writer,c);ws.contexts.put(owner.id(),c);
         return c;
