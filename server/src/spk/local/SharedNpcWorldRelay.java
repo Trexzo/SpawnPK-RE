@@ -26,17 +26,47 @@ final class SharedNpcWorldRelay {
 
     static synchronized void register(ServerPacketWriter writer,World world,WorldPlayer owner,NpcRegistry npcs,MovementState movement){
         if(writer==null||world==null||owner==null||npcs==null||movement==null)return;
-        WorldState ws=BY_WORLD.get(world);if(ws==null){ws=new WorldState(world);BY_WORLD.put(world,ws);}
-        Context old=BY_WRITER.remove(writer);if(old!=null)old.state.contexts.remove(old.owner.id());
+
+        Context oldWriter=BY_WRITER.remove(writer);
+        if(oldWriter!=null)
+            cleanupContext(oldWriter);
+
+        WorldState existingState=
+            BY_WORLD.get(world);
+        Context oldOwner=
+            existingState==null
+                ?null
+                :existingState.contexts.get(
+                    owner.id()
+                );
+
+        if(oldOwner!=null){
+            BY_WRITER.remove(
+                oldOwner.writer
+            );
+            cleanupContext(oldOwner);
+        }
+
+        WorldState ws=BY_WORLD.get(world);
+        if(ws==null){
+            ws=new WorldState(world);
+            BY_WORLD.put(world,ws);
+        }
+
         Context c=new Context(writer,ws,owner,npcs,movement);BY_WRITER.put(writer,c);ws.contexts.put(owner.id(),c);
     }
 
     static synchronized void unregister(ServerPacketWriter writer){
         Context c=BY_WRITER.remove(writer);if(c==null)return;
+        cleanupContext(c);
+    }
+
+    private static void cleanupContext(Context c){
         c.state.contexts.remove(c.owner.id());
         try{c.removeAllRemotePets();}catch(Throwable ignored){}
         c.state.pruneDeadRecipients();
-        if(c.state.contexts.isEmpty())BY_WORLD.remove(c.state.world);
+        if(c.state.contexts.isEmpty())
+            BY_WORLD.remove(c.state.world);
     }
 
     static void syncRemotePets(ServerPacketWriter viewerWriter){
