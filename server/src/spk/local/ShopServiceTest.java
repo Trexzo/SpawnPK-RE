@@ -11,6 +11,9 @@ public final class ShopServiceTest {
                 .CUSTOM_LOCALLAB;
 
     public static void main(String[] args){
+        AtomicTransactionService transactions=
+            new AtomicTransactionService();
+
         ShopService shops=
             new ShopService(
                 transactions
@@ -358,9 +361,11 @@ public final class ShopServiceTest {
             )
         );
 
+        transactions.commit(id);
+
         shops.confirmSettlement(
             purchase.purchaseId,
-            transactions.commit(id)
+            id
         );
 
         ShopService.OfferSnapshot after=
@@ -661,7 +666,7 @@ public final class ShopServiceTest {
 
         shops.confirmSettlement(
             first.purchaseId,
-            committed
+            committed.transactionId
         );
 
         boolean rejected=false;
