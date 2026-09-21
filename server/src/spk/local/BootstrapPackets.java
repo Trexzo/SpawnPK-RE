@@ -136,6 +136,20 @@ final class BootstrapPackets {
 
 
     /**
+     * Packet 75 fixed-4 exact-current NPC model assignment.
+     * Client reads U() twice: LE short with low byte encoded +128.
+     */
+    static byte[] interfaceNpcHead75(int npcId,int widgetId) {
+        if(npcId<0||npcId>0xffff)throw new IllegalArgumentException("npcId");
+        if(widgetId<0||widgetId>0xffff)throw new IllegalArgumentException("widgetId");
+        return new byte[]{
+            (byte)((npcId+128)&0xff),(byte)(npcId>>>8),
+            (byte)((widgetId+128)&0xff),(byte)(widgetId>>>8)
+        };
+    }
+
+
+    /**
      * Packet 248 fixed-4: open main interface + side/overlay interface.
      * Exact pinned-client branch reads T() for the main root then A() for the
      * side root, assigning them to cH and fu respectively.
@@ -389,7 +403,11 @@ final class BootstrapPackets {
         // Five leading appearance/state bytes: aY, bd, bf, bg, bh.
         // bd/bf use 255 as the client's no-icon sentinel.  v0.3 wrote zero,
         // which is why the localhost player acquired overhead status icons.
-        b.write(0);   // aY: male/default appearance sex selector
+        b.write(
+            player==null
+                ?CharacterDesignProfile.MALE
+                :player.characterGender()
+        );            // aY: exact character-design gender selector, 0 male / 1 female
         b.write(255); // bd: no skull/status icon
         b.write(255); // bf: no prayer/status icon
         b.write(0);   // bg: presentation channel intentionally zero; v5.6 collection-icon guess was incorrect
@@ -402,8 +420,15 @@ final class BootstrapPackets {
         // classic default male kit indices used by that editor family.
         int[] equipment = new int[12];
         int[] kitSlots = {8, 11, 4, 6, 9, 7, 10};
-        int[] kitIds   = {0, 10, 18, 26, 33, 36, 42};
-        for (int i = 0; i < kitSlots.length; i++) equipment[kitSlots[i]] = 256 + kitIds[i];
+        int[] kitIds =
+            player==null
+                ?CharacterDesignProfile.defaultKits(
+                    CharacterDesignProfile.MALE
+                )
+                :player.characterKits();
+        for (int i = 0; i < kitSlots.length; i++)
+            if(kitIds[i]>=0)
+                equipment[kitSlots[i]] = 256 + kitIds[i];
         if (equippedItems != null) {
             if (equippedItems.length != 12) throw new IllegalArgumentException("equippedItems must have 12 appearance slots");
             // Full-helm visual policy: the exact custom head item remains authoritative,
@@ -451,8 +476,13 @@ final class BootstrapPackets {
             b.write(0);
         }
 
-        // 5 color indices.
-        for (int i = 0; i < 5; i++) b.write(0);
+        // 5 exact character-design colour indices.
+        int[] characterColours=
+            player==null
+                ?CharacterDesignProfile.defaultColours()
+                :player.characterColours();
+        for (int i = 0; i < characterColours.length; i++)
+            b.write(characterColours[i]);
 
         // Seven appearance animation ids are resolved as one equipment-pose profile.
         // This keeps stand/walk/turn/run data together rather than hardcoding a
