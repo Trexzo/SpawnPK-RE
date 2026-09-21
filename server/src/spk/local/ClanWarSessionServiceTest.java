@@ -22,6 +22,7 @@ public final class ClanWarSessionServiceTest {
             "cancellationClosesInstance=true "+
             "definitionPreserved=true "+
             "ruleResolverExternal=true "+
+            "ruleAuthorityPolicy=true "+
             "rewardMutation=false "+
             "protocolIndependent=true"
         );
