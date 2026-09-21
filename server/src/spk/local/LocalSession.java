@@ -447,6 +447,7 @@ final class LocalSession implements Runnable {
             npcs,
             petDropPickup,
             petRuntimeCommands,
+            ()->LocalSession.this.worldPlayerGeneration,
             new LocalPetRealtimeScheduler.SessionBridge(){
                 @Override public ServerPacketWriter sessionPackets(){
                     return LocalSession.this.sessionPackets;
