@@ -1,0 +1,50 @@
+Exact-current client SHA-256:
+854f26ff9f134b0317572e7ac1688e6f40a231d5a4c66f8db5d655b7f45ce7c6
+
+ATTACK WRITERS
+
+PLAYER
+rs.Client menu action 561:
+  rs.x.e.a(128)   // C2S128
+  rs.x.e.d(playerIndex)
+
+rs.x.e.d(int):
+  high byte
+  low byte
+=> C2S128 body = u16_be playerIndex
+
+NPC
+rs.Client menu action 412:
+  target = cA[npcSceneIndex]
+  rs.x.e.a(72)    // C2S72
+  rs.x.e.o(npcSceneIndex)
+  posts RuneLite EntityInteraction(target, combat=true)
+
+rs.x.e.o(int):
+  high byte
+  low byte + 128
+=> C2S72 body = u16_be_low_add128 npcSceneIndex
+
+COMBAT INTERFACE ROOTS — rs.n.c.aY.a()
+
+1698  Axe          Chop / Hack / Smash / Block
+2276  Dagger       Stab / Lunge / Slash / Block
+2423  Sword        Chop / Slash / Lunge / Block
+3796  Mace         Pound / Pummel / Spike / Block
+4679  Spear        Lunge / Swipe / Pound / Block
+4705  Two-handed   Chop / Slash / Smash / Block
+5570  Pickaxe      Spike / Impale / Smash / Block
+7762  Claws        four-option claw family
+776   Scythe       Reap / Chop / Jab / Block
+425   Maul         Pound / Pummel / Block
+1749  Crossbow     Accurate / Rapid / Longrange
+1764  Bow          Accurate / Rapid / Longrange
+4446  Thrown       Accurate / Rapid / Longrange
+5855  Unarmed      Punch / Kick / Block
+6103  Warhammer    Pound / Block
+8460  Halberd      Jab / Swipe / Fend
+12290 Whip         Flick / Lash / Deflect
+328   Staff        Bash / Pound / Focus
+
+The class also embeds client-facing XP/style descriptions. These are presentation
+authority only and do not establish authoritative server modifiers or XP rules.
