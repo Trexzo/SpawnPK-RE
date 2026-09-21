@@ -36,9 +36,8 @@ public final class CompCapeCustomizationTest {
                     if(Binary.u16(root,0)!=63036)throw new AssertionError("reopen root="+Binary.u16(root,0));
                     send185(out,c2s,63031);
                     expectEventuallyFixed(in,s2c,219,0);
-                    Thread.sleep(150);
                 }
-                try{server.get(2,TimeUnit.SECONDS);}catch(Exception ignored){}ex.shutdownNow();
+                try{server.get(7,TimeUnit.SECONDS);}finally{ex.shutdownNow();}
             }
             PlayerState ps=new PlayerState();AccountStore.load(new BankState(),new EquipmentState(),new MovementState(),new PetState(),ps);
             if(!Arrays.equals(ps.compSelectors(),new int[]{1,2,3,4,5,6}))throw new AssertionError("persisted selectors="+Arrays.toString(ps.compSelectors()));
