@@ -31,6 +31,7 @@ public final class ContentPublicApiBoundaryTest {
         ContentPresentationException.class,
         ContentProvenance.class,
         ContentRegistrar.class,
+        ContentRegistration.class,
         ContentResult.class,
         ContentSkill.class
     };
