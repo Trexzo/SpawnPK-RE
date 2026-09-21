@@ -31,13 +31,23 @@ final class PlayerSnapshotCodec {
         );
 
         synchronized(player.mutationLock()){
+            TreeMap<String,String> values=
+                new TreeMap<>(
+                    PlayerSnapshotSchemaV1.capture(
+                        player,
+                        petAccessoryItem
+                    )
+                );
+
+            values.putAll(
+                player.snapshotExtensions()
+                    .snapshot()
+            );
+
             return new PlayerSnapshot(
                 PlayerSnapshot.CURRENT_VERSION,
                 username,
-                PlayerSnapshotSchemaV1.capture(
-                    player,
-                    petAccessoryItem
-                )
+                values
             );
         }
     }
@@ -53,10 +63,19 @@ final class PlayerSnapshotCodec {
         WorldPlayer staged=
             new WorldPlayer();
 
-        applyLegacy(
-            snapshot,
-            staged
-        );
+        synchronized(staged.mutationLock()){
+            PlayerSnapshotSchemaV1.apply(
+                snapshot,
+                staged
+            );
+            staged.snapshotExtensions()
+                .replace(
+                    PlayerSnapshotExtensionState
+                        .extract(
+                            snapshot.values()
+                        )
+                );
+        }
 
         return capture(
             snapshot.username(),
@@ -83,10 +102,19 @@ final class PlayerSnapshotCodec {
                 snapshot
             );
 
-        applyLegacy(
-            normalized,
-            livePlayer
-        );
+        synchronized(livePlayer.mutationLock()){
+            PlayerSnapshotSchemaV1.apply(
+                normalized,
+                livePlayer
+            );
+            livePlayer.snapshotExtensions()
+                .replace(
+                    PlayerSnapshotExtensionState
+                        .extract(
+                            normalized.values()
+                        )
+                );
+        }
 
         return normalized;
     }
