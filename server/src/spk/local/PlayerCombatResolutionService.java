@@ -10,6 +10,9 @@ import java.util.Objects;
  * HP/death mutation.
  */
 final class PlayerCombatResolutionService {
+    private static final CombatOutcomeObserver NO_OUTCOME_OBSERVER =
+        outcome -> {};
+
     static final class Result {
         final CombatDamageRules.Result damage;
         final CombatAttackTimingRules.Result timing;
@@ -44,6 +47,7 @@ final class PlayerCombatResolutionService {
     private final CombatDamageRules damageRules;
     private final CombatAttackTimingRules timingRules;
     private final CombatSystemHooks hooks;
+    private final CombatOutcomeObserver outcomeObserver;
 
     PlayerCombatResolutionService(
         WorldPlayer owner,
@@ -51,10 +55,31 @@ final class PlayerCombatResolutionService {
         CombatAttackTimingRules timingRules,
         CombatSystemHooks hooks
     ){
+        this(
+            owner,
+            damageRules,
+            timingRules,
+            hooks,
+            NO_OUTCOME_OBSERVER
+        );
+    }
+
+    PlayerCombatResolutionService(
+        WorldPlayer owner,
+        CombatDamageRules damageRules,
+        CombatAttackTimingRules timingRules,
+        CombatSystemHooks hooks,
+        CombatOutcomeObserver outcomeObserver
+    ){
         this.owner=Objects.requireNonNull(owner,"owner");
         this.damageRules=Objects.requireNonNull(damageRules,"damageRules");
         this.timingRules=Objects.requireNonNull(timingRules,"timingRules");
         this.hooks=Objects.requireNonNull(hooks,"hooks");
+        this.outcomeObserver=
+            Objects.requireNonNull(
+                outcomeObserver,
+                "outcomeObserver"
+            );
     }
 
     String damageAuthority(){
@@ -121,6 +146,30 @@ final class PlayerCombatResolutionService {
                 " damageAuthority="+damage.authority
             );
 
+        if(lifecycle.died&&!lifecycle.ignoredDead){
+            publishOutcome(
+                new CombatOutcome(
+                    owner.id().toString(),
+                    target.id().toString(),
+                    CombatOutcomeType.PLAYER_KILL,
+                    CombatOutcomeContext.PLAYER_PVP,
+                    worldTick,
+                    PlayerLifecycleService.AUTHORITY
+                )
+            );
+
+            publishOutcome(
+                new CombatOutcome(
+                    owner.id().toString(),
+                    target.id().toString(),
+                    CombatOutcomeType.PLAYER_DEATH,
+                    CombatOutcomeContext.PLAYER_PVP,
+                    worldTick,
+                    PlayerLifecycleService.AUTHORITY
+                )
+            );
+        }
+
         int delay=
             timing.attackSpeedTicks>0
                 ?timing.attackSpeedTicks
@@ -133,5 +182,24 @@ final class PlayerCombatResolutionService {
             lifecycle,
             Math.max(1,delay)
         );
+    }
+
+    private void publishOutcome(
+        CombatOutcome outcome
+    ){
+        try{
+            outcomeObserver.onCombatOutcome(
+                outcome
+            );
+        }catch(RuntimeException error){
+            System.err.println(
+                "[combat] outcome observer failure"+
+                " type="+outcome.type()+
+                " attacker="+outcome.attacker()+
+                " victim="+outcome.victim()+
+                " tick="+outcome.worldTick()+
+                " error="+error
+            );
+        }
     }
 }
