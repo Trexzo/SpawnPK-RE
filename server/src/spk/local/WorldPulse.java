@@ -102,6 +102,33 @@ final class WorldPulse implements AutoCloseable,Runnable {
             if(world.closed())
                 return;
 
+            for(WorldPlayer player:world.players().snapshot()){
+                if(world.closed())
+                    return;
+
+                long generation=player.generation();
+
+                if(!player.accepts(generation))
+                    continue;
+
+                try{
+                    synchronized(player.mutationLock()){
+                        if(player.accepts(generation))
+                            player.timedEffects().tick(tick);
+                    }
+                }catch(Throwable t){
+                    System.err.println(
+                        "[world] timed-effect tick failed tick="+
+                        tick+
+                        " owner="+player.id()+
+                        " error="+t
+                    );
+                }
+            }
+
+            if(world.closed())
+                return;
+
             for(WorldTickTarget target:world.tickTargetsSnapshot()){
                 if(world.closed())
                     return;
