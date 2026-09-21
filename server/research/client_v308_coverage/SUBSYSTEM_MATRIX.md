@@ -14,7 +14,7 @@ authority would unblock Chat 2/3 without inventing server mechanics.
 | P1 | Items / item definitions / equipment models | item authority R5, item catalog, equipment audits, cache extraction corpus | PARTIAL | exact-current definition-field census, model/colour/retexture semantics, action/menu ownership gaps | Chat 3 |
 | P1 | NPC definitions / interaction presentation | Home NPC corpus, NPC resolver, packet-65 parity | PARTIAL | exact-current definition fields, head/model/animation/GFX/menu-option presentation and unresolved NPC families | Chat 3 |
 | P1 | Teleports / UI navigation | R82 teleport candidates, application/widget research | PARTIAL | exact navigation roots/buttons/configs and which destination semantics are client-visible vs server-only | Chat 3 |
-| P1 | Minigame / event UI | exact v308 Tournament contract now packaged: hub root `27400` with `56000+` children, leaderboard root `61011`, Enter/Spectate/Shop + weekly/all-time filters -> C2S185; plus R83/R84 Hunger Games, Clan Wars, gambling, event/task contracts | STRONG-PARTIAL | Tournament client contract is ready for Chat 3; Blood Slayer selector is now exact/ready for Chat 3; recover normal Duel, Monster Spawner and remaining event/minigame state machines without inventing server rules | Chat 3 |
+| P1 | Minigame / event UI | exact v308 Tournament contract now packaged: hub root `27400` with `56000+` children, leaderboard root `61011`, Enter/Spectate/Shop + weekly/all-time filters -> C2S185; plus R83/R84 Hunger Games, Clan Wars, gambling, event/task contracts | STRONG-PARTIAL | Tournament client contract is ready for Chat 3; Blood Slayer selector and normal Duel client contract are now exact/ready for Chat 3; normal Duel also proves C2S185 high-widget-id low16 aliasing; recover Monster Spawner and remaining event/minigame state machines without inventing server rules | Chat 3 |
 | P1 | Pet presentation | extensive R82/R85 pet mapping, animation/GFX timing, renderer-control tables | STRONG-PARTIAL | unresolved special-renderer families and current-vs-legacy semantic gaps | Chat 3 |
 | P1 | Animations | scythe recovery, pet animation timing, upstream remap tables | PARTIAL | global exact-current animation ownership/index/remap coverage | Chat 3 |
 | P1 | GFX | packet-65 GFX parity, pet GFX timing, upstream remaps | PARTIAL | global exact-current GFX definition/remap/attachment timing coverage | Chat 3 |
@@ -44,7 +44,7 @@ authority would unblock Chat 2/3 without inventing server mechanics.
    - keep server mechanics unknown unless separately proven.
 4. **Teleports / UI navigation**
    - close exact roots/buttons/configs and client-visible destination semantics.
-5. Continue Issue #427 application contracts: normal Duel -> Monster Spawner -> Quick Prayer/Curse -> Pet Fusing/Enchanting, then remaining minigames/assets/settings/social surfaces by dependency demand.
+5. Continue Issue #427 application contracts: Monster Spawner -> Quick Prayer/Curse -> Pet Fusing/Enchanting -> PK Ratings, then remaining minigames/assets/settings/social surfaces by dependency demand.
 
 Completed high-value P0 packages now include the exact v308 worn staff-rank
 overhead gate, combat-facing contracts, prayer/magic presentation, Make-over
