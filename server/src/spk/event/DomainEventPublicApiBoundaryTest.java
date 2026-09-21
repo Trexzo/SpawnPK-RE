@@ -131,7 +131,8 @@ public final class DomainEventPublicApiBoundaryTest {
             "opcodeIdentity=false "+
             "widgetIdentity=false "+
             "sceneIndex=false "+
-            "playerIndex=false"
+            "playerIndex=false "+
+            "inventorySlotIdentity=false"
         );
     }
 
@@ -150,12 +151,26 @@ public final class DomainEventPublicApiBoundaryTest {
            lower.contains("sceneindex")||
            lower.contains("playerindex")||
            lower.contains("protocolindex")||
+           exposesRawInventorySlotIdentity(lower)||
            lower.contains("isaac")||
            lower.contains("socket"))
             violations.add(
                 location+
                 " exposes raw transport/presentation identity"
             );
+    }
+
+    private static boolean exposesRawInventorySlotIdentity(
+        String lower
+    ){
+        return "slot".equals(lower)||
+            "inventoryslot".equals(lower)||
+            "containerslot".equals(lower)||
+            "itemslot".equals(lower)||
+            "selectedslot".equals(lower)||
+            "targetslot".equals(lower)||
+            "sourceslot".equals(lower)||
+            "destinationslot".equals(lower);
     }
 
     private static void inspect(
