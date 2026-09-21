@@ -1,0 +1,71 @@
+name: Chat4 R13 Current-Main Server Artifact
+
+on:
+  push:
+    branches:
+      - research/chat4-r13-gui-acceptance
+
+permissions:
+  contents: read
+
+jobs:
+  build-server:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Build current-main LocalLab server
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd server
+          chmod +x gradlew
+          ./gradlew --no-daemon clean jar verifyJava11Bytecode
+          test -s build/SpawnPKLocalServer.jar
+          sha256sum build/SpawnPKLocalServer.jar | tee ../chat4-r13-server-sha256.txt
+
+      - name: Loopback smoke test
+        shell: bash
+        run: |
+          set -euo pipefail
+          java -jar server/build/SpawnPKLocalServer.jar --bootstrap --movement > chat4-r13-server.log 2>&1 &
+          pid=$!
+          trap 'kill "$pid" 2>/dev/null || true' EXIT
+
+          ready=0
+          for i in $(seq 1 60); do
+            if (echo > /dev/tcp/127.0.0.1/43594) 2>/dev/null; then
+              ready=1
+              break
+            fi
+            sleep 0.25
+          done
+          test "$ready" = 1
+
+          body=$(curl -fsS --max-time 3 http://127.0.0.1:43595/spk_live/versions.txt)
+          printf '%s\n' "$body" | tee chat4-r13-versions.txt
+          grep -F 'cache_version' chat4-r13-versions.txt
+          grep -F 'sprite_version' chat4-r13-versions.txt
+          grep -F 'config_version' chat4-r13-versions.txt
+
+          grep -F 'GAME  : /127.0.0.1:43594' chat4-r13-server.log
+          grep -F 'AUX   : /127.0.0.1:43595' chat4-r13-server.log
+          echo 'R13_CURRENT_MAIN_SERVER_LOOPBACK_PASS'
+
+      - name: Upload current-main server
+        uses: actions/upload-artifact@v4
+        with:
+          name: chat4-r13-current-main-server
+          path: |
+            server/build/SpawnPKLocalServer.jar
+            chat4-r13-server-sha256.txt
+            chat4-r13-server.log
+            chat4-r13-versions.txt
+          if-no-files-found: error
+          retention-days: 7
