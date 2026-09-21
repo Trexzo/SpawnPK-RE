@@ -9,15 +9,15 @@ public final class ContentRegistrarAuthorityCoverageTest {
         Collections.unmodifiableSet(
             new TreeSet<>(
                 Arrays.asList(
-                    "command(String,int,ContentCommandHandler)->ContentRegistration",
-                    "itemOnGroundItem(int,int,int,ContentItemOnGroundItemHandler)->ContentRegistration",
-                    "itemOnItem(int,int,int,ContentItemOnItemHandler)->ContentRegistration",
-                    "itemOnNpc(int,int,int,ContentItemOnNpcHandler)->ContentRegistration",
-                    "itemOnObject(int,int,int,ContentItemOnObjectHandler)->ContentRegistration",
-                    "itemOnPlayer(int,int,ContentItemOnPlayerHandler)->ContentRegistration",
-                    "itemOption(int,int,int,ContentItemOptionHandler)->ContentRegistration",
-                    "npcOption(int,int,int,ContentNpcOptionHandler)->ContentRegistration",
-                    "objectOption(int,int,int,ContentObjectOptionHandler)->ContentRegistration"
+                    "command(java.lang.String,int,spk.content.api.ContentCommandHandler)->spk.content.api.ContentRegistration",
+                    "itemOnGroundItem(int,int,int,spk.content.api.ContentItemOnGroundItemHandler)->spk.content.api.ContentRegistration",
+                    "itemOnItem(int,int,int,spk.content.api.ContentItemOnItemHandler)->spk.content.api.ContentRegistration",
+                    "itemOnNpc(int,int,int,spk.content.api.ContentItemOnNpcHandler)->spk.content.api.ContentRegistration",
+                    "itemOnObject(int,int,int,spk.content.api.ContentItemOnObjectHandler)->spk.content.api.ContentRegistration",
+                    "itemOnPlayer(int,int,spk.content.api.ContentItemOnPlayerHandler)->spk.content.api.ContentRegistration",
+                    "itemOption(int,int,int,spk.content.api.ContentItemOptionHandler)->spk.content.api.ContentRegistration",
+                    "npcOption(int,int,int,spk.content.api.ContentNpcOptionHandler)->spk.content.api.ContentRegistration",
+                    "objectOption(int,int,int,spk.content.api.ContentObjectOptionHandler)->spk.content.api.ContentRegistration"
                 )
             )
         );
@@ -123,14 +123,14 @@ public final class ContentRegistrarAuthorityCoverageTest {
                 result.append(',');
 
             result.append(
-                parameters[i].getSimpleName()
+                parameters[i].getName()
             );
         }
 
         result.append(")->");
         result.append(
             method.getReturnType()
-                .getSimpleName()
+                .getName()
         );
 
         return result.toString();
