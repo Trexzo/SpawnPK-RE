@@ -19,6 +19,7 @@ public final class ContentProvenanceAuthorityBoundaryTest {
             "customObject=CUSTOM_LOCALLAB "+
             "customItem=CUSTOM_LOCALLAB "+
             "customItemOnNpc=CUSTOM_LOCALLAB "+
+            "customItemOnObject=CUSTOM_LOCALLAB "+
             "customNpc=CUSTOM_LOCALLAB "+
             "trustedRuntimeProven=true"
         );
@@ -154,6 +155,17 @@ public final class ContentProvenanceAuthorityBoundaryTest {
                                         )
                             );
 
+                            registrar.itemOnObject(
+                                65_434,
+                                54_322,
+                                321,
+                                context->
+                                    ContentInteractionResult
+                                        .handled(
+                                            "CUSTOM_ONLY"
+                                        )
+                            );
+
                             registrar.npcOption(
                                 12_345,
                                 4,
@@ -203,6 +215,16 @@ public final class ContentProvenanceAuthorityBoundaryTest {
                     .itemOnNpcBinding(
                         65_433,
                         12_346
+                    ),
+                misleadingModuleId
+            );
+
+            assertCustom(
+                "itemOnObject",
+                world.content()
+                    .itemOnObjectBinding(
+                        65_434,
+                        54_322
                     ),
                 misleadingModuleId
             );
