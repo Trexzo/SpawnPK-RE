@@ -1,0 +1,66 @@
+name: Chat3 Issue311 Item On Player Validation
+
+on:
+  push:
+    branches:
+      - content/issue-311-item-on-player-registration-chat3
+  pull_request:
+    branches:
+      - content/issue-309-item-on-object-registration-chat3
+
+jobs:
+  build-artifact:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+      - name: Build server and focused test classes
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash server/gradlew --no-daemon clean jar testClasses verifyJava11Bytecode
+          mkdir -p ci-artifact/test
+          cp server/build/SpawnPKLocalServer.jar ci-artifact/
+          cp -R server/build/classes/java/test/. ci-artifact/test/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: issue311-java
+          path: ci-artifact
+          if-no-files-found: error
+
+  windows-focused:
+    needs: build-artifact
+    runs-on: windows-latest
+    steps:
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: actions/download-artifact@v4
+        with:
+          name: issue311-java
+          path: ci-artifact
+      - name: Focused content API regressions
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $cp = 'ci-artifact/SpawnPKLocalServer.jar;ci-artifact/test'
+          $tests = @(
+            'ContentItemOnPlayerRegistrationTest',
+            'ContentItemOnObjectRegistrationTest',
+            'ContentItemOnNpcRegistrationTest',
+            'ContentItemOptionRegistrationTest',
+            'ContentPublicApiBoundaryTest',
+            'ContentRegistrationLifecycleTest',
+            'ContentProvenanceAuthorityBoundaryTest'
+          )
+          foreach ($t in $tests) {
+            Write-Host "[ISSUE311] $t"
+            & java -cp $cp "spk.local.$t"
+            if ($LASTEXITCODE -ne 0) { throw "Issue 311 regression failed: $t" }
+          }
+          Write-Host "CHAT3_ISSUE311_ITEM_ON_PLAYER_PASS tests=$($tests.Count)"
