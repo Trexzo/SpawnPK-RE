@@ -5,6 +5,15 @@ import java.util.*;
 import spk.content.api.*;
 
 public final class ContentRegistrarAuthorityCoverageTest {
+    public interface InheritedRegistrarExtension {
+        ContentRegistration inheritedAuthorityProbe(int marker);
+    }
+
+    public interface InheritedRegistrarChild
+        extends ContentRegistrar,
+                InheritedRegistrarExtension {
+    }
+
     private static final Set<String> EXPECTED=
         Collections.unmodifiableSet(
             new TreeSet<>(
@@ -43,6 +52,55 @@ public final class ContentRegistrarAuthorityCoverageTest {
             );
 
         TreeSet<String> actual=
+            registrarSignatures(
+                registrar,
+                violations
+            );
+
+        if(!actual.equals(EXPECTED)){
+            TreeSet<String> missing=
+                new TreeSet<>(EXPECTED);
+            missing.removeAll(actual);
+
+            TreeSet<String> unexpected=
+                new TreeSet<>(actual);
+            unexpected.removeAll(EXPECTED);
+
+            violations.add(
+                "registrar authority coverage changed missing="+
+                missing+
+                " unexpected="+
+                unexpected+
+                " actual="+
+                actual
+            );
+        }
+
+        assertInheritedRegistrarExtensionDetected(
+            violations
+        );
+
+        if(!violations.isEmpty())
+            throw new AssertionError(
+                "content registrar authority coverage violations="+
+                violations
+            );
+
+        System.out.println(
+            "CONTENT_REGISTRAR_AUTHORITY_COVERAGE_PASS "+
+            "methods="+EXPECTED.size()+" "+
+            "returnsRegistration=true "+
+            "failClosed=true "+
+            "inheritedSurface=true "+
+            "fullyQualified=true"
+        );
+    }
+
+    private static TreeSet<String> registrarSignatures(
+        Class<?> registrar,
+        List<String> violations
+    ){
+        TreeSet<String> actual=
             new TreeSet<>();
 
         for(Method method:
@@ -71,37 +129,34 @@ public final class ContentRegistrarAuthorityCoverageTest {
             );
         }
 
-        if(!actual.equals(EXPECTED)){
-            TreeSet<String> missing=
-                new TreeSet<>(EXPECTED);
-            missing.removeAll(actual);
+        return actual;
+    }
 
-            TreeSet<String> unexpected=
-                new TreeSet<>(actual);
-            unexpected.removeAll(EXPECTED);
+    private static void assertInheritedRegistrarExtensionDetected(
+        List<String> violations
+    ){
+        ArrayList<String> syntheticViolations=
+            new ArrayList<>();
 
+        TreeSet<String> actual=
+            registrarSignatures(
+                InheritedRegistrarChild.class,
+                syntheticViolations
+            );
+
+        String inherited=
+            "inheritedAuthorityProbe(int)->"+
+            "spk.content.api.ContentRegistration";
+
+        if(!syntheticViolations.isEmpty()||
+           !actual.contains(inherited)||
+           actual.size()!=EXPECTED.size()+1)
             violations.add(
-                "registrar authority coverage changed missing="+
-                missing+
-                " unexpected="+
-                unexpected+
-                " actual="+
-                actual
+                "inherited registrar method escaped guard "+
+                "actual="+actual+
+                " syntheticViolations="+
+                syntheticViolations
             );
-        }
-
-        if(!violations.isEmpty())
-            throw new AssertionError(
-                "content registrar authority coverage violations="+
-                violations
-            );
-
-        System.out.println(
-            "CONTENT_REGISTRAR_AUTHORITY_COVERAGE_PASS "+
-            "methods="+EXPECTED.size()+" "+
-            "returnsRegistration=true "+
-            "failClosed=true"
-        );
     }
 
     private static String signature(
