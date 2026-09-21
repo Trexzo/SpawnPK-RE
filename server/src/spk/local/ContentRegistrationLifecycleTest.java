@@ -2,6 +2,7 @@ package spk.local;
 
 import java.io.ByteArrayOutputStream;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import spk.content.api.*;
 
@@ -553,7 +554,12 @@ public final class ContentRegistrationLifecycleTest {
 
         for(;;){
             try{
-                latch.await();
+                if(!latch.await(
+                        5,
+                        TimeUnit.SECONDS))
+                    throw new AssertionError(
+                        "registrar seal test latch timeout"
+                    );
                 break;
             }catch(InterruptedException error){
                 interrupted=true;
