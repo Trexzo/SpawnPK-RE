@@ -70,19 +70,23 @@ required.
 Current `main` contains exact encoder/publisher capability for:
 
 ```
+S2C27   open amount input
 S2C36   varp small update
 S2C53   full widget item-container update
 S2C65   NPC update
 S2C71   sidebar interface assignment
 S2C73   static region change
 S2C81   player update
+S2C87   varp large update
 S2C97   main interface open
 S2C106  selected sidebar tab
+S2C109  logout
 S2C110  run energy
 S2C126  widget text / SpawnPK control bus
 S2C134  skill update
 S2C164  chatbox interface open
 S2C208  walkable interface
+S2C219  close interfaces
 S2C248  main + sidebar interface open
 S2C249  local-session flag + player index
 ```
@@ -92,6 +96,9 @@ Primary sources:
 - `server/src/spk/local/BootstrapPackets.java`
 - `server/src/spk/local/LocalSessionBootstrapPublisher.java`
 - `server/src/spk/local/ApplicationBus126Publisher.java`
+- `server/src/spk/local/AuthorityR16R25Publisher.java`
+- `server/src/spk/local/BankState.java`
+- `server/src/spk/local/LocalSessionUiActionHandler.java`
 
 Several are actively used by bootstrap/runtime flows; others are exact reusable
 encoders available to semantic adapters.
@@ -116,12 +123,12 @@ subtype has been recovered or composed.
 The union above is:
 
 ```
-28 / 75 exact handled S2C families
+32 / 75 exact handled S2C families
 ```
 
 with concrete current-main publisher/encoder capability verified directly.
 
-This is a **lower bound**, not a claim that the other 47 are absent. Additional
+This is a **lower bound**, not a claim that the other 43 are absent. Additional
 emitters may exist in feature-specific classes and must be audited before a
 missing-publisher claim is made.
 
@@ -135,23 +142,20 @@ application/content work:
 ```
 8    widget static model
 24   flashing sidebar tab
-27   amount-input open
-34   partial item-container update
+34   partial item-container update   partial item-container update
 68   reset varps to defaults
 70   widget position
 72   clear widget item slots
 75   widget NPC model
 79   widget scroll position
-87   large varp update
-122  widget color
+122  widget color  widget color
 142  sidebar-overlay open
 171  widget visibility
 185  widget local-player model
 187  name-input open
 200  widget animation
 218  dialog/chat-area root
-219  close interfaces
-230  widget model rotation/zoom
+230  widget model rotation/zoom  widget model rotation/zoom
 246  widget item model
 ```
 
@@ -177,8 +181,7 @@ application/content work:
 78   destination reset
 99   minimap state
 107  camera reset
-109  logout
-114  system-update timer
+114  system-update timer  system-update timer
 121  queued music
 166  forced camera position
 176  welcome/login metadata
