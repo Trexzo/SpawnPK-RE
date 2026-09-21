@@ -4,7 +4,9 @@
 
 Local/offline reconstruction and research environment for the current SpawnPK client.
 
-> **Presentation note:** the console theme, status copy, meme lines and artwork in this repository are deliberately `CUSTOM_LOCALLAB`. They are not recovered SpawnPK server/client authority.
+> Serious about provenance. Slightly less serious about the README.
+>
+> Meme artwork and jokes are **`CUSTOM_LOCALLAB` only** — none of them are evidence of recovered SpawnPK behavior.
 
 ## Baseline
 
@@ -13,19 +15,19 @@ Local/offline reconstruction and research environment for the current SpawnPK cl
 - pinned client SHA-256: `6232bae206846a4ba8d09766a2dee886b69016066a3f50f83b201bf705f93662`
 - R8.5 regression contract: `179/179`
 
-## Workbench presentation
+## Totally serious lab status
 
-The repository front door now uses a small shared PowerShell presentation layer:
-
-- consistent LocalLab headers and status rows;
-- clearer launch/bootstrap/runtime-import progress;
-- dedicated server-window title and banner;
-- a few intentionally low-noise meme lines such as **BING QILING** and **PACKET GREMLINS**;
-- original SVG artwork that stays separate from exact client/cache evidence.
+| System | Status |
+| --- | --- |
+| Client archaeology | receipts being collected |
+| Packet gremlins | under observation |
+| Regression contract | **179/179 or we are cooked** |
+| Bing Qiling | **acquired** 🍦 |
+| Authority discipline | no meme escapes `CUSTOM_LOCALLAB` |
 
 ![Bing Qiling LocalLab meme card](assets/bing-qiling.svg)
 
-The jokes never change authority, protocol, gameplay, cache, client or regression semantics.
+> **BING QILING MODE:** localhost ice cream secured. Continue the archaeology.
 
 ## Existing developer quick start
 
@@ -35,6 +37,8 @@ Set-ExecutionPolicy -Scope Process Bypass -Force
 .\BOOTSTRAP.ps1
 .\RUN_LOCAL_LAB.ps1
 ```
+
+If the regression suite starts screaming, the ice cream does not count as a fix.
 
 ## New collaborator
 
@@ -53,6 +57,8 @@ Client binaries, account state and local cache/config files are intentionally no
 7. CUSTOM_LOCALLAB
 
 See `docs/AUTHORITY_MODEL.md`.
+
+**Rule of the lab:** funny names are allowed; silently upgrading an inference into server authority is not.
 
 ## Known R8.5 follow-ups
 
