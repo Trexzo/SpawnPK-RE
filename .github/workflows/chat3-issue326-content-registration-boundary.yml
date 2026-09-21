@@ -1,0 +1,26 @@
+name: Chat3 Issue326 ContentRegistration Boundary
+
+on:
+  push:
+    branches:
+      - test/issue-326-content-registration-boundary-chat3
+
+jobs:
+  focused:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Compile and run content boundary regression
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          .\server\gradlew.bat --no-daemon clean jar testClasses verifyJava11Bytecode
+          if ($LASTEXITCODE -ne 0) { throw 'Gradle compile failed' }
+          $cp = 'server/build/SpawnPKLocalServer.jar;server/build/classes/java/test'
+          & java -cp $cp spk.local.ContentPublicApiBoundaryTest
+          if ($LASTEXITCODE -ne 0) { throw 'ContentPublicApiBoundaryTest failed' }
+          Write-Host 'CHAT3_ISSUE326_CONTENT_REGISTRATION_BOUNDARY_PASS'
