@@ -8,6 +8,12 @@ import java.util.concurrent.atomic.AtomicLong;
  * (for example the pet egress/follow reaction). Gameplay timers should use WorldEventQueue.
  */
 final class WorldRealtimeQueue implements AutoCloseable {
+    interface Ownership {
+        boolean owns(
+            WorldPlayer player,
+            long generation
+        );
+    }
     private static final class E implements Comparable<E>{
         final long at,seq; final WorldPlayer owner; final long generation; final Runnable task;
         E(long at,long seq,WorldPlayer owner,long generation,Runnable task){this.at=at;this.seq=seq;this.owner=owner;this.generation=generation;this.task=task;}
@@ -15,7 +21,23 @@ final class WorldRealtimeQueue implements AutoCloseable {
     }
     private final PriorityQueue<E> q=new PriorityQueue<>();
     private final AtomicLong seq=new AtomicLong();
+    private final Ownership ownership;
     private boolean closed;
+
+    WorldRealtimeQueue(){
+        this(
+            (player,generation)->
+                player.accepts(generation)
+        );
+    }
+
+    WorldRealtimeQueue(Ownership ownership){
+        this.ownership=
+            Objects.requireNonNull(
+                ownership,
+                "ownership"
+            );
+    }
 
     void schedule(
         long atMillis,
@@ -32,6 +54,15 @@ final class WorldRealtimeQueue implements AutoCloseable {
             if(!owner.accepts(generation))
                 throw new IllegalStateException(
                     "realtime owner not registered: "+
+                    owner.id()
+                );
+
+            if(!ownership.owns(
+                    owner,
+                    generation
+                ))
+                throw new IllegalStateException(
+                    "realtime owner not owned by world: "+
                     owner.id()
                 );
 
@@ -54,7 +85,48 @@ final class WorldRealtimeQueue implements AutoCloseable {
             }
         }
     }
-    int runDue(long nowMillis){int n=0;for(;;){E e;synchronized(this){if(closed)return n;e=q.peek();if(e==null||e.at>nowMillis)return n;q.remove();}if(e.owner.accepts(e.generation)){try{synchronized(e.owner.mutationLock()){if(e.owner.accepts(e.generation))e.task.run();}}catch(Throwable t){System.err.println("[world-realtime] task failed owner="+e.owner.id()+" error="+t);}}n++;}}
+    int runDue(long nowMillis){
+        int n=0;
+
+        for(;;){
+            E e;
+
+            synchronized(this){
+                if(closed)return n;
+                e=q.peek();
+                if(e==null||e.at>nowMillis)
+                    return n;
+                q.remove();
+            }
+
+            if(e.owner.accepts(e.generation)&&
+               ownership.owns(
+                   e.owner,
+                   e.generation
+               )){
+                try{
+                    synchronized(e.owner.mutationLock()){
+                        if(e.owner.accepts(
+                                e.generation
+                            )&&
+                           ownership.owns(
+                                e.owner,
+                                e.generation
+                            ))
+                            e.task.run();
+                    }
+                }catch(Throwable t){
+                    System.err.println(
+                        "[world-realtime] task failed owner="+
+                        e.owner.id()+
+                        " error="+t
+                    );
+                }
+            }
+
+            n++;
+        }
+    }
     synchronized int cancelPlayer(WorldPlayer player){int n=0;for(Iterator<E>it=q.iterator();it.hasNext();){if(it.next().owner.id().equals(player.id())){it.remove();n++;}}return n;}
     synchronized long nextDueMillis(){E e=q.peek();return e==null?Long.MAX_VALUE:e.at;}
     synchronized int size(){return q.size();}
