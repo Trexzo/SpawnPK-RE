@@ -1,0 +1,132 @@
+Exact-current SpawnPK client v308
+SHA-256 854f26ff9f134b0317572e7ac1688e6f40a231d5a4c66f8db5d655b7f45ce7c6
+Main-Class rs.gui.Launcher
+
+Static audit target
+- rs.Client.o()
+- rs.a.k.a(rs.x.e)
+- rs.x.e.B()
+- rs.l.h.b(int)
+- rs.l.j static icon-animation/remap table
+
+1. WORN HEAD ITEM GATES NATIVE STAFF OVERHEAD BADGES
+
+Exact rs.Client.o() bytecode semantics:
+
+headItem = player.br[0] - 512
+
+23481 Mod partyhat:
+    fE[ rs.l.h.b(0) ]
+
+22131 Admin partyhat
+22132 Owner partyhat
+23480 Support partyhat
+23482 Super mod partyhat
+23483 Grand mod partyhat:
+    icon = rs.l.h.b(player.aC)
+    if (icon > 0)
+        fE[icon]
+
+22133 Wealthy partyhat:
+    fE[ rs.l.h.b(31) ]
+
+22130 Tevins partyhat:
+    fE[ rs.l.h.b(19) ]
+
+Representative exact javap excerpt:
+
+4243: aload player
+4245: getfield rs/a/k.br:[I
+4248: iconst_0
+4249: iaload
+4250: sipush 512
+4253: isub
+4254: sipush 23481
+4257: if_icmpne 4301
+4260: getstatic fE:[Lrs/l/F;
+4263: iconst_0
+4264: invokestatic rs/l/h.b:(I)I
+4267: aaload
+
+4301..4383 tests br[0]-512 against:
+22131, 22132, 23480, 23482, 23483
+
+4386: aload player
+4388: getfield rs/a/k.aC:I
+4391: invokestatic rs/l/h.b:(I)I
+4394: ifle 4442
+4397: getstatic fE:[Lrs/l/F;
+4400: aload player
+4402: getfield rs/a/k.aC:I
+4405: invokestatic rs/l/h.b:(I)I
+4408: aaload
+
+4442..4467:
+br[0]-512 == 22133 -> fE[rs.l.h.b(31)]
+
+4501..4526:
+br[0]-512 == 22130 -> fE[rs.l.h.b(19)]
+
+2. aC IS SERVER-PUBLISHED PLAYER STATE
+
+Exact rs.a.k.a(rs.x.e) appearance parser begins:
+
+aY = y()    // u8
+bd = y()    // u8
+bf = y()    // u8
+bg = y()    // u8
+bh = y()    // u8
+aC = B()    // signed big-endian 16-bit
+then br[12] appearance entries
+
+rs.x.e.B() is signed BE16:
+    value = ((byte0 & 255) << 8) + (byte1 & 255)
+    if value > 32767: value -= 65536
+
+The rs.a.k class has one direct aC write: this appearance parser.
+rs.Client also updates player.aC while decoding the public-chat player mask,
+so aC is client-visible privilege/rank-like player state rather than an item id.
+
+3. rs.l.h.b(int) IS AN ICON INDEX REMAP/ANIMATION LOOKUP
+
+Exact behavior:
+
+if (rs.l.j.b contains key)
+    return ((rs.l.a.a)rs.l.j.b.get(key)).b()
+return key
+
+The exact v308 static table contains animated/remapped keys including:
+21, 32, 45, 291, 333, 340, 344, 348, 352, 356.
+
+Therefore constants 0, 19 and 31 are identity lookups in the static table,
+while aC values can optionally resolve through the native mapping table.
+
+4. STRUCTURAL SEPARATION FROM bs OVERRIDE
+
+The overhead badge branch reads:
+    player.br[0]   ordinary HEAD appearance component
+    player.aC      privilege/rank-like state
+
+It does not read:
+    player.bs      optional extra wearable-model appearance item
+
+Therefore:
+- wearing a staff partyhat can activate the native fE[] badge branch;
+- publishing that partyhat only through bs does not satisfy the HEAD gate;
+- bs remains the separate 13th wearable-model channel proven in the sibling
+  exact_client_bs_and_c2s16.txt evidence.
+
+5. CURRENT LOCALLAB GAP
+
+Current main BootstrapPackets.appearanceBlock(...) serializes:
+
+    putU16(b, 0); // signed-short role aC; zero is safe in the parser
+
+So LocalLab currently has the exact wire position but no semantic rank/privilege
+state feeding aC. That is a server/domain implementation gap, not a client
+research gap.
+
+UNKNOWN_SERVER_AUTHORITY remains:
+- the original SpawnPK named-rank -> aC numeric assignment table;
+- production permission/persistence rules for rank state;
+- whether any non-client server policy changed the worn-partyhat behavior.
