@@ -7,6 +7,7 @@ import java.util.concurrent.*;
 
 public final class VoidglassRuntimeIntegrationTest {
     static Object field(Object o,String n)throws Exception{Field f=o.getClass().getDeclaredField(n);f.setAccessible(true);return f.get(o);}
+    static void setField(Object o,String n,Object v)throws Exception{Field f=o.getClass().getDeclaredField(n);f.setAccessible(true);f.set(o,v);}
     static void enqueueCommand(ClientPacketProbe p,String c)throws Exception{
         ClientRequestQueue queue=(ClientRequestQueue)field(p,"typedRequests");
         if(!queue.offer(
@@ -35,7 +36,8 @@ public final class VoidglassRuntimeIntegrationTest {
         try(World world=World.isolatedForTest(600L)){
             LocalSession s=new LocalSession(new Socket(),true,true,world);
             WorldPlayer player=(WorldPlayer)field(s,"worldPlayer");
-            world.registerPlayer(player,"opensrc");
+            long generation=world.registerPlayer(player,"opensrc");
+            setField(s,"worldPlayerGeneration",generation);
             try{
                 MovementState movement=(MovementState)field(s,"movement");
                 PetState ps=(PetState)field(s,"petState");
