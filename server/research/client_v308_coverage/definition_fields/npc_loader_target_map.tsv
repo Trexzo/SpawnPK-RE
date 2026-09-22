@@ -1,0 +1,46 @@
+source_field	normalized_key	count	loader_path	target_fields	notes
+name	name	909	ACTIVE_SWITCH	o:Ljava/lang/String;	
+actions	actions	705	ACTIVE_SWITCH	p:[Ljava/lang/String;	
+models	models	583	ACTIVE_SWITCH	L:[I	
+standAnim	standanim	512	ACTIVE_SWITCH	w:I	
+walkAnim	walkanim	494	ACTIVE_SWITCH	q:I	
+combatLevel	combatlevel	476	ACTIVE_SWITCH	n:I	
+scaleHeight	scaleheight	453	ACTIVE_SWITCH	E:I	
+scaleWidth	scalewidth	449	ACTIVE_SWITCH	I:I	
+destColors	destcolors	368	ACTIVE_SWITCH	s:[I	
+srcColors	srccolors	368	ACTIVE_SWITCH	v:[I	
+size	size	308	ACTIVE_SWITCH	r:B	
+minimap	minimap	279	ACTIVE_SWITCH	F:Z	
+pet	pet	256	ACTIVE_SWITCH	h:Z,F:Z,K:Z	
+rotateAnim	rotateanim	241	ACTIVE_SWITCH	B:I,j:I,l:I	
+chatHeadModels	chatheadmodels	187	ACTIVE_SWITCH	t:[I	
+osrs	osrs	174	ACTIVE_SWITCH	af:Z	
+clone	clone	149	PREPASS_CLONE_CONTROL		ordinary switch no-op; clone handled before field loop
+ambient	ambient	115	ACTIVE_SWITCH	D:I	
+retextures	retextures	111	ACTIVE_SWITCH	i:Lrs/a/b/c;	
+priorityRender	priorityrender	86	ACTIVE_SWITCH	K:Z	
+contrast	contrast	82	ACTIVE_SWITCH	J:I	
+priority	priority	58	ACTIVE_SWITCH	K:Z	
+mapIcon	mapicon	52	ACTIVE_SWITCH	S:I	
+icon	icon	46	ACTIVE_SWITCH	T:I	
+tags	tags	33	NOOP_SWITCH		recognized but no NPC definition mutation
+rotateAnim180	rotateanim180	32	ACTIVE_SWITCH	l:I	
+rotateAnim90CCW	rotateanim90ccw	32	ACTIVE_SWITCH	j:I	
+rotateAnim90CW	rotateanim90cw	32	ACTIVE_SWITCH	B:I	
+recolors	recolors	28	ACTIVE_SWITCH	i:Lrs/a/b/c;	
+renderIdle	renderidle	24	ACTIVE_SWITCH	g:Z	
+rotationSpeed	rotationspeed	18	ACTIVE_SWITCH	y:I	
+clickable	clickable	14	ACTIVE_SWITCH	C:Z	
+iconX	iconx	6	ACTIVE_SWITCH	U:I	
+glow	glow	4	ACTIVE_SWITCH	aa:I,ac:I,ad:I,ab:I	
+scaling	scaling	4	ACTIVE_SWITCH	I:I,E:I	
+destcolors	destcolors	3	ACTIVE_SWITCH	s:[I	
+headIcon	headicon	3	ACTIVE_SWITCH	u:I	
+opacity	opacity	2	ACTIVE_SWITCH	i:Lrs/a/b/c;	
+reshade	reshade	2	ACTIVE_SWITCH	i:Lrs/a/b/c;	
+anInt57	anint57	1	ACTIVE_SWITCH	k:I	
+healthBarColor	healthbarcolor	1	ACTIVE_SWITCH	P:B	blue/yellow mapping branch
+iconY	icony	1	ACTIVE_SWITCH	V:I	
+iconZ	iconz	1	ACTIVE_SWITCH	W:I	
+offsets	offsets	1	UNKNOWN_CONFIG		falls through unknown-config branch
+rotateanim	rotateanim	1	ACTIVE_SWITCH	B:I,j:I,l:I	
