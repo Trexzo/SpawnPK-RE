@@ -20,6 +20,8 @@ public final class PluginWorldAdmissionFenceTest {
             new WorldPluginManager(
                 world.content(),
                 world.domainEvents(),
+                world.clock(),
+                world.events(),
                 worldOpen::get
             );
 
