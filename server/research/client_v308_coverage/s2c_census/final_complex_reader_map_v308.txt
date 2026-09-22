@@ -1,0 +1,59 @@
+Exact v308 final complex S2C reader map
+
+60 VARSHORT:
+  y localBaseY
+  O localBaseX
+  repeat until frame end:
+    y childOpcode
+    decode via Client.c(buffer,childOpcode)
+  accepted child opcodes: 4,44,84,101,105,117,147,151,156,160,215
+
+215 FIXED7:
+  T itemId
+  P packedLocalTile
+  T excludedPlayerIndex
+  A amount
+
+147 FIXED14:
+  P packedLocalTile
+  A playerIndex
+  R xOffsetA
+  S startDelayTicks
+  Q yOffsetA
+  A endDelayTicks
+  P shapeRotation
+  z xOffsetB
+  A objectDefinitionId
+  Q yOffsetB
+  shape=shapeRotation>>2, rotation=shapeRotation&3
+  active player model window [tick+startDelay, tick+endDelay)
+
+241 VARSHORT:
+  T regionY
+  bit access
+  4*13*13 cells:
+    1 presence bit
+    if 1 => 26-bit descriptor else -1
+  byte-align/end bit access
+  A regionX
+  descriptor sourceChunkX=(d>>14)&1023
+  descriptor sourceChunkY=(d>>3)&2047
+
+255 FIXED12:
+  A value
+  E popupEventId
+  A protectionType
+  value0 block-drop; value>0 hit-drop
+  protectionType 1 melee, 2 magic, other positive range
+
+Transforms:
+y raw u8
+A u16 BE
+E u64 BE
+O negated u8
+P 128-minus u8
+Q signed negated byte
+R signed 128-minus byte
+S u16 LE
+T u16 BE low-byte Add128 inverse
+z raw signed byte
