@@ -7,7 +7,7 @@ authority would unblock Chat 2/3 without inventing server mechanics.
 |---|---|---|---|---|---|
 | P0 | C2S/S2C packet writer/reader census | exact v308 C2S census: 188 writer sites / 86 opcodes / 86 framed; 51 semantically decoded in main, 20 control/telemetry, 11 exact-research semantics not yet current-main, 4 serializer-only semantic unknowns | STRONG-PARTIAL | C2S framing is closed; in-JAR C2S classification closed; keep serializer-only 2/6/78/109 explicit unknowns, then continue S2C reader census | Chat 2 |
 | P0 | Combat-facing client contracts | exact 854f attack writers, packet-81 player masks, packet-65 NPC masks, combat-interface roots/style labels | STRONG-PARTIAL | core client transport/presentation package closed; authoritative formulas/timing/spec/death rules remain `UNKNOWN_SERVER_AUTHORITY` | Chat 3 |
-| P0 | Prayer + magic presentation | exact 854f C2S185 prayer/direct widgets, local-only spell selection, five target writer families, prayer `bd` headicon channel, 51 prayer/126 spell client census | STRONG-PARTIAL | client-facing contract packaged; drain/formulas/secondary effects/consumption remain `UNKNOWN_SERVER_AUTHORITY` | Chat 3 |
+| P0 | Prayer + magic presentation | exact 854f C2S185 prayer/direct widgets, local-only spell selection, five target writer families, prayer `bd` headicon channel, 51 prayer/126 spell client census; quick roots `20000/22000`, 29 prayer + 20 curse selections, config projection, confirm/orb actions now closed | STRONG-PARTIAL | quick-selection client contract is ready for Chat 3; prayer drain/formulas/secondary effects/consumption and original quick-set persistence policy remain `UNKNOWN_SERVER_AUTHORITY` | Chat 3 |
 | P0 | Appearance + equipment + ranks/icons | exact v308 worn HEAD→`fE[rs.l.h.b(aC)]` staff-rank gate, packet-81 `aC` + `bs` fields, Override/C2S16, native icon family | STRONG-PARTIAL | client presentation contract closed; LocalLab currently publishes `aC=0`; original named-rank→numeric-`aC` and production Override policy remain `UNKNOWN_SERVER_AUTHORITY` | Chat 3 |
 | P0 | Make-over Mage / character design | exact v308 C2S40/C2S101, roots 4882/2459/3559, exact kit/colour domain | PARTIAL-CLOSED-CONTRACT | server fee/restrictions/persistence policy unknown; native designer cannot preload persisted appearance from packet 81 | Chat 3 |
 | P1 | Dialogues / chatbox state machines | exact v308 option roots `2459/2469/2480/2492/14170`, Continue roots `4882/4887/4893/4900/30700`, mouse C2S40/C2S185 and keyboard `dialogueoption N`/C2S40(4907) | STRONG-PARTIAL | core standard input state machine closed; normalize remaining player/item/statement roots and close/cancel presentation families | Chat 2/3 |
@@ -44,7 +44,7 @@ authority would unblock Chat 2/3 without inventing server mechanics.
    - keep server mechanics unknown unless separately proven.
 4. **Teleports / UI navigation**
    - close exact roots/buttons/configs and client-visible destination semantics.
-5. Continue Issue #427 application contracts: Quick Prayer/Curse -> Pet Fusing/Enchanting -> PK Ratings -> Event Chest/Well/Looting Bag, then remaining minigames/assets/settings/social surfaces by dependency demand.
+5. Continue Issue #427 application contracts: Pet Fusing/Enchanting -> PK Ratings -> Event Chest/Well/Looting Bag -> Boss Teleportation, then remaining minigames/assets/settings/social surfaces by dependency demand.
 
 Completed high-value P0 packages now include the exact v308 worn staff-rank
 overhead gate, combat-facing contracts, prayer/magic presentation, Make-over
