@@ -72,12 +72,83 @@ final class Player81WorldSync {
     }
 
     /** Last packet81 presentation event from sourceId consumed by this viewer. */
-    static synchronized long consumedEventSequence(ServerPacketWriter viewerWriter,EntityId sourceId){
-        Context c=BY_WRITER.get(viewerWriter);
-        if(c==null||!c.ownerCurrent()||sourceId==null)return -1L;
-        if(sourceId.equals(c.owner.id()))return Long.MAX_VALUE;
-        Track t=c.visible.get(sourceId);
-        return t==null?-1L:t.lastEventSeq;
+    static synchronized long consumedEventSequence(
+        ServerPacketWriter viewerWriter,
+        EntityId sourceId
+    ){
+        Context viewer=
+            BY_WRITER.get(viewerWriter);
+
+        if(viewer==null||
+           !viewer.ownerCurrent()||
+           sourceId==null)
+            return -1L;
+
+        if(sourceId.equals(
+                viewer.owner.id()))
+            return Long.MAX_VALUE;
+
+        Track track=
+            viewer.visible.get(sourceId);
+
+        return track==null
+            ?-1L
+            :track.lastEventSeq;
+    }
+
+    static synchronized long consumedEventSequence(
+        ServerPacketWriter viewerWriter,
+        EntityId sourceId,
+        long expectedSourceGeneration
+    ){
+        Context viewer=
+            BY_WRITER.get(viewerWriter);
+
+        if(viewer==null||
+           !viewer.ownerCurrent()||
+           sourceId==null)
+            return -1L;
+
+        if(sourceId.equals(
+                viewer.owner.id()))
+            return viewer.ownerGeneration==
+                    expectedSourceGeneration
+                ?Long.MAX_VALUE
+                :-1L;
+
+        Track track=
+            viewer.visible.get(sourceId);
+
+        if(track==null||
+           track.generation!=
+                expectedSourceGeneration)
+            return -1L;
+
+        Context source=
+            viewer.state.contexts.get(
+                sourceId
+            );
+
+        if(source==null||
+           source.ownerGeneration!=
+                expectedSourceGeneration||
+           !source.ownerCurrent())
+            return -1L;
+
+        WorldPlayer current=
+            viewer.state.world.players()
+                .byId(sourceId);
+
+        if(current==null||
+           current!=source.owner||
+           !viewer.state.world.players()
+                .owns(
+                    current,
+                    expectedSourceGeneration
+                ))
+            return -1L;
+
+        return track.lastEventSeq;
     }
 
     static synchronized boolean sendSkillUpdate(
