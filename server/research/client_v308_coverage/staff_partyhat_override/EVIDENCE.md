@@ -103,6 +103,75 @@ aC = B()   // signed BE16
 from its player public-chat mask path, reinforcing that this is client-visible
 privilege/rank-like player state rather than an item id.
 
+### Negative authority — login privilege is not the `aC` mapping table
+
+A deeper exact-v308 trace closes an important ambiguity.
+
+The local client's session privilege code:
+
+~~~
+rs.Client.cT
+~~~
+
+is read directly from the successful **login response** after login result code 2.
+
+That value is consumed by client-side privilege predicates such as:
+
+~~~
+rs.l.j.b(cT)
+rs.l.j.c(cT)
+~~~
+
+for staff/dev client features.
+
+By contrast, each player's overhead/icon role field:
+
+~~~
+rs.a.k.aC
+~~~
+
+is independently populated from:
+
+1. the packet-81 appearance block via signed BE16 `B()`; and
+2. player public-chat/update metadata in the live player-update path.
+
+No exact-v308 path was found that copies `cT` into local-player `aC`.
+
+Therefore these are separate exact client channels:
+
+~~~
+login privilege cT
+!=
+per-player appearance/chat role aC
+~~~
+
+The `rs.l.j` rank/icon registry is also numeric-only. Exact static entries include
+mapped keys such as:
+
+~~~
+21, 32, 45, 291, 333, 340, 344, 348, 352, 356
+~~~
+
+and privilege predicates contain numeric sets such as:
+
+~~~
+rs.l.j.b(int): 2, 204, 26, 205
+rs.l.j.c(int): 205, 333, 344, 340, 348
+~~~
+
+The registry does not bind those numeric values to the named staff-partyhat labels
+`Admin`, `Owner`, `Support`, `Super mod`, or `Grand mod`.
+
+A narrowed constant/string scan of the rank/icon classes likewise found no such
+named-role mapping table.
+
+This strengthens the authority boundary:
+
+> the exact client proves how a numeric `aC` is rendered, but does not prove the
+> production server's named SpawnPK rank -> numeric `aC` assignment.
+
+Do not derive that table from `cT`, partyhat item IDs, or the numeric icon registry.
+
 ### Current LocalLab publication gap
 
 Current `BootstrapPackets.appearanceBlock(...)` already occupies the exact
