@@ -123,11 +123,12 @@ final class CombatLevelService {
         final BaseLevels levels;
 
         /*
-         * CombatSkillProgressionService's state reads are synchronized on the
-         * progression object. Hold that same monitor across all seven reads so
-         * one calculation sees one coherent XP/base-level moment.
+         * CombatSkillProgressionService is bound to WorldPlayer ownership.
+         * Hold that same player mutation lock across all seven reads so one
+         * calculation sees one coherent XP/base-level moment. The caller-owned
+         * formula still executes only after this lock is released.
          */
-        synchronized (progression) {
+        synchronized (progression.mutationLock()) {
             levels =
                 new BaseLevels(
                     baseLevel(
