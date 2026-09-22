@@ -1,6 +1,7 @@
 package spk.local;
 
 import java.io.IOException;
+import java.util.function.LongSupplier;
 
 /**
  * Active player Follow / Attack / Trade coordinator.
@@ -14,6 +15,7 @@ final class LocalPlayerInteractionHandler {
     private final MovementState movement;
     private final EquipmentState equipment;
     private final CombatStyleState combatStyles;
+    private final LongSupplier ownerGeneration;
     private final PlayerCombatResolutionService pvpCombat;
 
     private EntityId activeFollow;
@@ -32,12 +34,31 @@ final class LocalPlayerInteractionHandler {
             owner,
             movement,
             equipment,
+            owner==null
+                ?()->0L
+                :owner::generation
+        );
+    }
+
+    LocalPlayerInteractionHandler(
+        World world,
+        WorldPlayer owner,
+        MovementState movement,
+        EquipmentState equipment,
+        LongSupplier ownerGeneration
+    ){
+        this(
+            world,
+            owner,
+            movement,
+            equipment,
             owner==null?null:owner.combatStyles(),
             CombatDamageRules.localLabFallback(),
             CombatAttackTimingRules.recoveredCompatibility(),
             owner==null
                 ?CombatSystemHooks.none()
-                :CombatSystemHooks.forPlayer(owner)
+                :CombatSystemHooks.forPlayer(owner),
+            ownerGeneration
         );
     }
 
@@ -51,6 +72,32 @@ final class LocalPlayerInteractionHandler {
         CombatAttackTimingRules timingRules,
         CombatSystemHooks systemHooks
     ){
+        this(
+            world,
+            owner,
+            movement,
+            equipment,
+            combatStyles,
+            damageRules,
+            timingRules,
+            systemHooks,
+            owner==null
+                ?()->0L
+                :owner::generation
+        );
+    }
+
+    LocalPlayerInteractionHandler(
+        World world,
+        WorldPlayer owner,
+        MovementState movement,
+        EquipmentState equipment,
+        CombatStyleState combatStyles,
+        CombatDamageRules damageRules,
+        CombatAttackTimingRules timingRules,
+        CombatSystemHooks systemHooks,
+        LongSupplier ownerGeneration
+    ){
         this.world=java.util.Objects.requireNonNull(world,"world");
         this.owner=java.util.Objects.requireNonNull(owner,"owner");
         this.movement=java.util.Objects.requireNonNull(movement,"movement");
@@ -59,6 +106,11 @@ final class LocalPlayerInteractionHandler {
             combatStyles,
             "combatStyles"
         );
+        this.ownerGeneration=
+            java.util.Objects.requireNonNull(
+                ownerGeneration,
+                "ownerGeneration"
+            );
         this.pvpCombat=
             new PlayerCombatResolutionService(
                 owner,
@@ -398,12 +450,25 @@ final class LocalPlayerInteractionHandler {
             resolution=
                 pvpCombat.resolveImmediateOwned(
                     world,
+                    ownerGeneration.getAsLong(),
                     target,
                     targetGeneration,
                     equipment.weapon(),
                     style,
                     worldTick
                 );
+        }catch(
+            PlayerCombatResolutionService
+                .StaleAttackerOwnershipException stale
+        ){
+            activeAttack=null;
+            nextAttackTick=0;
+            movement.clearQueuedPath();
+
+            return "V5131_PLAYER_ATTACK_CANCELLED reason=ATTACKER_OWNERSHIP_CHANGED"+
+                " expectedGeneration="+
+                stale.expectedGeneration+
+                " worldTick="+worldTick;
         }catch(
             PlayerCombatResolutionService
                 .StaleTargetOwnershipException stale
