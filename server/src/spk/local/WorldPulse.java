@@ -108,12 +108,18 @@ final class WorldPulse implements AutoCloseable,Runnable {
 
                 long generation=player.generation();
 
-                if(!player.accepts(generation))
+                if(!world.players().owns(
+                        player,
+                        generation
+                    ))
                     continue;
 
                 try{
                     synchronized(player.mutationLock()){
-                        if(player.accepts(generation))
+                        if(world.players().owns(
+                                player,
+                                generation
+                            ))
                             player.timedEffects().tick(tick);
                     }
                 }catch(Throwable t){
