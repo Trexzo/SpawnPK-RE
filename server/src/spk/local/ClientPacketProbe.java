@@ -146,6 +146,149 @@ final class ClientPacketProbe {
                 return true;
             }
 
+            case 4: {
+                int len=readU8();
+                byte[] body=
+                    Binary.readExactly(
+                        in,
+                        len
+                    );
+
+                if(body.length<2)
+                    throw new IOException(
+                        "opcode4 len="+
+                        body.length
+                    );
+
+                int effect=
+                    (128-
+                        Binary.u8(
+                            body,
+                            0
+                        ))&255;
+                int colour=
+                    (128-
+                        Binary.u8(
+                            body,
+                            1
+                        ))&255;
+
+                String message;
+
+                try{
+                    message=
+                        ClientChatTextCodec
+                            .decodePublicWire(
+                                body,
+                                2
+                            );
+                }catch(IllegalArgumentException error){
+                    throw new IOException(
+                        "opcode4 invalid chat text",
+                        error
+                    );
+                }
+
+                offerTypedRequest(
+                    new PublicChatClientRequest(
+                        effect,
+                        colour,
+                        message,
+                        ClientRequestMetadata.exactCurrent(
+                            4,
+                            "VARBYTE_EFFECT_128_MINUS_COLOUR_128_MINUS_REVERSED_CHAT_TABLE_ADD128",
+                            "V308_CLIENT_PUBLIC_CHAT_WRITER"
+                        )
+                    ),
+                    opcode
+                );
+
+                System.out.printf(
+                    "%sCLIENT_PACKET seq=%d opcode=4 len=%d publicChat=true effect=%d colour=%d messageLength=%d schema=EXACT_CURRENT_CLIENT_CHAT_TABLE%n",
+                    tag,
+                    decodedCount,
+                    len,
+                    effect,
+                    colour,
+                    message.length()
+                );
+                return true;
+            }
+
+            case 126: {
+                int len=readU8();
+                byte[] body=
+                    Binary.readExactly(
+                        in,
+                        len
+                    );
+
+                if(body.length<8)
+                    throw new IOException(
+                        "opcode126 len="+
+                        body.length
+                    );
+
+                long recipientNameKey=
+                    Binary.i64(
+                        body,
+                        0
+                    );
+
+                byte[] encoded=
+                    new byte[
+                        body.length-8
+                    ];
+
+                System.arraycopy(
+                    body,
+                    8,
+                    encoded,
+                    0,
+                    encoded.length
+                );
+
+                String message;
+
+                try{
+                    message=
+                        ClientChatTextCodec
+                            .decode(
+                                encoded
+                            );
+                }catch(IllegalArgumentException error){
+                    throw new IOException(
+                        "opcode126 invalid chat text",
+                        error
+                    );
+                }
+
+                offerTypedRequest(
+                    new PrivateMessageClientRequest(
+                        recipientNameKey,
+                        message,
+                        ClientRequestMetadata.exactCurrent(
+                            126,
+                            "VARBYTE_RECIPIENT_NAME_KEY_I64_BE_CHAT_TABLE",
+                            "V308_CLIENT_PRIVATE_MESSAGE_WRITER"
+                        )
+                    ),
+                    opcode
+                );
+
+                System.out.printf(
+                    "%sCLIENT_PACKET seq=%d opcode=126 len=%d privateMessage=true recipientNameKey=%s messageLength=%d schema=EXACT_CURRENT_CLIENT_CHAT_TABLE%n",
+                    tag,
+                    decodedCount,
+                    len,
+                    Long.toUnsignedString(
+                        recipientNameKey
+                    ),
+                    message.length()
+                );
+                return true;
+            }
+
             case 40: {
                 byte[] body=Binary.readExactly(in,2);
                 int widget=Binary.u16(body,0);
@@ -1152,7 +1295,7 @@ final class ClientPacketProbe {
                               tag, decodedCount, opcode, fixed, hex(body, 32), fixed);
             return true;
         }
-        if (opcode == 4 || opcode == 126 || opcode == 246) {
+        if (opcode == 246) {
             int len = readU8();
             byte[] body = Binary.readExactly(in, len);
             System.out.printf("%sCLIENT_PACKET seq=%d opcode=%d len=%d framingOnly=true payload=%s schema=STATIC_EXACT_VARBYTE%n",
@@ -1202,7 +1345,7 @@ final class ClientPacketProbe {
     }
 
     static boolean isFramingOnlyVarByte(int opcode) {
-        return opcode == 4 || opcode == 126 || opcode == 246;
+        return opcode == 246;
     }
 
     static ItemOnNpcAction decodeItemOnNpc(byte[] body){

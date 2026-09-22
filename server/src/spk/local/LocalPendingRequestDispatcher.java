@@ -450,6 +450,34 @@ final class LocalPendingRequestDispatcher {
             }
 
             if(request instanceof
+                    PublicChatClientRequest){
+                PublicChatClientRequest publicChat=
+                    (PublicChatClientRequest)request;
+
+                System.out.println(
+                    tag+
+                    publicChatFailClosedDiagnostic(
+                        publicChat
+                    )
+                );
+                continue;
+            }
+
+            if(request instanceof
+                    PrivateMessageClientRequest){
+                PrivateMessageClientRequest privateMessage=
+                    (PrivateMessageClientRequest)request;
+
+                System.out.println(
+                    tag+
+                    privateMessageFailClosedDiagnostic(
+                        privateMessage
+                    )
+                );
+                continue;
+            }
+
+            if(request instanceof
                     NameEntryClientRequest){
                 NameEntryClientRequest nameEntry=
                     (NameEntryClientRequest)request;
@@ -528,6 +556,44 @@ final class LocalPendingRequestDispatcher {
                 request
             );
         }
+    }
+
+    static String publicChatFailClosedDiagnostic(
+        PublicChatClientRequest request
+    ){
+        Objects.requireNonNull(
+            request,
+            "request"
+        );
+
+        return "PUBLIC_CHAT_REQUEST_FAIL_CLOSED effect="+
+            request.effect()+
+            " colour="+
+            request.colour()+
+            " messageLength="+
+            request.message().length()+
+            " reason=SERVER_PUBLIC_CHAT_POLICY_UNPROVEN"+
+            " stateMutation=false"+
+            " authority=EXACT_CURRENT_CLIENT";
+    }
+
+    static String privateMessageFailClosedDiagnostic(
+        PrivateMessageClientRequest request
+    ){
+        Objects.requireNonNull(
+            request,
+            "request"
+        );
+
+        return "PRIVATE_MESSAGE_REQUEST_FAIL_CLOSED recipientNameKey="+
+            Long.toUnsignedString(
+                request.recipientNameKey()
+            )+
+            " messageLength="+
+            request.message().length()+
+            " reason=RECIPIENT_MAPPING_AND_PM_POLICY_UNPROVEN"+
+            " stateMutation=false"+
+            " authority=EXACT_CURRENT_CLIENT";
     }
 
     static String nameEntryFailClosedDiagnostic(
