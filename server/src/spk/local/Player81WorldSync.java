@@ -338,6 +338,15 @@ final class Player81WorldSync {
             // Add newly-visible players after processing the previous remote list.
             for(WorldPlayer remote:players){
                 if(remote==owner||!isVisible(remote)||visible.containsKey(remote.id())||removedThisPacket.contains(remote.id()))continue;
+
+                long remoteGeneration=
+                    remote.generation();
+                if(!state.world.players().owns(
+                        remote,
+                        remoteGeneration
+                    ))
+                    continue;
+
                 int idx=indexFor(remote.id());
                 int dx=remote.movement().x()-owner.movement().x(),dy=remote.movement().y()-owner.movement().y();
                 if(!signed5(dx)||!signed5(dy))continue;
@@ -347,13 +356,6 @@ final class Player81WorldSync {
                 bits.write(dy&31,5); // exact client order: relative Y then X
                 bits.write(dx&31,5);
                 byte[] tail=appearanceTail(remote);
-                long remoteGeneration=
-                    remote.generation();
-                if(!state.world.players().owns(
-                        remote,
-                        remoteGeneration
-                    ))
-                    continue;
 
                 Track t=new Track(
                     remote.id(),
