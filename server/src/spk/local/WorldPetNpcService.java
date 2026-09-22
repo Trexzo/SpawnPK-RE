@@ -43,13 +43,10 @@ final class WorldPetNpcService {
         );
 
         OwnerActors actors=
-            byOwner.computeIfAbsent(
-                ownerId,
-                ignored->new OwnerActors()
-            );
+            byOwner.get(ownerId);
 
         WorldNpc current=
-            actors.mainId==null
+            actors==null||actors.mainId==null
                 ?null
                 :registry.byId(actors.mainId);
 
@@ -60,18 +57,30 @@ final class WorldPetNpcService {
             return current;
         }
 
-        if(current!=null)
-            registry.remove(current.id);
-
         WorldNpc next=
-            registry.spawnOwned(
-                definitionId,
-                x,
-                y,
-                plane,
-                ownerId,
-                sourceItemId
-            );
+            current==null
+                ?registry.spawnOwned(
+                    definitionId,
+                    x,
+                    y,
+                    plane,
+                    ownerId,
+                    sourceItemId
+                )
+                :registry.replaceOwned(
+                    current,
+                    definitionId,
+                    x,
+                    y,
+                    plane,
+                    ownerId,
+                    sourceItemId
+                );
+
+        if(actors==null){
+            actors=new OwnerActors();
+            byOwner.put(ownerId,actors);
+        }
 
         actors.mainId=next.id;
         return next;
@@ -95,13 +104,10 @@ final class WorldPetNpcService {
         );
 
         OwnerActors actors=
-            byOwner.computeIfAbsent(
-                ownerId,
-                ignored->new OwnerActors()
-            );
+            byOwner.get(ownerId);
 
         WorldNpc current=
-            actors.miniId==null
+            actors==null||actors.miniId==null
                 ?null
                 :registry.byId(actors.miniId);
 
@@ -112,18 +118,30 @@ final class WorldPetNpcService {
             return current;
         }
 
-        if(current!=null)
-            registry.remove(current.id);
-
         WorldNpc next=
-            registry.spawnOwned(
-                definitionId,
-                x,
-                y,
-                plane,
-                ownerId,
-                sourceItemId
-            );
+            current==null
+                ?registry.spawnOwned(
+                    definitionId,
+                    x,
+                    y,
+                    plane,
+                    ownerId,
+                    sourceItemId
+                )
+                :registry.replaceOwned(
+                    current,
+                    definitionId,
+                    x,
+                    y,
+                    plane,
+                    ownerId,
+                    sourceItemId
+                );
+
+        if(actors==null){
+            actors=new OwnerActors();
+            byOwner.put(ownerId,actors);
+        }
 
         actors.miniId=next.id;
         return next;
