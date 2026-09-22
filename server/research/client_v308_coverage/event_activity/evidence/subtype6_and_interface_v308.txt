@@ -1,0 +1,93 @@
+Exact v308 Event Activity Viewer
+SHA-256 854f26ff9f134b0317572e7ac1688e6f40a231d5a4c66f8db5d655b7f45ce7c6
+
+Classes:
+  rs.n.c.J   interface/model
+  rs.n.c.K   S2C250 subtype application decoder
+  rs.n.c.L   500ms title/timer refresher
+  rs.n.c.J$a activity row state
+
+root 30072
+root registers rs.n.c.L(root updater) at 500 ms
+
+30330 "popups/activities 1"
+30331 "popups/activities 2"
+
+30332 scroll:
+  content-height=750
+  width=449
+  visible-height=235
+
+Pre-created activity group bases:
+  30333
+  30339
+  30345
+  30351
+  30357
+  30363
+  30369
+Each base:
+  base     activity/title/timer text
+  base+1   progress bar
+  base+2   quota/status text
+  base+3   detail line 1
+  base+4   detail line 2
+  base+5   detail line 3
+Renderer also places 30331 separator per activity.
+Dynamic root children = activityCount * 7.
+
+30375 "Event Activity Viewer"
+30376 "<img=50> To prevent excessive farming, activities have timed limits on token earnings"
+30377 "<img=78> @cya@The limit on an activity resets once its timer reaches <img=37> @whi@0:00"
+close 63740/63741
+
+Application registration:
+rs.q.a.a.b:
+  subtype 6 -> rs.n.c.J.c.getClass()
+rs.n.c.J.c = new rs.n.c.K
+
+rs.n.c.K operation grammar:
+  op 0:
+    clear activity list
+    reset count=0
+
+  op 1:
+    name = h() string
+    detailCount = e() int
+    details[detailCount] = h() strings
+    currentUsage = g() int
+    limitStateOrLimit = g() int
+    timerDurationMillis = d() long
+    append activity
+
+  op 2:
+    rebuild/render activity scroll
+
+Limit states in rs.n.c.J.b(...):
+  limit == -1:
+    status "<img=81> Activity locked! <img=81>"
+    icon prefix changed to <img=81>
+    progress width=100
+
+  limit == 0:
+    status "No token limit!"
+    progress width=100
+
+  limit > 0:
+    if currentUsage >= limit:
+      "@whi@<shad=1>Limit reached! Token earnings are locked until the limit timer ends.."
+    else:
+      dynamic current-vs-limit text
+    progress width=int(currentUsage/limit*100)
+
+Timer model rs.n.c.J$a:
+  stores supplied duration + client creation currentTimeMillis
+  remaining = duration - elapsed
+  clamps to zero
+  renders hour/minute/second or minute/second suffix
+  default icon prefix <img=82>
+  timer prefix includes " <img=46> <img=37> @or1@"
+
+Boundary:
+Activity catalog, quotas, token economics, scope, reset policy,
+persistence and anti-abuse remain server authority.
