@@ -1,0 +1,43 @@
+Exact-current NPC override census
+
+.spawnpk/configs/e.bin
+SHA-256 16b62a3871d8f2c8601a3986d44652b395c38a834f6ea107d8d2be2807e7bed1
+916 NPC override records
+45 distinct field keys
+
+Exact loader rs.t.a.b:
+44/45 keys recognized
+tags recognized but NOOP
+offsets unrecognized/unconsumed
+
+sole offsets record:
+NPC 8229 Riftwalker corp beast pet
+clone 6005
+offsets [-16,-17]
+scaleWidth 32
+scaleHeight 32
+size 1
+pet true
+
+Representative target map:
+name -> o String
+actions -> p String[]
+models -> L int[]
+standAnim -> w
+walkAnim -> q
+combatLevel -> n
+scaleHeight -> E
+scaleWidth -> I
+srcColors -> v int[]
+destColors -> s int[]
+size -> r byte
+minimap -> F boolean
+chatHeadModels -> t int[]
+rotationSpeed -> y
+clickable -> C boolean
+mapIcon -> S
+icon -> T
+headIcon -> u
+
+Boundary:
+presentation/config authority only; HP, combat formulas, AI, ownership and server action acceptance remain server authority.
