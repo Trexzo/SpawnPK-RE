@@ -19,6 +19,8 @@ final class WorldPluginManager
 
     private final ContentRegistry content;
     private final DomainEventBus events;
+    private final GameClock clock;
+    private final WorldEventQueue worldEvents;
     private final BooleanSupplier worldOpen;
     private final LinkedHashMap<String,Entry>
         enabled=new LinkedHashMap<>();
@@ -29,6 +31,8 @@ final class WorldPluginManager
     WorldPluginManager(
         ContentRegistry content,
         DomainEventBus events,
+        GameClock clock,
+        WorldEventQueue worldEvents,
         BooleanSupplier worldOpen
     ){
         this.content=Objects.requireNonNull(
@@ -38,6 +42,14 @@ final class WorldPluginManager
         this.events=Objects.requireNonNull(
             events,
             "events"
+        );
+        this.clock=Objects.requireNonNull(
+            clock,
+            "clock"
+        );
+        this.worldEvents=Objects.requireNonNull(
+            worldEvents,
+            "worldEvents"
         );
         this.worldOpen=Objects.requireNonNull(
             worldOpen,
@@ -196,12 +208,19 @@ final class WorldPluginManager
 
         EventTracker tracker=
             new EventTracker();
+        PluginTaskTracker tasks=
+            new PluginTaskTracker(
+                clock,
+                worldEvents,
+                worldOpen
+            );
 
         PluginContentModule module=
             new PluginContentModule(
                 moduleId,
                 plugin,
-                tracker
+                tracker,
+                tasks
             );
 
         try{
@@ -212,13 +231,15 @@ final class WorldPluginManager
                     plugin,
                     manifest,
                     moduleId,
-                    tracker
+                    tracker,
+                    tasks
                 );
 
             enabled.put(id,entry);
             return entry;
         }catch(Throwable failure){
             module.seal();
+            tasks.close();
 
             if(module.enableAttempted())
                 try{
@@ -255,6 +276,8 @@ final class WorldPluginManager
         enabled.remove(
             entry.manifest.id()
         );
+
+        entry.tasks.close();
 
         try{
             entry.plugin.disable();
@@ -446,17 +469,20 @@ final class WorldPluginManager
         private final String moduleId;
         private final Plugin plugin;
         private final EventTracker tracker;
+        private final PluginTaskTracker tasks;
         private volatile ScopedPluginContext context;
         private volatile boolean enableAttempted;
 
         PluginContentModule(
             String moduleId,
             Plugin plugin,
-            EventTracker tracker
+            EventTracker tracker,
+            PluginTaskTracker tasks
         ){
             this.moduleId=moduleId;
             this.plugin=plugin;
             this.tracker=tracker;
+            this.tasks=tasks;
         }
 
         @Override public String id(){
@@ -469,7 +495,8 @@ final class WorldPluginManager
             ScopedPluginContext local=
                 new ScopedPluginContext(
                     registrar,
-                    tracker
+                    tracker,
+                    tasks
                 );
 
             context=local;
@@ -502,11 +529,13 @@ final class WorldPluginManager
 
         private final ScopedContentRegistrar content;
         private final ScopedPluginEvents events;
+        private final PluginScheduler scheduler;
         private boolean open=true;
 
         ScopedPluginContext(
             ContentRegistrar registrar,
-            EventTracker tracker
+            EventTracker tracker,
+            PluginTaskTracker tasks
         ){
             content=
                 new ScopedContentRegistrar(
@@ -518,6 +547,7 @@ final class WorldPluginManager
                     tracker,
                     this
                 );
+            scheduler=tasks;
         }
 
         @Override public ContentRegistrar content(){
@@ -528,6 +558,11 @@ final class WorldPluginManager
         @Override public PluginEvents events(){
             requireOpen();
             return events;
+        }
+
+        @Override public PluginScheduler scheduler(){
+            requireOpen();
+            return scheduler;
         }
 
         synchronized boolean open(){
@@ -645,18 +680,21 @@ final class WorldPluginManager
         final PluginManifest manifest;
         final String moduleId;
         final EventTracker events;
+        final PluginTaskTracker tasks;
         volatile boolean enabled=true;
 
         Entry(
             Plugin plugin,
             PluginManifest manifest,
             String moduleId,
-            EventTracker events
+            EventTracker events,
+            PluginTaskTracker tasks
         ){
             this.plugin=plugin;
             this.manifest=manifest;
             this.moduleId=moduleId;
             this.events=events;
+            this.tasks=tasks;
         }
 
         @Override public PluginManifest manifest(){
