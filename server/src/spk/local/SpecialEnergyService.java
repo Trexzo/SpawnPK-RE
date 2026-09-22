@@ -89,31 +89,39 @@ final class SpecialEnergyService {
     }
 
     private final PlayerState player;
+    private final Object mutationLock;
     private final String policyAuthority;
 
     SpecialEnergyService(
-        PlayerState player,
+        WorldPlayer owner,
         String policyAuthority
     ) {
-        this.player =
+        WorldPlayer playerOwner =
             Objects.requireNonNull(
-                player,
-                "player"
+                owner,
+                "owner"
             );
+
+        this.player =
+            playerOwner.playerState();
+        this.mutationLock =
+            playerOwner.mutationLock();
         this.policyAuthority =
             requireGameplayAuthority(
                 policyAuthority
             );
     }
 
-    synchronized Snapshot snapshot() {
-        return new Snapshot(
-            currentEnergy(),
-            policyAuthority
-        );
+    Snapshot snapshot() {
+        synchronized (mutationLock) {
+            return new Snapshot(
+                currentEnergy(),
+                policyAuthority
+            );
+        }
     }
 
-    synchronized SpendResult trySpend(
+    SpendResult trySpend(
         int cost
     ) {
         if (cost <= 0 ||
@@ -126,50 +134,52 @@ final class SpecialEnergyService {
             );
         }
 
-        int before =
-            currentEnergy();
+        synchronized (mutationLock) {
+            int before =
+                currentEnergy();
 
-        if (before < cost) {
+            if (before < cost) {
+                return new SpendResult(
+                    SpendStatus.INSUFFICIENT_ENERGY,
+                    cost,
+                    0,
+                    before,
+                    before,
+                    policyAuthority
+                );
+            }
+
+            int after =
+                before - cost;
+
+            player.setSpecialEnergy(
+                after
+            );
+
+            int observed =
+                currentEnergy();
+
+            if (observed != after) {
+                throw new IllegalStateException(
+                    "special-energy spend write mismatch expected=" +
+                    after +
+                    " actual=" +
+                    observed
+                );
+            }
+
             return new SpendResult(
-                SpendStatus.INSUFFICIENT_ENERGY,
+                SpendStatus.SPENT,
                 cost,
-                0,
+                cost,
                 before,
-                before,
+                after,
                 policyAuthority
             );
         }
-
-        int after =
-            before - cost;
-
-        player.setSpecialEnergy(
-            after
-        );
-
-        int observed =
-            currentEnergy();
-
-        if (observed != after) {
-            throw new IllegalStateException(
-                "special-energy spend write mismatch expected=" +
-                after +
-                " actual=" +
-                observed
-            );
-        }
-
-        return new SpendResult(
-            SpendStatus.SPENT,
-            cost,
-            cost,
-            before,
-            after,
-            policyAuthority
-        );
     }
 
-    synchronized RestoreResult restore(
+    RestoreResult restore(
         int amount
     ) {
         if (amount <= 0) {
@@ -179,44 +189,46 @@ final class SpecialEnergyService {
             );
         }
 
-        int before =
-            currentEnergy();
+        synchronized (mutationLock) {
+            int before =
+                currentEnergy();
 
-        long candidate =
-            (long)before +
-            (long)amount;
+            long candidate =
+                (long)before +
+                (long)amount;
 
-        int after =
-            candidate >= MAX_ENERGY
-                ? MAX_ENERGY
-                : (int)candidate;
+            int after =
+                candidate >= MAX_ENERGY
+                    ? MAX_ENERGY
+                    : (int)candidate;
 
-        int applied =
-            after - before;
+            int applied =
+                after - before;
 
-        player.setSpecialEnergy(
-            after
-        );
+            player.setSpecialEnergy(
+                after
+            );
 
-        int observed =
-            currentEnergy();
+            int observed =
+                currentEnergy();
 
-        if (observed != after) {
-            throw new IllegalStateException(
-                "special-energy restore write mismatch expected=" +
-                after +
-                " actual=" +
-                observed
+            if (observed != after) {
+                throw new IllegalStateException(
+                    "special-energy restore write mismatch expected=" +
+                    after +
+                    " actual=" +
+                    observed
+                );
+            }
+
+            return new RestoreResult(
+                amount,
+                applied,
+                before,
+                after,
+                policyAuthority
             );
         }
-
-        return new RestoreResult(
-            amount,
-            applied,
-            before,
-            after,
-            policyAuthority
-        );
     }
 
     String policyAuthority() {
