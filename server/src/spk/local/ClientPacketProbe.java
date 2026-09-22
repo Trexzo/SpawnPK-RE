@@ -1086,24 +1086,38 @@ final class ClientPacketProbe {
                 int dialogueOption=
                     dialogueOptionIndex(text);
 
-                ClientRequest request=
-                    dialogueOption>0
-                    ? new DialogueOptionClientRequest(
-                        dialogueOption,
-                        ClientRequestMetadata.exactCurrent(
-                            103,
-                            "VAR_BYTE_DIALOGUEOPTION_INDEX_OPTIONAL_LF",
-                            "V308_CLIENT_DIALOGUE_OPTION_HOTKEY"
-                        )
-                    )
-                    : new CommandClientRequest(
-                        text,
-                        ClientRequestMetadata.exactCurrent(
-                            103,
-                            "VAR_BYTE_ISO_8859_1_OPTIONAL_LF",
-                            "PINNED_CLIENT_OPCODE_103_WRITER"
-                        )
-                    );
+                DailyChallengeClientRequest
+                    dailyChallenge=
+                        dialogueOption>0
+                        ?null
+                        :dailyChallengeRequest(
+                            text
+                        );
+
+                ClientRequest request;
+
+                if(dialogueOption>0)
+                    request=
+                        new DialogueOptionClientRequest(
+                            dialogueOption,
+                            ClientRequestMetadata.exactCurrent(
+                                103,
+                                "VAR_BYTE_DIALOGUEOPTION_INDEX_OPTIONAL_LF",
+                                "V308_CLIENT_DIALOGUE_OPTION_HOTKEY"
+                            )
+                        );
+                else if(dailyChallenge!=null)
+                    request=dailyChallenge;
+                else
+                    request=
+                        new CommandClientRequest(
+                            text,
+                            ClientRequestMetadata.exactCurrent(
+                                103,
+                                "VAR_BYTE_ISO_8859_1_OPTIONAL_LF",
+                                "PINNED_CLIENT_OPCODE_103_WRITER"
+                            )
+                        );
 
                 offerTypedRequest(
                     request,
@@ -1111,8 +1125,16 @@ final class ClientPacketProbe {
                 );
 
                 System.out.printf(
-                    "%sCLIENT_PACKET seq=%d opcode=103 len=%d command=%s dialogueOption=%d newline=%s%n",
-                    tag,decodedCount,len,quote(text),dialogueOption,newline
+                    "%sCLIENT_PACKET seq=%d opcode=103 len=%d command=%s dialogueOption=%d dailyChallenge=%s newline=%s%n",
+                    tag,
+                    decodedCount,
+                    len,
+                    quote(text),
+                    dialogueOption,
+                    dailyChallenge==null
+                        ?"none"
+                        :dailyChallenge.action(),
+                    newline
                 );
                 return true;
             }
@@ -1342,6 +1364,56 @@ final class ClientPacketProbe {
         return value>='1'&&value<='5'
             ? value-'0'
             : -1;
+    }
+
+    static DailyChallengeClientRequest
+        dailyChallengeRequest(
+            String text
+        ){
+        if(text==null)
+            return null;
+
+        String claimPrefix=
+            "claimchallenge ";
+        String infoPrefix=
+            "infochallenge ";
+
+        DailyChallengeClientRequest.Action action;
+        int keyOffset;
+
+        if(text.startsWith(
+                claimPrefix)){
+            action=
+                DailyChallengeClientRequest.Action.CLAIM;
+            keyOffset=
+                claimPrefix.length();
+        }else if(text.startsWith(
+                infoPrefix)){
+            action=
+                DailyChallengeClientRequest.Action.INFO;
+            keyOffset=
+                infoPrefix.length();
+        }else{
+            return null;
+        }
+
+        if(keyOffset>=text.length())
+            return null;
+
+        String key=
+            text.substring(
+                keyOffset
+            );
+
+        return new DailyChallengeClientRequest(
+            action,
+            key,
+            ClientRequestMetadata.exactCurrent(
+                103,
+                "VAR_BYTE_DAILY_CHALLENGE_ACTION_KEY_OPTIONAL_LF",
+                "V308_CLIENT_DAILY_CHALLENGE_COMPAT_COMMAND"
+            )
+        );
     }
 
     static boolean isFramingOnlyVarByte(int opcode) {
