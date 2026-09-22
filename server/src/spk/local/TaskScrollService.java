@@ -370,6 +370,14 @@ final class TaskScrollService {
                 " player="+player
             );
 
+        if(!definition.sourceAuthority.equals(
+                objective.sourceAuthority))
+            throw new IllegalArgumentException(
+                "Task Scroll objective authority mismatch "+
+                definition.objectiveKey+
+                " player="+player
+            );
+
         if(objective.complete)
             throw new IllegalStateException(
                 "cannot assign completed Task Scroll objective "+
@@ -743,6 +751,16 @@ final class TaskScrollService {
         if(objective==null)
             throw new IllegalStateException(
                 "Task Scroll objective disappeared "+
+                assignment.definition
+                    .objectiveKey
+            );
+
+        if(!assignment.definition
+                .sourceAuthority
+                .equals(
+                    objective.sourceAuthority))
+            throw new IllegalStateException(
+                "Task Scroll objective authority drift "+
                 assignment.definition
                     .objectiveKey
             );
