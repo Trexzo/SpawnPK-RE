@@ -361,14 +361,21 @@ final class World implements AutoCloseable {
                     ))
                     return false;
 
-                persistence.releaseCheckpointSuppression(
-                    player.id(),
-                    expectedGeneration
-                );
-                commands.cancelPlayer(player);
-                realtime.cancelPlayer(player);
-                petNpcs.removeMainAndMini(
-                    player.id()
+                WorldPlayerUnregisterCleanup.run(
+                    ()->persistence
+                        .releaseCheckpointSuppression(
+                            player.id(),
+                            expectedGeneration
+                        ),
+                    ()->commands.cancelPlayer(
+                        player
+                    ),
+                    ()->realtime.cancelPlayer(
+                        player
+                    ),
+                    ()->petNpcs.removeMainAndMini(
+                        player.id()
+                    )
                 );
 
                 return true;
