@@ -48,6 +48,7 @@ final class LocalRegionDevCommandHandler {
     private final NpcRegistry npcs;
     private final PetState petState;
     private final HomeWorldRuntimePlan homeWorld;
+    private final RegionLoadLifecycle regionLoads;
     private final Runnable cancelPetFollowSchedule;
 
     LocalRegionDevCommandHandler(
@@ -61,6 +62,32 @@ final class LocalRegionDevCommandHandler {
         HomeWorldRuntimePlan homeWorld,
         Runnable cancelPetFollowSchedule
     ){
+        this(
+            world,
+            worldPlayer,
+            movement,
+            playerInteractions,
+            combat,
+            npcs,
+            petState,
+            homeWorld,
+            new RegionLoadLifecycle(),
+            cancelPetFollowSchedule
+        );
+    }
+
+    LocalRegionDevCommandHandler(
+        World world,
+        WorldPlayer worldPlayer,
+        MovementState movement,
+        LocalPlayerInteractionHandler playerInteractions,
+        CombatEngine combat,
+        NpcRegistry npcs,
+        PetState petState,
+        HomeWorldRuntimePlan homeWorld,
+        RegionLoadLifecycle regionLoads,
+        Runnable cancelPetFollowSchedule
+    ){
         this.world=java.util.Objects.requireNonNull(world,"world");
         this.worldPlayer=java.util.Objects.requireNonNull(worldPlayer,"worldPlayer");
         this.movement=java.util.Objects.requireNonNull(movement,"movement");
@@ -70,6 +97,10 @@ final class LocalRegionDevCommandHandler {
         this.npcs=java.util.Objects.requireNonNull(npcs,"npcs");
         this.petState=java.util.Objects.requireNonNull(petState,"petState");
         this.homeWorld=java.util.Objects.requireNonNull(homeWorld,"homeWorld");
+        this.regionLoads=java.util.Objects.requireNonNull(
+            regionLoads,
+            "regionLoads"
+        );
         this.cancelPetFollowSchedule=java.util.Objects.requireNonNull(
             cancelPetFollowSchedule,"cancelPetFollowSchedule");
     }
@@ -247,6 +278,14 @@ final class LocalRegionDevCommandHandler {
         writer.fixed(
             73,
             BootstrapPackets.region73(chunkX,chunkY));
+        RegionLoadLifecycle.Begin regionLoad=
+            regionLoads.begin(
+                chunkX,
+                chunkY,
+                baseX,
+                baseY,
+                "DEV_REGION_RELOCATION"
+            );
         writer.varShort(
             81,
             BootstrapPackets.player81TeleportNoAppearance(
@@ -267,6 +306,8 @@ final class LocalRegionDevCommandHandler {
             " landing="+tile.x+","+tile.y+","+plane+
             " base="+baseX+","+baseY+
             " packet73="+chunkX+","+chunkY+
+            " regionLoadSeq="+regionLoad.sequence+
+            " placement=SERVER_PLAYER81_RELOCATION"+
             " collision=EXACT_CURRENT_STATIC"+
             " removedHomeNpcView="+oldNpcs.size()+
             " arrivalAuthority=LOCAL_DEV_SAFE_TILE_NOT_PRODUCTION"+
@@ -305,6 +346,14 @@ final class LocalRegionDevCommandHandler {
         writer.fixed(
             73,
             BootstrapPackets.region73(385,436));
+        RegionLoadLifecycle.Begin regionLoad=
+            regionLoads.begin(
+                385,
+                436,
+                MovementState.REGION_BASE_X,
+                MovementState.REGION_BASE_Y,
+                "DEV_RETURN_HOME_RELOCATION"
+            );
         writer.varShort(
             81,
             BootstrapPackets.player81TeleportNoAppearance(
@@ -349,6 +398,8 @@ final class LocalRegionDevCommandHandler {
             "V5160_REGION_HOME OK world="+
             movement.x()+","+movement.y()+
             " packet73=385,436"+
+            " regionLoadSeq="+regionLoad.sequence+
+            " placement=SERVER_PLAYER81_RELOCATION"+
             " scene={"+scene+"}"+
             " groundReplay="+replay+
             " npcRepublish="+homeNpcs.size()+

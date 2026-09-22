@@ -36,6 +36,10 @@ final class LocalPendingRequestDispatcher {
             ServerPacketWriter writer,
             String tag
         )throws IOException;
+
+        default void handleRegionLoadAck(
+            String tag
+        ){}
     }
 
     private final WorldPlayer worldPlayer;
@@ -170,6 +174,12 @@ final class LocalPendingRequestDispatcher {
             (request=clientPackets
                 .takeTypedRequest())!=null;
         ){
+            if(request instanceof
+                    RegionLoadAckClientRequest){
+                bridge.handleRegionLoadAck(tag);
+                continue;
+            }
+
             if(request instanceof
                     InterfaceCloseClientRequest){
                 boolean makeoverCancelled=

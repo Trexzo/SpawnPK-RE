@@ -29,6 +29,7 @@ final class LocalRegionStreamHandler {
     private final NpcRegistry npcs;
     private final LocalPlayerInteractionHandler playerInteractions;
     private final CombatEngine combat;
+    private final RegionLoadLifecycle regionLoads;
     private final SessionBridge bridge;
 
     LocalRegionStreamHandler(
@@ -42,6 +43,32 @@ final class LocalRegionStreamHandler {
         CombatEngine combat,
         SessionBridge bridge
     ){
+        this(
+            movementEnabled,
+            world,
+            worldPlayer,
+            movement,
+            homeWorld,
+            npcs,
+            playerInteractions,
+            combat,
+            new RegionLoadLifecycle(),
+            bridge
+        );
+    }
+
+    LocalRegionStreamHandler(
+        boolean movementEnabled,
+        World world,
+        WorldPlayer worldPlayer,
+        MovementState movement,
+        HomeWorldRuntimePlan homeWorld,
+        NpcRegistry npcs,
+        LocalPlayerInteractionHandler playerInteractions,
+        CombatEngine combat,
+        RegionLoadLifecycle regionLoads,
+        SessionBridge bridge
+    ){
         this.movementEnabled=movementEnabled;
         this.world=Objects.requireNonNull(world,"world");
         this.worldPlayer=Objects.requireNonNull(worldPlayer,"worldPlayer");
@@ -51,6 +78,10 @@ final class LocalRegionStreamHandler {
         this.playerInteractions=Objects.requireNonNull(
             playerInteractions,"playerInteractions");
         this.combat=Objects.requireNonNull(combat,"combat");
+        this.regionLoads=Objects.requireNonNull(
+            regionLoads,
+            "regionLoads"
+        );
         this.bridge=Objects.requireNonNull(bridge,"bridge");
     }
 
@@ -63,7 +94,12 @@ final class LocalRegionStreamHandler {
 
         if(movement.transientRegion()&&
            movement.insideHomeInnerCore(24)){
-            reattachHome(writer,tag);
+            reattachHome(
+                writer,
+                tag,
+                false,
+                "AUTO_HOME_REATTACH"
+            );
             return true;
         }
 
@@ -156,14 +192,14 @@ final class LocalRegionStreamHandler {
             73,
             BootstrapPackets.region73(chunkX,chunkY)
         );
-        writer.varShort(
-            81,
-            BootstrapPackets.player81TeleportNoAppearance(
-                movement.plane(),
-                movement.y()-baseY,
-                movement.x()-baseX
-            )
-        );
+        RegionLoadLifecycle.Begin regionLoad=
+            regionLoads.begin(
+                chunkX,
+                chunkY,
+                baseX,
+                baseY,
+                "AUTO_WINDOW_REBASE"
+            );
 
         bridge.replaceScenePublisher(
             new SceneUpdatePublisher(
@@ -187,6 +223,8 @@ final class LocalRegionStreamHandler {
             movement.plane()+
             " base="+baseX+","+baseY+
             " packet73="+chunkX+","+chunkY+
+            " regionLoadSeq="+regionLoad.sequence+
+            " placement=CLIENT_PACKET73_REBASE_PRESERVES_WORLD"+
             " removedHomeNpcView="+removed+
             " terrain=CLIENT_CACHE collision=EXACT_CURRENT_STATIC dynamicOverlays=UNRESOLVED_SERVER_AUTHORITY"
         );
@@ -198,12 +236,19 @@ final class LocalRegionStreamHandler {
         ServerPacketWriter writer,
         String tag
     )throws IOException{
-        reattachHome(writer,tag);
+        reattachHome(
+            writer,
+            tag,
+            true,
+            "RESPAWN_REATTACH"
+        );
     }
 
     private void reattachHome(
         ServerPacketWriter writer,
-        String tag
+        String tag,
+        boolean emitPlacement,
+        String reason
     )throws IOException{
         movement.restoreHomeWindowAtCurrentPosition();
 
@@ -212,14 +257,25 @@ final class LocalRegionStreamHandler {
             73,
             BootstrapPackets.region73(385,436)
         );
-        writer.varShort(
-            81,
-            BootstrapPackets.player81TeleportNoAppearance(
-                0,
-                movement.y()-MovementState.REGION_BASE_Y,
-                movement.x()-MovementState.REGION_BASE_X
-            )
-        );
+        RegionLoadLifecycle.Begin regionLoad=
+            regionLoads.begin(
+                385,
+                436,
+                MovementState.REGION_BASE_X,
+                MovementState.REGION_BASE_Y,
+                reason
+            );
+
+        if(emitPlacement){
+            writer.varShort(
+                81,
+                BootstrapPackets.player81TeleportNoAppearance(
+                    0,
+                    movement.y()-MovementState.REGION_BASE_Y,
+                    movement.x()-MovementState.REGION_BASE_X
+                )
+            );
+        }
 
         SceneUpdatePublisher replacement=
             new SceneUpdatePublisher(
@@ -276,6 +332,11 @@ final class LocalRegionStreamHandler {
             MovementState.REGION_BASE_X+","+
             MovementState.REGION_BASE_Y+
             " packet73=385,436"+
+            " regionLoadSeq="+regionLoad.sequence+
+            " placement="+
+                (emitPlacement
+                    ?"SERVER_PLAYER81_RELOCATION"
+                    :"CLIENT_PACKET73_REBASE_PRESERVES_WORLD")+
             " scene={"+scene+"}"+
             " npcRepublish="+homeNpcs.size()+
             " groundReplay="+replay+

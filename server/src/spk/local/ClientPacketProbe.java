@@ -116,7 +116,17 @@ final class ClientPacketProbe {
                 return true;
 
             case 121:
-                System.out.printf("%sCLIENT_PACKET seq=%d opcode=121 len=0 loadingAck=true%n",
+                offerTypedRequest(
+                    new RegionLoadAckClientRequest(
+                        ClientRequestMetadata.exactCurrent(
+                            121,
+                            "FIXED0_REGION_LOAD_COMPLETE",
+                            "V308_RUNTIME_PROBE_RS_CLIENT_BW_REGION_LOAD_COMPLETE"
+                        )
+                    ),
+                    121
+                );
+                System.out.printf("%sCLIENT_PACKET seq=%d opcode=121 len=0 loadingAck=true regionLifecycleTyped=true%n",
                                   tag, decodedCount);
                 return true;
 

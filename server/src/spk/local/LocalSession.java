@@ -69,6 +69,7 @@ final class LocalSession implements Runnable {
     private final LocalPetDropPickupHandler petDropPickup;
     private final LocalPetRealtimeScheduler petRealtime;
     private final LocalMovementRequestHandler movementRequests;
+    private final RegionLoadLifecycle regionLoads;
     private final LocalRegionStreamHandler regionStreams;
     private final LocalWorldTickCoordinator worldTicks;
     private final LocalPendingRequestDispatcher pendingRequests;
@@ -97,6 +98,7 @@ final class LocalSession implements Runnable {
         this.bootstrap = bootstrap;
         this.movementEnabled = movementEnabled;
         this.world = java.util.Objects.requireNonNull(world,"world");
+        this.regionLoads = new RegionLoadLifecycle();
         this.homeWorld = new HomeWorldRuntimePlan(this.world.homeNpcs());
         this.worldPlayer = new WorldPlayer();
         this.petAccessoryState=worldPlayer.petAccessoryState();
@@ -190,6 +192,7 @@ final class LocalSession implements Runnable {
             npcs,
             petState,
             homeWorld,
+            regionLoads,
             ()->resetPetFollowRuntime());
         this.devSessionCommands = new LocalDevSessionCommandHandler(
             world,
@@ -501,6 +504,7 @@ final class LocalSession implements Runnable {
             npcs,
             playerInteractions,
             combat,
+            regionLoads,
             new LocalRegionStreamHandler.SessionBridge(){
                 @Override public String username(){
                     return LocalSession.this.username;
@@ -694,6 +698,14 @@ final class LocalSession implements Runnable {
                     );
                 }
 
+                @Override public void handleRegionLoadAck(
+                    String tag
+                ){
+                    LocalSession.this.handleRegionLoadAck(
+                        tag
+                    );
+                }
+
                 @Override public void handleDevPanelAmount(
                     int value,
                     ServerPacketWriter writer,
@@ -803,6 +815,21 @@ final class LocalSession implements Runnable {
                         scenePublisher,
                         username,
                         persistentAccount,
+                        tag
+                    );
+                    logRegionLoadBegin(
+                        regionLoads.begin(
+                            385,
+                            436,
+                            MovementState.REGION_BASE_X,
+                            MovementState.REGION_BASE_Y,
+                            "LOGIN_BOOTSTRAP"
+                        ),
+                        385,
+                        436,
+                        MovementState.REGION_BASE_X,
+                        MovementState.REGION_BASE_Y,
+                        "LOGIN_BOOTSTRAP",
                         tag
                     );
                 }
@@ -943,6 +970,65 @@ final class LocalSession implements Runnable {
                 );
             }
         }
+    }
+
+    private void logRegionLoadBegin(
+        RegionLoadLifecycle.Begin begin,
+        int centerX,
+        int centerY,
+        int baseX,
+        int baseY,
+        String reason,
+        String tag
+    ){
+        System.out.println(
+            tag+
+            "V5182_REGION_LOAD_BEGIN seq="+
+            begin.sequence+
+            " center="+centerX+","+centerY+
+            " base="+baseX+","+baseY+
+            " reason="+reason+
+            " supersededPending="+
+            begin.superseded+
+            (begin.superseded
+                ?" supersededSeq="+
+                    begin.supersededSequence
+                :"")+
+            " authority=V308_RUNTIME_PROBE_PACKET73_LIFECYCLE"
+        );
+    }
+
+    private void handleRegionLoadAck(
+        String tag
+    ){
+        RegionLoadLifecycle.Completion completion=
+            regionLoads.complete();
+
+        if(!completion.matched){
+            System.out.println(
+                tag+
+                "V5182_REGION_LOAD_ACK_UNMATCHED opcode=121"+
+                " stateMutation=false"+
+                " authority=V308_RUNTIME_PROBE_RS_CLIENT_BW"
+            );
+            return;
+        }
+
+        System.out.println(
+            tag+
+            "V5182_REGION_LOAD_COMPLETE seq="+
+            completion.sequence+
+            " center="+
+            completion.centerX+","+
+            completion.centerY+
+            " base="+
+            completion.baseX+","+
+            completion.baseY+
+            " reason="+
+            completion.reason+
+            " opcode=121"+
+            " authority=V308_RUNTIME_PROBE_RS_CLIENT_BW"
+        );
     }
 
     private void processPendingOnWorld(
