@@ -22,8 +22,8 @@ final class LocalServerShutdownCoordinator
     private final ServerSocket aux;
     private final Set<Socket> activeGameSockets=
         new HashSet<>();
-    private final CountDownLatch closed=
-        new CountDownLatch(1);
+    private final TerminalCloseState terminal=
+        new TerminalCloseState();
 
     private boolean closing;
 
@@ -156,9 +156,11 @@ final class LocalServerShutdownCoordinator
         }
 
         if(!owner){
-            awaitClosed();
+            terminal.awaitAndRethrow();
             return;
         }
+
+        Throwable failure=null;
 
         try{
             pool.shutdown();
@@ -178,9 +180,17 @@ final class LocalServerShutdownCoordinator
             }
 
             world.close();
+        }catch(Throwable terminalFailure){
+            failure=terminalFailure;
         }finally{
-            closed.countDown();
+            terminal.complete(
+                failure
+            );
         }
+
+        WorldCloseSequence.rethrow(
+            failure
+        );
     }
 
     private boolean awaitPool(
@@ -198,23 +208,6 @@ final class LocalServerShutdownCoordinator
             pool.shutdownNow();
             return false;
         }
-    }
-
-    private void awaitClosed(){
-        boolean interrupted=false;
-
-        for(;;){
-            try{
-                closed.await();
-                break;
-            }catch(InterruptedException error){
-                interrupted=true;
-            }
-        }
-
-        if(interrupted)
-            Thread.currentThread()
-                .interrupt();
     }
 
     private static void closeQuietly(
