@@ -115,13 +115,12 @@ final class WorldPulse implements AutoCloseable,Runnable {
                     continue;
 
                 try{
-                    synchronized(player.mutationLock()){
-                        if(world.players().owns(
-                                player,
-                                generation
-                            ))
-                            player.timedEffects().tick(tick);
-                    }
+                    world.withOpenPlayerMutationOwnershipIfCurrent(
+                        player,
+                        generation,
+                        ()->player.timedEffects()
+                            .tick(tick)
+                    );
                 }catch(Throwable t){
                     System.err.println(
                         "[world] timed-effect tick failed tick="+
@@ -139,9 +138,31 @@ final class WorldPulse implements AutoCloseable,Runnable {
                 if(world.closed())
                     return;
 
-                WorldPlayer p=world.players().byId(target.ownerId());
-                if(p==null||!p.accepts(target.ownerGeneration()))continue;
-                try{synchronized(p.mutationLock()){if(p.accepts(target.ownerGeneration()))target.onWorldTick(tick,nowMillis);}}catch(Throwable t){System.err.println("[world] tick target failed tick="+tick+" owner="+target.ownerId()+" error="+t);}
+                WorldPlayer p=
+                    world.players().byId(
+                        target.ownerId()
+                    );
+                if(p==null)
+                    continue;
+
+                try{
+                    world.withOpenPlayerMutationOwnershipIfCurrent(
+                        p,
+                        target.ownerGeneration(),
+                        ()->target.onWorldTick(
+                            tick,
+                            nowMillis
+                        )
+                    );
+                }catch(Throwable t){
+                    System.err.println(
+                        "[world] tick target failed tick="+
+                        tick+
+                        " owner="+
+                        target.ownerId()+
+                        " error="+t
+                    );
+                }
 
                 if(world.closed())
                     return;
