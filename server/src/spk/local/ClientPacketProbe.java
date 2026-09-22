@@ -235,7 +235,7 @@ final class ClientPacketProbe {
                         0
                     );
 
-                byte[] encoded=
+                byte[] encodedMessage=
                     new byte[
                         body.length-8
                     ];
@@ -243,9 +243,9 @@ final class ClientPacketProbe {
                 System.arraycopy(
                     body,
                     8,
-                    encoded,
+                    encodedMessage,
                     0,
-                    encoded.length
+                    encodedMessage.length
                 );
 
                 String message;
@@ -254,7 +254,7 @@ final class ClientPacketProbe {
                     message=
                         ClientChatTextCodec
                             .decode(
-                                encoded
+                                encodedMessage
                             );
                 }catch(IllegalArgumentException error){
                     throw new IOException(
