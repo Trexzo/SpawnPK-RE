@@ -809,6 +809,141 @@ final class ContentRegistry {
         }
     }
 
+    synchronized boolean uninstallModule(
+        String moduleId
+    ){
+        String clean=
+            cleanModuleId(moduleId);
+
+        if(!installedModules.contains(clean))
+            return false;
+
+        removeModuleRegistrations(
+            commandRegistrations,
+            clean
+        );
+        removeModuleRegistrations(
+            objectOptionRegistrations,
+            clean
+        );
+        removeModuleRegistrations(
+            itemOptionRegistrations,
+            clean
+        );
+        removeModuleRegistrations(
+            itemOnNpcRegistrations,
+            clean
+        );
+        removeModuleRegistrations(
+            itemOnGroundItemRegistrations,
+            clean
+        );
+        removeModuleRegistrations(
+            itemOnItemRegistrations,
+            clean
+        );
+        removeModuleRegistrations(
+            itemOnObjectRegistrations,
+            clean
+        );
+        removeModuleRegistrations(
+            itemOnPlayerRegistrations,
+            clean
+        );
+        removeModuleRegistrations(
+            npcOptionRegistrations,
+            clean
+        );
+
+        installedModules.remove(clean);
+        rebuildEffectiveBindings();
+        return true;
+    }
+
+    synchronized boolean moduleInstalled(
+        String moduleId
+    ){
+        return installedModules.contains(
+            cleanModuleId(moduleId)
+        );
+    }
+
+    private <T> void removeModuleRegistrations(
+        List<T> registrations,
+        String moduleId
+    ){
+        for(Iterator<T> iterator=
+                registrations.iterator();
+            iterator.hasNext();){
+            T registration=iterator.next();
+            BindingInfo info=
+                registrationInfo(registration);
+
+            if(!moduleId.equals(info.moduleId))
+                continue;
+
+            registrationHandle(registration).state=
+                REGISTRATION_REMOVED;
+            iterator.remove();
+        }
+    }
+
+    private BindingInfo registrationInfo(
+        Object registration
+    ){
+        if(registration instanceof CommandRegistration)
+            return ((CommandRegistration)registration).info;
+        if(registration instanceof ObjectOptionRegistration)
+            return ((ObjectOptionRegistration)registration).info;
+        if(registration instanceof ItemOptionRegistration)
+            return ((ItemOptionRegistration)registration).info;
+        if(registration instanceof ItemOnNpcRegistration)
+            return ((ItemOnNpcRegistration)registration).info;
+        if(registration instanceof ItemOnGroundItemRegistration)
+            return ((ItemOnGroundItemRegistration)registration).info;
+        if(registration instanceof ItemOnItemRegistration)
+            return ((ItemOnItemRegistration)registration).info;
+        if(registration instanceof ItemOnObjectRegistration)
+            return ((ItemOnObjectRegistration)registration).info;
+        if(registration instanceof ItemOnPlayerRegistration)
+            return ((ItemOnPlayerRegistration)registration).info;
+        if(registration instanceof NpcOptionRegistration)
+            return ((NpcOptionRegistration)registration).info;
+
+        throw new IllegalArgumentException(
+            "unknown content registration type="+
+            registration.getClass().getName()
+        );
+    }
+
+    private RegistrationHandle registrationHandle(
+        Object registration
+    ){
+        if(registration instanceof CommandRegistration)
+            return ((CommandRegistration)registration).handle;
+        if(registration instanceof ObjectOptionRegistration)
+            return ((ObjectOptionRegistration)registration).handle;
+        if(registration instanceof ItemOptionRegistration)
+            return ((ItemOptionRegistration)registration).handle;
+        if(registration instanceof ItemOnNpcRegistration)
+            return ((ItemOnNpcRegistration)registration).handle;
+        if(registration instanceof ItemOnGroundItemRegistration)
+            return ((ItemOnGroundItemRegistration)registration).handle;
+        if(registration instanceof ItemOnItemRegistration)
+            return ((ItemOnItemRegistration)registration).handle;
+        if(registration instanceof ItemOnObjectRegistration)
+            return ((ItemOnObjectRegistration)registration).handle;
+        if(registration instanceof ItemOnPlayerRegistration)
+            return ((ItemOnPlayerRegistration)registration).handle;
+        if(registration instanceof NpcOptionRegistration)
+            return ((NpcOptionRegistration)registration).handle;
+
+        throw new IllegalArgumentException(
+            "unknown content registration type="+
+            registration.getClass().getName()
+        );
+    }
+
     ContentResult dispatchCommand(
         WorldPlayer player,
         String rawCommand,
