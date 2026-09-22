@@ -208,7 +208,7 @@ public final class EquipmentMutationServiceTest {
 
     private static void invalidInputsAtomic(
         EquipmentMutationService service,
-        WorldPlayer player
+        EquipmentState equipment
     ){
         int beforeAmmo=
             equipment.itemAt(
