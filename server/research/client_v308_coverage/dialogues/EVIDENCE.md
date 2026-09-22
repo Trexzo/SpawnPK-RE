@@ -185,6 +185,49 @@ This confirms that the standard option roots and `14170` belong to the
 client's choice/confirmation presentation family. The precise production
 business meaning of any one root remains contextual.
 
+
+## EXACT CLOSE / CANCEL CONTROL
+
+Exact `rs.n.c.A` augments the option roots:
+
+~~~
+6179
+2459
+2469
+2480
+2492
+~~~
+
+with one shared actionable widget:
+
+~~~
+widget id: 54195
+text:      <img=25> Close window
+tooltip:   Cancel
+action M:  1
+~~~
+
+The exact widget builder `rs.n.e.a(int,String,String,K[],...)` sets `M=1` for this control.
+
+The exact menu/action pipeline maps action-1 widgets to:
+
+~~~
+menu action 315
+ -> C2S185(widgetId)
+~~~
+
+Therefore the standard close/cancel control is server-visible as:
+
+~~~
+C2S185(54195)
+~~~
+
+subject to the client's normal local widget-action gating.
+
+This closes the transport side of semantic `DialogueClose` / `DialogueCancel` for the augmented option family.
+
+It does **not** prove what every production dialogue did after cancel; branch/state effects remain server authority.
+
 ## DIALOGUE MODEL / HEAD PRESENTATION
 
 Exact v308 also exposes separate native model-on-widget presentation channels.
@@ -287,7 +330,7 @@ Continue
 
 This family is structurally parallel to the NPC dialogue family and is compatible with the exact inbound local-player model channel S2C185. However, the cache record itself does not contain a literal semantic label such as `PLAYER_DIALOGUE`; keep that higher-level name as a semantic adapter label rather than pretending it is a cache string.
 
-### NPC named model-dialogue family
+### Named model-dialogue family used by exact NPC presentation
 
 The same exact cache decode confirms:
 
@@ -298,7 +341,11 @@ root 4893 -> model 4894, Name 4895, Line1 4896, Line2 4897, Line3 4898, Continue
 root 4900 -> model 4901, Name 4902, Line1 4903, Line2 4904, Line3 4905, Line4 4906, Continue 4907
 ~~~
 
-These model children are the same exact widgets already used by S2C75 NPC model/head presentation and the Make-over NPC-599 instance.
+These model children are the same exact widgets used by S2C75 NPC model/head presentation in the Make-over NPC-599 instance.
+
+Importantly, the exact client does **not** intrinsically bind these roots to NPC models. S2C246 can retarget a type-6 widget to an item model, while S2C75 retargets it to an NPC model. Therefore these roots are best modeled as **named model-dialogue templates** whose model source is supplied by the presentation adapter, not as NPC-only domain roots.
+
+That distinction prevents item dialogue from needing a separate packet-specific domain model.
 
 ### Statement dialogue family
 
@@ -329,6 +376,7 @@ intent such as:
 DialogueContinue
 DialogueOption(index)
 DialogueClose
+DialogueCancel
 ```
 
 without exposing raw opcodes or widget IDs.
@@ -340,6 +388,7 @@ C2S40(clickedContinueWidget)
 C2S40(4907 from Space)
 C2S103("dialogueoption N")
 C2S185(proven option widget)
+C2S185(54195 close/cancel)
 ```
 
 into the same domain-level dialogue state machine where evidence says they are
@@ -359,7 +408,7 @@ IDs into public content API concepts.
   Continue's literal `4907` specially or only as a Continue signal.
 - UNKNOWN_SERVER_AUTHORITY: historical/business naming policy for the cache-backed `968/973/979/986` named model-dialogue family beyond its exact structure and local-player-model compatibility.
 - UNKNOWN_SERVER_AUTHORITY: exact semantic identity of remaining model-bearing/no-name dialogue families until their update/use paths are directly proven.
-- UNKNOWN_SERVER_AUTHORITY: close/cancel server semantics beyond the exact `rs.n.c.A` presentation controls.
+- UNKNOWN_SERVER_AUTHORITY: business/state transition after exact close/cancel request `C2S185(54195)`.
 
 ## FILES / METHODS
 
@@ -385,8 +434,7 @@ Related exact-current concrete instance:
 
 **yes — core transport normalization**
 
-Chat 2 can normalize C2S40/C2S103/C2S185 into internal typed request forms while
-keeping opcode/widget identity internal.
+Chat 2 can normalize C2S40/C2S103/C2S185 into internal typed request forms while keeping opcode/widget identity internal. The standard augmented option-family close/cancel route is now exactly `C2S185(54195)`.
 
 ## READY FOR CHAT 3
 
