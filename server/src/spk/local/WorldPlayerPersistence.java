@@ -36,6 +36,36 @@ final class WorldPlayerPersistence
         }
     }
 
+    static final class CapturedSave {
+        final SaveTicket ticket;
+        final int petAccessoryItem;
+        final String tag;
+        final String reason;
+        private boolean submitted;
+
+        CapturedSave(
+            SaveTicket ticket,
+            int petAccessoryItem,
+            String tag,
+            String reason
+        ){
+            this.ticket=ticket;
+            this.petAccessoryItem=petAccessoryItem;
+            this.tag=tag;
+            this.reason=reason;
+        }
+
+        synchronized void markSubmitted(){
+            if(submitted)
+                throw new IllegalStateException(
+                    "captured save already submitted sequence="+
+                    ticket.sequence
+                );
+
+            submitted=true;
+        }
+    }
+
     private static final class PendingCheckpoint {
         final long tick;
         final PlayerSnapshot snapshot;
@@ -242,6 +272,39 @@ final class WorldPlayerPersistence
         String tag,
         String reason
     ){
+        CapturedSave captured=
+            captureDeferredSave(
+                username,
+                player,
+                petAccessoryItem,
+                tag,
+                reason
+            );
+
+        captured.markSubmitted();
+
+        SaveTask task=
+            saveTask(captured);
+
+        try{
+            io.execute(task);
+        }catch(RejectedExecutionException e){
+            task.reject(
+                e,
+                "IO_BACKPRESSURE"
+            );
+        }
+
+        return captured.ticket;
+    }
+
+    CapturedSave captureDeferredSave(
+        String username,
+        WorldPlayer player,
+        int petAccessoryItem,
+        String tag,
+        String reason
+    ){
         requireWorldExecutionContext();
 
         Objects.requireNonNull(
@@ -262,30 +325,151 @@ final class WorldPlayerPersistence
         CompletableFuture<Void> future=
             new CompletableFuture<>();
 
-        SaveTask task=
-            new SaveTask(
+        return new CapturedSave(
+            new SaveTicket(
                 saveSequence,
                 snapshot,
-                petAccessoryItem,
-                cleanTag(tag),
-                cleanReason(reason),
                 future
+            ),
+            petAccessoryItem,
+            cleanTag(tag),
+            cleanReason(reason)
+        );
+    }
+
+    SaveTicket submitCapturedWithBackpressure(
+        CapturedSave captured,
+        long timeoutMillis
+    ){
+        Objects.requireNonNull(
+            captured,
+            "captured"
+        );
+
+        if(timeoutMillis<0L)
+            throw new IllegalArgumentException(
+                "timeoutMillis="+timeoutMillis
             );
+
+        if(world.pulse().inExecutionContext())
+            throw new IllegalStateException(
+                "blocking persistence admission on World execution context"
+            );
+
+        captured.markSubmitted();
+
+        SaveTask task=
+            saveTask(captured);
+
+        enqueueSaveWithBackpressure(
+            task,
+            timeoutMillis
+        );
+
+        return captured.ticket;
+    }
+
+    private SaveTask saveTask(
+        CapturedSave captured
+    ){
+        return new SaveTask(
+            captured.ticket.sequence,
+            captured.ticket.snapshot,
+            captured.petAccessoryItem,
+            captured.tag,
+            captured.reason,
+            captured.ticket.completion
+        );
+    }
+
+    private void enqueueSaveWithBackpressure(
+        SaveTask task,
+        long timeoutMillis
+    ){
+        long timeoutNanos=
+            TimeUnit.MILLISECONDS.toNanos(
+                timeoutMillis
+            );
+        long started=
+            System.nanoTime();
+        boolean interrupted=false;
+        boolean executeAttempted=false;
 
         try{
-            io.execute(task);
-        }catch(RejectedExecutionException e){
-            task.reject(
-                e,
-                "IO_BACKPRESSURE"
-            );
-        }
+            for(;;){
+                synchronized(io){
+                    if(io.isShutdown()){
+                        task.reject(
+                            new RejectedExecutionException(
+                                "persistence closed before captured save admission"
+                            ),
+                            "SHUTDOWN"
+                        );
+                        return;
+                    }
 
-        return new SaveTicket(
-            saveSequence,
-            snapshot,
-            future
-        );
+                    if(!executeAttempted){
+                        executeAttempted=true;
+
+                        try{
+                            io.execute(task);
+                            return;
+                        }catch(RejectedExecutionException full){
+                            if(io.isShutdown()){
+                                task.reject(
+                                    full,
+                                    "SHUTDOWN"
+                                );
+                                return;
+                            }
+                        }
+                    }
+
+                    if(io.getQueue().offer(task))
+                        return;
+                }
+
+                long elapsed=
+                    System.nanoTime()-started;
+
+                if(elapsed>=timeoutNanos){
+                    task.reject(
+                        new RejectedExecutionException(
+                            "captured save admission timed out after "+
+                            timeoutMillis+"ms"
+                        ),
+                        "IO_BACKPRESSURE_TIMEOUT"
+                    );
+                    return;
+                }
+
+                long remaining=
+                    timeoutNanos-elapsed;
+                long sleepMillis=
+                    Math.max(
+                        1L,
+                        Math.min(
+                            5L,
+                            TimeUnit.NANOSECONDS
+                                .toMillis(
+                                    remaining
+                                )
+                        )
+                    );
+
+                try{
+                    Thread.sleep(
+                        sleepMillis
+                    );
+                }catch(InterruptedException ignored){
+                    interrupted=true;
+                }
+            }
+        }finally{
+            if(interrupted)
+                Thread.currentThread()
+                    .interrupt();
+        }
     }
 
     /**
