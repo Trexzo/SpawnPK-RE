@@ -3,7 +3,8 @@ public final class EngineR71AlignmentContractTest {
   public static void main(String[] args){
     if(!ClientAssetAlignmentAuthority.countsAligned())throw new AssertionError("authority counts drift: "+ContentAuthorityRepository.summary());
     if(!ClientAssetAlignmentAuthority.root328Aligned())throw new AssertionError("exact-client root328 reconciliation missing");
-    if(!ClientAssetAlignmentAuthority.CLIENT_SHA256.equals("6232bae206846a4ba8d09766a2dee886b69016066a3f50f83b201bf705f93662"))throw new AssertionError("client pin drift");
+    if(!ClientAssetAlignmentAuthority.CLIENT_SHA256.equals("854f26ff9f134b0317572e7ac1688e6f40a231d5a4c66f8db5d655b7f45ce7c6"))throw new AssertionError("client pin drift");
+    if(!ClientAssetAlignmentAuthority.HISTORICAL_V307_CLIENT_SHA256.equals("6232bae206846a4ba8d09766a2dee886b69016066a3f50f83b201bf705f93662"))throw new AssertionError("historical v307 client pin drift");
     if(!ClientAssetAlignmentAuthority.SPAWNPK_ASSET_BUNDLE_SHA256.equals("607425ad3fe69f4cfcaaf82220d9a0d4ebff9954e896819245f37271713d299a"))throw new AssertionError("asset pin drift");
     WorldRegionAuthorityRepository.Region home=WorldRegionAuthorityRepository.get(12342);
     if(home==null||home.regionX!=48||home.regionY!=54)throw new AssertionError("HOME region authority drift");
