@@ -48,7 +48,7 @@ try {
         throw "Exact v308 inherited 179/179 acceptance failed with exit code $LASTEXITCODE"
     }
 
-    Write-Host "CURRENT_RELEASE_V308_ACCEPTANCE_PASS clientSha256=$actual canonicalPromoted=false" -ForegroundColor Green
+    Write-Host "CURRENT_RELEASE_V308_ACCEPTANCE_PASS clientSha256=$actual canonicalPromoted=true" -ForegroundColor Green
 }
 finally {
     Pop-Location

@@ -6,8 +6,9 @@ group = 'spk.locallab'
 version = '5.18.5-r8.5-dev'
 
 def repoRoot = projectDir.parentFile
-def pinnedClientSha256 = '6232bae206846a4ba8d09766a2dee886b69016066a3f50f83b201bf705f93662'
-def v308AcceptanceClientSha256 = '854f26ff9f134b0317572e7ac1688e6f40a231d5a4c66f8db5d655b7f45ce7c6'
+def historicalV307ClientSha256 = '6232bae206846a4ba8d09766a2dee886b69016066a3f50f83b201bf705f93662'
+def pinnedClientSha256 = '854f26ff9f134b0317572e7ac1688e6f40a231d5a4c66f8db5d655b7f45ce7c6'
+def v308AcceptanceClientSha256 = pinnedClientSha256
 
 def runtimeDataFiles = [
     'items.tsv',
@@ -236,7 +237,7 @@ tasks.register('r85Regression') {
 
 tasks.register('r85V308Acceptance') {
     group = 'verification'
-    description = 'Runs the inherited 179/179 R8.5 suite against exact v308 without promoting the canonical client pin.'
+    description = 'Runs the inherited 179/179 R8.5 suite against the canonical exact v308 client pin.'
     dependsOn tasks.named('jar'), tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
 
     doLast {
@@ -302,7 +303,7 @@ tasks.register('r85V308Acceptance') {
         }
 
         logger.lifecycle(
-            "GRADLE_R85_V308_ACCEPTANCE_PASS count=${names.size()} clientSha256=${actualClientSha} canonicalPromoted=false bytecodeMajor=55"
+            "GRADLE_R85_V308_ACCEPTANCE_PASS count=${names.size()} clientSha256=${actualClientSha} canonicalPromoted=true bytecodeMajor=55"
         )
     }
 }
