@@ -180,6 +180,66 @@ Representative exact custom GFX animation links include:
 16109  Vorkath area travel
 ~~~
 
+## GFX -> MODEL DEPENDENCY INDEX
+
+A deeper exact-v308 runtime trace closes the model-resolution ambiguity.
+
+Exact GFX model construction:
+
+~~~
+rs.d.x.a()
+  -> rs.cache.osrs.c.a(definition.o)
+  -> rs.a.h.e(modelId)
+~~~
+
+The exact `g.bin` loader sets the GFX OSRS-cache flag:
+
+~~~
+osrs: <boolean> -> definition.o = value
+osid: <integer> -> definition.o = true
+~~~
+
+So `osid` is not merely metadata; its presence selects the OSRS model-cache
+context for the resulting GFX definition.
+
+Across the exact-current `g.bin` corpus:
+
+~~~
+193 records contain a non-negative model id
+125 distinct model ids
+
+186 / 193 model-bearing rows select OSRS model-cache context
+  7 / 193 model-bearing rows select primary model-cache context
+~~~
+
+The matched exact cache contains both model stores:
+
+~~~
+.spawnpk/main_file_cache.idx1
+.spawnpk/main_file_osrs.idx1
+.spawnpk/raw/<id> and raw/<id>.dat override paths
+~~~
+
+Resolution was checked using the exact selected context for every model-bearing
+GFX definition:
+
+~~~
+193 / 193 GFX model references resolve
+0 dangling model references
+~~~
+
+Specifically:
+
+- OSRS-context rows resolve against `main_file_osrs.idx1`;
+- primary-context rows resolve through the primary packed model index and/or
+  exact loose `raw/` override set.
+
+This corrects an earlier incomplete filesystem-only probe that appeared to leave
+many model ids unresolved when only the primary model store was considered.
+
+Do not classify a GFX model as missing without honoring the exact definition's
+OSRS cache-context flag.
+
 ## AUTHORITY BOUNDARY
 
 These config fields prove exact-current presentation definitions and dependency identity.
