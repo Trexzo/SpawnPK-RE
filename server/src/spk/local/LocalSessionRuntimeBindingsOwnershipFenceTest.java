@@ -92,12 +92,92 @@ public final class LocalSessionRuntimeBindingsOwnershipFenceTest {
                     "owned runtime binding cleanup failed"
                 );
 
+            LocalSessionRuntimeBindings stale=
+                bindings(
+                    ownerWorld,
+                    owner
+                );
+
             if(!ownerWorld.unregisterPlayer(
                     owner,
                     ownerGeneration
                 ))
                 throw new AssertionError(
                     "owner cleanup failed"
+                );
+
+            long replacementGeneration=
+                ownerWorld.registerPlayer(
+                    owner,
+                    "runtime-owner"
+                );
+
+            if(replacementGeneration==
+                    ownerGeneration)
+                throw new AssertionError(
+                    "replacement generation did not advance"
+                );
+
+            boolean staleGenerationRejected=false;
+
+            try{
+                stale.register(
+                    writer(7),
+                    "[runtime-binding-ownership] ",
+                    ownerGeneration
+                );
+            }catch(IllegalStateException expected){
+                staleGenerationRejected=true;
+            }
+
+            if(!staleGenerationRejected)
+                throw new AssertionError(
+                    "stale runtime binding generation accepted"
+                );
+
+            if(stale.context()!=null)
+                throw new AssertionError(
+                    "stale generation rejection installed Player81 context"
+                );
+
+            if(!owner.accepts(
+                    replacementGeneration)||
+               ownerWorld.players().byId(
+                    owner.id())!=owner)
+                throw new AssertionError(
+                    "stale binding rejection damaged replacement owner"
+                );
+
+            LocalSessionRuntimeBindings replacement=
+                bindings(
+                    ownerWorld,
+                    owner
+                );
+
+            replacement.register(
+                writer(8),
+                "[runtime-binding-ownership] ",
+                replacementGeneration
+            );
+
+            if(replacement.context()==null)
+                throw new AssertionError(
+                    "replacement generation runtime binding rejected"
+                );
+
+            replacement.unregister();
+
+            if(replacement.context()!=null)
+                throw new AssertionError(
+                    "replacement runtime binding cleanup failed"
+                );
+
+            if(!ownerWorld.unregisterPlayer(
+                    owner,
+                    replacementGeneration
+                ))
+                throw new AssertionError(
+                    "replacement owner cleanup failed"
                 );
 
             long closedGeneration=
@@ -290,6 +370,8 @@ public final class LocalSessionRuntimeBindingsOwnershipFenceTest {
                 "LOCAL_SESSION_RUNTIME_BINDINGS_OWNERSHIP_FENCE_PASS "+
                 "foreignWorldRejected=true "+
                 "ownedWorldAccepted=true "+
+                "staleGenerationRejected=true "+
+                "replacementGenerationAccepted=true "+
                 "terminalWorldRejected=true "+
                 "atomicCloseFence=true "+
                 "postCloseCleanup=true"
