@@ -22,7 +22,8 @@ public final class RuntimeCorrectiveIntegrationTest {
         try(World world=World.isolatedForTest(600L)){
             LocalSession s=new LocalSession(new Socket(),true,true,world);
             WorldPlayer player=(WorldPlayer)field(s,"worldPlayer");
-            world.registerPlayer(player,"opensrc");
+            long generation=world.registerPlayer(player,"opensrc");
+            setField(s,"worldPlayerGeneration",generation);
             try{
                 BankState bank=(BankState)field(s,"bank");
                 MovementState movement=(MovementState)field(s,"movement");
