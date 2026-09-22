@@ -13,6 +13,7 @@ final class GroundItemRegistry {
         }
         GroundItem g=new GroundItem(ids.incrementAndGet(),itemId,amount,tile,owner,tick,devOwned); byId.put(g.id,g); return g;
     }
+    synchronized GroundItem byId(long id){ return byId.get(id); }
     synchronized GroundItem find(int itemId,int x,int y,int plane){ for(GroundItem g:byId.values()) if(g.itemId==itemId&&g.tile.x==x&&g.tile.y==y&&g.tile.plane==plane)return g; return null; }
     synchronized GroundItem findOwned(int itemId,int x,int y,int plane,String owner){ for(GroundItem g:byId.values()) if(g.itemId==itemId&&g.tile.x==x&&g.tile.y==y&&g.tile.plane==plane&&Objects.equals(g.owner,owner))return g; return null; }
     synchronized boolean remove(long id){ return byId.remove(id)!=null; }
