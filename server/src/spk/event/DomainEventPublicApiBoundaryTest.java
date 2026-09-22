@@ -38,6 +38,9 @@ public final class DomainEventPublicApiBoundaryTest {
         ArrayList<String> violations=
             new ArrayList<>();
 
+        assertReconstructionIdentityGuards(
+            violations
+        );
         assertApiTypeCoverage(violations);
 
         for(Class<?> api:API_TYPES){
@@ -139,6 +142,8 @@ public final class DomainEventPublicApiBoundaryTest {
             "sceneIndex=false "+
             "playerIndex=false "+
             "inventorySlotIdentity=false "+
+            "containerIdentity=false "+
+            "cacheIdentity=false "+
             "apiCoverageComplete=true"
         );
     }
@@ -347,6 +352,8 @@ public final class DomainEventPublicApiBoundaryTest {
            lower.contains("playerindex")||
            lower.contains("protocolindex")||
            exposesRawInventorySlotIdentity(lower)||
+           exposesRawContainerIdentity(lower)||
+           exposesRawCacheIdentity(lower)||
            lower.contains("isaac")||
            lower.contains("socket"))
             violations.add(
@@ -366,6 +373,58 @@ public final class DomainEventPublicApiBoundaryTest {
             "targetslot".equals(lower)||
             "sourceslot".equals(lower)||
             "destinationslot".equals(lower);
+    }
+
+    private static boolean exposesRawContainerIdentity(
+        String lower
+    ){
+        return lower.contains("containerid")||
+            "sourcecontainer".equals(lower)||
+            "targetcontainer".equals(lower)||
+            "selectedcontainer".equals(lower)||
+            "destinationcontainer".equals(lower);
+    }
+
+    private static boolean exposesRawCacheIdentity(
+        String lower
+    ){
+        return lower.contains("cacheoffset")||
+            lower.contains("archiveoffset");
+    }
+
+    private static void assertReconstructionIdentityGuards(
+        List<String> violations
+    ){
+        for(String raw:
+                Arrays.asList(
+                    "containerid",
+                    "sourcecontainer",
+                    "targetcontainerid",
+                    "destinationcontainer",
+                    "cacheoffset",
+                    "archiveoffset"
+                ))
+            if(!exposesRawContainerIdentity(raw)&&
+               !exposesRawCacheIdentity(raw))
+                violations.add(
+                    "raw reconstruction identity guard missed "+
+                    raw
+                );
+
+        for(String semantic:
+                Arrays.asList(
+                    "event",
+                    "priority",
+                    "listener",
+                    "itemid",
+                    "worldx"
+                ))
+            if(exposesRawContainerIdentity(semantic)||
+               exposesRawCacheIdentity(semantic))
+                violations.add(
+                    "semantic event API name falsely rejected "+
+                    semantic
+                );
     }
 
     private static void inspect(
