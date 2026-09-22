@@ -10,7 +10,7 @@ authority would unblock Chat 2/3 without inventing server mechanics.
 | P0 | Prayer + magic presentation | exact 854f C2S185 prayer/direct widgets, local-only spell selection, five target writer families, prayer `bd` headicon channel, 51 prayer/126 spell client census; quick roots `20000/22000`, 29 prayer + 20 curse selections, config projection, confirm/orb actions now closed | STRONG-PARTIAL | quick-selection client contract is ready for Chat 3; prayer drain/formulas/secondary effects/consumption and original quick-set persistence policy remain `UNKNOWN_SERVER_AUTHORITY` | Chat 3 |
 | P0 | Appearance + equipment + ranks/icons | exact v308 worn HEAD→`fE[rs.l.h.b(aC)]` staff-rank gate, packet-81 `aC` + `bs` fields, Override/C2S16, native icon family | STRONG-PARTIAL | client presentation contract closed; LocalLab currently publishes `aC=0`; original named-rank→numeric-`aC` and production Override policy remain `UNKNOWN_SERVER_AUTHORITY` | Chat 3 |
 | P0 | Make-over Mage / character design | exact v308 C2S40/C2S101, roots 4882/2459/3559, exact kit/colour domain | PARTIAL-CLOSED-CONTRACT | server fee/restrictions/persistence policy unknown; native designer cannot preload persisted appearance from packet 81 | Chat 3 |
-| P1 | Dialogues / chatbox state machines | exact v308 option roots `2459/2469/2480/2492/14170`, Continue roots `4882/4887/4893/4900/30700`, mouse C2S40/C2S185 and keyboard `dialogueoption N`/C2S40(4907) | STRONG-PARTIAL | core standard input state machine closed; normalize remaining player/item/statement roots and close/cancel presentation families | Chat 2/3 |
+| P1 | Dialogues / chatbox state machines | exact v308 input + cache/runtime presentation now closed for standard families: option roots/hotkeys; shared close `54195`; right-side named model roots `968/973/979/986`; left-side named model roots `4882/4887/4893/4900`; statement roots `356/359/363/368/374`; runtime item-backed root `30700`; `14170` destroy-confirmation cache default + runtime repurposing | STRONG-CLOSED-STANDARD-FAMILIES | only content-specific legacy model-bearing roots and original server branch/business effects remain evidence-gated; no longer a core transport/presentation blocker | Chat 2/3 |
 | P1 | Items / item definitions / equipment models | exact matched cache + v308 loader census packaged: `i.bin` 5,207 overrides / 75 keys; key control-flow statuses, clone/fullClone precedence, hover/OSRS inheritance, and exact `rs.d.k` target-field map now closed; equipClone/cloneEquip + param_* proven non-mutating | STRONG-PARTIAL | loader-level field mapping closed; downstream model-builder/render semantics and base-cache inheritance details remain | Chat 3 |
 | P1 | NPC definitions / interaction presentation | exact-current `e.bin` census packaged: 916 overrides / 45 keys; 44 recognized, `tags` recognized-noop, sole `offsets` key unconsumed; models/actions/animations/icons/scale/colour-loader targets normalized | STRONG-PARTIAL | base-cache precedence, morph/config transforms, downstream model/recolour/retexture semantics and global animation/GFX dependency indexing remain | Chat 3 |
 | P1 | Teleports / UI navigation | exact v308 spellbook entry atlas packaged: Home `1195`; Money `1164/13035/30064`; Training `1167/13045/30075`; Boss `1170/13053/30083`; PK `1174/13061/30106`; Minigame `1540/13069/30114`; House `1541/13079/30138`; Bounty `7455/13095/30162`; labels/assets/C2S185 routing + Bounty client-lock path exact | STRONG-PARTIAL | destination submenu roots/buttons still open for Money/Training/PK/Minigame/House; coordinates, restrictions and server eligibility remain unknown | Chat 3 |
@@ -29,18 +29,12 @@ authority would unblock Chat 2/3 without inventing server mechanics.
 
 ## Immediate campaign order
 
-1. **Dialogue/interface state-machine atlas — remaining families**
-   - core standard option/Continue input routing is now packaged;
-   - close player/item/statement dialogue roots plus close/cancel presentation;
-   - keep wording and server-authored branch semantics evidence-gated.
-2. **Teleports / UI navigation**
+1. **Teleports / UI navigation**
    - close exact roots/buttons/configs and client-visible destination semantics;
    - build a finite navigation atlas without inventing server coordinates/restrictions.
-3. **Dialogue/interface state-machine atlas — remaining presentation families**
-   - close player/item/statement dialogue roots plus close/cancel presentation around the already-closed input routing.
-4. **Animation/GFX + remaining downstream definition semantics**
+2. **Animation/GFX + remaining downstream definition semantics**
    - item/NPC loader-level field census is now strong; focus only on downstream render/model/remap semantics that actually unblock gameplay/content.
-5. Continue Issue #427 application contracts: Event Chest + Well of Good Will + Looting Bag + Boss Teleport + ordinary/Bloodcore lotteries + Bloodcore Synthesis + Blood Shard Salvaging + reward Coffer + Task Scroll + Event Activity Viewer + Voting/redeem flow + Main Donor Panel + Donation Cart + Blood Fountain hub/Blood Diamond Fuser are now packaged; next close remaining navigation/store presentation gaps, prioritizing the teleport atlas.
+3. Continue Issue #427 application contracts: Event Chest + Well of Good Will + Looting Bag + Boss Teleport + ordinary/Bloodcore lotteries + Bloodcore Synthesis + Blood Shard Salvaging + reward Coffer + Task Scroll + Event Activity Viewer + Voting/redeem flow + Main Donor Panel + Donation Cart + Blood Fountain hub/Blood Diamond Fuser are now packaged; next close remaining navigation/store presentation gaps, prioritizing the teleport atlas.
 
 Completed high-value P0 packages now include the exact v308 worn staff-rank
 overhead gate, combat-facing contracts, prayer/magic presentation, Make-over
