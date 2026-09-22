@@ -450,6 +450,48 @@ final class LocalPendingRequestDispatcher {
             }
 
             if(request instanceof
+                    NameEntryClientRequest){
+                NameEntryClientRequest nameEntry=
+                    (NameEntryClientRequest)request;
+
+                System.out.println(
+                    tag+
+                    nameEntryFailClosedDiagnostic(
+                        nameEntry
+                    )
+                );
+                continue;
+            }
+
+            if(request instanceof
+                    ChatModeClientRequest){
+                ChatModeClientRequest chatMode=
+                    (ChatModeClientRequest)request;
+
+                System.out.println(
+                    tag+
+                    chatModeFailClosedDiagnostic(
+                        chatMode
+                    )
+                );
+                continue;
+            }
+
+            if(request instanceof
+                    ReportAbuseClientRequest){
+                ReportAbuseClientRequest report=
+                    (ReportAbuseClientRequest)request;
+
+                System.out.println(
+                    tag+
+                    reportAbuseFailClosedDiagnostic(
+                        report
+                    )
+                );
+                continue;
+            }
+
+            if(request instanceof
                     SocialListClientRequest){
                 SocialListClientRequest social=
                     (SocialListClientRequest)request;
@@ -486,6 +528,61 @@ final class LocalPendingRequestDispatcher {
                 request
             );
         }
+    }
+
+    static String nameEntryFailClosedDiagnostic(
+        NameEntryClientRequest request
+    ){
+        Objects.requireNonNull(
+            request,
+            "request"
+        );
+
+        return "NAME_ENTRY_REQUEST_FAIL_CLOSED nameKey="+
+            Long.toUnsignedString(
+                request.nameKey()
+            )+
+            " reason=ACTIVE_NAME_PROMPT_AND_ACCOUNT_MAPPING_UNPROVEN"+
+            " stateMutation=false"+
+            " authority=EXACT_CURRENT_CLIENT";
+    }
+
+    static String chatModeFailClosedDiagnostic(
+        ChatModeClientRequest request
+    ){
+        Objects.requireNonNull(
+            request,
+            "request"
+        );
+
+        return "CHAT_MODE_REQUEST_FAIL_CLOSED modes="+
+            request.mode0()+","+
+            request.mode1()+","+
+            request.mode2()+
+            " reason=SERVER_CHAT_MODE_POLICY_UNPROVEN"+
+            " stateMutation=false"+
+            " authority=EXACT_CURRENT_CLIENT";
+    }
+
+    static String reportAbuseFailClosedDiagnostic(
+        ReportAbuseClientRequest request
+    ){
+        Objects.requireNonNull(
+            request,
+            "request"
+        );
+
+        return "REPORT_ABUSE_REQUEST_FAIL_CLOSED nameKey="+
+            Long.toUnsignedString(
+                request.nameKey()
+            )+
+            " ruleIndex="+
+            request.ruleIndex()+
+            " muteToggle="+
+            request.muteToggle()+
+            " reason=ACCOUNT_MAPPING_AND_MODERATION_POLICY_UNPROVEN"+
+            " stateMutation=false"+
+            " authority=EXACT_CURRENT_CLIENT";
     }
 
     static String socialListFailClosedDiagnostic(
