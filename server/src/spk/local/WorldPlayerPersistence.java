@@ -439,19 +439,47 @@ final class WorldPlayerPersistence
                     expectedGeneration
                 );
 
+            Long previousSuppression;
+
             synchronized(checkpointLock){
-                checkpointSuppressedGenerations.put(
-                    player.id(),
-                    expectedGeneration
-                );
+                previousSuppression=
+                    checkpointSuppressedGenerations.put(
+                        player.id(),
+                        expectedGeneration
+                    );
             }
 
-            snapshot=
-                PlayerSnapshotCodec.capture(
-                    username,
-                    player,
-                    petAccessoryItem
-                );
+            try{
+                snapshot=
+                    PlayerSnapshotCodec.capture(
+                        username,
+                        player,
+                        petAccessoryItem
+                    );
+            }catch(RuntimeException|Error failure){
+                synchronized(checkpointLock){
+                    Long current=
+                        checkpointSuppressedGenerations.get(
+                            player.id()
+                        );
+
+                    if(current!=null&&
+                       current.longValue()==
+                           expectedGeneration){
+                        if(previousSuppression==null)
+                            checkpointSuppressedGenerations.remove(
+                                player.id()
+                            );
+                        else
+                            checkpointSuppressedGenerations.put(
+                                player.id(),
+                                previousSuppression
+                            );
+                    }
+                }
+
+                throw failure;
+            }
         }
 
         long saveSequence=
