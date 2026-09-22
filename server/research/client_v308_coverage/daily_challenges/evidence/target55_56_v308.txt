@@ -1,0 +1,28 @@
+Exact v308 Daily Challenges contract
+
+S2C126 target 55:
+semicolon-delimited definition/state record
+client record -> key, description, metadataA, metadataB, current, target
+metadataA/B retained but not consumed by renderer
+
+S2C126 target 56:
+key,current,target
+incremental progress update for existing record
+
+C2S103 compatibility:
+::claimchallenge <key>
+::infochallenge <key>
+
+capacity:
+maximum 10 rendered challenge records
+
+empty state:
+You don't have any challenges!
+
+target-1 legacy control strings:
+BUILD_ACHIEVEMENT_TAB
+CLEAR_ACHIEVEMENT_TAB
+These mutate Daily Challenges in this client generation despite the names.
+
+Boundary:
+assignment, reset, rewards, metadata meanings and persistence remain server authority.
