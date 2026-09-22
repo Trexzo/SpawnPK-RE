@@ -17,6 +17,7 @@ final class PlayerLifecycleState {
     private Phase phase=Phase.ALIVE;
     private long deathTick=-1L;
     private long respawnTick=-1L;
+    private long deathSequence;
     private String cause="NONE";
 
     Phase phase(){return phase;}
@@ -24,6 +25,7 @@ final class PlayerLifecycleState {
     boolean dead(){return phase==Phase.DEAD_WAITING_RESPAWN;}
     long deathTick(){return deathTick;}
     long respawnTick(){return respawnTick;}
+    long deathSequence(){return deathSequence;}
     String cause(){return cause;}
 
     void markDead(
@@ -36,7 +38,22 @@ final class PlayerLifecycleState {
                 "respawnDelayTicks="+respawnDelayTicks
             );
 
+        final long nextDeathSequence;
+        try{
+            nextDeathSequence=
+                Math.addExact(
+                    deathSequence,
+                    1L
+                );
+        }catch(ArithmeticException overflow){
+            throw new IllegalStateException(
+                "death sequence overflow",
+                overflow
+            );
+        }
+
         this.phase=Phase.DEAD_WAITING_RESPAWN;
+        this.deathSequence=nextDeathSequence;
         this.deathTick=worldTick;
         this.respawnTick=worldTick+respawnDelayTicks;
         this.cause=
@@ -60,6 +77,7 @@ final class PlayerLifecycleState {
         return "PlayerLifecycleState{phase="+phase+
             ",deathTick="+deathTick+
             ",respawnTick="+respawnTick+
+            ",deathSequence="+deathSequence+
             ",cause="+cause+
             ",authority="+AUTHORITY+"}";
     }
