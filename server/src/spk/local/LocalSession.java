@@ -872,23 +872,70 @@ final class LocalSession implements Runnable {
             System.err.println(tag + "closed: " + t);
         } finally {
             if(worldTickAttached){
-                world.detachTickTarget(
-                    worldPlayer.id(),
-                    worldPlayerGeneration
+                LocalSessionTeardown.run(
+                    tag,
+                    "DETACH_TICK_TARGET",
+                    ()->{
+                        try{
+                            world.detachTickTarget(
+                                worldPlayer.id(),
+                                worldPlayerGeneration
+                            );
+                        }finally{
+                            worldTickAttached=false;
+                        }
+                    }
                 );
-                worldTickAttached=false;
             }
-            runtimeBindings.unregister();
-            devPanelCoordinator.closeSession();
-            saveAccountFinal(tag,"SESSION_END");
+
+            LocalSessionTeardown.run(
+                tag,
+                "RUNTIME_BINDINGS_UNREGISTER",
+                runtimeBindings::unregister
+            );
+
+            LocalSessionTeardown.run(
+                tag,
+                "DEV_PANEL_CLOSE",
+                devPanelCoordinator::closeSession
+            );
+
+            LocalSessionTeardown.run(
+                tag,
+                "FINAL_ACCOUNT_SAVE",
+                ()->saveAccountFinal(
+                    tag,
+                    "SESSION_END"
+                )
+            );
+
             if(worldRegistered){
-                boolean removed=
-                    world.unregisterPlayer(
-                        worldPlayer,
-                        worldPlayerGeneration
-                    );
-                worldRegistered=false;
-                System.out.println(tag+"V512_WORLD_UNREGISTER playerId="+worldPlayer.id()+" removed="+removed+" members="+world.players().size()+" queuedCommands="+world.commands().size());
+                LocalSessionTeardown.run(
+                    tag,
+                    "WORLD_UNREGISTER",
+                    ()->{
+                        try{
+                            boolean removed=
+                                world.unregisterPlayer(
+                                    worldPlayer,
+                                    worldPlayerGeneration
+                                );
+
+                            System.out.println(
+                                tag+
+                                "V512_WORLD_UNREGISTER playerId="+
+                                worldPlayer.id()+
+                                " removed="+removed+
+                                " members="+
+                                world.players().size()+
+                                " queuedCommands="+
+                                world.commands().size()
+                            );
+                        }finally{
+                            worldRegistered=false;
+                        }
+                    }
+                );
             }
         }
     }
