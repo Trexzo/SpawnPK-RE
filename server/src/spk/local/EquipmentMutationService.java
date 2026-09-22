@@ -58,24 +58,28 @@ final class EquipmentMutationService {
     }
 
     private final EquipmentState equipment;
+    private final Object mutationLock;
     private final String policyAuthority;
 
     EquipmentMutationService(
-        EquipmentState equipment,
+        WorldPlayer player,
         String policyAuthority
     ){
-        this.equipment=
+        WorldPlayer owner=
             Objects.requireNonNull(
-                equipment,
-                "equipment"
+                player,
+                "player"
             );
+
+        this.equipment=owner.equipment();
+        this.mutationLock=owner.mutationLock();
         this.policyAuthority=
             requireGameplayAuthority(
                 policyAuthority
             );
     }
 
-    synchronized SlotSnapshot inspect(
+    SlotSnapshot inspect(
         EquipmentSlot slot
     ){
         EquipmentSlot checked=
@@ -84,15 +88,17 @@ final class EquipmentMutationService {
                 "slot"
             );
 
-        return new SlotSnapshot(
-            checked,
-            equipment.itemAt(checked),
-            equipment.quantityAt(checked),
-            policyAuthority
-        );
+        synchronized(mutationLock){
+            return new SlotSnapshot(
+                checked,
+                equipment.itemAt(checked),
+                equipment.quantityAt(checked),
+                policyAuthority
+            );
+        }
     }
 
-    synchronized ReplaceResult replace(
+    ReplaceResult replace(
         EquipmentSlot slot,
         int expectedItemId,
         int expectedQuantity,
@@ -116,59 +122,62 @@ final class EquipmentMutationService {
             "next"
         );
 
-        int currentItem=
-            equipment.itemAt(
-                checked
-            );
-        int currentQuantity=
-            equipment.quantityAt(
-                checked
-            );
+        synchronized(mutationLock){
+            int currentItem=
+                equipment.itemAt(
+                    checked
+                );
+            int currentQuantity=
+                equipment.quantityAt(
+                    checked
+                );
 
-        if(currentItem!=expectedItemId||
-           currentQuantity!=expectedQuantity)
-            throw new IllegalStateException(
-                "equipment compare-and-set mismatch slot="+
-                checked+
-                " expected="+
-                expectedItemId+"x"+expectedQuantity+
-                " actual="+
-                currentItem+"x"+currentQuantity
-            );
+            if(currentItem!=expectedItemId||
+               currentQuantity!=expectedQuantity)
+                throw new IllegalStateException(
+                    "equipment compare-and-set mismatch slot="+
+                    checked+
+                    " expected="+
+                    expectedItemId+"x"+expectedQuantity+
+                    " actual="+
+                    currentItem+"x"+currentQuantity
+                );
 
-        equipment.setStack(
-            checked,
-            nextItemId,
-            nextQuantity
-        );
-
-        int observedItem=
-            equipment.itemAt(
-                checked
-            );
-        int observedQuantity=
-            equipment.quantityAt(
-                checked
+            equipment.setStack(
+                checked,
+                nextItemId,
+                nextQuantity
             );
 
-        if(observedItem!=nextItemId||
-           observedQuantity!=(nextItemId<0?0:nextQuantity))
-            throw new IllegalStateException(
-                "equipment replacement write mismatch slot="+
-                checked
+            int observedItem=
+                equipment.itemAt(
+                    checked
+                );
+            int observedQuantity=
+                equipment.quantityAt(
+                    checked
+                );
+
+            if(observedItem!=nextItemId||
+               observedQuantity!=(nextItemId<0?0:nextQuantity))
+                throw new IllegalStateException(
+                    "equipment replacement write mismatch slot="+
+                    checked
+                );
+
+            return new ReplaceResult(
+                checked,
+                currentItem,
+                currentQuantity,
+                observedItem,
+                observedQuantity,
+                policyAuthority
             );
+        }
 
-        return new ReplaceResult(
-            checked,
-            currentItem,
-            currentQuantity,
-            observedItem,
-            observedQuantity,
-            policyAuthority
-        );
-    }
+        }
 
-    synchronized ReplaceResult remove(
+    ReplaceResult remove(
         EquipmentSlot slot,
         int expectedItemId,
         int expectedQuantity
