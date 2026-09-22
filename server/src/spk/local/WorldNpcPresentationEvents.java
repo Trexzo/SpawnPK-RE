@@ -327,11 +327,39 @@ final class WorldNpcPresentationEvents
         EntityId viewerId,
         long now
     ){
+        markDelivered(
+            eventSequence,
+            viewerId,
+            -1L,
+            now
+        );
+    }
+
+    synchronized void markDelivered(
+        long eventSequence,
+        EntityId viewerId,
+        long viewerGeneration,
+        long now
+    ){
         if(closed||viewerId==null)
             return;
 
         for(Event event:events)
             if(event.sequence==eventSequence){
+                Long expected=
+                    event.recipientGenerations.get(
+                        viewerId
+                    );
+
+                if(expected==null)
+                    break;
+
+                if(viewerGeneration>=0L&&
+                   expected.longValue()>=0L&&
+                   expected.longValue()!=
+                        viewerGeneration)
+                    break;
+
                 event.delivered.add(viewerId);
                 break;
             }

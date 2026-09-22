@@ -178,6 +178,31 @@ final class World implements AutoCloseable {
         }
     }
 
+    boolean withOpenPlayerOwnershipIfCurrent(
+        WorldPlayer player,
+        long expectedGeneration,
+        OwnedPlayerIoAction action
+    )throws java.io.IOException{
+        if(player==null||action==null)
+            throw new NullPointerException();
+
+        synchronized(lifecycleLock){
+            if(closed)
+                return false;
+
+            synchronized(player.mutationLock()){
+                if(!players.owns(
+                        player,
+                        expectedGeneration
+                    ))
+                    return false;
+            }
+
+            action.run();
+            return true;
+        }
+    }
+
     void start(){
         synchronized(lifecycleLock){
             requireOpen();
