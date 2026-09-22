@@ -2,9 +2,9 @@
 
 <img width="500" height="449" alt="image" src="https://github.com/user-attachments/assets/835f4622-855b-4ff5-a9ad-64c3ea46814f" />
 
-# SpawnPK LocalLab
+# SpawnPK
 
-Local/offline reconstruction and research environment for the current SpawnPK client.
+reconstruction and research environment for the current SpawnPK client.
 
 ## Baseline
 
