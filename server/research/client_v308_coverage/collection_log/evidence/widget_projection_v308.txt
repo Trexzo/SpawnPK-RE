@@ -1,0 +1,26 @@
+Exact-current Collection Log authority
+class rs.n.c.v
+
+54414 collection name
+54415 obtained count text
+54416 kill count
+54418 120-slot item-result container
+54419 completion-reward heading
+54420 completion-reward description
+54421 hidden integer collection-row selection control
+54422 hidden integer category/tab selection control
+
+Known categories:
+Bosses
+Boxes
+Minigames
+Other
+N/A
+
+Transport:
+54418 -> generic S2C53 item-container projection
+labels/selection -> generic text/application-state presentation
+no Collection-Log-specific packet family required
+
+Boundary:
+catalog, completion rules, rewards and persistence remain server authority.
