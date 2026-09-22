@@ -84,6 +84,13 @@ final class PluginTaskTracker
 
         requireOpen();
 
+        // Validate the initial target while still in the caller's admission
+        // operation. Pending enable-phase tasks are queued only after commit.
+        Math.addExact(
+            clock.tick(),
+            delayTicks
+        );
+
         Task task=
             new Task(
                 this,
