@@ -197,7 +197,20 @@ final class Player81WorldSync {
 
         synchronized WorldPlayer resolveVisible(int clientIndex){
             if(!ownerCurrent())return null;
-            for(Track t:visible.values())if(t.clientIndex==clientIndex)return state.world.players().byId(t.id);
+            for(Track t:visible.values()){
+                if(t.clientIndex!=clientIndex)
+                    continue;
+                WorldPlayer player=
+                    state.world.players()
+                        .byId(t.id);
+                return player!=null&&
+                    state.world.players().owns(
+                        player,
+                        t.generation
+                    )
+                    ?player
+                    :null;
+            }
             return null;
         }
 
@@ -205,7 +218,13 @@ final class Player81WorldSync {
             if(!ownerCurrent()||p==null)return -1;
             if(p==owner)return LOCAL_PLAYER_INDEX;
             Track t=visible.get(p.id());
-            return t==null?-1:t.clientIndex;
+            return t!=null&&
+                state.world.players().owns(
+                    p,
+                    t.generation
+                )
+                ?t.clientIndex
+                :-1;
         }
 
         synchronized int interactionTargetFor(WorldPlayer p){
@@ -245,7 +264,12 @@ final class Player81WorldSync {
 
             for(Track t:oldTracks){
                 WorldPlayer remote=current.get(t.id);
-                boolean keep=isVisible(remote);
+                boolean keep=
+                    isVisible(remote)&&
+                    state.world.players().owns(
+                        remote,
+                        t.generation
+                    );
                 if(!keep){
                     bits.write(1,1);bits.write(3,2);
                     removedThisPacket.add(t.id);
@@ -323,7 +347,22 @@ final class Player81WorldSync {
                 bits.write(dy&31,5); // exact client order: relative Y then X
                 bits.write(dx&31,5);
                 byte[] tail=appearanceTail(remote);
-                Track t=new Track(remote.id(),idx,remote.movement().x(),remote.movement().y(),remote.movement().plane());
+                long remoteGeneration=
+                    remote.generation();
+                if(!state.world.players().owns(
+                        remote,
+                        remoteGeneration
+                    ))
+                    continue;
+
+                Track t=new Track(
+                    remote.id(),
+                    remoteGeneration,
+                    idx,
+                    remote.movement().x(),
+                    remote.movement().y(),
+                    remote.movement().plane()
+                );
                 t.appearanceHash=Arrays.hashCode(tail);
                 Motion m=state.motions.get(remote.id());if(m!=null)t.lastMotionSeq=m.seq;
                 Event e=state.latestEvent(remote.id());if(e!=null)t.lastEventSeq=e.seq;
@@ -436,10 +475,27 @@ final class Player81WorldSync {
     }
 
     private static final class Track {
-        final EntityId id;final int clientIndex;
+        final EntityId id;
+        final long generation;
+        final int clientIndex;
         int x,y,plane,appearanceHash;
         long lastMotionSeq,lastEventSeq;
-        Track(EntityId id,int clientIndex,int x,int y,int plane){this.id=id;this.clientIndex=clientIndex;this.x=x;this.y=y;this.plane=plane;}
+
+        Track(
+            EntityId id,
+            long generation,
+            int clientIndex,
+            int x,
+            int y,
+            int plane
+        ){
+            this.id=id;
+            this.generation=generation;
+            this.clientIndex=clientIndex;
+            this.x=x;
+            this.y=y;
+            this.plane=plane;
+        }
     }
     private static final class Motion {
         final long seq;final int type,dir1,dir2;
