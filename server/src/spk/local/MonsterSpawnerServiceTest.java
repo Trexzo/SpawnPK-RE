@@ -1,0 +1,386 @@
+package spk.local;
+
+import java.lang.reflect.Field;
+import java.util.*;
+
+public final class MonsterSpawnerServiceTest {
+    private static final String POLICY=
+        "LOCAL_LAB_POLICY_MONSTER_SPAWNER";
+
+    public static void main(String[] args){
+        WorldNpcRegistry registry=
+            new WorldNpcRegistry();
+        MonsterSpawnerService service=
+            new MonsterSpawnerService(
+                registry
+            );
+
+        MonsterSpawnerService.CatalogSnapshot catalog=
+            service.replaceCatalog(
+                Arrays.asList(
+                    new MonsterSpawnerService.CatalogEntry(
+                        0,
+                        "npc:test:one",
+                        100
+                    ),
+                    new MonsterSpawnerService.CatalogEntry(
+                        21,
+                        "npc:test:last",
+                        200
+                    )
+                ),
+                "CALLER_DEFINED_TEST_CATALOG"
+            );
+
+        require(
+            catalog.entries.size()==2&&
+            catalog.row(0).definitionId==100&&
+            catalog.row(21).definitionId==200,
+            "Monster Spawner catalog"
+        );
+
+        expect(
+            IllegalArgumentException.class,
+            ()->new MonsterSpawnerService.CatalogEntry(
+                22,
+                "npc:invalid:row",
+                300
+            ),
+            "row 22 accepted"
+        );
+
+        List<MonsterSpawnerService.CatalogEntry>
+            duplicateRows=
+                Arrays.asList(
+                    new MonsterSpawnerService.CatalogEntry(
+                        0,
+                        "npc:a",
+                        101
+                    ),
+                    new MonsterSpawnerService.CatalogEntry(
+                        0,
+                        "npc:b",
+                        102
+                    )
+                );
+
+        expect(
+            IllegalArgumentException.class,
+            ()->service.replaceCatalog(
+                duplicateRows,
+                "BAD"
+            ),
+            "duplicate catalog row"
+        );
+
+        require(
+            service.catalog().entries.size()==2&&
+            service.catalog().row(21)!=null,
+            "failed catalog replacement mutated live catalog"
+        );
+
+        service.openSession(
+            "player:a",
+            POLICY
+        );
+        service.openSession(
+            "player:b",
+            POLICY
+        );
+
+        expect(
+            IllegalStateException.class,
+            ()->service.activate(
+                "player:a",
+                2
+            ),
+            "activation without selection"
+        );
+
+        MonsterSpawnerService.SessionSnapshot selected=
+            service.selectRow(
+                "player:a",
+                0
+            );
+
+        require(
+            selected.hasSelection()&&
+            "npc:test:one".equals(
+                selected.selectedSemanticKey
+            )&&
+            selected.selectedDefinitionId==100,
+            "Monster Spawner selection"
+        );
+
+        MonsterSpawnerService.SessionSnapshot active=
+            service.activate(
+                "player:a",
+                2
+            );
+
+        // Synthetic budget 2 intentionally proves visible client x5 is not
+        // hardcoded as server authority.
+        require(
+            active.active&&
+            active.remainingSpawnBudget==2,
+            "caller-defined Monster Spawner budget"
+        );
+
+        expect(
+            IllegalArgumentException.class,
+            ()->service.spawnSelected(
+                "player:a",
+                3200,
+                3200,
+                4
+            ),
+            "invalid plane spawn"
+        );
+
+        MonsterSpawnerService.SessionSnapshot
+            afterInvalid=
+                service.getSession(
+                    "player:a"
+                );
+
+        require(
+            afterInvalid.active&&
+            afterInvalid.remainingSpawnBudget==2&&
+            afterInvalid.spawnedNpcIds.isEmpty()&&
+            registry.size()==0,
+            "failed spawn consumed Monster Spawner state"
+        );
+
+        MonsterSpawnerService.SpawnResult first=
+            service.spawnSelected(
+                "player:a",
+                3200,
+                3200,
+                0
+            );
+
+        require(
+            first.npc.definitionId==100&&
+            !first.npc.owned()&&
+            first.npc.ownerId==null&&
+            first.npc.sourceItemId==-1&&
+            registry.byId(
+                first.npc.id
+            )==first.npc&&
+            first.session.active&&
+            first.session.remainingSpawnBudget==1&&
+            first.session.tracks(
+                first.npc.id
+            ),
+            "first canonical Monster Spawner spawn"
+        );
+
+        MonsterSpawnerService.SpawnResult second=
+            service.spawnSelected(
+                "player:a",
+                3201,
+                3200,
+                0
+            );
+
+        require(
+            !second.session.active&&
+            second.session.remainingSpawnBudget==0&&
+            second.session.spawnedNpcIds.size()==2&&
+            registry.size()==2,
+            "Monster Spawner budget exhaustion"
+        );
+
+        expect(
+            IllegalStateException.class,
+            ()->service.spawnSelected(
+                "player:a",
+                3202,
+                3200,
+                0
+            ),
+            "spawn after budget exhaustion"
+        );
+
+        service.selectRow(
+            "player:b",
+            21
+        );
+        service.activate(
+            "player:b",
+            1
+        );
+
+        MonsterSpawnerService.SpawnResult bSpawn=
+            service.spawnSelected(
+                "player:b",
+                3300,
+                3300,
+                1
+            );
+
+        require(
+            bSpawn.npc.definitionId==200&&
+            service.getSession(
+                "player:a"
+            ).spawnedNpcIds.size()==2&&
+            service.getSession(
+                "player:b"
+            ).spawnedNpcIds.size()==1,
+            "Monster Spawner owner/session isolation"
+        );
+
+        expect(
+            IllegalArgumentException.class,
+            ()->service.despawnTracked(
+                "player:a",
+                bSpawn.npc.id
+            ),
+            "foreign Monster Spawner despawn"
+        );
+
+        MonsterSpawnerService.SessionSnapshot
+            afterDespawn=
+                service.despawnTracked(
+                    "player:a",
+                    first.npc.id
+                );
+
+        require(
+            !afterDespawn.tracks(
+                first.npc.id
+            )&&
+            registry.byId(
+                first.npc.id
+            )==null&&
+            registry.byId(
+                second.npc.id
+            )==second.npc,
+            "tracked Monster Spawner despawn"
+        );
+
+        expect(
+            IllegalStateException.class,
+            ()->service.replaceCatalog(
+                Collections.singletonList(
+                    new MonsterSpawnerService.CatalogEntry(
+                        21,
+                        "npc:only:last",
+                        201
+                    )
+                ),
+                "REMOVES_SELECTED_ROW"
+            ),
+            "catalog replacement removed selected row"
+        );
+
+        require(
+            service.catalog().row(0)!=null&&
+            service.catalog().row(21)!=null,
+            "selected-row catalog rejection not atomic"
+        );
+
+        boolean immutable=false;
+
+        try{
+            service.getSession(
+                "player:a"
+            ).spawnedNpcIds.clear();
+        }catch(
+            UnsupportedOperationException expected
+        ){
+            immutable=true;
+        }
+
+        require(
+            immutable,
+            "Monster Spawner snapshot mutable"
+        );
+
+        protocolBoundary();
+
+        System.out.println(
+            "MONSTER_SPAWNER_SERVICE_PASS "+
+            "clientRows0to21=true "+
+            "catalogCallerDefined=true "+
+            "catalogReplaceAtomic=true "+
+            "ownerSessionIsolation=true "+
+            "selectionRequired=true "+
+            "callerBudget=true "+
+            "x5Hardcoded=false "+
+            "canonicalWorldNpcSpawn=true "+
+            "failedSpawnAtomic=true "+
+            "budgetExhaustionDeactivates=true "+
+            "trackedDespawn=true "+
+            "foreignDespawnRejected=true "+
+            "ownerIdAbuse=false "+
+            "sourceItemIdAbuse=false "+
+            "rewardMutation=false "+
+            "protocolIndependent=true"
+        );
+    }
+
+    private static void protocolBoundary(){
+        for(Class<?> type:new Class<?>[]{
+                MonsterSpawnerService.class,
+                MonsterSpawnerService.CatalogEntry.class,
+                MonsterSpawnerService.SessionSnapshot.class
+        }){
+            for(Field field:
+                    type.getDeclaredFields()){
+                String name=
+                    field.getName()
+                        .toLowerCase(
+                            Locale.ROOT
+                        );
+
+                if(name.contains("packet")||
+                   name.contains("opcode")||
+                   name.contains("widget")||
+                   name.contains("interface")||
+                   name.contains("reward"))
+                    throw new AssertionError(
+                        "protocol/reward state leaked into Monster Spawner "+
+                        type.getSimpleName()+
+                        "."+
+                        field.getName()
+                    );
+            }
+        }
+    }
+
+    private static void expect(
+        Class<? extends Throwable> type,
+        Runnable action,
+        String label
+    ){
+        try{
+            action.run();
+        }catch(Throwable failure){
+            if(type.isInstance(failure))
+                return;
+
+            throw new AssertionError(
+                label+
+                " wrong failure "+
+                failure,
+                failure
+            );
+        }
+
+        throw new AssertionError(
+            label+
+            " did not fail"
+        );
+    }
+
+    private static void require(
+        boolean condition,
+        String label
+    ){
+        if(!condition)
+            throw new AssertionError(label);
+    }
+
+    private MonsterSpawnerServiceTest(){}
+}
