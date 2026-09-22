@@ -3,6 +3,8 @@ package spk.local;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.Locale;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 public final class InventoryMutationServiceTest {
     private static final String AUTHORITY=
@@ -133,6 +135,7 @@ public final class InventoryMutationServiceTest {
             bank
         );
         authorityGuards(player);
+        ownershipLockFence(player, service);
         boundaryGuard();
 
         System.out.println(
@@ -270,6 +273,62 @@ public final class InventoryMutationServiceTest {
             ),
             "unknown authority"
         );
+    }
+
+    private static void ownershipLockFence(
+        WorldPlayer player,
+        InventoryMutationService service
+    ){
+        CountDownLatch started=
+            new CountDownLatch(1);
+        CountDownLatch completed=
+            new CountDownLatch(1);
+
+        Thread worker=
+            new Thread(
+                ()->{
+                    started.countDown();
+                    service.inspect(7);
+                    completed.countDown();
+                },
+                "inventory-mutation-lock-fence"
+            );
+
+        try{
+            synchronized(player.mutationLock()){
+                worker.start();
+
+                require(
+                    started.await(
+                        2L,
+                        TimeUnit.SECONDS
+                    ),
+                    "inventory ownership worker did not start"
+                );
+
+                require(
+                    !completed.await(
+                        100L,
+                        TimeUnit.MILLISECONDS
+                    ),
+                    "inventory mutation bypassed WorldPlayer mutation lock"
+                );
+            }
+
+            require(
+                completed.await(
+                    2L,
+                    TimeUnit.SECONDS
+                ),
+                "inventory mutation did not resume after ownership lock release"
+            );
+        }catch(InterruptedException interrupted){
+            Thread.currentThread().interrupt();
+            throw new AssertionError(
+                "inventory ownership lock test interrupted",
+                interrupted
+            );
+        }
     }
 
     private static void boundaryGuard(){
