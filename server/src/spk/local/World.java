@@ -2,6 +2,7 @@ package spk.local;
 
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 import spk.content.api.ContentProvenance;
 import spk.content.builtin.LocalLabCoreContentModule;
 import spk.content.builtin.UnknownServerInteractionModule;
@@ -30,7 +31,7 @@ final class World implements AutoCloseable {
     private final Object loginInitializationLock=new Object();
     private final Object lifecycleLock=new Object();
     private final CountDownLatch closeCompleted=new CountDownLatch(1);
-    private volatile boolean closed;
+    private final AtomicBoolean closed=new AtomicBoolean();
     private volatile Throwable closeFailure;
 
     private World(long tickMillis){
@@ -133,6 +134,8 @@ final class World implements AutoCloseable {
         if(player==null||task==null)
             throw new NullPointerException();
 
+        requireOpen();
+
         synchronized(lifecycleLock){
             requireOpen();
             realtime.schedule(
@@ -162,8 +165,11 @@ final class World implements AutoCloseable {
         if(player==null||action==null)
             throw new NullPointerException();
 
+        if(closed.get())
+            return false;
+
         synchronized(lifecycleLock){
-            if(closed)
+            if(closed.get())
                 return false;
 
             synchronized(player.mutationLock()){
@@ -185,8 +191,11 @@ final class World implements AutoCloseable {
                 "action"
             );
 
+        if(closed.get())
+            return false;
+
         synchronized(lifecycleLock){
-            if(closed)
+            if(closed.get())
                 return false;
 
             action.run();
@@ -201,6 +210,8 @@ final class World implements AutoCloseable {
     )throws java.io.IOException{
         if(player==null||action==null)
             throw new NullPointerException();
+
+        requireOpen();
 
         synchronized(lifecycleLock){
             requireOpen();
@@ -228,8 +239,11 @@ final class World implements AutoCloseable {
         if(player==null||action==null)
             throw new NullPointerException();
 
+        if(closed.get())
+            return false;
+
         synchronized(lifecycleLock){
-            if(closed)
+            if(closed.get())
                 return false;
 
             synchronized(player.mutationLock()){
@@ -246,6 +260,8 @@ final class World implements AutoCloseable {
     }
 
     void start(){
+        requireOpen();
+
         synchronized(lifecycleLock){
             requireOpen();
             pulse.start();
@@ -260,6 +276,8 @@ final class World implements AutoCloseable {
             throw new NullPointerException(
                 "player"
             );
+
+        requireOpen();
 
         synchronized(lifecycleLock){
             requireOpen();
@@ -281,6 +299,8 @@ final class World implements AutoCloseable {
             throw new NullPointerException(
                 "player"
             );
+
+        requireOpen();
 
         synchronized(lifecycleLock){
             requireOpen();
@@ -362,6 +382,8 @@ final class World implements AutoCloseable {
                 "target"
             );
 
+        requireOpen();
+
         synchronized(lifecycleLock){
             requireOpen();
 
@@ -418,8 +440,11 @@ final class World implements AutoCloseable {
         if(player==null||action==null)
             throw new NullPointerException();
 
+        if(closed.get())
+            return rejectedCommandSubmission();
+
         synchronized(lifecycleLock){
-            if(closed)
+            if(closed.get())
                 return rejectedCommandSubmission();
 
             return commands.submit(
@@ -437,8 +462,11 @@ final class World implements AutoCloseable {
         if(player==null||action==null)
             throw new NullPointerException();
 
+        if(closed.get())
+            return rejectedCommandSubmission();
+
         synchronized(lifecycleLock){
-            if(closed)
+            if(closed.get())
                 return rejectedCommandSubmission();
 
             return commands.submit(
@@ -539,25 +567,22 @@ final class World implements AutoCloseable {
     }
 
     boolean closed(){
-        return closed;
+        return closed.get();
     }
 
     private void requireOpen(){
-        if(closed)
+        if(closed.get())
             throw new IllegalStateException(
                 "world closed"
             );
     }
 
     @Override public void close(){
-        boolean owner=false;
-
-        synchronized(lifecycleLock){
-            if(!closed){
-                closed=true;
-                owner=true;
-            }
-        }
+        boolean owner=
+            closed.compareAndSet(
+                false,
+                true
+            );
 
         if(!owner){
             awaitCloseCompleted();
