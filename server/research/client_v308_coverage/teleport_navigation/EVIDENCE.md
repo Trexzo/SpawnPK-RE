@@ -6,7 +6,7 @@ SpawnPK exact-current spellbook teleport entry/navigation layer across the nativ
 
 STATUS
 
-CLOSED-ENTRY-LAYER / DESTINATION-SUBMENUS-PARTIAL / SERVER-COORDINATES-UNKNOWN
+CLOSED-STATIC-CLIENT/CACHE-NAVIGATION-CONTRACT / DYNAMIC-SERVER-PRESENTATION-UNKNOWN / SERVER-COORDINATES-UNKNOWN
 
 ## AUTHORITY
 
@@ -350,13 +350,121 @@ For Money / Training / PK / Minigame / House specifically, there is currently **
 
 This is a useful negative finding: do not reconstruct destination names by importing generic RSPS/OSRS teleport lists and label them SpawnPK authority.
 
-Possible destination presentation may be:
+A direct exact-current cache/interface-archive scan was then completed.
 
-- server-populated generic interface widgets;
-- cache-backed interface text without Java hardcoded strings;
-- or a direct server action path.
+## CACHE-BACKED INTERFACE ARCHIVE SCAN
 
-Those possibilities require separate exact cache/runtime proof.
+Exact startup mapping in `rs.Client.L()` proves:
+
+~~~
+archive 1 -> title
+archive 2 -> config
+archive 3 -> interface
+archive 4 -> media
+~~~
+
+The exact widget loader is:
+
+~~~
+rs.n.e.a(interfaceArchive, fonts, mediaArchive)
+~~~
+
+and reads:
+
+~~~
+interfaceArchive.a("data")
+~~~
+
+from archive 3.
+
+The matched cache index-0 archive 3 is exactly:
+
+~~~
+184,196 bytes
+~~~
+
+Using the exact client's own `rs.x.f` decompressor, its `data` member expands to:
+
+~~~
+784,354 bytes
+~~~
+
+The first exact widget count is:
+
+~~~
+18,516
+~~~
+
+and `rs.n.e.H` is allocated as:
+
+~~~
+18,516 + 70,000 = 88,516 widgets
+~~~
+
+The base-cache widget table was traversed by exact parent/root relationship:
+
+~~~
+aw = widget id
+ah = parent/root id
+~~~
+
+### Result
+
+No base-cache widget text/action entry contains the SpawnPK destination-category strings:
+
+~~~
+Money Making
+Training Teleports
+Training & Slayer
+PK Teleports
+Minigame Teleports
+Teleport to House
+Boss Teleports
+Bounty Target
+~~~
+
+The teleport/travel-bearing static cache roots that do exist are unrelated legacy/base interfaces:
+
+~~~
+1151  classic/modern magic spellbook teleport/help content
+12855 ancient magic spellbook teleport/help content
+12468 player teleport-request accept/decline dialogue
+18220 canoe transport destination selector
+3281  ship/travel map presentation
+15712 unrelated narrative/book content containing travel text
+~~~
+
+For example, root `18220` is the exact canoe interface with destinations such as Lumbridge, Champions Guild, Barbarian Village, Edgeville and Wilderness Pond. It is not a SpawnPK custom teleport-category submenu.
+
+At the later custom-builder failure point, the spellbook aliases still retain their raw base-cache values (for example `1164 = Cast @gre@Varrock teleport` and `13035` retains its Ancient spell value), proving this scan reflects the unmodified base/cache interface table before `rs.n.c.ap` overwrites the custom teleport entry layer.
+
+Raw evidence:
+
+~~~
+server/research/client_v308_coverage/teleport_navigation/evidence/cache_interface_scan_v308.txt
+~~~
+
+### Static authority conclusion
+
+The prior JAR scan plus this cache scan now close the static exact-current boundary:
+
+~~~
+custom teleport category alias
+  -> C2S185 semantic category intent
+  -> server decides/directly acts OR projects a dynamic/generic destination UI
+~~~
+
+There is no exact-current Java **or static cache-interface** destination catalogue for Money / Training / PK / Minigame / House.
+
+Therefore do not import generic RSPS/OSRS destination lists and label them recovered SpawnPK authority.
+
+Still possible:
+
+- a generic/cache root whose rows are populated dynamically by server text/model packets;
+- a direct server-side teleport/action response;
+- another runtime-selected presentation path.
+
+Those require server/runtime observation, not more static client/cache guessing.
 
 ## SERVER SEMANTICS PROVEN
 
@@ -375,7 +483,7 @@ UNKNOWN_SERVER_AUTHORITY:
 
 - world coordinates;
 - region IDs;
-- destination lists behind Money/Training/PK/Minigame menus; no Java-hardcoded destination catalogue was found in exact v308, so any such lists require cache/server/runtime proof;
+- destination lists behind Money/Training/PK/Minigame/House; neither Java-hardcoded nor static cache-interface catalogues exist in the exact-current client/cache, so any such lists require server/runtime proof;
 - server-side Magic requirements;
 - costs;
 - Wilderness restrictions;
@@ -418,8 +526,13 @@ yes for category/navigation composition; destination coordinates and server rest
 
 ## NEXT EXACT-CLIENT WORK
 
-1. inspect exact cache-backed interface data for any server-populated Money/Training/PK/Minigame/House destination roots/rows;
-2. do not search for a second Java hardcoded destination catalogue unless new evidence points to one;
-3. Home primary `1195` + Ancient alias `12856` are now proven; recover any additional Home alias only if directly evidenced;
-4. link already-packaged Boss Teleport contract into the unified atlas;
-5. keep coordinates/restrictions server-owned until independently evidenced.
+Static current-client/cache recovery for the custom category layer is now closed.
+
+Remaining teleport questions are runtime/server-authority questions:
+
+1. capture a real server response after Money/Training/PK/Minigame/House category activation if historical/runtime authority becomes available;
+2. if that response opens a generic interface, record the runtime root and exact S2C row/model updates;
+3. recover any additional Home alias only if directly evidenced;
+4. keep coordinates, destination catalogues and restrictions server-owned until independently evidenced.
+
+Further blind static searches for a second destination catalogue are not justified by the exact-current evidence.
