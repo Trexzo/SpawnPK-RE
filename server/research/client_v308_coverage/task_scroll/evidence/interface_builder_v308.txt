@@ -1,0 +1,50 @@
+Exact v308 Task Scroll
+SHA-256 854f26ff9f134b0317572e7ac1688e6f40a231d5a4c66f8db5d655b7f45ce7c6
+class rs.n.c.aS
+
+root 18559
+55732 tasks/SPRITE 0
+55733 "@or1@Task Scroll Title"
+55734 "@or1@Task Information"
+55735 "@or1@Potential Rewards"
+55736 "@or1@Completion Progress"
+
+55737 task info panel:
+  content-height=250
+  width=235
+  visible-height=170
+  20 child text rows 55738..55757
+
+55758 rewards parent:
+  content-height=750
+  width=178
+  visible-height=170
+  child 55759 @ 18,6
+
+55759 reward item widget:
+  arrays=100 slots
+  P=4 columns
+  aR=25 rows
+  spacing=10 x 10
+  first 10 static slots item=1337
+  first 10 quantities=1..10
+  => placeholders, not reward authority
+
+55760 tasks/SPRITE 1
+55761 tasks/SPRITE 2 overlay/variant
+55762 "@yel@This meter indicates your progress for the objective.\nOnce complete, you'll receive a casket."
+55763 "0% (0/100)"
+
+55764/55765 button tooltip "Collect reward"
+55766 hover
+55767 "@yel@Collect"
+
+55768/55769 button tooltip "Track progress"
+55770 hover
+55771 "  @yel@Track<img=39>"
+
+shared close 64275/64276
+root children=19
+
+Boundary:
+Task catalog, counts, reward/casket definitions, persistence and track behavior remain server authority.
