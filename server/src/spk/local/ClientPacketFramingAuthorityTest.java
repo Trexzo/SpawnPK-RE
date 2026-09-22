@@ -59,6 +59,8 @@ public final class ClientPacketFramingAuthorityTest {
             if(op==98||op==164) b=walk(false);
             else if(op==248){byte[] core=walk(false);b=new byte[core.length+14];System.arraycopy(core,0,b,0,core.length);}
             else if(op==103) b=new byte[]{'x',10};
+            else if(op==4) b=new byte[]{(byte)128,(byte)128};
+            else if(op==126) b=new byte[8];
             else b=new byte[0];
             out.write(b.length);out.write(b);return;
         }
@@ -73,12 +75,14 @@ public final class ClientPacketFramingAuthorityTest {
             case 0:case 121:case 130:case 202:return 0;
             case 3:return 1;
             case 40:case 72:case 155:case 185:return 2;
+            case 95:return 3;
             case 36:case 208:return 4;
             case 41:case 43:case 75:case 87:case 117:case 129:case 132:case 135:case 140:case 145:return 6;
+            case 60:case 74:case 133:case 188:case 215:return 8;
             case 214:return 7;
+            case 141:case 218:return 10;
             case 53:return 12;
             case 101:return 13;
-            case 141:return 10;
             default:return -1;
         }
     }
