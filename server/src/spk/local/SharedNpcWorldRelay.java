@@ -77,18 +77,43 @@ final class SharedNpcWorldRelay {
             BY_WORLD.remove(c.state.world);
     }
 
-    static void syncRemotePets(ServerPacketWriter viewerWriter){
-        Context c;
+    static void syncRemotePets(
+        ServerPacketWriter viewerWriter
+    ){
+        final Context candidate;
+
         synchronized(SharedNpcWorldRelay.class){
-            c=BY_WRITER.get(viewerWriter);
+            candidate=
+                BY_WRITER.get(
+                    viewerWriter
+                );
         }
-        if(c==null||!c.ownerCurrent())return;
+
+        if(candidate==null)
+            return;
+
         try{
-            c.syncRemotePets();
+            candidate.state.world
+                .withOpenPlayerOwnershipIfCurrent(
+                    candidate.owner,
+                    candidate.ownerGeneration,
+                    ()->{
+                        synchronized(
+                            SharedNpcWorldRelay.class
+                        ){
+                            if(BY_WRITER.get(
+                                    viewerWriter
+                                )!=candidate)
+                                return;
+                        }
+
+                        candidate.syncRemotePets();
+                    }
+                );
         }catch(Throwable t){
             System.err.println(
                 "[ENGINE-R3.2] remote pet sync failed viewer="+
-                c.owner.id()+": "+t
+                candidate.owner.id()+": "+t
             );
         }
     }
