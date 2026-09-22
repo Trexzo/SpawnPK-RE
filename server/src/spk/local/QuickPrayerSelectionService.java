@@ -40,7 +40,7 @@ final class QuickPrayerSelectionService {
                     "prayerKey"
                 );
             this.displayName=
-                PlayerLoadout.requireText(
+                requireText(
                     displayName,
                     "displayName"
                 );
@@ -269,13 +269,6 @@ final class QuickPrayerSelectionService {
     synchronized Snapshot confirmEdit(){
         Edit current=requireEditContext();
 
-        confirmed.put(
-            current.book,
-            new LinkedHashSet<>(
-                current.selected
-            )
-        );
-
         long next;
 
         try{
@@ -294,6 +287,15 @@ final class QuickPrayerSelectionService {
             );
         }
 
+        LinkedHashSet<String> replacement=
+            new LinkedHashSet<>(
+                current.selected
+            );
+
+        confirmed.put(
+            current.book,
+            replacement
+        );
         revisions.put(
             current.book,
             next
@@ -662,11 +664,30 @@ final class QuickPrayerSelectionService {
         return normalized;
     }
 
+    private static String requireText(
+        String value,
+        String field
+    ){
+        if(value==null)
+            throw new NullPointerException(
+                field
+            );
+
+        String clean=value.trim();
+
+        if(clean.isEmpty())
+            throw new IllegalArgumentException(
+                field+" blank"
+            );
+
+        return clean;
+    }
+
     private static String gameplayAuthority(
         String value
     ){
         String authority=
-            PlayerLoadout.requireText(
+            requireText(
                 value,
                 "policyAuthority"
             );
