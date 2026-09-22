@@ -1,0 +1,62 @@
+Exact v308 spellbook teleport navigation
+SHA-256 854f26ff9f134b0317572e7ac1688e6f40a231d5a4c66f8db5d655b7f45ce7c6
+
+rs.n.c.ap$a:
+COMBAT
+TELEPORT
+UTILITY
+
+rs.n.c.ap$c:
+MODERN
+LUNAR
+ANCIENTS
+
+rs.n.c.ap$b teleport entries:
+HOME_TELEPORT      widget 1195  Q=100 TELEPORT
+MONEY_TELEPORT     widget 1164  Q=100 TELEPORT
+SKILL_TELEPORT     widget 1167  Q=100 TELEPORT
+BOSS_TELEPORT      widget 1170  Q=100 TELEPORT
+PK_TELEPORT        widget 1174  Q=100 TELEPORT
+MINIGAME_TELEPORT  widget 1540  Q=100 TELEPORT
+HOUSE_TELEPORT     widget 1541  Q=100 TELEPORT
+BOUNTY_TELEPORT    widget 7455  Q=100 TELEPORT
+
+cross-spellbook aliases:
+Money    1164 / 13035 / 30064
+Training 1167 / 13045 / 30075
+Boss     1170 / 13053 / 30083
+PK       1174 / 13061 / 30106
+Minigame 1540 / 13069 / 30114
+House    1541 / 13079 / 30138
+Bounty   7455 / 13095 / 30162
+
+exact visible strings:
+Money: @gre@Money Making ; Teleport to money areas
+Training: @gre@Training & Slayer ; Teleport to various monsters
+Boss: @gre@Boss Teleports ; Teleport to powerful foes
+PK: @gre@PK Teleports ; Teleport Pking spots
+Minigame: @gre@Minigame Teleport ; Teleport to shop areas
+House: @gre@Teleport to House ; Teleport to your PoH
+Bounty: @gre@Teleport to Target ; Teleports you to Bounty Target
+Home: Cast @gre@Home Teleport
+
+assets:
+icons/moneytele
+icons/skilltele
+icons/bosstele
+icons/pktele
+icons/storetele
+magic/home
+magic/home 2
+magic/bounty
+
+ordinary input:
+C2S185(widgetId)
+
+Bounty alias special lock interception:
+7455 / 13095 / 30162
+locked message: <img=25> You currently have this spell locked!
+
+Boundary:
+Q=100 is client spellbook filtering metadata, not recovered server eligibility.
+No coordinates/destination lists/costs/restrictions are established by this slice.
