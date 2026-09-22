@@ -249,11 +249,14 @@ final class WorldPluginManager
 
         String id=manifest.id();
 
-        if(enabled.containsKey(id)||
-           disabling.contains(id))
+        if(enabled.containsKey(id))
             throw new IllegalStateException(
-                "plugin already enabled or disabling: "+
-                id
+                "plugin already enabled: "+id
+            );
+
+        if(disabling.contains(id))
+            throw new IllegalStateException(
+                "plugin disable in progress: "+id
             );
 
         for(String dependency:
