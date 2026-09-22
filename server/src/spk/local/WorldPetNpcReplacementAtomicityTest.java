@@ -2,6 +2,7 @@ package spk.local;
 
 import java.lang.reflect.Field;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicLong;
 
 public final class WorldPetNpcReplacementAtomicityTest {
     public static void main(String[] args)throws Exception{
@@ -135,6 +136,98 @@ public final class WorldPetNpcReplacementAtomicityTest {
                 "rejected unseen owner created empty actor slot"
             );
 
+        withForcedNextEntityId(
+            mainId.value,
+            ()->assertStateRejected(
+                ()->pets.ensureMain(
+                    owner,
+                    12002,
+                    30001,
+                    3090,
+                    3497,
+                    0
+                )
+            )
+        );
+
+        assertUnchanged(
+            "main id collision",
+            registry,
+            pets,
+            owner,
+            mainId,
+            miniId,
+            mainTile,
+            miniTile
+        );
+
+        if(pets.main(owner)!=main)
+            throw new AssertionError(
+                "main id collision replaced exact canonical actor"
+            );
+
+        withForcedNextEntityId(
+            miniId.value,
+            ()->assertStateRejected(
+                ()->pets.ensureMini(
+                    owner,
+                    12003,
+                    30002,
+                    3091,
+                    3498,
+                    0
+                )
+            )
+        );
+
+        assertUnchanged(
+            "mini id collision",
+            registry,
+            pets,
+            owner,
+            mainId,
+            miniId,
+            mainTile,
+            miniTile
+        );
+
+        if(pets.mini(owner)!=mini)
+            throw new AssertionError(
+                "mini id collision replaced exact canonical actor"
+            );
+
+        int collisionOwnersBefore=
+            ownerMapSize(pets);
+
+        EntityId collisionOwner=
+            EntityId.next();
+
+        withForcedNextEntityId(
+            mainId.value,
+            ()->assertStateRejected(
+                ()->pets.ensureMain(
+                    collisionOwner,
+                    12004,
+                    30003,
+                    3092,
+                    3499,
+                    0
+                )
+            )
+        );
+
+        if(ownerMapSize(pets)!=
+                collisionOwnersBefore)
+            throw new AssertionError(
+                "failed initial collision created empty owner slot"
+            );
+
+        if(pets.main(collisionOwner)!=null||
+           pets.mini(collisionOwner)!=null)
+            throw new AssertionError(
+                "failed initial collision published owner actor"
+            );
+
         WorldNpc replacement=
             pets.ensureMain(
                 owner,
@@ -185,6 +278,9 @@ public final class WorldPetNpcReplacementAtomicityTest {
             "invalidMainPlanePreserved=true "+
             "invalidMiniSourcePreserved=true "+
             "unseenOwnerNoResidue=true "+
+            "duplicateMainCollisionPreserved=true "+
+            "duplicateMiniCollisionPreserved=true "+
+            "duplicateInitialCollisionNoResidue=true "+
             "validReplacement=true"
         );
     }
@@ -240,6 +336,55 @@ public final class WorldPetNpcReplacementAtomicityTest {
             throw new AssertionError(
                 "invalid replacement accepted"
             );
+    }
+
+    private static void assertStateRejected(
+        ThrowingAction action
+    )throws Exception{
+        boolean rejected=false;
+
+        try{
+            action.run();
+        }catch(IllegalStateException expected){
+            rejected=
+                expected.getMessage()!=null&&
+                expected.getMessage().startsWith(
+                    "duplicate world npc id "
+                );
+        }
+
+        if(!rejected)
+            throw new AssertionError(
+                "canonical id collision replacement accepted"
+            );
+    }
+
+    private static void withForcedNextEntityId(
+        long value,
+        ThrowingAction action
+    )throws Exception{
+        Field field=
+            EntityId.class.getDeclaredField(
+                "IDS"
+            );
+        field.setAccessible(true);
+
+        AtomicLong ids=
+            (AtomicLong)field.get(null);
+
+        long restore=ids.get();
+
+        try{
+            ids.set(value);
+            action.run();
+        }finally{
+            ids.updateAndGet(
+                current->Math.max(
+                    current,
+                    restore
+                )
+            );
+        }
     }
 
     @SuppressWarnings("unchecked")
