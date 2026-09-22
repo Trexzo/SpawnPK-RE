@@ -1,0 +1,83 @@
+Exact v308 Donation Shopping Cart
+SHA-256 854f26ff9f134b0317572e7ac1688e6f40a231d5a4c66f8db5d655b7f45ce7c6
+class rs.n.c.C
+
+root 60200
+60201 misc/donor sprite 7, configured 740x480
+60269 "@or1@Donation Shopping Cart Interface"
+
+catalog parent 60202:
+  content-height=250
+  width=239
+  visible-height=270
+
+catalog item widget 60204:
+  P=2 columns
+  horizontal spacing=47
+  vertical spacing=28
+  slots:
+    0=16001
+    1=16002
+    2=16003
+    3=16004
+    4=16005
+    5=16006
+    6=16007
+    7=16008
+
+quantity text defaults:
+60205,60206,60207,60208,60209,60210,60211,60282 = "0"
+
+quantity controls:
+60227/60228 reduce; 60230/60231 increase
+60233/60234 reduce; 60236/60237 increase
+60239/60240 reduce; 60242/60243 increase
+60245/60246 reduce; 60248/60249 increase
+60251/60252 reduce; 60254/60255 increase
+60257/60258 reduce; 60260/60261 increase
+60263/60264 reduce; 60266/60267 increase
+60284/60285 reduce; 60287/60288 increase
+tooltips exactly "Reduce quantity" / "Increase quantity"
+
+60212 "@or1@Purchase Options"
+60213 "@or1@Shopping Cart"
+
+60214 button tooltip "Shopping cart"
+60215 hover
+60217 "Checkout cart"
+
+summary:
+60218 "1x @whi@$5.00 Bond"
+60219 "1x @whi@$10.00 Bond"
+60220 "1x @whi@$20.00 Bond"
+60221 "1x @whi@$30.00 Bond"
+60222 "1x @whi@$45.00 Bond"
+60223 "1x @whi@$75.00 Bond"
+60224 "1x @whi@$100.00 Bond"
+60225 "Subtotal: @yel@$285.00"
+60226 summary parent content=150 width=135 visible-height=177 children=8
+
+payment methods:
+60273 selectable text tooltip "Select PayPal"
+60274 "<tab=20><img=9> OSRS GP" tooltip "Select OSRS GP"
+
+displayed denominations:
+60275 "<img=84>@yel@$5"
+60276 "<img=84>@yel@$10"
+60277 "<img=84>@yel@$20"
+60278 "<img=84>@yel@$30"
+60279 "<img=84>@yel@$45"
+60280 "<img=84>@yel@$75"
+60281 "<img=84>@yel@$100"
+60283 "<img=84>@yel@$500"
+
+promotion:
+60300 "@whi@You'll receive a free @gre@$20 bond@whi@ with each"
+60301 "@whi@claimed promotional item below!"
+
+root children=51
+
+Boundary:
+UI/cart/payment-method presentation is exact client authority.
+Trusted pricing, exchange rates, transaction completion, payment verification,
+fulfillment, fraud/refunds and real donation credit remain server/external authority.
