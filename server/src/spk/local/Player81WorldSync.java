@@ -58,13 +58,15 @@ final class Player81WorldSync {
 
     static synchronized int clientIndexFor(ServerPacketWriter writer,WorldPlayer target){
         Context c=BY_WRITER.get(writer);
-        return c==null?-1:c.clientIndexFor(target);
+        return c==null||!c.ownerCurrent()
+            ?-1
+            :c.clientIndexFor(target);
     }
 
     /** Latest world-visible packet81 presentation event emitted by this source. */
     static synchronized long latestPublishedEventSequence(ServerPacketWriter sourceWriter){
         Context c=BY_WRITER.get(sourceWriter);
-        if(c==null)return 0L;
+        if(c==null||!c.ownerCurrent())return 0L;
         Event e=c.state.latestEvent(c.owner.id());
         return e==null?0L:e.seq;
     }
@@ -72,7 +74,7 @@ final class Player81WorldSync {
     /** Last packet81 presentation event from sourceId consumed by this viewer. */
     static synchronized long consumedEventSequence(ServerPacketWriter viewerWriter,EntityId sourceId){
         Context c=BY_WRITER.get(viewerWriter);
-        if(c==null||sourceId==null)return -1L;
+        if(c==null||!c.ownerCurrent()||sourceId==null)return -1L;
         if(sourceId.equals(c.owner.id()))return Long.MAX_VALUE;
         Track t=c.visible.get(sourceId);
         return t==null?-1L:t.lastEventSeq;
@@ -89,7 +91,10 @@ final class Player81WorldSync {
         WorldState state=BY_WORLD.get(world);
         if(state==null)return false;
         Context context=state.contexts.get(player.id());
-        if(context==null||context.closed)return false;
+        if(context==null||
+           context.owner!=player||
+           !context.ownerCurrent())
+            return false;
 
         context.writer.fixed(
             134,
@@ -118,7 +123,7 @@ final class Player81WorldSync {
     static byte[] transform(ServerPacketWriter writer,byte[] body){
         Context c;
         synchronized(Player81WorldSync.class){c=BY_WRITER.get(writer);}
-        if(c==null||c.closed||body==null)return body;
+        if(c==null||!c.ownerCurrent()||body==null)return body;
         try{return c.transform(body);}catch(Throwable t){
             // Fail closed to the already-certified local packet rather than corrupt framing.
             System.err.println("[ENGINE-R3] player81 merge failed for "+c.owner.id()+": "+t+"; using certified local-only body");
@@ -130,7 +135,9 @@ final class Player81WorldSync {
         WorldState ws=BY_WORLD.get(world);
         if(ws==null||world.players().size()<2)return;
         for(Context c:ws.contexts.values()){
-            if(c.closed||c.playerOptionsSent)continue;
+            if(!c.ownerCurrent()||
+               c.playerOptionsSent)
+                continue;
             sendPlayerOptions(c.writer);
             c.playerOptionsSent=true;
         }
@@ -165,6 +172,7 @@ final class Player81WorldSync {
         final ServerPacketWriter writer;
         final WorldState state;
         final WorldPlayer owner;
+        final long ownerGeneration;
         final DevAuthorityWorkbench dev;
         final LinkedHashMap<EntityId,Track> visible=new LinkedHashMap<>();
         final HashMap<EntityId,Integer> reservedIndexes=new HashMap<>();
@@ -172,16 +180,29 @@ final class Player81WorldSync {
         boolean playerOptionsSent;
 
         Context(ServerPacketWriter writer,WorldState state,WorldPlayer owner,DevAuthorityWorkbench dev){
-            this.writer=writer;this.state=state;this.owner=owner;this.dev=dev;
+            this.writer=writer;
+            this.state=state;
+            this.owner=owner;
+            this.ownerGeneration=owner.generation();
+            this.dev=dev;
+        }
+
+        boolean ownerCurrent(){
+            return !closed&&
+                state.world.players().owns(
+                    owner,
+                    ownerGeneration
+                );
         }
 
         synchronized WorldPlayer resolveVisible(int clientIndex){
+            if(!ownerCurrent())return null;
             for(Track t:visible.values())if(t.clientIndex==clientIndex)return state.world.players().byId(t.id);
             return null;
         }
 
         synchronized int clientIndexFor(WorldPlayer p){
-            if(p==null)return -1;
+            if(!ownerCurrent()||p==null)return -1;
             if(p==owner)return LOCAL_PLAYER_INDEX;
             Track t=visible.get(p.id());
             return t==null?-1:t.clientIndex;
@@ -192,11 +213,18 @@ final class Player81WorldSync {
             return idx<0?-1:32768+idx;
         }
 
-        synchronized String requestTrade(WorldPlayer target,long now){return state.requestTrade(owner,target,now);}
+        synchronized String requestTrade(WorldPlayer target,long now){
+            if(!ownerCurrent())
+                return "TRADE_REJECTED_STALE_OWNER";
+            return state.requestTrade(owner,target,now);
+        }
 
         synchronized String summary(){return "viewer="+owner.id()+" visible="+visible.size()+" reserved="+reservedIndexes.size();}
 
         synchronized byte[] transform(byte[] legacy)throws IOException{
+            if(!ownerCurrent())
+                return legacy;
+
             LegacyLocal local=LegacyLocal.parse(legacy);
             if(local==null||local.oldRemoteCount!=0||local.sentinel!=SENTINEL)return legacy;
 
@@ -328,7 +356,12 @@ final class Player81WorldSync {
 
         private byte[] appearanceTail(WorldPlayer p)throws IOException{
             Context rc=state.contexts.get(p.id());
-            Integer morph=rc==null||rc.dev==null?null:rc.dev.playerNpcTransformId();
+            Integer morph=
+                rc==null||
+                !rc.ownerCurrent()||
+                rc.dev==null
+                    ?null
+                    :rc.dev.playerNpcTransformId();
             byte[] block=BootstrapPackets.appearanceBlock(p.username(),p.equipment().appearanceItems(),p.playerState(),morph);
             ByteArrayOutputStream out=new ByteArrayOutputStream(block.length+2);
             out.write(0x10);out.write((-block.length)&255);out.write(block);return out.toByteArray();
@@ -389,7 +422,8 @@ final class Player81WorldSync {
             }
             tradeRequests.put(a,now);
             Context targetContext=contexts.get(to.id());
-            if(targetContext!=null&&!targetContext.closed){
+            if(targetContext!=null&&
+               targetContext.ownerCurrent()){
                 try{
                     byte[] msg=(from.username()+":tradereq:\n").getBytes(StandardCharsets.ISO_8859_1);
                     targetContext.writer.varByte(253,msg);
