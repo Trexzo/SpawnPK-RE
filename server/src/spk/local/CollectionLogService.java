@@ -76,6 +76,41 @@ final class CollectionLogService {
         }
     }
 
+    static final class KillCountUpdate {
+        final CollectionLogDefinition.CollectionId
+            collectionId;
+        final Long expectedPrevious;
+        final long authoritativeCount;
+
+        KillCountUpdate(
+            CollectionLogDefinition.CollectionId
+                collectionId,
+            Long expectedPrevious,
+            long authoritativeCount
+        ) {
+            this.collectionId =
+                Objects.requireNonNull(
+                    collectionId,
+                    "collectionId"
+                );
+            if (expectedPrevious != null &&
+                expectedPrevious.longValue() < 0L) {
+                throw new IllegalArgumentException(
+                    "expected kill count must be non-negative"
+                );
+            }
+            if (authoritativeCount < 0L) {
+                throw new IllegalArgumentException(
+                    "authoritative kill count must be non-negative"
+                );
+            }
+            this.expectedPrevious =
+                expectedPrevious;
+            this.authoritativeCount =
+                authoritativeCount;
+        }
+    }
+
     private static final class ProgressState {
         private final LinkedHashSet<CollectionLogDefinition.EntryId> obtained =
             new LinkedHashSet<CollectionLogDefinition.EntryId>();
@@ -105,7 +140,7 @@ final class CollectionLogService {
         this.definitions = Collections.unmodifiableMap(copy);
     }
 
-    DiscoveryResult observe(CollectionEntryObserved event) {
+    synchronized DiscoveryResult observe(CollectionEntryObserved event) {
         Objects.requireNonNull(event, "event");
         CollectionLogDefinition definition = requireDefinition(event.collectionId());
         if (!definition.requiredEntries().contains(event.entryId())) {
@@ -124,7 +159,7 @@ final class CollectionLogService {
             : DiscoveryResult.FIRST_DISCOVERY;
     }
 
-    void observeKillCount(CollectionLogDefinition.CollectionId collectionId, long authoritativeCount) {
+    synchronized void observeKillCount(CollectionLogDefinition.CollectionId collectionId, long authoritativeCount) {
         CollectionLogDefinition definition = requireDefinition(collectionId);
         if (!definition.supportsKillCount()) {
             throw new IllegalStateException("Collection does not define a kill-count statistic");
@@ -135,7 +170,106 @@ final class CollectionLogService {
         state(collectionId).killCount = Long.valueOf(authoritativeCount);
     }
 
-    ProgressSnapshot snapshot(CollectionLogDefinition.CollectionId collectionId) {
+    synchronized void observeKillCountsAtomically(
+        Collection<KillCountUpdate> updates
+    ) {
+        Objects.requireNonNull(
+            updates,
+            "updates"
+        );
+
+        LinkedHashMap<
+            CollectionLogDefinition.CollectionId,
+            KillCountUpdate
+        > unique =
+            new LinkedHashMap<
+                CollectionLogDefinition.CollectionId,
+                KillCountUpdate
+            >();
+
+        for (KillCountUpdate update : updates) {
+            KillCountUpdate checked =
+                Objects.requireNonNull(
+                    update,
+                    "update"
+                );
+
+            CollectionLogDefinition definition =
+                requireDefinition(
+                    checked.collectionId
+                );
+
+            if (!definition.supportsKillCount()) {
+                throw new IllegalStateException(
+                    "Collection does not define a kill-count statistic"
+                );
+            }
+
+            KillCountUpdate previous =
+                unique.put(
+                    checked.collectionId,
+                    checked
+                );
+
+            if (previous != null &&
+                (
+                    !Objects.equals(
+                        previous.expectedPrevious,
+                        checked.expectedPrevious
+                    ) ||
+                    previous.authoritativeCount !=
+                        checked.authoritativeCount
+                )) {
+                throw new IllegalArgumentException(
+                    "conflicting kill-count updates for " +
+                    checked.collectionId
+                );
+            }
+        }
+
+        /*
+         * Compare every expected absolute-count snapshot before mutating any
+         * collection. Because all CollectionLogService state mutation is
+         * synchronized on this monitor, a mismatch proves an intervening
+         * authoritative update and the entire batch fails without mutation.
+         */
+        for (KillCountUpdate update :
+                unique.values()) {
+            ProgressState currentState =
+                progress.get(
+                    update.collectionId
+                );
+            Long actual =
+                currentState == null
+                    ? null
+                    : currentState.killCount;
+
+            if (!Objects.equals(
+                    actual,
+                    update.expectedPrevious)) {
+                throw new IllegalStateException(
+                    "stale Collection Log kill-count projection collection=" +
+                    update.collectionId +
+                    " expected=" +
+                    update.expectedPrevious +
+                    " actual=" +
+                    actual
+                );
+            }
+        }
+
+        for (KillCountUpdate update :
+                unique.values()) {
+            state(
+                update.collectionId
+            ).killCount =
+                Long.valueOf(
+                    update.authoritativeCount
+                );
+        }
+    }
+
+    synchronized ProgressSnapshot snapshot(CollectionLogDefinition.CollectionId collectionId) {
         CollectionLogDefinition definition = requireDefinition(collectionId);
         ProgressState state = progress.get(collectionId);
         Set<CollectionLogDefinition.EntryId> obtained =
@@ -156,7 +290,7 @@ final class CollectionLogService {
         );
     }
 
-    List<CollectionLogDefinition> definitions() {
+    synchronized List<CollectionLogDefinition> definitions() {
         return Collections.unmodifiableList(new ArrayList<CollectionLogDefinition>(definitions.values()));
     }
 
