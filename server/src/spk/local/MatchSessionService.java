@@ -305,6 +305,91 @@ final class MatchSessionService {
         return snapshot(entry);
     }
 
+    /**
+     * Atomically score one participant only while the match is ACTIVE and the
+     * participant is still PRESENT. Returns false for a terminal/inactive
+     * match or a no-longer-present participant instead of exposing a
+     * snapshot->mutation race to semantic observers.
+     */
+    synchronized boolean tryAdjustPresentParticipantScore(
+        MatchId matchId,
+        String participantRef,
+        String counterKey,
+        long delta
+    ){
+        Entry entry=require(matchId);
+
+        if(entry.state!=
+                MatchSession.State.ACTIVE)
+            return false;
+
+        ParticipantState participant=
+            requireParticipant(
+                entry,
+                participantRef
+            );
+
+        if(participant.status!=
+                MatchSession.ParticipantStatus.PRESENT)
+            return false;
+
+        adjustScore(
+            participant.scores,
+            counterKey,
+            delta
+        );
+
+        return true;
+    }
+
+    /**
+     * Atomically resolve the PRESENT participant's current team and score that
+     * team. Presence and team resolution happen under the same match monitor.
+     */
+    synchronized boolean tryAdjustPresentParticipantTeamScore(
+        MatchId matchId,
+        String participantRef,
+        String counterKey,
+        long delta
+    ){
+        Entry entry=require(matchId);
+
+        if(entry.state!=
+                MatchSession.State.ACTIVE)
+            return false;
+
+        ParticipantState participant=
+            requireParticipant(
+                entry,
+                participantRef
+            );
+
+        if(participant.status!=
+                MatchSession.ParticipantStatus.PRESENT)
+            return false;
+
+        TeamState team=
+            entry.teams.get(
+                participant.teamId
+            );
+
+        if(team==null)
+            throw new IllegalStateException(
+                "participant team disappeared "+
+                participant.teamId+
+                " ref="+
+                participant.participantRef
+            );
+
+        adjustScore(
+            team.scores,
+            counterKey,
+            delta
+        );
+
+        return true;
+    }
+
     synchronized MatchSession leave(
         MatchId matchId,
         String participantRef
