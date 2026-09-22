@@ -3,6 +3,8 @@ package spk.local;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.Locale;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 public final class SpecialEnergyServiceTest {
     private static final String AUTHORITY =
@@ -177,6 +179,7 @@ public final class SpecialEnergyServiceTest {
         authorityGuards(
             owner
         );
+        ownershipLockFence(owner, service);
         boundaryGuard();
 
         System.out.println(
@@ -217,6 +220,62 @@ public final class SpecialEnergyServiceTest {
             ),
             "unknown authority"
         );
+    }
+
+    private static void ownershipLockFence(
+        WorldPlayer owner,
+        SpecialEnergyService service
+    ){
+        CountDownLatch started=
+            new CountDownLatch(1);
+        CountDownLatch completed=
+            new CountDownLatch(1);
+
+        Thread worker=
+            new Thread(
+                ()->{
+                    started.countDown();
+                    service.snapshot();
+                    completed.countDown();
+                },
+                "special-energy-lock-fence"
+            );
+
+        try{
+            synchronized(owner.mutationLock()){
+                worker.start();
+
+                require(
+                    started.await(
+                        2L,
+                        TimeUnit.SECONDS
+                    ),
+                    "special-energy ownership worker did not start"
+                );
+
+                require(
+                    !completed.await(
+                        100L,
+                        TimeUnit.MILLISECONDS
+                    ),
+                    "special-energy service bypassed WorldPlayer mutation lock"
+                );
+            }
+
+            require(
+                completed.await(
+                    2L,
+                    TimeUnit.SECONDS
+                ),
+                "special-energy service did not resume after ownership lock release"
+            );
+        }catch(InterruptedException interrupted){
+            Thread.currentThread().interrupt();
+            throw new AssertionError(
+                "special-energy ownership lock test interrupted",
+                interrupted
+            );
+        }
     }
 
     private static void boundaryGuard() {
