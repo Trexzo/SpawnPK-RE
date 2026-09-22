@@ -3,6 +3,8 @@ package spk.local;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.Locale;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 public final class EquipmentMutationServiceTest {
     private static final String AUTHORITY=
@@ -179,6 +181,10 @@ public final class EquipmentMutationServiceTest {
         authorityGuards(
             player
         );
+        ownershipLockFence(
+            player,
+            service
+        );
         boundaryGuard();
 
         System.out.println(
@@ -276,6 +282,64 @@ public final class EquipmentMutationServiceTest {
             ),
             "unknown authority"
         );
+    }
+
+    private static void ownershipLockFence(
+        WorldPlayer player,
+        EquipmentMutationService service
+    ){
+        CountDownLatch started=
+            new CountDownLatch(1);
+        CountDownLatch completed=
+            new CountDownLatch(1);
+
+        Thread worker=
+            new Thread(
+                ()->{
+                    started.countDown();
+                    service.inspect(
+                        EquipmentSlot.AMMO
+                    );
+                    completed.countDown();
+                },
+                "equipment-mutation-lock-fence"
+            );
+
+        try{
+            synchronized(player.mutationLock()){
+                worker.start();
+
+                require(
+                    started.await(
+                        2L,
+                        TimeUnit.SECONDS
+                    ),
+                    "equipment ownership worker did not start"
+                );
+
+                require(
+                    !completed.await(
+                        100L,
+                        TimeUnit.MILLISECONDS
+                    ),
+                    "equipment mutation bypassed WorldPlayer mutation lock"
+                );
+            }
+
+            require(
+                completed.await(
+                    2L,
+                    TimeUnit.SECONDS
+                ),
+                "equipment mutation did not resume after ownership lock release"
+            );
+        }catch(InterruptedException interrupted){
+            Thread.currentThread().interrupt();
+            throw new AssertionError(
+                "equipment ownership lock test interrupted",
+                interrupted
+            );
+        }
     }
 
     private static void boundaryGuard(){
