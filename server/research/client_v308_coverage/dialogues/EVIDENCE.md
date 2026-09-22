@@ -5,7 +5,7 @@ Standard SpawnPK dialogue/chatbox input routing and exact-current client-side
 hotkey behavior.
 
 STATUS
-STRONG-PARTIAL
+STRONG-CLOSED-STANDARD-FAMILIES / CONTENT-SPECIFIC-SEMANTICS-PARTIAL
 
 ## AUTHORITY
 
@@ -361,11 +361,91 @@ root 374 -> Line1 375, Line2 376, Line3 377, Line4 378, Line5 379, Continue 380
 
 No model or Name child is present in these roots. This is exact interface-cache structure and cleanly supports a semantic StatementDialogue presentation family.
 
+### Runtime-composed exact item-backed dialogue root 30700
+
+Exact v308 class `rs.n.c.a.a` statically owns:
+
+~~~
+root = 30700
+~~~
+
+and composes that root from existing exact cache widgets:
+
+~~~
+14171 -> 1x1 item widget/container
+6181  -> Line1
+6182  -> Line2
+6183  -> Line3
+6184  -> Line4
+4892  -> action-6 Continue
+~~~
+
+The exact runtime setter:
+
+~~~
+rs.n.c.a.a.a(itemId, amountOrCount, boolean)
+~~~
+
+calls the shared item-widget helper on widget `14171`.
+
+That helper resolves:
+
+~~~
+rs.d.k.f(itemId)
+~~~
+
+and copies exact item-definition presentation state into the widget, including
+item identity plus model rotation/zoom fields.
+
+Therefore `30700` is not merely a generic model-bearing dialogue inferred from
+legacy conventions. It is an **exact runtime-composed item-backed dialogue
+presentation root** in v308.
+
+This also explains why Space treats `30700` as a Continue root while sending
+the canonical literal `C2S40(4907)`: the item root reuses the standard
+Continue widget family rather than introducing a bespoke request packet.
+
+### Root 14170 — cache default versus runtime repurposing
+
+The exact matched interface cache gives root `14170` a concrete default
+identity:
+
+~~~
+14171 -> 1x1 item widget
+14172 -> static model widget
+14173 -> static model widget
+14174 -> "Are you sure you want to destroy this object?"
+14175 -> "Yes."  / tooltip "Destroy Object"
+14176 -> "No."   / tooltip "Cancel"
+14184 -> "Name"
+~~~
+
+So the cache-default form is specifically a **destroy-object confirmation**.
+
+Exact `rs.n.c.A` subsequently mutates the same root at runtime and rewrites
+`14174` to:
+
+~~~
+Please confirm your choice.
+~~~
+
+The exact client also includes `14170` in the keyboard option-root array.
+
+The correct authority statement is therefore:
+
+> `14170` is an option-capable confirmation shell with a destroy-object
+> cache default that is repurposed by exact runtime UI code.
+
+Do not describe it as merely a generic fifth option root, and do not treat
+widget `14176`'s `Cancel` as the same control as the shared augmented-option
+close widget `54195`.
+
 ### Additional model-bearing Continue families
 
 The cache contains several other model-bearing/no-name Continue roots (for example `306/310/315/321` and later quest/content-specific roots). Their exact structure is recoverable, but this package deliberately does **not** relabel them as item dialogue until their model-update/use path is directly proven.
 
 This avoids importing generic 317 naming conventions as SpawnPK authority.
+
 
 ## SEMANTIC NORMALIZATION BOUNDARY
 
@@ -407,7 +487,7 @@ IDs into public content API concepts.
 - UNKNOWN_SERVER_AUTHORITY: whether the original server interpreted the keyboard
   Continue's literal `4907` specially or only as a Continue signal.
 - UNKNOWN_SERVER_AUTHORITY: historical/business naming policy for the cache-backed `968/973/979/986` named model-dialogue family beyond its exact structure and local-player-model compatibility.
-- UNKNOWN_SERVER_AUTHORITY: exact semantic identity of remaining model-bearing/no-name dialogue families until their update/use paths are directly proven.
+- UNKNOWN_SERVER_AUTHORITY: exact semantic identity of remaining model-bearing/no-name dialogue families until their update/use paths are directly proven; root `30700` is no longer in this unknown bucket because its item-backed runtime composition is exact.
 - UNKNOWN_SERVER_AUTHORITY: business/state transition after exact close/cancel request `C2S185(54195)`.
 
 ## FILES / METHODS
@@ -426,6 +506,7 @@ Exact v308:
 
 Raw evidence:
 - `server/research/client_v308_coverage/dialogues/evidence/standard_dialogue_transport_v308.txt`
+- `server/research/client_v308_coverage/dialogues/evidence/interface_cache_item_runtime_v308.txt`
 
 Related exact-current concrete instance:
 - `server/research/client_v308_coverage/makeover_mage/EVIDENCE.md`
@@ -440,4 +521,4 @@ Chat 2 can normalize C2S40/C2S103/C2S185 into internal typed request forms while
 
 **yes — standard Continue/option state-machine input contract**
 
-Chat 3 can define semantic dialogue state independently of transport. Exact cache-backed statement roots and the parallel named 1–4-line model-dialogue family are now closed structurally. Remaining model-bearing/no-name/item and close/cancel semantics should continue to be evidence-gated rather than guessed from generic 317 conventions.
+Chat 3 can define semantic dialogue state independently of transport. Exact cache-backed statement roots, the parallel named 1–4-line model-dialogue family, the standard close/cancel transport, and runtime item-backed root `30700` are now closed. Remaining content-specific model-bearing/no-name roots and business branch effects should continue to be evidence-gated rather than guessed from generic 317 conventions.
