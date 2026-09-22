@@ -1,6 +1,7 @@
 package spk.local;
 
 import java.util.*;
+import java.util.function.BooleanSupplier;
 import spk.content.api.*;
 import spk.event.DomainEventBus;
 import spk.plugin.api.*;
@@ -18,6 +19,7 @@ final class WorldPluginManager
 
     private final ContentRegistry content;
     private final DomainEventBus events;
+    private final BooleanSupplier worldOpen;
     private final LinkedHashMap<String,Entry>
         enabled=new LinkedHashMap<>();
 
@@ -26,7 +28,8 @@ final class WorldPluginManager
 
     WorldPluginManager(
         ContentRegistry content,
-        DomainEventBus events
+        DomainEventBus events,
+        BooleanSupplier worldOpen
     ){
         this.content=Objects.requireNonNull(
             content,
@@ -35,6 +38,10 @@ final class WorldPluginManager
         this.events=Objects.requireNonNull(
             events,
             "events"
+        );
+        this.worldOpen=Objects.requireNonNull(
+            worldOpen,
+            "worldOpen"
         );
     }
 
@@ -388,7 +395,7 @@ final class WorldPluginManager
     }
 
     private void requireOpen(){
-        if(closed)
+        if(closed||!worldOpen.getAsBoolean())
             throw new IllegalStateException(
                 "plugin manager closed"
             );
