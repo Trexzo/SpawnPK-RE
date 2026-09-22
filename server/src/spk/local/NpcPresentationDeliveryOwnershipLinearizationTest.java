@@ -3,11 +3,18 @@ package spk.local;
 import java.io.ByteArrayOutputStream;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public final class NpcPresentationDeliveryOwnershipLinearizationTest {
     public static void main(String[] args)throws Exception{
         World world=
             World.isolatedForTest(600L);
+
+        proveOwnershipAdmissionBlocksUnregister(
+            world
+        );
 
         WorldPlayer viewer=
             new WorldPlayer();
@@ -324,6 +331,7 @@ public final class NpcPresentationDeliveryOwnershipLinearizationTest {
 
             System.out.println(
                 "NPC_PRESENTATION_DELIVERY_OWNERSHIP_LINEARIZATION_PASS "+
+                "ownershipAdmissionBlocksUnregister=true "+
                 "wrongGenerationSettlementRejected=true "+
                 "matchingSettlementAccepted=true "+
                 "currentFlushDelivered=true "+
@@ -353,6 +361,125 @@ public final class NpcPresentationDeliveryOwnershipLinearizationTest {
 
             world.close();
         }
+    }
+
+    private static void proveOwnershipAdmissionBlocksUnregister(
+        World world
+    )throws Exception{
+        WorldPlayer probe=
+            new WorldPlayer();
+
+        long generation=
+            world.registerPlayer(
+                probe,
+                "npc-delivery-lock-probe"
+            );
+
+        CountDownLatch entered=
+            new CountDownLatch(1);
+        CountDownLatch release=
+            new CountDownLatch(1);
+        CountDownLatch unregisterDone=
+            new CountDownLatch(1);
+
+        AtomicBoolean admitted=
+            new AtomicBoolean();
+        AtomicBoolean unregistered=
+            new AtomicBoolean();
+
+        Thread admission=
+            new Thread(
+                ()->{
+                    try{
+                        boolean accepted=
+                            world.withOpenPlayerOwnershipIfCurrent(
+                                probe,
+                                generation,
+                                ()->{
+                                    entered.countDown();
+
+                                    boolean interrupted=false;
+                                    while(release.getCount()>0L){
+                                        try{
+                                            release.await(
+                                                10L,
+                                                TimeUnit.MILLISECONDS
+                                            );
+                                        }catch(InterruptedException ignored){
+                                            interrupted=true;
+                                        }
+                                    }
+
+                                    if(interrupted)
+                                        Thread.currentThread()
+                                            .interrupt();
+                                }
+                            );
+                        admitted.set(accepted);
+                    }catch(Exception error){
+                        throw new RuntimeException(
+                            error
+                        );
+                    }
+                },
+                "npc-delivery-admission-probe"
+            );
+
+        Thread unregister=
+            new Thread(
+                ()->{
+                    try{
+                        unregistered.set(
+                            world.unregisterPlayer(
+                                probe,
+                                generation
+                            )
+                        );
+                    }finally{
+                        unregisterDone.countDown();
+                    }
+                },
+                "npc-delivery-unregister-probe"
+            );
+
+        admission.start();
+
+        if(!entered.await(
+                2L,
+                TimeUnit.SECONDS))
+            throw new AssertionError(
+                "ownership admission action did not start"
+            );
+
+        unregister.start();
+
+        if(unregisterDone.await(
+                100L,
+                TimeUnit.MILLISECONDS))
+            throw new AssertionError(
+                "unregister crossed active World ownership admission"
+            );
+
+        release.countDown();
+
+        admission.join(2_000L);
+        unregister.join(2_000L);
+
+        if(admission.isAlive()||
+           unregister.isAlive())
+            throw new AssertionError(
+                "ownership admission concurrency probe did not terminate"
+            );
+
+        if(!admitted.get())
+            throw new AssertionError(
+                "current ownership admission was rejected"
+            );
+
+        if(!unregistered.get())
+            throw new AssertionError(
+                "unregister did not complete after admission released"
+            );
     }
 
     private static LinkedHashMap<EntityId,Long>
