@@ -9,8 +9,10 @@ public final class EquipmentMutationServiceTest {
         "CUSTOM_LOCALLAB_EQUIPMENT_MUTATION_TEST";
 
     public static void main(String[] args){
+        WorldPlayer player=
+            new WorldPlayer();
         EquipmentState equipment=
-            new EquipmentState();
+            player.equipment();
 
         int[] items=
             new int[
@@ -38,7 +40,7 @@ public final class EquipmentMutationServiceTest {
 
         EquipmentMutationService service=
             new EquipmentMutationService(
-                equipment,
+                player,
                 AUTHORITY
             );
 
@@ -175,7 +177,7 @@ public final class EquipmentMutationServiceTest {
             equipment
         );
         authorityGuards(
-            equipment
+            player
         );
         boundaryGuard();
 
@@ -200,7 +202,7 @@ public final class EquipmentMutationServiceTest {
 
     private static void invalidInputsAtomic(
         EquipmentMutationService service,
-        EquipmentState equipment
+        WorldPlayer player
     ){
         int beforeAmmo=
             equipment.itemAt(
@@ -260,7 +262,7 @@ public final class EquipmentMutationServiceTest {
         expect(
             IllegalArgumentException.class,
             ()->new EquipmentMutationService(
-                equipment,
+                player,
                 "EXACT_CURRENT_CLIENT"
             ),
             "client authority"
@@ -269,7 +271,7 @@ public final class EquipmentMutationServiceTest {
         expect(
             IllegalArgumentException.class,
             ()->new EquipmentMutationService(
-                equipment,
+                player,
                 "UNKNOWN_SERVER_AUTHORITY"
             ),
             "unknown authority"
