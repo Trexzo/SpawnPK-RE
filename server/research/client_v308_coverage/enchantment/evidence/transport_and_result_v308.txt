@@ -1,0 +1,67 @@
+Exact v308 Item Enchantment Chest notes
+
+Authority:
+854f26ff9f134b0317572e7ac1688e6f40a231d5a4c66f8db5d655b7f45ce7c6
+
+Class:
+rs.n.c.G
+
+Roots:
+31244 main
+31243 categories
+
+Main action:
+49991 tooltip "Enchant"
+visible 49988 "Attempt Enchantment"
+C2S185 -> C3 47
+
+Selection scroll:
+49992
+rows 49970..49985
+tooltip "Select enchantment"
+static label concat recipe "Category #<1..16>"
+C2S185 range C3 32 .. C3 41
+
+Item-selection scroll:
+50244
+widget 50253 has W[0]="Select item"
+inventory option0 -> menu action632
+action632 -> C2S145
+body order:
+  widget BE-A
+  slot BE-A
+  itemId BE-A
+widget50253 BE-A prefix = C4 CD
+
+Search:
+50314 "Search by name" -> C2S185 C4 8A
+Back:
+50319 "Back" -> C2S185 C4 8F
+
+Categories:
+50327 Armor -> C4 97
+50329 Weapons -> C4 99
+50331 Capes -> C4 9B
+50333 Trinkets & Tools -> C4 9D
+50335 Pets/Accessories -> C4 9F
+50337 Cosmetics -> C4 A1
+50339 Miscellaneous -> C4 A3
+
+Dynamic text:
+50245 Category
+50249 Success chance: @gre@N/A
+50250 Select a category
+50252 Ingredients @yel@(cost to attempt)
+
+Result animation:
+S2C126 reads payload string then target key.
+target key 38:
+  state=Integer.parseInt(payload)
+  rs.n.c.G.m(state)
+
+state0 idle/no overlay
+state1 preparation path, "Preparing enchantment.."; if unchanged through terminal progress -> failure branch
+state2 explicit success path / Congratulations
+state>=3 immediate failure / "Enchantment failed!"
+
+Renderer only active while Client.cH == 31244.
