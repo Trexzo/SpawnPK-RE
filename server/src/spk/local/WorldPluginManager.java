@@ -743,7 +743,17 @@ final class WorldPluginManager
                     type,
                     priority,
                     receiveCancelled,
-                    listener
+                    event->{
+                        try{
+                            listener.onEvent(event);
+                        }catch(Throwable failure){
+                            System.err.println(
+                                "[plugins] event callback failed type="+
+                                type.getName()+
+                                " error="+failure
+                            );
+                        }
+                    }
                 );
 
             tracker.add(subscription);
