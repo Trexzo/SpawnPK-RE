@@ -153,27 +153,10 @@ final class LocalRegionStreamHandler {
         int removed=0;
 
         if(leavingHome){
-            List<NpcEntity> old=npcs.snapshot();
-            removed=old.size();
-
-            if(!old.isEmpty()){
-                ArrayList<NpcSyncEncoder.Update> removals=
-                    new ArrayList<>();
-                for(NpcEntity npc:old)
-                    removals.add(
-                        NpcSyncEncoder.Update.remove(npc)
-                    );
-
-                writer.varShort(
-                    65,
-                    NpcSyncEncoder.encode(
-                        removals,
-                        Collections.emptyList(),
-                        movement.x(),
-                        movement.y()
-                    )
+            removed=
+                npcs.detachRegionViewPreservingFollowers(
+                    writer
                 );
-            }
 
             bridge.resetPetFollowRuntime();
             TradeService.cancelIfActive(
@@ -253,6 +236,11 @@ final class LocalRegionStreamHandler {
         boolean emitPlacement,
         String reason
     )throws IOException{
+        int prunedTransientNpcView=
+            npcs.detachRegionViewPreservingFollowers(
+                writer
+            );
+
         movement.restoreHomeWindowAtCurrentPosition();
 
         writer.fixed(219,new byte[0]);
@@ -300,17 +288,13 @@ final class LocalRegionStreamHandler {
 
         replacement.context().invalidate();
 
-        List<NpcEntity> homeNpcs=npcs.snapshot();
-        if(!homeNpcs.isEmpty()){
-            writer.varShort(
-                65,
-                NpcSyncEncoder.initial(
-                    homeNpcs,
-                    movement.x(),
-                    movement.y()
-                )
+        int homeNpcAdded=
+            npcs.reattachHomeView(
+                writer,
+                movement,
+                homeWorld
             );
-        }
+        List<NpcEntity> homeNpcs=npcs.snapshot();
 
         int replay=0;
         for(GroundItem item:
@@ -341,7 +325,9 @@ final class LocalRegionStreamHandler {
                     ?"SERVER_PLAYER81_RELOCATION"
                     :"CLIENT_PACKET73_REBASE_PRESERVES_WORLD")+
             " scene={"+scene+"}"+
-            " npcRepublish="+homeNpcs.size()+
+            " transientNpcPruned="+prunedTransientNpcView+
+            " homeNpcAdded="+homeNpcAdded+
+            " npcView="+homeNpcs.size()+
             " groundReplay="+replay+
             " dynamicOutsideHome=false"
         );
