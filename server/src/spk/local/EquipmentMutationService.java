@@ -174,8 +174,7 @@ final class EquipmentMutationService {
                 policyAuthority
             );
         }
-
-        }
+    }
 
     ReplaceResult remove(
         EquipmentSlot slot,
