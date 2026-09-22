@@ -1030,6 +1030,7 @@ final class LocalSession implements Runnable {
             return world.persistence().captureAndSave(
                 username,
                 worldPlayer,
+                worldPlayerGeneration,
                 petAccessoryState.activeItem(),
                 tag,
                 reason
@@ -1047,6 +1048,7 @@ final class LocalSession implements Runnable {
                 world.persistence().captureAndSave(
                     username,
                     worldPlayer,
+                    worldPlayerGeneration,
                     petAccessoryState.activeItem(),
                     tag,
                     reason
@@ -1079,6 +1081,7 @@ final class LocalSession implements Runnable {
                 .captureDeferredSave(
                     username,
                     worldPlayer,
+                    worldPlayerGeneration,
                     petAccessoryState.activeItem(),
                     tag,
                     reason
@@ -1097,6 +1100,7 @@ final class LocalSession implements Runnable {
                     .captureDeferredSave(
                         username,
                         worldPlayer,
+                        worldPlayerGeneration,
                         petAccessoryState.activeItem(),
                         tag,
                         reason
