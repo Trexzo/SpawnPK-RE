@@ -197,8 +197,36 @@ final class SharedNpcWorldRelay {
         synchronized(SharedNpcWorldRelay.class){
             viewer=BY_WRITER.get(viewerWriter);
         }
-        if(viewer==null||!viewer.ownerCurrent())
+        if(viewer==null)
             return;
+
+        try{
+            viewer.state.world
+                .withOpenPlayerOwnership(
+                    viewer.owner,
+                    viewer.ownerGeneration,
+                    ()->flushCurrentViewer(
+                        viewerWriter,
+                        viewer
+                    )
+                );
+        }catch(IllegalStateException staleOrClosed){
+            return;
+        }
+    }
+
+    private static void flushCurrentViewer(
+        ServerPacketWriter viewerWriter,
+        Context viewer
+    )throws IOException{
+        synchronized(SharedNpcWorldRelay.class){
+            if(BY_WRITER.get(viewerWriter)!=
+                    viewer||
+               viewer.state.contexts.get(
+                    viewer.owner.id()
+                )!=viewer)
+                return;
+        }
 
         long now=System.currentTimeMillis();
 
@@ -268,6 +296,7 @@ final class SharedNpcWorldRelay {
                 .markDelivered(
                     event.sequence,
                     viewer.owner.id(),
+                    viewer.ownerGeneration,
                     now
                 );
         }
