@@ -4,6 +4,8 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.Arrays;
 import java.util.Locale;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 public final class CombatSkillProgressionServiceTest {
     private static final String AUTHORITY =
@@ -60,6 +62,7 @@ public final class CombatSkillProgressionServiceTest {
             player
         );
         invalidCurvesRejected();
+        ownershipLockFence(owner, service);
         boundaryGuard();
 
         System.out.println(
@@ -493,6 +496,62 @@ public final class CombatSkillProgressionServiceTest {
             ),
             "unknown authority used as XP curve"
         );
+    }
+
+    private static void ownershipLockFence(
+        WorldPlayer owner,
+        CombatSkillProgressionService service
+    ){
+        CountDownLatch started=
+            new CountDownLatch(1);
+        CountDownLatch completed=
+            new CountDownLatch(1);
+
+        Thread worker=
+            new Thread(
+                ()->{
+                    started.countDown();
+                    service.snapshot(CombatSkillProgressionService.Skill.ATTACK);
+                    completed.countDown();
+                },
+                "combat-xp-lock-fence"
+            );
+
+        try{
+            synchronized(owner.mutationLock()){
+                worker.start();
+
+                require(
+                    started.await(
+                        2L,
+                        TimeUnit.SECONDS
+                    ),
+                    "combat-XP ownership worker did not start"
+                );
+
+                require(
+                    !completed.await(
+                        100L,
+                        TimeUnit.MILLISECONDS
+                    ),
+                    "combat-XP service bypassed WorldPlayer mutation lock"
+                );
+            }
+
+            require(
+                completed.await(
+                    2L,
+                    TimeUnit.SECONDS
+                ),
+                "combat-XP service did not resume after ownership lock release"
+            );
+        }catch(InterruptedException interrupted){
+            Thread.currentThread().interrupt();
+            throw new AssertionError(
+                "combat-XP ownership lock test interrupted",
+                interrupted
+            );
+        }
     }
 
     private static void boundaryGuard() {
