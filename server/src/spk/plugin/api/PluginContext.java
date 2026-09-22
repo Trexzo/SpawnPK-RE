@@ -12,4 +12,12 @@ import spk.content.api.ContentRegistrar;
 public interface PluginContext {
     ContentRegistrar content();
     PluginEvents events();
+
+    /**
+     * Returns the plugin-lifetime logical-tick scheduler capability.
+     *
+     * The returned scheduler may be retained after enable(...) completes.
+     * It becomes terminal when the owning plugin is disabled or the World closes.
+     */
+    PluginScheduler scheduler();
 }
