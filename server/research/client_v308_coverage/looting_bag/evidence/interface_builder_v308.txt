@@ -1,0 +1,28 @@
+Exact v308 class rs.n.c.an
+root 26700
+children 7
+
+26701 misc/BAG background
+26702 Close button, hover 26703
+26705 Looting bag
+26706 item container: 4 x 7 = 28 slots, horizontal spacing 13
+26706 actions: Deposit 1 / Deposit 5 / Deposit 10 / Deposit All
+26707 This bag is empty.
+26708 Deposit all to bank
+
+placements:
+26701 @ 9,21
+26702 @ 168,4
+26703 @ 168,4
+26705 @ 95,4
+26706 @ 12,23
+26707 @ 95,113
+26708 @ 10,1
+
+Global exact-v308 widget-item action transport mapping:
+option1 C2S145
+option2 C2S117
+option3 C2S43
+option4 C2S129
+
+Boundary: interface/action authority only; server restrictions, persistence, death behavior and item eligibility are not proven.
