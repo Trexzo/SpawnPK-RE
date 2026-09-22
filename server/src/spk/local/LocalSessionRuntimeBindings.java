@@ -97,6 +97,7 @@ final class LocalSessionRuntimeBindings {
                     TradeService.register(
                         world,
                         worldPlayer,
+                        expectedGeneration,
                         bank,
                         serverPackets,
                         ()->bridge.saveAccount(
