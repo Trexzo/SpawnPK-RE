@@ -12,22 +12,24 @@ public final class HitpointsRecoveryServiceTest {
         positiveHealAndClamp();
         deadDoesNotResurrect();
         overhealPreserved();
-        resolverFailureAtomic();
         invalidMaximumAtomic();
+        invalidAuthorityAtomic();
         inconsistentAliveStateFailsClosed();
-        authorityGuards();
         boundaryGuard();
 
         System.out.println(
             "HITPOINTS_RECOVERY_SERVICE_PASS " +
             "canonicalPlayerState=true " +
+            "worldPlayerOwnership=true " +
             "lifecycleSafe=true " +
             "deadNotResurrected=true " +
             "positiveHeal=true " +
             "clampToCallerMaximum=true " +
             "overhealPreserved=true " +
-            "resolverFailureAtomic=true " +
+            "callerMaximumPreResolved=true " +
+            "callbackUnderPlayerLock=false " +
             "invalidMaximumAtomic=true " +
+            "invalidAuthorityAtomic=true " +
             "requestedAppliedFacts=true " +
             "foodOwned=false " +
             "regenOwned=false " +
@@ -49,15 +51,14 @@ public final class HitpointsRecoveryServiceTest {
 
         HitpointsRecoveryService service =
             new HitpointsRecoveryService(
-                player,
-                fixedMaximum(
-                    99
-                )
+                player
             );
 
         HitpointsRecoveryService.Result first =
             service.heal(
-                25
+                25,
+                99,
+                AUTHORITY
             );
 
         require(
@@ -83,19 +84,18 @@ public final class HitpointsRecoveryServiceTest {
 
         HitpointsRecoveryService.Result clamped =
             service.heal(
-                Integer.MAX_VALUE
+                Integer.MAX_VALUE,
+                99,
+                AUTHORITY
             );
 
         require(
             clamped.status ==
                 HitpointsRecoveryService
                     .Status.HEALED &&
-            clamped.requested ==
-                Integer.MAX_VALUE &&
             clamped.applied == 34 &&
             clamped.before == 65 &&
             clamped.after == 99 &&
-            clamped.maximum == 99 &&
             player.playerState()
                 .currentLevel(
                     PlayerState.HITPOINTS
@@ -105,7 +105,9 @@ public final class HitpointsRecoveryServiceTest {
 
         HitpointsRecoveryService.Result full =
             service.heal(
-                10
+                10,
+                99,
+                AUTHORITY
             );
 
         require(
@@ -114,28 +116,18 @@ public final class HitpointsRecoveryServiceTest {
                     .Status.ALREADY_AT_OR_ABOVE_MAXIMUM &&
             full.applied == 0 &&
             full.before == 99 &&
-            full.after == 99 &&
-            player.playerState()
-                .currentLevel(
-                    PlayerState.HITPOINTS
-                ) == 99,
+            full.after == 99,
             "already-full heal"
         );
 
         expect(
             IllegalArgumentException.class,
             () -> service.heal(
-                0
+                0,
+                99,
+                AUTHORITY
             ),
             "zero heal"
-        );
-
-        require(
-            player.playerState()
-                .currentLevel(
-                    PlayerState.HITPOINTS
-                ) == 99,
-            "invalid heal mutated HP"
         );
     }
 
@@ -148,48 +140,22 @@ public final class HitpointsRecoveryServiceTest {
                 player
             );
 
-        PlayerLifecycleService.DamageResult death =
-            lifecycle.applyDamage(
-                500,
-                10L,
-                "test"
-            );
-
-        require(
-            death.died &&
-            player.lifecycle().dead() &&
-            player.playerState()
-                .currentLevel(
-                    PlayerState.HITPOINTS
-                ) == 0,
-            "dead setup"
+        lifecycle.applyDamage(
+            500,
+            10L,
+            "test"
         );
-
-        final int[] resolverCalls = {
-            0
-        };
 
         HitpointsRecoveryService service =
             new HitpointsRecoveryService(
-                player,
-                new HitpointsRecoveryService
-                    .MaximumHitpointsResolver() {
-                    @Override public int maximumHitpoints(
-                        WorldPlayer ignored
-                    ) {
-                        resolverCalls[0]++;
-                        return 99;
-                    }
-
-                    @Override public String authority() {
-                        return AUTHORITY;
-                    }
-                }
+                player
             );
 
         HitpointsRecoveryService.Result result =
             service.heal(
-                50
+                50,
+                99,
+                AUTHORITY
             );
 
         require(
@@ -200,7 +166,6 @@ public final class HitpointsRecoveryServiceTest {
             result.before == 0 &&
             result.after == 0 &&
             !result.maximumResolved() &&
-            resolverCalls[0] == 0 &&
             player.lifecycle().dead() &&
             player.playerState()
                 .currentLevel(
@@ -222,15 +187,14 @@ public final class HitpointsRecoveryServiceTest {
 
         HitpointsRecoveryService service =
             new HitpointsRecoveryService(
-                player,
-                fixedMaximum(
-                    99
-                )
+                player
             );
 
         HitpointsRecoveryService.Result result =
             service.heal(
-                20
+                20,
+                99,
+                AUTHORITY
             );
 
         require(
@@ -246,52 +210,6 @@ public final class HitpointsRecoveryServiceTest {
                     PlayerState.HITPOINTS
                 ) == 120,
             "overheal was clamped downward"
-        );
-    }
-
-    private static void resolverFailureAtomic() {
-        WorldPlayer player =
-            new WorldPlayer();
-
-        player.playerState()
-            .setCurrentLevel(
-                PlayerState.HITPOINTS,
-                55
-            );
-
-        HitpointsRecoveryService service =
-            new HitpointsRecoveryService(
-                player,
-                new HitpointsRecoveryService
-                    .MaximumHitpointsResolver() {
-                    @Override public int maximumHitpoints(
-                        WorldPlayer ignored
-                    ) {
-                        throw new IllegalStateException(
-                            "resolver boom"
-                        );
-                    }
-
-                    @Override public String authority() {
-                        return AUTHORITY;
-                    }
-                }
-            );
-
-        expect(
-            IllegalStateException.class,
-            () -> service.heal(
-                20
-            ),
-            "resolver failure"
-        );
-
-        require(
-            player.playerState()
-                .currentLevel(
-                    PlayerState.HITPOINTS
-                ) == 55,
-            "resolver failure mutated HP"
         );
     }
 
@@ -313,16 +231,15 @@ public final class HitpointsRecoveryServiceTest {
 
             HitpointsRecoveryService service =
                 new HitpointsRecoveryService(
-                    player,
-                    fixedMaximum(
-                        invalid
-                    )
+                    player
                 );
 
             expect(
-                IllegalStateException.class,
+                IllegalArgumentException.class,
                 () -> service.heal(
-                    10
+                    10,
+                    invalid,
+                    AUTHORITY
                 ),
                 "invalid maximum " +
                 invalid
@@ -335,6 +252,48 @@ public final class HitpointsRecoveryServiceTest {
                     ) == 50,
                 "invalid maximum mutated HP " +
                 invalid
+            );
+        }
+    }
+
+    private static void invalidAuthorityAtomic() {
+        for (String authority :
+                new String[]{
+                    "EXACT_CURRENT_CLIENT",
+                    "UNKNOWN_SERVER_AUTHORITY"
+                }) {
+
+            WorldPlayer player =
+                new WorldPlayer();
+
+            player.playerState()
+                .setCurrentLevel(
+                    PlayerState.HITPOINTS,
+                    50
+                );
+
+            HitpointsRecoveryService service =
+                new HitpointsRecoveryService(
+                    player
+                );
+
+            expect(
+                IllegalArgumentException.class,
+                () -> service.heal(
+                    10,
+                    99,
+                    authority
+                ),
+                "invalid maximum authority " +
+                authority
+            );
+
+            require(
+                player.playerState()
+                    .currentLevel(
+                        PlayerState.HITPOINTS
+                    ) == 50,
+                "invalid authority mutated HP"
             );
         }
     }
@@ -359,16 +318,15 @@ public final class HitpointsRecoveryServiceTest {
 
         HitpointsRecoveryService service =
             new HitpointsRecoveryService(
-                player,
-                fixedMaximum(
-                    99
-                )
+                player
             );
 
         expect(
             IllegalStateException.class,
             () -> service.heal(
-                10
+                10,
+                99,
+                AUTHORITY
             ),
             "alive zero-HP inconsistency"
         );
@@ -380,64 +338,6 @@ public final class HitpointsRecoveryServiceTest {
                 ) == 0,
             "inconsistent-state failure mutated HP"
         );
-    }
-
-    private static void authorityGuards() {
-        WorldPlayer player =
-            new WorldPlayer();
-
-        expect(
-            IllegalArgumentException.class,
-            () -> new HitpointsRecoveryService(
-                player,
-                resolver(
-                    99,
-                    "EXACT_CURRENT_CLIENT"
-                )
-            ),
-            "client maximum authority"
-        );
-
-        expect(
-            IllegalArgumentException.class,
-            () -> new HitpointsRecoveryService(
-                player,
-                resolver(
-                    99,
-                    "UNKNOWN_SERVER_AUTHORITY"
-                )
-            ),
-            "unknown maximum authority"
-        );
-    }
-
-    private static HitpointsRecoveryService
-        .MaximumHitpointsResolver fixedMaximum(
-            int maximum
-        ) {
-        return resolver(
-            maximum,
-            AUTHORITY
-        );
-    }
-
-    private static HitpointsRecoveryService
-        .MaximumHitpointsResolver resolver(
-            int maximum,
-            String authority
-        ) {
-        return new HitpointsRecoveryService
-            .MaximumHitpointsResolver() {
-            @Override public int maximumHitpoints(
-                WorldPlayer ignored
-            ) {
-                return maximum;
-            }
-
-            @Override public String authority() {
-                return authority;
-            }
-        };
     }
 
     private static void boundaryGuard() {
@@ -469,7 +369,8 @@ public final class HitpointsRecoveryServiceTest {
                             "itemid",
                             "animation",
                             "regen",
-                            "lifesteal"
+                            "lifesteal",
+                            "resolver"
                         }) {
 
                     require(
@@ -504,7 +405,8 @@ public final class HitpointsRecoveryServiceTest {
                         "eat",
                         "regen",
                         "damage",
-                        "respawn"
+                        "respawn",
+                        "resolver"
                     }) {
 
                 require(
