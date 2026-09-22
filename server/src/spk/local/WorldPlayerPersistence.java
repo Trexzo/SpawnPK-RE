@@ -38,6 +38,8 @@ final class WorldPlayerPersistence
 
     static final class CapturedSave {
         final SaveTicket ticket;
+        final WorldPlayer owner;
+        final long expectedGeneration;
         final int petAccessoryItem;
         final String tag;
         final String reason;
@@ -45,11 +47,15 @@ final class WorldPlayerPersistence
 
         CapturedSave(
             SaveTicket ticket,
+            WorldPlayer owner,
+            long expectedGeneration,
             int petAccessoryItem,
             String tag,
             String reason
         ){
             this.ticket=ticket;
+            this.owner=owner;
+            this.expectedGeneration=expectedGeneration;
             this.petAccessoryItem=petAccessoryItem;
             this.tag=tag;
             this.reason=reason;
@@ -272,10 +278,34 @@ final class WorldPlayerPersistence
         String tag,
         String reason
     ){
+        Objects.requireNonNull(
+            player,
+            "player"
+        );
+
+        return captureAndSave(
+            username,
+            player,
+            player.generation(),
+            petAccessoryItem,
+            tag,
+            reason
+        );
+    }
+
+    SaveTicket captureAndSave(
+        String username,
+        WorldPlayer player,
+        long expectedGeneration,
+        int petAccessoryItem,
+        String tag,
+        String reason
+    ){
         CapturedSave captured=
             captureDeferredSave(
                 username,
                 player,
+                expectedGeneration,
                 petAccessoryItem,
                 tag,
                 reason
@@ -305,6 +335,29 @@ final class WorldPlayerPersistence
         String tag,
         String reason
     ){
+        Objects.requireNonNull(
+            player,
+            "player"
+        );
+
+        return captureDeferredSave(
+            username,
+            player,
+            player.generation(),
+            petAccessoryItem,
+            tag,
+            reason
+        );
+    }
+
+    CapturedSave captureDeferredSave(
+        String username,
+        WorldPlayer player,
+        long expectedGeneration,
+        int petAccessoryItem,
+        String tag,
+        String reason
+    ){
         requireWorldExecutionContext();
 
         Objects.requireNonNull(
@@ -312,12 +365,27 @@ final class WorldPlayerPersistence
             "player"
         );
 
-        PlayerSnapshot snapshot=
-            PlayerSnapshotCodec.capture(
-                username,
-                player,
-                petAccessoryItem
-            );
+        PlayerSnapshot snapshot;
+
+        synchronized(player.mutationLock()){
+            if(!world.players().owns(
+                    player,
+                    expectedGeneration
+                ))
+                throw new IllegalStateException(
+                    "persistence capture owner changed player="+
+                    player.id()+
+                    " expectedGeneration="+
+                    expectedGeneration
+                );
+
+            snapshot=
+                PlayerSnapshotCodec.capture(
+                    username,
+                    player,
+                    petAccessoryItem
+                );
+        }
 
         long saveSequence=
             sequence.incrementAndGet();
@@ -331,6 +399,8 @@ final class WorldPlayerPersistence
                 snapshot,
                 future
             ),
+            player,
+            expectedGeneration,
             petAccessoryItem,
             cleanTag(tag),
             cleanReason(reason)
@@ -356,7 +426,20 @@ final class WorldPlayerPersistence
                 "blocking persistence admission on World execution context"
             );
 
-        captured.markSubmitted();
+        synchronized(captured.owner.mutationLock()){
+            if(!world.players().owns(
+                    captured.owner,
+                    captured.expectedGeneration
+                ))
+                throw new IllegalStateException(
+                    "captured save owner changed player="+
+                    captured.owner.id()+
+                    " expectedGeneration="+
+                    captured.expectedGeneration
+                );
+
+            captured.markSubmitted();
+        }
 
         SaveTask task=
             saveTask(captured);
