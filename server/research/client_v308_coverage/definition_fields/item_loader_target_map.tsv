@@ -1,0 +1,76 @@
+source_field	normalized_key	count	loader_path	target_fields	notes
+name	name	5064	ACTIVE_SWITCH	w:Ljava/lang/String;,x:Ljava/lang/String;	constants=@gre@
+clone	clone	2714	PREPASS_CLONE_CONTROL		ordinary switch no-op; effective source handled before field loop
+destColors	destcolors	2025	ACTIVE_SWITCH	h:[I	
+srcColors	srccolors	2021	ACTIVE_SWITCH	g:[I	
+actions	actions	1996	ACTIVE_SWITCH	L:[Ljava/lang/String;	
+tradeable	tradeable	1479	NOOP_SWITCH		recognized but no client definition/gameplay mutation
+modelId	modelid	1300	ACTIVE_SWITCH	A:I	
+zoom	zoom	1253	ACTIVE_SWITCH	G:I	
+rotations	rotations	1237	ACTIVE_SWITCH	M:I,Z:I	
+offsets	offsets	1202	ACTIVE_SWITCH	v:I,W:I	
+femaleModels	femalemodels	928	ACTIVE_SWITCH	aa:I,q:I,o:I	
+maleModels	malemodels	928	ACTIVE_SWITCH	r:I,K:I,J:I	
+retextures	retextures	598	ACTIVE_SWITCH	aw:Lrs/a/b/c;	
+osrs	osrs	453	ACTIVE_SWITCH	ar:Z	
+stackable	stackable	388	ACTIVE_SWITCH	C:Z	
+textureInvAnim	textureinvanim	378	ACTIVE_SWITCH	U:Z	
+hover	hover	334	ACTIVE_SWITCH		updates rs.d.m hover registry
+note	note	270	ACTIVE_SWITCH	C:Z,F:I,p:I	
+fullTexture	fulltexture	248	ACTIVE_SWITCH	R:I	
+equipClone	equipclone	213	NOOP_SWITCH		recognized but no definition mutation in rs.t.a.d
+ambient	ambient	120	ACTIVE_SWITCH	X:I	
+femaleOffsets	femaleoffsets	120	ACTIVE_SWITCH	ai:B,ak:B,aj:B	
+broken	broken	113	ACTIVE_SWITCH	V:Z,L:[Ljava/lang/String;	constants=Destroy
+zan2d	zan2d	101	ACTIVE_SWITCH	ae:I	
+icon	icon	92	ACTIVE_SWITCH	at:I	
+maleOffsets	maleoffsets	88	ACTIVE_SWITCH	af:B,ag:B,ah:B	
+iconX	iconx	83	ACTIVE_SWITCH	au:I	
+contrast	contrast	74	ACTIVE_SWITCH	I:I	
+iconY	icony	71	ACTIVE_SWITCH	av:I	
+resize	resize	61	ACTIVE_SWITCH	t:I,O:I,N:I	
+autokeep	autokeep	56	NOOP_SWITCH		recognized but no client definition/gameplay mutation
+fullClone	fullclone	43	PREPASS_CLONE_CONTROL		ordinary switch no-op; source handled before field loop; hover inheritance path
+recolors	recolors	30	ACTIVE_SWITCH	aw:Lrs/a/b/c;	
+opacity	opacity	27	ACTIVE_SWITCH	aw:Lrs/a/b/c;	
+femaleOffsetY	femaleoffsety	21	ACTIVE_SWITCH	ak:B	
+destcolors	destcolors	15	ACTIVE_SWITCH	h:[I	
+stackAmounts	stackamounts	14	ACTIVE_SWITCH	ab:[I	
+stackIds	stackids	14	ACTIVE_SWITCH	P:[I	
+beginnerGear	beginnergear	11	ACTIVE_SWITCH	at:I,au:I,av:I	sets exact fixed client presentation values; not degradation
+autolost	autolost	9	NOOP_SWITCH		recognized but no client definition/gameplay mutation
+iconItem	iconitem	9	ACTIVE_SWITCH	as:I	
+reshade	reshade	8	ACTIVE_SWITCH	aw:Lrs/a/b/c;	
+autoloss	autoloss	7	NOOP_SWITCH		recognized but no client definition/gameplay mutation
+iconOffsets	iconoffsets	7	ACTIVE_SWITCH	au:I,av:I	
+bankable	bankable	6	NOOP_SWITCH		recognized but no client definition/gameplay mutation
+droppable	droppable	5	NOOP_SWITCH		recognized but no client definition/gameplay mutation
+disableInventoryHover	disableinventoryhover	4	ACTIVE_SWITCH	ax:Z	
+maleOffsetY	maleoffsety	4	ACTIVE_SWITCH	ag:B	
+autobankable	autobankable	3	NOOP_SWITCH		recognized but no client definition/gameplay mutation
+femaleModel	femalemodel	3	ACTIVE_SWITCH	aa:I,o:I,q:I	
+maleModel	malemodel	3	ACTIVE_SWITCH	r:I,J:I,K:I	
+destroy	destroy	2	NOOP_SWITCH		recognized but no client definition/gameplay mutation
+maleOffsetX	maleoffsetx	2	ACTIVE_SWITCH	af:B	
+cloneEquip	cloneequip	1	NOOP_SWITCH		recognized but no definition mutation in rs.t.a.d
+disableInvHover	disableinvhover	1	ACTIVE_SWITCH	ax:Z	
+femaleModel1	femalemodel1	1	ACTIVE_SWITCH	aa:I	
+femaleoffsets	femaleoffsets	1	ACTIVE_SWITCH	ai:B,ak:B,aj:B	
+femaleOffsetX	femaleoffsetx	1	ACTIVE_SWITCH	ai:B	
+groundActions	groundactions	1	ACTIVE_SWITCH	u:[Ljava/lang/String;	
+maleModel1	malemodel1	1	ACTIVE_SWITCH	r:I	
+maleoffsets	maleoffsets	1	ACTIVE_SWITCH	af:B,ag:B,ah:B	
+modelID	modelid	1	ACTIVE_SWITCH	A:I	
+newFemaleOffsets	newfemaleoffsets	1	ACTIVE_SWITCH	ao:B,aq:B,ap:B	
+newMaleOffsets	newmaleoffsets	1	ACTIVE_SWITCH	al:B,am:B,an:B	
+param_1	param_1	1	SKIPPED_PARAM_PREFIX		startsWith(param_) -> continue before switch
+param_2	param_2	1	SKIPPED_PARAM_PREFIX		startsWith(param_) -> continue before switch
+param_3	param_3	1	SKIPPED_PARAM_PREFIX		startsWith(param_) -> continue before switch
+param_4	param_4	1	SKIPPED_PARAM_PREFIX		startsWith(param_) -> continue before switch
+param_5	param_5	1	SKIPPED_PARAM_PREFIX		startsWith(param_) -> continue before switch
+param_6	param_6	1	SKIPPED_PARAM_PREFIX		startsWith(param_) -> continue before switch
+param_7	param_7	1	SKIPPED_PARAM_PREFIX		startsWith(param_) -> continue before switch
+param_8	param_8	1	SKIPPED_PARAM_PREFIX		startsWith(param_) -> continue before switch
+retexture	retexture	1	ACTIVE_SWITCH	aw:Lrs/a/b/c;	
+template	template	1	ACTIVE_SWITCH	p:I	
+textureInvANim	textureinvanim	1	ACTIVE_SWITCH	U:Z	
