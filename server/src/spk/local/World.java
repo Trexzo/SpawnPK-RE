@@ -50,6 +50,12 @@ final class World implements AutoCloseable {
                     players.owns(
                         player,
                         generation
+                    ),
+                (player,generation,task)->
+                    withOpenPlayerMutationOwnershipIfCurrent(
+                        player,
+                        generation,
+                        task::run
                     )
             );
         commands=
