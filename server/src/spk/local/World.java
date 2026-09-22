@@ -31,6 +31,7 @@ final class World implements AutoCloseable {
     private final Object lifecycleLock=new Object();
     private final CountDownLatch closeCompleted=new CountDownLatch(1);
     private volatile boolean closed;
+    private volatile Throwable closeFailure;
 
     private World(long tickMillis){
         this(
@@ -494,20 +495,34 @@ final class World implements AutoCloseable {
 
         if(!owner){
             awaitCloseCompleted();
+            WorldCloseSequence.rethrow(
+                closeFailure
+            );
             return;
         }
 
+        Throwable failure=null;
+
         try{
-            pulse.close();
-            npcPresentationEvents.close();
-            domainEvents.close();
-            commands.close();
-            realtime.close();
-            events.close();
-            persistence.close();
+            failure=
+                WorldCloseSequence.run(
+                    pulse::close,
+                    npcPresentationEvents::close,
+                    domainEvents::close,
+                    commands::close,
+                    realtime::close,
+                    events::close,
+                    persistence::close
+                );
+
+            closeFailure=failure;
         }finally{
             closeCompleted.countDown();
         }
+
+        WorldCloseSequence.rethrow(
+            failure
+        );
     }
 
     private void awaitCloseCompleted(){
