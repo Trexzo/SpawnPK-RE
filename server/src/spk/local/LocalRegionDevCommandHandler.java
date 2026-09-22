@@ -243,29 +243,12 @@ final class LocalRegionDevCommandHandler {
         int baseX=(chunkX-6)<<3;
         int baseY=(chunkY-6)<<3;
 
-        // Explicitly remove the HOME NPC view before changing region. The
-        // registry itself stays intact so regionhome republishes those exact
-        // semantic actors instead of reconstructing or duplicating them.
-        List<NpcEntity> oldNpcs=npcs.snapshot();
-        if(!oldNpcs.isEmpty()){
-            ArrayList<NpcSyncEncoder.Update> removals=
-                new ArrayList<>();
-
-            for(NpcEntity npc:oldNpcs){
-                removals.add(
-                    NpcSyncEncoder.Update.remove(npc));
-            }
-
-            writer.varShort(
-                65,
-                NpcSyncEncoder.encode(
-                    removals,
-                    Collections.emptyList(),
-                    movement.x(),
-                    movement.y()
-                )
+        // Keep the player's followers attached to the client view while
+        // removing HOME/dev actors before the packet-73 rebase.
+        int removedHomeNpcView=
+            npcs.detachRegionViewPreservingFollowers(
+                writer
             );
-        }
 
         movement.enterTransientRegion(
             tile.x,
@@ -309,7 +292,7 @@ final class LocalRegionDevCommandHandler {
             " regionLoadSeq="+regionLoad.sequence+
             " placement=SERVER_PLAYER81_RELOCATION"+
             " collision=EXACT_CURRENT_STATIC"+
-            " removedHomeNpcView="+oldNpcs.size()+
+            " removedHomeNpcView="+removedHomeNpcView+
             " arrivalAuthority=LOCAL_DEV_SAFE_TILE_NOT_PRODUCTION"+
             " persistence=HOME_FALLBACK",
             "REGION_DEV_LOAD_NONPERSISTENT",
@@ -339,6 +322,11 @@ final class LocalRegionDevCommandHandler {
                 currentScenePublisher
             );
         }
+
+        int prunedTransientNpcView=
+            npcs.detachRegionViewPreservingFollowers(
+                writer
+            );
 
         movement.returnHome();
 
@@ -375,15 +363,13 @@ final class LocalRegionDevCommandHandler {
 
         nextPublisher.context().invalidate();
 
+        int homeNpcAdded=
+            npcs.reattachHomeView(
+                writer,
+                movement,
+                homeWorld
+            );
         List<NpcEntity> homeNpcs=npcs.snapshot();
-        if(!homeNpcs.isEmpty()){
-            writer.varShort(
-                65,
-                NpcSyncEncoder.initial(
-                    homeNpcs,
-                    movement.x(),
-                    movement.y()));
-        }
 
         int replay=0;
         for(GroundItem item:world.groundItems().snapshot()){
@@ -402,7 +388,9 @@ final class LocalRegionDevCommandHandler {
             " placement=SERVER_PLAYER81_RELOCATION"+
             " scene={"+scene+"}"+
             " groundReplay="+replay+
-            " npcRepublish="+homeNpcs.size()+
+            " transientNpcPruned="+prunedTransientNpcView+
+            " homeNpcAdded="+homeNpcAdded+
+            " npcView="+homeNpcs.size()+
             " pet="+petState.active(),
             "REGION_DEV_RETURN_HOME",
             nextPublisher
