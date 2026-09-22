@@ -12,12 +12,14 @@ public final class CombatLevelServiceTest {
         "CUSTOM_LOCALLAB_COMBAT_LEVEL_FORMULA";
 
     public static void main(String[] args) {
+        WorldPlayer owner =
+            new WorldPlayer();
         PlayerState player =
-            new PlayerState();
+            owner.playerState();
 
         CombatSkillProgressionService progression =
             new CombatSkillProgressionService(
-                player,
+                owner,
                 new TestCurve()
             );
 
