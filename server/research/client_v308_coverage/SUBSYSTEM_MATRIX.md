@@ -44,7 +44,7 @@ authority would unblock Chat 2/3 without inventing server mechanics.
    - keep server mechanics unknown unless separately proven.
 4. **Teleports / UI navigation**
    - close exact roots/buttons/configs and client-visible destination semantics.
-5. Continue Issue #427 application contracts: Event Chest + Well of Good Will + Looting Bag are now packaged; next Boss Teleportation -> lotteries/Bloodcore systems, then remaining minigames/assets/settings/social surfaces by dependency demand.
+5. Continue Issue #427 application contracts: Event Chest + Well of Good Will + Looting Bag + Boss Teleport + ordinary/Bloodcore lotteries + Bloodcore Synthesis + Blood Shard Salvaging + reward Coffer are now packaged; next Task Scroll / Event Activity Viewer -> voting/donation/donor surfaces -> Blood Diamond Fuser/store + remaining application/navigation families.
 
 Completed high-value P0 packages now include the exact v308 worn staff-rank
 overhead gate, combat-facing contracts, prayer/magic presentation, Make-over
