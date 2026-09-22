@@ -1,0 +1,47 @@
+Exact v308 Bloodcore Token Synthesis
+SHA-256 854f26ff9f134b0317572e7ac1688e6f40a231d5a4c66f8db5d655b7f45ce7c6
+class rs.n.c.m
+
+root 61078
+61079 "fountain/sprite 21"
+61080 "<img=180> Bloodcore Token Synthesis <img=180>"
+
+61081/61082 button tooltip "Synthesize items"
+61083 hover
+61084 "fountain/icon 1"
+61085 "Start"
+
+61086/61087 button tooltip "Bloodcore token shop"
+61088 hover
+61089 "fountain/coins"
+61090 "Shop"
+
+61091/61092 button tooltip "Synthesis item guide"
+61093 hover
+61094 "icons/help"
+61095 "Guide"
+
+61096 empty text
+61097 empty text
+
+61098 parent: content-height=250 width=248 visible-height=149
+61099 @ 11,5
+61099 item widget:
+  actions Remove 1 / Remove 5 / Remove 10 / Remove All / Remove X
+  P=5
+  horizontal spacing=16
+  vertical spacing=10
+
+61100 second item widget:
+  P=4
+  horizontal spacing=11
+
+61101/61102 button tooltip "Bloodcore lottery"
+61103 hover
+61104 "fountain/dice"
+61105 "Lotto"
+
+root children=24
+
+Boundary:
+Second item widget role, recipes, costs, yields, RNG, persistence and policy are not proven by client layout.
