@@ -97,18 +97,24 @@ final class CombatSkillProgressionService {
     }
 
     private final PlayerState player;
+    private final Object mutationLock;
     private final int[] minimumXpByLevel;
     private final String curveAuthority;
 
     CombatSkillProgressionService(
-        PlayerState player,
+        WorldPlayer owner,
         LevelCurve curve
     ) {
-        this.player =
+        WorldPlayer playerOwner =
             Objects.requireNonNull(
-                player,
-                "player"
+                owner,
+                "owner"
             );
+
+        this.player =
+            playerOwner.playerState();
+        this.mutationLock =
+            playerOwner.mutationLock();
 
         Objects.requireNonNull(
             curve,
@@ -185,17 +191,19 @@ final class CombatSkillProgressionService {
             snapshot;
     }
 
-    synchronized Snapshot snapshot(
+    Snapshot snapshot(
         Skill skill
     ) {
-        return snapshotInternal(
-            requireSkill(
-                skill
-            )
-        );
+        synchronized (mutationLock) {
+            return snapshotInternal(
+                requireSkill(
+                    skill
+                )
+            );
+        }
     }
 
-    synchronized AwardResult award(
+    AwardResult award(
         Skill skill,
         int amount
     ) {
@@ -211,72 +219,78 @@ final class CombatSkillProgressionService {
             );
         }
 
-        Snapshot before =
-            snapshotInternal(
-                checked
-            );
+        synchronized (mutationLock) {
+            Snapshot before =
+                snapshotInternal(
+                    checked
+                );
 
-        final int afterXp;
+            final int afterXp;
 
-        try {
-            afterXp =
-                Math.addExact(
-                    before.xp,
+            try {
+                afterXp =
+                    Math.addExact(
+                        before.xp,
+                        amount
+                    );
+            } catch (
+                ArithmeticException overflow
+            ) {
+                throw new ArithmeticException(
+                    "XP overflow skill=" +
+                    checked +
+                    " before=" +
+                    before.xp +
+                    " amount=" +
                     amount
                 );
-        } catch (
-            ArithmeticException overflow
-        ) {
-            throw new ArithmeticException(
-                "XP overflow skill=" +
-                checked +
-                " before=" +
-                before.xp +
-                " amount=" +
-                amount
-            );
-        }
+            }
 
-        int afterBase =
-            baseLevelForXp(
+            int afterBase =
+                baseLevelForXp(
+                    afterXp
+                );
+
+            int levelsGained =
+                afterBase -
+                before.baseLevel;
+
+            player.setXp(
+                checked.playerStateIndex(),
                 afterXp
             );
 
-        int levelsGained =
-            afterBase -
-            before.baseLevel;
+            Snapshot after =
+                snapshotInternal(
+                    checked
+                );
 
-        player.setXp(
-            checked.playerStateIndex(),
-            afterXp
-        );
+            if (after.xp != afterXp ||
+                after.baseLevel != afterBase) {
+                throw new IllegalStateException(
+                    "PlayerState XP write did not project expected progression"
+                );
+            }
 
-        Snapshot after =
-            snapshotInternal(
-                checked
-            );
+            if (after.currentLevel !=
+                    before.currentLevel) {
+                throw new IllegalStateException(
+                    "XP award unexpectedly changed current level skill=" +
+                    checked
+                );
+            }
 
-        if (after.xp != afterXp ||
-            after.baseLevel != afterBase) {
-            throw new IllegalStateException(
-                "PlayerState XP write did not project expected progression"
+            return new AwardResult(
+                amount,
+                levelsGained,
+                before,
+                after
             );
         }
+    }
 
-        if (after.currentLevel !=
-                before.currentLevel) {
-            throw new IllegalStateException(
-                "XP award unexpectedly changed current level skill=" +
-                checked
-            );
-        }
-
-        return new AwardResult(
-            amount,
-            levelsGained,
-            before,
-            after
-        );
+    Object mutationLock() {
+        return mutationLock;
     }
 
     int maxLevel() {
