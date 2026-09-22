@@ -1,0 +1,60 @@
+Exact v308 PK Ratings / leaderboard notes
+
+Authority:
+854f26ff9f134b0317572e7ac1688e6f40a231d5a4c66f8db5d655b7f45ce7c6
+
+Gameframe:
+rs.n.c.Y
+root 32000
+PK Ratings widget 32017 tooltip "Open pk ratings"
+Y.m(32017) locally:
+  title32014 = "<img=253> PK Ratings"
+  eT[2] = 40403
+  redraw flags
+then generic action still sends C2S185(32017)
+body 7D 11
+
+PK Ratings:
+rs.n.c.aM
+root40403
+scroll40404
+50 row widgets40405..40454
+
+Application parser:
+rs.n.c.aN
+registry rs.q.a.a.b:
+S2C250 subtype16 -> aN
+
+Subtype16 payload ops:
+0:
+  u8 0
+  clear/reset 50 rows
+
+1:
+  u8 1
+  u8 fontIndex
+  u8 selectableFlag
+  stringNL text
+  appends next row starting40405
+  selectableFlag==1 -> tooltip Select -> C2S185(rowId)
+
+2:
+  u8 2
+  u16be rowIndex
+  stringNL text
+  updates H[40405+rowIndex].text
+
+Row action examples:
+40405 -> 9D D5
+40454 -> 9E 06
+
+Leaderboard selector:
+rs.n.c.Z
+root61000
+61002 tooltip "Daily PK leaderboards" -> C2S185 EE 4A
+61005 tooltip "Tournament PK leaderboard" -> C2S185 EE 4D
+labels61008 Daily PK Leaderboards
+61009 Tournament Leaderboard
+61010 Leaderboard Selection Menu
+
+Distinct from World Tournament leaderboard root61011.
