@@ -179,7 +179,7 @@ final class PlayerDeathItemResolutionService {
     private final String policyAuthority;
 
     private final LinkedHashMap<Long,Resolution>
-        resolvedByDeathTick=
+        resolvedByDeathSequence=
             new LinkedHashMap<>();
 
     PlayerDeathItemResolutionService(
@@ -226,7 +226,7 @@ final class PlayerDeathItemResolutionService {
                 );
 
             Resolution existing=
-                resolvedByDeathTick.get(
+                resolvedByDeathSequence.get(
                     deathTick
                 );
 
@@ -291,7 +291,7 @@ final class PlayerDeathItemResolutionService {
                     policyAuthority
                 );
 
-            resolvedByDeathTick.put(
+            resolvedByDeathSequence.put(
                 deathTick,
                 result
             );
@@ -303,19 +303,19 @@ final class PlayerDeathItemResolutionService {
     synchronized Resolution get(
         long deathTick
     ){
-        return resolvedByDeathTick.get(
+        return resolvedByDeathSequence.get(
             deathTick
         );
     }
 
     synchronized int size(){
-        return resolvedByDeathTick.size();
+        return resolvedByDeathSequence.size();
     }
 
     synchronized List<Resolution> snapshot(){
         return Collections.unmodifiableList(
             new ArrayList<>(
-                resolvedByDeathTick.values()
+                resolvedByDeathSequence.values()
             )
         );
     }
