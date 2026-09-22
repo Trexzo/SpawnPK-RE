@@ -33,8 +33,10 @@ authority would unblock Chat 2/3 without inventing server mechanics.
    - teleport static client/cache recovery is now closed; only runtime/server-projected destination details remain;
    - item/NPC loader-level field census is strong, so focus only on downstream render/model/remap semantics that actually unblock gameplay/content.
 2. **Remaining application/navigation runtime handoff gaps**
-   - item/NPC loader-level field census is now strong; focus only on downstream render/model/remap semantics that actually unblock gameplay/content.
-3. Continue Issue #427 application contracts: Event Chest + Well of Good Will + Looting Bag + Boss Teleport + ordinary/Bloodcore lotteries + Bloodcore Synthesis + Blood Shard Salvaging + reward Coffer + Task Scroll + Event Activity Viewer + Voting/redeem flow + Main Donor Panel + Donation Cart + Blood Fountain hub/Blood Diamond Fuser are now packaged; next close remaining navigation/store presentation gaps, prioritizing the teleport atlas.
+   - only pursue static client/cache work where new evidence exists; dynamic teleport destination rows now require runtime/server traces.
+3. **Issue #427 residual application contracts**
+   - Event Chest + Well of Good Will + Looting Bag + Boss Teleport + ordinary/Bloodcore lotteries + Bloodcore Synthesis + Blood Shard Salvaging + reward Coffer + Task Scroll + Event Activity Viewer + Voting/redeem flow + Main Donor Panel + Donation Cart + Blood Fountain hub/Blood Diamond Fuser are packaged;
+   - prioritize only genuinely uncovered application/state surfaces rather than reopening the now-closed static teleport atlas.
 
 Completed high-value P0 packages now include the exact v308 worn staff-rank
 overhead gate, combat-facing contracts, prayer/magic presentation, Make-over
