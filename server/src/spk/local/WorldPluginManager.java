@@ -61,7 +61,10 @@ final class WorldPluginManager
         Plugin plugin
     )throws Exception{
         requireOpen();
-        return enableOne(plugin);
+        return enableOne(
+            plugin,
+            true
+        );
     }
 
     @Override public synchronized List<PluginHandle>
@@ -79,8 +82,14 @@ final class WorldPluginManager
         try{
             for(Plugin plugin:ordered)
                 added.add(
-                    enableOne(plugin)
+                    enableOne(
+                        plugin,
+                        false
+                    )
                 );
+
+            for(Entry entry:added)
+                entry.tasks.activate();
         }catch(Throwable failure){
             for(int i=added.size()-1;i>=0;i--)
                 disableEntry(
@@ -173,7 +182,8 @@ final class WorldPluginManager
     }
 
     private Entry enableOne(
-        Plugin plugin
+        Plugin plugin,
+        boolean activateTasks
     )throws Exception{
         Objects.requireNonNull(
             plugin,
@@ -236,8 +246,13 @@ final class WorldPluginManager
                 );
 
             enabled.put(id,entry);
+
+            if(activateTasks)
+                tasks.activate();
+
             return entry;
         }catch(Throwable failure){
+            enabled.remove(id);
             module.seal();
             tasks.close();
 
