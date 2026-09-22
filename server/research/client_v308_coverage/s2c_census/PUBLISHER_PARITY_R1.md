@@ -294,3 +294,45 @@ The finite parity split is now:
 The remaining 20 rows are not being called absent. They are the next publisher/use-surface audit queue.
 
 R3 exact-client recovery used the real Library `client(6).jar` and exact v308 `rs.Client#bP()`.
+
+
+# R4 Update — World / Client-State Publisher Gap Closure
+
+Exact-v308 publisher parity is now closed for fifteen additional world/client-state families:
+
+```
+1,35,61,68,74,78,99,107,114,121,166,176,177,240,254
+```
+
+Exact schemas are recorded in:
+
+```
+WORLD_STATE_PUBLISHER_GAP_R4.md
+world_state_reader_map_v308.txt
+```
+
+Current-main presentation implementation is tracked by Issue #546.
+
+The finite parity split is now:
+
+```
+75 total exact handled S2C opcodes
+
+32 IMPLEMENTED_OR_AUTHORITY_PRESENT_CURRENT_MAIN
+16 CURRENT_MAIN_GENERIC_PUBLISHER_GAP_R2
+ 7 CURRENT_MAIN_SOCIAL_CHAT_PUBLISHER_GAP_R3
+15 CURRENT_MAIN_WORLD_STATE_PUBLISHER_GAP_R4
+ 5 NO_COMPLETE_MAIN_PARITY_CLAIM
+```
+
+Only five complex families remain parity-unclassified:
+
+```
+60  local region update batch
+147 player-attached temporary object
+215 ground item add excluding local player
+241 constructed/dynamic region change
+255 hit/block/drop popup event
+```
+
+Those five require dedicated exact-current audit rather than generic publisher inference.
