@@ -18,6 +18,24 @@ final class TradeService {
     private TradeService(){}
 
     static synchronized void register(World world,WorldPlayer player,BankState bank,ServerPacketWriter writer,Runnable save){
+        register(
+            world,
+            player,
+            player==null?0L:player.generation(),
+            bank,
+            writer,
+            save
+        );
+    }
+
+    static synchronized void register(
+        World world,
+        WorldPlayer player,
+        long expectedGeneration,
+        BankState bank,
+        ServerPacketWriter writer,
+        Runnable save
+    ){
         Objects.requireNonNull(world,"world");
         Objects.requireNonNull(player,"player");
         Objects.requireNonNull(bank,"bank");
@@ -35,6 +53,7 @@ final class TradeService {
             new Context(
                 world,
                 player,
+                expectedGeneration,
                 bank,
                 writer,
                 save
@@ -65,16 +84,22 @@ final class TradeService {
         );
     }
     static synchronized String start(World world,WorldPlayer a,WorldPlayer b)throws IOException{
-        State s=state(world);Context ca=s.contexts.get(a.id()),cb=s.contexts.get(b.id());
+        State s=STATES.get(world);
+        if(s==null)return "TRADE_UI_REJECTED_CONTEXT_MISSING";
+        Context ca=s.contexts.get(a.id()),cb=s.contexts.get(b.id());
         if(ca==null||cb==null)return "TRADE_UI_REJECTED_CONTEXT_MISSING";
-        cancel0(s,ca,"REPLACED_BY_NEW_TRADE",true);cancel0(s,cb,"REPLACED_BY_NEW_TRADE",true);
+        if(ca.player!=a||cb.player!=b||
+           !ca.ownerCurrent()||!cb.ownerCurrent())
+            return "TRADE_UI_REJECTED_STALE_CONTEXT";
+        cancel0(s,ca,"REPLACED_BY_NEW_TRADE",tradeCurrent(ca.trade));
+        cancel0(s,cb,"REPLACED_BY_NEW_TRADE",tradeCurrent(cb.trade));
         Trade t=new Trade(ca,cb);s.trades.put(a.id(),t);s.trades.put(b.id(),t);ca.trade=t;cb.trade=t;
         publishFirst(t);
         return "TRADE_UI_OPEN root=3323 overlay=3321 own=3415 other=3416 firstAccept=3420 confirmRoot=3443 finalAccept=3546";
     }
 
     static synchronized String handleItemAction(WorldPlayer player,ItemContainerAction a)throws IOException{
-        Context c=context(player);if(c==null||c.trade==null)return null;Trade t=c.trade;
+        Context c=context(player);Trade t=liveTrade(c);if(t==null)return null;
         if(t.stage!=Stage.OFFERING)return "TRADE_ITEM_REJECTED_STAGE_"+t.stage;
         if(a.widgetId!=INVENTORY_GRID&&a.widgetId!=OWN_OFFER)return null;
         int amount=amountFor(a.opcode);
@@ -96,9 +121,9 @@ final class TradeService {
     }
 
     static synchronized String handleAmount(WorldPlayer player,int amount)throws IOException{
-        Context c=context(player);if(c==null||c.trade==null||c.pendingX==null)return null;PendingX p=c.pendingX;c.pendingX=null;
+        Context c=context(player);Trade t=liveTrade(c);if(t==null||c.pendingX==null)return null;PendingX p=c.pendingX;c.pendingX=null;
         if(amount<=0)return "TRADE_X_REJECTED_AMOUNT amount="+amount;
-        Trade t=c.trade;if(t.stage!=Stage.OFFERING)return "TRADE_X_REJECTED_STAGE_"+t.stage;
+        if(t.stage!=Stage.OFFERING)return "TRADE_X_REJECTED_STAGE_"+t.stage;
         if(p.kind==XKind.OFFER){
             if(ItemPolicyRepository.explicitlyUntradeable(p.item))return "TRADE_X_REJECTED_EXPLICIT_UNTRADEABLE item="+p.item;
             int available=Math.max(0,c.bank.inventoryCount(p.item)-t.offer(c).getOrDefault(p.item,0));int add=Math.min(amount,available);if(add<=0)return "TRADE_X_REJECTED_NO_AVAILABLE";changeOffer(t,c,p.item,add);return "TRADE_OFFER_X_OK item="+p.item+" qty="+add;
@@ -107,7 +132,7 @@ final class TradeService {
     }
 
     static synchronized String handleWidget(WorldPlayer player,int widget)throws IOException{
-        Context c=context(player);if(c==null||c.trade==null)return null;Trade t=c.trade;
+        Context c=context(player);Trade t=liveTrade(c);if(t==null)return null;
         if(widget==FIRST_DECLINE || widget==FINAL_DECLINE){
             cancel0(state(c.world),c,widget==FIRST_DECLINE?"FIRST_STAGE_DECLINE":"FINAL_STAGE_DECLINE",true);
             return "TRADE_CANCELLED_DECLINE widget="+widget;
@@ -133,15 +158,27 @@ final class TradeService {
     }
 
     static synchronized boolean cancelIfActive(WorldPlayer player,String reason)throws IOException{
-        Context c=context(player);if(c==null||c.trade==null)return false;cancel0(state(c.world),c,reason,true);return true;
+        Context c=context(player);Trade t=liveTrade(c);if(t==null)return false;cancel0(state(c.world),c,reason,true);return true;
     }
-    static synchronized boolean active(WorldPlayer p){Context c=context(p);return c!=null&&c.trade!=null;}
+    static synchronized boolean active(WorldPlayer p){
+        Context c=context(p);
+        return liveTrade(c)!=null;
+    }
 
     private static String commit(Trade t)throws IOException{
         Context a=t.a,b=t.b;
         Object first=a.player.id().value<b.player.id().value?a.player.mutationLock():b.player.mutationLock();
         Object second=first==a.player.mutationLock()?b.player.mutationLock():a.player.mutationLock();
         synchronized(first){synchronized(second){
+            if(!a.ownerCurrent()||!b.ownerCurrent()){
+                cancel0(
+                    state(a.world),
+                    a,
+                    "FINAL_VALIDATION_STALE_OWNER",
+                    false
+                );
+                return "TRADE_COMMIT_REJECTED_STALE_OWNER";
+            }
             if(!offersAvailable(a,t.offerA)||!offersAvailable(b,t.offerB)){cancel0(state(a.world),a,"FINAL_VALIDATION_MISSING_OFFER",true);return "TRADE_COMMIT_REJECTED_OFFER_CHANGED";}
             if(!canAfterExchange(a.bank,t.offerA,t.offerB)||!canAfterExchange(b.bank,t.offerB,t.offerA)){cancel0(state(a.world),a,"FINAL_VALIDATION_INVENTORY_SPACE",true);return "TRADE_COMMIT_REJECTED_INVENTORY_SPACE";}
             a.writer.beginBatch();b.writer.beginBatch();boolean endedA=false,endedB=false;
@@ -245,7 +282,12 @@ final class TradeService {
                c.writer!=expectedWriter)
                 continue;
 
-            cancel0(s,c,reason,notify);
+            cancel0(
+                s,
+                c,
+                reason,
+                notify&&tradeCurrent(c.trade)
+            );
             s.contexts.remove(player.id());
             removed++;
 
@@ -257,9 +299,77 @@ final class TradeService {
     }
 
     private static State state(World w){State s=STATES.get(w);if(s==null){s=new State(w);STATES.put(w,s);}return s;}
-    private static Context context(WorldPlayer p){if(p==null)return null;for(State s:STATES.values()){Context c=s.contexts.get(p.id());if(c!=null)return c;}return null;}
+
+    private static Context context(WorldPlayer p){
+        if(p==null)return null;
+        for(State s:STATES.values()){
+            Context c=s.contexts.get(p.id());
+            if(c!=null&&
+               c.player==p&&
+               c.ownerCurrent())
+                return c;
+        }
+        return null;
+    }
+
+    private static Trade liveTrade(Context c){
+        if(c==null||c.trade==null)
+            return null;
+
+        Trade t=c.trade;
+        if(tradeCurrent(t))
+            return t;
+
+        cancel0(
+            state(c.world),
+            c,
+            "STALE_OWNER",
+            false
+        );
+        return null;
+    }
+
+    private static boolean tradeCurrent(Trade t){
+        return t!=null&&
+            t.a.ownerCurrent()&&
+            t.b.ownerCurrent();
+    }
+
     private static final class State{final World world;final HashMap<EntityId,Context> contexts=new HashMap<>();final HashMap<EntityId,Trade> trades=new HashMap<>();State(World w){world=w;}}
-    private static final class Context{final World world;final WorldPlayer player;final BankState bank;final ServerPacketWriter writer;final Runnable save;Trade trade;PendingX pendingX;Context(World w,WorldPlayer p,BankState b,ServerPacketWriter wr,Runnable s){world=w;player=p;bank=b;writer=wr;save=s;}}
+
+    private static final class Context{
+        final World world;
+        final WorldPlayer player;
+        final long ownerGeneration;
+        final BankState bank;
+        final ServerPacketWriter writer;
+        final Runnable save;
+        Trade trade;
+        PendingX pendingX;
+
+        Context(
+            World w,
+            WorldPlayer p,
+            long generation,
+            BankState b,
+            ServerPacketWriter wr,
+            Runnable s
+        ){
+            world=w;
+            player=p;
+            ownerGeneration=generation;
+            bank=b;
+            writer=wr;
+            save=s;
+        }
+
+        boolean ownerCurrent(){
+            return world.players().owns(
+                player,
+                ownerGeneration
+            );
+        }
+    }
     private static final class PendingX{final XKind kind;final int item;PendingX(XKind k,int i){kind=k;item=i;}}
     private static final class Trade{final Context a,b;final LinkedHashMap<Integer,Integer> offerA=new LinkedHashMap<>(),offerB=new LinkedHashMap<>();Stage stage=Stage.OFFERING;boolean firstAcceptedA,firstAcceptedB,finalAcceptedA,finalAcceptedB;Trade(Context a,Context b){this.a=a;this.b=b;}Context other(Context c){return c==a?b:a;}LinkedHashMap<Integer,Integer> offer(Context c){return c==a?offerA:offerB;}void setFirstAccepted(Context c,boolean v){if(c==a)firstAcceptedA=v;else firstAcceptedB=v;}void setFinalAccepted(Context c,boolean v){if(c==a)finalAcceptedA=v;else finalAcceptedB=v;}}
 }
