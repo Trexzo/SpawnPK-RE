@@ -1,0 +1,66 @@
+Exact-current animation + GFX census
+
+a.bin
+sha256 81dabed5d25e168d5da2f6fb193d3d9e11df59cf3f2174078d4d007d447d55ff
+records 657
+max id 16204
+
+a.bin field counts:
+ref 657
+durations 638
+osid 637
+frames 637
+frameIds 637
+priority 242
+frameStep 203
+animMayaID 107
+animMayaEnd 107
+stretches 42
+walkPrecedence 29
+precedence 28
+playerMainhand 14
+replayMode 11
+clone 8
+playerOffhand 7
+walkable 6
+maxLoops 4
+framestep 1
+walkprecedence 1
+replaymode 1
+
+g.bin
+sha256 dbd20f329b95ba133494225ef4c97105b28c3ed44af159b01123d3e218ca13df
+records 262
+max id 5109
+
+g.bin field counts:
+ref 262
+model 193
+anim 193
+osid 186
+srcColors 135
+destColors 131
+ambient 94
+contrast 85
+clone 69
+resizeX 40
+resizeY 39
+osrs 8
+destcolors 4
+reshade 2
+rotation 1
+
+NPC animation cross-reference:
+1318 total animation field uses
+342 distinct animation ids
+143 distinct ids >=15260
+143/143 high ids resolve to a.bin
+
+GFX animation cross-reference:
+165 total non-negative animation refs
+117 distinct animation ids
+113 distinct high/custom refs
+113/113 high/custom refs resolve to a.bin
+
+Boundary:
+definition identity and frame/config metadata are exact-current presentation authority; gameplay timing/triggers remain server authority.
