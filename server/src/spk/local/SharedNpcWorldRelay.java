@@ -231,7 +231,8 @@ final class SharedNpcWorldRelay {
             long consumed=
                 Player81WorldSync.consumedEventSequence(
                     viewerWriter,
-                    event.sourceId
+                    event.sourceId,
+                    event.sourceGeneration
                 );
 
             if(event.playerBarrierSequence>0&&
