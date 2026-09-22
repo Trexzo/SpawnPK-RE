@@ -263,7 +263,7 @@ public final class EquipmentMutationServiceTest {
     }
 
     private static void authorityGuards(
-        EquipmentState equipment
+        WorldPlayer player
     ){
         expect(
             IllegalArgumentException.class,
