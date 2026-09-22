@@ -222,6 +222,12 @@ public final class PluginKernelLifecycleTest {
                 "plugin disable lifecycle mismatch"
             );
 
+        if(plugin.commandRegistration==null||
+           plugin.commandRegistration.active())
+            throw new AssertionError(
+                "plugin content registration handle stayed active after disable"
+            );
+
         if(world.domainEvents()
                 .listenerCount()!=listenerBaseline)
             throw new AssertionError(
@@ -727,6 +733,7 @@ public final class PluginKernelLifecycleTest {
             new AtomicBoolean();
 
         volatile ContentRegistrar retainedRegistrar;
+        volatile ContentRegistration commandRegistration;
         volatile java.util.function.BooleanSupplier
             worldThreadProbe;
 
@@ -761,15 +768,16 @@ public final class PluginKernelLifecycleTest {
             retainedRegistrar=
                 context.content();
 
-            retainedRegistrar.command(
-                COMMAND,
-                100,
-                command->
-                    ContentResult.handled(
-                        "PLUGIN_COMMAND",
-                        null
-                    )
-            );
+            commandRegistration=
+                retainedRegistrar.command(
+                    COMMAND,
+                    100,
+                    command->
+                        ContentResult.handled(
+                            "PLUGIN_COMMAND",
+                            null
+                        )
+                );
             retainedRegistrar.objectOption(
                 OBJECT,
                 1,
