@@ -24,8 +24,12 @@ final class WorldPluginManager
     private final BooleanSupplier worldOpen;
     private final LinkedHashMap<String,Entry>
         enabled=new LinkedHashMap<>();
+    private final HashSet<String>
+        disabling=new HashSet<>();
 
+    private int activeCleanups;
     private boolean closed;
+    private boolean resourcesClosing;
     private boolean resourcesClosed;
 
     WorldPluginManager(
@@ -105,30 +109,50 @@ final class WorldPluginManager
         );
     }
 
-    @Override public synchronized boolean disable(
+    @Override public boolean disable(
         String pluginId
     ){
-        String id=canonicalId(pluginId);
-        Entry entry=enabled.get(id);
+        String id=
+            canonicalId(pluginId);
+        Entry entry;
 
-        if(entry==null)
-            return false;
+        synchronized(this){
+            entry=enabled.get(id);
 
-        for(Entry candidate:enabled.values())
-            if(candidate!=entry&&
-               candidate.enabled&&
-               candidate.manifest.dependencies()
-                    .contains(id))
-                throw new IllegalStateException(
-                    "plugin has enabled dependent: "+
-                    candidate.manifest.id()+
-                    " -> "+id
-                );
+            if(entry==null)
+                return false;
 
-        disableEntry(
-            entry,
-            "EXPLICIT_DISABLE"
-        );
+            for(Entry candidate:
+                    enabled.values())
+                if(candidate!=entry&&
+                   candidate.enabled&&
+                   candidate.manifest
+                        .dependencies()
+                        .contains(id))
+                    throw new IllegalStateException(
+                        "plugin has enabled dependent: "+
+                        candidate.manifest.id()+
+                        " -> "+id
+                    );
+
+            detachEntry(entry);
+            disabling.add(id);
+            activeCleanups++;
+        }
+
+        try{
+            cleanupEntry(
+                entry,
+                "EXPLICIT_DISABLE"
+            );
+        }finally{
+            synchronized(this){
+                activeCleanups--;
+                disabling.remove(id);
+                notifyAll();
+            }
+        }
+
         return true;
     }
 
@@ -158,22 +182,47 @@ final class WorldPluginManager
     }
 
     /** Disable resources after the World pulse has stopped. */
-    synchronized void closeResources(){
-        if(resourcesClosed)
-            return;
+    void closeResources(){
+        ArrayList<Entry> entries;
 
-        closed=true;
+        synchronized(this){
+            if(resourcesClosed)
+                return;
 
-        ArrayList<Entry> entries=
-            new ArrayList<>(enabled.values());
+            if(resourcesClosing){
+                awaitResourcesClosed();
+                return;
+            }
 
-        for(int i=entries.size()-1;i>=0;i--)
-            disableEntry(
-                entries.get(i),
-                "WORLD_CLOSE"
-            );
+            resourcesClosing=true;
+            closed=true;
 
-        resourcesClosed=true;
+            awaitExplicitCleanups();
+
+            entries=
+                new ArrayList<>(
+                    enabled.values()
+                );
+
+            for(Entry entry:entries)
+                detachEntry(entry);
+        }
+
+        try{
+            for(int i=entries.size()-1;
+                i>=0;
+                i--)
+                cleanupEntry(
+                    entries.get(i),
+                    "WORLD_CLOSE"
+                );
+        }finally{
+            synchronized(this){
+                resourcesClosed=true;
+                resourcesClosing=false;
+                notifyAll();
+            }
+        }
     }
 
     @Override public void close(){
@@ -200,9 +249,11 @@ final class WorldPluginManager
 
         String id=manifest.id();
 
-        if(enabled.containsKey(id))
+        if(enabled.containsKey(id)||
+           disabling.contains(id))
             throw new IllegalStateException(
-                "plugin already enabled: "+id
+                "plugin already enabled or disabling: "+
+                id
             );
 
         for(String dependency:
@@ -287,10 +338,31 @@ final class WorldPluginManager
         if(entry==null||!entry.enabled)
             return;
 
+        detachEntry(entry);
+        cleanupEntry(
+            entry,
+            reason
+        );
+    }
+
+    private void detachEntry(
+        Entry entry
+    ){
+        if(entry==null||!entry.enabled)
+            return;
+
         entry.enabled=false;
         enabled.remove(
             entry.manifest.id()
         );
+    }
+
+    private void cleanupEntry(
+        Entry entry,
+        String reason
+    ){
+        if(entry==null)
+            return;
 
         entry.tasks.close();
 
@@ -319,6 +391,36 @@ final class WorldPluginManager
                 " error="+failure
             );
         }
+    }
+
+    private synchronized void awaitExplicitCleanups(){
+        boolean interrupted=false;
+
+        while(activeCleanups>0)
+            try{
+                wait();
+            }catch(InterruptedException error){
+                interrupted=true;
+            }
+
+        if(interrupted)
+            Thread.currentThread()
+                .interrupt();
+    }
+
+    private synchronized void awaitResourcesClosed(){
+        boolean interrupted=false;
+
+        while(!resourcesClosed)
+            try{
+                wait();
+            }catch(InterruptedException error){
+                interrupted=true;
+            }
+
+        if(interrupted)
+            Thread.currentThread()
+                .interrupt();
     }
 
     private List<Plugin> dependencyOrder(
