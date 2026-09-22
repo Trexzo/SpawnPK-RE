@@ -204,6 +204,27 @@ public final class LocalPetRealtimeSchedulerTest {
                     "follow deadline survived reset"
                 );
 
+            movement.rebaseLoadedWindow(
+                3040,
+                3480,
+                true
+            );
+
+            scheduler.ensureFollowScheduled(1_500L);
+
+            if(!scheduler.followScheduled())
+                throw new AssertionError(
+                    "transient-region follow was not armed"
+                );
+
+            if(world.realtime().size()!=2)
+                throw new AssertionError(
+                    "expected retained HOME follow task + transient follow task, got "+
+                    world.realtime().size()
+                );
+
+            scheduler.resetFollowRuntime();
+
             runtime.handle(
                 new String[]{"pettestall"},
                 writer
@@ -218,15 +239,16 @@ public final class LocalPetRealtimeSchedulerTest {
                     "pet test sequence was not armed"
                 );
 
-            if(world.realtime().size()!=2)
+            if(world.realtime().size()!=3)
                 throw new AssertionError(
-                    "expected retained follow task + test task, got "+
+                    "expected retained HOME follow + transient follow + test task, got "+
                     world.realtime().size()
                 );
 
             System.out.println(
                 "LOCAL_PET_REALTIME_SCHEDULER_PASS "+
                 "emptyFollowFailClosed=true followArm=true "+
+                "transientFollowArm=true "+
                 "resetState=true testSequenceArm=true"
             );
         }finally{
