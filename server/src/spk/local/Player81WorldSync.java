@@ -168,6 +168,19 @@ final class Player81WorldSync {
 
     static byte[] transformForTest(Context c,byte[] body)throws IOException{return c.transform(body);}
 
+    static byte[] latestEventForViewerForTest(
+        Context viewer,
+        EntityId sourceId
+    ){
+        Event event=
+            viewer.state.latestEvent(
+                sourceId
+            );
+        return event==null
+            ?null
+            :event.forViewer(viewer);
+    }
+
     static final class Context {
         final ServerPacketWriter writer;
         final WorldState state;
