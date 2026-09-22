@@ -295,6 +295,47 @@ Additional Home aliases across every spellbook surface are not normalized by thi
 
 Do not invent alias IDs merely to force an eight-row triple table.
 
+
+## DESTINATION-SUBMENU NEGATIVE AUTHORITY
+
+A whole exact-v308 class-string scan was performed across `rs.*` after the entry atlas was built.
+
+Result:
+
+- the hardcoded Money / Training / PK / Minigame / House category labels and descriptions occur in `rs.n.c.ap`;
+- no second exact client class exposes a static destination-name catalogue for those five category menus;
+- Boss is the explicit exception: it has its own dedicated `rs.n.c.o` Boss Teleportation Network interface, already packaged separately.
+
+The exact widget-action dispatcher was then traced for the seven custom category aliases.
+
+For Money, Training, Boss, PK, Minigame and House, no client-local submenu-opening branch is executed. They fall through the generic path:
+
+~~~
+C2S185(widgetId)
+~~~
+
+Bounty/Target is the only recovered category with client-local interception before that generic send: when its lock state is active the request is blocked locally and the locked message is displayed.
+
+Therefore the exact-current evidence supports this boundary:
+
+~~~
+spellbook category widget
+  -> C2S185 semantic category intent
+  -> server decides / projects destination UI or destination action
+~~~
+
+For Money / Training / PK / Minigame / House specifically, there is currently **no exact-current client authority for a hardcoded destination catalogue**.
+
+This is a useful negative finding: do not reconstruct destination names by importing generic RSPS/OSRS teleport lists and label them SpawnPK authority.
+
+Possible destination presentation may be:
+
+- server-populated generic interface widgets;
+- cache-backed interface text without Java hardcoded strings;
+- or a direct server action path.
+
+Those possibilities require separate exact cache/runtime proof.
+
 ## SERVER SEMANTICS PROVEN
 
 The exact client proves:
@@ -312,7 +353,7 @@ UNKNOWN_SERVER_AUTHORITY:
 
 - world coordinates;
 - region IDs;
-- destination lists behind Money/Training/PK/Minigame menus;
+- destination lists behind Money/Training/PK/Minigame menus; no Java-hardcoded destination catalogue was found in exact v308, so any such lists require cache/server/runtime proof;
 - server-side Magic requirements;
 - costs;
 - Wilderness restrictions;
@@ -355,10 +396,8 @@ yes for category/navigation composition; destination coordinates and server rest
 
 ## NEXT EXACT-CLIENT WORK
 
-1. resolve destination submenu roots/buttons for Money;
-2. Training/Slayer;
-3. PK;
-4. Minigame;
-5. House route/presentation where server-visible;
-6. normalize Home aliases if directly proven;
-7. link already-packaged Boss Teleport contract into the unified atlas.
+1. inspect exact cache-backed interface data for any server-populated Money/Training/PK/Minigame/House destination roots/rows;
+2. do not search for a second Java hardcoded destination catalogue unless new evidence points to one;
+3. normalize Home aliases if directly proven;
+4. link already-packaged Boss Teleport contract into the unified atlas;
+5. keep coordinates/restrictions server-owned until independently evidenced.
