@@ -380,8 +380,7 @@ final class QuickPrayerSelectionService {
     }
 
     private static EnumMap<Book,List<Option>>
-        buildCatalog()
-    ){
+        buildCatalog(){
         EnumMap<Book,List<Option>> out=
             new EnumMap<>(
                 Book.class
@@ -544,8 +543,7 @@ final class QuickPrayerSelectionService {
     }
 
     private static EnumMap<Book,Set<String>>
-        buildVisibleKeys()
-    ){
+        buildVisibleKeys(){
         EnumMap<Book,Set<String>> out=
             new EnumMap<>(
                 Book.class
