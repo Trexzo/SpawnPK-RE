@@ -68,11 +68,12 @@ final class WorldNpcRegistry {
                 sourceItemId
             );
 
-        if(byId.put(npc.id,npc)!=null)
+        if(byId.containsKey(npc.id))
             throw new IllegalStateException(
                 "duplicate world npc id "+npc.id
             );
 
+        byId.put(npc.id,npc);
         return npc;
     }
 
