@@ -1,0 +1,36 @@
+Exact v308 loadout editor authority
+SHA-256 854f26ff9f134b0317572e7ac1688e6f40a231d5a4c66f8db5d655b7f45ce7c6
+class rs.n.c.al
+
+root 33000
+33002 = 28-slot item/inventory container
+33003 = 15-slot equipment container
+33006 = Save loadout
+33009 = Set as default
+
+Visible concepts:
+Item Loadout Modification Interface
+LMS Loadout
+Save loadout
+Set as default
+Reset to default
+
+Save flow:
+ordinary widget action
+serialize equipment
+serialize inventory ids/amounts
+stage ::cld1 <serialized equipment>
+stage ::cld2 <serialized inventory>
+main client sends both through C2S103
+
+Architecture boundary:
+the two wire commands are one logical loadout save snapshot and should be normalized atomically.
+
+Additional exact compatibility vocabulary:
+::equip_loadout
+::item_loadout
+::skills_loadout
+::pet_loadout
+::spawn_loadout
+
+Desktop rs.gui Loadouts feature is separate from this server-backed in-game editor.
