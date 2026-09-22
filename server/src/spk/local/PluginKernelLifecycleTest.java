@@ -39,6 +39,9 @@ public final class PluginKernelLifecycleTest {
                 "kernel.probe",
                 Collections.<String>emptyList()
             );
+        plugin.worldThreadProbe=
+            ()->world.pulse()
+                .inExecutionContext();
 
         PluginHandle first=
             manager.enable(plugin);
