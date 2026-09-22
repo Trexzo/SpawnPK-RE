@@ -6,6 +6,20 @@ public final class EngineR1RuntimeIntegrationTest {
     static Object field(Object o,String n)throws Exception{Field f=o.getClass().getDeclaredField(n);f.setAccessible(true);return f.get(o);}
     static void set(Object o,String n,Object v)throws Exception{Field f=o.getClass().getDeclaredField(n);f.setAccessible(true);f.set(o,v);}
     static Object call(Object o,String n,Class<?>[] t,Object...a)throws Exception{Method m=o.getClass().getDeclaredMethod(n,t);m.setAccessible(true);try{return m.invoke(o,a);}catch(InvocationTargetException e){throw (e.getCause() instanceof Exception)?(Exception)e.getCause():e;}}
+    static void enqueueNpc(ClientPacketProbe probe,NpcAction action)throws Exception{
+        ClientRequestQueue queue=(ClientRequestQueue)field(probe,"typedRequests");
+        if(!queue.offer(
+                new NpcActionClientRequest(
+                    action,
+                    ClientRequestMetadata.exactCurrent(
+                        action.opcode,
+                        "TEST_TYPED_NPC_ACTION",
+                        "ENGINE_R1_RUNTIME_INTEGRATION_TEST"
+                    )
+                )
+            ))
+            throw new AssertionError("typed request queue full");
+    }
     public static void main(String[] args)throws Exception{
         LocalSession s=new LocalSession(new Socket(),true,true);
         BankState bank=(BankState)field(s,"bank");MovementState movement=(MovementState)field(s,"movement");NpcRegistry npcs=(NpcRegistry)field(s,"npcs");
@@ -17,11 +31,13 @@ public final class EngineR1RuntimeIntegrationTest {
         call(s,"takeGroundNow",new Class[]{GroundItem.class,ServerPacketWriter.class,String.class,String.class},ground,w,"[runtime] ","TEST");
         if(World.shared().groundItems().find(995,movement.x(),movement.y(),0)!=null||bank.inventoryCount(995)!=123)throw new AssertionError("take path");
 
-        // Exercise the actual LocalSession NPC-action handler through ClientPacketProbe pending state.
+        // Exercise the actual LocalSession NPC-action route through the typed request boundary.
         String spawnBanker=npcs.devSpawnNpc(7605,1,0,movement,w);if(!spawnBanker.startsWith("DEV_NPC_SPAWN_OK"))throw new AssertionError(spawnBanker);
         int bankerScene=-1;for(NpcEntity n:npcs.snapshot())if(n.definitionId==7605)bankerScene=n.sceneIndex;if(bankerScene<0)throw new AssertionError("banker scene");
-        ClientPacketProbe probe=new ClientPacketProbe(new ByteArrayInputStream(new byte[0]),new IsaacCipher(new int[]{0,0,0,0}),"[runtime] ");Field pf=ClientPacketProbe.class.getDeclaredField("pendingNpcAction");pf.setAccessible(true);pf.set(probe,new NpcAction(17,bankerScene));
-        call(s,"acceptPendingNpcAction",new Class[]{ClientPacketProbe.class,ServerPacketWriter.class,String.class},probe,w,"[runtime] ");
+        ClientPacketProbe probe=new ClientPacketProbe(new ByteArrayInputStream(new byte[0]),new IsaacCipher(new int[]{0,0,0,0}),"[runtime] ");
+        enqueueNpc(probe,new NpcAction(17,bankerScene));
+        LocalPendingRequestDispatcher dispatcher=(LocalPendingRequestDispatcher)field(s,"pendingRequests");
+        dispatcher.drain(probe,w,"[runtime] ");
         if(!bank.isOpen())throw new AssertionError("banker did not open bank");
         System.out.println("V511_ENGINE_RUNTIME_INTEGRATION_PASS ordinaryDropTake=true scenePublisher=true banker7605Option3OpensBank=true actualLocalSessionHandlers=true");
     }
