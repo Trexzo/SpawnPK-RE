@@ -1,0 +1,47 @@
+Exact-current retained sprite census
+client(6).jar SHA-256 854f26ff9f134b0317572e7ac1688e6f40a231d5a4c66f8db5d655b7f45ce7c6
+.spawnpk-data(1).zip SHA-256 026336100f5f9a6b1aa89dd5668ee9b17d3a334703e9d6acf017f3eec1600f4c
+
+all retained sprite files: 1582
+PNG files: 1578
+non-PNG files: 4
+
+Top-level PNG namespaces:
+icons 410
+gameframe 140
+lunar 101
+popups 88
+options 82
+prayer 80
+misc 61
+wiki 60
+fountain 44
+bank 40
+hitmarks 40
+orbs 38
+raids 37
+magic 35
+teleport 35
+construction 34
+emotes 34
+equipment 33
+clan 31
+skills 31
+login 21
+attack 20
+pos 19
+drops 14
+achievements 9
+vote 8
+tasks 7
+factory 6
+anim 4
+gambling 4
+list 4
+event 3
+tournament 3
+slayer 2
+
+Interface-builder cross-check:
+81 rs.n.c.* classes with >=1 retained-cache-matching slash sprite literal
+213 unique matched sprite/path literals
