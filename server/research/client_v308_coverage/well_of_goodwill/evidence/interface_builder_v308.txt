@@ -1,0 +1,36 @@
+Exact v308 authority
+SHA-256 854f26ff9f134b0317572e7ac1688e6f40a231d5a4c66f8db5d655b7f45ce7c6
+Class rs.n.c.aZ
+
+root 51150
+background 51151 -> fountain/sprite 23
+
+text:
+51152 Well of Good Will
+51153 The well of goodwill seeks..
+51154 @yel@Divine spirit shields
+51158 0% (0/100)
+51160 <u=16776960>Server wide progress</u>
+51161 Once the server-wide goal is reached, ALL players will receive..
+51162 @yel@Double chance for artifacts & statuettes @or1@(2 hrs)
+51166 <img=9> Contribute
+51167 For each @yel@Divine spirit shield<col=FF9B00> that you
+51168 contribute, you will individually receive..
+51169 @yel@5x Goodwill Points
+
+item/container widget:
+51155 P=4 ac=11
+51155.az[0]=13741
+51155.ax[0]=1
+
+progress:
+51156 teleport/sprite 12
+51157 teleport/sprite 13
+51159 children: 51156 @ 96,6; 51157 @ 96,6; 51158 @ 325,8
+
+button:
+51163 fountain/sprite 16 size 120x34 tooltip Donate to well of goodwill hover 51164
+
+root installs 18 children.
+
+Boundary: client UI authority only; goal rules, reward formulas, persistence and anti-abuse remain unknown server authority.
