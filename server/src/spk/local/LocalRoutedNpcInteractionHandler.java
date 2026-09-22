@@ -19,6 +19,7 @@ final class LocalRoutedNpcInteractionHandler {
     private final ContentRegistry contentRegistry;
 
     private Integer pendingBankScene;
+    private NpcEntity pendingBankNpc;
     private long pendingBankDeadlineMs;
 
     LocalRoutedNpcInteractionHandler(
@@ -65,7 +66,7 @@ final class LocalRoutedNpcInteractionHandler {
 
         if(service==NpcInteractionRouter.Service.BANK && clicked!=null){
             if(adjacentTo(clicked.x,clicked.y)){
-                pendingBankScene=null;
+                clearPendingBank();
                 return openBank(
                     clicked,
                     request,
@@ -82,7 +83,7 @@ final class LocalRoutedNpcInteractionHandler {
                 );
 
             if(!approachResult.queued()){
-                pendingBankScene=null;
+                clearPendingBank();
                 return "V511_NPC_BANK "+request+
                     " clicked="+clicked+
                     " route="+route+
@@ -94,6 +95,7 @@ final class LocalRoutedNpcInteractionHandler {
             }
 
             pendingBankScene=clicked.sceneIndex;
+            pendingBankNpc=clicked;
             pendingBankDeadlineMs=System.currentTimeMillis()+10_000L;
             return "V511_NPC_BANK "+request+
                 " clicked="+clicked+
@@ -117,8 +119,11 @@ final class LocalRoutedNpcInteractionHandler {
         if(scene==null)return null;
 
         NpcEntity npc=npcs.scene(scene);
-        if(npc==null||now>pendingBankDeadlineMs){
-            pendingBankScene=null;
+        if(npc==null||
+           npc!=pendingBankNpc||
+           now>pendingBankDeadlineMs){
+            clearPendingBank();
+            movement.clearQueuedPath();
             return "V511_NPC_BANK scene="+scene+
                 " action=CANCELLED_MISSING_OR_TIMEOUT";
         }
@@ -136,7 +141,7 @@ final class LocalRoutedNpcInteractionHandler {
                         " action=SERVER_REROUTED_MOVING_TARGET"+
                         " approach="+reroute;
 
-                pendingBankScene=null;
+                clearPendingBank();
                 return "V511_NPC_BANK scene="+scene+
                     " action=CANCELLED_PATH_ENDED_NOT_ADJACENT"+
                     " approach="+reroute;
@@ -144,7 +149,7 @@ final class LocalRoutedNpcInteractionHandler {
             return null;
         }
 
-        pendingBankScene=null;
+        clearPendingBank();
         movement.clearQueuedPath();
 
         // Preserve the current R8.5 deferred-bank reconstruction exactly:
@@ -164,6 +169,16 @@ final class LocalRoutedNpcInteractionHandler {
 
     boolean hasPendingBank(){
         return pendingBankScene!=null;
+    }
+
+    NpcEntity pendingBankNpc(){
+        return pendingBankNpc;
+    }
+
+    private void clearPendingBank(){
+        pendingBankScene=null;
+        pendingBankNpc=null;
+        pendingBankDeadlineMs=0L;
     }
 
     private NpcInteractionRouter.Service contentService(
