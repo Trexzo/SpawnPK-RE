@@ -200,19 +200,15 @@ final class SharedNpcWorldRelay {
         if(viewer==null)
             return;
 
-        try{
-            viewer.state.world
-                .withOpenPlayerOwnership(
-                    viewer.owner,
-                    viewer.ownerGeneration,
-                    ()->flushCurrentViewer(
-                        viewerWriter,
-                        viewer
-                    )
-                );
-        }catch(IllegalStateException staleOrClosed){
-            return;
-        }
+        viewer.state.world
+            .withOpenPlayerOwnershipIfCurrent(
+                viewer.owner,
+                viewer.ownerGeneration,
+                ()->flushCurrentViewer(
+                    viewerWriter,
+                    viewer
+                )
+            );
     }
 
     private static void flushCurrentViewer(
