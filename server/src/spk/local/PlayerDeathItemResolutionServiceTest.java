@@ -26,7 +26,8 @@ public final class PlayerDeathItemResolutionServiceTest {
         System.out.println(
             "PLAYER_DEATH_ITEM_RESOLUTION_PASS "+
             "deadRequired=true "+
-            "exactDeathTick=true "+\n            "deathSequenceIdentity=true "+
+            "exactDeathTick=true "+
+            "deathSequenceIdentity=true "+
             "inventoryAndEquipment=true "+
             "exactSourceLines=true "+
             "callerPolicy=true "+
@@ -74,7 +75,8 @@ public final class PlayerDeathItemResolutionServiceTest {
                             context.playerId.equals(
                                 player.id()
                             )&&
-                            context.deathTick==77L&&\n                            context.deathSequence==1L&&
+                            context.deathTick==77L&&
+                            context.deathSequence==1L&&
                             "pvp-test".equals(
                                 context.deathCause
                             ),
@@ -188,7 +190,8 @@ public final class PlayerDeathItemResolutionServiceTest {
             first.playerId.equals(
                 player.id()
             )&&
-            first.deathTick==77L&&\n            first.deathSequence==1L&&
+            first.deathTick==77L&&
+            first.deathSequence==1L&&
             first.dispositions.size()==4&&
             AUTHORITY.equals(
                 first.policyAuthority
