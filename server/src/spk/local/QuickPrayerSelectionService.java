@@ -692,14 +692,15 @@ final class QuickPrayerSelectionService {
                 "policyAuthority"
             );
 
-        if(PRESENTATION_AUTHORITY
-                .equalsIgnoreCase(
-                    authority)||
-           "UNKNOWN_SERVER_AUTHORITY"
-                .equalsIgnoreCase(
-                    authority))
+        String normalized=
+            authority.toUpperCase(
+                Locale.ROOT
+            );
+
+        if(!normalized.startsWith(
+                "LOCAL_LAB_POLICY_"))
             throw new IllegalArgumentException(
-                "quick selection policy authority cannot be "+
+                "quick selection requires explicit LOCAL_LAB_POLICY_* authority actual="+
                 authority
             );
 
