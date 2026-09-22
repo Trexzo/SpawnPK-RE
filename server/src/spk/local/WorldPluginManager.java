@@ -213,11 +213,12 @@ final class WorldPluginManager
         }catch(Throwable failure){
             module.seal();
 
-            try{
-                plugin.disable();
-            }catch(Throwable cleanup){
-                failure.addSuppressed(cleanup);
-            }
+            if(module.enableAttempted())
+                try{
+                    plugin.disable();
+                }catch(Throwable cleanup){
+                    failure.addSuppressed(cleanup);
+                }
 
             tracker.close();
 
@@ -439,6 +440,7 @@ final class WorldPluginManager
         private final Plugin plugin;
         private final EventTracker tracker;
         private volatile ScopedPluginContext context;
+        private volatile boolean enableAttempted;
 
         PluginContentModule(
             String moduleId,
@@ -464,6 +466,7 @@ final class WorldPluginManager
                 );
 
             context=local;
+            enableAttempted=true;
 
             try{
                 plugin.enable(local);
@@ -480,6 +483,10 @@ final class WorldPluginManager
             ScopedPluginContext current=context;
             if(current!=null)
                 current.seal();
+        }
+
+        boolean enableAttempted(){
+            return enableAttempted;
         }
     }
 
