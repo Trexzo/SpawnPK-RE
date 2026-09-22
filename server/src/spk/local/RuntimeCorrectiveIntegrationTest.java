@@ -8,6 +8,10 @@ import java.util.concurrent.*;
 public final class RuntimeCorrectiveIntegrationTest {
     static Object field(Object o,String n)throws Exception{Field f=o.getClass().getDeclaredField(n);f.setAccessible(true);return f.get(o);}
     static void setField(Object o,String n,Object v)throws Exception{Field f=o.getClass().getDeclaredField(n);f.setAccessible(true);f.set(o,v);}
+    static void enqueue(ClientPacketProbe probe,ClientRequest request)throws Exception{
+        ClientRequestQueue queue=(ClientRequestQueue)field(probe,"typedRequests");
+        if(!queue.offer(request))throw new AssertionError("typed request queue full");
+    }
     static void onWorld(World world,WorldPlayer player,WorldCommandInbox.Action action)throws Exception{
         CompletableFuture<Void> future=world.commands().submit(player,action);
         world.pulse().pulseOnce(System.currentTimeMillis());
@@ -34,13 +38,32 @@ public final class RuntimeCorrectiveIntegrationTest {
                 String spawn=npcs.devSpawnNpc(7605,1,0,movement,w); if(!spawn.startsWith("DEV_NPC_SPAWN_OK"))throw new AssertionError(spawn);
                 int banker=-1;for(NpcEntity n:npcs.snapshot())if(n.definitionId==7605)banker=n.sceneIndex;
                 ClientPacketProbe probe=new ClientPacketProbe(new ByteArrayInputStream(new byte[0]),new IsaacCipher(new int[]{0,0,0,0}),"[v5122] ");
-                Field npcPending=ClientPacketProbe.class.getDeclaredField("pendingNpcAction");npcPending.setAccessible(true);npcPending.set(probe,new NpcAction(155,banker));
+                enqueue(
+                    probe,
+                    new NpcActionClientRequest(
+                        new NpcAction(155,banker),
+                        ClientRequestMetadata.exactCurrent(
+                            155,
+                            "TEST_TYPED_NPC_ACTION",
+                            "RUNTIME_CORRECTIVE_INTEGRATION_TEST"
+                        )
+                    )
+                );
                 onWorld(world,player,()->requests.drain(probe,w,"[v5122] "));
                 if(!bank.isOpen())throw new AssertionError("Banker Talk-to did not open bank");
 
                 // Any ordinary movement closes the open bank server-side before accepting the route.
-                Field movePending=ClientPacketProbe.class.getDeclaredField("pendingMovement");movePending.setAccessible(true);
-                movePending.set(probe,new MovementRequest(164,false,new int[]{movement.x()+1},new int[]{movement.y()},new byte[0]));
+                enqueue(
+                    probe,
+                    new MovementClientRequest(
+                        new MovementRequest(164,false,new int[]{movement.x()+1},new int[]{movement.y()},new byte[0]),
+                        ClientRequestMetadata.exactCurrent(
+                            164,
+                            "TEST_TYPED_MOVEMENT",
+                            "RUNTIME_CORRECTIVE_INTEGRATION_TEST"
+                        )
+                    )
+                );
                 onWorld(world,player,()->requests.drain(probe,w,"[v5122] "));
                 if(bank.isOpen())throw new AssertionError("bank remained open after movement");
 
@@ -51,8 +74,17 @@ public final class RuntimeCorrectiveIntegrationTest {
                 GroundItem old=world.groundItems().find(995,movement.x(),movement.y(),0);if(old==null)throw new AssertionError("drop missing");
                 world.groundItems().remove(old.id); try{ new SceneUpdatePublisher(w,new SceneCoordinateContext(MovementState.REGION_BASE_X,MovementState.REGION_BASE_Y,0)).groundRemove(old); }catch(Exception ignored){}
                 GroundItem g=world.groundItems().add(995,1,new Tile(movement.x()+1,movement.y(),0),"opensrc",0,false);
-                Field giPending=ClientPacketProbe.class.getDeclaredField("pendingGroundItemInteraction");giPending.setAccessible(true);
-                giPending.set(probe,new GroundItemInteraction(236,3,995,g.tile.x,g.tile.y));
+                enqueue(
+                    probe,
+                    new GroundItemClientRequest(
+                        new GroundItemInteraction(236,3,995,g.tile.x,g.tile.y),
+                        ClientRequestMetadata.exactCurrent(
+                            236,
+                            "TEST_TYPED_GROUND_ITEM",
+                            "RUNTIME_CORRECTIVE_INTEGRATION_TEST"
+                        )
+                    )
+                );
                 onWorld(world,player,()->requests.drain(probe,w,"[v5122] "));
                 if(world.groundItems().find(995,g.tile.x,g.tile.y,0)==null)throw new AssertionError("adjacent ground item was taken early");
                 if(!groundItems.hasPendingTake())throw new AssertionError("ground take not deferred");
