@@ -1078,7 +1078,7 @@ final class LocalSession implements Runnable {
 
         if(world.pulse().inExecutionContext())
             return world.persistence()
-                .captureDeferredSave(
+                .captureDeferredFinalSave(
                     username,
                     worldPlayer,
                     worldPlayerGeneration,
@@ -1097,7 +1097,7 @@ final class LocalSession implements Runnable {
             worldPlayerGeneration,
             ()->captured.set(
                 world.persistence()
-                    .captureDeferredSave(
+                    .captureDeferredFinalSave(
                         username,
                         worldPlayer,
                         worldPlayerGeneration,
