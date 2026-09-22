@@ -1,0 +1,73 @@
+Exact v308 Blood Fountain / Blood Diamond Fuser
+SHA-256 854f26ff9f134b0317572e7ac1688e6f40a231d5a4c66f8db5d655b7f45ce7c6
+
+HUB — class rs.n.c.i
+actual root = 3320
+60000 fountain/SPRITE 10
+60001 "@or1@The Blood Fountain"
+65418/65419 shared close
+
+60002 "<img=186> Blood perk tree (abilities)" tooltip "Select blood perk tree"
+60003 "<img=118> Blood pool store" tooltip "Select blood pool shop"
+60004 "<img=67> Blood diamond fuser" tooltip "Select diamond fusing"
+60005 "<img=117> Blood diamond store" tooltip "Select diamond shop"
+60006 "<img=68> Blood shard salvaging" tooltip "Select shard salvaging"
+60007 "<img=116> Blood shard store" tooltip "Select shard shop"
+
+FUSER — class rs.n.c.j
+static:
+  c = 318
+builder:
+  root = d(c) => root 318
+
+65403 fountain/SPRITE 9 (BACKGROUND CHILD, NOT ROOT)
+65404 "@or1@Fuse items to sacrifice them into blood diamonds!"
+65405 "@or1@Blood Diamond Fuser"
+
+row1:
+65406 button tooltip "Fuse"
+65407 hover
+65409 "Fuse"
+
+row2:
+65410 button tooltip "Fuse"
+65411 hover
+65413 "Fuse"
+
+row3:
+65414 button tooltip "Fuse"
+65415 hover
+65417 "Fuse"
+
+close 65418/65419
+
+65752 button tooltip "Cycle items"
+65753 hover
+65755 "Cycle"
+65756 "Fuser"
+65757 fountain/icon 1
+
+root children=19
+
+placements:
+65403 @ 5,20
+65404 @ 258,67
+65405 @ 263,27
+65406/65407 @ 230,128
+65409 @ 259,129
+65410/65411 @ 230,190
+65413 @ 259,191
+65414/65415 @ 230,251
+65417 @ 259,252
+65418/65419 @ 481,27
+65752/65753 @ 420,266
+65755 @ 468,275
+65756 @ 468,287
+65757 @ 426,276
+
+Important negative:
+No generic item-container input widget is built by rs.n.c.j itself.
+The three Fuse row recipe/item bindings are not proven by this class.
+
+Boundary:
+Recipes, quantities, yields, costs, RNG, store roots/content and policy remain server authority.
