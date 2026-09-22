@@ -422,7 +422,7 @@ public final class PluginSchedulerLifecycleTest {
 
         @Override public void enable(
             PluginContext context
-        )throws Exception{
+        ){
             super.enable(context);
 
             scheduler.schedule(
@@ -430,7 +430,7 @@ public final class PluginSchedulerLifecycleTest {
                 taskRuns::incrementAndGet
             );
 
-            throw new Exception(
+            throw new IllegalStateException(
                 "intentional enable failure"
             );
         }
