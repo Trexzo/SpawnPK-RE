@@ -120,7 +120,7 @@ final class LocalPetRealtimeScheduler {
         petFollowRealtimeScheduled=true;
 
         try{
-            world.realtime().schedule(
+            world.scheduleRealtime(
                 at,
                 worldPlayer,
                 ownerGeneration.getAsLong(),
@@ -153,7 +153,7 @@ final class LocalPetRealtimeScheduler {
         petTestRealtimeScheduled=true;
 
         try{
-            world.realtime().schedule(
+            world.scheduleRealtime(
                 at,
                 worldPlayer,
                 ownerGeneration.getAsLong(),
