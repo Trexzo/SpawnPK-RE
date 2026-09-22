@@ -1,0 +1,70 @@
+Exact v308 authority
+SHA-256 854f26ff9f134b0317572e7ac1688e6f40a231d5a4c66f8db5d655b7f45ce7c6
+class rs.n.c.o
+
+root:
+  18616
+
+title:
+  60410 "@or1@Boss Teleportation Network"
+
+selection rows:
+  60412 "Teleport #1" tooltip "Select this teleport"
+  60413 "Teleport #2" tooltip "Select this teleport"
+  60414 "Teleport #3" tooltip "Select this teleport"
+  60415 "Teleport #4" tooltip "Select this teleport"
+  60416 "Teleport #5" tooltip "Select this teleport"
+  60417 "Teleport #6" tooltip "Select this teleport"
+  60418 "Teleport #7" tooltip "Select this teleport"
+  60419 "Teleport #8" tooltip "Select this teleport"
+  60420 "Teleport #9" tooltip "Select this teleport"
+  60421 "Teleport #10" tooltip "Select this teleport"
+  60422 "Teleport #11" tooltip "Select this teleport"
+  60423 "Teleport #12" tooltip "Select this teleport"
+  60424 "Teleport #13" tooltip "Select this teleport"
+
+teleport action:
+  60448 teleport/SPRITE button tooltip "Teleport to boss"
+  60449 hover/paired widget
+  60451 "Teleport <img=149>"
+
+boss detail placeholders:
+  60405 "@or1@Name of Boss"
+  60406 "@or1@Bosses"
+  60407 "@or1@Description"
+  60409 "@or1@Possible drops and rewards"
+
+scroll panel:
+  60426 height/content=250 width=165 visible-height=123 children=17
+  60427 "@yel@Information & Stats:"
+  60428 "Combat level: @whi@100"
+  60429 "Wilderness level: @whi@Safe"
+  60430 "Combat zone: @whi@Single"
+  60432 "@yel@Available achievements:"
+  60433 "@yel@-@whi@ Placeholder I"
+  60434 "@yel@-@whi@ Placeholder II"
+  60435 "@yel@-@whi@ Placeholder III"
+  60437..60443 "Line 11" .. "Line 17"
+
+drop preview:
+  60446 container/root
+  60447 item widget
+  P=6 columns
+  ac=15 horizontal spacing
+  ap=10 vertical spacing
+  initializes 12 slots
+  all static item ids = 995
+  quantities = 1..12
+  => presentation placeholders, not authoritative drops
+
+full drop table:
+  39873 button tooltip "View full drop table"
+  39874 hover/paired widget
+  39876 "@yel@View All"
+
+root children=31
+
+Boundary:
+Exact client presentation/action authority only.
+Row-to-boss mapping, coordinates, requirements, drop rates/content,
+achievements, unlocks, cooldowns, fees and policy remain unknown server authority.
