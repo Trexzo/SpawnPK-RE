@@ -229,20 +229,26 @@ public final class Player81WriterLockOrderTest {
                 1_000L
             );
 
-            SharedNpcWorldRelay.unregister(
-                writer
-            );
-            Player81WorldSync.unregister(
-                writer
-            );
+            boolean threadsStopped=
+                !lifecycleThread.isAlive()&&
+                !player81Thread.isAlive();
 
-            if(viewer.registered())
-                world.unregisterPlayer(
-                    viewer,
-                    generation
+            if(threadsStopped){
+                SharedNpcWorldRelay.unregister(
+                    writer
+                );
+                Player81WorldSync.unregister(
+                    writer
                 );
 
-            world.close();
+                if(viewer.registered())
+                    world.unregisterPlayer(
+                        viewer,
+                        generation
+                    );
+
+                world.close();
+            }
         }
     }
 
