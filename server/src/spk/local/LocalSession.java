@@ -155,7 +155,12 @@ final class LocalSession implements Runnable {
                 world.content()
             );
         this.playerInteractions = new LocalPlayerInteractionHandler(
-            world,worldPlayer,movement,equipment);
+            world,
+            worldPlayer,
+            movement,
+            equipment,
+            ()->LocalSession.this.worldPlayerGeneration
+        );
         this.equipmentItemActions = new LocalEquipmentItemActionHandler(
             bank,equipment,playerState,playerPresentation,combatStyles);
         this.petDialogs = new LocalPetInventoryDialogHandler(

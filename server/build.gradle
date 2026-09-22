@@ -336,6 +336,8 @@ def currentTrainFocusedTests = [
     'spk.local.TradeServiceGenerationOwnershipFenceTest',
     'spk.local.WorldPulseTimedEffectWorldOwnershipTest',
     'spk.local.PlayerPvpTargetWorldOwnershipFenceTest',
+    'spk.local.PlayerPvpAttackerWorldOwnershipFenceTest',
+    'spk.local.PlayerInteractionTargetGenerationFenceTest',
     'spk.event.DomainEventPublicApiBoundaryTest',
     'spk.local.ContentHandlerSamCompatibilityTest',
     'spk.local.ContentProvenanceAuthorityBoundaryTest',
@@ -351,10 +353,10 @@ def currentTrainFocusedTests = [
     'spk.local.WorldPlayerTimedEffectIntegrationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 78 ||
-    currentTrainFocusedTests.toSet().size() != 78) {
+if (currentTrainFocusedTests.size() != 80 ||
+    currentTrainFocusedTests.toSet().size() != 80) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 78 unique tests, found " +
+        "Current-train focused manifest drift: expected 80 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
