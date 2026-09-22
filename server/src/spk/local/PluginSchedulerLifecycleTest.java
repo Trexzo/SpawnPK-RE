@@ -329,6 +329,7 @@ public final class PluginSchedulerLifecycleTest {
                 "disableCancelled=true "+
                 "enableRollback=true "+
                 "disableSerializedWithCallback=true "+
+                "managerTaskLockOrderSafe=true "+
                 "worldCloseCancelled=true"
             );
         }finally{
