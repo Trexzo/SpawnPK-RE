@@ -592,6 +592,13 @@ final class World implements AutoCloseable {
             return;
         }
 
+        // The atomic flag fences new work immediately. Then wait for any
+        // lifecycle-owned action that was already in flight to leave before
+        // terminal resources are torn down.
+        synchronized(lifecycleLock){
+            // quiescence barrier only
+        }
+
         Throwable failure=null;
 
         try{
