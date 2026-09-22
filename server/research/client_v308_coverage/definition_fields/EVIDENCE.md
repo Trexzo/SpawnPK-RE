@@ -54,13 +54,19 @@ NPCs  -> rs.t.a.b
 
 ### Items
 
-All **75 / 75** field keys actually present in exact-current `i.bin` are recognized by the v308 item loader at dispatch level.
+All **75 / 75** field keys actually present in exact-current `i.bin` are accounted for by v308 item-loader control flow, but they are **not all applied as definition fields**.
 
-This includes the sparse `param_1..param_8` records, which are handled through the loader's dynamic `param_` prefix rather than eight independent switch literals.
+Exact control-flow classes are now distinguished:
 
-This does **not** mean every field is gameplay-enforced by the client.
+- `clone` / `fullClone` — handled in a pre-pass before the ordinary per-field switch;
+- `equipClone` / `cloneEquip` — recognized names whose ordinary switch branch is a no-op and which have no equivalent clone pre-pass in `rs.t.a.d`;
+- `param_1..param_8` — caught by the exact `param_` prefix check and skipped before the field switch;
+- policy keys listed below — recognized but intentionally no-op for client gameplay enforcement;
+- remaining keys — active definition/presentation mutation paths.
 
-Known exact policy no-op fields remain:
+This distinction is important: "recognized by the loader" does not mean "mutates the client item definition."
+
+Known exact client-definition no-op policy fields remain:
 
 ```
 tradeable
@@ -78,6 +84,10 @@ The exact loader recognizes those keys but does not turn them into client-enforc
 `broken=true` is different: it mutates client presentation/interaction state and forces the final inventory action to `Destroy`.
 
 `beginnerGear` is recognized but is **not** an exact degradation flag.
+
+`equipClone` and `cloneEquip` are also exact-current cache keys but are no-op in this exact item-definition loader. They must not be treated as synonyms for `clone` without another independent consumer. A whole-JAR string scan finds the lowercase `equipclone` / `cloneequip` vocabulary in `rs/t/a/d.class`, where these branches are no-op.
+
+Likewise, `param_1..param_8` are not dynamic item-definition extensions in v308: the loader detects `param_` and immediately skips those map entries. Their intended external/tooling/server semantic remains separate evidence.
 
 ### NPCs
 
@@ -214,11 +224,11 @@ iconOffsets
 iconItem
 ```
 
-### Text / extension data
+### Text / skipped extension metadata
 
 ```
-hover
-param_1 .. param_8
+hover                 <-- active hover text path
+param_1 .. param_8    <-- exact cache metadata skipped by v308 item-definition loader
 ```
 
 Exact per-key counts and value types are in `item_definition_fields.tsv`.
@@ -324,7 +334,8 @@ Examples:
 - `pet=true` proves exact config classification/presentation, not pet ownership/follow rules.
 - `tradeable` is exact cache metadata but is intentionally a client-loader no-op in this generation.
 - `actions` proves menu presentation, not whether the server accepts the action in every context.
-- `note/template/clone` prove definition relationships; server item-transaction policy remains separately authoritative.
+- `note/template/clone` prove client definition relationships; server item-transaction policy remains separately authoritative.
+- `equipClone` / `cloneEquip` are present in exact cache but do not mutate the v308 item definition through `rs.t.a.d`; do not infer wearable cloning from those keys.
 
 Recommended server boundary:
 
