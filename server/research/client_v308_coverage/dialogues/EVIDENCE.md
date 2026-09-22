@@ -248,9 +248,7 @@ The first four pair exactly with the standard Continue roots:
 4900 -> 4901
 ```
 
-The second four are an exact parallel dialogue-model widget family. Their
-semantic root names remain unassigned here until the cache/interface
-relationship is separately proven.
+The second four are exact model children of cache-backed roots `968/973/979/986`. The cache relationship is now proven below; the roots form a named 1–4-line model-dialogue family structurally parallel to the NPC family.
 
 This gives Chat 3 a protocol-independent presentation shape such as:
 
@@ -261,6 +259,66 @@ animateDialogueModel(...)
 ```
 
 without exposing raw widget ids.
+
+
+## EXACT INTERFACE-CACHE DIALOGUE FAMILIES
+
+The exact current cache-backed `interface` archive was decoded through the v308 client's own widget loader (`rs.n.e.a(...)`). This closes several families that were previously only inferred from dispatcher constants.
+
+### Parallel named model-dialogue family
+
+The previously listed ids `969/974/980/987` are **model child widgets, not roots**.
+
+Exact roots and children are:
+
+~~~
+root 968  -> model 969, Name 970, Line1 971, Continue 972
+root 973  -> model 974, Name 975, Line1 976, Line2 977, Continue 978
+root 979  -> model 980, Name 981, Line1 982, Line2 983, Line3 984, Continue 985
+root 986  -> model 987, Name 988, Line1 989, Line2 990, Line3 991, Line4 992, Continue 993
+~~~
+
+Each model child is type-6 and each Continue child is an action-6 widget with exact text/tooltip:
+
+~~~
+Click here to continue
+Continue
+~~~
+
+This family is structurally parallel to the NPC dialogue family and is compatible with the exact inbound local-player model channel S2C185. However, the cache record itself does not contain a literal semantic label such as `PLAYER_DIALOGUE`; keep that higher-level name as a semantic adapter label rather than pretending it is a cache string.
+
+### NPC named model-dialogue family
+
+The same exact cache decode confirms:
+
+~~~
+root 4882 -> model 4883, Name 4884, Line1 4885, Continue 4886
+root 4887 -> model 4888, Name 4889, Line1 4890, Line2 4891, Continue 4892
+root 4893 -> model 4894, Name 4895, Line1 4896, Line2 4897, Line3 4898, Continue 4899
+root 4900 -> model 4901, Name 4902, Line1 4903, Line2 4904, Line3 4905, Line4 4906, Continue 4907
+~~~
+
+These model children are the same exact widgets already used by S2C75 NPC model/head presentation and the Make-over NPC-599 instance.
+
+### Statement dialogue family
+
+The exact cache also closes the model-free statement roots:
+
+~~~
+root 356 -> Line1 357, Continue 358
+root 359 -> Line1 360, Line2 361, Continue 362
+root 363 -> Line1 364, Line2 365, Line3 366, Continue 367
+root 368 -> Line1 369, Line2 370, Line3 371, Line4 372, Continue 373
+root 374 -> Line1 375, Line2 376, Line3 377, Line4 378, Line5 379, Continue 380
+~~~
+
+No model or Name child is present in these roots. This is exact interface-cache structure and cleanly supports a semantic StatementDialogue presentation family.
+
+### Additional model-bearing Continue families
+
+The cache contains several other model-bearing/no-name Continue roots (for example `306/310/315/321` and later quest/content-specific roots). Their exact structure is recoverable, but this package deliberately does **not** relabel them as item dialogue until their model-update/use path is directly proven.
+
+This avoids importing generic 317 naming conventions as SpawnPK authority.
 
 ## SEMANTIC NORMALIZATION BOUNDARY
 
@@ -299,8 +357,9 @@ IDs into public content API concepts.
   branches.
 - UNKNOWN_SERVER_AUTHORITY: whether the original server interpreted the keyboard
   Continue's literal `4907` specially or only as a Continue signal.
-- UNKNOWN_SERVER_AUTHORITY: exact semantic root names/relationships for the parallel `969/974/980/987` dialogue-model family until cache/interface proof is added.
-- UNKNOWN_SERVER_AUTHORITY: remaining item/statement/close presentation families not yet normalized in this package.
+- UNKNOWN_SERVER_AUTHORITY: historical/business naming policy for the cache-backed `968/973/979/986` named model-dialogue family beyond its exact structure and local-player-model compatibility.
+- UNKNOWN_SERVER_AUTHORITY: exact semantic identity of remaining model-bearing/no-name dialogue families until their update/use paths are directly proven.
+- UNKNOWN_SERVER_AUTHORITY: close/cancel server semantics beyond the exact `rs.n.c.A` presentation controls.
 
 ## FILES / METHODS
 
@@ -333,6 +392,4 @@ keeping opcode/widget identity internal.
 
 **yes — standard Continue/option state-machine input contract**
 
-Chat 3 can define semantic dialogue state independently of transport. Remaining
-dialogue root/presentation families should continue to be added by Chat 4 as
-evidence, not guessed from generic 317 conventions.
+Chat 3 can define semantic dialogue state independently of transport. Exact cache-backed statement roots and the parallel named 1–4-line model-dialogue family are now closed structurally. Remaining model-bearing/no-name/item and close/cancel semantics should continue to be evidence-gated rather than guessed from generic 317 conventions.
