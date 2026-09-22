@@ -43,6 +43,45 @@ final class PlayerCombatResolutionService {
         }
     }
 
+    static final class StaleTargetOwnershipException
+        extends IllegalStateException {
+
+        final EntityId targetId;
+        final long expectedGeneration;
+
+        StaleTargetOwnershipException(
+            WorldPlayer target,
+            long expectedGeneration,
+            Throwable cause
+        ){
+            super(
+                "PvP target ownership changed: target="+
+                target.id()+
+                " expectedGeneration="+
+                expectedGeneration,
+                cause
+            );
+            this.targetId=target.id();
+            this.expectedGeneration=expectedGeneration;
+        }
+    }
+
+    private static final class Prepared {
+        final CombatDamageRules.Result damage;
+        final CombatAttackTimingRules.Result timing;
+        final CombatSystemHooks.Snapshot hooks;
+
+        Prepared(
+            CombatDamageRules.Result damage,
+            CombatAttackTimingRules.Result timing,
+            CombatSystemHooks.Snapshot hooks
+        ){
+            this.damage=damage;
+            this.timing=timing;
+            this.hooks=hooks;
+        }
+    }
+
     private final WorldPlayer owner;
     private final CombatDamageRules damageRules;
     private final CombatAttackTimingRules timingRules;
@@ -98,6 +137,99 @@ final class PlayerCombatResolutionService {
     ){
         Objects.requireNonNull(target,"target");
 
+        Prepared prepared=
+            prepare(
+                weaponId,
+                style,
+                worldTick
+            );
+
+        PlayerLifecycleService.DamageResult lifecycle=
+            applyDamage(
+                target,
+                weaponId,
+                worldTick,
+                prepared
+            );
+
+        return finish(
+            target,
+            worldTick,
+            prepared,
+            lifecycle
+        );
+    }
+
+    Result resolveImmediateOwned(
+        World world,
+        WorldPlayer target,
+        long expectedGeneration,
+        int weaponId,
+        CombatStyleRepository.Style style,
+        long worldTick
+    )throws java.io.IOException{
+        Objects.requireNonNull(world,"world");
+        Objects.requireNonNull(target,"target");
+
+        if(!world.players().owns(
+                target,
+                expectedGeneration
+            ))
+            throw new StaleTargetOwnershipException(
+                target,
+                expectedGeneration,
+                null
+            );
+
+        Prepared prepared=
+            prepare(
+                weaponId,
+                style,
+                worldTick
+            );
+
+        final PlayerLifecycleService.DamageResult[] lifecycle=
+            new PlayerLifecycleService.DamageResult[1];
+
+        try{
+            world.withOpenPlayerOwnership(
+                target,
+                expectedGeneration,
+                ()->lifecycle[0]=
+                    applyDamage(
+                        target,
+                        weaponId,
+                        worldTick,
+                        prepared
+                    )
+            );
+        }catch(IllegalStateException error){
+            if(!world.players().owns(
+                    target,
+                    expectedGeneration
+                ))
+                throw new StaleTargetOwnershipException(
+                    target,
+                    expectedGeneration,
+                    error
+                );
+
+            throw error;
+        }
+
+        return finish(
+            target,
+            worldTick,
+            prepared,
+            lifecycle[0]
+        );
+    }
+
+    private Prepared prepare(
+        int weaponId,
+        CombatStyleRepository.Style style,
+        long worldTick
+    ){
         CombatWeaponProfile profile=
             CombatWeaponRepository.resolve(weaponId);
         V913WeaponRuntimeAuthority.Profile runtime=
@@ -137,15 +269,34 @@ final class PlayerCombatResolutionService {
                 )
             );
 
-        PlayerLifecycleService.DamageResult lifecycle=
-            new PlayerLifecycleService(target).applyDamage(
-                damage.damage,
-                worldTick,
-                "PVP_ATTACK attacker="+owner.id()+
-                " weapon="+weaponId+
-                " damageAuthority="+damage.authority
-            );
+        return new Prepared(
+            damage,
+            timing,
+            snapshot
+        );
+    }
 
+    private PlayerLifecycleService.DamageResult applyDamage(
+        WorldPlayer target,
+        int weaponId,
+        long worldTick,
+        Prepared prepared
+    ){
+        return new PlayerLifecycleService(target).applyDamage(
+            prepared.damage.damage,
+            worldTick,
+            "PVP_ATTACK attacker="+owner.id()+
+            " weapon="+weaponId+
+            " damageAuthority="+prepared.damage.authority
+        );
+    }
+
+    private Result finish(
+        WorldPlayer target,
+        long worldTick,
+        Prepared prepared,
+        PlayerLifecycleService.DamageResult lifecycle
+    ){
         if(lifecycle.died&&!lifecycle.ignoredDead){
             publishOutcome(
                 new CombatOutcome(
@@ -171,14 +322,14 @@ final class PlayerCombatResolutionService {
         }
 
         int delay=
-            timing.attackSpeedTicks>0
-                ?timing.attackSpeedTicks
+            prepared.timing.attackSpeedTicks>0
+                ?prepared.timing.attackSpeedTicks
                 :4;
 
         return new Result(
-            damage,
-            timing,
-            snapshot,
+            prepared.damage,
+            prepared.timing,
+            prepared.hooks,
             lifecycle,
             Math.max(1,delay)
         );
