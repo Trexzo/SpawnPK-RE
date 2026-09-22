@@ -1,0 +1,51 @@
+Exact v308 Main Donor Panel
+SHA-256 854f26ff9f134b0317572e7ac1688e6f40a231d5a4c66f8db5d655b7f45ce7c6
+class rs.n.c.aI
+
+root 60062
+
+60066 "@or2@NOTE: @yel@This is only counted from payments, not opening bonds!"
+60067 "<img=83> @yel@Reach the total amount in bond purchase, before the promotion expires!"
+60069 "@or1@Promotional rewards"
+60070 "@or1@Donor options and features"
+60072 "@or1@Main Donor Panel"
+
+actionable text widgets, tooltip "Select this option":
+60073 "<img=9> Donate for rewards"
+60074 "<img=6> View donator perks & benefits"
+60075 "<img=24> Open donator shop"
+60076 "<img=3>  Teleport to donator zone"
+60077 "<img=5>  Teleport to elite donator zone"
+60078 "<img=7> Teleport to vip donator zone"
+60079 "<img=37>  Teleport to sponsor donator zone"
+
+promotion thresholds:
+60081 "@or2@$150"
+60082 item=23172 qty=2
+
+60084 "@or2@$300"
+60085 item=11695 qty=1
+
+60087 "@or2@$500"
+60088 item=13741 qty=1
+
+60089 model widget:
+  size 100x100
+  af=1335
+  aT=1250
+  ar=0
+  F=0
+  model source rs.d.d.c(808).w
+
+60091 "@yel@$0"
+60092 "<img=25>"
+60093 "<img=25>"
+60094 "<img=25>"
+
+60098 item=22466 qty=2
+60099 "@yel@Next promo"
+60100 "@yel@will be @gre@10% OFF"
+
+Boundary:
+Client-visible promotion/accounting intent is exact.
+Threshold/reward policy, payment verification, ranks, zone requirements and commerce semantics remain server authority.
