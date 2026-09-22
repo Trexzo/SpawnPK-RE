@@ -1,0 +1,41 @@
+Exact v308 cache-backed dialogue-family decode
+
+Authority:
+client(6).jar SHA-256 854f26ff9f134b0317572e7ac1688e6f40a231d5a4c66f8db5d655b7f45ce7c6
+interface archive = cache index 0 / archive id 3
+archive member = data
+decoder = rs.n.e.a(rs.x.f, rs.l.K[], rs.x.f)
+
+Named model family:
+968:  969 model, 970 Name, 971 Line1, 972 Continue
+973:  974 model, 975 Name, 976 Line1, 977 Line2, 978 Continue
+979:  980 model, 981 Name, 982 Line1, 983 Line2, 984 Line3, 985 Continue
+986:  987 model, 988 Name, 989 Line1, 990 Line2, 991 Line3, 992 Line4, 993 Continue
+
+NPC named model family:
+4882: 4883 model, 4884 Name, 4885 Line1, 4886 Continue
+4887: 4888 model, 4889 Name, 4890 Line1, 4891 Line2, 4892 Continue
+4893: 4894 model, 4895 Name, 4896 Line1, 4897 Line2, 4898 Line3, 4899 Continue
+4900: 4901 model, 4902 Name, 4903 Line1, 4904 Line2, 4905 Line3, 4906 Line4, 4907 Continue
+
+Statement family:
+356: Line1 357, Continue 358
+359: Line1 360, Line2 361, Continue 362
+363: Line1 364, Line2 365, Line3 366, Continue 367
+368: Line1 369, Line2 370, Line3 371, Line4 372, Continue 373
+374: Line1 375, Line2 376, Line3 377, Line4 378, Line5 379, Continue 380
+
+Every listed Continue child:
+text = Click here to continue
+tooltip/action = Continue
+action type M = 6
+
+S2C200 special dialogue-model children:
+4883 4888 4894 4901 969 974 980 987
+
+Exact correction:
+969/974/980/987 are model children, not interface roots.
+Their roots are 968/973/979/986.
+
+Additional model-bearing/no-name Continue families exist in cache (e.g. 306/310/315/321).
+Do not label those item-dialogue without direct update/use proof.
