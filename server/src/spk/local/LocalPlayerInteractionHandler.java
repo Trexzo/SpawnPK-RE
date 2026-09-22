@@ -316,6 +316,24 @@ final class LocalPlayerInteractionHandler {
         if(activeAttack==null||sync==null)return null;
 
         WorldPlayer target=world.players().byId(activeAttack);
+        long targetGeneration=
+            target==null
+                ?0L
+                :target.generation();
+
+        if(target!=null&&
+           !world.players().owns(
+                target,
+                targetGeneration
+            )){
+            activeAttack=null;
+            nextAttackTick=0;
+            movement.clearQueuedPath();
+            return "V5131_PLAYER_ATTACK_CANCELLED reason=TARGET_OWNERSHIP_CHANGED"+
+                " expectedGeneration="+targetGeneration+
+                " worldTick="+worldTick;
+        }
+
         CombatTargetValidator.Result validity=
             CombatTargetValidator.player(
                 owner,
@@ -374,13 +392,30 @@ final class LocalPlayerInteractionHandler {
                 )
             );
 
-        PlayerCombatResolutionService.Result resolution=
-            pvpCombat.resolveImmediate(
-                target,
-                equipment.weapon(),
-                style,
-                worldTick
-            );
+        PlayerCombatResolutionService.Result resolution;
+
+        try{
+            resolution=
+                pvpCombat.resolveImmediateOwned(
+                    world,
+                    target,
+                    targetGeneration,
+                    equipment.weapon(),
+                    style,
+                    worldTick
+                );
+        }catch(
+            PlayerCombatResolutionService
+                .StaleTargetOwnershipException stale
+        ){
+            activeAttack=null;
+            nextAttackTick=0;
+            movement.clearQueuedPath();
+
+            return "V5131_PLAYER_ATTACK_CANCELLED reason=TARGET_OWNERSHIP_CHANGED"+
+                " expectedGeneration="+targetGeneration+
+                " worldTick="+worldTick;
+        }
 
         boolean hpPublished=
             Player81WorldSync.sendSkillUpdate(
