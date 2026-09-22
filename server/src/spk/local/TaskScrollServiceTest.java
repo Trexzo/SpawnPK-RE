@@ -234,6 +234,7 @@ public final class TaskScrollServiceTest {
             ledgers
         );
         definitionGuards();
+        authorityGuard(ledgers);
         immutableSnapshot(service);
         protocolBoundary();
 
@@ -253,6 +254,7 @@ public final class TaskScrollServiceTest {
             "claimIdempotent=true "+
             "claimReleasesPlayerSlot=true "+
             "cancelReleasesPlayerSlot=true "+
+            "objectiveAuthorityFence=true "+
             "rewardPayloadAbsent=true "+
             "protocolIndependent=true"
         );
@@ -395,6 +397,61 @@ public final class TaskScrollServiceTest {
                 POLICY
             ),
             "Task Scroll accepted >20 info lines"
+        );
+    }
+
+
+    private static void authorityGuard(
+        Map<String,ObjectiveProgressService> ledgers
+    ){
+        ObjectiveProgressService ledger=
+            new ObjectiveProgressService();
+
+        ledger.define(
+            new ObjectiveDefinition(
+                "taskscroll:authority",
+                1L,
+                "EXACT_CURRENT_CLIENT"
+            )
+        );
+
+        ledgers.put(
+            "player:authority",
+            ledger
+        );
+
+        TaskScrollService service=
+            new TaskScrollService(
+                ledgers::get
+            );
+
+        service.registerDefinition(
+            new TaskScrollService.Definition(
+                "scroll:authority",
+                "taskscroll:authority",
+                Collections.singletonList(
+                    "Authority mismatch test."
+                ),
+                POLICY
+            )
+        );
+
+        expect(
+            IllegalArgumentException.class,
+            ()->service.assign(
+                "player:authority",
+                "scroll:authority",
+                50L
+            ),
+            "Task Scroll objective authority mismatch"
+        );
+
+        require(
+            service.assignmentCount()==0&&
+            service.active(
+                "player:authority"
+            )==null,
+            "authority mismatch mutated Task Scroll assignment"
         );
     }
 
