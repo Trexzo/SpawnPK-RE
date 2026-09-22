@@ -343,6 +343,7 @@ def currentTrainFocusedTests = [
     'spk.local.Player81ConsumedGenerationFenceTest',
     'spk.local.NpcPresentationPlayerBarrierGenerationFenceTest',
     'spk.local.NpcRelayBarrierSourceGenerationFenceTest',
+    'spk.local.NpcPresentationDeliveryOwnershipLinearizationTest',
     'spk.local.SharedNpcRelayViewerGenerationFenceTest',
     'spk.local.TradeServiceGenerationOwnershipFenceTest',
     'spk.local.WorldPulseTimedEffectWorldOwnershipTest',
@@ -364,10 +365,10 @@ def currentTrainFocusedTests = [
     'spk.local.WorldPlayerTimedEffectIntegrationTest'
 ]
 
-if (currentTrainFocusedTests.size() != 91 ||
-    currentTrainFocusedTests.toSet().size() != 91) {
+if (currentTrainFocusedTests.size() != 92 ||
+    currentTrainFocusedTests.toSet().size() != 92) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 91 unique tests, found " +
+        "Current-train focused manifest drift: expected 92 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
