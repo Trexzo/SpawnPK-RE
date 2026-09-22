@@ -196,6 +196,123 @@ final class ClientPacketProbe {
                 return true;
             }
 
+            case 60: {
+                byte[] body=
+                    Binary.readExactly(
+                        in,
+                        8
+                    );
+                long nameKey=
+                    Binary.i64(
+                        body,
+                        0
+                    );
+
+                offerTypedRequest(
+                    new NameEntryClientRequest(
+                        nameKey,
+                        ClientRequestMetadata.exactCurrent(
+                            60,
+                            "FIXED8_NAME_KEY_I64_BE",
+                            "V308_CLIENT_GENERIC_NAME_ENTRY_WRITER"
+                        )
+                    ),
+                    opcode
+                );
+
+                System.out.printf(
+                    "%sCLIENT_PACKET seq=%d opcode=60 len=8 nameEntry=true nameKey=%s schema=EXACT_CURRENT_CLIENT_I64_BE%n",
+                    tag,
+                    decodedCount,
+                    Long.toUnsignedString(nameKey)
+                );
+                return true;
+            }
+
+            case 95: {
+                byte[] body=
+                    Binary.readExactly(
+                        in,
+                        3
+                    );
+
+                int mode0=Binary.u8(body,0);
+                int mode1=Binary.u8(body,1);
+                int mode2=Binary.u8(body,2);
+
+                offerTypedRequest(
+                    new ChatModeClientRequest(
+                        mode0,
+                        mode1,
+                        mode2,
+                        ClientRequestMetadata.exactCurrent(
+                            95,
+                            "FIXED3_CHAT_MODE_U8_U8_U8",
+                            "V308_CLIENT_CHAT_MODE_WRITER"
+                        )
+                    ),
+                    opcode
+                );
+
+                System.out.printf(
+                    "%sCLIENT_PACKET seq=%d opcode=95 len=3 chatModes=%d,%d,%d schema=EXACT_CURRENT_CLIENT_FIXED3%n",
+                    tag,
+                    decodedCount,
+                    mode0,
+                    mode1,
+                    mode2
+                );
+                return true;
+            }
+
+            case 218: {
+                byte[] body=
+                    Binary.readExactly(
+                        in,
+                        10
+                    );
+
+                long nameKey=
+                    Binary.i64(
+                        body,
+                        0
+                    );
+                int ruleIndex=
+                    Binary.u8(
+                        body,
+                        8
+                    );
+                int muteToggle=
+                    Binary.u8(
+                        body,
+                        9
+                    );
+
+                offerTypedRequest(
+                    new ReportAbuseClientRequest(
+                        nameKey,
+                        ruleIndex,
+                        muteToggle,
+                        ClientRequestMetadata.exactCurrent(
+                            218,
+                            "FIXED10_NAME_KEY_I64_BE_RULE_U8_MUTE_U8",
+                            "V308_CLIENT_REPORT_ABUSE_WRITER"
+                        )
+                    ),
+                    opcode
+                );
+
+                System.out.printf(
+                    "%sCLIENT_PACKET seq=%d opcode=218 len=10 reportAbuse=true nameKey=%s ruleIndex=%d muteToggle=%d schema=EXACT_CURRENT_CLIENT_FIXED10%n",
+                    tag,
+                    decodedCount,
+                    Long.toUnsignedString(nameKey),
+                    ruleIndex,
+                    muteToggle
+                );
+                return true;
+            }
+
             case 74:
             case 133:
             case 188:
@@ -1055,17 +1172,16 @@ final class ClientPacketProbe {
             case 2: case 6: case 17: case 18: case 21: case 39:
             case 73: case 128: case 139: case 153: case 200:
                 return 2;
-            case 95: case 183:
+            case 183:
                 return 3;
             case 86: case 131: case 210: case 249:
                 return 4;
             case 16: case 23: case 70: case 79: case 122:
             case 156: case 176: case 228: case 234: case 236: case 252: case 253:
                 return 6;
-            case 14: case 35: case 57: case 60: case 181: case 237:
+            case 14: case 35: case 57: case 181: case 237:
                 return 8;
-            case 218:
-                return 10;
+
             case 25: case 109: case 192:
                 return 12;
             default:
