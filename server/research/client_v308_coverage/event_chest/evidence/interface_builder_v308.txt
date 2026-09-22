@@ -1,0 +1,80 @@
+Exact v308 authority
+SHA-256 854f26ff9f134b0317572e7ac1688e6f40a231d5a4c66f8db5d655b7f45ce7c6
+Class rs.n.c.N
+
+High-value exact javap excerpts:
+
+root:
+  ldc int 60600
+  invokestatic d:(I)Lrs/n/e;
+
+background:
+  60601 -> "fountain/event 1"
+
+main item grid 60602:
+  allocates four int[175] arrays used by the widget item/container state
+  P=7
+  aR=25
+  ac=32
+  ap=16
+
+scroll/container 60603:
+  one child
+  aH=1000
+  P=449
+  aR=185
+  child 60602 @ 12,10
+
+explicit button construction:
+  60604 "fountain/button" ... tooltip "Exchange" ... hover 60605
+  60626 "fountain/sprite" ... tooltip "Enter next tier" ... hover 60628
+  60631 "fountain/sprite" ... tooltip "Reset event items" ... hover 60632
+
+static text:
+  60608 "Roll"
+  60609 "Tier I Prize"
+  60610 "Roll all of the items in\nthe tier for a prize!"
+  60618 "Event Chest Tier I"
+  60620 "@or1@Tier I"
+  60622 "Event Chest Tier II"
+  60624 "@or1@Tier II"
+  60616 "Tier I - @yel@Halloween Event 2020"
+  60625 "@yel@0 / 25 rolls @or1@(0 / 50,000 tokens)"
+  60630 "@yel@Event Guide"
+  60634 "Reset exchange"
+
+small item grids:
+  60611 -> four item/quantity entries
+  60612 -> four item/quantity entries
+  60613 -> four item/quantity entries
+
+selected root child placements:
+  60601 @ 12,11
+  60603 @ 27,47
+  60604 @ 191,240
+  60605 @ 191,240
+  60608 @ 204,252
+  60607 @ 231,251
+  60611 @ 272,246
+  60612 @ 394,246
+  63740 @ 476,14
+  63741 @ 476,14
+  60616 @ 344,23
+  60625 @ 331,306
+  60626 @ 24,282
+  60628 @ 24,282
+  60630 @ 85,291
+  60609 @ 67,239
+  60610 @ 67,256
+  60613 @ 27,242
+  60621 @ 118,27
+  60622 @ 118,27
+  60624 @ 127,33
+  60617 @ 18,27
+  60618 @ 18,27
+  60620 @ 27,33
+
+Boundary:
+These excerpts prove client interface construction/presentation only.
+They do not prove production reward tables, token economics, RNG,
+tier unlock rules, reset policy, persistence or anti-abuse semantics.
