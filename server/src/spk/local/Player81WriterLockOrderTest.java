@@ -146,25 +146,14 @@ public final class Player81WriterLockOrderTest {
 
             player81Thread.start();
 
-            long publishDeadline=
-                System.nanoTime()+
-                TimeUnit.SECONDS.toNanos(
-                    5L
-                );
+            awaitBlockedOnWorldOwnership(
+                player81Thread,
+                5_000L
+            );
 
-            while(queue.queuedBytes()==0&&
-                  System.nanoTime()<
-                    publishDeadline)
-                Thread.sleep(2L);
-
-            if(queue.queuedBytes()==0)
+            if(queue.queuedBytes()!=0)
                 throw new AssertionError(
-                    "packet81 remained trapped behind lifecycle while writer monitor was held"
-                );
-
-            if(!player81Thread.isAlive())
-                throw new AssertionError(
-                    "packet81 call returned before lifecycle release fixture"
+                    "packet81 published before exact World ownership was available"
                 );
 
             allowWriterAttempt.countDown();
@@ -215,7 +204,8 @@ public final class Player81WriterLockOrderTest {
 
             System.out.println(
                 "PLAYER81_WRITER_LOCK_ORDER_PASS "+
-                "packet81PublishedBeforeLifecycleRelease=true "+
+                "packet81WaitedForWorldOwnership=true "+
+                "writerMonitorFreeWhileWaiting=true "+
                 "lifecycleOwnerWriterWriteSucceeded=true "+
                 "bothThreadsCompleted=true"
             );
@@ -250,6 +240,52 @@ public final class Player81WriterLockOrderTest {
                 world.close();
             }
         }
+    }
+
+    private static void awaitBlockedOnWorldOwnership(
+        Thread thread,
+        long timeoutMillis
+    )throws Exception{
+        long deadline=
+            System.nanoTime()+
+            TimeUnit.MILLISECONDS.toNanos(
+                timeoutMillis
+            );
+
+        while(System.nanoTime()<deadline){
+            if(thread.getState()==
+                    Thread.State.BLOCKED){
+                boolean inTransform=false;
+
+                for(StackTraceElement element:
+                        thread.getStackTrace())
+                    if(Player81WorldSync.class
+                            .getName()
+                            .equals(
+                                element.getClassName()
+                            )&&
+                       "transform".equals(
+                           element.getMethodName()
+                       )){
+                        inTransform=true;
+                        break;
+                    }
+
+                if(inTransform)
+                    return;
+            }
+
+            if(!thread.isAlive())
+                throw new AssertionError(
+                    "packet81 call exited before World ownership wait"
+                );
+
+            Thread.sleep(1L);
+        }
+
+        throw new AssertionError(
+            "packet81 did not block waiting for World ownership"
+        );
     }
 
     private Player81WriterLockOrderTest(){}
