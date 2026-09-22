@@ -1,0 +1,27 @@
+Exact v308 world/client-state S2C reader map
+
+1 FIXED0 no body -> reset actor animations
+35 FIXED4 y channel, y paramA, y paramB, y paramC
+61 FIXED1 y multicombatState
+68 FIXED0 no body -> reset varps
+74 FIXED2 S trackId; 65535 -> -1
+78 FIXED0 no body -> destination reset
+99 FIXED1 y minimapState
+107 FIXED0 no body -> camera reset
+114 FIXED2 S seconds -> now + seconds*1000
+121 FIXED4 U trackId, T delayValue
+166 FIXED6 y tileX, y tileY, A heightOffset, y speed, y acceleration
+176 FIXED10 O fieldA, T fieldB, y fieldC, Y fieldD, A fieldE
+177 FIXED6 y tileX, y tileY, A heightOffset, y speed, y acceleration
+240 FIXED2 B signedWeight
+254 FIXED6 y type; type1 A npcIndex; type2..6 A x,A y,y height; type10 A playerIndex
+
+Reader transforms:
+y raw u8
+O negated u8
+A u16 BE
+B i16 BE
+S u16 LE
+T u16 BE low-byte add128 inverse
+U u16 LE low-byte add128 inverse
+Y mixed i32; inverse PacketPayloadWriter.putI32Y
