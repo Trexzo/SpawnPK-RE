@@ -446,7 +446,8 @@ final class Player81WorldSync {
         final HashMap<EntityId,Context> contexts=new HashMap<>();
         final HashMap<EntityId,Motion> motions=new HashMap<>();
         final HashMap<EntityId,ArrayDeque<Event>> events=new HashMap<>();
-        final HashMap<String,Long> tradeRequests=new HashMap<>();
+        final HashMap<String,TradeRequest> tradeRequests=
+            new HashMap<>();
         long sequence;
         WorldState(World world){this.world=world;}
 
@@ -479,32 +480,113 @@ final class Player81WorldSync {
             events.remove(ownerId);
             String prefix=ownerId+">";
             String suffix=">"+ownerId;
-            for(Iterator<Map.Entry<String,Long>> it=tradeRequests.entrySet().iterator();it.hasNext();){
+            for(Iterator<Map.Entry<String,TradeRequest>> it=tradeRequests.entrySet().iterator();it.hasNext()){
                 String key=it.next().getKey();
                 if(key.startsWith(prefix)||key.endsWith(suffix))it.remove();
             }
         }
 
-        synchronized String requestTrade(WorldPlayer from,WorldPlayer to,long now){
-            if(from==null||to==null||from==to)return "TRADE_REJECTED_INVALID_TARGET";
-            String a=from.id()+">"+to.id(),b=to.id()+">"+from.id();
-            Long reciprocal=tradeRequests.get(b);
-            if(reciprocal!=null&&now-reciprocal.longValue()<=30_000L){
-                tradeRequests.remove(a);tradeRequests.remove(b);
-                return "TRADE_MUTUAL_ACCEPTED target="+to.username()+" itemExchange=DEFERRED_UNTIL_TRADE_INTERFACE_AUTHORITY";
+        synchronized String requestTrade(
+            WorldPlayer from,
+            WorldPlayer to,
+            long now
+        ){
+            if(from==null||to==null||from==to)
+                return "TRADE_REJECTED_INVALID_TARGET";
+
+            long fromGeneration=
+                from.generation();
+            long toGeneration=
+                to.generation();
+
+            if(!world.players().owns(
+                    from,
+                    fromGeneration
+                )||
+               !world.players().owns(
+                    to,
+                    toGeneration
+                ))
+                return "TRADE_REJECTED_STALE_OWNER";
+
+            String a=
+                from.id()+">"+to.id();
+            String b=
+                to.id()+">"+from.id();
+
+            TradeRequest reciprocal=
+                tradeRequests.get(b);
+
+            if(reciprocal!=null&&
+               reciprocal.fromGeneration==
+                    toGeneration&&
+               reciprocal.toGeneration==
+                    fromGeneration&&
+               now-reciprocal.atMillis<=30_000L){
+                tradeRequests.remove(a);
+                tradeRequests.remove(b);
+
+                return "TRADE_MUTUAL_ACCEPTED target="+
+                    to.username()+
+                    " itemExchange=DEFERRED_UNTIL_TRADE_INTERFACE_AUTHORITY";
             }
-            tradeRequests.put(a,now);
-            Context targetContext=contexts.get(to.id());
+
+            tradeRequests.put(
+                a,
+                new TradeRequest(
+                    now,
+                    fromGeneration,
+                    toGeneration
+                )
+            );
+
+            Context targetContext=
+                contexts.get(to.id());
+
             if(targetContext!=null&&
                targetContext.ownerCurrent()){
                 try{
-                    byte[] msg=(from.username()+":tradereq:\n").getBytes(StandardCharsets.ISO_8859_1);
-                    targetContext.writer.varByte(253,msg);
+                    byte[] msg=
+                        (from.username()+":tradereq:\n")
+                            .getBytes(
+                                StandardCharsets
+                                    .ISO_8859_1
+                            );
+
+                    targetContext.writer
+                        .varByte(
+                            253,
+                            msg
+                        );
                 }catch(IOException ioe){
-                    return "TRADE_REQUEST_RECORDED_NOTIFY_FAILED target="+to.username()+" error="+ioe.getClass().getSimpleName()+" itemExchange=DEFERRED_UNTIL_TRADE_INTERFACE_AUTHORITY";
+                    return "TRADE_REQUEST_RECORDED_NOTIFY_FAILED target="+
+                        to.username()+
+                        " error="+
+                        ioe.getClass()
+                            .getSimpleName()+
+                        " itemExchange=DEFERRED_UNTIL_TRADE_INTERFACE_AUTHORITY";
                 }
             }
-            return "TRADE_REQUEST_RECORDED_NOTIFY_SENT target="+to.username()+" packet253=:tradereq: reciprocalWindowMs=30000 itemExchange=DEFERRED_UNTIL_TRADE_INTERFACE_AUTHORITY";
+
+            return "TRADE_REQUEST_RECORDED_NOTIFY_SENT target="+
+                to.username()+
+                " packet253=:tradereq: reciprocalWindowMs=30000 itemExchange=DEFERRED_UNTIL_TRADE_INTERFACE_AUTHORITY";
+        }
+    }
+
+    private static final class TradeRequest {
+        final long atMillis;
+        final long fromGeneration;
+        final long toGeneration;
+
+        TradeRequest(
+            long atMillis,
+            long fromGeneration,
+            long toGeneration
+        ){
+            this.atMillis=atMillis;
+            this.fromGeneration=fromGeneration;
+            this.toGeneration=toGeneration;
         }
     }
 
