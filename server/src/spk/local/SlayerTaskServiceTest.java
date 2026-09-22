@@ -84,6 +84,17 @@ public final class SlayerTaskServiceTest {
                 12L
             );
 
+        expect(
+            IllegalArgumentException.class,
+            ()->service.recordValidatedKill(
+                "player:a",
+                "npc:blood-revenant",
+                1L,
+                11L
+            ),
+            "backwards Slayer kill tick"
+        );
+
         require(
             first.matchedTarget&&
             first.progressed&&
@@ -207,6 +218,7 @@ public final class SlayerTaskServiceTest {
             "oneActiveTask=true "+
             "sharedDefinitionIndependent=true "+
             "targetMismatchIgnored=true "+
+            "monotonicTaskTick=true "+
             "validatedKillProgress=true "+
             "goalClamp=true "+
             "exactCompletion=true "+
