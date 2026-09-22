@@ -92,6 +92,9 @@ final class LocalRegionStreamHandler {
         if(!movementEnabled||world.players().size()!=1)
             return false;
 
+        if(regionLoads.pending())
+            return false;
+
         if(movement.transientRegion()&&
            movement.insideHomeInnerCore(24)){
             reattachHome(
