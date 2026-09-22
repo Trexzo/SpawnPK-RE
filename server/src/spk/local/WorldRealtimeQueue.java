@@ -14,6 +14,14 @@ final class WorldRealtimeQueue implements AutoCloseable {
             long generation
         );
     }
+
+    interface ExecutionOwnership {
+        boolean run(
+            WorldPlayer player,
+            long generation,
+            Runnable task
+        )throws Exception;
+    }
     private static final class E implements Comparable<E>{
         final long at,seq; final WorldPlayer owner; final long generation; final Runnable task;
         E(long at,long seq,WorldPlayer owner,long generation,Runnable task){this.at=at;this.seq=seq;this.owner=owner;this.generation=generation;this.task=task;}
@@ -22,6 +30,7 @@ final class WorldRealtimeQueue implements AutoCloseable {
     private final PriorityQueue<E> q=new PriorityQueue<>();
     private final AtomicLong seq=new AtomicLong();
     private final Ownership ownership;
+    private final ExecutionOwnership executionOwnership;
     private boolean closed;
 
     WorldRealtimeQueue(){
@@ -32,11 +41,43 @@ final class WorldRealtimeQueue implements AutoCloseable {
     }
 
     WorldRealtimeQueue(Ownership ownership){
+        this(
+            ownership,
+            null
+        );
+    }
+
+    WorldRealtimeQueue(
+        Ownership ownership,
+        ExecutionOwnership executionOwnership
+    ){
         this.ownership=
             Objects.requireNonNull(
                 ownership,
                 "ownership"
             );
+        this.executionOwnership=
+            executionOwnership==null
+                ?this::runStandaloneOwned
+                :executionOwnership;
+    }
+
+    private boolean runStandaloneOwned(
+        WorldPlayer player,
+        long generation,
+        Runnable task
+    ){
+        synchronized(player.mutationLock()){
+            if(!player.accepts(generation)||
+               !ownership.owns(
+                   player,
+                   generation
+               ))
+                return false;
+
+            task.run();
+            return true;
+        }
     }
 
     void schedule(
@@ -137,16 +178,11 @@ final class WorldRealtimeQueue implements AutoCloseable {
                    e.generation
                )){
                 try{
-                    synchronized(e.owner.mutationLock()){
-                        if(e.owner.accepts(
-                                e.generation
-                            )&&
-                           ownership.owns(
-                                e.owner,
-                                e.generation
-                            ))
-                            e.task.run();
-                    }
+                    executionOwnership.run(
+                        e.owner,
+                        e.generation,
+                        e.task
+                    );
                 }catch(Throwable t){
                     System.err.println(
                         "[world-realtime] task failed owner="+
