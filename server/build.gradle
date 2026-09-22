@@ -240,11 +240,48 @@ tasks.register('r85V308Acceptance') {
     dependsOn tasks.named('jar'), tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
 
     doLast {
-        File client = findExactClientBySha(v308AcceptanceClientSha256)
+        String explicitClientPath =
+            providers.gradleProperty('v308ClientPath')
+                .orElse(
+                    providers.environmentVariable(
+                        'SPK_V308_CLIENT'
+                    )
+                )
+                .getOrNull()
+
+        File client
+
+        if (explicitClientPath != null &&
+            !explicitClientPath.trim().isEmpty()) {
+            client =
+                new File(
+                    explicitClientPath.trim()
+                ).canonicalFile
+
+            if (!client.isFile()) {
+                throw new GradleException(
+                    "Explicit v308 acceptance client.jar is not a file: ${client}"
+                )
+            }
+
+            String explicitSha = sha256(client)
+
+            if (!explicitSha.equalsIgnoreCase(
+                    v308AcceptanceClientSha256)) {
+                throw new GradleException(
+                    "Explicit v308 acceptance client.jar SHA-256 mismatch: expected=${v308AcceptanceClientSha256} actual=${explicitSha} path=${client}"
+                )
+            }
+        } else {
+            client =
+                findExactClientBySha(
+                    v308AcceptanceClientSha256
+                )
+        }
 
         if (client == null) {
             throw new GradleException(
-                "Exact v308 acceptance client.jar is not present; required SHA-256=${v308AcceptanceClientSha256}"
+                "Exact v308 acceptance client.jar is not present; provide -Pv308ClientPath=<path> or SPK_V308_CLIENT, or place the exact fixture in a recognized repository candidate path; required SHA-256=${v308AcceptanceClientSha256}"
             )
         }
 
