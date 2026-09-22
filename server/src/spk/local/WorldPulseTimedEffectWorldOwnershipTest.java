@@ -1,6 +1,7 @@
 package spk.local;
 
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 public final class WorldPulseTimedEffectWorldOwnershipTest {
@@ -61,7 +62,14 @@ public final class WorldPulseTimedEffectWorldOwnershipTest {
                 "world-a-pulse-ownership-test"
             );
 
-        long transferredGenerationB;
+        AtomicLong transferredGenerationBRef=
+            new AtomicLong(-1L);
+        AtomicReference<Throwable> transferFailure=
+            new AtomicReference<>();
+        java.util.concurrent.CountDownLatch transferStarted=
+            new java.util.concurrent.CountDownLatch(1);
+
+        Thread transferWorker;
 
         synchronized(blocker.mutationLock()){
             worker.start();
@@ -71,42 +79,88 @@ public final class WorldPulseTimedEffectWorldOwnershipTest {
                 5_000L
             );
 
-            if(!first.unregisterPlayer(
-                    transferred,
-                    transferredGenerationA
-                ))
-                throw new AssertionError(
-                    "World A transfer unregister failed"
+            transferWorker=
+                new Thread(
+                    ()->{
+                        transferStarted.countDown();
+                        try{
+                            if(!first.unregisterPlayer(
+                                    transferred,
+                                    transferredGenerationA
+                                ))
+                                throw new AssertionError(
+                                    "World A transfer unregister failed"
+                                );
+
+                            transferredGenerationBRef.set(
+                                second.registerPlayer(
+                                    transferred,
+                                    "pulse-owner-transfer"
+                                )
+                            );
+                        }catch(Throwable failure){
+                            transferFailure.set(failure);
+                        }
+                    },
+                    "world-transfer-ownership-test"
                 );
 
-            transferredGenerationB=
-                second.registerPlayer(
-                    transferred,
-                    "pulse-owner-transfer"
+            transferWorker.start();
+
+            if(!transferStarted.await(
+                    2L,
+                    TimeUnit.SECONDS))
+                throw new AssertionError(
+                    "transfer worker did not start"
                 );
 
-            if(transferredGenerationB==
-                    transferredGenerationA)
-                throw new AssertionError(
-                    "transfer generation did not advance"
-                );
+            Thread.sleep(100L);
 
-            if(first.players().owns(
-                    transferred,
-                    transferredGenerationB
-                ))
+            if(!transferWorker.isAlive()||
+               transferredGenerationBRef.get()!=-1L)
                 throw new AssertionError(
-                    "World A incorrectly owns transferred generation"
-                );
-
-            if(!second.players().owns(
-                    transferred,
-                    transferredGenerationB
-                ))
-                throw new AssertionError(
-                    "World B did not acquire transferred generation"
+                    "ownership transfer crossed lifecycle-owned pulse callback"
                 );
         }
+
+        transferWorker.join(5_000L);
+
+        if(transferWorker.isAlive())
+            throw new AssertionError(
+                "ownership transfer did not finish"
+            );
+
+        if(transferFailure.get()!=null)
+            throw new AssertionError(
+                "ownership transfer failed",
+                transferFailure.get()
+            );
+
+        long transferredGenerationB=
+            transferredGenerationBRef.get();
+
+        if(transferredGenerationB<=0L||
+           transferredGenerationB==
+               transferredGenerationA)
+            throw new AssertionError(
+                "transfer generation did not advance"
+            );
+
+        if(first.players().owns(
+                transferred,
+                transferredGenerationB
+            ))
+            throw new AssertionError(
+                "World A incorrectly owns transferred generation"
+            );
+
+        if(!second.players().owns(
+                transferred,
+                transferredGenerationB
+            ))
+            throw new AssertionError(
+                "World B did not acquire transferred generation"
+            );
 
         worker.join(5_000L);
 
@@ -119,12 +173,6 @@ public final class WorldPulseTimedEffectWorldOwnershipTest {
             throw new AssertionError(
                 "World A pulse failed",
                 pulseFailure.get()
-            );
-
-        if(!transferred.timedEffects()
-                .active(effectKey))
-            throw new AssertionError(
-                "World A ticked timed effect after ownership transferred to World B"
             );
 
         if(first.clock().tick()!=1L)
@@ -171,9 +219,9 @@ public final class WorldPulseTimedEffectWorldOwnershipTest {
 
         System.out.println(
             "WORLD_PULSE_TIMED_EFFECT_WORLD_OWNERSHIP_PASS "+
-            "snapshotTransfer=true "+
-            "oldWorldSkipped=true "+
-            "newWorldTicked=true "+
+            "transferBlockedBehindLifecycle=true "+
+            "linearizedOwnership=true "+
+            "effectExpiredByOwningWorld=true "+
             "generationAdvanced=true"
         );
     }
