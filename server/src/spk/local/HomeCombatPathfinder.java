@@ -113,11 +113,29 @@ final class HomeCombatPathfinder {
         HashSet<String> out=new HashSet<>();
         for(HomeCollisionOverlayRepository.Entry e:HomeCollisionOverlayRepository.all()){
             if(!e.isAdd()||!Boolean.TRUE.equals(e.movementClip)||!"WALL".equals(e.collisionClass)||e.shape!=0)continue;
+            if(liveClientPassThrough(e))continue;
             int x=e.worldX,y=e.worldY,nx=x,ny=y;
             switch(e.rotation&3){case 0:nx=x-1;break;case 1:ny=y+1;break;case 2:nx=x+1;break;case 3:ny=y-1;break;default:break;}
             out.add(edgeKey(x,y,nx,ny));out.add(edgeKey(nx,ny,x,y));
         }
         return Collections.unmodifiableSet(out);
+    }
+
+    /**
+     * Live localhost client movement on 2026-09-22 proved the two south
+     * Energy Barrier placements are visually present but pathfinder-passable:
+     * the client repeatedly submitted routes crossing y=3506 -> 3507 at
+     * x=3092/3093. Keep the exception scoped to those runtime-proven edges;
+     * the other recovered Energy Barrier placements remain clipping.
+     */
+    private static boolean liveClientPassThrough(
+        HomeCollisionOverlayRepository.Entry e
+    ){
+        return e.sceneObjectId==4470&&
+               e.shape==0&&
+               e.rotation==1&&
+               e.worldY==3506&&
+               (e.worldX==3092||e.worldX==3093);
     }
 
     private static long key(int x,int y){return (((long)x)<<32)^(y&0xffffffffL);}

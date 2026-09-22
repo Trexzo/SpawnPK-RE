@@ -8,11 +8,13 @@ public final class HomeAuthoritativeMovementCollisionTest {
         testOpenClientPath();
         testDiagonalCornerClip();
         testRunCannotCrossBlockedBoundary();
+        testLiveEnergyBarrierPassThrough();
 
         System.out.println(
             "HOME_AUTHORITATIVE_MOVEMENT_COLLISION_PASS "+
             "blockedPath=true openPath=true "+
-            "diagonalCorner=true runBoundary=true"
+            "diagonalCorner=true runBoundary=true "+
+            "liveEnergyBarrierPassThrough=true scoped=true"
         );
     }
 
@@ -134,6 +136,47 @@ public final class HomeAuthoritativeMovementCollisionTest {
         if(movement.queued()!=0)
             throw new AssertionError(
                 "rejected run route retained partial queue"
+            );
+    }
+
+    private static void testLiveEnergyBarrierPassThrough(){
+        for(int x:new int[]{3092,3093}){
+            if(!HomeCombatPathfinder.canStep(
+                    x,3506,x,3507))
+                throw new AssertionError(
+                    "live client pass-through edge still blocked x="+x
+                );
+
+            if(!HomeCombatPathfinder.canStep(
+                    x,3507,x,3506))
+                throw new AssertionError(
+                    "live client reverse pass-through edge still blocked x="+x
+                );
+
+            MovementState movement=at(x,3506);
+            String result=movement.accept(
+                new MovementRequest(
+                    164,
+                    false,
+                    new int[]{x},
+                    new int[]{3507},
+                    new byte[0]
+                )
+            );
+
+            if(!result.startsWith("ACCEPTED"))
+                throw new AssertionError(
+                    "runtime-proven Energy Barrier entry rejected x="+
+                    x+" result="+result
+                );
+        }
+
+        // Keep this runtime correction narrow: a different recovered Energy
+        // Barrier placement still clips according to the static overlay.
+        if(HomeCombatPathfinder.canStep(
+                3101,3509,3100,3509))
+            throw new AssertionError(
+                "unproven Energy Barrier edge was globally unblocked"
             );
     }
 
