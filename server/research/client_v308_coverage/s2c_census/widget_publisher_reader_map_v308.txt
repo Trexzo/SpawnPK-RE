@@ -1,0 +1,39 @@
+Exact v308 rs.Client#bP widget packet reader summary
+SHA-256 854f26ff9f134b0317572e7ac1688e6f40a231d5a4c66f8db5d655b7f45ce7c6
+
+8   FIXED4   U widgetId, A modelId
+24  FIXED1   P tab
+34  VARSHORT A widgetId; repeat f slot, A itemId, y amount; amount 255 => D i32
+70  FIXED6   B x, V y, S widgetId
+72  FIXED2   S widgetId
+75  FIXED4   U npcDefinitionId, U widgetId
+79  FIXED4   S widgetId, T scroll
+122 FIXED4   U widgetId, U packed555
+142 FIXED2   S interfaceId
+171 FIXED3   y hiddenFlag, A widgetId
+185 FIXED2   U widgetId
+187 FIXED0   no body
+200 FIXED4   A widgetId, B animationId
+218 FIXED2   W interfaceId
+230 FIXED8   T zoom, A widgetId, A rotationX, U rotationY
+246 FIXED6   S widgetId, A scale, A itemId
+
+rs.x.e reader transforms:
+y u8 raw
+P 128-wire u8
+A u16 BE
+B i16 BE
+S u16 LE
+T u16 BE low-byte -128
+U u16 LE low-byte -128
+V i16 LE
+W i16 LE low-byte -128
+f unsigned smart
+D i32 BE
+
+PacketPayloadWriter current inverse coverage:
+putU8, putU8_128Minus, putU16BE, putI16BE, putU16LE, putU16BELowAdd128, putU16LELowAdd128, putSmartU, putI32BE
+
+Missing transform helpers required by this set:
+putI16LE
+putI16LELowAdd128
