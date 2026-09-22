@@ -310,15 +310,19 @@ public final class LocalSessionRuntimeBindingsOwnershipFenceTest {
 
             if(closeReturned.await(
                     100,
-                    TimeUnit.MILLISECONDS))
+                    TimeUnit.MILLISECONDS)){
+                releaseAction.countDown();
                 throw new AssertionError(
                     "World close bypassed active ownership action"
                 );
+            }
 
-            if(racingWorld.closed())
+            if(!racingWorld.closed()){
+                releaseAction.countDown();
                 throw new AssertionError(
-                    "World terminal fence published during active ownership action"
+                    "World terminal fence was not published during active ownership action"
                 );
+            }
 
             releaseAction.countDown();
 
