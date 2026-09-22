@@ -106,6 +106,105 @@ public final class PluginEventFailureIsolationTest {
                     "healthy plugin subscription not removed"
                 );
 
+            AtomicInteger skippedCancelled=
+                new AtomicInteger();
+            AtomicInteger receivedCancelled=
+                new AtomicInteger();
+
+            Plugin cancelling=plugin(
+                "events.cancelling",
+                context->context.events().subscribe(
+                    CancelEvent.class,
+                    DomainEventBus.Priority.HIGH,
+                    event->{
+                        event.cancel();
+                        throw new AssertionError(
+                            "failure after cancellation"
+                        );
+                    }
+                )
+            );
+
+            Plugin skipped=plugin(
+                "events.cancel-skipped",
+                context->context.events().subscribe(
+                    CancelEvent.class,
+                    DomainEventBus.Priority.NORMAL,
+                    event->skippedCancelled
+                        .incrementAndGet()
+                )
+            );
+
+            Plugin cancelAware=plugin(
+                "events.cancel-aware",
+                context->context.events().subscribe(
+                    CancelEvent.class,
+                    DomainEventBus.Priority.LOW,
+                    true,
+                    event->receivedCancelled
+                        .incrementAndGet()
+                )
+            );
+
+            manager.enable(cancelling);
+            manager.enable(skipped);
+            manager.enable(cancelAware);
+
+            AtomicReference<Throwable>
+                cancelPublicationEscaped=
+                    new AtomicReference<>();
+            CancelEvent cancelled=
+                new CancelEvent();
+
+            world.events().schedule(
+                world.clock().tick()+1L,
+                ()->{
+                    try{
+                        world.domainEvents().publish(
+                            cancelled
+                        );
+                    }catch(Throwable failure){
+                        cancelPublicationEscaped.set(
+                            failure
+                        );
+                    }
+                }
+            );
+
+            world.observePulse(
+                System.currentTimeMillis()
+            );
+
+            if(cancelPublicationEscaped.get()!=null)
+                throw new AssertionError(
+                    "post-cancel plugin failure escaped publication",
+                    cancelPublicationEscaped.get()
+                );
+
+            if(!cancelled.isCancelled())
+                throw new AssertionError(
+                    "plugin cancellation was lost after callback failure"
+                );
+
+            if(skippedCancelled.get()!=0)
+                throw new AssertionError(
+                    "ordinary downstream listener ignored cancellation"
+                );
+
+            if(receivedCancelled.get()!=1)
+                throw new AssertionError(
+                    "receiveCancelled listener did not observe cancelled event"
+                );
+
+            manager.disable("events.cancelling");
+            manager.disable("events.cancel-skipped");
+            manager.disable("events.cancel-aware");
+
+            if(world.domainEvents().listenerCount()!=0)
+                throw new AssertionError(
+                    "cancel-semantics plugin subscriptions not removed"
+                );
+
             DomainEventBus ordinary=
                 new DomainEventBus(()->true);
 
@@ -141,6 +240,8 @@ public final class PluginEventFailureIsolationTest {
                 "PLUGIN_EVENT_FAILURE_ISOLATION_PASS "+
                 "pluginErrorContained=true "+
                 "healthyListenerContinued=true "+
+                "cancellationPreserved=true "+
+                "receiveCancelledPreserved=true "+
                 "wrappedSubscriptionsRemoved=true "+
                 "coreBusPropagationUnchanged=true"
             );
@@ -181,6 +282,20 @@ public final class PluginEventFailureIsolationTest {
 
     private static final class TestEvent
         implements DomainEventBus.Event {}
+
+    private static final class CancelEvent
+        implements DomainEventBus.Cancellable {
+
+        private boolean cancelled;
+
+        @Override public boolean isCancelled(){
+            return cancelled;
+        }
+
+        @Override public void cancel(){
+            cancelled=true;
+        }
+    }
 
     private PluginEventFailureIsolationTest(){}
 }
