@@ -19,8 +19,11 @@ final class LocalPlayerInteractionHandler {
     private final PlayerCombatResolutionService pvpCombat;
 
     private EntityId activeFollow;
+    private long activeFollowGeneration;
     private EntityId activeAttack;
+    private long activeAttackGeneration;
     private EntityId activeTrade;
+    private long activeTradeGeneration;
     private long nextAttackTick;
 
     LocalPlayerInteractionHandler(
@@ -136,6 +139,23 @@ final class LocalPlayerInteractionHandler {
     )throws IOException{
         if(action==null||target==null)return null;
 
+        long targetGeneration=
+            target.generation();
+
+        if((action.optionSlot==1||
+            action.optionSlot==2||
+            action.optionSlot==3)&&
+           !world.players().owns(
+                target,
+                targetGeneration
+            )){
+            clearTargets();
+            movement.clearQueuedPath();
+            return "V5131_PLAYER_ACTION_REJECTED reason=TARGET_OWNERSHIP_CHANGED"+
+                " expectedGeneration="+targetGeneration+
+                " target="+target.id();
+        }
+
         if(action.optionSlot==1){
             CombatTargetValidator.Result validity=
                 CombatTargetValidator.player(
@@ -145,17 +165,17 @@ final class LocalPlayerInteractionHandler {
                 );
 
             if(!validity.valid){
-                activeAttack=null;
-                nextAttackTick=0;
+                clearAttack();
                 return "V5131_PLAYER_ATTACK_REJECTED "+action+
                     " target="+target.username()+
                     " reason="+validity.reason+
                     " detail="+validity.detail;
             }
 
-            activeTrade=null;
-            activeFollow=null;
+            clearTrade();
+            clearFollow();
             activeAttack=target.id();
+            activeAttackGeneration=targetGeneration;
             nextAttackTick=0;
             movement.clearQueuedPath();
 
@@ -171,9 +191,10 @@ final class LocalPlayerInteractionHandler {
         }
 
         if(action.optionSlot==2){
-            activeTrade=null;
-            activeAttack=null;
+            clearTrade();
+            clearAttack();
             activeFollow=target.id();
+            activeFollowGeneration=targetGeneration;
             nextAttackTick=0;
             movement.clearQueuedPath();
 
@@ -184,11 +205,11 @@ final class LocalPlayerInteractionHandler {
         }
 
         if(action.optionSlot==3){
-            activeFollow=null;
-            activeAttack=null;
-            nextAttackTick=0;
+            clearFollow();
+            clearAttack();
             movement.clearQueuedPath();
             activeTrade=target.id();
+            activeTradeGeneration=targetGeneration;
 
             int dx=Math.abs(target.movement().x()-movement.x());
             int dy=Math.abs(target.movement().y()-movement.y());
@@ -221,7 +242,37 @@ final class LocalPlayerInteractionHandler {
 
         if(id==null||sync==null)return null;
 
+        long expectedGeneration=
+            activeAttack!=null
+                ?activeAttackGeneration
+                :activeFollow!=null
+                    ?activeFollowGeneration
+                    :activeTradeGeneration;
+
         WorldPlayer target=world.players().byId(id);
+
+        if(!ownsTarget(
+                target,
+                expectedGeneration
+            )){
+            String kind=
+                activeAttack!=null
+                    ?"ATTACK"
+                    :activeFollow!=null
+                        ?"FOLLOW"
+                        :"TRADE";
+
+            clearTargets();
+            movement.clearQueuedPath();
+
+            return "[world player="+owner.id()+
+                "] V5131_PLAYER_INTERACTION_CANCELLED kind="+
+                kind+
+                " reason=TARGET_OWNERSHIP_CHANGED"+
+                " expectedGeneration="+
+                expectedGeneration+
+                " worldTick="+worldTick;
+        }
 
         if(activeAttack!=null){
             CombatTargetValidator.Result validity=
@@ -232,8 +283,7 @@ final class LocalPlayerInteractionHandler {
                 );
 
             if(!validity.valid){
-                activeAttack=null;
-                nextAttackTick=0;
+                clearAttack();
                 movement.clearQueuedPath();
                 return "[world player="+owner.id()+
                     "] V5131_PLAYER_ATTACK_CANCELLED reason="+
@@ -335,8 +385,12 @@ final class LocalPlayerInteractionHandler {
         if(activeTrade==null||sync==null)return null;
 
         WorldPlayer target=world.players().byId(activeTrade);
-        if(target==null||!target.registered()){
-            activeTrade=null;
+        if(!ownsTarget(
+                target,
+                activeTradeGeneration
+            )){
+            clearTrade();
+            movement.clearQueuedPath();
             return null;
         }
 
@@ -353,8 +407,23 @@ final class LocalPlayerInteractionHandler {
         EntityId id=activeAttack!=null?activeAttack:activeFollow;
         if(id==null)return null;
 
+        long expectedGeneration=
+            activeAttack!=null
+                ?activeAttackGeneration
+                :activeFollowGeneration;
+
         WorldPlayer target=world.players().byId(id);
-        if(target==null||!target.registered())return null;
+        if(!ownsTarget(
+                target,
+                expectedGeneration
+            )){
+            if(activeAttack!=null)
+                clearAttack();
+            else
+                clearFollow();
+            movement.clearQueuedPath();
+            return null;
+        }
 
         int value=sync.interactionTargetFor(target);
         return value<0?null:Integer.valueOf(value);
@@ -369,17 +438,13 @@ final class LocalPlayerInteractionHandler {
 
         WorldPlayer target=world.players().byId(activeAttack);
         long targetGeneration=
-            target==null
-                ?0L
-                :target.generation();
+            activeAttackGeneration;
 
-        if(target!=null&&
-           !world.players().owns(
+        if(!ownsTarget(
                 target,
                 targetGeneration
             )){
-            activeAttack=null;
-            nextAttackTick=0;
+            clearAttack();
             movement.clearQueuedPath();
             return "V5131_PLAYER_ATTACK_CANCELLED reason=TARGET_OWNERSHIP_CHANGED"+
                 " expectedGeneration="+targetGeneration+
@@ -394,8 +459,7 @@ final class LocalPlayerInteractionHandler {
             );
 
         if(!validity.valid){
-            activeAttack=null;
-            nextAttackTick=0;
+            clearAttack();
             movement.clearQueuedPath();
             return "V5131_PLAYER_ATTACK_CANCELLED reason="+
                 validity.reason+
@@ -461,8 +525,7 @@ final class LocalPlayerInteractionHandler {
             PlayerCombatResolutionService
                 .StaleAttackerOwnershipException stale
         ){
-            activeAttack=null;
-            nextAttackTick=0;
+            clearAttack();
             movement.clearQueuedPath();
 
             return "V5131_PLAYER_ATTACK_CANCELLED reason=ATTACKER_OWNERSHIP_CHANGED"+
@@ -473,8 +536,7 @@ final class LocalPlayerInteractionHandler {
             PlayerCombatResolutionService
                 .StaleTargetOwnershipException stale
         ){
-            activeAttack=null;
-            nextAttackTick=0;
+            clearAttack();
             movement.clearQueuedPath();
 
             return "V5131_PLAYER_ATTACK_CANCELLED reason=TARGET_OWNERSHIP_CHANGED"+
@@ -500,7 +562,7 @@ final class LocalPlayerInteractionHandler {
             resolution.nextAttackDelayTicks;
 
         if(resolution.lifecycle.died){
-            activeAttack=null;
+            clearAttack();
             movement.clearQueuedPath();
         }
 
@@ -534,10 +596,37 @@ final class LocalPlayerInteractionHandler {
     }
 
     void clearTargets(){
+        clearFollow();
+        clearAttack();
+        clearTrade();
+    }
+
+    private void clearFollow(){
         activeFollow=null;
+        activeFollowGeneration=0L;
+    }
+
+    private void clearAttack(){
         activeAttack=null;
+        activeAttackGeneration=0L;
+        nextAttackTick=0L;
+    }
+
+    private void clearTrade(){
         activeTrade=null;
-        nextAttackTick=0;
+        activeTradeGeneration=0L;
+    }
+
+    private boolean ownsTarget(
+        WorldPlayer target,
+        long expectedGeneration
+    ){
+        return target!=null&&
+            expectedGeneration>0L&&
+            world.players().owns(
+                target,
+                expectedGeneration
+            );
     }
 
     boolean hasActive(){
@@ -545,8 +634,11 @@ final class LocalPlayerInteractionHandler {
     }
 
     EntityId activeFollow(){return activeFollow;}
+    long activeFollowGeneration(){return activeFollowGeneration;}
     EntityId activeAttack(){return activeAttack;}
+    long activeAttackGeneration(){return activeAttackGeneration;}
     EntityId activeTrade(){return activeTrade;}
+    long activeTradeGeneration(){return activeTradeGeneration;}
     long nextAttackTick(){return nextAttackTick;}
 
     private String dispatchTrade(
@@ -561,12 +653,24 @@ final class LocalPlayerInteractionHandler {
             return null;
         }
 
+        if(!ownsTarget(
+                target,
+                activeTradeGeneration
+            )){
+            long staleGeneration=
+                activeTradeGeneration;
+            clearTrade();
+            movement.clearQueuedPath();
+            return "V5141_PLAYER_TRADE_CANCELLED reason=TARGET_OWNERSHIP_CHANGED"+
+                " expectedGeneration="+staleGeneration;
+        }
+
         int dx=Math.abs(target.movement().x()-movement.x());
         int dy=Math.abs(target.movement().y()-movement.y());
 
         if(dx+dy!=1)return null;
 
-        activeTrade=null;
+        clearTrade();
         movement.clearQueuedPath();
 
         String result=
