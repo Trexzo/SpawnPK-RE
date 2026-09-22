@@ -43,6 +43,15 @@ public final class ClientPacketProbeTest {
            !"abc".equals(((CommandClientRequest)startupCommand).command()))
             throw new AssertionError("startup command request="+startupCommand);
 
+        ClientRequest regionAck=p.takeTypedRequest();
+        if(!(regionAck instanceof RegionLoadAckClientRequest))
+            throw new AssertionError("startup region ACK request="+regionAck);
+        ClientRequestMetadata regionAckMetadata=regionAck.metadata();
+        if(regionAckMetadata.opcode!=121||
+           !"FIXED0_REGION_LOAD_COMPLETE".equals(regionAckMetadata.schema)||
+           regionAckMetadata.provenance!=ClientRequestProvenance.EXACT_CURRENT_CLIENT)
+            throw new AssertionError("startup region ACK metadata="+regionAckMetadata);
+
         ClientRequest startupMovement=p.takeTypedRequest();
         if(!(startupMovement instanceof MovementClientRequest))
             throw new AssertionError("startup movement request="+startupMovement);
@@ -108,7 +117,7 @@ public final class ClientPacketProbeTest {
         if (m3.opcode!=248 || m3.finalX()!=3088 || m3.finalY()!=3496 || m3.telemetry.length!=14)
             throw new AssertionError("minimap movement decode mismatch: "+m3);
         if (!p.isAligned() || p.decodedCount()!=18) throw new AssertionError("aligned="+p.isAligned()+" count="+p.decodedCount());
-        System.out.println("CLIENT_PACKET_PROBE_V521_PASS decoded=18 aligned=true opcode226Varbyte=true opcode202Fixed0=true opcode36Fixed4=true walk164->widget185->object132->item41->amount208->drag214->close130->walk164->minimap248 telemetry14=preserved");
+        System.out.println("CLIENT_PACKET_PROBE_V521_PASS decoded=18 aligned=true opcode121TypedRegionAck=true opcode226Varbyte=true opcode202Fixed0=true opcode36Fixed4=true walk164->widget185->object132->item41->amount208->drag214->close130->walk164->minimap248 telemetry14=preserved");
     }
     private static void opcode(ByteArrayOutputStream out, IsaacCipher c, int op) {
         out.write((op + c.nextInt()) & 0xff);
