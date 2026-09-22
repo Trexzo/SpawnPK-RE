@@ -114,6 +114,9 @@ final class WorldPlayerPersistence
         new Object();
     private final HashMap<EntityId,CheckpointSlot> checkpoints=
         new HashMap<>();
+    private final HashMap<EntityId,Long>
+        checkpointSuppressedGenerations=
+            new HashMap<>();
     private boolean checkpointAbort;
     private PendingCheckpoint activeCheckpoint;
     private CompletableFuture<Void> activeCheckpointCompletion;
@@ -407,6 +410,70 @@ final class WorldPlayerPersistence
         );
     }
 
+    CapturedSave captureDeferredFinalSave(
+        String username,
+        WorldPlayer player,
+        long expectedGeneration,
+        int petAccessoryItem,
+        String tag,
+        String reason
+    ){
+        requireWorldExecutionContext();
+
+        Objects.requireNonNull(
+            player,
+            "player"
+        );
+
+        PlayerSnapshot snapshot;
+
+        synchronized(player.mutationLock()){
+            if(!world.players().owns(
+                    player,
+                    expectedGeneration
+                ))
+                throw new IllegalStateException(
+                    "final persistence capture owner changed player="+
+                    player.id()+
+                    " expectedGeneration="+
+                    expectedGeneration
+                );
+
+            synchronized(checkpointLock){
+                checkpointSuppressedGenerations.put(
+                    player.id(),
+                    expectedGeneration
+                );
+            }
+
+            snapshot=
+                PlayerSnapshotCodec.capture(
+                    username,
+                    player,
+                    petAccessoryItem
+                );
+        }
+
+        long saveSequence=
+            sequence.incrementAndGet();
+
+        CompletableFuture<Void> future=
+            new CompletableFuture<>();
+
+        return new CapturedSave(
+            new SaveTicket(
+                saveSequence,
+                snapshot,
+                future
+            ),
+            player,
+            expectedGeneration,
+            petAccessoryItem,
+            cleanTag(tag),
+            cleanReason(reason)
+        );
+    }
+
     SaveTicket submitCapturedWithBackpressure(
         CapturedSave captured,
         long timeoutMillis
@@ -570,58 +637,90 @@ final class WorldPlayerPersistence
 
         for(WorldPlayer player:
                 world.players().snapshot()){
-            String username=
-                player.username();
-
-            if(!LocalAccountProfiles.isPersistent(
-                    username))
-                continue;
-
-            int accessoryItem=
-                player.petAccessoryState()
-                    .activeItem();
-
-            PlayerSnapshot snapshot=
-                PlayerSnapshotCodec.capture(
-                    username,
-                    player,
-                    accessoryItem
-                );
-
-            checkpointCaptured.incrementAndGet();
-
-            PendingCheckpoint pending=
-                new PendingCheckpoint(
-                    tick,
-                    snapshot,
-                    accessoryItem
-                );
-
-            CheckpointSlot slot;
+            PendingCheckpoint pending=null;
+            CheckpointSlot slot=null;
             boolean submit=false;
 
-            synchronized(checkpointLock){
-                slot=checkpoints.get(
-                    player.id()
-                );
+            synchronized(player.mutationLock()){
+                long generation=
+                    player.generation();
 
-                if(slot==null){
-                    slot=new CheckpointSlot();
-                    checkpoints.put(
-                        player.id(),
-                        slot
-                    );
+                if(!world.players().owns(
+                        player,
+                        generation
+                    ))
+                    continue;
+
+                String username=
+                    player.username();
+
+                if(!LocalAccountProfiles.isPersistent(
+                        username))
+                    continue;
+
+                synchronized(checkpointLock){
+                    Long suppressed=
+                        checkpointSuppressedGenerations.get(
+                            player.id()
+                        );
+
+                    if(suppressed!=null&&
+                       suppressed.longValue()==generation)
+                        continue;
                 }
 
-                if(slot.latest!=null)
-                    checkpointCoalesced
-                        .incrementAndGet();
+                int accessoryItem=
+                    player.petAccessoryState()
+                        .activeItem();
 
-                slot.latest=pending;
+                PlayerSnapshot snapshot=
+                    PlayerSnapshotCodec.capture(
+                        username,
+                        player,
+                        accessoryItem
+                    );
 
-                if(!slot.scheduled){
-                    slot.scheduled=true;
-                    submit=true;
+                pending=
+                    new PendingCheckpoint(
+                        tick,
+                        snapshot,
+                        accessoryItem
+                    );
+
+                synchronized(checkpointLock){
+                    Long suppressed=
+                        checkpointSuppressedGenerations.get(
+                            player.id()
+                        );
+
+                    if(suppressed!=null&&
+                       suppressed.longValue()==generation)
+                        continue;
+
+                    checkpointCaptured.incrementAndGet();
+
+                    slot=checkpoints.get(
+                        player.id()
+                    );
+
+                    if(slot==null){
+                        slot=new CheckpointSlot();
+                        checkpoints.put(
+                            player.id(),
+                            slot
+                        );
+                    }
+
+                    if(slot.latest!=null)
+                        checkpointCoalesced
+                            .incrementAndGet();
+
+                    slot.latest=pending;
+
+                    if(!slot.scheduled){
+                        slot.scheduled=true;
+                        submit=true;
+                    }
                 }
             }
 
@@ -630,6 +729,41 @@ final class WorldPlayerPersistence
                     player.id(),
                     slot
                 );
+        }
+    }
+
+    void releaseCheckpointSuppression(
+        EntityId playerId,
+        long expectedGeneration
+    ){
+        if(playerId==null)
+            return;
+
+        synchronized(checkpointLock){
+            Long suppressed=
+                checkpointSuppressedGenerations.get(
+                    playerId
+                );
+
+            if(suppressed!=null&&
+               suppressed.longValue()==expectedGeneration)
+                checkpointSuppressedGenerations.remove(
+                    playerId
+                );
+        }
+    }
+
+    boolean checkpointSuppressed(
+        EntityId playerId,
+        long expectedGeneration
+    ){
+        synchronized(checkpointLock){
+            Long suppressed=
+                checkpointSuppressedGenerations.get(
+                    playerId
+                );
+            return suppressed!=null&&
+                suppressed.longValue()==expectedGeneration;
         }
     }
 
@@ -1223,6 +1357,10 @@ final class WorldPlayerPersistence
     }
 
     @Override public void close(){
+        synchronized(checkpointLock){
+            checkpointSuppressedGenerations.clear();
+        }
+
         synchronized(io){
             io.shutdown();
         }

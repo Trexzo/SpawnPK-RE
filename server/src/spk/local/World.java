@@ -239,6 +239,10 @@ final class World implements AutoCloseable {
                     ))
                     return false;
 
+                persistence.releaseCheckpointSuppression(
+                    player.id(),
+                    expectedGeneration
+                );
                 commands.cancelPlayer(player);
                 realtime.cancelPlayer(player);
                 petNpcs.removeMainAndMini(
@@ -309,10 +313,18 @@ final class World implements AutoCloseable {
         WorldPlayer player,
         WorldCommandInbox.Action action
     ){
-        return commands.submit(
-            player,
-            action
-        );
+        if(player==null||action==null)
+            throw new NullPointerException();
+
+        synchronized(lifecycleLock){
+            if(closed)
+                return rejectedCommandSubmission();
+
+            return commands.submit(
+                player,
+                action
+            );
+        }
     }
 
     CompletableFuture<Void> submit(
@@ -320,11 +332,33 @@ final class World implements AutoCloseable {
         long expectedGeneration,
         WorldCommandInbox.Action action
     ){
-        return commands.submit(
-            player,
-            expectedGeneration,
-            action
+        if(player==null||action==null)
+            throw new NullPointerException();
+
+        synchronized(lifecycleLock){
+            if(closed)
+                return rejectedCommandSubmission();
+
+            return commands.submit(
+                player,
+                expectedGeneration,
+                action
+            );
+        }
+    }
+
+    private static CompletableFuture<Void>
+        rejectedCommandSubmission(){
+        CompletableFuture<Void> future=
+            new CompletableFuture<>();
+
+        future.completeExceptionally(
+            new RejectedExecutionException(
+                "WORLD_CLOSED"
+            )
         );
+
+        return future;
     }
 
     void submitAndWait(
