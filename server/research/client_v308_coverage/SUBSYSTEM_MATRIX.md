@@ -19,7 +19,7 @@ authority would unblock Chat 2/3 without inventing server mechanics.
 | P1 | Animations | exact-current `a.bin` census now packaged: 657 overrides, max id 16204, full field-key census, NPC animation dependency index (342 distinct refs; all 143 high/custom refs resolve through `a.bin`) | STRONG-PARTIAL | downstream frame/model/Maya semantics and exact gameplay trigger/timing ownership remain | Chat 3 |
 | P1 | GFX | exact-current `g.bin` census packaged: 262 overrides, max id 5109, full field-key census; all 113 high/custom animation refs resolve through `a.bin`; exact cache-context trace now proves all 193/193 model-bearing GFX rows resolve in their selected OSRS/primary model store (0 dangling) | STRONG-PARTIAL | projectile/attachment timing, render sequencing and gameplay trigger ownership remain | Chat 3 |
 | P1 | Models / textures / skins / hierarchy | Chat 4 R6–R12 Blender→stock-render pipeline | STRONG-RESEARCH | live config/raw lookup root for isolated GUI override; production cache mutation remains out of scope | Chat 3 / tooling |
-| P1 | Sprites | stock sprite/texture archive research, UI surfaces | PARTIAL | subsystem-to-sprite atlas and exact runtime lookup/override paths | Chat 3 / tooling |
+| P1 | Sprites | exact v308 loose-PNG lookup packaged: `<user.home>/.spawnpk[/test]/sprites/`, lowercased names, nested path normalization, magenta/white colour-key behavior; matched retained cache = 1,578 PNGs; 81 exact interface-builder classes / 213 unique cache-backed sprite literals normalized into a subsystem namespace atlas | STRONG-CLOSED-LOOKUP / STRONG-PARTIAL-ATLAS | individual sprite→widget mapping is only needed on demand; desktop `rs.s.*`, legacy archive/index sprite paths and dynamically constructed sprites remain outside the loose-PNG contract | Chat 3 / tooling |
 | P2 | Application packet 250 families | R84 R4/R5/R6 operation grammars | STRONG-PARTIAL | remaining subtype closures and semantic handoff boundaries | Chat 2/3 |
 | P2 | S2C126 application/update bus | R84 exact update-bus research | STRONG-PARTIAL | remaining argument/control routes and server-authority interpretation gaps | Chat 2/3 |
 | P2 | Settings/config persistence surface | R83/R84 settings maps | PARTIAL | exact-current config ownership and which values are client-only preferences | Chat 3 |
@@ -29,9 +29,10 @@ authority would unblock Chat 2/3 without inventing server mechanics.
 
 ## Immediate campaign order
 
-1. **Animation/GFX + remaining downstream definition semantics**
-   - teleport static client/cache recovery is now closed; only runtime/server-projected destination details remain;
-   - item/NPC loader-level field census is strong, so focus only on downstream render/model/remap semantics that actually unblock gameplay/content.
+1. **Narrow residual presentation/config semantics only where they unblock gameplay**
+   - broad S2C recovery is closed and handed to Chat 2 (#513/#543/#546/#549);
+   - sprite loose-PNG lookup/runtime namespace is now closed enough for content/tooling;
+   - animation/GFX core renderer semantics are already exact, so only pursue remaining frame/Maya/model details when a concrete gameplay/content dependency requires them.
 2. **Remaining application/navigation runtime handoff gaps**
    - only pursue static client/cache work where new evidence exists; dynamic teleport destination rows now require runtime/server traces.
 3. **Issue #427 residual application contracts**
