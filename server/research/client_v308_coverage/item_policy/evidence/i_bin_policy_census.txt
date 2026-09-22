@@ -1,0 +1,36 @@
+Exact-current item-policy audit summary
+
+.spawnpk/configs/i.bin
+MessagePack top-level map: 5,207 item override records
+
+Policy counts:
+tradeable present 1479 true 36 false 1443
+bankable present 6 true 0 false 6
+autoloss present 7 true 7 false 0
+autolost present 9 true 9 false 0
+autobankable present 3 true 0 false 3
+autokeep present 56 true 53 false 3
+droppable present 5 true 0 false 5
+destroy present 2 true 2 false 0
+broken present 113 true 113 false 0
+
+Exact client loader rs.t.a.d:
+tradeable/bankable/autoloss/autolost/autobankable/autokeep/droppable/destroy are recognized but no-op
+broken=true changes client item-definition state and forces final inventory action Destroy
+
+autoloss and autolost are distinct historical keys and do not overlap in the current corpus
+
+beginnerGear is not a degradation flag in the exact client parser
+
+Discovery-only text census:
+111 BROKEN_FORM candidates
+34 death-related
+10 autokeep-related
+7 explicit always lost/risked on death
+4 repair-related
+3 degradation-to-dust/hit-count
+3 broader degradation
+1 explicit transform-on-death candidate
+
+Boundary:
+policy metadata is exact cache authority; enforcement/order/transitions are server authority unless separately proven.
