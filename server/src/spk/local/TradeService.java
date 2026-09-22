@@ -282,7 +282,12 @@ final class TradeService {
                c.writer!=expectedWriter)
                 continue;
 
-            cancel0(s,c,reason,notify);
+            cancel0(
+                s,
+                c,
+                reason,
+                notify&&tradeCurrent(c.trade)
+            );
             s.contexts.remove(player.id());
             removed++;
 
