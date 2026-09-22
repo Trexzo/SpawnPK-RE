@@ -1,0 +1,53 @@
+Exact-v308 GFX renderer trace
+
+rs.d.x fields from g.bin loader:
+e model/modelId
+f anim/animation id
+g resolved rs.d.a
+j resizeX
+k resizeY
+l rotation
+m ambient
+n contrast
+h/i source/destination standard recolour arrays
+o OSRS model-cache context
+r structured custom model modifier stack
+
+rs.d.x.a():
+cache pre-animation base model by gfx definition id
+toggle rs.cache.osrs.c using o
+load rs.a.h.e(e)
+restore context
+apply rs.d.x.a(model,d) hardcoded compatibility mutation
+apply h/i recolour pairs under exact guard
+apply r modifier stack
+cache and return
+
+a.bin Maya fields:
+animMayaID -> rs.d.a.B
+animMayaStart -> rs.d.a.z
+animMayaEnd -> rs.d.a.A
+rs.d.a.b() == B >= 0
+rs.d.a.c() == A - z
+rs.d.a.d() loads rs.u.b by B
+
+rs.a.b stationary GFX render:
+definition base model
+animation current frame
+scale if needed -> model.b(j,j,k)
+rotation l: 90 one o(); 180 two o(); 270 three o()
+light -> model.b(64+m,850+n,-30,-50,-30,true)
+
+stationary tick:
+Maya: frame index advances by delta; finish >= A-z
+legacy: elapsed > frame duration => subtract duration+1 and advance; end marks finished
+
+rs.a.l projectile:
+uses j/k scale and m/n lighting
+does not consume definition l rotation in recovered render path
+
+rs.a.k / rs.a.j actor-attached GFX:
+use j/k scale and m/n lighting
+do not consume definition l rotation in recovered composition paths
+
+Boundary: renderer/presentation semantics only; server trigger/hit/projectile timing remains unknown authority.
