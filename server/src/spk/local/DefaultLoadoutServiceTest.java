@@ -143,17 +143,38 @@ public final class DefaultLoadoutServiceTest {
             "default selection change"
         );
 
-        DefaultLoadoutService.Snapshot bob=
-            service.setDefault(
+        expect(
+            IllegalArgumentException.class,
+            ()->service.setDefault(
                 "player:bob",
                 PlayerLoadoutId.of(
                     "loadout:a"
                 )
-            );
+            ),
+            "cross-owner default selection"
+        );
 
-        // Bob does not own Alice's loadout, so this path must fail before state.
-        throw new AssertionError(
-            "unreachable bob snapshot "+bob
+        require(
+            service.ownerCount()==1,
+            "cross-owner failure mutated default state"
+        );
+
+        authorityFence(loadouts);
+        protocolBoundary();
+        noInventedOperations();
+
+        System.out.println(
+            "DEFAULT_LOADOUT_SERVICE_PASS "+
+            "semanticId=true "+
+            "existingLoadoutRequired=true "+
+            "sameSelectionIdempotent=true "+
+            "selectionRevisioned=true "+
+            "followsCurrentLoadoutRevisionLocalPolicy=true "+
+            "crossOwnerRejected=true "+
+            "persistenceOwned=false "+
+            "autoApplyOwned=false "+
+            "resetOwned=false "+
+            "protocolIndependent=true"
         );
     }
 
