@@ -680,8 +680,6 @@ final class WorldPlayerPersistence
                         accessoryItem
                     );
 
-                checkpointCaptured.incrementAndGet();
-
                 pending=
                     new PendingCheckpoint(
                         tick,
@@ -698,6 +696,8 @@ final class WorldPlayerPersistence
                     if(suppressed!=null&&
                        suppressed.longValue()==generation)
                         continue;
+
+                    checkpointCaptured.incrementAndGet();
 
                     slot=checkpoints.get(
                         player.id()
