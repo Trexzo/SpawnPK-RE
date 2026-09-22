@@ -1,9 +1,13 @@
 package spk.local;
 
+import java.lang.reflect.Field;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicLong;
 
 public final class WorldNpcRegistryTest {
     public static void main(String[] args)throws Exception{
+        duplicateIdFailureAtomic();
+
         World world=World.isolatedForTest(50L);
         try{
             WorldPlayer owner=new WorldPlayer();
@@ -107,10 +111,79 @@ public final class WorldNpcRegistryTest {
                 "WORLD_NPC_REGISTRY_PASS "+
                 "playerId="+owner.id()+
                 " petId="+pet.id+
-                " canonical=true sceneIndexFree=true"
+                " canonical=true sceneIndexFree=true "+
+                "duplicateIdRejected=true "+
+                "duplicateIdFailureAtomic=true"
             );
         }finally{
             world.close();
         }
+    }
+
+    private static void duplicateIdFailureAtomic()
+        throws Exception{
+        WorldNpcRegistry registry=
+            new WorldNpcRegistry();
+
+        WorldNpc original=
+            registry.spawn(
+                1488,
+                3200,
+                3200,
+                0
+            );
+
+        Field idsField=
+            EntityId.class.getDeclaredField(
+                "IDS"
+            );
+        idsField.setAccessible(true);
+
+        AtomicLong ids=
+            (AtomicLong)idsField.get(null);
+
+        long restore=
+            ids.get();
+
+        boolean rejected=false;
+
+        try{
+            ids.set(original.id.value);
+
+            try{
+                registry.spawn(
+                    1489,
+                    3201,
+                    3201,
+                    0
+                );
+            }catch(IllegalStateException expected){
+                rejected=
+                    ("duplicate world npc id "+
+                     original.id).equals(
+                        expected.getMessage()
+                    );
+            }
+        }finally{
+            ids.updateAndGet(
+                current->Math.max(
+                    current,
+                    restore
+                )
+            );
+        }
+
+        if(!rejected)
+            throw new AssertionError(
+                "duplicate world npc id was accepted"
+            );
+
+        if(registry.size()!=1||
+           registry.byId(original.id)!=original||
+           registry.snapshot().size()!=1||
+           registry.snapshot().get(0)!=original)
+            throw new AssertionError(
+                "duplicate id rejection replaced canonical NPC"
+            );
     }
 }
