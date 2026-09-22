@@ -110,6 +110,26 @@ final class World implements AutoCloseable {
     DomainEventBus domainEvents(){return domainEvents;}
     WorldPulse pulse(){return pulse;}
     WorldPlayerPersistence persistence(){return persistence;}
+
+    void scheduleRealtime(
+        long atMillis,
+        WorldPlayer player,
+        long expectedGeneration,
+        Runnable task
+    ){
+        if(player==null||task==null)
+            throw new NullPointerException();
+
+        synchronized(lifecycleLock){
+            requireOpen();
+            realtime.schedule(
+                atMillis,
+                player,
+                expectedGeneration,
+                task
+            );
+        }
+    }
     ContentRegistry content(){return content;}
     Object loginInitializationLock(){return loginInitializationLock;}
 
