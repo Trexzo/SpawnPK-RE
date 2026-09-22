@@ -17,6 +17,7 @@ final class PluginTaskTracker
     private final LinkedHashSet<Task>
         tasks=new LinkedHashSet<>();
 
+    private boolean activated;
     private boolean closed;
 
     PluginTaskTracker(
@@ -86,26 +87,28 @@ final class PluginTaskTracker
         Task task=
             new Task(
                 this,
+                delayTicks,
                 periodTicks,
                 action
             );
 
         tasks.add(task);
 
-        try{
-            scheduleAt(
-                task,
-                Math.addExact(
-                    clock.tick(),
-                    delayTicks
-                )
-            );
-        }catch(RuntimeException|Error failure){
-            tasks.remove(task);
-            task.active=false;
-            task.queued=null;
-            throw failure;
-        }
+        if(activated)
+            try{
+                scheduleAt(
+                    task,
+                    Math.addExact(
+                        clock.tick(),
+                        delayTicks
+                    )
+                );
+            }catch(RuntimeException|Error failure){
+                tasks.remove(task);
+                task.active=false;
+                task.queued=null;
+                throw failure;
+            }
 
         return task;
     }
@@ -127,6 +130,35 @@ final class PluginTaskTracker
                 tick,
                 task
             );
+    }
+
+    synchronized void activate(){
+        requireOpen();
+
+        if(activated)
+            return;
+
+        activated=true;
+
+        long baseTick=
+            clock.tick();
+
+        try{
+            for(Task task:
+                    new ArrayList<>(tasks))
+                if(task.active&&
+                   task.queued==null)
+                    scheduleAt(
+                        task,
+                        Math.addExact(
+                            baseTick,
+                            task.initialDelayTicks
+                        )
+                    );
+        }catch(RuntimeException|Error failure){
+            close();
+            throw failure;
+        }
     }
 
     synchronized boolean active(
@@ -260,6 +292,7 @@ final class PluginTaskTracker
         implements PluginTask,Runnable {
 
         final PluginTaskTracker owner;
+        final long initialDelayTicks;
         final long periodTicks;
         final Runnable action;
 
@@ -268,10 +301,13 @@ final class PluginTaskTracker
 
         Task(
             PluginTaskTracker owner,
+            long initialDelayTicks,
             long periodTicks,
             Runnable action
         ){
             this.owner=owner;
+            this.initialDelayTicks=
+                initialDelayTicks;
             this.periodTicks=periodTicks;
             this.action=action;
         }
