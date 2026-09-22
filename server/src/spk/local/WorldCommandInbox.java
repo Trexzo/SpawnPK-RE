@@ -13,6 +13,14 @@ final class WorldCommandInbox {
             long generation
         );
     }
+
+    interface ExecutionOwnership {
+        boolean run(
+            WorldPlayer player,
+            long generation,
+            Action action
+        )throws Exception;
+    }
     private static final int DEFAULT_PER_PLAYER_LIMIT=64;
     private static final int DEFAULT_GLOBAL_LIMIT=2048;
     private final AtomicLong sequence=new AtomicLong();
@@ -21,6 +29,7 @@ final class WorldCommandInbox {
     private final int perPlayerLimit;
     private final int globalLimit;
     private final Ownership ownership;
+    private final ExecutionOwnership executionOwnership;
     private boolean closed;
 
     private static final class C {
@@ -57,7 +66,20 @@ final class WorldCommandInbox {
         this(
             DEFAULT_PER_PLAYER_LIMIT,
             DEFAULT_GLOBAL_LIMIT,
-            ownership
+            ownership,
+            null
+        );
+    }
+
+    WorldCommandInbox(
+        Ownership ownership,
+        ExecutionOwnership executionOwnership
+    ){
+        this(
+            DEFAULT_PER_PLAYER_LIMIT,
+            DEFAULT_GLOBAL_LIMIT,
+            ownership,
+            executionOwnership
         );
     }
 
@@ -65,6 +87,20 @@ final class WorldCommandInbox {
         int perPlayerLimit,
         int globalLimit,
         Ownership ownership
+    ){
+        this(
+            perPlayerLimit,
+            globalLimit,
+            ownership,
+            null
+        );
+    }
+
+    WorldCommandInbox(
+        int perPlayerLimit,
+        int globalLimit,
+        Ownership ownership,
+        ExecutionOwnership executionOwnership
     ){
         if(perPlayerLimit<1||globalLimit<1)
             throw new IllegalArgumentException();
@@ -75,6 +111,28 @@ final class WorldCommandInbox {
                 ownership,
                 "ownership"
             );
+        this.executionOwnership=
+            executionOwnership==null
+                ?this::runStandaloneOwned
+                :executionOwnership;
+    }
+
+    private boolean runStandaloneOwned(
+        WorldPlayer player,
+        long generation,
+        Action action
+    )throws Exception{
+        synchronized(player.mutationLock()){
+            if(!player.accepts(generation)||
+               !ownership.owns(
+                   player,
+                   generation
+               ))
+                return false;
+
+            action.run();
+            return true;
+        }
     }
 
     synchronized CompletableFuture<Void> submit(
@@ -202,19 +260,18 @@ final class WorldCommandInbox {
                 continue;
             }
             try{
-                synchronized(c.player.mutationLock()){
-                    if(!c.player.accepts(
-                            c.generation
-                        )||
-                       !ownership.owns(
-                            c.player,
-                            c.generation
-                        ))
-                        throw new CancellationException(
-                            "PLAYER_LIFECYCLE_CHANGED"
-                        );
-                    c.action.run();
-                }
+                boolean executed=
+                    executionOwnership.run(
+                        c.player,
+                        c.generation,
+                        c.action
+                    );
+
+                if(!executed)
+                    throw new CancellationException(
+                        "PLAYER_LIFECYCLE_CHANGED"
+                    );
+
                 c.future.complete(null);
             }catch(Throwable t){
                 c.future.completeExceptionally(t);
