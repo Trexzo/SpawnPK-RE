@@ -93,7 +93,9 @@ Likewise, `param_1..param_8` are not dynamic item-definition extensions in v308:
 
 **44 / 45** field keys actually present in exact-current `e.bin` are recognized by the v308 NPC loader.
 
-The sole unconsumed exact-current key is:
+Among those 44 recognized keys, `tags` is an intentional no-op branch in this definition loader: it is accepted without mutating the NPC definition.
+
+The sole wholly unrecognized/unconsumed exact-current key is:
 
 ```
 offsets
@@ -332,6 +334,7 @@ Examples:
 
 - `combatLevel` is exact client-visible NPC metadata, but server combat formulas/HP remain server authority.
 - `pet=true` proves exact config classification/presentation, not pet ownership/follow rules.
+- `tags` exists on 33 exact NPC overrides but is a recognized no-op in `rs.t.a.b`; do not expose it as active v308 NPC-definition state without another consumer.
 - `tradeable` is exact cache metadata but is intentionally a client-loader no-op in this generation.
 - `actions` proves menu presentation, not whether the server accepts the action in every context.
 - `note/template/clone` prove client definition relationships; server item-transaction policy remains separately authoritative.
