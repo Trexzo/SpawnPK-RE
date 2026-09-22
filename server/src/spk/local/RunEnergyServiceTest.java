@@ -9,12 +9,15 @@ public final class RunEnergyServiceTest {
         "CUSTOM_LOCALLAB_RUN_ENERGY_TEST";
 
     public static void main(String[] args){
-        MovementState movement=new MovementState();
+        WorldPlayer player=
+            new WorldPlayer();
+        MovementState movement=
+            player.movement();
         movement.setPersistentRun(true);
 
         RunEnergyService service=
             new RunEnergyService(
-                movement,
+                player,
                 AUTHORITY
             );
 
@@ -125,7 +128,7 @@ public final class RunEnergyServiceTest {
         );
 
         invalidInputsAtomic(service,movement);
-        authorityGuards(movement);
+        authorityGuards(player);
         boundaryGuard();
 
         System.out.println(
@@ -185,12 +188,12 @@ public final class RunEnergyServiceTest {
     }
 
     private static void authorityGuards(
-        MovementState movement
+        WorldPlayer player
     ){
         expect(
             IllegalArgumentException.class,
             ()->new RunEnergyService(
-                movement,
+                player,
                 "EXACT_CURRENT_CLIENT"
             ),
             "client authority"
@@ -199,7 +202,7 @@ public final class RunEnergyServiceTest {
         expect(
             IllegalArgumentException.class,
             ()->new RunEnergyService(
-                movement,
+                player,
                 "UNKNOWN_SERVER_AUTHORITY"
             ),
             "unknown authority"
