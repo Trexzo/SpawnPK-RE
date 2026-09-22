@@ -1,0 +1,36 @@
+Exact v308 Adventure Book application transport
+S2C250 subtype 22
+
+record:
+type
+definitionId
+primaryText
+secondaryText?
+rewardPairs[itemId,amount][]
+currentProgress
+requiredProgress
+claimed/completed flag
+
+subject types:
+ITEM
+NPC_HEAD
+OBJ
+
+operations:
+0 reset chapter state
+2 finalize/render accumulated entries
+3 append structured objective/reward record
+5 highlight/decorative state
+6 highlight/decorative state
+7 claim state
+8 two chapter-level integer counters/scalars
+
+op7 claim presentation:
+0 incomplete; claim controls hidden
+1 claimable; claim control shown
+other already claimed
+
+{prog} placeholder is replaced from current/required progress
+
+Boundary:
+client-embedded objective/reward definitions are presentation/reference data, not server authority.
