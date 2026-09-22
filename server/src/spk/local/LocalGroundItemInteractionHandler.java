@@ -15,6 +15,7 @@ final class LocalGroundItemInteractionHandler {
     private final MovementState movement;
 
     private GroundItemInteraction pendingTake;
+    private long pendingTakeGroundId;
     private long pendingTakeDeadlineMs;
 
     LocalGroundItemInteractionHandler(
@@ -79,6 +80,7 @@ final class LocalGroundItemInteractionHandler {
         }
 
         pendingTake=action;
+        pendingTakeGroundId=ground.id;
         pendingTakeDeadlineMs=System.currentTimeMillis()+10_000L;
 
         return Result.log(
@@ -96,11 +98,18 @@ final class LocalGroundItemInteractionHandler {
         GroundItemInteraction action=pendingTake;
         if(action==null)return null;
 
-        GroundItem ground=world.groundItems().find(
-            action.itemId,action.worldX,action.worldY,0);
+        GroundItem ground=
+            world.groundItems().byId(
+                pendingTakeGroundId
+            );
 
-        if(ground==null||now>pendingTakeDeadlineMs){
-            pendingTake=null;
+        if(ground==null||
+           ground.itemId!=action.itemId||
+           ground.tile.x!=action.worldX||
+           ground.tile.y!=action.worldY||
+           ground.tile.plane!=0||
+           now>pendingTakeDeadlineMs){
+            clearPendingTake();
             return Result.log(
                 "V511_GROUND_TAKE "+action+
                 " result=CANCELLED_MISSING_OR_TIMEOUT"
@@ -109,7 +118,7 @@ final class LocalGroundItemInteractionHandler {
 
         if(!onTile(ground.tile.x,ground.tile.y)){
             if(movement.queued()==0){
-                pendingTake=null;
+                clearPendingTake();
                 return Result.log(
                     "V5122_GROUND_TAKE "+action+
                     " result=CANCELLED_PATH_ENDED_NOT_ON_TILE"
@@ -118,7 +127,7 @@ final class LocalGroundItemInteractionHandler {
             return null;
         }
 
-        pendingTake=null;
+        clearPendingTake();
         movement.clearQueuedPath();
         return takeNow(
             ground,scenePublisher,serverPackets,
@@ -128,6 +137,16 @@ final class LocalGroundItemInteractionHandler {
 
     boolean hasPendingTake(){
         return pendingTake!=null;
+    }
+
+    long pendingTakeGroundId(){
+        return pendingTakeGroundId;
+    }
+
+    private void clearPendingTake(){
+        pendingTake=null;
+        pendingTakeGroundId=0L;
+        pendingTakeDeadlineMs=0L;
     }
 
     private Result takeNow(
