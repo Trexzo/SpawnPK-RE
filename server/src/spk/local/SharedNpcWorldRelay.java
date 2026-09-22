@@ -242,6 +242,7 @@ final class SharedNpcWorldRelay {
             NpcEntity target=
                 viewer.resolve(
                     event.sourceId,
+                    event.sourceGeneration,
                     event.target
                 );
 
@@ -327,10 +328,18 @@ final class SharedNpcWorldRelay {
     }
 
     private static final class RemotePetTrack{
+        final long sourceGeneration;
         int mainScene=-1,miniScene=-1,mainDef=-1,miniDef=-1;
         int mainX,mainY,miniX,miniY;
         EntityId mainCanonicalId,miniCanonicalId;
         Integer mainParticleSelector;
+
+        RemotePetTrack(
+            long sourceGeneration
+        ){
+            this.sourceGeneration=
+                sourceGeneration;
+        }
     }
 
     private static final class Context{
@@ -446,9 +455,24 @@ final class SharedNpcWorldRelay {
 
                 RemotePetTrack t=
                     remote.get(src.owner.id());
+
+                if(t!=null&&
+                   t.sourceGeneration!=
+                        src.ownerGeneration){
+                    removeRemote(
+                        src.owner.id()
+                    );
+                    t=null;
+                }
+
                 if(t==null){
-                    t=new RemotePetTrack();
-                    remote.put(src.owner.id(),t);
+                    t=new RemotePetTrack(
+                        src.ownerGeneration
+                    );
+                    remote.put(
+                        src.owner.id(),
+                        t
+                    );
                 }
 
                 Integer selector=
@@ -800,7 +824,22 @@ final class SharedNpcWorldRelay {
             return scene;
         }
 
-        NpcEntity resolve(EntityId sourceId,WorldNpcPresentationEvents.Target ref){
+        NpcEntity resolve(
+            EntityId sourceId,
+            WorldNpcPresentationEvents.Target ref
+        ){
+            return resolve(
+                sourceId,
+                -1L,
+                ref
+            );
+        }
+
+        NpcEntity resolve(
+            EntityId sourceId,
+            long sourceGeneration,
+            WorldNpcPresentationEvents.Target ref
+        ){
             if(!ownerCurrent())
                 return null;
 
@@ -824,8 +863,15 @@ final class SharedNpcWorldRelay {
                     :null;
             }
 
-            RemotePetTrack t=remote.get(sourceId);
-            if(t==null)return null;
+            RemotePetTrack t=
+                remote.get(sourceId);
+            if(t==null)
+                return null;
+
+            if(sourceGeneration>=0L&&
+               t.sourceGeneration!=
+                    sourceGeneration)
+                return null;
 
             Integer mapped=
                 ref.canonicalId==null
