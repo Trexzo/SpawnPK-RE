@@ -1,0 +1,40 @@
+Exact v308 Coffer of Unclaimed Rewards & Prizes
+SHA-256 854f26ff9f134b0317572e7ac1688e6f40a231d5a4c66f8db5d655b7f45ce7c6
+class rs.n.c.u
+
+root 42100
+35612 "bank/bank 30"
+
+42101 item widget:
+  70 slots
+  7 columns
+  10 rows
+  horizontal spacing=32
+  vertical spacing=16
+  actions Remove 1 / Remove 5 / Remove 10 / Remove All / null
+
+42102 parent:
+  content-height=500
+  width=445
+  visible-height=244
+  contains 42101 @ 5,10
+
+42103 "<img=131> Coffer of Unclaimed Rewards & Prizes <img=131>"
+
+42104/42105 compound button tooltip "Deposit items to your inventory"
+associated 42106/42107 helper text includes:
+  "Empty your backpack into\nyour bank"
+
+42108/42109 compound button tooltip "Deposit items to your bank"
+associated 42110/42111 helper text includes:
+  "Empty your backpack into\nyour bank"
+
+42112 "<img=9> This coffer usually holds contest prizes, event rewards, etc."
+42113 "(Especially if you were offline when you received them)"
+
+shared close 65418/65419
+root children=11
+
+Boundary:
+The coffer's intended deferred/offline reward presentation is exact client authority.
+Persistence, idempotency, overflow, expiry, fallback and delivery source rules remain server authority.
