@@ -14,6 +14,7 @@ public final class PlayerDeathItemResolutionServiceTest {
 
     public static void main(String[] args){
         exactDispositionAndReplay();
+        sameTickDeathsUseDistinctSequence();
         deadRequired();
         fullCoverageRequired();
         invalidKeepRejected();
@@ -274,6 +275,64 @@ public final class PlayerDeathItemResolutionServiceTest {
         expectUnsupported(
             ()->service.snapshot().clear(),
             "resolution snapshot mutable"
+        );
+    }
+
+    private static void sameTickDeathsUseDistinctSequence(){
+        WorldPlayer player=
+            configuredPlayer();
+
+        final int[] calls={0};
+
+        PlayerDeathItemResolutionService service=
+            new PlayerDeathItemResolutionService(
+                player,
+                policyKeepAll(
+                    calls
+                )
+            );
+
+        kill(
+            player,
+            90L,
+            "first"
+        );
+
+        PlayerDeathItemResolutionService.Resolution first=
+            service.resolveCurrentDeath();
+
+        require(
+            first.deathTick==90L&&
+            first.deathSequence==1L&&
+            calls[0]==1,
+            "first same-tick death identity"
+        );
+
+        /*
+         * Direct lifecycle fixture reset models a zero-delay respawn policy:
+         * a fresh death can legally occur on the same world tick.
+         */
+        player.lifecycle().markRespawned();
+        player.playerState().restoreHitpointsDefault();
+
+        kill(
+            player,
+            90L,
+            "second"
+        );
+
+        PlayerDeathItemResolutionService.Resolution second=
+            service.resolveCurrentDeath();
+
+        require(
+            second!=first&&
+            second.deathTick==90L&&
+            second.deathSequence==2L&&
+            calls[0]==2&&
+            service.size()==2&&
+            service.get(1L)==first&&
+            service.get(2L)==second,
+            "same-tick deaths collided in disposition identity"
         );
     }
 
