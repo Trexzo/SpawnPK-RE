@@ -1,0 +1,43 @@
+Exact v308 Blood Shard Salvaging Kit
+SHA-256 854f26ff9f134b0317572e7ac1688e6f40a231d5a4c66f8db5d655b7f45ce7c6
+class rs.n.c.k
+
+root 18546
+60008 "fountain/SPRITE 11"
+60009 "@or1@Blood Shard Salvaging Kit"
+60010 "Items you'll salvage into shards.."
+
+60011 parent:
+  content-height=250
+  width=175
+  visible-height=132
+  contains 60012 @ 11,5
+
+60012 item widget:
+  actions Remove 1 / Remove 5 / Remove 10 / Remove All / Remove X
+  P=4
+  horizontal spacing=11
+  vertical spacing=10
+
+60013 second item widget:
+  P=4
+  horizontal spacing=11
+  vertical spacing=10
+
+60014 button:
+  fountain/SPRITE 4
+  100x32
+  tooltip "Salvage"
+  hover 60015
+60017 "Salvage"
+60018 empty status text
+
+60019 button tooltip "Read guide"
+hover 60020
+60022 "Item guide"
+
+shared close family 65418/65419
+root children=14
+
+Boundary:
+Eligible items, shard yields, second display role, fees, RNG and persistence are not proven by client layout.
