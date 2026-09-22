@@ -270,6 +270,138 @@ tasks.register('r85V308Acceptance') {
     }
 }
 
+def currentTrainFocusedTests = [
+    'spk.local.ClientCommandRequestQueueTest',
+    'spk.local.ClientUiRequestQueueTest',
+    'spk.local.ClientBankControlRequestQueueTest',
+    'spk.local.ClientDropItemRequestQueueTest',
+    'spk.local.ClientItemOnNpcRequestQueueTest',
+    'spk.local.ClientObjectInteractionRequestQueueTest',
+    'spk.local.ClientPlayerActionRequestQueueTest',
+    'spk.local.ClientNpcActionRequestQueueTest',
+    'spk.local.ClientSpellTargetRequestQueueTest',
+    'spk.local.GenericInteractionTypedRequestGoldenVectorTest',
+    'spk.local.ClientMovementRequestQueueTest',
+    'spk.local.ClientItemContainerRequestQueueTest',
+    'spk.local.ClientGroundItemRequestQueueTest',
+    'spk.local.ClientItemOnItemRequestQueueTest',
+    'spk.local.TypedRequestWorldInboxSocketTest',
+    'spk.local.ClientPacketFramingAuthorityTest',
+    'spk.local.LocalPendingRequestDispatcherTest',
+    'spk.local.CharacterDesignProfileTest',
+    'spk.local.CharacterDesignRequestTest',
+    'spk.local.MakeoverClientPacketProbeTest',
+    'spk.local.MakeoverMageFlowTest',
+    'spk.local.MakeoverAppearancePersistenceTest',
+    'spk.local.MakeoverAppearancePacket81Test',
+    'spk.local.MakeoverRemoteAppearanceWorldSyncTest',
+    'spk.local.MakeoverDesignRejectionIsolationTest',
+    'spk.local.MakeoverAppearanceSnapshotRecoveryTest',
+    'spk.local.MakeoverPresentationMorphCompatibilityTest',
+    'spk.local.ClientSocialListRequestQueueTest',
+    'spk.local.ClientFixedSemanticResidualRequestQueueTest',
+    'spk.local.ClientChatRequestQueueTest',
+    'spk.local.ClientChatExactLengthFenceTest',
+    'spk.event.DomainEventBusTest',
+    'spk.local.WorldConcurrentCloseTerminalWaitTest',
+    'spk.local.WorldDomainEventBusCloseOrderingTest',
+    'spk.local.WorldDomainEventBusCloseTest',
+    'spk.local.WorldExecutionOwnershipFenceTest',
+    'spk.local.LocalSessionRuntimeBindingsOwnershipFenceTest',
+    'spk.local.PlayerRegistryOwnershipFenceTest',
+    'spk.local.TradeServiceContextReplacementCleanupTest',
+    'spk.local.TradeServiceWorldStateCleanupTest',
+    'spk.local.WorldCommandGenerationOwnershipFenceTest',
+    'spk.local.LocalSessionRuntimeBindingsFailureAtomicityTest',
+    'spk.local.RelayOwnerWriterRebindCleanupTest',
+    'spk.local.RelayWriterReplacementCleanupTest',
+    'spk.local.RelaySourcePresentationEventCleanupTest',
+    'spk.local.WorldNpcPresentationEventsCloseTest',
+    'spk.local.PlayerSnapshotExtensionStateTest',
+    'spk.local.WorldRealtimeGenerationOwnershipFenceTest',
+    'spk.local.WorldPersistenceLoadOrderingTest',
+    'spk.local.WorldPersistenceFinalSaveBackpressureTest',
+    'spk.local.WorldPersistenceOwnershipFenceTest',
+    'spk.local.PlayerRegistryIdentityValidationTest',
+    'spk.local.WorldNpcRegistryTest',
+    'spk.local.WorldPetNpcReplacementAtomicityTest',
+    'spk.local.WorldPersistenceFinalCheckpointQuiesceTest',
+    'spk.local.WorldCommandCloseAdmissionFenceTest',
+    'spk.local.WorldRealtimeCloseAdmissionFenceTest',
+    'spk.local.WorldPersistenceFinalCaptureRollbackTest',
+    'spk.local.RelayWorldCloseAdmissionFenceTest',
+    'spk.local.LocalSessionTeardownFailureIsolationTest',
+    'spk.local.Player81GenerationOwnershipFenceTest',
+    'spk.local.SharedNpcRelayViewerGenerationFenceTest',
+    'spk.local.TradeServiceGenerationOwnershipFenceTest',
+    'spk.local.WorldPulseTimedEffectWorldOwnershipTest',
+    'spk.local.PlayerPvpTargetWorldOwnershipFenceTest',
+    'spk.event.DomainEventPublicApiBoundaryTest',
+    'spk.local.ContentHandlerSamCompatibilityTest',
+    'spk.local.ContentProvenanceAuthorityBoundaryTest',
+    'spk.local.ContentProvenanceVocabularyTest',
+    'spk.local.ContentRegistrarAuthorityCoverageTest',
+    'spk.local.CombatOutcomeDomainTest',
+    'spk.local.CombatOutcomeObjectiveIntegrationTest',
+    'spk.local.PlayerCombatOutcomeProducerTest',
+    'spk.local.BountyHunterServiceTest',
+    'spk.local.ObjectiveProgressBountyIntegrationTest',
+    'spk.local.SocialListServiceTest',
+    'spk.local.RaidRunServiceTest',
+    'spk.local.WorldPlayerTimedEffectIntegrationTest'
+]
+
+tasks.register('currentTrainFocusedRegression') {
+    group = 'verification'
+    description = 'Runs the frozen #431 current-train focused release-safety regressions separately from the inherited R8.5 179-test contract.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+
+    doLast {
+        if (currentTrainFocusedTests.size() != 78) {
+            throw new GradleException(
+                "Current-train focused regression manifest drift: expected 78 tests, found \${currentTrainFocusedTests.size()}"
+            )
+        }
+
+        if (currentTrainFocusedTests.toSet().size() != currentTrainFocusedTests.size()) {
+            throw new GradleException(
+                'Current-train focused regression manifest contains duplicate class names.'
+            )
+        }
+
+        File testClassesRoot =
+            new File(layout.buildDirectory.get().asFile, 'classes/java/test')
+
+        currentTrainFocusedTests.eachWithIndex { testClass, index ->
+            File classFile =
+                new File(
+                    testClassesRoot,
+                    testClass.replace('.', File.separatorChar) + '.class'
+                )
+
+            if (!classFile.isFile()) {
+                throw new GradleException(
+                    "Current-train focused regression class missing: \${testClass} (\${classFile})"
+                )
+            }
+
+            logger.lifecycle(
+                "[CURRENT-TRAIN-FOCUSED] \${index + 1}/\${currentTrainFocusedTests.size()} \${testClass}"
+            )
+
+            project.javaexec {
+                workingDir repoRoot
+                classpath = sourceSets.test.runtimeClasspath
+                mainClass.set(testClass)
+            }
+        }
+
+        logger.lifecycle(
+            "CURRENT_TRAIN_FOCUSED_REGRESSION_PASS count=\${currentTrainFocusedTests.size()}"
+        )
+    }
+}
+
 tasks.register('clientBuildRevision308Compatibility', JavaExec) {
     group = 'verification'
     description = 'Verifies login accepts build config 307/308 while keeping outer protocol revision 317 strict.'
@@ -281,5 +413,6 @@ tasks.register('clientBuildRevision308Compatibility', JavaExec) {
 tasks.named('check') {
     dependsOn tasks.named('verifyJava11Bytecode')
     dependsOn tasks.named('clientBuildRevision308Compatibility')
+    dependsOn tasks.named('currentTrainFocusedRegression')
     dependsOn tasks.named('r85Regression')
 }
