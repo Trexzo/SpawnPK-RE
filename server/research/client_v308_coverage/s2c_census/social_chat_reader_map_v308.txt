@@ -1,0 +1,51 @@
+Exact v308 social/chat S2C reader map
+SHA-256 854f26ff9f134b0317572e7ac1688e6f40a231d5a4c66f8db5d655b7f45ce7c6
+
+50 FIXED9:
+  E nameKey
+  y status
+
+104 VARBYTE:
+  O slot
+  N rawFlag
+  F optionText
+  valid slot 1..5; text null => null; stored boolean = rawFlag==0
+
+196 VARBYTE:
+  E senderNameKey
+  D messageId
+  D senderCode
+  F messageText
+  messageId enters 100-entry dedupe ring
+
+206 FIXED3:
+  y publicMode
+  y privateMode
+  y tradeMode
+
+214 VARSHORT:
+  repeated E ignoredNameKey
+  count = frameLength / 8
+
+221 FIXED1:
+  y friendServerStatus
+  0 loading, 1 connecting, 2 active/list-ready
+
+253 VARBYTE:
+  F newline string
+  special suffixes:
+    :tradereq:
+    :duelreq:
+    :cwarreq:
+    :whipddsreq:
+    :whipduelreq:
+    :gambreq:
+    :chalreq:
+
+Reader transforms:
+y raw u8
+N (wire-128)&255
+O (-wire)&255
+D BE32
+E BE64 via two D words
+F newline-terminated string
