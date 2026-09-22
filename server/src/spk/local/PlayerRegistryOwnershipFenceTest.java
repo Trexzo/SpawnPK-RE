@@ -1,16 +1,20 @@
 package spk.local;
 
+import java.lang.reflect.Field;
 import java.util.concurrent.CompletableFuture;
 
 public final class PlayerRegistryOwnershipFenceTest {
     public static void main(String[] args){
         registryFence();
+        entityIdCollisionFence();
         worldFence();
         crossWorldFence();
 
         System.out.println(
             "PLAYER_REGISTRY_OWNERSHIP_FENCE_PASS "+
             "staleRegistryCleanupRejected=true "+
+            "duplicateEntityIdRejected=true "+
+            "duplicateEntityIdFailureAtomic=true "+
             "staleWorldCleanupRejected=true "+
             "newTickTargetPreserved=true "+
             "newCommandPreserved=true "+
@@ -70,6 +74,100 @@ public final class PlayerRegistryOwnershipFenceTest {
             ))
             throw new AssertionError(
                 "replacement registry cleanup failed"
+            );
+    }
+
+    private static void entityIdCollisionFence(){
+        PlayerRegistry registry=
+            new PlayerRegistry();
+        WorldPlayer owner=
+            new WorldPlayer();
+        WorldPlayer candidate=
+            new WorldPlayer();
+
+        forceEntityId(
+            candidate,
+            owner.id()
+        );
+
+        long ownerGeneration=
+            registry.register(
+                owner,
+                "entity-id-owner"
+            );
+
+        long candidateGenerationBefore=
+            candidate.generation();
+
+        boolean rejected=false;
+
+        try{
+            registry.register(
+                candidate,
+                "entity-id-candidate"
+            );
+        }catch(IllegalStateException expected){
+            rejected=
+                expected.getMessage()!=null &&
+                expected.getMessage().startsWith(
+                    "DUPLICATE_ENTITY_ID entityId="+
+                    owner.id()
+                );
+        }
+
+        if(!rejected)
+            throw new AssertionError(
+                "duplicate entity id registration accepted"
+            );
+
+        if(registry.byId(owner.id())!=owner ||
+           registry.byName("entity-id-owner")!=owner ||
+           registry.byName("entity-id-candidate")!=null ||
+           registry.size()!=1 ||
+           !owner.accepts(ownerGeneration) ||
+           candidate.registered() ||
+           candidate.generation()!=
+               candidateGenerationBefore)
+            throw new AssertionError(
+                "duplicate entity id rejection was not failure atomic"
+            );
+
+        if(!registry.unregister(
+                owner,
+                ownerGeneration
+            ))
+            throw new AssertionError(
+                "entity id owner cleanup failed"
+            );
+
+        if(registry.size()!=0 ||
+           owner.registered())
+            throw new AssertionError(
+                "entity id owner cleanup incomplete"
+            );
+    }
+
+    private static void forceEntityId(
+        WorldPlayer player,
+        EntityId id
+    ){
+        try{
+            Field field=
+                WorldPlayer.class.getDeclaredField(
+                    "entityId"
+                );
+            field.setAccessible(true);
+            field.set(player,id);
+        }catch(ReflectiveOperationException error){
+            throw new AssertionError(
+                "could not construct duplicate EntityId fixture",
+                error
+            );
+        }
+
+        if(!player.id().equals(id))
+            throw new AssertionError(
+                "duplicate EntityId fixture was not installed"
             );
     }
 

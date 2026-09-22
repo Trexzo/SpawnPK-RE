@@ -16,6 +16,18 @@ final class PlayerRegistry {
             );
         EntityId existing=byName.get(key);
         if(existing!=null)throw new IllegalStateException("DUPLICATE_LOGIN username="+username+" existing="+existing);
+
+        WorldPlayer existingPlayer=
+            byId.get(player.id());
+        if(existingPlayer!=null&&
+           existingPlayer!=player)
+            throw new IllegalStateException(
+                "DUPLICATE_ENTITY_ID entityId="+
+                player.id()+
+                " existing="+
+                existingPlayer
+            );
+
         long generation=player.markRegistered(username);
         byId.put(player.id(),player);
         byName.put(key,player.id());
