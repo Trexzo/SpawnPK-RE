@@ -336,3 +336,51 @@ Only five complex families remain parity-unclassified:
 ```
 
 Those five require dedicated exact-current audit rather than generic publisher inference.
+
+
+# R5 Final — All 75 Exact S2C Families Classified
+
+The final five complex families are now closed in exact-current client evidence:
+
+```
+60  local region update batch
+147 player-attached temporary object
+215 ground item add excluding local player
+241 constructed/dynamic region change
+255 hit/block-drop popup event
+```
+
+Evidence:
+
+```
+FINAL_COMPLEX_PUBLISHER_GAP_R5.md
+final_complex_reader_map_v308.txt
+```
+
+Chat 2 implementation owner:
+
+```
+Issue #549
+```
+
+The canonical exact-v308 S2C parity ledger is now fully finite:
+
+```
+75 total exact handled S2C opcodes
+
+32 IMPLEMENTED_OR_AUTHORITY_PRESENT_CURRENT_MAIN
+16 CURRENT_MAIN_GENERIC_PUBLISHER_GAP_R2       -> #513
+ 7 CURRENT_MAIN_SOCIAL_CHAT_PUBLISHER_GAP_R3   -> #543
+15 CURRENT_MAIN_WORLD_STATE_PUBLISHER_GAP_R4   -> #546
+ 5 CURRENT_MAIN_COMPLEX_PUBLISHER_GAP_R5       -> #549
+ 0 NO_COMPLETE_MAIN_PARITY_CLAIM
+```
+
+This closes the **classification/recovery** phase for the exact v308 S2C opcode surface.
+
+It does not mean every server feature is implemented. It means every S2C family the exact client handles is now either:
+
+1. concretely present on current-main presentation/runtime surfaces; or
+2. a precisely defined publisher gap with exact field schema and a Chat 2 implementation owner.
+
+Future Chat 4 S2C work should be driven by implementation verification, new exact-client evidence, or subsystem-specific presentation questions rather than another broad opcode census.
