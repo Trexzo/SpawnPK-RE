@@ -1,0 +1,26 @@
+Exact-current v308 Blood Pool Store evidence
+
+Blood Fountain hub:
+root 3320
+widget 60003
+label <img=118> Blood pool store
+tooltip Select blood pool shop
+
+S2C126 exact application state:
+target 37 = Blood Pool shop slot append
+
+S2C126 target-1 exact control token:
+RESET_BLOOD_POOL_SHOP_SLOTS
+
+Recovered presentation sequence:
+RESET_BLOOD_POOL_SHOP_SLOTS
+then repeated target-37 records
+then client renders rebuilt slot list
+
+Exact-current cache corroboration:
+blood_core.yaml = Bloodcore valuation corpus
+blood_shards.yaml = Blood shard valuation corpus
+blood_diamonds.yaml = Blood diamond valuation corpus
+
+Boundary:
+destination root, shop inventory, prices, currency, stock and transaction policy remain unproven.
