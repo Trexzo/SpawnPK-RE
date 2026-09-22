@@ -255,3 +255,42 @@ reverified SHA-256:
 ```
 854f26ff9f134b0317572e7ac1688e6f40a231d5a4c66f8db5d655b7f45ce7c6
 ```
+
+
+# R3 Update — Social / Chat Publisher Gap Closure
+
+Exact-v308 social/chat parity is now closed for seven additional S2C families:
+
+```
+50   friend presence update
+104  player interaction option
+196  private message receive
+206  public/private/trade chat modes
+214  full ignore list
+221  friend-server connection status
+253  server message / legacy request-control text
+```
+
+Exact schemas are recorded in:
+
+```
+SOCIAL_CHAT_PUBLISHER_GAP_R3.md
+social_chat_reader_map_v308.txt
+```
+
+Current-main presentation implementation is tracked by Issue #543.
+
+The finite parity split is now:
+
+```
+75 total exact handled S2C opcodes
+
+32 IMPLEMENTED_OR_AUTHORITY_PRESENT_CURRENT_MAIN
+16 CURRENT_MAIN_GENERIC_PUBLISHER_GAP_R2
+ 7 CURRENT_MAIN_SOCIAL_CHAT_PUBLISHER_GAP_R3
+20 NO_COMPLETE_MAIN_PARITY_CLAIM
+```
+
+The remaining 20 rows are not being called absent. They are the next publisher/use-surface audit queue.
+
+R3 exact-client recovery used the real Library `client(6).jar` and exact v308 `rs.Client#bP()`.
