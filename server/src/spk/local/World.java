@@ -601,13 +601,12 @@ final class World implements AutoCloseable {
             return;
         }
 
-        plugins.beginClose();
-
         Throwable failure=null;
 
         try{
             failure=
                 WorldCloseSequence.run(
+                    plugins::beginClose,
                     pulse::close,
                     npcPresentationEvents::close,
                     plugins::closeResources,
