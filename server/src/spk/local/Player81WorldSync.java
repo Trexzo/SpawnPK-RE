@@ -191,13 +191,59 @@ final class Player81WorldSync {
             BY_WORLD.remove(c.state.world);
     }
 
-    static byte[] transform(ServerPacketWriter writer,byte[] body){
-        Context c;
-        synchronized(Player81WorldSync.class){c=BY_WRITER.get(writer);}
-        if(c==null||!c.ownerCurrent()||body==null)return body;
-        try{return c.transform(body);}catch(Throwable t){
+    static byte[] transform(
+        ServerPacketWriter writer,
+        byte[] body
+    ){
+        if(body==null)
+            return null;
+
+        final Context candidate;
+
+        synchronized(Player81WorldSync.class){
+            candidate=
+                BY_WRITER.get(writer);
+        }
+
+        if(candidate==null)
+            return body;
+
+        final byte[][] transformed=
+            new byte[][]{body};
+
+        try{
+            boolean accepted=
+                candidate.state.world
+                    .withOpenPlayerOwnershipIfCurrent(
+                        candidate.owner,
+                        candidate.ownerGeneration,
+                        ()->{
+                            synchronized(
+                                Player81WorldSync.class
+                            ){
+                                if(BY_WRITER.get(
+                                        writer
+                                    )!=candidate)
+                                    return;
+                            }
+
+                            transformed[0]=
+                                candidate.transform(
+                                    body
+                                );
+                        }
+                    );
+
+            return accepted
+                ?transformed[0]
+                :body;
+        }catch(Throwable t){
             // Fail closed to the already-certified local packet rather than corrupt framing.
-            System.err.println("[ENGINE-R3] player81 merge failed for "+c.owner.id()+": "+t+"; using certified local-only body");
+            System.err.println(
+                "[ENGINE-R3] player81 merge failed for "+
+                candidate.owner.id()+": "+t+
+                "; using certified local-only body"
+            );
             return body;
         }
     }
