@@ -1,0 +1,82 @@
+Exact v308/cache teleport static-interface scan
+
+Authority:
+client(6).jar SHA-256 854f26ff9f134b0317572e7ac1688e6f40a231d5a4c66f8db5d655b7f45ce7c6
+matched .spawnpk cache bundle
+
+Startup archive mapping from rs.Client.L():
+archive id 1 -> title
+archive id 2 -> config
+archive id 3 -> interface
+archive id 4 -> media
+
+Exact interface loader:
+rs.n.e.a(interfaceArchive, fonts, mediaArchive)
+reads interfaceArchive.a("data")
+
+Cache extraction:
+idx0 file/archive id 3 length = 184196 bytes
+exact rs.x.f decompression -> data member = 784354 bytes
+first u16/A count = 18516
+rs.n.e.H allocated count + 70000 = 88516 widgets
+
+Base widget parser field identity used for traversal:
+aw = widget id
+ah = parent/root id
+aI = widget type
+M = action/content type
+
+Exact term scan of parsed base/cache widgets:
+NO hits for:
+  Money Making
+  Training Teleports
+  Training & Slayer
+  PK Teleports
+  Minigame Teleports
+  Teleport to House
+  Boss Teleports
+  Bounty Target
+
+Teleport/travel-bearing base-cache roots recovered instead:
+1151  = classic/modern magic spellbook teleport/help content
+12855 = ancient magic spellbook teleport/help content
+12468 = player teleport-request accept/decline dialogue
+18220 = canoe transport / Please Select Your Destination
+3281  = ship/travel map presentation
+15712 = unrelated narrative/book content containing travel text
+
+Representative unrelated root 18220:
+18248 Lumbridge
+18249 Champions Guild
+18250 Barbarian Village
+18251 Edgeville
+18252 Wilderness Pond
+18255 Travel to Lumbridge.
+18256 Travel to the Champions Guild.
+18257 Travel to Barbarian Village.
+18258 DANGER: Travel to the Wilderness. There are no canoe trees up there!
+18262 Travel to Edgeville.
+18276 Please Select / Your Destination
+
+Important custom-builder timing check:
+The exact loader throws later in desktop/custom interface construction under headless X11.
+The base archive parse completed first and H was populated.
+At the throw point the spellbook aliases still retain raw cache values:
+1164 = Cast @gre@Varrock teleport
+1167 = Cast @gre@Lumbridge teleport
+1170 = Cast @gre@Falador teleport
+1174 = Cast @gre@Camelot teleport
+13035/13045/... still retain ancient base-cache values.
+This confirms the scan represents pre-custom-builder base/cache interface data, not the later rs.n.c.ap overrides.
+
+Conclusion:
+No static exact-current cache interface catalogue was found for SpawnPK Money / Training / PK / Minigame / House destination rows.
+Combined with the prior exact-JAR class-string and widget-action scan, the static client/cache authority boundary is closed:
+category alias -> C2S185 -> server decides/directly acts or projects a generic/dynamic destination UI.
+
+Still possible but not statically identifiable:
+- generic blank/cache root populated by server text/model packets
+- direct server-side teleport/action response
+- runtime-selected presentation
+
+Coordinates, destination catalogues, requirements and dynamic root identity require runtime/server authority.
