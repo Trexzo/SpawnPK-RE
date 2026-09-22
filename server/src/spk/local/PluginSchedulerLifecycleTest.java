@@ -185,7 +185,9 @@ public final class PluginSchedulerLifecycleTest {
             );
 
             BlockingPlugin blocking=
-                new BlockingPlugin();
+                new BlockingPlugin(
+                    manager
+                );
 
             manager.enable(blocking);
 
@@ -248,6 +250,21 @@ public final class PluginSchedulerLifecycleTest {
             if(!disableThread.isAlive())
                 throw new AssertionError(
                     "disable completed before running callback released"
+                );
+
+            blocking.allowManagerProbe
+                .countDown();
+
+            if(!blocking.managerProbeComplete.await(
+                    5L,
+                    TimeUnit.SECONDS))
+                throw new AssertionError(
+                    "scheduler callback deadlocked querying PluginManager while disable waited"
+                );
+
+            if(blocking.disableCalled.get())
+                throw new AssertionError(
+                    "plugin.disable ran before callback ownership section completed"
                 );
 
             blocking.release.countDown();
@@ -439,23 +456,43 @@ public final class PluginSchedulerLifecycleTest {
     private static final class BlockingPlugin
         extends SchedulerPlugin {
 
+        final PluginManager manager;
         final CountDownLatch entered=
+            new CountDownLatch(1);
+        final CountDownLatch allowManagerProbe=
+            new CountDownLatch(1);
+        final CountDownLatch managerProbeComplete=
             new CountDownLatch(1);
         final CountDownLatch release=
             new CountDownLatch(1);
         final AtomicBoolean disableCalled=
             new AtomicBoolean();
 
-        BlockingPlugin(){
+        BlockingPlugin(
+            PluginManager manager
+        ){
             super(
                 "scheduler.blocking"
             );
+            this.manager=manager;
         }
 
         void runBlockingTask(){
             entered.countDown();
 
             boolean interrupted=false;
+
+            for(;;){
+                try{
+                    allowManagerProbe.await();
+                    break;
+                }catch(InterruptedException ignored){
+                    interrupted=true;
+                }
+            }
+
+            manager.enabled();
+            managerProbeComplete.countDown();
 
             for(;;){
                 try{
