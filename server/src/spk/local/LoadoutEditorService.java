@@ -142,30 +142,6 @@ final class LoadoutEditorService {
         );
     }
 
-    synchronized SaveSnapshot get(
-        String ownerRef,
-        PlayerLoadoutId loadoutId
-    ){
-        LoadoutService.Snapshot current=
-            loadouts.get(
-                PlayerLoadout.requireText(
-                    ownerRef,
-                    "ownerRef"
-                ),
-                Objects.requireNonNull(
-                    loadoutId,
-                    "loadoutId"
-                )
-            );
-
-        return current==null
-            ?null
-            :new SaveSnapshot(
-                current.loadout,
-                current.loadout.version
-            );
-    }
-
     private static String gameplayAuthority(
         String value
     ){
