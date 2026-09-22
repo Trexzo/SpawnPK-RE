@@ -227,6 +227,7 @@ final class LocalWorldTickCoordinator {
         if(movement.transientRegion()){
             tickTransientRegion(
                 worldTick,
+                now,
                 writer,
                 tag
             );
@@ -346,7 +347,7 @@ final class LocalWorldTickCoordinator {
                 movement,
                 writer,
                 homeWorld,
-                legacyTickCount
+                worldTick
             );
 
         SharedNpcWorldRelay.syncRemotePets(writer);
@@ -481,6 +482,7 @@ final class LocalWorldTickCoordinator {
 
     private void tickTransientRegion(
         long worldTick,
+        long now,
         ServerPacketWriter writer,
         String tag
     )throws IOException{
@@ -519,6 +521,21 @@ final class LocalWorldTickCoordinator {
             );
         }
 
+        petDropPickup.tick(
+            writer,
+            tag,
+            now
+        );
+
+        if(movementTick!=null)
+            updatePetFollowAfterOwnerMovement(
+                movementTick,
+                now
+            );
+
+        bridge.ensurePetFollowScheduled(now);
+        bridge.ensurePetTestSequenceScheduled(now);
+
         legacyTickCount++;
 
         if(legacyTickCount==1||
@@ -535,7 +552,7 @@ final class LocalWorldTickCoordinator {
                 movement.loadedBaseX()+","+
                 movement.loadedBaseY()+
                 " queued="+movement.queued()+
-                " staticCollision=true homeSystemsSuspended=true"
+                " staticCollision=true homeWorldNpcSystemsSuspended=true petLifecycleActive=true"
             );
         }
     }
