@@ -93,6 +93,7 @@ final class WorldNpcPresentationEvents
         final long createdAt;
         final long playerBarrierSequence;
         final EntityId sourceId;
+        final long sourceGeneration;
         final Target target;
         final NpcSyncEncoder.Mask mask;
         final LinkedHashSet<EntityId> recipients;
@@ -105,6 +106,7 @@ final class WorldNpcPresentationEvents
             long sequence,
             long createdAt,
             EntityId sourceId,
+            long sourceGeneration,
             Target target,
             NpcSyncEncoder.Mask mask,
             long playerBarrierSequence,
@@ -114,6 +116,7 @@ final class WorldNpcPresentationEvents
             this.sequence=sequence;
             this.createdAt=createdAt;
             this.sourceId=sourceId;
+            this.sourceGeneration=sourceGeneration;
             this.target=target;
             this.mask=mask;
             this.playerBarrierSequence=
@@ -151,6 +154,7 @@ final class WorldNpcPresentationEvents
         return enqueueOwned(
             now,
             sourceId,
+            -1L,
             target,
             mask,
             playerBarrierSequence,
@@ -161,6 +165,26 @@ final class WorldNpcPresentationEvents
     synchronized boolean enqueueOwned(
         long now,
         EntityId sourceId,
+        Target target,
+        NpcSyncEncoder.Mask mask,
+        long playerBarrierSequence,
+        Map<EntityId,Long> recipients
+    ){
+        return enqueueOwned(
+            now,
+            sourceId,
+            -1L,
+            target,
+            mask,
+            playerBarrierSequence,
+            recipients
+        );
+    }
+
+    synchronized boolean enqueueOwned(
+        long now,
+        EntityId sourceId,
+        long sourceGeneration,
         Target target,
         NpcSyncEncoder.Mask mask,
         long playerBarrierSequence,
@@ -213,6 +237,8 @@ final class WorldNpcPresentationEvents
            last.playerBarrierSequence==
                 playerBarrierSequence&&
            last.sourceId.equals(sourceId)&&
+           last.sourceGeneration==
+                sourceGeneration&&
            sameTarget(last.target,target)&&
            sameMask(last.mask,mask)&&
            sameRecipients(
@@ -227,6 +253,7 @@ final class WorldNpcPresentationEvents
                 ++sequence,
                 now,
                 sourceId,
+                sourceGeneration,
                 target,
                 mask,
                 playerBarrierSequence,
@@ -327,6 +354,35 @@ final class WorldNpcPresentationEvents
             Event event=iterator.next();
 
             if(event.sourceId.equals(sourceId)){
+                iterator.remove();
+                removed++;
+            }
+        }
+
+        pruneExpired(now);
+        return removed;
+    }
+
+    synchronized int removeSourceGeneration(
+        EntityId sourceId,
+        long sourceGeneration,
+        long now
+    ){
+        if(closed||sourceId==null)
+            return 0;
+
+        int removed=0;
+
+        for(Iterator<Event> iterator=
+                events.iterator();
+                iterator.hasNext();){
+            Event event=iterator.next();
+
+            if(event.sourceId.equals(
+                    sourceId
+                )&&
+               event.sourceGeneration==
+                    sourceGeneration){
                 iterator.remove();
                 removed++;
             }
