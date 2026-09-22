@@ -13,6 +13,8 @@ import java.util.Objects;
  * first lowercase character after '.', '!' or '?'.
  */
 final class ClientChatTextCodec {
+    static final int MAX_ENCODED_CHARS=80;
+
     private static final char[] TABLE={
         ' ','e','t','a','o','i','h','n','s','r',
         'd','l','u','m','w','c','y','f','g','p',
@@ -32,6 +34,14 @@ final class ClientChatTextCodec {
             encoded,
             "encoded"
         );
+
+        if(encoded.length>MAX_ENCODED_CHARS)
+            throw new IllegalArgumentException(
+                "chat encoded length="+
+                encoded.length+
+                " max="+
+                MAX_ENCODED_CHARS
+            );
 
         char[] out=
             new char[encoded.length];
