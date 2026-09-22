@@ -270,6 +270,119 @@ tasks.register('r85V308Acceptance') {
     }
 }
 
+def chat1FocusedReleaseTests = [
+    'spk.local.ClientCommandRequestQueueTest',
+    'spk.local.ClientUiRequestQueueTest',
+    'spk.local.ClientBankControlRequestQueueTest',
+    'spk.local.ClientDropItemRequestQueueTest',
+    'spk.local.ClientItemOnNpcRequestQueueTest',
+    'spk.local.ClientObjectInteractionRequestQueueTest',
+    'spk.local.ClientPlayerActionRequestQueueTest',
+    'spk.local.ClientNpcActionRequestQueueTest',
+    'spk.local.ClientSpellTargetRequestQueueTest',
+    'spk.local.GenericInteractionTypedRequestGoldenVectorTest',
+    'spk.local.ClientMovementRequestQueueTest',
+    'spk.local.ClientItemContainerRequestQueueTest',
+    'spk.local.ClientGroundItemRequestQueueTest',
+    'spk.local.ClientItemOnItemRequestQueueTest',
+    'spk.local.TypedRequestWorldInboxSocketTest',
+    'spk.local.ClientPacketFramingAuthorityTest',
+    'spk.local.LocalPendingRequestDispatcherTest',
+    'spk.local.CharacterDesignProfileTest',
+    'spk.local.CharacterDesignRequestTest',
+    'spk.local.MakeoverClientPacketProbeTest',
+    'spk.local.MakeoverMageFlowTest',
+    'spk.local.MakeoverAppearancePersistenceTest',
+    'spk.local.MakeoverAppearancePacket81Test',
+    'spk.local.MakeoverRemoteAppearanceWorldSyncTest',
+    'spk.local.MakeoverDesignRejectionIsolationTest',
+    'spk.local.MakeoverAppearanceSnapshotRecoveryTest',
+    'spk.local.MakeoverPresentationMorphCompatibilityTest',
+    'spk.local.ClientSocialListRequestQueueTest',
+    'spk.local.ClientFixedSemanticResidualRequestQueueTest',
+    'spk.local.ClientChatRequestQueueTest',
+    'spk.local.ClientChatExactLengthFenceTest',
+    'spk.event.DomainEventBusTest',
+    'spk.local.WorldConcurrentCloseTerminalWaitTest',
+    'spk.local.WorldDomainEventBusCloseOrderingTest',
+    'spk.local.WorldDomainEventBusCloseTest',
+    'spk.local.WorldExecutionOwnershipFenceTest',
+    'spk.local.LocalSessionRuntimeBindingsOwnershipFenceTest',
+    'spk.local.PlayerRegistryOwnershipFenceTest',
+    'spk.local.TradeServiceContextReplacementCleanupTest',
+    'spk.local.TradeServiceWorldStateCleanupTest',
+    'spk.local.WorldCommandGenerationOwnershipFenceTest',
+    'spk.local.LocalSessionRuntimeBindingsFailureAtomicityTest',
+    'spk.local.RelayOwnerWriterRebindCleanupTest',
+    'spk.local.RelayWriterReplacementCleanupTest',
+    'spk.local.RelaySourcePresentationEventCleanupTest',
+    'spk.local.WorldNpcPresentationEventsCloseTest',
+    'spk.local.PlayerSnapshotExtensionStateTest',
+    'spk.local.WorldRealtimeGenerationOwnershipFenceTest',
+    'spk.local.WorldPersistenceLoadOrderingTest',
+    'spk.local.WorldPersistenceFinalSaveBackpressureTest',
+    'spk.local.WorldPersistenceOwnershipFenceTest',
+    'spk.local.PlayerRegistryIdentityValidationTest',
+    'spk.local.WorldNpcRegistryTest',
+    'spk.local.WorldPetNpcReplacementAtomicityTest',
+    'spk.local.WorldPersistenceFinalCheckpointQuiesceTest',
+    'spk.local.WorldCommandCloseAdmissionFenceTest',
+    'spk.local.WorldRealtimeCloseAdmissionFenceTest',
+    'spk.local.WorldPersistenceFinalCaptureRollbackTest',
+    'spk.local.RelayWorldCloseAdmissionFenceTest',
+    'spk.local.LocalSessionTeardownFailureIsolationTest',
+    'spk.local.Player81GenerationOwnershipFenceTest',
+    'spk.local.SharedNpcRelayViewerGenerationFenceTest',
+    'spk.local.TradeServiceGenerationOwnershipFenceTest',
+    'spk.local.WorldPulseTimedEffectWorldOwnershipTest',
+    'spk.local.PlayerPvpTargetWorldOwnershipFenceTest',
+    'spk.event.DomainEventPublicApiBoundaryTest',
+    'spk.local.ContentHandlerSamCompatibilityTest',
+    'spk.local.ContentProvenanceAuthorityBoundaryTest',
+    'spk.local.ContentProvenanceVocabularyTest',
+    'spk.local.ContentRegistrarAuthorityCoverageTest',
+    'spk.local.CombatOutcomeDomainTest',
+    'spk.local.CombatOutcomeObjectiveIntegrationTest',
+    'spk.local.PlayerCombatOutcomeProducerTest',
+    'spk.local.BountyHunterServiceTest',
+    'spk.local.ObjectiveProgressBountyIntegrationTest',
+    'spk.local.SocialListServiceTest',
+    'spk.local.RaidRunServiceTest',
+    'spk.local.WorldPlayerTimedEffectIntegrationTest'
+]
+
+if (chat1FocusedReleaseTests.size() != 78 ||
+    chat1FocusedReleaseTests.toSet().size() != 78) {
+    throw new GradleException(
+        "Chat 1 focused release manifest drift: expected 78 unique tests, found " +
+        chat1FocusedReleaseTests.size() + " / " +
+        chat1FocusedReleaseTests.toSet().size()
+    )
+}
+
+tasks.register('chat1FocusedReleaseGates') {
+    group = 'verification'
+    description = 'Runs the 78 focused regressions required by the frozen Chat 1 release candidate, separate from the inherited 179/179 R8.5 contract.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+
+    doLast {
+        chat1FocusedReleaseTests.eachWithIndex { testName, testIndex ->
+            logger.lifecycle(
+                "[CHAT1-FOCUSED] ${testIndex + 1}/${chat1FocusedReleaseTests.size()} ${testName}"
+            )
+            project.javaexec {
+                workingDir repoRoot
+                classpath = sourceSets.test.runtimeClasspath
+                mainClass.set(testName)
+            }
+        }
+
+        logger.lifecycle(
+            "CHAT1_FOCUSED_RELEASE_GATES_PASS count=${chat1FocusedReleaseTests.size()} bytecodeMajor=55"
+        )
+    }
+}
+
 tasks.register('clientBuildRevision308Compatibility', JavaExec) {
     group = 'verification'
     description = 'Verifies login accepts build config 307/308 while keeping outer protocol revision 317 strict.'
@@ -281,5 +394,6 @@ tasks.register('clientBuildRevision308Compatibility', JavaExec) {
 tasks.named('check') {
     dependsOn tasks.named('verifyJava11Bytecode')
     dependsOn tasks.named('clientBuildRevision308Compatibility')
+    dependsOn tasks.named('chat1FocusedReleaseGates')
     dependsOn tasks.named('r85Regression')
 }
