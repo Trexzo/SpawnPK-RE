@@ -168,6 +168,19 @@ final class Player81WorldSync {
 
     static byte[] transformForTest(Context c,byte[] body)throws IOException{return c.transform(body);}
 
+    static byte[] latestEventForViewerForTest(
+        Context viewer,
+        EntityId sourceId
+    ){
+        Event event=
+            viewer.state.latestEvent(
+                sourceId
+            );
+        return event==null
+            ?null
+            :event.forViewer(viewer);
+    }
+
     static final class Context {
         final ServerPacketWriter writer;
         final WorldState state;
@@ -195,17 +208,55 @@ final class Player81WorldSync {
                 );
         }
 
-        synchronized WorldPlayer resolveVisible(int clientIndex){
-            if(!ownerCurrent())return null;
-            for(Track t:visible.values())if(t.clientIndex==clientIndex)return state.world.players().byId(t.id);
+        private synchronized Track visibleTrack(
+            int clientIndex
+        ){
+            if(!ownerCurrent())
+                return null;
+
+            for(Track track:visible.values()){
+                if(track.clientIndex!=clientIndex)
+                    continue;
+
+                WorldPlayer player=
+                    state.world.players()
+                        .byId(track.id);
+
+                return player!=null&&
+                    state.world.players().owns(
+                        player,
+                        track.generation
+                    )
+                    ?track
+                    :null;
+            }
+
             return null;
+        }
+
+        synchronized WorldPlayer resolveVisible(
+            int clientIndex
+        ){
+            Track track=
+                visibleTrack(clientIndex);
+
+            return track==null
+                ?null
+                :state.world.players()
+                    .byId(track.id);
         }
 
         synchronized int clientIndexFor(WorldPlayer p){
             if(!ownerCurrent()||p==null)return -1;
             if(p==owner)return LOCAL_PLAYER_INDEX;
             Track t=visible.get(p.id());
-            return t==null?-1:t.clientIndex;
+            return t!=null&&
+                state.world.players().owns(
+                    p,
+                    t.generation
+                )
+                ?t.clientIndex
+                :-1;
         }
 
         synchronized int interactionTargetFor(WorldPlayer p){
@@ -245,7 +296,12 @@ final class Player81WorldSync {
 
             for(Track t:oldTracks){
                 WorldPlayer remote=current.get(t.id);
-                boolean keep=isVisible(remote);
+                boolean keep=
+                    isVisible(remote)&&
+                    state.world.players().owns(
+                        remote,
+                        t.generation
+                    );
                 if(!keep){
                     bits.write(1,1);bits.write(3,2);
                     removedThisPacket.add(t.id);
@@ -314,6 +370,15 @@ final class Player81WorldSync {
             // Add newly-visible players after processing the previous remote list.
             for(WorldPlayer remote:players){
                 if(remote==owner||!isVisible(remote)||visible.containsKey(remote.id())||removedThisPacket.contains(remote.id()))continue;
+
+                long remoteGeneration=
+                    remote.generation();
+                if(!state.world.players().owns(
+                        remote,
+                        remoteGeneration
+                    ))
+                    continue;
+
                 int idx=indexFor(remote.id());
                 int dx=remote.movement().x()-owner.movement().x(),dy=remote.movement().y()-owner.movement().y();
                 if(!signed5(dx)||!signed5(dy))continue;
@@ -323,7 +388,15 @@ final class Player81WorldSync {
                 bits.write(dy&31,5); // exact client order: relative Y then X
                 bits.write(dx&31,5);
                 byte[] tail=appearanceTail(remote);
-                Track t=new Track(remote.id(),idx,remote.movement().x(),remote.movement().y(),remote.movement().plane());
+
+                Track t=new Track(
+                    remote.id(),
+                    remoteGeneration,
+                    idx,
+                    remote.movement().x(),
+                    remote.movement().y(),
+                    remote.movement().plane()
+                );
                 t.appearanceHash=Arrays.hashCode(tail);
                 Motion m=state.motions.get(remote.id());if(m!=null)t.lastMotionSeq=m.seq;
                 Event e=state.latestEvent(remote.id());if(e!=null)t.lastEventSeq=e.seq;
@@ -373,7 +446,8 @@ final class Player81WorldSync {
         final HashMap<EntityId,Context> contexts=new HashMap<>();
         final HashMap<EntityId,Motion> motions=new HashMap<>();
         final HashMap<EntityId,ArrayDeque<Event>> events=new HashMap<>();
-        final HashMap<String,Long> tradeRequests=new HashMap<>();
+        final HashMap<String,TradeRequest> tradeRequests=
+            new HashMap<>();
         long sequence;
         WorldState(World world){this.world=world;}
 
@@ -406,70 +480,243 @@ final class Player81WorldSync {
             events.remove(ownerId);
             String prefix=ownerId+">";
             String suffix=">"+ownerId;
-            for(Iterator<Map.Entry<String,Long>> it=tradeRequests.entrySet().iterator();it.hasNext();){
+            for(Iterator<Map.Entry<String,TradeRequest>> it=tradeRequests.entrySet().iterator();it.hasNext();){
                 String key=it.next().getKey();
                 if(key.startsWith(prefix)||key.endsWith(suffix))it.remove();
             }
         }
 
-        synchronized String requestTrade(WorldPlayer from,WorldPlayer to,long now){
-            if(from==null||to==null||from==to)return "TRADE_REJECTED_INVALID_TARGET";
-            String a=from.id()+">"+to.id(),b=to.id()+">"+from.id();
-            Long reciprocal=tradeRequests.get(b);
-            if(reciprocal!=null&&now-reciprocal.longValue()<=30_000L){
-                tradeRequests.remove(a);tradeRequests.remove(b);
-                return "TRADE_MUTUAL_ACCEPTED target="+to.username()+" itemExchange=DEFERRED_UNTIL_TRADE_INTERFACE_AUTHORITY";
+        synchronized String requestTrade(
+            WorldPlayer from,
+            WorldPlayer to,
+            long now
+        ){
+            if(from==null||to==null||from==to)
+                return "TRADE_REJECTED_INVALID_TARGET";
+
+            long fromGeneration=
+                from.generation();
+            long toGeneration=
+                to.generation();
+
+            if(!world.players().owns(
+                    from,
+                    fromGeneration
+                )||
+               !world.players().owns(
+                    to,
+                    toGeneration
+                ))
+                return "TRADE_REJECTED_STALE_OWNER";
+
+            String a=
+                from.id()+">"+to.id();
+            String b=
+                to.id()+">"+from.id();
+
+            TradeRequest reciprocal=
+                tradeRequests.get(b);
+
+            if(reciprocal!=null&&
+               reciprocal.fromGeneration==
+                    toGeneration&&
+               reciprocal.toGeneration==
+                    fromGeneration&&
+               now-reciprocal.atMillis<=30_000L){
+                tradeRequests.remove(a);
+                tradeRequests.remove(b);
+
+                return "TRADE_MUTUAL_ACCEPTED target="+
+                    to.username()+
+                    " itemExchange=DEFERRED_UNTIL_TRADE_INTERFACE_AUTHORITY";
             }
-            tradeRequests.put(a,now);
-            Context targetContext=contexts.get(to.id());
+
+            tradeRequests.put(
+                a,
+                new TradeRequest(
+                    now,
+                    fromGeneration,
+                    toGeneration
+                )
+            );
+
+            Context targetContext=
+                contexts.get(to.id());
+
             if(targetContext!=null&&
                targetContext.ownerCurrent()){
                 try{
-                    byte[] msg=(from.username()+":tradereq:\n").getBytes(StandardCharsets.ISO_8859_1);
-                    targetContext.writer.varByte(253,msg);
+                    byte[] msg=
+                        (from.username()+":tradereq:\n")
+                            .getBytes(
+                                StandardCharsets
+                                    .ISO_8859_1
+                            );
+
+                    targetContext.writer
+                        .varByte(
+                            253,
+                            msg
+                        );
                 }catch(IOException ioe){
-                    return "TRADE_REQUEST_RECORDED_NOTIFY_FAILED target="+to.username()+" error="+ioe.getClass().getSimpleName()+" itemExchange=DEFERRED_UNTIL_TRADE_INTERFACE_AUTHORITY";
+                    return "TRADE_REQUEST_RECORDED_NOTIFY_FAILED target="+
+                        to.username()+
+                        " error="+
+                        ioe.getClass()
+                            .getSimpleName()+
+                        " itemExchange=DEFERRED_UNTIL_TRADE_INTERFACE_AUTHORITY";
                 }
             }
-            return "TRADE_REQUEST_RECORDED_NOTIFY_SENT target="+to.username()+" packet253=:tradereq: reciprocalWindowMs=30000 itemExchange=DEFERRED_UNTIL_TRADE_INTERFACE_AUTHORITY";
+
+            return "TRADE_REQUEST_RECORDED_NOTIFY_SENT target="+
+                to.username()+
+                " packet253=:tradereq: reciprocalWindowMs=30000 itemExchange=DEFERRED_UNTIL_TRADE_INTERFACE_AUTHORITY";
+        }
+    }
+
+    private static final class TradeRequest {
+        final long atMillis;
+        final long fromGeneration;
+        final long toGeneration;
+
+        TradeRequest(
+            long atMillis,
+            long fromGeneration,
+            long toGeneration
+        ){
+            this.atMillis=atMillis;
+            this.fromGeneration=fromGeneration;
+            this.toGeneration=toGeneration;
         }
     }
 
     private static final class Track {
-        final EntityId id;final int clientIndex;
+        final EntityId id;
+        final long generation;
+        final int clientIndex;
         int x,y,plane,appearanceHash;
         long lastMotionSeq,lastEventSeq;
-        Track(EntityId id,int clientIndex,int x,int y,int plane){this.id=id;this.clientIndex=clientIndex;this.x=x;this.y=y;this.plane=plane;}
+
+        Track(
+            EntityId id,
+            long generation,
+            int clientIndex,
+            int x,
+            int y,
+            int plane
+        ){
+            this.id=id;
+            this.generation=generation;
+            this.clientIndex=clientIndex;
+            this.x=x;
+            this.y=y;
+            this.plane=plane;
+        }
     }
     private static final class Motion {
         final long seq;final int type,dir1,dir2;
         Motion(long seq,int type,int dir1,int dir2){this.seq=seq;this.type=type;this.dir1=dir1;this.dir2=dir2;}
     }
     private static final class Event {
-        final long seq;final byte[] tail;final int interactionOffset;final boolean playerInteraction;final EntityId targetEntity;
-        Event(long seq,byte[] tail,int interactionOffset,boolean playerInteraction,EntityId targetEntity){
-            this.seq=seq;this.tail=tail;this.interactionOffset=interactionOffset;this.playerInteraction=playerInteraction;this.targetEntity=targetEntity;
+        final long seq;
+        final byte[] tail;
+        final int interactionOffset;
+        final boolean playerInteraction;
+        final EntityId targetEntity;
+        final long targetGeneration;
+
+        Event(
+            long seq,
+            byte[] tail,
+            int interactionOffset,
+            boolean playerInteraction,
+            EntityId targetEntity,
+            long targetGeneration
+        ){
+            this.seq=seq;
+            this.tail=tail;
+            this.interactionOffset=interactionOffset;
+            this.playerInteraction=playerInteraction;
+            this.targetEntity=targetEntity;
+            this.targetGeneration=targetGeneration;
         }
-        static Event from(long seq,byte[] tail,Context owner){
-            byte[] copy=tail.clone();int off=interactionOffset(copy);boolean player=false;EntityId target=null;
+
+        static Event from(
+            long seq,
+            byte[] tail,
+            Context owner
+        ){
+            byte[] copy=tail.clone();
+            int off=interactionOffset(copy);
+            boolean player=false;
+            EntityId target=null;
+            long targetGeneration=-1L;
+
             if(off>=0&&off+1<copy.length){
-                int raw=(copy[off]&255)|((copy[off+1]&255)<<8);
+                int raw=
+                    (copy[off]&255)|
+                    ((copy[off+1]&255)<<8);
+
                 if(raw>=32768&&raw!=65535){
-                    player=true;WorldPlayer p=owner.resolveVisible(raw-32768);if(p!=null)target=p.id();
+                    player=true;
+
+                    Track targetTrack=
+                        owner.visibleTrack(
+                            raw-32768
+                        );
+
+                    if(targetTrack!=null){
+                        target=targetTrack.id;
+                        targetGeneration=
+                            targetTrack.generation;
+                    }
                 }
             }
-            return new Event(seq,copy,off,player,target);
+
+            return new Event(
+                seq,
+                copy,
+                off,
+                player,
+                target,
+                targetGeneration
+            );
         }
+
         byte[] forViewer(Context viewer){
             byte[] out=tail.clone();
-            if(playerInteraction&&interactionOffset>=0){
+
+            if(playerInteraction&&
+               interactionOffset>=0){
                 int value=65535;
+
                 if(targetEntity!=null){
-                    WorldPlayer p=viewer.state.world.players().byId(targetEntity);
-                    if(p!=null){int v=viewer.interactionTargetFor(p);if(v>=0)value=v;}
+                    WorldPlayer player=
+                        viewer.state.world.players()
+                            .byId(targetEntity);
+
+                    if(player!=null&&
+                       viewer.state.world.players()
+                           .owns(
+                               player,
+                               targetGeneration
+                           )){
+                        int translated=
+                            viewer.interactionTargetFor(
+                                player
+                            );
+
+                        if(translated>=0)
+                            value=translated;
+                    }
                 }
-                out[interactionOffset]=(byte)(value&255);out[interactionOffset+1]=(byte)((value>>>8)&255);
+
+                out[interactionOffset]=
+                    (byte)(value&255);
+                out[interactionOffset+1]=
+                    (byte)((value>>>8)&255);
             }
+
             return out;
         }
     }

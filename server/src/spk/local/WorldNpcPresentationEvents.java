@@ -93,9 +93,12 @@ final class WorldNpcPresentationEvents
         final long createdAt;
         final long playerBarrierSequence;
         final EntityId sourceId;
+        final long sourceGeneration;
         final Target target;
         final NpcSyncEncoder.Mask mask;
         final LinkedHashSet<EntityId> recipients;
+        final HashMap<EntityId,Long>
+            recipientGenerations;
         final HashSet<EntityId> delivered=
             new HashSet<>();
 
@@ -103,19 +106,24 @@ final class WorldNpcPresentationEvents
             long sequence,
             long createdAt,
             EntityId sourceId,
+            long sourceGeneration,
             Target target,
             NpcSyncEncoder.Mask mask,
             long playerBarrierSequence,
-            LinkedHashSet<EntityId> recipients
+            LinkedHashSet<EntityId> recipients,
+            HashMap<EntityId,Long> recipientGenerations
         ){
             this.sequence=sequence;
             this.createdAt=createdAt;
             this.sourceId=sourceId;
+            this.sourceGeneration=sourceGeneration;
             this.target=target;
             this.mask=mask;
             this.playerBarrierSequence=
                 playerBarrierSequence;
             this.recipients=recipients;
+            this.recipientGenerations=
+                recipientGenerations;
         }
     }
 
@@ -132,6 +140,56 @@ final class WorldNpcPresentationEvents
         long playerBarrierSequence,
         Collection<EntityId> recipients
     ){
+        LinkedHashMap<EntityId,Long> owned=
+            new LinkedHashMap<>();
+
+        if(recipients!=null)
+            for(EntityId recipient:recipients)
+                if(recipient!=null)
+                    owned.put(
+                        recipient,
+                        -1L
+                    );
+
+        return enqueueOwned(
+            now,
+            sourceId,
+            -1L,
+            target,
+            mask,
+            playerBarrierSequence,
+            owned
+        );
+    }
+
+    synchronized boolean enqueueOwned(
+        long now,
+        EntityId sourceId,
+        Target target,
+        NpcSyncEncoder.Mask mask,
+        long playerBarrierSequence,
+        Map<EntityId,Long> recipients
+    ){
+        return enqueueOwned(
+            now,
+            sourceId,
+            -1L,
+            target,
+            mask,
+            playerBarrierSequence,
+            recipients
+        );
+    }
+
+    synchronized boolean enqueueOwned(
+        long now,
+        EntityId sourceId,
+        long sourceGeneration,
+        Target target,
+        NpcSyncEncoder.Mask mask,
+        long playerBarrierSequence,
+        Map<EntityId,Long> recipients
+    ){
         if(closed)
             return false;
 
@@ -144,12 +202,29 @@ final class WorldNpcPresentationEvents
 
         LinkedHashSet<EntityId> unique=
             new LinkedHashSet<>();
+        HashMap<EntityId,Long> generations=
+            new HashMap<>();
 
         if(recipients!=null)
-            for(EntityId recipient:recipients)
-                if(recipient!=null&&
-                   !recipient.equals(sourceId))
-                    unique.add(recipient);
+            for(Map.Entry<EntityId,Long> entry:
+                    recipients.entrySet()){
+                EntityId recipient=
+                    entry.getKey();
+                Long generation=
+                    entry.getValue();
+
+                if(recipient==null||
+                   recipient.equals(sourceId))
+                    continue;
+
+                unique.add(recipient);
+                generations.put(
+                    recipient,
+                    generation==null
+                        ?-1L
+                        :generation.longValue()
+                );
+            }
 
         if(unique.isEmpty())
             return false;
@@ -162,8 +237,15 @@ final class WorldNpcPresentationEvents
            last.playerBarrierSequence==
                 playerBarrierSequence&&
            last.sourceId.equals(sourceId)&&
+           last.sourceGeneration==
+                sourceGeneration&&
            sameTarget(last.target,target)&&
-           sameMask(last.mask,mask))
+           sameMask(last.mask,mask)&&
+           sameRecipients(
+               last,
+               unique,
+               generations
+           ))
             return false;
 
         events.addLast(
@@ -171,10 +253,12 @@ final class WorldNpcPresentationEvents
                 ++sequence,
                 now,
                 sourceId,
+                sourceGeneration,
                 target,
                 mask,
                 playerBarrierSequence,
-                unique
+                unique,
+                generations
             )
         );
 
@@ -200,6 +284,42 @@ final class WorldNpcPresentationEvents
                 out.add(event);
 
         return Collections.unmodifiableList(out);
+    }
+
+    synchronized List<Event> pendingFor(
+        EntityId viewerId,
+        long viewerGeneration,
+        long now
+    ){
+        if(closed||viewerId==null)
+            return Collections.emptyList();
+
+        pruneExpired(now);
+
+        ArrayList<Event> out=
+            new ArrayList<>();
+
+        for(Event event:events){
+            Long expected=
+                event.recipientGenerations.get(
+                    viewerId
+                );
+
+            if(expected==null)
+                continue;
+
+            if(expected.longValue()>=0L&&
+               expected.longValue()!=viewerGeneration)
+                continue;
+
+            if(!event.delivered.contains(
+                    viewerId))
+                out.add(event);
+        }
+
+        return Collections.unmodifiableList(
+            out
+        );
     }
 
     synchronized void markDelivered(
@@ -243,6 +363,35 @@ final class WorldNpcPresentationEvents
         return removed;
     }
 
+    synchronized int removeSourceGeneration(
+        EntityId sourceId,
+        long sourceGeneration,
+        long now
+    ){
+        if(closed||sourceId==null)
+            return 0;
+
+        int removed=0;
+
+        for(Iterator<Event> iterator=
+                events.iterator();
+                iterator.hasNext();){
+            Event event=iterator.next();
+
+            if(event.sourceId.equals(
+                    sourceId
+                )&&
+               event.sourceGeneration==
+                    sourceGeneration){
+                iterator.remove();
+                removed++;
+            }
+        }
+
+        pruneExpired(now);
+        return removed;
+    }
+
     synchronized void retainRecipients(
         Collection<EntityId> liveRecipients,
         long now
@@ -255,8 +404,56 @@ final class WorldNpcPresentationEvents
                 ?new HashSet<>()
                 :new HashSet<>(liveRecipients);
 
-        for(Event event:events)
+        for(Event event:events){
             event.recipients.retainAll(live);
+            event.recipientGenerations
+                .keySet()
+                .retainAll(live);
+        }
+
+        pruneDelivered(now);
+    }
+
+    synchronized void retainRecipientsOwned(
+        Map<EntityId,Long> liveRecipients,
+        long now
+    ){
+        if(closed)
+            return;
+
+        for(Event event:events){
+            for(Iterator<EntityId> it=
+                    event.recipients.iterator();
+                    it.hasNext();){
+                EntityId recipient=
+                    it.next();
+                Long expected=
+                    event.recipientGenerations.get(
+                        recipient
+                    );
+                Long current=
+                    liveRecipients==null
+                        ?null
+                        :liveRecipients.get(
+                            recipient
+                        );
+
+                boolean keep=
+                    current!=null&&
+                    (expected==null||
+                     expected.longValue()<0L||
+                     expected.longValue()==
+                        current.longValue());
+
+                if(!keep){
+                    it.remove();
+                    event.recipientGenerations
+                        .remove(recipient);
+                    event.delivered
+                        .remove(recipient);
+                }
+            }
+        }
 
         pruneDelivered(now);
     }
@@ -297,6 +494,19 @@ final class WorldNpcPresentationEvents
                ))
                 it.remove();
         }
+    }
+
+    private static boolean sameRecipients(
+        Event event,
+        LinkedHashSet<EntityId> recipients,
+        HashMap<EntityId,Long> generations
+    ){
+        return event.recipients.equals(
+                recipients
+            )&&
+            event.recipientGenerations.equals(
+                generations
+            );
     }
 
     private static boolean sameTarget(
