@@ -58,6 +58,12 @@ final class World implements AutoCloseable {
                     players.owns(
                         player,
                         generation
+                    ),
+                (player,generation,action)->
+                    withOpenPlayerMutationOwnershipIfCurrent(
+                        player,
+                        generation,
+                        action::run
                     )
             );
         pulse=new WorldPulse(this,tickMillis);
