@@ -7,14 +7,27 @@ import java.util.concurrent.*;
 
 public final class VoidglassRuntimeIntegrationTest {
     static Object field(Object o,String n)throws Exception{Field f=o.getClass().getDeclaredField(n);f.setAccessible(true);return f.get(o);}
-    static void setPendingCommand(ClientPacketProbe p,String c)throws Exception{Field f=ClientPacketProbe.class.getDeclaredField("pendingCommand");f.setAccessible(true);f.set(p,c);}
+    static void enqueueCommand(ClientPacketProbe p,String c)throws Exception{
+        ClientRequestQueue queue=(ClientRequestQueue)field(p,"typedRequests");
+        if(!queue.offer(
+                new CommandClientRequest(
+                    c,
+                    ClientRequestMetadata.exactCurrent(
+                        103,
+                        "TEST_TYPED_COMMAND",
+                        "VOIDGLASS_RUNTIME_INTEGRATION_TEST"
+                    )
+                )
+            ))
+            throw new AssertionError("typed request queue full");
+    }
     static void onWorld(World world,WorldPlayer player,WorldCommandInbox.Action action)throws Exception{
         CompletableFuture<Void> future=world.commands().submit(player,action);
         world.pulse().pulseOnce(System.currentTimeMillis());
         future.get(3,TimeUnit.SECONDS);
     }
     static void command(LocalSession s,World world,WorldPlayer player,ClientPacketProbe p,ServerPacketWriter w,String c)throws Exception{
-        setPendingCommand(p,c);
+        enqueueCommand(p,c);
         LocalPendingRequestDispatcher dispatcher=(LocalPendingRequestDispatcher)field(s,"pendingRequests");
         onWorld(world,player,()->dispatcher.drain(p,w,"[voidglass-test] "));
     }
