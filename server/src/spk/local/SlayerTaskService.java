@@ -169,6 +169,7 @@ final class SlayerTaskService {
 
         State state=State.ACTIVE;
         long transitionTick=-1L;
+        long lastObservedTick;
 
         Task(
             TaskId id,
@@ -180,6 +181,8 @@ final class SlayerTaskService {
             this.playerRef=playerRef;
             this.definition=definition;
             this.assignedTick=
+                assignedTick;
+            this.lastObservedTick=
                 assignedTick;
         }
     }
@@ -353,10 +356,12 @@ final class SlayerTaskService {
 
         Task task=requireActive(player);
 
-        if(worldTick<task.assignedTick)
-            throw new IllegalArgumentException(
-                "kill tick before assignment"
-            );
+        requireForwardTick(
+            task,
+            worldTick
+        );
+        task.lastObservedTick=
+            worldTick;
 
         ObjectiveProgressService ledger=
             requireLedger(player);
@@ -410,6 +415,12 @@ final class SlayerTaskService {
         observeTick(worldTick);
 
         Task task=requireTask(taskId);
+        requireForwardTick(
+            task,
+            worldTick
+        );
+        task.lastObservedTick=
+            worldTick;
         ObjectiveProgressService ledger=
             requireLedger(
                 task.playerRef
@@ -566,10 +577,12 @@ final class SlayerTaskService {
                 " state="+task.state
             );
 
-        if(worldTick<task.assignedTick)
-            throw new IllegalArgumentException(
-                "transition tick before assignment"
-            );
+        requireForwardTick(
+            task,
+            worldTick
+        );
+        task.lastObservedTick=
+            worldTick;
 
         transition(
             task,
@@ -595,6 +608,8 @@ final class SlayerTaskService {
 
         task.state=target;
         task.transitionTick=worldTick;
+        task.lastObservedTick=
+            worldTick;
 
         TaskId active=
             activeByPlayer.get(
@@ -697,6 +712,20 @@ final class SlayerTaskService {
             );
 
         return new TaskId(value);
+    }
+
+    private static void requireForwardTick(
+        Task task,
+        long worldTick
+    ){
+        if(worldTick<
+                task.lastObservedTick)
+            throw new IllegalArgumentException(
+                "Slayer task tick moved backwards "+
+                worldTick+
+                " < "+
+                task.lastObservedTick
+            );
     }
 
     private static void observeTick(long worldTick){
