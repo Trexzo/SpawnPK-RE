@@ -195,23 +195,42 @@ final class Player81WorldSync {
                 );
         }
 
-        synchronized WorldPlayer resolveVisible(int clientIndex){
-            if(!ownerCurrent())return null;
-            for(Track t:visible.values()){
-                if(t.clientIndex!=clientIndex)
+        private synchronized Track visibleTrack(
+            int clientIndex
+        ){
+            if(!ownerCurrent())
+                return null;
+
+            for(Track track:visible.values()){
+                if(track.clientIndex!=clientIndex)
                     continue;
+
                 WorldPlayer player=
                     state.world.players()
-                        .byId(t.id);
+                        .byId(track.id);
+
                 return player!=null&&
                     state.world.players().owns(
                         player,
-                        t.generation
+                        track.generation
                     )
-                    ?player
+                    ?track
                     :null;
             }
+
             return null;
+        }
+
+        synchronized WorldPlayer resolveVisible(
+            int clientIndex
+        ){
+            Track track=
+                visibleTrack(clientIndex);
+
+            return track==null
+                ?null
+                :state.world.players()
+                    .byId(track.id);
         }
 
         synchronized int clientIndexFor(WorldPlayer p){
@@ -504,30 +523,105 @@ final class Player81WorldSync {
         Motion(long seq,int type,int dir1,int dir2){this.seq=seq;this.type=type;this.dir1=dir1;this.dir2=dir2;}
     }
     private static final class Event {
-        final long seq;final byte[] tail;final int interactionOffset;final boolean playerInteraction;final EntityId targetEntity;
-        Event(long seq,byte[] tail,int interactionOffset,boolean playerInteraction,EntityId targetEntity){
-            this.seq=seq;this.tail=tail;this.interactionOffset=interactionOffset;this.playerInteraction=playerInteraction;this.targetEntity=targetEntity;
+        final long seq;
+        final byte[] tail;
+        final int interactionOffset;
+        final boolean playerInteraction;
+        final EntityId targetEntity;
+        final long targetGeneration;
+
+        Event(
+            long seq,
+            byte[] tail,
+            int interactionOffset,
+            boolean playerInteraction,
+            EntityId targetEntity,
+            long targetGeneration
+        ){
+            this.seq=seq;
+            this.tail=tail;
+            this.interactionOffset=interactionOffset;
+            this.playerInteraction=playerInteraction;
+            this.targetEntity=targetEntity;
+            this.targetGeneration=targetGeneration;
         }
-        static Event from(long seq,byte[] tail,Context owner){
-            byte[] copy=tail.clone();int off=interactionOffset(copy);boolean player=false;EntityId target=null;
+
+        static Event from(
+            long seq,
+            byte[] tail,
+            Context owner
+        ){
+            byte[] copy=tail.clone();
+            int off=interactionOffset(copy);
+            boolean player=false;
+            EntityId target=null;
+            long targetGeneration=-1L;
+
             if(off>=0&&off+1<copy.length){
-                int raw=(copy[off]&255)|((copy[off+1]&255)<<8);
+                int raw=
+                    (copy[off]&255)|
+                    ((copy[off+1]&255)<<8);
+
                 if(raw>=32768&&raw!=65535){
-                    player=true;WorldPlayer p=owner.resolveVisible(raw-32768);if(p!=null)target=p.id();
+                    player=true;
+
+                    Track targetTrack=
+                        owner.visibleTrack(
+                            raw-32768
+                        );
+
+                    if(targetTrack!=null){
+                        target=targetTrack.id;
+                        targetGeneration=
+                            targetTrack.generation;
+                    }
                 }
             }
-            return new Event(seq,copy,off,player,target);
+
+            return new Event(
+                seq,
+                copy,
+                off,
+                player,
+                target,
+                targetGeneration
+            );
         }
+
         byte[] forViewer(Context viewer){
             byte[] out=tail.clone();
-            if(playerInteraction&&interactionOffset>=0){
+
+            if(playerInteraction&&
+               interactionOffset>=0){
                 int value=65535;
+
                 if(targetEntity!=null){
-                    WorldPlayer p=viewer.state.world.players().byId(targetEntity);
-                    if(p!=null){int v=viewer.interactionTargetFor(p);if(v>=0)value=v;}
+                    WorldPlayer player=
+                        viewer.state.world.players()
+                            .byId(targetEntity);
+
+                    if(player!=null&&
+                       viewer.state.world.players()
+                           .owns(
+                               player,
+                               targetGeneration
+                           )){
+                        int translated=
+                            viewer.interactionTargetFor(
+                                player
+                            );
+
+                        if(translated>=0)
+                            value=translated;
+                    }
                 }
-                out[interactionOffset]=(byte)(value&255);out[interactionOffset+1]=(byte)((value>>>8)&255);
+
+                out[interactionOffset]=
+                    (byte)(value&255);
+                out[interactionOffset+1]=
+                    (byte)((value>>>8)&255);
             }
+
             return out;
         }
     }
