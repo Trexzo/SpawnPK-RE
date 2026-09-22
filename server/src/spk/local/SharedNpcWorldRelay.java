@@ -89,55 +89,80 @@ final class SharedNpcWorldRelay {
      */
     static void relayMask(ServerPacketWriter sourceWriter,NpcRegistry sourceNpcs,NpcEntity sourceTarget,NpcSyncEncoder.Mask mask){
         if(sourceWriter==null||sourceNpcs==null||sourceTarget==null||mask==null)return;
+
+        final Context candidate;
+
         synchronized(SharedNpcWorldRelay.class){
-            Context src=BY_WRITER.get(sourceWriter);if(src==null)return;
-            WorldNpcPresentationEvents.Target target;
-            if(sourceTarget.canonicalId()!=null)
-                target=WorldNpcPresentationEvents.Target.canonical(
-                    sourceTarget.canonicalId(),
-                    sourceTarget.definitionId
-                );
-            else if(sourceTarget==sourceNpcs.pet())
-                target=WorldNpcPresentationEvents.Target.pet(
-                    sourceNpcs.canonicalPetId(),
-                    sourceTarget.definitionId
-                );
-            else if(sourceTarget==sourceNpcs.miniPet())
-                target=WorldNpcPresentationEvents.Target.mini(
-                    sourceNpcs.canonicalMiniPetId(),
-                    sourceTarget.definitionId
-                );
-            else
-                target=WorldNpcPresentationEvents.Target.scene(
-                    sourceTarget.sceneIndex,
-                    sourceTarget.definitionId
-                );
-
-            long barrier=
-                Player81WorldSync.latestPublishedEventSequence(
-                    sourceWriter
-                );
-
-            LinkedHashSet<EntityId> recipients=
-                new LinkedHashSet<>();
-            for(Context c:src.state.contexts.values())
-                if(c!=src&&
-                   !c.owner.id().equals(src.owner.id()))
-                    recipients.add(c.owner.id());
-
-            if(recipients.isEmpty())return;
-
-            src.state.world
-                .npcPresentationEvents()
-                .enqueue(
-                    System.currentTimeMillis(),
-                    src.owner.id(),
-                    target,
-                    mask,
-                    barrier,
-                    recipients
-                );
+            candidate=BY_WRITER.get(sourceWriter);
         }
+
+        if(candidate==null)return;
+
+        candidate.state.world.runIfOpen(
+            ()->{
+                synchronized(SharedNpcWorldRelay.class){
+                    Context src=
+                        BY_WRITER.get(sourceWriter);
+
+                    if(src!=candidate)
+                        return;
+
+                    if(!src.state.world.players().owns(
+                            src.owner,
+                            src.ownerGeneration
+                        ))
+                        return;
+
+                    WorldNpcPresentationEvents.Target target;
+                    if(sourceTarget.canonicalId()!=null)
+                        target=WorldNpcPresentationEvents.Target.canonical(
+                            sourceTarget.canonicalId(),
+                            sourceTarget.definitionId
+                        );
+                    else if(sourceTarget==sourceNpcs.pet())
+                        target=WorldNpcPresentationEvents.Target.pet(
+                            sourceNpcs.canonicalPetId(),
+                            sourceTarget.definitionId
+                        );
+                    else if(sourceTarget==sourceNpcs.miniPet())
+                        target=WorldNpcPresentationEvents.Target.mini(
+                            sourceNpcs.canonicalMiniPetId(),
+                            sourceTarget.definitionId
+                        );
+                    else
+                        target=WorldNpcPresentationEvents.Target.scene(
+                            sourceTarget.sceneIndex,
+                            sourceTarget.definitionId
+                        );
+
+                    long barrier=
+                        Player81WorldSync.latestPublishedEventSequence(
+                            sourceWriter
+                        );
+
+                    LinkedHashSet<EntityId> recipients=
+                        new LinkedHashSet<>();
+                    for(Context c:src.state.contexts.values())
+                        if(c!=src&&
+                           !c.owner.id().equals(src.owner.id()))
+                            recipients.add(c.owner.id());
+
+                    if(recipients.isEmpty())
+                        return;
+
+                    src.state.world
+                        .npcPresentationEvents()
+                        .enqueue(
+                            System.currentTimeMillis(),
+                            src.owner.id(),
+                            target,
+                            mask,
+                            barrier,
+                            recipients
+                        );
+                }
+            }
+        );
     }
 
     /**
@@ -230,9 +255,17 @@ final class SharedNpcWorldRelay {
 
     private static final class Context{
         final ServerPacketWriter writer;final WorldState state;final WorldPlayer owner;final NpcRegistry npcs;final MovementState movement;
+        final long ownerGeneration;
         final HashMap<EntityId,RemotePetTrack> remote=new HashMap<>();
         final NpcViewIndexMap remoteIndexes=new NpcViewIndexMap();
-        Context(ServerPacketWriter w,WorldState s,WorldPlayer o,NpcRegistry n,MovementState m){writer=w;state=s;owner=o;npcs=n;movement=m;}
+        Context(ServerPacketWriter w,WorldState s,WorldPlayer o,NpcRegistry n,MovementState m){
+            writer=w;
+            state=s;
+            owner=o;
+            npcs=n;
+            movement=m;
+            ownerGeneration=o.generation();
+        }
 
         void syncRemotePets()throws IOException{
             ArrayList<Context> sources;
