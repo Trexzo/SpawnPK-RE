@@ -803,7 +803,8 @@ final class LocalSession implements Runnable {
                 if(bootstrap && runtimeBindings.context()==null){
                     runtimeBindings.register(
                         serverPackets,
-                        tag
+                        tag,
+                        worldPlayerGeneration
                     );
                 }
 
