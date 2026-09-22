@@ -450,6 +450,20 @@ final class LocalPendingRequestDispatcher {
             }
 
             if(request instanceof
+                    SocialListClientRequest){
+                SocialListClientRequest social=
+                    (SocialListClientRequest)request;
+
+                System.out.println(
+                    tag+
+                    socialListFailClosedDiagnostic(
+                        social
+                    )
+                );
+                continue;
+            }
+
+            if(request instanceof
                     CommandClientRequest){
                 CommandClientRequest command=
                     (CommandClientRequest)request;
@@ -472,6 +486,25 @@ final class LocalPendingRequestDispatcher {
                 request
             );
         }
+    }
+
+    static String socialListFailClosedDiagnostic(
+        SocialListClientRequest request
+    ){
+        Objects.requireNonNull(
+            request,
+            "request"
+        );
+
+        return "SOCIAL_LIST_REQUEST_FAIL_CLOSED action="+
+            request.action()+
+            " nameKey="+
+            Long.toUnsignedString(
+                request.nameKey()
+            )+
+            " reason=NAME_KEY_ACCOUNT_MAPPING_UNPROVEN"+
+            " stateMutation=false"+
+            " authority=EXACT_CURRENT_CLIENT";
     }
 
     private void routeObjectInteraction(
