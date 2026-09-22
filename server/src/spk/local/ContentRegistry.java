@@ -2405,20 +2405,7 @@ final class ContentRegistry {
             }
         }
 
-        private void requireAccepting(){
-            if(!accepting)
-                throw new IllegalStateException(
-                    "content registrar closed module="+
-                    moduleId
-                );
-        }
-
-        synchronized void seal(){
-            accepting=false;
-        }
-
         synchronized void activatePending(){
-            accepting=false;
             synchronized(ContentRegistry.this){
                 if(state==REGISTRATION_PENDING)
                     state=REGISTRATION_ACTIVE;
@@ -2426,7 +2413,6 @@ final class ContentRegistry {
         }
 
         synchronized void invalidatePending(){
-            accepting=false;
             synchronized(ContentRegistry.this){
                 if(state==REGISTRATION_PENDING)
                     state=REGISTRATION_REMOVED;
@@ -2473,6 +2459,18 @@ final class ContentRegistry {
         ){
             this.moduleId=moduleId;
             this.provenance=provenance;
+        }
+
+        private void requireAccepting(){
+            if(!accepting)
+                throw new IllegalStateException(
+                    "content registrar closed module="+
+                    moduleId
+                );
+        }
+
+        synchronized void seal(){
+            accepting=false;
         }
 
         @Override public synchronized ContentRegistration command(
@@ -2898,7 +2896,8 @@ final class ContentRegistry {
             return handle;
         }
 
-        void activatePending(){
+        synchronized void activatePending(){
+            accepting=false;
             for(CommandRegistration registration:
                     pendingCommands)
                 registration.handle
@@ -2945,7 +2944,8 @@ final class ContentRegistry {
                     .activatePending();
         }
 
-        void invalidatePending(){
+        synchronized void invalidatePending(){
+            accepting=false;
             for(CommandRegistration registration:
                     pendingCommands)
                 registration.handle
