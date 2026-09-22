@@ -1,0 +1,39 @@
+Exact v308 Voting interface
+SHA-256 854f26ff9f134b0317572e7ac1688e6f40a231d5a4c66f8db5d655b7f45ce7c6
+class rs.n.c.M
+
+root 60050
+background 60051
+title 60061 "@or1@Vote for us and receive rewards!"
+
+constructed controls:
+60052 / 60053 tooltip "Vote for us on TopG"
+60054 auxiliary
+60055 / 60056 tooltip "Vote for us on RuneLocus"
+60057 auxiliary
+60058 / 60059 tooltip "Vote for us on RSPS-List"
+60060 auxiliary
+60164 / 60165 tooltip "Vote for us on Moparscape"
+60166 auxiliary
+
+visible scroll/root:
+60163 has exactly six children:
+  60055
+  60056
+  60058
+  60059
+  60052
+  60053
+
+Moparscape 60164/60165 is constructed but not placed by the live builder.
+
+root 60050 children:
+  60051
+  60163
+  63740
+  63741
+  60061
+
+Boundary:
+Visible-site UI is exact authority.
+Click-to-wire/browser behavior, URLs, verification, cooldowns and rewards are not proven here.
