@@ -1,0 +1,78 @@
+Exact v308 dialogue cache/runtime closure
+
+Authorities:
+- exact Library client(6).jar SHA-256 854f26ff9f134b0317572e7ac1688e6f40a231d5a4c66f8db5d655b7f45ce7c6
+- matched .spawnpk-data cache
+- interface archive idx0 archive 3 -> single file `data`
+
+Cache parser verification:
+- interface `data` bytes: 784,354
+- declared count: 18,516
+- parsed interface records after count header: 18,515
+- unique widget ids parsed: 18,515
+- final cursor: exactly 784,354
+- remaining bytes: 0
+
+PLAYER/RIGHT-SIDE NAMED MODEL FAMILY
+root 968 -> model 969 @414,34; Name 970; Line1 971; Continue 972
+root 973 -> model 974 @414,34; Name 975; Line1 976; Line2 977; Continue 978
+root 979 -> model 980 @414,34; Name 981; Line1 982; Line2 983; Line3 984; Continue 985
+root 986 -> model 987 @414,34; Name 988; Line1 989; Line2 990; Line3 991; Line4 992; Continue 993
+All Continue widgets: type4/action6/text `Click here to continue`/tooltip `Continue`.
+
+NPC/LEFT-SIDE NAMED MODEL FAMILY
+root 4882 -> model 4883 @34,34; Name 4884; Line1 4885; Continue 4886
+root 4887 -> model 4888 @34,34; Name 4889; Line1 4890; Line2 4891; Continue 4892
+root 4893 -> model 4894 @34,34; Name 4895; Line1 4896; Line2 4897; Line3 4898; Continue 4899
+root 4900 -> model 4901 @34,34; Name 4902; Line1 4903; Line2 4904; Line3 4905; Line4 4906; Continue 4907
+
+STATEMENT FAMILY
+root 356 -> Line1 357; Continue 358
+root 359 -> Line1 360; Line2 361; Continue 362
+root 363 -> Line1 364; Line2 365; Line3 366; Continue 367
+root 368 -> Line1 369; Line2 370; Line3 371; Line4 372; Continue 373
+root 374 -> Line1 375; Line2 376; Line3 377; Line4 378; Line5 379; Continue 380
+
+RUNTIME ITEM-BACKED DIALOGUE
+class rs.n.c.a.a:
+- static root c = 30700
+- root controller is built over 30700
+- text widgets 6181/6182/6183/6184 are placed as dialogue lines
+- Continue widget 4892 is placed into the root
+- item widget 14171 is placed into the root
+- a(itemId, amountOrCount, boolean) calls rs.n.c.A.a(14171,itemId,...), then lays out the root
+
+class rs.n.c.A#a(widgetId,itemId,...):
+- resolves exact item definition with rs.d.k.f(itemId)
+- writes item id into widget aN
+- writes quantity/count into widget bq
+- copies item-definition model rotations M/Z into widget aU/aV
+- derives widget model zoom from item definition G
+- optionally copies extra model presentation flags
+
+Therefore 30700 is an exact item-backed dialogue/presentation root, not a guessed generic 317 item-dialogue id.
+
+14170 CACHE DEFAULT VS RUNTIME REPURPOSING
+cache root 14170 children include:
+- 14171: 1x1 item container
+- 14172/14173: static model widgets
+- 14174: `Are you sure you want to destroy this object?`
+- 14175: `Yes.` action1 tooltip `Destroy Object`
+- 14176: `No.` action1 tooltip `Cancel`
+- 14184: `Name`
+
+Exact rs.n.c.A later rewrites root 14170 layout and changes 14174 text to:
+`Please confirm your choice.`
+
+Exact rs.Client also includes 14170 in the dialogue-option hotkey root set.
+
+Boundary:
+- 14170 is option-capable at runtime, but its cache default is specifically destroy-object confirmation.
+- do not describe 14170 as merely a generic standard option root without preserving this dual-use/runtime-repurposing evidence.
+- 14176 Cancel is the destroy-confirmation option, not the same control as shared augmented-option close widget 54195.
+
+CLOSE/CANCEL DISTINCTION
+- shared augmented option close: widget 54195 `<img=25> Close window`, tooltip Cancel, action1 -> C2S185
+- destroy confirmation cancel: widget 14176 `No.`, tooltip Cancel, action1 -> C2S185
+- statement/named-model Continue roots above do not contain a generic close/cancel child in the exact cache.
+- server-side interface termination remains separately available through exact S2C219 close-interfaces presentation.
