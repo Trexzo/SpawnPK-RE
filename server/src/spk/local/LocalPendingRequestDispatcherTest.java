@@ -2,6 +2,7 @@ package spk.local;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 
 public final class LocalPendingRequestDispatcherTest {
     public static void main(String[] args)throws Exception{
