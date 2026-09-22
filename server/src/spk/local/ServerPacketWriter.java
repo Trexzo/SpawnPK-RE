@@ -34,19 +34,65 @@ final class ServerPacketWriter {
         autoFlush();
     }
 
-    synchronized void varShort(int opcode, byte[] body) throws IOException {
-        if(body==null)body=new byte[0];
-        boolean player81=opcode==81;
-        if(player81)body=Player81WorldSync.transform(this,body);
-        if(body.length>65535)throw new IllegalArgumentException("varShort payload too large: "+body.length);
-        writeOpcode(opcode);
-        pending.write((body.length>>>8)&255);
-        pending.write(body.length&255);
-        pending.write(body);
-        // R3.2 ordering barrier: remote NPC/pet masks are appended only after this
-        // viewer has consumed the matching remote player presentation event.
-        if(player81)SharedNpcWorldRelay.flushAfterPlayer81(this);
-        autoFlush();
+    void varShort(
+        int opcode,
+        byte[] body
+    )throws IOException{
+        byte[] checkedBody=
+            body==null
+                ?new byte[0]
+                :body;
+
+        if(opcode==81){
+            byte[] transformed=
+                Player81WorldSync.transform(
+                    this,
+                    checkedBody
+                );
+
+            if(transformed.length>65535)
+                throw new IllegalArgumentException(
+                    "varShort payload too large: "+
+                    transformed.length
+                );
+
+            synchronized(this){
+                writeOpcode(opcode);
+                pending.write(
+                    (transformed.length>>>8)&255
+                );
+                pending.write(
+                    transformed.length&255
+                );
+                pending.write(transformed);
+                autoFlush();
+            }
+
+            // Never call back into World/Player81 ownership while
+            // holding the writer monitor.  The packet-81 bytes are
+            // already ordered ahead of any released packet-65 work.
+            SharedNpcWorldRelay
+                .flushAfterPlayer81(this);
+            return;
+        }
+
+        if(checkedBody.length>65535)
+            throw new IllegalArgumentException(
+                "varShort payload too large: "+
+                checkedBody.length
+            );
+
+        synchronized(this){
+            writeOpcode(opcode);
+            pending.write(
+                (checkedBody.length>>>8)&255
+            );
+            pending.write(
+                checkedBody.length&255
+            );
+            pending.write(checkedBody);
+            autoFlush();
+        }
     }
 
     synchronized void varByte(int opcode, byte[] body) throws IOException {
