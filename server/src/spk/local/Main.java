@@ -106,15 +106,12 @@ public final class Main {
                     break;
             }
         } finally {
-            shutdown.close();
-
-            try {
-                runtime.removeShutdownHook(
+            MainShutdownFinalizer.run(
+                shutdown::close,
+                ()->runtime.removeShutdownHook(
                     shutdownHook
-                );
-            } catch (IllegalStateException ignored) {
-                // JVM shutdown is already in progress; the hook owns cleanup.
-            }
+                )
+            );
         }
     }
 
