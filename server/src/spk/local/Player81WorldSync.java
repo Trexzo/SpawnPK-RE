@@ -480,7 +480,7 @@ final class Player81WorldSync {
             events.remove(ownerId);
             String prefix=ownerId+">";
             String suffix=">"+ownerId;
-            for(Iterator<Map.Entry<String,TradeRequest>> it=tradeRequests.entrySet().iterator();it.hasNext()){
+            for(Iterator<Map.Entry<String,TradeRequest>> it=tradeRequests.entrySet().iterator();it.hasNext();){
                 String key=it.next().getKey();
                 if(key.startsWith(prefix)||key.endsWith(suffix))it.remove();
             }
