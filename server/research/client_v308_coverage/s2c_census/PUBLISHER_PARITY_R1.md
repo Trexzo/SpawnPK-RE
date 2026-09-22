@@ -217,3 +217,41 @@ Chat 3 supplies semantic gameplay/domain behavior.
 4. For genuinely absent publishers, hand exact field schemas to Chat 2 rather
    than inventing one-off feature packet code.
 5. Link application-specific packet requirements into Issue #427.
+
+
+# R2 Update — Exact Widget Publisher Gap Closure
+
+Current exact-v308 handled S2C parity ledger is now finite:
+
+```
+75 total handled client S2C opcodes
+
+32 IMPLEMENTED_OR_AUTHORITY_PRESENT_CURRENT_MAIN
+16 CURRENT_MAIN_GENERIC_PUBLISHER_GAP_R2
+27 NO_COMPLETE_MAIN_PARITY_CLAIM
+```
+
+The 16 exact generic publisher gaps are:
+
+```
+8,24,34,70,72,75,79,122,142,171,185,187,200,218,230,246
+```
+
+Their exact v308 field order/transforms are closed in:
+
+```
+WIDGET_PUBLISHER_GAP_R2.md
+widget_publisher_reader_map_v308.txt
+```
+
+Chat 2 implementation is tracked by Issue #513.
+
+Important: the remaining 27 rows are **not** being called missing. They remain
+unresolved parity until their current-main publisher/use surfaces are audited.
+
+R2 exact-client schema recovery used the real Library `client(6).jar` and
+reverified SHA-256:
+
+```
+854f26ff9f134b0317572e7ac1688e6f40a231d5a4c66f8db5d655b7f45ce7c6
+```
