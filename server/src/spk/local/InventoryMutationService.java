@@ -53,17 +53,21 @@ final class InventoryMutationService {
     }
 
     private final BankState inventory;
+    private final Object mutationLock;
     private final String policyAuthority;
 
     InventoryMutationService(
-        BankState inventory,
+        WorldPlayer player,
         String policyAuthority
     ){
-        this.inventory=
+        WorldPlayer owner=
             Objects.requireNonNull(
-                inventory,
-                "inventory"
+                player,
+                "player"
             );
+
+        this.inventory=owner.bank();
+        this.mutationLock=owner.mutationLock();
         this.policyAuthority=
             requireGameplayAuthority(
                 policyAuthority
@@ -71,18 +75,20 @@ final class InventoryMutationService {
     }
 
     SlotSnapshot inspect(int slot){
-        BankState.InventorySlotSnapshot raw=
-            inventory.inventorySlotSnapshot(
-                slot
-            );
+        synchronized(mutationLock){
+            BankState.InventorySlotSnapshot raw=
+                inventory.inventorySlotSnapshot(
+                    slot
+                );
 
-        return new SlotSnapshot(
-            raw.slot,
-            raw.occupied,
-            raw.itemId,
-            raw.quantity,
-            policyAuthority
-        );
+            return new SlotSnapshot(
+                raw.slot,
+                raw.occupied,
+                raw.itemId,
+                raw.quantity,
+                policyAuthority
+            );
+        }
     }
 
     ConsumeResult consume(
@@ -90,17 +96,19 @@ final class InventoryMutationService {
         int expectedItemId,
         int amount
     ){
-        BankState.InventoryConsumeResult raw=
-            inventory.consumeInventoryAmountSemantic(
-                slot,
-                expectedItemId,
-                amount
-            );
+        synchronized(mutationLock){
+            BankState.InventoryConsumeResult raw=
+                inventory.consumeInventoryAmountSemantic(
+                    slot,
+                    expectedItemId,
+                    amount
+                );
 
-        return new ConsumeResult(
-            raw,
-            policyAuthority
-        );
+            return new ConsumeResult(
+                raw,
+                policyAuthority
+            );
+        }
     }
 
     String policyAuthority(){
