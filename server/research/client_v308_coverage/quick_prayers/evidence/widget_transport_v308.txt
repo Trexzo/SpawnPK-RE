@@ -1,0 +1,65 @@
+Exact v308 Quick Prayer / Quick Curse notes
+
+Authority:
+854f26ff9f134b0317572e7ac1688e6f40a231d5a4c66f8db5d655b7f45ce7c6
+
+Class:
+rs.n.c.aJ
+
+Roots:
+20000 quick prayers
+22000 quick curses
+
+Quick prayers:
+root child count 64
+visible selection overlays 17202..17230
+configs 630..658
+17231/config659 is constructed but not attached
+
+Quick curses:
+root child count 46
+visible selection overlays 17202..17221
+configs 630..649
+17222..17228/config650..656 are constructed but not attached
+
+Selection helper:
+aI=5
+M=1
+Q="Select"
+width=14
+height=15
+sprite primary index2 / alternate index1
+comparison aq[0]=1
+required I[0]=0
+script X[0]=[5,configIndex,0]
+
+Generic action:
+menu action315 -> C2S185 -> u16_be widget id
+
+Examples:
+17202 -> 43 32
+17221 -> 43 45
+17230 -> 43 4E
+
+Confirm:
+17241 "Confirm Selection"
+C2S185 -> 43 59
+same widget reused on both roots
+
+Orb menu:
+action1500 toggles client cp and sends:
+  ON  -> C2S185(5000) -> 13 88
+  OFF -> C2S185(4999) -> 13 87
+action1506:
+  Select quick prayers -> C2S185(5001) -> 13 89
+
+S2C126 controls:
+QUICK_PRAYERS_ON -> cp=true
+QUICK_PRAYERS_OFF -> cp=false
+DISABLE_QUICK_PRAYERS -> cp=false
+:quickdisable: -> cp=false
+:quicks:<value> -> separate boolean = suffix equalsIgnoreCase("on")
+
+Semantic warning:
+17202..17221 and 17241 are shared wire widget ids across roots 20000/22000.
+Active interface/prayer-book context is required for semantic resolution.
