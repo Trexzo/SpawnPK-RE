@@ -376,7 +376,7 @@ public final class DonationCartServiceTest {
                 );
 
         expect(
-            IllegalStateException.class,
+            IllegalArgumentException.class,
             ()->service.decrease(
                 "player:alice",
                 "bond:unknown-zero"
