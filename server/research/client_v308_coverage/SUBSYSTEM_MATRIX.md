@@ -23,7 +23,7 @@ authority would unblock Chat 2/3 without inventing server mechanics.
 | P2 | Application packet 250 families | R84 R4/R5/R6 operation grammars | STRONG-PARTIAL | remaining subtype closures and semantic handoff boundaries | Chat 2/3 |
 | P2 | S2C126 application/update bus | R84 exact update-bus research | STRONG-PARTIAL | remaining argument/control routes and server-authority interpretation gaps | Chat 2/3 |
 | P2 | Settings/config persistence surface | R83/R84 settings maps | PARTIAL | exact-current config ownership and which values are client-only preferences | Chat 3 |
-| P2 | Collection/achievement/task UI | R83/R84 catalogs and crosslinks | PARTIAL | consolidate state-machine inputs; keep reward/progression rules server-unknown unless proven elsewhere | Chat 3 |
+| P2 | Collection/achievement/task UI | R83/R84 catalogs and crosslinks; exact Pet Fusing root `18547` + Fuse low16 wire alias; exact Enchantment roots `31244/31243`, categories/rows/item-selection, S2C126 target 38 result state | STRONG-PARTIAL | Pet Fusing + Enchantment client contracts are ready for Chat 3 on ConversionService; live recipes/cost/RNG remain `UNKNOWN_SERVER_AUTHORITY` | Chat 3 |
 | P2 | Social/party/clan UI | party/mailbox/clan research plus newer research branches | PARTIAL | exact-current social-list/party/clan state contracts and server membership/permission unknowns | Chat 3 |
 
 ## Immediate campaign order
@@ -44,7 +44,7 @@ authority would unblock Chat 2/3 without inventing server mechanics.
    - keep server mechanics unknown unless separately proven.
 4. **Teleports / UI navigation**
    - close exact roots/buttons/configs and client-visible destination semantics.
-5. Continue Issue #427 application contracts: Pet Fusing/Enchanting -> PK Ratings -> Event Chest/Well/Looting Bag -> Boss Teleportation, then remaining minigames/assets/settings/social surfaces by dependency demand.
+5. Continue Issue #427 application contracts: PK Ratings -> Event Chest/Well/Looting Bag -> Boss Teleportation -> lotteries/Bloodcore systems, then remaining minigames/assets/settings/social surfaces by dependency demand.
 
 Completed high-value P0 packages now include the exact v308 worn staff-rank
 overhead gate, combat-facing contracts, prayer/magic presentation, Make-over
