@@ -6,22 +6,15 @@ import java.util.Objects;
  * Lifecycle-safe healing over the canonical WorldPlayer / PlayerState HP
  * channel.
  *
- * This service owns no food, potion, regeneration, respawn or packet policy.
- * The maximum normal heal ceiling is caller gameplay authority.
+ * Food, potion, regeneration, respawn, packet policy and maximum-HP
+ * calculation remain external. Callers resolve the maximum before entering
+ * this service so no arbitrary policy callback executes under player ownership.
  */
 final class HitpointsRecoveryService {
     enum Status {
         HEALED,
         ALREADY_AT_OR_ABOVE_MAXIMUM,
         DEAD
-    }
-
-    interface MaximumHitpointsResolver {
-        int maximumHitpoints(
-            WorldPlayer player
-        );
-
-        String authority();
     }
 
     static final class Result {
@@ -69,12 +62,9 @@ final class HitpointsRecoveryService {
     private final WorldPlayer player;
     private final PlayerState state;
     private final PlayerLifecycleState lifecycle;
-    private final MaximumHitpointsResolver resolver;
-    private final String resolverAuthority;
 
     HitpointsRecoveryService(
-        WorldPlayer player,
-        MaximumHitpointsResolver resolver
+        WorldPlayer player
     ) {
         this.player =
             Objects.requireNonNull(
@@ -85,19 +75,12 @@ final class HitpointsRecoveryService {
             player.playerState();
         this.lifecycle =
             player.lifecycle();
-        this.resolver =
-            Objects.requireNonNull(
-                resolver,
-                "resolver"
-            );
-        this.resolverAuthority =
-            requireGameplayAuthority(
-                resolver.authority()
-            );
     }
 
     Result heal(
-        int amount
+        int amount,
+        int maximum,
+        String maximumAuthority
     ) {
         if (amount <= 0) {
             throw new IllegalArgumentException(
@@ -105,6 +88,11 @@ final class HitpointsRecoveryService {
                 amount
             );
         }
+
+        String authority =
+            requireGameplayAuthority(
+                maximumAuthority
+            );
 
         synchronized (
             player.mutationLock()
@@ -122,7 +110,7 @@ final class HitpointsRecoveryService {
                     before,
                     before,
                     0,
-                    resolverAuthority
+                    authority
                 );
             }
 
@@ -133,15 +121,10 @@ final class HitpointsRecoveryService {
                 );
             }
 
-            int maximum =
-                resolver.maximumHitpoints(
-                    player
-                );
-
             if (maximum < 1 ||
                 maximum > 255) {
-                throw new IllegalStateException(
-                    "maximum hitpoints resolver returned " +
+                throw new IllegalArgumentException(
+                    "maximum hitpoints=" +
                     maximum +
                     " expected=1..255"
                 );
@@ -155,7 +138,7 @@ final class HitpointsRecoveryService {
                     before,
                     before,
                     maximum,
-                    resolverAuthority
+                    authority
                 );
             }
 
@@ -206,13 +189,9 @@ final class HitpointsRecoveryService {
                 before,
                 after,
                 maximum,
-                resolverAuthority
+                authority
             );
         }
-    }
-
-    String maximumAuthority() {
-        return resolverAuthority;
     }
 
     private static String requireGameplayAuthority(
