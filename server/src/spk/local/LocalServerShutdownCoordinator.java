@@ -163,25 +163,11 @@ final class LocalServerShutdownCoordinator
         Throwable failure=null;
 
         try{
-            pool.shutdown();
-
-            boolean terminated=
-                awaitPool(
-                    5,
-                    TimeUnit.SECONDS
+            failure=
+                WorldCloseSequence.run(
+                    this::closePool,
+                    world::close
                 );
-
-            if(!terminated){
-                pool.shutdownNow();
-                awaitPool(
-                    1,
-                    TimeUnit.SECONDS
-                );
-            }
-
-            world.close();
-        }catch(Throwable terminalFailure){
-            failure=terminalFailure;
         }finally{
             terminal.complete(
                 failure
@@ -191,6 +177,24 @@ final class LocalServerShutdownCoordinator
         WorldCloseSequence.rethrow(
             failure
         );
+    }
+
+    private void closePool(){
+        pool.shutdown();
+
+        boolean terminated=
+            awaitPool(
+                5,
+                TimeUnit.SECONDS
+            );
+
+        if(!terminated){
+            pool.shutdownNow();
+            awaitPool(
+                1,
+                TimeUnit.SECONDS
+            );
+        }
     }
 
     private boolean awaitPool(
