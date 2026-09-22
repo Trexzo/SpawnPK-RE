@@ -52,17 +52,20 @@ final class PlayerDeathItemResolutionService {
     static final class DeathContext {
         final EntityId playerId;
         final long deathTick;
+        final long deathSequence;
         final String deathCause;
         final List<CarriedLine> carried;
 
         private DeathContext(
             EntityId playerId,
             long deathTick,
+            long deathSequence,
             String deathCause,
             List<CarriedLine> carried
         ){
             this.playerId=playerId;
             this.deathTick=deathTick;
+            this.deathSequence=deathSequence;
             this.deathCause=deathCause;
             this.carried=Collections.unmodifiableList(
                 new ArrayList<>(carried)
@@ -111,6 +114,7 @@ final class PlayerDeathItemResolutionService {
     static final class Resolution {
         final EntityId playerId;
         final long deathTick;
+        final long deathSequence;
         final String deathCause;
         final List<Disposition> dispositions;
         final String policyAuthority;
@@ -118,12 +122,14 @@ final class PlayerDeathItemResolutionService {
         private Resolution(
             EntityId playerId,
             long deathTick,
+            long deathSequence,
             String deathCause,
             List<Disposition> dispositions,
             String policyAuthority
         ){
             this.playerId=playerId;
             this.deathTick=deathTick;
+            this.deathSequence=deathSequence;
             this.deathCause=deathCause;
             this.dispositions=
                 Collections.unmodifiableList(
@@ -218,6 +224,8 @@ final class PlayerDeathItemResolutionService {
 
             long deathTick=
                 lifecycle.deathTick();
+            long deathSequence=
+                lifecycle.deathSequence();
 
             if(deathTick<0L)
                 throw new IllegalStateException(
@@ -225,10 +233,19 @@ final class PlayerDeathItemResolutionService {
                     player.id()
                 );
 
-            Resolution existing=
-                resolvedByDeathSequence.get(
-                    deathTick
+            if(deathSequence<=0L)
+                throw new IllegalStateException(
+                    "dead player missing death sequence id="+
+                    player.id()
                 );
+
+            final Resolution existing;
+            synchronized(this){
+                existing=
+                    resolvedByDeathSequence.get(
+                        deathSequence
+                    );
+            }
 
             if(existing!=null)
                 return existing;
@@ -245,6 +262,7 @@ final class PlayerDeathItemResolutionService {
                 new DeathContext(
                     player.id(),
                     deathTick,
+                    deathSequence,
                     cause,
                     before
                 );
@@ -265,7 +283,9 @@ final class PlayerDeathItemResolutionService {
 
             if(!lifecycle.dead()||
                lifecycle.deathTick()!=
-                    deathTick)
+                    deathTick||
+               lifecycle.deathSequence()!=
+                    deathSequence)
                 throw new IllegalStateException(
                     "player death identity changed during disposition resolution id="+
                     player.id()
@@ -286,25 +306,28 @@ final class PlayerDeathItemResolutionService {
                 new Resolution(
                     player.id(),
                     deathTick,
+                    deathSequence,
                     cause,
                     dispositions,
                     policyAuthority
                 );
 
-            resolvedByDeathSequence.put(
-                deathTick,
-                result
-            );
+            synchronized(this){
+                resolvedByDeathSequence.put(
+                    deathSequence,
+                    result
+                );
+            }
 
             return result;
         }
     }
 
     synchronized Resolution get(
-        long deathTick
+        long deathSequence
     ){
         return resolvedByDeathSequence.get(
-            deathTick
+            deathSequence
         );
     }
 
