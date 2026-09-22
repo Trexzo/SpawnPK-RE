@@ -104,7 +104,6 @@ final class LocalPetRealtimeScheduler {
 
     void ensureFollowScheduled(long now){
         if(!bootstrap||
-           movement.transientRegion()||
            petDropPickup.pendingPickupBlocksPetFollow()||
            petFollowRealtimeScheduled||
            npcs.followFrozen()||
@@ -171,7 +170,6 @@ final class LocalPetRealtimeScheduler {
         ServerPacketWriter writer=bridge.sessionPackets();
 
         if(!bootstrap||
-           movement.transientRegion()||
            petDropPickup.pendingPickupBlocksPetFollow()||
            writer==null||
            npcs.followFrozen()||
