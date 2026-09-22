@@ -139,20 +139,31 @@ final class LocalSessionRuntimeBindings {
     }
 
     void unregister(){
-        if(registeredPackets==null){
+        final ServerPacketWriter writer=
+            registeredPackets;
+
+        if(writer==null){
             player81Sync=null;
             return;
         }
 
-        TradeService.unregister(
-            worldPlayer,
-            registeredPackets
+        LocalSessionRuntimeBindingCleanup.run(
+            "[runtime-bindings] ",
+            ()->{
+                registeredPackets=null;
+                player81Sync=null;
+            },
+            ()->TradeService.unregister(
+                worldPlayer,
+                writer
+            ),
+            ()->SharedNpcWorldRelay.unregister(
+                writer
+            ),
+            ()->Player81WorldSync.unregister(
+                writer
+            )
         );
-        SharedNpcWorldRelay.unregister(registeredPackets);
-        Player81WorldSync.unregister(registeredPackets);
-
-        registeredPackets=null;
-        player81Sync=null;
     }
 
     private void rollbackRegistration(
