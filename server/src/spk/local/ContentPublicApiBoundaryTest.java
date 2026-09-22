@@ -56,6 +56,10 @@ public final class ContentPublicApiBoundaryTest {
         ArrayList<String> violations=
             new ArrayList<>();
 
+        assertReconstructionIdentityGuards(
+            violations
+        );
+
         for(Class<?> api:API_TYPES){
             if(!Modifier.isPublic(api.getModifiers()))
                 violations.add(
@@ -107,6 +111,20 @@ public final class ContentPublicApiBoundaryTest {
                     violations.add(
                         location+
                         " exposes raw inventory/container slot identity"
+                    );
+
+                if(exposesRawContainerIdentity(
+                        methodName))
+                    violations.add(
+                        location+
+                        " exposes raw container identity"
+                    );
+
+                if(exposesRawCacheIdentity(
+                        methodName))
+                    violations.add(
+                        location+
+                        " exposes raw cache/archive identity"
                     );
 
                 if(methodName.contains("opcode")||
@@ -166,6 +184,24 @@ public final class ContentPublicApiBoundaryTest {
                         " exposes raw inventory/container slot identity"
                     );
 
+                if(exposesRawContainerIdentity(
+                        fieldName))
+                    violations.add(
+                        api.getName()+
+                        "#"+
+                        field.getName()+
+                        " exposes raw container identity"
+                    );
+
+                if(exposesRawCacheIdentity(
+                        fieldName))
+                    violations.add(
+                        api.getName()+
+                        "#"+
+                        field.getName()+
+                        " exposes raw cache/archive identity"
+                    );
+
                 inspect(
                     field.getGenericType(),
                     api.getName()+
@@ -214,6 +250,8 @@ public final class ContentPublicApiBoundaryTest {
             "protocolIndex=false "+
             "widgetIdentity=false "+
             "inventorySlotIdentity=false "+
+            "containerIdentity=false "+
+            "cacheIdentity=false "+
             "javaIoLeak=false"
         );
     }
@@ -229,6 +267,58 @@ public final class ContentPublicApiBoundaryTest {
             "targetslot".equals(lower)||
             "sourceslot".equals(lower)||
             "destinationslot".equals(lower);
+    }
+
+    private static boolean exposesRawContainerIdentity(
+        String lower
+    ){
+        return lower.contains("containerid")||
+            "sourcecontainer".equals(lower)||
+            "targetcontainer".equals(lower)||
+            "selectedcontainer".equals(lower)||
+            "destinationcontainer".equals(lower);
+    }
+
+    private static boolean exposesRawCacheIdentity(
+        String lower
+    ){
+        return lower.contains("cacheoffset")||
+            lower.contains("archiveoffset");
+    }
+
+    private static void assertReconstructionIdentityGuards(
+        List<String> violations
+    ){
+        for(String raw:
+                Arrays.asList(
+                    "containerid",
+                    "sourcecontainer",
+                    "targetcontainerid",
+                    "destinationcontainer",
+                    "cacheoffset",
+                    "archiveoffset"
+                ))
+            if(!exposesRawContainerIdentity(raw)&&
+               !exposesRawCacheIdentity(raw))
+                violations.add(
+                    "raw reconstruction identity guard missed "+
+                    raw
+                );
+
+        for(String semantic:
+                Arrays.asList(
+                    "itemid",
+                    "objectid",
+                    "npcdefinitionid",
+                    "worldx",
+                    "commandname"
+                ))
+            if(exposesRawContainerIdentity(semantic)||
+               exposesRawCacheIdentity(semantic))
+                violations.add(
+                    "semantic API name falsely rejected "+
+                    semantic
+                );
     }
 
     private static void inspect(
