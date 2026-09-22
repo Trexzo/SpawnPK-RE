@@ -1,0 +1,44 @@
+Exact v308 lottery evidence
+
+Authority:
+SHA-256 854f26ff9f134b0317572e7ac1688e6f40a231d5a4c66f8db5d655b7f45ce7c6
+build/config 308
+
+ORDINARY LOTTERY — rs.n.c.ao
+root 52000
+52001 "Lottery title"
+52002 "@yel@The winning pot is currently.."
+52003 "Latest Raffle Winners"
+52004 "Time until the winner is announced.."
+52005 "@yel@5 hours 18 mins 48 secs"
+52006 "@or1@(There are @gre@23@or1@ participants in this lottery)"
+52007 item-display widget: P=4, spacing=11, no static item seeded
+52008 item-display widget: P=4, spacing=11, no static item seeded
+52009 history parent: content=50 width=350 visible-height=83 children=6
+52014..52019 empty history rows
+52010/52011 button tooltip "Enter lottery"
+52012 "fountain/icon 1"
+52013 "Buy-\nentry"
+root children=17
+
+BLOODCORE TOKEN LOTTERY — rs.n.c.n
+root 61150
+61151 "fountain/sprite 22"
+61152 "Bloodcore Token Lottery"
+61153 "The lottery's pot is currently.."
+61154 "@yel@Latest Bloodcore Lottery Winners"
+61155 "Time until the winner is announced.."
+61156 "@yel@5 hours 18 mins 48 secs"
+61157 "@or1@(There are @gre@23@or1@ participants in this lottery)"
+61158 item-display widget: P=4 spacing=11; slot0 item=22844 qty=250
+61159 item-display widget: P=4 spacing=11; slot0 item=22844 qty=10000
+61160 history parent: content=475 width=350 visible-height=83 children=35
+61161..61195 empty history rows
+61196/61197 button tooltip "Enter bloodcore lottery"
+61199 "fountain/icon 1"
+61200 "Enter"
+root children=14
+
+Boundary:
+Static time/participant strings are defaults.
+Item 22844 and quantities 250/10000 are exact presentation values, but their server semantic roles are not proven by layout alone.
