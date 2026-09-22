@@ -39,3 +39,18 @@ Their roots are 968/973/979/986.
 
 Additional model-bearing/no-name Continue families exist in cache (e.g. 306/310/315/321).
 Do not label those item-dialogue without direct update/use proof.
+
+
+Close/cancel controller:
+rs.n.c.A augments roots 6179/2459/2469/2480/2492
+widget 54195
+text <img=25> Close window
+tooltip Cancel
+rs.n.e widget builder sets M=1
+exact action-1 route -> menu action 315 -> C2S185(widgetId)
+therefore close/cancel transport = C2S185(54195)
+
+Model-source correction:
+4883/4888/4894/4901 are type-6 model children with exact concrete NPC use via S2C75,
+but S2C246 can retarget type-6 widgets to item models.
+Treat 4882/4887/4893/4900 as named model-dialogue templates, not NPC-only roots.
