@@ -93,6 +93,30 @@ The controls are exact clickable client widgets, but this package does not yet p
 
 The global client has a generic C2S185 widget-action route and no dedicated voting opcode is known. However, vote-site controls may be subject to client-local browser/application interception, so exact click-to-wire behavior remains intentionally unpromoted here until that path is traced.
 
+## REDEEM / REWARD-FLOW CROSS-LINK
+
+A whole-client exact-v308 string/callsite scan found the native redemption instruction outside the vote-site selector itself, inside the existing chapter/progression client surface (`rs.n.c.c`):
+
+~~~
+Vote for SPK (::vote) then (::redeem) your vote points!
+Then, swap the vote points for vote tickets (via shop)
+~~~
+
+The same surface also contains a task line for listing vote ticket(s) via the Trading Post.
+
+This proves an exact client-visible reward flow:
+
+~~~
+vote
+ -> redeem vote points
+ -> exchange vote points for vote tickets through a shop
+ -> vote tickets can participate in wider economy/trading presentation
+~~~
+
+It does **not** prove the vote-point award rate, redeem cooldown, ticket exchange ratio, shop inventory, Trading Post fees or anti-abuse.
+
+Most importantly, `::redeem` is evidenced as a command/reward-flow instruction, not as a separate native Vote Redeem interface. Do not create a redundant redemption UI subsystem solely from the #427 wording.
+
 ## SERVER SEMANTICS PROVEN
 
 The client proves:
