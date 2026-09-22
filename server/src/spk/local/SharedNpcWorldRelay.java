@@ -151,19 +151,27 @@ final class SharedNpcWorldRelay {
                             sourceWriter
                         );
 
-                    LinkedHashSet<EntityId> recipients=
-                        new LinkedHashSet<>();
-                    for(Context c:src.state.contexts.values())
-                        if(c!=src&&
-                           !c.owner.id().equals(src.owner.id()))
-                            recipients.add(c.owner.id());
+                    LinkedHashMap<EntityId,Long> recipients=
+                        new LinkedHashMap<>();
+
+                    for(Context context:
+                            src.state.contexts.values())
+                        if(context!=src&&
+                           context.ownerCurrent()&&
+                           !context.owner.id().equals(
+                               src.owner.id()
+                           ))
+                            recipients.put(
+                                context.owner.id(),
+                                context.ownerGeneration
+                            );
 
                     if(recipients.isEmpty())
                         return;
 
                     src.state.world
                         .npcPresentationEvents()
-                        .enqueue(
+                        .enqueueOwned(
                             System.currentTimeMillis(),
                             src.owner.id(),
                             target,
@@ -198,6 +206,7 @@ final class SharedNpcWorldRelay {
                 .npcPresentationEvents()
                 .pendingFor(
                     viewer.owner.id(),
+                    viewer.ownerGeneration,
                     now
                 );
 
@@ -250,9 +259,20 @@ final class SharedNpcWorldRelay {
         }
 
         void pruneDeadRecipients(){
+            LinkedHashMap<EntityId,Long> live=
+                new LinkedHashMap<>();
+
+            for(Context context:
+                    contexts.values())
+                if(context.ownerCurrent())
+                    live.put(
+                        context.owner.id(),
+                        context.ownerGeneration
+                    );
+
             world.npcPresentationEvents()
-                .retainRecipients(
-                    contexts.keySet(),
+                .retainRecipientsOwned(
+                    live,
                     System.currentTimeMillis()
                 );
         }
