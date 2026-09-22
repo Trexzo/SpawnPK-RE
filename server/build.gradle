@@ -414,13 +414,14 @@ def currentTrainFocusedTests = [
     'spk.local.EquipmentMutationServiceTest',
     'spk.local.RunEnergyServiceTest',
     'spk.local.SpecialEnergyServiceTest',
-    'spk.local.HitpointsRecoveryServiceTest'
+    'spk.local.HitpointsRecoveryServiceTest',
+    'spk.local.InventoryMutationServiceTest'
 ]
 
-if (currentTrainFocusedTests.size() != 106 ||
-    currentTrainFocusedTests.toSet().size() != 106) {
+if (currentTrainFocusedTests.size() != 107 ||
+    currentTrainFocusedTests.toSet().size() != 107) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 106 unique tests, found " +
+        "Current-train focused manifest drift: expected 107 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
