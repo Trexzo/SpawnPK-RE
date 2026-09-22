@@ -144,11 +144,19 @@ final class PlayerCombatResolutionService {
                 worldTick
             );
 
-        return commit(
+        PlayerLifecycleService.DamageResult lifecycle=
+            applyDamage(
+                target,
+                weaponId,
+                worldTick,
+                prepared
+            );
+
+        return finish(
             target,
-            weaponId,
             worldTick,
-            prepared
+            prepared,
+            lifecycle
         );
     }
 
@@ -180,15 +188,15 @@ final class PlayerCombatResolutionService {
                 worldTick
             );
 
-        final Result[] result=
-            new Result[1];
+        final PlayerLifecycleService.DamageResult[] lifecycle=
+            new PlayerLifecycleService.DamageResult[1];
 
         try{
             world.withOpenPlayerOwnership(
                 target,
                 expectedGeneration,
-                ()->result[0]=
-                    commit(
+                ()->lifecycle[0]=
+                    applyDamage(
                         target,
                         weaponId,
                         worldTick,
@@ -209,7 +217,12 @@ final class PlayerCombatResolutionService {
             throw error;
         }
 
-        return result[0];
+        return finish(
+            target,
+            worldTick,
+            prepared,
+            lifecycle[0]
+        );
     }
 
     private Prepared prepare(
@@ -263,21 +276,27 @@ final class PlayerCombatResolutionService {
         );
     }
 
-    private Result commit(
+    private PlayerLifecycleService.DamageResult applyDamage(
         WorldPlayer target,
         int weaponId,
         long worldTick,
         Prepared prepared
     ){
-        PlayerLifecycleService.DamageResult lifecycle=
-            new PlayerLifecycleService(target).applyDamage(
-                prepared.damage.damage,
-                worldTick,
-                "PVP_ATTACK attacker="+owner.id()+
-                " weapon="+weaponId+
-                " damageAuthority="+prepared.damage.authority
-            );
+        return new PlayerLifecycleService(target).applyDamage(
+            prepared.damage.damage,
+            worldTick,
+            "PVP_ATTACK attacker="+owner.id()+
+            " weapon="+weaponId+
+            " damageAuthority="+prepared.damage.authority
+        );
+    }
 
+    private Result finish(
+        WorldPlayer target,
+        long worldTick,
+        Prepared prepared,
+        PlayerLifecycleService.DamageResult lifecycle
+    ){
         if(lifecycle.died&&!lifecycle.ignoredDead){
             publishOutcome(
                 new CombatOutcome(
