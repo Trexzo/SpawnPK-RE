@@ -86,105 +86,130 @@ final class RunEnergyService {
     }
 
     private final MovementState movement;
+    private final Object mutationLock;
     private final String policyAuthority;
 
     RunEnergyService(
-        MovementState movement,
+        WorldPlayer player,
         String policyAuthority
     ){
-        this.movement=Objects.requireNonNull(movement,"movement");
-        this.policyAuthority=requireGameplayAuthority(policyAuthority);
+        WorldPlayer owner=
+            Objects.requireNonNull(
+                player,
+                "player"
+            );
+
+        this.movement=owner.movement();
+        this.mutationLock=owner.mutationLock();
+        this.policyAuthority=
+            requireGameplayAuthority(
+                policyAuthority
+            );
     }
 
-    synchronized Snapshot snapshot(){
-        return new Snapshot(
-            currentEnergy(),
-            movement.persistentRun(),
-            policyAuthority
-        );
+    Snapshot snapshot(){
+        synchronized(mutationLock){
+            return new Snapshot(
+                currentEnergy(),
+                movement.persistentRun(),
+                policyAuthority
+            );
+        }
     }
 
-    synchronized boolean canAfford(int cost){
+    boolean canAfford(int cost){
         validateCost(cost);
-        return currentEnergy()>=cost;
+
+        synchronized(mutationLock){
+            return currentEnergy()>=cost;
+        }
     }
 
-    synchronized SpendResult trySpend(int cost){
+    SpendResult trySpend(int cost){
         validateCost(cost);
 
-        int before=currentEnergy();
-        boolean runEnabled=movement.persistentRun();
+        synchronized(mutationLock){
+            int before=currentEnergy();
+            boolean runEnabled=
+                movement.persistentRun();
 
-        if(before<cost){
+            if(before<cost){
+                return new SpendResult(
+                    SpendStatus.INSUFFICIENT_ENERGY,
+                    cost,
+                    0,
+                    before,
+                    before,
+                    runEnabled
+                );
+            }
+
+            int after=before-cost;
+            movement.setRunEnergy(after);
+
+            if(currentEnergy()!=after)
+                throw new IllegalStateException(
+                    "run-energy spend write mismatch expected="+
+                    after+" actual="+currentEnergy()
+                );
+
+            if(movement.persistentRun()!=runEnabled)
+                throw new IllegalStateException(
+                    "run-energy spend changed persistent run state"
+                );
+
             return new SpendResult(
-                SpendStatus.INSUFFICIENT_ENERGY,
+                SpendStatus.SPENT,
                 cost,
-                0,
+                cost,
                 before,
-                before,
+                after,
                 runEnabled
             );
         }
-
-        int after=before-cost;
-        movement.setRunEnergy(after);
-
-        if(currentEnergy()!=after)
-            throw new IllegalStateException(
-                "run-energy spend write mismatch expected="+
-                after+" actual="+currentEnergy()
-            );
-
-        if(movement.persistentRun()!=runEnabled)
-            throw new IllegalStateException(
-                "run-energy spend changed persistent run state"
-            );
-
-        return new SpendResult(
-            SpendStatus.SPENT,
-            cost,
-            cost,
-            before,
-            after,
-            runEnabled
-        );
     }
 
-    synchronized RestoreResult restore(int amount){
+    RestoreResult restore(int amount){
         if(amount<=0)
             throw new IllegalArgumentException(
                 "run-energy restore must be positive amount="+amount
             );
 
-        int before=currentEnergy();
-        boolean runEnabled=movement.persistentRun();
+        synchronized(mutationLock){
+            int before=currentEnergy();
+            boolean runEnabled=
+                movement.persistentRun();
 
-        long candidate=(long)before+(long)amount;
-        int after=candidate>=MAX_ENERGY
-            ?MAX_ENERGY
-            :(int)candidate;
-        int applied=after-before;
+            long candidate=
+                (long)before+
+                (long)amount;
+            int after=
+                candidate>=MAX_ENERGY
+                    ?MAX_ENERGY
+                    :(int)candidate;
+            int applied=after-before;
 
-        movement.setRunEnergy(after);
+            movement.setRunEnergy(after);
 
-        if(currentEnergy()!=after)
-            throw new IllegalStateException(
-                "run-energy restore write mismatch expected="+
-                after+" actual="+currentEnergy()
+            if(currentEnergy()!=after)
+                throw new IllegalStateException(
+                    "run-energy restore write mismatch expected="+
+                    after+" actual="+currentEnergy()
+                );
+
+            if(movement.persistentRun()!=runEnabled)
+                throw new IllegalStateException(
+                    "run-energy restore changed persistent run state"
+                );
+
+            return new RestoreResult(
+                amount,
+                applied,
+                before,
+                after,
+                runEnabled
             );
-
-        if(movement.persistentRun()!=runEnabled)
-            throw new IllegalStateException(
-                "run-energy restore changed persistent run state"
-            );
-
-        return new RestoreResult(
-            amount,
-            applied,
-            before,
-            after,
-            runEnabled
-        );
+        }
     }
 
     String policyAuthority(){
