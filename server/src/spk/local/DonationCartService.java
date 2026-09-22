@@ -233,12 +233,12 @@ final class DonationCartService {
         String playerRef,
         String productKey
     ){
-        PlayerCart cart=
-            cart(playerRef);
         Product product=
             requireProduct(
                 productKey
             );
+        PlayerCart cart=
+            cart(playerRef);
 
         long current=
             cart.quantities
@@ -263,11 +263,17 @@ final class DonationCartService {
             );
         }
 
+        long revision=
+            nextRevision(cart);
+
         cart.quantities.put(
             product.productKey,
             next
         );
-        changed(cart);
+        commitChange(
+            cart,
+            revision
+        );
 
         return snapshot(cart);
     }
@@ -276,11 +282,21 @@ final class DonationCartService {
         String playerRef,
         String productKey
     ){
-        PlayerCart cart=
-            cart(playerRef);
         Product product=
             requireProduct(
                 productKey
+            );
+        String player=
+            normalizePlayer(
+                playerRef
+            );
+        PlayerCart cart=
+            carts.get(player);
+
+        if(cart==null)
+            throw new IllegalStateException(
+                "donation cart quantity already zero product="+
+                product.productKey
             );
 
         long current=
@@ -296,6 +312,9 @@ final class DonationCartService {
                 product.productKey
             );
 
+        long revision=
+            nextRevision(cart);
+
         if(current==1L)
             cart.quantities.remove(
                 product.productKey
@@ -306,7 +325,10 @@ final class DonationCartService {
                 current-1L
             );
 
-        changed(cart);
+        commitChange(
+            cart,
+            revision
+        );
 
         return snapshot(cart);
     }
@@ -326,8 +348,14 @@ final class DonationCartService {
         if(cart.paymentMode==checked)
             return snapshot(cart);
 
+        long revision=
+            nextRevision(cart);
+
         cart.paymentMode=checked;
-        changed(cart);
+        commitChange(
+            cart,
+            revision
+        );
 
         return snapshot(cart);
     }
@@ -355,8 +383,19 @@ final class DonationCartService {
         prepareCheckout(
             String playerRef
         ){
+        String player=
+            normalizePlayer(
+                playerRef
+            );
         PlayerCart cart=
-            cart(playerRef);
+            carts.get(player);
+
+        if(cart==null)
+            throw new IllegalStateException(
+                "donation cart checkout empty player="+
+                player
+            );
+
         CartSnapshot snapshot=
             snapshot(cart);
 
@@ -474,17 +513,14 @@ final class DonationCartService {
         return product;
     }
 
-    private static void changed(
+    private static long nextRevision(
         PlayerCart cart
     ){
-        long next;
-
         try{
-            next=
-                Math.addExact(
-                    cart.revision,
-                    1L
-                );
+            return Math.addExact(
+                cart.revision,
+                1L
+            );
         }catch(ArithmeticException error){
             throw new IllegalStateException(
                 "donation cart revision overflow player="+
@@ -492,8 +528,13 @@ final class DonationCartService {
                 error
             );
         }
+    }
 
-        cart.revision=next;
+    private static void commitChange(
+        PlayerCart cart,
+        long revision
+    ){
+        cart.revision=revision;
         cart.prepared=null;
     }
 
