@@ -10,8 +10,10 @@ public final class CombatSkillProgressionServiceTest {
         "CUSTOM_LOCALLAB_TEST_XP_CURVE";
 
     public static void main(String[] args) {
+        WorldPlayer owner =
+            new WorldPlayer();
         PlayerState player =
-            new PlayerState();
+            owner.playerState();
 
         MutableCurve curve =
             new MutableCurve(
@@ -24,7 +26,7 @@ public final class CombatSkillProgressionServiceTest {
 
         CombatSkillProgressionService service =
             new CombatSkillProgressionService(
-                player,
+                owner,
                 curve
             );
 
@@ -425,13 +427,13 @@ public final class CombatSkillProgressionServiceTest {
     }
 
     private static void invalidCurvesRejected() {
-        PlayerState player =
-            new PlayerState();
+        WorldPlayer owner =
+            new WorldPlayer();
 
         expect(
             IllegalArgumentException.class,
             () -> new CombatSkillProgressionService(
-                player,
+                owner,
                 new MutableCurve(
                     AUTHORITY
                 )
@@ -442,7 +444,7 @@ public final class CombatSkillProgressionServiceTest {
         expect(
             IllegalArgumentException.class,
             () -> new CombatSkillProgressionService(
-                player,
+                owner,
                 new MutableCurve(
                     AUTHORITY,
                     1,
@@ -455,7 +457,7 @@ public final class CombatSkillProgressionServiceTest {
         expect(
             IllegalArgumentException.class,
             () -> new CombatSkillProgressionService(
-                player,
+                owner,
                 new MutableCurve(
                     AUTHORITY,
                     0,
@@ -469,7 +471,7 @@ public final class CombatSkillProgressionServiceTest {
         expect(
             IllegalArgumentException.class,
             () -> new CombatSkillProgressionService(
-                player,
+                owner,
                 new MutableCurve(
                     "EXACT_CURRENT_CLIENT",
                     0,
@@ -482,7 +484,7 @@ public final class CombatSkillProgressionServiceTest {
         expect(
             IllegalArgumentException.class,
             () -> new CombatSkillProgressionService(
-                player,
+                owner,
                 new MutableCurve(
                     "UNKNOWN_SERVER_AUTHORITY",
                     0,
