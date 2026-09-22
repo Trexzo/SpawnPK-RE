@@ -31,6 +31,47 @@ final class BankState {
         @Override public String toString(){return "Stack{"+itemId+" x"+qty+",tab="+tab+"}";}
     }
 
+
+    /** Protocol-independent immutable view of one canonical inventory slot. */
+    static final class InventorySlotSnapshot {
+        final int slot;
+        final boolean occupied;
+        final int itemId;
+        final int quantity;
+
+        InventorySlotSnapshot(int slot,boolean occupied,int itemId,int quantity){
+            this.slot=slot;
+            this.occupied=occupied;
+            this.itemId=itemId;
+            this.quantity=quantity;
+        }
+    }
+
+    /** Protocol-independent immutable result of one exact-slot inventory consume. */
+    static final class InventoryConsumeResult {
+        final int slot;
+        final int itemId;
+        final int requested;
+        final int beforeQuantity;
+        final int afterQuantity;
+        final boolean cleared;
+
+        InventoryConsumeResult(
+            int slot,
+            int itemId,
+            int requested,
+            int beforeQuantity,
+            int afterQuantity
+        ){
+            this.slot=slot;
+            this.itemId=itemId;
+            this.requested=requested;
+            this.beforeQuantity=beforeQuantity;
+            this.afterQuantity=afterQuantity;
+            this.cleared=afterQuantity==0;
+        }
+    }
+
     private final Stack[] bank = new Stack[BANK_CAPACITY];
     private final Stack[] inventory = new Stack[INVENTORY_CAPACITY];
     private boolean open;
@@ -192,6 +233,73 @@ final class BankState {
         int item=(cosmetic!=null&&cosmetic.active())?cosmetic.itemId():-1;
         int qty=item>=0?1:0;
         w.varShort(53, BootstrapPackets.itemContainer53(COSMETIC_WIDGET,new int[]{item},new int[]{qty}));
+    }
+
+
+    /**
+     * Protocol-independent exact-slot inventory snapshot for gameplay/domain
+     * services. No widget/container/presentation identity escapes this seam.
+     */
+    InventorySlotSnapshot inventorySlotSnapshot(int slot){
+        if(!validSlot(inventory,slot))
+            throw new IllegalArgumentException("inventory slot 0..27");
+
+        Stack st=inventory[slot];
+        return st==null
+            ?new InventorySlotSnapshot(slot,false,-1,0)
+            :new InventorySlotSnapshot(slot,true,st.itemId,st.qty);
+    }
+
+    /**
+     * Protocol-independent exact-slot consume primitive.
+     *
+     * Validates the complete mutation before changing the canonical inventory.
+     * It publishes no packet and performs no compaction.
+     */
+    InventoryConsumeResult consumeInventoryAmountSemantic(
+        int slot,
+        int expectedItemId,
+        int amount
+    ){
+        if(!validSlot(inventory,slot))
+            throw new IllegalArgumentException("inventory slot 0..27");
+        if(expectedItemId<0)
+            throw new IllegalArgumentException("expectedItemId");
+        if(amount<=0)
+            throw new IllegalArgumentException("amount");
+
+        Stack st=inventory[slot];
+        if(st==null)
+            throw new IllegalStateException("inventory slot empty slot="+slot);
+        if(st.itemId!=expectedItemId)
+            throw new IllegalStateException(
+                "inventory item mismatch slot="+slot+
+                " expected="+expectedItemId+
+                " actual="+st.itemId
+            );
+        if(st.qty<amount)
+            throw new IllegalStateException(
+                "inventory quantity insufficient slot="+slot+
+                " item="+expectedItemId+
+                " have="+st.qty+
+                " requested="+amount
+            );
+
+        int before=st.qty;
+        int after=before-amount;
+
+        if(after==0)
+            inventory[slot]=null;
+        else
+            st.qty=after;
+
+        return new InventoryConsumeResult(
+            slot,
+            expectedItemId,
+            amount,
+            before,
+            after
+        );
     }
 
     /** Remove exactly one item from a concrete inventory slot (pet Drop path). */
