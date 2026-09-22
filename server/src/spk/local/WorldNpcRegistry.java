@@ -77,6 +77,71 @@ final class WorldNpcRegistry {
         return npc;
     }
 
+    synchronized WorldNpc replaceOwned(
+        WorldNpc expectedCurrent,
+        int definitionId,
+        int x,
+        int y,
+        int plane,
+        EntityId ownerId,
+        int sourceItemId
+    ){
+        if(expectedCurrent==null)
+            throw new NullPointerException(
+                "expectedCurrent"
+            );
+        if(ownerId==null)
+            throw new NullPointerException(
+                "ownerId"
+            );
+
+        WorldNpc registered=
+            byId.get(expectedCurrent.id);
+
+        if(registered!=expectedCurrent)
+            throw new IllegalStateException(
+                "world npc replacement owner changed "+
+                expectedCurrent.id
+            );
+
+        if(!ownerId.equals(
+                expectedCurrent.ownerId))
+            throw new IllegalStateException(
+                "world npc replacement owner mismatch "+
+                expectedCurrent.id
+            );
+
+        WorldNpc next=
+            new WorldNpc(
+                EntityId.next(),
+                definitionId,
+                x,
+                y,
+                plane,
+                ownerId,
+                sourceItemId
+            );
+
+        if(byId.containsKey(next.id))
+            throw new IllegalStateException(
+                "duplicate world npc id "+next.id
+            );
+
+        byId.put(next.id,next);
+
+        if(!byId.remove(
+                expectedCurrent.id,
+                expectedCurrent)){
+            byId.remove(next.id,next);
+            throw new IllegalStateException(
+                "world npc replacement owner changed "+
+                expectedCurrent.id
+            );
+        }
+
+        return next;
+    }
+
     synchronized WorldNpc byId(EntityId id){
         return byId.get(id);
     }
