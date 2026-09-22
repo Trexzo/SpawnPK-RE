@@ -9,10 +9,11 @@ public final class InventoryMutationServiceTest {
         "CUSTOM_LOCALLAB_INVENTORY_MUTATION_TEST";
 
     public static void main(String[] args){
-        BankState bank=seededInventory();
+        WorldPlayer player=seededPlayer();
+        BankState bank=player.bank();
         InventoryMutationService service=
             new InventoryMutationService(
-                bank,
+                player,
                 AUTHORITY
             );
 
@@ -131,7 +132,7 @@ public final class InventoryMutationServiceTest {
             service,
             bank
         );
-        authorityGuards(bank);
+        authorityGuards(player);
         boundaryGuard();
 
         System.out.println(
@@ -153,8 +154,10 @@ public final class InventoryMutationServiceTest {
         );
     }
 
-    private static BankState seededInventory(){
-        BankState bank=new BankState();
+    private static WorldPlayer seededPlayer(){
+        WorldPlayer player=
+            new WorldPlayer();
+        BankState bank=player.bank();
 
         BankState.Stack[] bankRows=
             new BankState.Stack[
@@ -182,7 +185,7 @@ public final class InventoryMutationServiceTest {
             false
         );
 
-        return bank;
+        return player;
     }
 
     private static void invalidInputsAtomic(
@@ -248,12 +251,12 @@ public final class InventoryMutationServiceTest {
     }
 
     private static void authorityGuards(
-        BankState bank
+        WorldPlayer player
     ){
         expect(
             IllegalArgumentException.class,
             ()->new InventoryMutationService(
-                bank,
+                player,
                 "EXACT_CURRENT_CLIENT"
             ),
             "client authority"
@@ -262,7 +265,7 @@ public final class InventoryMutationServiceTest {
         expect(
             IllegalArgumentException.class,
             ()->new InventoryMutationService(
-                bank,
+                player,
                 "UNKNOWN_SERVER_AUTHORITY"
             ),
             "unknown authority"
