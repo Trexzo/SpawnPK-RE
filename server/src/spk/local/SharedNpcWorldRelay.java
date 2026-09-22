@@ -174,6 +174,7 @@ final class SharedNpcWorldRelay {
                         .enqueueOwned(
                             System.currentTimeMillis(),
                             src.owner.id(),
+                            src.ownerGeneration,
                             target,
                             mask,
                             barrier,
@@ -212,6 +213,21 @@ final class SharedNpcWorldRelay {
 
         for(WorldNpcPresentationEvents.Event event:
             pending){
+            if(!sourceCurrent(
+                    viewer,
+                    event
+                )){
+                if(event.sourceGeneration>=0L)
+                    viewer.state.world
+                        .npcPresentationEvents()
+                        .removeSourceGeneration(
+                            event.sourceId,
+                            event.sourceGeneration,
+                            now
+                        );
+                continue;
+            }
+
             long consumed=
                 Player81WorldSync.consumedEventSequence(
                     viewerWriter,
@@ -245,6 +261,38 @@ final class SharedNpcWorldRelay {
                     viewer.owner.id(),
                     now
                 );
+        }
+    }
+
+
+    private static boolean sourceCurrent(
+        Context viewer,
+        WorldNpcPresentationEvents.Event event
+    ){
+        if(event.sourceGeneration<0L)
+            return true;
+
+        Context source;
+
+        synchronized(SharedNpcWorldRelay.class){
+            source=
+                viewer.state.contexts.get(
+                    event.sourceId
+                );
+        }
+
+        if(source==null||
+           source.ownerGeneration!=
+                event.sourceGeneration||
+           !source.ownerCurrent())
+            return false;
+
+        synchronized(SharedNpcWorldRelay.class){
+            return viewer.state.contexts.get(
+                    event.sourceId
+                )==source&&
+                source.ownerGeneration==
+                    event.sourceGeneration;
         }
     }
 
