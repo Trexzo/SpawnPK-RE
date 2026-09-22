@@ -196,6 +196,81 @@ final class ClientPacketProbe {
                 return true;
             }
 
+            case 74:
+            case 133:
+            case 188:
+            case 215: {
+                byte[] body=
+                    Binary.readExactly(
+                        in,
+                        8
+                    );
+                long nameKey=
+                    Binary.i64(
+                        body,
+                        0
+                    );
+
+                SocialListClientRequest.Action action;
+                String source;
+
+                switch(opcode){
+                    case 188:
+                        action=
+                            SocialListClientRequest.Action
+                                .ADD_FRIEND;
+                        source=
+                            "V308_CLIENT_ADD_FRIEND_WRITER";
+                        break;
+                    case 215:
+                        action=
+                            SocialListClientRequest.Action
+                                .REMOVE_FRIEND;
+                        source=
+                            "V308_CLIENT_REMOVE_FRIEND_WRITER";
+                        break;
+                    case 133:
+                        action=
+                            SocialListClientRequest.Action
+                                .ADD_IGNORE;
+                        source=
+                            "V308_CLIENT_ADD_IGNORE_WRITER";
+                        break;
+                    case 74:
+                        action=
+                            SocialListClientRequest.Action
+                                .REMOVE_IGNORE;
+                        source=
+                            "V308_CLIENT_REMOVE_IGNORE_WRITER";
+                        break;
+                    default:
+                        throw new AssertionError();
+                }
+
+                offerTypedRequest(
+                    new SocialListClientRequest(
+                        action,
+                        nameKey,
+                        ClientRequestMetadata.exactCurrent(
+                            opcode,
+                            "FIXED8_NAME_KEY_I64_BE",
+                            source
+                        )
+                    ),
+                    opcode
+                );
+
+                System.out.printf(
+                    "%sCLIENT_PACKET seq=%d opcode=%d len=8 socialAction=%s nameKey=%s schema=EXACT_CURRENT_CLIENT_I64_BE%n",
+                    tag,
+                    decodedCount,
+                    opcode,
+                    action,
+                    Long.toUnsignedString(nameKey)
+                );
+                return true;
+            }
+
             case 57: {
                 // Exact-current client item-on-NPC writer (menu action 582):
                 // selectedItemId u16_be_low_add128
@@ -987,8 +1062,7 @@ final class ClientPacketProbe {
             case 16: case 23: case 70: case 79: case 122:
             case 156: case 176: case 228: case 234: case 236: case 252: case 253:
                 return 6;
-            case 14: case 35: case 57: case 60: case 74: case 133: case 181:
-            case 188: case 215: case 237:
+            case 14: case 35: case 57: case 60: case 181: case 237:
                 return 8;
             case 218:
                 return 10;
