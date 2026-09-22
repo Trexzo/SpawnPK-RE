@@ -43,6 +43,29 @@ final class PlayerCombatResolutionService {
         }
     }
 
+    static final class StaleAttackerOwnershipException
+        extends IllegalStateException {
+
+        final EntityId attackerId;
+        final long expectedGeneration;
+
+        StaleAttackerOwnershipException(
+            WorldPlayer attacker,
+            long expectedGeneration,
+            Throwable cause
+        ){
+            super(
+                "PvP attacker ownership changed: attacker="+
+                attacker.id()+
+                " expectedGeneration="+
+                expectedGeneration,
+                cause
+            );
+            this.attackerId=attacker.id();
+            this.expectedGeneration=expectedGeneration;
+        }
+    }
+
     static final class StaleTargetOwnershipException
         extends IllegalStateException {
 
@@ -168,16 +191,46 @@ final class PlayerCombatResolutionService {
         CombatStyleRepository.Style style,
         long worldTick
     )throws java.io.IOException{
+        return resolveImmediateOwned(
+            world,
+            owner.generation(),
+            target,
+            expectedGeneration,
+            weaponId,
+            style,
+            worldTick
+        );
+    }
+
+    Result resolveImmediateOwned(
+        World world,
+        long expectedAttackerGeneration,
+        WorldPlayer target,
+        long expectedTargetGeneration,
+        int weaponId,
+        CombatStyleRepository.Style style,
+        long worldTick
+    )throws java.io.IOException{
         Objects.requireNonNull(world,"world");
         Objects.requireNonNull(target,"target");
 
         if(!world.players().owns(
+                owner,
+                expectedAttackerGeneration
+            ))
+            throw new StaleAttackerOwnershipException(
+                owner,
+                expectedAttackerGeneration,
+                null
+            );
+
+        if(!world.players().owns(
                 target,
-                expectedGeneration
+                expectedTargetGeneration
             ))
             throw new StaleTargetOwnershipException(
                 target,
-                expectedGeneration,
+                expectedTargetGeneration,
                 null
             );
 
@@ -193,24 +246,38 @@ final class PlayerCombatResolutionService {
 
         try{
             world.withOpenPlayerOwnership(
-                target,
-                expectedGeneration,
-                ()->lifecycle[0]=
-                    applyDamage(
-                        target,
-                        weaponId,
-                        worldTick,
-                        prepared
-                    )
+                owner,
+                expectedAttackerGeneration,
+                ()->world.withOpenPlayerOwnership(
+                    target,
+                    expectedTargetGeneration,
+                    ()->lifecycle[0]=
+                        applyDamage(
+                            target,
+                            weaponId,
+                            worldTick,
+                            prepared
+                        )
+                )
             );
         }catch(IllegalStateException error){
             if(!world.players().owns(
+                    owner,
+                    expectedAttackerGeneration
+                ))
+                throw new StaleAttackerOwnershipException(
+                    owner,
+                    expectedAttackerGeneration,
+                    error
+                );
+
+            if(!world.players().owns(
                     target,
-                    expectedGeneration
+                    expectedTargetGeneration
                 ))
                 throw new StaleTargetOwnershipException(
                     target,
-                    expectedGeneration,
+                    expectedTargetGeneration,
                     error
                 );
 
