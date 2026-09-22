@@ -7,9 +7,14 @@ import java.util.Objects;
  *
  * This is functional LocalLab gameplay authority, not a recovered SpawnPK
  * formula. Presentation is deliberately outside this service.
+ *
+ * Custom respawn delay / restored HP are supplied as already-resolved gameplay
+ * inputs. No caller-owned policy callback executes while player ownership is
+ * held.
  */
 final class PlayerLifecycleService {
     static final long LOCALLAB_RESPAWN_DELAY_TICKS=5L;
+    static final int LOCALLAB_RESTORED_HITPOINTS=99;
     static final String AUTHORITY="CUSTOM_LOCALLAB";
 
     static final class DamageResult {
@@ -64,13 +69,38 @@ final class PlayerLifecycleService {
     private final PlayerLifecycleState lifecycle;
     private final MovementState movement;
     private final CombatState combat;
+    private final String respawnAuthority;
 
-    PlayerLifecycleService(WorldPlayer player){
-        this.player=Objects.requireNonNull(player,"player");
+    PlayerLifecycleService(
+        WorldPlayer player
+    ){
+        this(
+            player,
+            AUTHORITY
+        );
+    }
+
+    PlayerLifecycleService(
+        WorldPlayer player,
+        String respawnAuthority
+    ){
+        this.player=
+            Objects.requireNonNull(
+                player,
+                "player"
+            );
         this.state=player.playerState();
         this.lifecycle=player.lifecycle();
         this.movement=player.movement();
         this.combat=player.combatState();
+        this.respawnAuthority=
+            requireGameplayAuthority(
+                respawnAuthority
+            );
+    }
+
+    String respawnAuthority(){
+        return respawnAuthority;
     }
 
     DamageResult applyDamage(
@@ -78,11 +108,34 @@ final class PlayerLifecycleService {
         long worldTick,
         String cause
     ){
+        return applyDamage(
+            amount,
+            worldTick,
+            cause,
+            LOCALLAB_RESPAWN_DELAY_TICKS
+        );
+    }
+
+    DamageResult applyDamage(
+        int amount,
+        long worldTick,
+        String cause,
+        long respawnDelayTicks
+    ){
         synchronized(player.mutationLock()){
-            int requested=Math.max(0,amount);
-            int before=state.currentLevel(
-                PlayerState.HITPOINTS
-            );
+            int requested=
+                Math.max(
+                    0,
+                    amount
+                );
+            int before=
+                state.currentLevel(
+                    PlayerState.HITPOINTS
+                );
+            String normalizedCause=
+                safeCause(
+                    cause
+                );
 
             if(lifecycle.dead()){
                 return new DamageResult(
@@ -93,7 +146,20 @@ final class PlayerLifecycleService {
                     false,
                     true,
                     worldTick,
-                    safeCause(cause)
+                    normalizedCause
+                );
+            }
+
+            int predictedAfter=
+                Math.max(
+                    0,
+                    before-requested
+                );
+
+            if(predictedAfter==0){
+                validateRespawnDelay(
+                    worldTick,
+                    respawnDelayTicks
                 );
             }
 
@@ -101,17 +167,18 @@ final class PlayerLifecycleService {
                 state.applyHitpointsDamage(
                     requested
                 );
-            int after=state.currentLevel(
-                PlayerState.HITPOINTS
-            );
+            int after=
+                state.currentLevel(
+                    PlayerState.HITPOINTS
+                );
 
             boolean died=after==0;
 
             if(died){
                 lifecycle.markDead(
                     worldTick,
-                    LOCALLAB_RESPAWN_DELAY_TICKS,
-                    safeCause(cause)
+                    respawnDelayTicks,
+                    normalizedCause
                 );
                 combat.clear();
                 movement.clearQueuedPath();
@@ -125,23 +192,105 @@ final class PlayerLifecycleService {
                 died,
                 false,
                 worldTick,
-                safeCause(cause)
+                normalizedCause
             );
         }
     }
 
-    TickResult tick(long worldTick){
+    TickResult tick(
+        long worldTick
+    ){
+        return tick(
+            worldTick,
+            LOCALLAB_RESTORED_HITPOINTS
+        );
+    }
+
+    TickResult tick(
+        long worldTick,
+        int restoredHitpoints
+    ){
         synchronized(player.mutationLock()){
-            if(!lifecycle.dueRespawn(worldTick))
+            if(!lifecycle.dueRespawn(
+                    worldTick))
                 return TickResult.NONE;
 
-            state.restoreHitpointsDefault();
+            if(restoredHitpoints<1||
+               restoredHitpoints>255)
+                throw new IllegalArgumentException(
+                    "restored hitpoints out of range value="+
+                    restoredHitpoints+
+                    " authority="+
+                    respawnAuthority
+                );
+
+            state.setCurrentLevel(
+                PlayerState.HITPOINTS,
+                restoredHitpoints
+            );
             movement.returnHome();
             combat.clear();
             lifecycle.markRespawned();
 
             return TickResult.RESPAWNED;
         }
+    }
+
+    private void validateRespawnDelay(
+        long deathTick,
+        long delay
+    ){
+        if(delay<0L)
+            throw new IllegalArgumentException(
+                "respawn delay negative delay="+
+                delay+
+                " authority="+
+                respawnAuthority
+            );
+
+        try{
+            Math.addExact(
+                deathTick,
+                delay
+            );
+        }catch(ArithmeticException overflow){
+            throw new IllegalArgumentException(
+                "respawn tick overflow deathTick="+
+                deathTick+
+                " delay="+
+                delay+
+                " authority="+
+                respawnAuthority,
+                overflow
+            );
+        }
+    }
+
+    private static String requireGameplayAuthority(
+        String value
+    ){
+        if(value==null)
+            throw new NullPointerException(
+                "respawnAuthority"
+            );
+
+        String clean=value.trim();
+
+        if(clean.isEmpty())
+            throw new IllegalArgumentException(
+                "respawnAuthority blank"
+            );
+
+        if("EXACT_CURRENT_CLIENT".equals(
+                clean)||
+           "UNKNOWN_SERVER_AUTHORITY".equals(
+                clean))
+            throw new IllegalArgumentException(
+                "client/unknown authority cannot define respawn policy actual="+
+                clean
+            );
+
+        return clean;
     }
 
     private static String safeCause(String cause){
