@@ -78,8 +78,19 @@ final class SharedNpcWorldRelay {
     }
 
     static void syncRemotePets(ServerPacketWriter viewerWriter){
-        Context c; synchronized(SharedNpcWorldRelay.class){c=BY_WRITER.get(viewerWriter);} if(c==null)return;
-        try{c.syncRemotePets();}catch(Throwable t){System.err.println("[ENGINE-R3.2] remote pet sync failed viewer="+c.owner.id()+": "+t);}
+        Context c;
+        synchronized(SharedNpcWorldRelay.class){
+            c=BY_WRITER.get(viewerWriter);
+        }
+        if(c==null||!c.ownerCurrent())return;
+        try{
+            c.syncRemotePets();
+        }catch(Throwable t){
+            System.err.println(
+                "[ENGINE-R3.2] remote pet sync failed viewer="+
+                c.owner.id()+": "+t
+            );
+        }
     }
 
     /**
@@ -177,7 +188,8 @@ final class SharedNpcWorldRelay {
         synchronized(SharedNpcWorldRelay.class){
             viewer=BY_WRITER.get(viewerWriter);
         }
-        if(viewer==null)return;
+        if(viewer==null||!viewer.ownerCurrent())
+            return;
 
         long now=System.currentTimeMillis();
 
@@ -267,7 +279,16 @@ final class SharedNpcWorldRelay {
             ownerGeneration=o.generation();
         }
 
+        boolean ownerCurrent(){
+            return state.world.players().owns(
+                owner,
+                ownerGeneration
+            );
+        }
+
         void syncRemotePets()throws IOException{
+            if(!ownerCurrent())
+                return;
             ArrayList<Context> sources;
             synchronized(SharedNpcWorldRelay.class){
                 sources=new ArrayList<>(
@@ -278,7 +299,9 @@ final class SharedNpcWorldRelay {
             HashSet<EntityId> live=new HashSet<>();
 
             for(Context src:sources){
-                if(src==this)continue;
+                if(src==this||
+                   !src.ownerCurrent())
+                    continue;
 
                 int playerIndex=
                     Player81WorldSync.clientIndexFor(
@@ -710,6 +733,9 @@ final class SharedNpcWorldRelay {
         }
 
         NpcEntity resolve(EntityId sourceId,WorldNpcPresentationEvents.Target ref){
+            if(!ownerCurrent())
+                return null;
+
             if(ref.kind==
                     WorldNpcPresentationEvents.Target.CANONICAL){
                 NpcEntity canonical=
