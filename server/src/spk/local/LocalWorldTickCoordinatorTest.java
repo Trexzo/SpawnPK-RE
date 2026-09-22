@@ -429,11 +429,37 @@ public final class LocalWorldTickCoordinatorTest {
                 );
         }
 
+        try(Fixture reconnect=new Fixture()){
+            reconnect.npcs.tickHome(
+                reconnect.movement,
+                reconnect.writer,
+                reconnect.homeWorld,
+                69L
+            );
+
+            TickBridge bridge=new TickBridge();
+            LocalWorldTickCoordinator freshCoordinator=
+                reconnect.coordinator(false,bridge);
+
+            freshCoordinator.tick(
+                70L,
+                4_000L,
+                reconnect.writer,
+                "[tick-reconnect-test] "
+            );
+
+            if(freshCoordinator.legacyTickCount()!=1L)
+                throw new AssertionError(
+                    "fresh session legacy counter changed"
+                );
+        }
+
         System.out.println(
             "LOCAL_WORLD_TICK_COORDINATOR_PASS "+
             "idlePulse=true authoritativeMove=true "+
             "tickCountersOwned=true schedulerHooks=true "+
-            "respawnLifecycle=true"
+            "respawnLifecycle=true "+
+            "sharedHomeClockReconnect=true"
         );
     }
 }
