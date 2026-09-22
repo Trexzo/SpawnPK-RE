@@ -7,6 +7,7 @@ version = '5.18.5-r8.5-dev'
 
 def repoRoot = projectDir.parentFile
 def pinnedClientSha256 = '6232bae206846a4ba8d09766a2dee886b69016066a3f50f83b201bf705f93662'
+def v308AcceptanceClientSha256 = '854f26ff9f134b0317572e7ac1688e6f40a231d5a4c66f8db5d655b7f45ce7c6'
 
 def runtimeDataFiles = [
     'items.tsv',
@@ -153,6 +154,19 @@ def findPinnedClient = {
     }
 }
 
+def findExactClientBySha = { String expectedSha ->
+    def candidates = [
+        new File(repoRoot, 'evidence/client(6).jar'),
+        new File(repoRoot, 'evidence/client(4).jar'),
+        new File(repoRoot, 'evidence/client.jar'),
+        new File(repoRoot, 'client.jar')
+    ]
+
+    candidates.find { f ->
+        f.isFile() && sha256(f).equalsIgnoreCase(expectedSha)
+    }
+}
+
 def readR85Selftests = {
     File harness = new File(repoRoot, 'RUN_V5185_FULL_SELFTEST.ps1')
     if (!harness.isFile()) {
@@ -217,6 +231,42 @@ tasks.register('r85Regression') {
         }
 
         logger.lifecycle("GRADLE_R85_FULL_SELFTEST_PASS count=${names.size()} exactClient=true bytecodeMajor=55")
+    }
+}
+
+tasks.register('r85V308Acceptance') {
+    group = 'verification'
+    description = 'Runs the inherited 179/179 R8.5 suite against exact v308 without promoting the canonical client pin.'
+    dependsOn tasks.named('jar'), tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+
+    doLast {
+        File client = findExactClientBySha(v308AcceptanceClientSha256)
+
+        if (client == null) {
+            throw new GradleException(
+                "Exact v308 acceptance client.jar is not present; required SHA-256=${v308AcceptanceClientSha256}"
+            )
+        }
+
+        String actualClientSha = sha256(client)
+        def names = readR85Selftests()
+        File configDir = new File(System.getenv('USERPROFILE') ?: System.getProperty('user.home'), '.spawnpk/configs')
+
+        names.eachWithIndex { testName, index ->
+            logger.lifecycle("[GRADLE-R85-V308] ${index + 1}/${names.size()} ${testName}")
+            project.javaexec {
+                workingDir repoRoot
+                classpath = sourceSets.test.runtimeClasspath + files(client)
+                mainClass.set("spk.local.${testName}")
+                if (testName == 'VoidglassR2ConfigPatchToolTest' || testName == 'VoidglassR3ConfigPatchToolTest') {
+                    jvmArgs "-Dspk.voidglass.configDir=${configDir.absolutePath}"
+                }
+            }
+        }
+
+        logger.lifecycle(
+            "GRADLE_R85_V308_ACCEPTANCE_PASS count=${names.size()} clientSha256=${actualClientSha} canonicalPromoted=false bytecodeMajor=55"
+        )
     }
 }
 
