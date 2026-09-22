@@ -289,11 +289,33 @@ It does **not** prove original server unlock requirements, purchase costs, coold
 
 ## HOME TELEPORT
 
-`1195` is an exact primary Home Teleport entry.
+Exact v308 now proves at least two Home presentation entries:
 
-Additional Home aliases across every spellbook surface are not normalized by this package yet.
+~~~
+1195  -> primary/classic Home Teleport entry
+12856 -> Ancient-spellbook Home Teleport entry
+~~~
 
-Do not invent alias IDs merely to force an eight-row triple table.
+Both are built with the exact label:
+
+~~~
+Cast @gre@Home Teleport
+~~~
+
+The Ancient builder additionally sets widget `12856.ab = 1196`, linking it to the classic Home informational/content path.
+
+The classic Home help presentation also includes:
+
+~~~
+1197  -> Level 0: Home Teleport
+1198  -> A teleport which requires no
+18998 -> runes and no required level that
+18999 -> teleports you to the main land.
+~~~
+
+These strings are exact client presentation. They do not establish production server cooldowns, coordinates, combat restrictions or eligibility rules.
+
+A third distinct Lunar Home alias is not proven by this slice. Do not invent one merely to force a three-spellbook alias table.
 
 
 ## DESTINATION-SUBMENU NEGATIVE AUTHORITY
@@ -341,7 +363,7 @@ Those possibilities require separate exact cache/runtime proof.
 The exact client proves:
 
 - Home, Money, Training/Skill, Boss, PK, Minigame, House, and Bounty/Target are first-class teleport navigation concepts;
-- seven custom categories have multiple cross-spellbook widget aliases;
+- seven custom categories have multiple cross-spellbook widget aliases; Home additionally has exact primary `1195` and Ancient alias `12856` presentation entries;
 - the aliases converge on the same semantic client concept;
 - ordinary entry activation uses generic C2S185 widget-action transport;
 - Bounty/Target teleport has a special client-local lock interception state;
@@ -398,6 +420,6 @@ yes for category/navigation composition; destination coordinates and server rest
 
 1. inspect exact cache-backed interface data for any server-populated Money/Training/PK/Minigame/House destination roots/rows;
 2. do not search for a second Java hardcoded destination catalogue unless new evidence points to one;
-3. normalize Home aliases if directly proven;
+3. Home primary `1195` + Ancient alias `12856` are now proven; recover any additional Home alias only if directly evidenced;
 4. link already-packaged Boss Teleport contract into the unified atlas;
 5. keep coordinates/restrictions server-owned until independently evidenced.
