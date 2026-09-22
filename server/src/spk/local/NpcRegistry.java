@@ -120,6 +120,112 @@ final class NpcRegistry {
     List<NpcEntity> snapshot(){return new ArrayList<>(visible);}
 
     /**
+     * Remove region-local NPC view members while preserving this player's
+     * follower actors. Packet 73 rebases retained actors without changing
+     * their global/world position.
+     *
+     * The server-side visible list is mutated together with packet 65. This
+     * prevents later pet packets from retaining HOME NPCs the client has
+     * already removed from its scene list.
+     */
+    int detachRegionViewPreservingFollowers(
+        ServerPacketWriter w
+    )throws IOException{
+        refreshCanonicalActorProjections();
+
+        ArrayList<NpcSyncEncoder.Update> updates=
+            new ArrayList<>();
+        int removed=0;
+
+        for(NpcEntity n:visible){
+            if(n==pet||n==miniPet){
+                updates.add(
+                    NpcSyncEncoder.Update.retain(n)
+                );
+            }else{
+                updates.add(
+                    NpcSyncEncoder.Update.remove(n)
+                );
+                removed++;
+            }
+        }
+
+        if(removed>0){
+            w.varShort(
+                65,
+                NpcSyncEncoder.encode(
+                    updates,
+                    Collections.emptyList(),
+                    0,
+                    0
+                )
+            );
+
+            visible.removeIf(
+                n->n!=pet&&n!=miniPet
+            );
+            devOwnedSceneIndexes.clear();
+        }
+
+        ownerTrail.clear();
+        miniTrail.clear();
+        recentOwnerRunning=false;
+        hasLastOwnerAnchor=false;
+        hasMiniTrail=false;
+        suppressNextOwnerBreadcrumb=false;
+        petDiscontinuityTicks=0;
+        miniDiscontinuityTicks=0;
+
+        assertUniqueSceneIndexes();
+        return removed;
+    }
+
+    /**
+     * Re-add the current WORLD-owned HOME projection while retaining any
+     * follower actors that survived the region transition.
+     */
+    int reattachHomeView(
+        ServerPacketWriter w,
+        MovementState movement,
+        HomeWorldRuntimePlan home
+    )throws IOException{
+        if(home==null)
+            throw new NullPointerException("home");
+
+        refreshCanonicalActorProjections();
+
+        List<NpcEntity> homeNpcs=
+            home.bootstrapNpcs(
+                movement.x(),
+                movement.y()
+            );
+
+        for(NpcEntity n:homeNpcs)
+            if(n.sceneIndex==PET_INDEX)
+                throw new IllegalStateException(
+                    "HOME scene index collides with PET_INDEX"
+                );
+
+        ensureNoAddedSceneCollision(homeNpcs);
+
+        if(!homeNpcs.isEmpty()){
+            w.varShort(
+                65,
+                NpcSyncEncoder.encode(
+                    retains(),
+                    homeNpcs,
+                    movement.x(),
+                    movement.y()
+                )
+            );
+            visible.addAll(homeNpcs);
+        }
+
+        assertUniqueSceneIndexes();
+        return homeNpcs.size();
+    }
+
+    /**
      * Emit a world-visible mask update. Local publication remains immediate; Engine
      * R3.2 records the same semantic mask for the other viewers in the shared World.
      */
