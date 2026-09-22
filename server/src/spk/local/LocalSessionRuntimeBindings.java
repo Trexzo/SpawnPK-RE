@@ -51,17 +51,27 @@ final class LocalSessionRuntimeBindings {
         ServerPacketWriter serverPackets,
         String tag
     )throws IOException{
+        register(
+            serverPackets,
+            tag,
+            worldPlayer.generation()
+        );
+    }
+
+    void register(
+        ServerPacketWriter serverPackets,
+        String tag,
+        long expectedGeneration
+    )throws IOException{
         if(player81Sync!=null)return;
 
-        long generation=
-            worldPlayer.generation();
         boolean[] bindingStarted=
             new boolean[]{false};
 
         try{
             world.withOpenPlayerOwnership(
                 worldPlayer,
-                generation,
+                expectedGeneration,
                 ()->{
                     bindingStarted[0]=true;
 

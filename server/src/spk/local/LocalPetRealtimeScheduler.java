@@ -1,6 +1,7 @@
 package spk.local;
 
 import java.util.Objects;
+import java.util.function.LongSupplier;
 
 /**
  * Owns LocalLab's sub-tick pet presentation scheduling state.
@@ -21,6 +22,7 @@ final class LocalPetRealtimeScheduler {
     private final NpcRegistry npcs;
     private final LocalPetDropPickupHandler petDropPickup;
     private final LocalPetRuntimeCommandHandler petRuntimeCommands;
+    private final LongSupplier ownerGeneration;
     private final SessionBridge bridge;
 
     private long nextPetFollowAt=Long.MAX_VALUE;
@@ -37,6 +39,30 @@ final class LocalPetRealtimeScheduler {
         LocalPetRuntimeCommandHandler petRuntimeCommands,
         SessionBridge bridge
     ){
+        this(
+            bootstrap,
+            world,
+            worldPlayer,
+            movement,
+            npcs,
+            petDropPickup,
+            petRuntimeCommands,
+            worldPlayer::generation,
+            bridge
+        );
+    }
+
+    LocalPetRealtimeScheduler(
+        boolean bootstrap,
+        World world,
+        WorldPlayer worldPlayer,
+        MovementState movement,
+        NpcRegistry npcs,
+        LocalPetDropPickupHandler petDropPickup,
+        LocalPetRuntimeCommandHandler petRuntimeCommands,
+        LongSupplier ownerGeneration,
+        SessionBridge bridge
+    ){
         this.bootstrap=bootstrap;
         this.world=Objects.requireNonNull(world,"world");
         this.worldPlayer=Objects.requireNonNull(worldPlayer,"worldPlayer");
@@ -46,6 +72,8 @@ final class LocalPetRealtimeScheduler {
             petDropPickup,"petDropPickup");
         this.petRuntimeCommands=Objects.requireNonNull(
             petRuntimeCommands,"petRuntimeCommands");
+        this.ownerGeneration=Objects.requireNonNull(
+            ownerGeneration,"ownerGeneration");
         this.bridge=Objects.requireNonNull(bridge,"bridge");
     }
 
@@ -91,11 +119,17 @@ final class LocalPetRealtimeScheduler {
 
         petFollowRealtimeScheduled=true;
 
-        world.realtime().schedule(
-            at,
-            worldPlayer,
-            ()->runPetFollowRealtime()
-        );
+        try{
+            world.realtime().schedule(
+                at,
+                worldPlayer,
+                ownerGeneration.getAsLong(),
+                ()->runPetFollowRealtime()
+            );
+        }catch(RuntimeException failure){
+            petFollowRealtimeScheduled=false;
+            throw failure;
+        }
     }
 
     void ensureTestSequenceScheduled(long now){
@@ -118,11 +152,17 @@ final class LocalPetRealtimeScheduler {
 
         petTestRealtimeScheduled=true;
 
-        world.realtime().schedule(
-            at,
-            worldPlayer,
-            ()->runPetTestSequenceRealtime()
-        );
+        try{
+            world.realtime().schedule(
+                at,
+                worldPlayer,
+                ownerGeneration.getAsLong(),
+                ()->runPetTestSequenceRealtime()
+            );
+        }catch(RuntimeException failure){
+            petTestRealtimeScheduled=false;
+            throw failure;
+        }
     }
 
     private void runPetFollowRealtime(){

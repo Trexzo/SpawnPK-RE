@@ -447,6 +447,7 @@ final class LocalSession implements Runnable {
             npcs,
             petDropPickup,
             petRuntimeCommands,
+            ()->LocalSession.this.worldPlayerGeneration,
             new LocalPetRealtimeScheduler.SessionBridge(){
                 @Override public ServerPacketWriter sessionPackets(){
                     return LocalSession.this.sessionPackets;
@@ -803,7 +804,8 @@ final class LocalSession implements Runnable {
                 if(bootstrap && runtimeBindings.context()==null){
                     runtimeBindings.register(
                         serverPackets,
-                        tag
+                        tag,
+                        worldPlayerGeneration
                     );
                 }
 
@@ -1030,6 +1032,7 @@ final class LocalSession implements Runnable {
             return world.persistence().captureAndSave(
                 username,
                 worldPlayer,
+                worldPlayerGeneration,
                 petAccessoryState.activeItem(),
                 tag,
                 reason
@@ -1047,6 +1050,7 @@ final class LocalSession implements Runnable {
                 world.persistence().captureAndSave(
                     username,
                     worldPlayer,
+                    worldPlayerGeneration,
                     petAccessoryState.activeItem(),
                     tag,
                     reason
@@ -1061,6 +1065,58 @@ final class LocalSession implements Runnable {
         if(result==null)
             throw new IllegalStateException(
                 "world save capture produced no ticket"
+            );
+
+        return result;
+    }
+
+    private WorldPlayerPersistence.CapturedSave
+        captureAccountSaveDeferred(
+            String tag,
+            String reason
+        )throws Exception{
+        if(!persistentAccount)
+            return null;
+
+        if(world.pulse().inExecutionContext())
+            return world.persistence()
+                .captureDeferredSave(
+                    username,
+                    worldPlayer,
+                    worldPlayerGeneration,
+                    petAccessoryState.activeItem(),
+                    tag,
+                    reason
+                );
+
+        final java.util.concurrent.atomic.AtomicReference<
+            WorldPlayerPersistence.CapturedSave
+        > captured=
+            new java.util.concurrent.atomic.AtomicReference<>();
+
+        world.submitAndWait(
+            worldPlayer,
+            worldPlayerGeneration,
+            ()->captured.set(
+                world.persistence()
+                    .captureDeferredSave(
+                        username,
+                        worldPlayer,
+                        worldPlayerGeneration,
+                        petAccessoryState.activeItem(),
+                        tag,
+                        reason
+                    )
+            ),
+            5_000L
+        );
+
+        WorldPlayerPersistence.CapturedSave result=
+            captured.get();
+
+        if(result==null)
+            throw new IllegalStateException(
+                "world final-save capture produced no snapshot"
             );
 
         return result;
@@ -1101,17 +1157,26 @@ final class LocalSession implements Runnable {
             return;
 
         try{
-            WorldPlayerPersistence.SaveTicket ticket=
-                requestAccountSave(
+            WorldPlayerPersistence.CapturedSave captured=
+                captureAccountSaveDeferred(
                     tag,
                     reason
                 );
 
-            if(ticket!=null)
-                ticket.completion.get(
-                    5,
-                    java.util.concurrent.TimeUnit.SECONDS
-                );
+            if(captured==null)
+                return;
+
+            WorldPlayerPersistence.SaveTicket ticket=
+                world.persistence()
+                    .submitCapturedWithBackpressure(
+                        captured,
+                        5_000L
+                    );
+
+            ticket.completion.get(
+                5,
+                java.util.concurrent.TimeUnit.SECONDS
+            );
         }catch(Throwable e){
             System.err.println(
                 tag+

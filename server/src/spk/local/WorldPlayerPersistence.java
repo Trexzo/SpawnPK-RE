@@ -36,6 +36,42 @@ final class WorldPlayerPersistence
         }
     }
 
+    static final class CapturedSave {
+        final SaveTicket ticket;
+        final WorldPlayer owner;
+        final long expectedGeneration;
+        final int petAccessoryItem;
+        final String tag;
+        final String reason;
+        private boolean submitted;
+
+        CapturedSave(
+            SaveTicket ticket,
+            WorldPlayer owner,
+            long expectedGeneration,
+            int petAccessoryItem,
+            String tag,
+            String reason
+        ){
+            this.ticket=ticket;
+            this.owner=owner;
+            this.expectedGeneration=expectedGeneration;
+            this.petAccessoryItem=petAccessoryItem;
+            this.tag=tag;
+            this.reason=reason;
+        }
+
+        synchronized void markSubmitted(){
+            if(submitted)
+                throw new IllegalStateException(
+                    "captured save already submitted sequence="+
+                    ticket.sequence
+                );
+
+            submitted=true;
+        }
+    }
+
     private static final class PendingCheckpoint {
         final long tick;
         final PlayerSnapshot snapshot;
@@ -58,6 +94,7 @@ final class WorldPlayerPersistence
     }
 
     private static final class DroppedTaskCounts {
+        int loads;
         int saves;
         int checkpoints;
         int unknown;
@@ -69,6 +106,8 @@ final class WorldPlayerPersistence
     private final World world;
     private final PlayerRepository repository;
     private final ThreadPoolExecutor io;
+    private final AtomicReference<LoadTask> inFlightLoad=
+        new AtomicReference<>();
     private final AtomicReference<SaveTask> inFlightSave=
         new AtomicReference<>();
     private final Object checkpointLock=
@@ -146,12 +185,175 @@ final class WorldPlayerPersistence
                 "repository load on World execution context"
             );
 
-        return repository.load(username);
+        LoadTask task=
+            new LoadTask(username);
+
+        enqueueLoad(task);
+
+        boolean interrupted=false;
+
+        try{
+            for(;;){
+                try{
+                    return task.future.get();
+                }catch(InterruptedException ignored){
+                    interrupted=true;
+                }catch(ExecutionException failure){
+                    Throwable cause=
+                        failure.getCause();
+
+                    if(cause instanceof IOException)
+                        throw (IOException)cause;
+
+                    if(cause instanceof RuntimeException)
+                        throw (RuntimeException)cause;
+
+                    if(cause instanceof Error)
+                        throw (Error)cause;
+
+                    throw new IOException(
+                        "repository load failed profile="+
+                        username,
+                        cause
+                    );
+                }
+            }
+        }finally{
+            if(interrupted)
+                Thread.currentThread()
+                    .interrupt();
+        }
+    }
+
+    private void enqueueLoad(
+        LoadTask task
+    )throws IOException{
+        boolean interrupted=false;
+        boolean executeAttempted=false;
+
+        try{
+            for(;;){
+                synchronized(io){
+                    if(io.isShutdown())
+                        throw new IOException(
+                            "persistence closed before repository load"
+                        );
+
+                    if(!executeAttempted){
+                        executeAttempted=true;
+
+                        try{
+                            io.execute(task);
+                            return;
+                        }catch(RejectedExecutionException full){
+                            if(io.isShutdown())
+                                throw new IOException(
+                                    "persistence closed before repository load",
+                                    full
+                                );
+                        }
+                    }
+
+                    if(io.getQueue().offer(task))
+                        return;
+                }
+
+                try{
+                    Thread.sleep(5L);
+                }catch(InterruptedException ignored){
+                    interrupted=true;
+                }
+            }
+        }finally{
+            if(interrupted)
+                Thread.currentThread()
+                    .interrupt();
+        }
     }
 
     SaveTicket captureAndSave(
         String username,
         WorldPlayer player,
+        int petAccessoryItem,
+        String tag,
+        String reason
+    ){
+        Objects.requireNonNull(
+            player,
+            "player"
+        );
+
+        return captureAndSave(
+            username,
+            player,
+            player.generation(),
+            petAccessoryItem,
+            tag,
+            reason
+        );
+    }
+
+    SaveTicket captureAndSave(
+        String username,
+        WorldPlayer player,
+        long expectedGeneration,
+        int petAccessoryItem,
+        String tag,
+        String reason
+    ){
+        CapturedSave captured=
+            captureDeferredSave(
+                username,
+                player,
+                expectedGeneration,
+                petAccessoryItem,
+                tag,
+                reason
+            );
+
+        captured.markSubmitted();
+
+        SaveTask task=
+            saveTask(captured);
+
+        try{
+            io.execute(task);
+        }catch(RejectedExecutionException e){
+            task.reject(
+                e,
+                "IO_BACKPRESSURE"
+            );
+        }
+
+        return captured.ticket;
+    }
+
+    CapturedSave captureDeferredSave(
+        String username,
+        WorldPlayer player,
+        int petAccessoryItem,
+        String tag,
+        String reason
+    ){
+        Objects.requireNonNull(
+            player,
+            "player"
+        );
+
+        return captureDeferredSave(
+            username,
+            player,
+            player.generation(),
+            petAccessoryItem,
+            tag,
+            reason
+        );
+    }
+
+    CapturedSave captureDeferredSave(
+        String username,
+        WorldPlayer player,
+        long expectedGeneration,
         int petAccessoryItem,
         String tag,
         String reason
@@ -163,12 +365,27 @@ final class WorldPlayerPersistence
             "player"
         );
 
-        PlayerSnapshot snapshot=
-            PlayerSnapshotCodec.capture(
-                username,
-                player,
-                petAccessoryItem
-            );
+        PlayerSnapshot snapshot;
+
+        synchronized(player.mutationLock()){
+            if(!world.players().owns(
+                    player,
+                    expectedGeneration
+                ))
+                throw new IllegalStateException(
+                    "persistence capture owner changed player="+
+                    player.id()+
+                    " expectedGeneration="+
+                    expectedGeneration
+                );
+
+            snapshot=
+                PlayerSnapshotCodec.capture(
+                    username,
+                    player,
+                    petAccessoryItem
+                );
+        }
 
         long saveSequence=
             sequence.incrementAndGet();
@@ -176,30 +393,166 @@ final class WorldPlayerPersistence
         CompletableFuture<Void> future=
             new CompletableFuture<>();
 
-        SaveTask task=
-            new SaveTask(
+        return new CapturedSave(
+            new SaveTicket(
                 saveSequence,
                 snapshot,
-                petAccessoryItem,
-                cleanTag(tag),
-                cleanReason(reason),
                 future
+            ),
+            player,
+            expectedGeneration,
+            petAccessoryItem,
+            cleanTag(tag),
+            cleanReason(reason)
+        );
+    }
+
+    SaveTicket submitCapturedWithBackpressure(
+        CapturedSave captured,
+        long timeoutMillis
+    ){
+        Objects.requireNonNull(
+            captured,
+            "captured"
+        );
+
+        if(timeoutMillis<0L)
+            throw new IllegalArgumentException(
+                "timeoutMillis="+timeoutMillis
             );
 
-        try{
-            io.execute(task);
-        }catch(RejectedExecutionException e){
-            task.reject(
-                e,
-                "IO_BACKPRESSURE"
+        if(world.pulse().inExecutionContext())
+            throw new IllegalStateException(
+                "blocking persistence admission on World execution context"
             );
+
+        synchronized(captured.owner.mutationLock()){
+            if(!world.players().owns(
+                    captured.owner,
+                    captured.expectedGeneration
+                ))
+                throw new IllegalStateException(
+                    "captured save owner changed player="+
+                    captured.owner.id()+
+                    " expectedGeneration="+
+                    captured.expectedGeneration
+                );
+
+            captured.markSubmitted();
         }
 
-        return new SaveTicket(
-            saveSequence,
-            snapshot,
-            future
+        SaveTask task=
+            saveTask(captured);
+
+        enqueueSaveWithBackpressure(
+            task,
+            timeoutMillis
         );
+
+        return captured.ticket;
+    }
+
+    private SaveTask saveTask(
+        CapturedSave captured
+    ){
+        return new SaveTask(
+            captured.ticket.sequence,
+            captured.ticket.snapshot,
+            captured.petAccessoryItem,
+            captured.tag,
+            captured.reason,
+            captured.ticket.completion
+        );
+    }
+
+    private void enqueueSaveWithBackpressure(
+        SaveTask task,
+        long timeoutMillis
+    ){
+        long timeoutNanos=
+            TimeUnit.MILLISECONDS.toNanos(
+                timeoutMillis
+            );
+        long started=
+            System.nanoTime();
+        boolean interrupted=false;
+        boolean executeAttempted=false;
+
+        try{
+            for(;;){
+                synchronized(io){
+                    if(io.isShutdown()){
+                        task.reject(
+                            new RejectedExecutionException(
+                                "persistence closed before captured save admission"
+                            ),
+                            "SHUTDOWN"
+                        );
+                        return;
+                    }
+
+                    if(!executeAttempted){
+                        executeAttempted=true;
+
+                        try{
+                            io.execute(task);
+                            return;
+                        }catch(RejectedExecutionException full){
+                            if(io.isShutdown()){
+                                task.reject(
+                                    full,
+                                    "SHUTDOWN"
+                                );
+                                return;
+                            }
+                        }
+                    }
+
+                    if(io.getQueue().offer(task))
+                        return;
+                }
+
+                long elapsed=
+                    System.nanoTime()-started;
+
+                if(elapsed>=timeoutNanos){
+                    task.reject(
+                        new RejectedExecutionException(
+                            "captured save admission timed out after "+
+                            timeoutMillis+"ms"
+                        ),
+                        "IO_BACKPRESSURE_TIMEOUT"
+                    );
+                    return;
+                }
+
+                long remaining=
+                    timeoutNanos-elapsed;
+                long sleepMillis=
+                    Math.max(
+                        1L,
+                        Math.min(
+                            5L,
+                            TimeUnit.NANOSECONDS
+                                .toMillis(
+                                    remaining
+                                )
+                        )
+                    );
+
+                try{
+                    Thread.sleep(
+                        sleepMillis
+                    );
+                }catch(InterruptedException ignored){
+                    interrupted=true;
+                }
+            }
+        }finally{
+            if(interrupted)
+                Thread.currentThread()
+                    .interrupt();
+        }
     }
 
     /**
@@ -420,6 +773,49 @@ final class WorldPlayerPersistence
                     return;
                 }
             }
+        }
+    }
+
+    private final class LoadTask
+        implements Runnable {
+
+        private final String username;
+        private final CompletableFuture<
+            Optional<PlayerSnapshot>
+        > future=new CompletableFuture<>();
+
+        LoadTask(String username){
+            this.username=username;
+        }
+
+        @Override public void run(){
+            inFlightLoad.set(this);
+
+            try{
+                if(future.isDone())
+                    return;
+
+                future.complete(
+                    repository.load(username)
+                );
+            }catch(Throwable error){
+                future.completeExceptionally(
+                    error
+                );
+            }finally{
+                inFlightLoad.compareAndSet(
+                    this,
+                    null
+                );
+            }
+        }
+
+        boolean reject(
+            RejectedExecutionException error
+        ){
+            return future.completeExceptionally(
+                error
+            );
         }
     }
 
@@ -661,6 +1057,14 @@ final class WorldPlayerPersistence
                     " dropped queued task"
                 );
 
+            if(runnable instanceof LoadTask){
+                counts.loads++;
+                ((LoadTask)runnable).reject(
+                    error
+                );
+                continue;
+            }
+
             if(runnable instanceof SaveTask){
                 counts.saves++;
                 ((SaveTask)runnable).reject(
@@ -762,6 +1166,23 @@ final class WorldPlayerPersistence
         return settled;
     }
 
+    private boolean rejectInFlightLoad(
+        String stage
+    ){
+        LoadTask active=
+            inFlightLoad.get();
+
+        if(active==null)
+            return false;
+
+        return active.reject(
+            new RejectedExecutionException(
+                "persistence "+stage+
+                " active load did not terminate"
+            )
+        );
+    }
+
     private boolean rejectInFlightSave(
         String stage
     ){
@@ -802,7 +1223,9 @@ final class WorldPlayerPersistence
     }
 
     @Override public void close(){
-        io.shutdown();
+        synchronized(io){
+            io.shutdown();
+        }
 
         boolean clean=false;
 
@@ -829,6 +1252,11 @@ final class WorldPlayerPersistence
                         TimeUnit.SECONDS
                     );
 
+                boolean inFlightLoadSettled=
+                    !clean&&
+                    rejectInFlightLoad(
+                        "SHUTDOWN_LOAD_IN_FLIGHT"
+                    );
                 boolean inFlightSettled=
                     !clean&&
                     rejectInFlightSave(
@@ -843,11 +1271,14 @@ final class WorldPlayerPersistence
                 System.err.println(
                     "[world] V5123_PERSISTENCE_SHUTDOWN_FORCED"+
                     " droppedTasks="+dropped.size()+
+                    " droppedLoads="+counts.loads+
                     " droppedSaves="+counts.saves+
                     " droppedCheckpoints="+
                         counts.checkpoints+
                     " droppedUnknown="+
                         counts.unknown+
+                    " inFlightLoadSettled="+
+                        inFlightLoadSettled+
                     " inFlightSettled="+
                         inFlightSettled+
                     " checkpointInFlightSettled="+
@@ -868,6 +1299,10 @@ final class WorldPlayerPersistence
                     "SHUTDOWN_INTERRUPTED"
                 );
 
+            boolean inFlightLoadSettled=
+                rejectInFlightLoad(
+                    "SHUTDOWN_INTERRUPTED_LOAD_IN_FLIGHT"
+                );
             boolean inFlightSettled=
                 rejectInFlightSave(
                     "SHUTDOWN_INTERRUPTED_IN_FLIGHT"
@@ -880,11 +1315,14 @@ final class WorldPlayerPersistence
             System.err.println(
                 "[world] V5123_PERSISTENCE_SHUTDOWN_INTERRUPTED"+
                 " droppedTasks="+dropped.size()+
+                " droppedLoads="+counts.loads+
                 " droppedSaves="+counts.saves+
                 " droppedCheckpoints="+
                     counts.checkpoints+
                 " droppedUnknown="+
                     counts.unknown+
+                " inFlightLoadSettled="+
+                    inFlightLoadSettled+
                 " inFlightSettled="+
                     inFlightSettled+
                 " checkpointInFlightSettled="+

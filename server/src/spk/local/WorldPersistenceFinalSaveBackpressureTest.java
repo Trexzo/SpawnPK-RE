@@ -1,0 +1,372 @@
+package spk.local;
+
+import java.io.IOException;
+import java.util.*;
+import java.util.concurrent.*;
+import java.util.concurrent.atomic.*;
+
+public final class WorldPersistenceFinalSaveBackpressureTest {
+    public static void main(String[] args)throws Exception{
+        BlockingFirstRepository repository=
+            new BlockingFirstRepository();
+
+        World world=
+            World.isolatedForTest(
+                60_000L,
+                repository
+            );
+
+        WorldPlayer player=
+            new WorldPlayer();
+
+        try{
+            long generation=
+                world.registerPlayer(
+                    player,
+                    LocalAccountProfiles.PRIMARY
+                );
+
+            world.start();
+
+            AtomicReference<
+                WorldPlayerPersistence.SaveTicket
+            > blockerRef=
+                new AtomicReference<>();
+
+            world.submitAndWait(
+                player,
+                generation,
+                ()->{
+                    player.movement()
+                        .setRunEnergy(10);
+
+                    blockerRef.set(
+                        world.persistence()
+                            .captureAndSave(
+                                LocalAccountProfiles.PRIMARY,
+                                player,
+                                0,
+                                "[final-save-test] ",
+                                "BLOCKER"
+                            )
+                    );
+                },
+                5_000L
+            );
+
+            if(!repository.firstStarted.await(
+                    5,
+                    TimeUnit.SECONDS))
+                throw new AssertionError(
+                    "blocking repository save never started"
+                );
+
+            ArrayList<
+                WorldPlayerPersistence.SaveTicket
+            > queued=
+                new ArrayList<>();
+
+            world.submitAndWait(
+                player,
+                generation,
+                ()->{
+                    for(int i=0;
+                        i<WorldPlayerPersistence
+                            .MAX_PENDING_WRITES;
+                        i++){
+                        player.movement()
+                            .setRunEnergy(
+                                20+(i%50)
+                            );
+
+                        WorldPlayerPersistence.SaveTicket ticket=
+                            world.persistence()
+                                .captureAndSave(
+                                    LocalAccountProfiles.PRIMARY,
+                                    player,
+                                    0,
+                                    "[final-save-test] ",
+                                    "QUEUED_"+i
+                                );
+
+                        if(ticket.completion.isDone())
+                            throw new AssertionError(
+                                "backlog save rejected before queue full index="+
+                                i
+                            );
+
+                        queued.add(ticket);
+                    }
+                },
+                5_000L
+            );
+
+            if(world.persistence()
+                    .queuedWrites()!=
+               WorldPlayerPersistence.MAX_PENDING_WRITES)
+                throw new AssertionError(
+                    "persistence queue did not fill: "+
+                    world.persistence().metrics()
+                );
+
+            AtomicReference<
+                WorldPlayerPersistence.CapturedSave
+            > finalCaptureRef=
+                new AtomicReference<>();
+
+            world.submitAndWait(
+                player,
+                generation,
+                ()->{
+                    player.movement()
+                        .setRunEnergy(99);
+
+                    finalCaptureRef.set(
+                        world.persistence()
+                            .captureDeferredSave(
+                                LocalAccountProfiles.PRIMARY,
+                                player,
+                                0,
+                                "[final-save-test] ",
+                                "SESSION_END"
+                            )
+                    );
+                },
+                5_000L
+            );
+
+            WorldPlayerPersistence.CapturedSave finalCapture=
+                finalCaptureRef.get();
+
+            if(finalCapture==null)
+                throw new AssertionError(
+                    "final capture missing"
+                );
+
+            if(finalCapture.ticket.completion.isDone())
+                throw new AssertionError(
+                    "deferred final capture was prematurely completed"
+                );
+
+            CountDownLatch submitStarted=
+                new CountDownLatch(1);
+            AtomicReference<
+                WorldPlayerPersistence.SaveTicket
+            > admittedRef=
+                new AtomicReference<>();
+            AtomicReference<Throwable>
+                submitFailure=
+                    new AtomicReference<>();
+
+            Thread submitter=
+                new Thread(
+                    ()->{
+                        submitStarted.countDown();
+
+                        try{
+                            admittedRef.set(
+                                world.persistence()
+                                    .submitCapturedWithBackpressure(
+                                        finalCapture,
+                                        5_000L
+                                    )
+                            );
+                        }catch(Throwable failure){
+                            submitFailure.set(
+                                failure
+                            );
+                        }
+                    },
+                    "final-save-admission-test"
+                );
+
+            submitter.start();
+
+            if(!submitStarted.await(
+                    5,
+                    TimeUnit.SECONDS))
+                throw new AssertionError(
+                    "final save submitter did not start"
+                );
+
+            Thread.sleep(100L);
+
+            if(!submitter.isAlive())
+                throw new AssertionError(
+                    "full-queue final save did not wait for capacity"
+                );
+
+            if(finalCapture.ticket
+                    .completion.isDone())
+                throw new AssertionError(
+                    "full-queue final save rejected before capacity opened"
+                );
+
+            AtomicBoolean worldResponsive=
+                new AtomicBoolean();
+
+            world.submitAndWait(
+                player,
+                generation,
+                ()->worldResponsive.set(true),
+                2_000L
+            );
+
+            if(!worldResponsive.get())
+                throw new AssertionError(
+                    "final save admission blocked World execution"
+                );
+
+            repository.releaseFirst.countDown();
+
+            submitter.join(5_000L);
+
+            if(submitter.isAlive())
+                throw new AssertionError(
+                    "final save admission did not settle after capacity opened"
+                );
+
+            if(submitFailure.get()!=null)
+                throw new AssertionError(
+                    "final save admission failed",
+                    submitFailure.get()
+                );
+
+            WorldPlayerPersistence.SaveTicket admitted=
+                admittedRef.get();
+
+            if(admitted!=finalCapture.ticket)
+                throw new AssertionError(
+                    "final save admission did not preserve exact capture ticket"
+                );
+
+            admitted.completion.get(
+                5,
+                TimeUnit.SECONDS
+            );
+
+            for(WorldPlayerPersistence.SaveTicket ticket:
+                    queued)
+                ticket.completion.get(
+                    5,
+                    TimeUnit.SECONDS
+                );
+
+            blockerRef.get().completion.get(
+                5,
+                TimeUnit.SECONDS
+            );
+
+            List<Integer> saved=
+                repository.savedEnergySnapshot();
+
+            int expectedSaves=
+                1+
+                WorldPlayerPersistence.MAX_PENDING_WRITES+
+                1;
+
+            if(saved.size()!=expectedSaves)
+                throw new AssertionError(
+                    "unexpected persistence save count "+
+                    saved.size()+
+                    " expected="+expectedSaves+
+                    " values="+saved
+                );
+
+            if(saved.get(saved.size()-1)!=99)
+                throw new AssertionError(
+                    "final disconnect snapshot was not persisted last: "+
+                    saved
+                );
+
+            if(world.persistence().failedCount()!=0)
+                throw new AssertionError(
+                    "transient saturation counted as save failure: "+
+                    world.persistence().metrics()
+                );
+
+            System.out.println(
+                "WORLD_PERSISTENCE_FINAL_SAVE_BACKPRESSURE_PASS "+
+                "queueSaturated=true "+
+                "finalCaptureDeferred=true "+
+                "admissionWaitedOffWorld=true "+
+                "worldRemainedResponsive=true "+
+                "fifoPreserved=true "+
+                "finalSnapshotPersisted=true "+
+                "saves="+saved.size()
+            );
+        }finally{
+            repository.releaseFirst.countDown();
+
+            if(player.registered())
+                world.unregisterPlayer(
+                    player,
+                    player.generation()
+                );
+
+            world.close();
+        }
+    }
+
+    private static final class BlockingFirstRepository
+        implements PlayerRepository {
+
+        final CountDownLatch firstStarted=
+            new CountDownLatch(1);
+        final CountDownLatch releaseFirst=
+            new CountDownLatch(1);
+        final AtomicInteger calls=
+            new AtomicInteger();
+        final List<Integer> savedEnergy=
+            Collections.synchronizedList(
+                new ArrayList<>()
+            );
+
+        @Override public Optional<PlayerSnapshot> load(
+            String username
+        ){
+            return Optional.empty();
+        }
+
+        @Override public void save(
+            PlayerSnapshot snapshot
+        )throws IOException{
+            int call=
+                calls.incrementAndGet();
+
+            if(call==1){
+                firstStarted.countDown();
+
+                try{
+                    releaseFirst.await();
+                }catch(InterruptedException failure){
+                    Thread.currentThread()
+                        .interrupt();
+
+                    throw new IOException(
+                        "blocking first save interrupted",
+                        failure
+                    );
+                }
+            }
+
+            savedEnergy.add(
+                Integer.parseInt(
+                    snapshot.value(
+                        "movement.runEnergy"
+                    )
+                )
+            );
+        }
+
+        List<Integer> savedEnergySnapshot(){
+            synchronized(savedEnergy){
+                return new ArrayList<>(
+                    savedEnergy
+                );
+            }
+        }
+    }
+
+    private WorldPersistenceFinalSaveBackpressureTest(){}
+}
