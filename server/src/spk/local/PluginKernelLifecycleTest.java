@@ -334,6 +334,88 @@ public final class PluginKernelLifecycleTest {
         manager.disable("dep.b");
         manager.disable("dep.a");
 
+        ArrayList<String> batchOrder=
+            new ArrayList<>();
+
+        BatchPlugin batchA=
+            new BatchPlugin(
+                "batch.a",
+                Collections.<String>emptyList(),
+                false,
+                batchOrder
+            );
+        BatchPlugin batchB=
+            new BatchPlugin(
+                "batch.b",
+                Collections.singletonList(
+                    "batch.a"
+                ),
+                true,
+                batchOrder
+            );
+
+        expectFailure(
+            ()->manager.enableAll(
+                Arrays.asList(
+                    batchB,
+                    batchA
+                )
+            ),
+            "dependency batch rollback"
+        );
+
+        equals(
+            Arrays.asList(
+                "batch.a",
+                "batch.b"
+            ),
+            batchOrder,
+            "batch enable order before failure"
+        );
+
+        if(manager.plugin("batch.a")!=null||
+           manager.plugin("batch.b")!=null||
+           batchA.disableCount.get()!=1||
+           batchB.disableCount.get()!=1)
+            throw new AssertionError(
+                "failed dependency batch did not roll back"
+            );
+
+        ArrayList<String> cycleOrder=
+            new ArrayList<>();
+
+        OrderingPlugin cycleA=
+            new OrderingPlugin(
+                "cycle.a",
+                Collections.singletonList(
+                    "cycle.b"
+                ),
+                cycleOrder
+            );
+        OrderingPlugin cycleB=
+            new OrderingPlugin(
+                "cycle.b",
+                Collections.singletonList(
+                    "cycle.a"
+                ),
+                cycleOrder
+            );
+
+        expectFailure(
+            ()->manager.enableAll(
+                Arrays.asList(
+                    cycleB,
+                    cycleA
+                )
+            ),
+            "dependency cycle"
+        );
+
+        if(!cycleOrder.isEmpty())
+            throw new AssertionError(
+                "dependency cycle executed plugin code"
+            );
+
         CloseProbePlugin closeProbe=
             new CloseProbePlugin();
 
@@ -394,6 +476,8 @@ public final class PluginKernelLifecycleTest {
             "preEnableGuards=true "+
             "failureRollback=true "+
             "dependencyOrder=dep.a_dep.b_dep.c "+
+            "batchRollback=true "+
+            "dependencyCycleRejected=true "+
             "worldCloseClean=true"
         );
     }
@@ -816,6 +900,54 @@ public final class PluginKernelLifecycleTest {
             order.add(
                 manifest.id()
             );
+        }
+    }
+
+    private static final class BatchPlugin
+        implements Plugin {
+
+        private final PluginManifest manifest;
+        private final boolean fail;
+        private final List<String> order;
+        final AtomicInteger disableCount=
+            new AtomicInteger();
+
+        BatchPlugin(
+            String id,
+            List<String> dependencies,
+            boolean fail,
+            List<String> order
+        ){
+            manifest=
+                new PluginManifest(
+                    id,
+                    "1.0.0",
+                    PluginApiVersion.CURRENT,
+                    dependencies
+                );
+            this.fail=fail;
+            this.order=order;
+        }
+
+        @Override public PluginManifest manifest(){
+            return manifest;
+        }
+
+        @Override public void enable(
+            PluginContext context
+        )throws Exception{
+            order.add(
+                manifest.id()
+            );
+
+            if(fail)
+                throw new Exception(
+                    "intentional batch failure"
+                );
+        }
+
+        @Override public void disable(){
+            disableCount.incrementAndGet();
         }
     }
 
