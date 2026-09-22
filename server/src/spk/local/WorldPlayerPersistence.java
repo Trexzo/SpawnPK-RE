@@ -1357,6 +1357,10 @@ final class WorldPlayerPersistence
     }
 
     @Override public void close(){
+        synchronized(checkpointLock){
+            checkpointSuppressedGenerations.clear();
+        }
+
         synchronized(io){
             io.shutdown();
         }
