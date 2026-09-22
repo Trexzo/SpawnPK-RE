@@ -9,12 +9,14 @@ public final class SpecialEnergyServiceTest {
         "CUSTOM_LOCALLAB_SPECIAL_ENERGY_TEST";
 
     public static void main(String[] args) {
+        WorldPlayer owner =
+            new WorldPlayer();
         PlayerState player =
-            new PlayerState();
+            owner.playerState();
 
         SpecialEnergyService service =
             new SpecialEnergyService(
-                player,
+                owner,
                 AUTHORITY
             );
 
@@ -173,7 +175,7 @@ public final class SpecialEnergyServiceTest {
         );
 
         authorityGuards(
-            player
+            owner
         );
         boundaryGuard();
 
@@ -196,12 +198,12 @@ public final class SpecialEnergyServiceTest {
     }
 
     private static void authorityGuards(
-        PlayerState player
+        WorldPlayer owner
     ) {
         expect(
             IllegalArgumentException.class,
             () -> new SpecialEnergyService(
-                player,
+                owner,
                 "EXACT_CURRENT_CLIENT"
             ),
             "client authority"
@@ -210,7 +212,7 @@ public final class SpecialEnergyServiceTest {
         expect(
             IllegalArgumentException.class,
             () -> new SpecialEnergyService(
-                player,
+                owner,
                 "UNKNOWN_SERVER_AUTHORITY"
             ),
             "unknown authority"
