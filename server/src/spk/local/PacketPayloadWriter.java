@@ -23,6 +23,8 @@ final class PacketPayloadWriter {
     PacketPayloadWriter putU16BELowSub128(int v){ range(v,0xffff,"u16"); out.write(v>>>8); out.write((v-128)&0xff); return this; }
     PacketPayloadWriter putU16LELowSub128(int v){ range(v,0xffff,"u16"); out.write((v-128)&0xff); out.write(v>>>8); return this; }
     PacketPayloadWriter putI16BE(int v){ range(v,-32768,32767,"i16"); out.write((v>>>8)&0xff); out.write(v&0xff); return this; }
+    PacketPayloadWriter putI16LE(int v){ range(v,-32768,32767,"i16"); out.write(v&0xff); out.write((v>>>8)&0xff); return this; }
+    PacketPayloadWriter putI16LELowAdd128(int v){ range(v,-32768,32767,"i16"); out.write((v+128)&0xff); out.write((v>>>8)&0xff); return this; }
 
     PacketPayloadWriter putI32BE(int v){ out.write(v>>>24); out.write(v>>>16); out.write(v>>>8); out.write(v); return this; }
     PacketPayloadWriter putI32X(int v){ out.write(v>>>8); out.write(v); out.write(v>>>24); out.write(v>>>16); return this; }
