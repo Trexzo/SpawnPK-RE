@@ -6,10 +6,10 @@ import java.util.Objects;
 import spk.content.api.*;
 
 /**
- * LocalLab-owned Make-over Mage semantic dialogue transition policy.
+ * LocalLab-owned Make-over Mage semantic dialogue content.
  *
- * Exact client presentation/transport lives elsewhere; this class owns only
- * the reconstructed LocalLab branch policy.
+ * This class owns reconstructed LocalLab branch policy plus the dialogue copy.
+ * Exact client roots/widgets/packets remain behind ContentDialoguePresentation.
  */
 public final class MakeoverMageDialogueContent
     implements ContentDialogueHandler {
