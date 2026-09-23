@@ -474,6 +474,32 @@ final class LocalMakeoverMageHandler {
                 current.nodeKey))
             return false;
 
+        if(StandardDialoguePresentationAdapter
+                .isAugmentedOptionCloseWidget(
+                    widget
+                )){
+            StandardDialoguePresentationAdapter
+                .close(packets);
+
+            DialogueSessionService.Snapshot ended=
+                dialogue.close(
+                    dialoguePlayerRef
+                );
+
+            if(ended.active)
+                throw new IllegalStateException(
+                    "Make-over close did not end semantic dialogue"
+                );
+
+            clearActive();
+
+            System.out.println(
+                tag+
+                "MAKEOVER_MAGE_DIALOG_CANCEL reason=CLIENT_CANCEL"
+            );
+            return true;
+        }
+
         int optionIndex=
             StandardDialoguePresentationAdapter
                 .twoOptionIndexForWidget(widget);
