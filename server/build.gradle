@@ -12,6 +12,8 @@ def v308AcceptanceClientSha256 = pinnedClientSha256
 
 def runtimeDataFiles = [
     'items.tsv',
+    'custom_asset_authoring.tsv',
+    'custom_definition_overlays.tsv',
     'equipment_slots.tsv',
     'production_appearance_slots.tsv',
     'pet_mappings.tsv',
@@ -524,7 +526,16 @@ tasks.register('clientBuildRevision308Compatibility', JavaExec) {
     mainClass.set('spk.local.ClientBuildRevision308CompatibilityTest')
 }
 
+tasks.register('customAssetPipelineRegression', JavaExec) {
+    group = 'verification'
+    description = 'Validates the exact-v308 custom-asset authoring and namespace-preflight contract.'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.CustomAssetPipelineContractTest')
+}
+
 tasks.named('check') {
+    dependsOn tasks.named('customAssetPipelineRegression')
     dependsOn tasks.named('verifyJava11Bytecode')
     dependsOn tasks.named('clientBuildRevision308Compatibility')
     dependsOn tasks.named('currentTrainFocusedRegression')

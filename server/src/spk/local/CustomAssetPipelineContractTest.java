@@ -1,0 +1,157 @@
+package spk.local;
+
+import java.io.StringReader;
+import java.util.LinkedHashMap;
+import java.util.Map;
+
+public final class CustomAssetPipelineContractTest {
+    public static void main(String[] args) throws Exception {
+        CustomAssetAuthoringRepository.Asset asset =
+            CustomAssetAuthoringRepository.requireContentKey("voidglass_nistirio");
+
+        if (asset.kind != CustomAssetAuthoringRepository.Kind.PET)
+            throw new AssertionError("kind=" + asset.kind);
+        if (asset.itemId != 29999 || asset.npcId != 12000 || asset.modelId != 79999)
+            throw new AssertionError("identity");
+        if (asset.textureId != 278 || asset.mappingTriangles != 12)
+            throw new AssertionError("texture/mapping");
+        if (asset.modelFamily !=
+            CustomAssetAuthoringRepository.ModelFamily.LEGACY_TEXTURED_SKINNED)
+            throw new AssertionError("model family");
+        if (asset.skinMode != CustomAssetAuthoringRepository.SkinMode.RIGID_ONE_HOT)
+            throw new AssertionError("skin mode");
+        if (asset.hierarchyMode !=
+            CustomAssetAuthoringRepository.HierarchyMode.GUARDED_RIGID)
+            throw new AssertionError("hierarchy");
+        if (!asset.provenance.startsWith("CUSTOM_LOCALLAB"))
+            throw new AssertionError("provenance");
+
+        CustomDefinitionOverlayRepository.Overlay item =
+            CustomDefinitionOverlayRepository.item(29999);
+        CustomDefinitionOverlayRepository.Overlay npc =
+            CustomDefinitionOverlayRepository.npc(12000);
+        if (item == null || !"79999".equals(item.field("modelId")))
+            throw new AssertionError("item overlay");
+        if (npc == null || !"79999".equals(npc.field("models")))
+            throw new AssertionError("npc overlay");
+        if (!"1662".equals(npc.field("standAnim")) ||
+            !"1663".equals(npc.field("walkAnim")))
+            throw new AssertionError("npc animation overlay");
+
+        Map<String,String> itemClone = new LinkedHashMap<>();
+        itemClone.put("clone", "100");
+        itemClone.put("fullClone", "200");
+        if (CustomDefinitionOverlayPolicy.itemCloneSource(itemClone) != 200)
+            throw new AssertionError("fullClone precedence");
+        if (!CustomDefinitionOverlayPolicy.itemEffectiveOsrs(itemClone, true))
+            throw new AssertionError("source osrs inheritance");
+        itemClone.put("osrs", "false");
+        if (CustomDefinitionOverlayPolicy.itemEffectiveOsrs(itemClone, true))
+            throw new AssertionError("explicit osrs override");
+
+        assertRejectedItemField("equipClone");
+        assertRejectedItemField("cloneEquip");
+        assertRejectedItemField("param_1");
+        assertRejectedItemField("unknownField");
+
+        PetDefinitionRepository.Def pet = PetDefinitionRepository.get(29999);
+        if (pet == null || pet.npcId != 12000 ||
+            pet.standAnim != 1662 || pet.walkAnim != 1663 ||
+            !"79999".equals(pet.models) ||
+            !pet.provenance.startsWith("CUSTOM_LOCALLAB"))
+            throw new AssertionError("server pet mapping=" + pet);
+
+        String baseSnapshot = validSnapshot(false, true);
+        CustomAssetNamespaceSnapshot snapshot =
+            CustomAssetNamespaceSnapshot.parse(new StringReader(baseSnapshot));
+        CustomAssetNamespacePreflight.Result first =
+            CustomAssetNamespacePreflight.run(snapshot);
+        CustomAssetNamespacePreflight.Result second =
+            CustomAssetNamespacePreflight.run(snapshot);
+        if (!first.planSha256.equals(second.planSha256))
+            throw new AssertionError("non-deterministic plan hash");
+        if (first.claims != 4 || first.references != 3)
+            throw new AssertionError(
+                "claim/reference counts=" + first.claims + "/" + first.references
+            );
+
+        boolean collisionRejected = false;
+        try {
+            CustomAssetNamespaceSnapshot collided =
+                CustomAssetNamespaceSnapshot.parse(
+                    new StringReader(validSnapshot(true, true))
+                );
+            CustomAssetNamespacePreflight.run(collided);
+        } catch (IllegalStateException expected) {
+            collisionRejected =
+                expected.getMessage().contains("CUSTOM_ASSET_NAMESPACE_COLLISION");
+        }
+        if (!collisionRejected)
+            throw new AssertionError("model namespace collision was not rejected");
+
+        boolean unresolvedGfxContextRejected = false;
+        try {
+            CustomAssetNamespaceSnapshot missingGfxContext =
+                CustomAssetNamespaceSnapshot.parse(
+                    new StringReader(validSnapshot(false, false))
+                );
+            CustomAssetNamespacePreflight.run(missingGfxContext);
+        } catch (IllegalStateException expected) {
+            unresolvedGfxContextRejected =
+                expected.getMessage().contains("UNRESOLVED_GFX_MODEL_CONTEXT");
+        }
+        if (!unresolvedGfxContextRejected)
+            throw new AssertionError("missing GFX model context was not rejected");
+
+        System.out.println(
+            "CUSTOM_ASSET_PIPELINE_CONTRACT_PASS " +
+            "modelFamily=legacy_textured_skinned " +
+            "skinMode=rigid_one_hot " +
+            "mappingCapacity=64 " +
+            "textureBootstrap=278 " +
+            "cloneOrdering=true " +
+            "namespaceCollisionRejected=true " +
+            "gfxContextRequired=true " +
+            "planSha256=" + first.planSha256
+        );
+    }
+
+    private static void assertRejectedItemField(String field) {
+        boolean rejected = false;
+        try {
+            CustomDefinitionOverlayPolicy.validateField(
+                CustomDefinitionOverlayPolicy.Kind.ITEM, field, "1"
+            );
+        } catch (IllegalArgumentException expected) {
+            rejected = true;
+        }
+        if (!rejected)
+            throw new AssertionError("field should fail closed: " + field);
+    }
+
+    private static String validSnapshot(boolean collideModel, boolean includeGfxContext) {
+        StringBuilder s = new StringBuilder();
+        s.append("clientSha256\t")
+            .append(CustomAssetAuthoringRepository.EXACT_V308_CLIENT_SHA256)
+            .append('\n');
+        s.append("scope\tBASE_PLUS_EXACT_OVERRIDES\n");
+        s.append("recordType\tnamespace\tcontext\tvalue\n");
+        s.append("CAPACITY\tITEM\tGLOBAL\t30000\n");
+        s.append("CAPACITY\tNPC\tGLOBAL\t16384\n");
+        s.append("CAPACITY\tMODEL\tPRIMARY\t100000\n");
+        s.append("CAPACITY\tTEXTURE\tGLOBAL\t340\n");
+        s.append("CAPACITY\tANIMATION\tGLOBAL\t35260\n");
+        s.append("CAPACITY\tGFX\tGLOBAL\t7964\n");
+        s.append("CAPACITY\tFRAME_GROUP\tGLOBAL\t65536\n");
+        s.append("PRESENT\tANIMATION\tGLOBAL\t1662\n");
+        s.append("PRESENT\tANIMATION\tGLOBAL\t1663\n");
+        s.append("PRESENT\tGFX\tGLOBAL\t5042\n");
+        if (includeGfxContext)
+            s.append("GFX_CONTEXT\tGFX\tPRIMARY\t5042\n");
+        if (collideModel)
+            s.append("PRESENT\tMODEL\tPRIMARY\t79999\n");
+        return s.toString();
+    }
+
+    private CustomAssetPipelineContractTest() {}
+}

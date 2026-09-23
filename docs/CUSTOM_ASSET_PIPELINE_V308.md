@@ -1,0 +1,122 @@
+# Exact-v308 Custom Asset Pipeline
+
+Issue #9 successor boundary for Chat 2.
+
+This pipeline replaces the rejected Voidglass R3 native-compositor trial with a fail-closed authoring contract grounded in the exact-current v308 evidence. It is deliberately split into two layers:
+
+1. **source-controlled authoring metadata** in `server/data/`;
+2. **external cache build/injection artifacts** produced only from an exact-current namespace snapshot and written only to an isolated cache copy.
+
+No proprietary exact client/cache bytes belong in this repository.
+
+## Authority
+
+Canonical exact client:
+
+`854f26ff9f134b0317572e7ac1688e6f40a231d5a4c66f8db5d655b7f45ce7c6`
+
+Every authored row must carry `CUSTOM_LOCALLAB` provenance.
+
+The current proven model boundary is intentionally narrow:
+
+- legacy/no-marker textured + skinned model family;
+- at most 64 mapping triangles (`0..63`);
+- one rigid one-hot skin group per vertex;
+- hierarchy flattening only when the guarded decomposition does not introduce meaningful shear;
+- deterministic UV/material binding;
+- texture slot `278` as the proven bootstrap/atlas slot only;
+- existing exact animations may be referenced;
+- custom frame-group/sequence identities are representable, but must still pass exact namespace preflight before build;
+- blended weights are unsupported and must fail closed.
+
+Slot 278 is not an unlimited custom-texture namespace.
+
+## Source-controlled inputs
+
+### `custom_asset_authoring.tsv`
+
+Declares semantic asset identity and build constraints. The initial Voidglass row requests item `29999`, NPC `12000`, primary-context model `79999`, texture `278`, 12 legacy mapping triangles, exact existing stand/walk animations `1662/1663`, and exact existing GFX `5042`, all under `CUSTOM_LOCALLAB_VOIDGLASS_V308_PIPELINE` authority.
+
+These are **requested claims/references**, not proof that the IDs are free. A build must not proceed until preflight validates them against an exact-current snapshot.
+
+### `custom_definition_overlays.tsv`
+
+Stores item/NPC override fields one row at a time so every field retains provenance.
+
+The repository applies the exact-v308 clone boundary:
+
+- item source selection: `fullClone` before `clone`;
+- NPC source selection: `clone`;
+- source overrides are recursively resolved before the target's current fields;
+- target identity is restored before current fields apply;
+- item source `osrs` is inherited unless the target explicitly supplies `osrs`;
+- `equipClone` / `cloneEquip` are rejected as item clone-prepass keys;
+- `param_*` is rejected because exact v308 skips it before active-field handling;
+- unknown/unapproved authoring fields fail closed.
+
+This layer models exact client definition construction. It does not invent server prices, rewards, eligibility, combat policy or other private server authority.
+
+## Exact namespace snapshot
+
+`CustomAssetNamespacePreflightMain` consumes an external TSV census:
+
+```text
+clientSha256	854f26ff9f134b0317572e7ac1688e6f40a231d5a4c66f8db5d655b7f45ce7c6
+scope	BASE_PLUS_EXACT_OVERRIDES
+recordType	namespace	context	value
+CAPACITY	ITEM	GLOBAL	...
+PRESENT	ITEM	GLOBAL	...
+GFX_CONTEXT	GFX	PRIMARY	...
+```
+
+The producer of this snapshot must census both base cache capacity and exact-current override corpora (`i.bin`, `e.bin`, `a.bin`, `g.bin`, textures/models as applicable). For GFX it must resolve the actual PRIMARY/OSRS model context and fail instead of emitting an unresolved dependency.
+
+Preflight rejects collisions, out-of-capacity IDs, missing stock references, unresolved GFX model context, and inconsistent item/NPC projections. It hashes the exact snapshot, definition metadata and normalized authoring plan.
+
+Successful marker:
+
+`CUSTOM_ASSET_NAMESPACE_PREFLIGHT_PASS ... planSha256=<sha256>`
+
+The plan hash is the deterministic boundary handed to the binary build stage.
+
+## Cache build/output boundary
+
+Binary model/texture/definition/frame/animation encoders are a separate build layer. The previously proven R11/R12 research formats must be reused from verified source; they must not be re-created from prose or guessed.
+
+A complete build stage must:
+
+1. consume a successful preflight plan;
+2. compile only the proven legacy textured/skinned model family;
+3. reject blended weights;
+4. reject unsupported hierarchy shear;
+5. reject mapping counts above 64;
+6. augment the proven texture-278 bootstrap deterministically;
+7. serialize definitions using the clone/context rules above;
+8. honor PRIMARY vs OSRS model context for GFX;
+9. copy the exact source cache first and write only to the copy;
+10. verify the source cache hashes are unchanged;
+11. emit deterministic artifact hashes and markers for model, texture, definitions, frame group, animation and cache clone.
+
+The repository-side contract intentionally does **not** claim those binary artifacts have been rebuilt in this successor slice.
+
+## Server lifecycle
+
+`PetDefinitionRepository` now consumes the authored PET row normally. The old Voidglass reflection into its private `BY_ITEM` map is retired.
+
+`VoidglassR3CustomContent.ensureRuntimePetMapping()` is retained only as a compatibility validation seam; it no longer mutates the repository.
+
+The current Voidglass identity remains `29999 -> 12000`, but its visual contract is a single custom-pipeline model claim rather than four native-compositor candidates.
+
+Optional equipment metadata is carried in the same authoring row and is consumed by `EquipmentMetadataRepository` when a future authored asset declares a slot.
+
+## Acceptance boundary
+
+Repository regression:
+
+`CUSTOM_ASSET_PIPELINE_CONTRACT_PASS ...`
+
+This proves metadata parsing, clone rules, deterministic plan hashing, collision rejection, GFX-context rejection and server pet mapping.
+
+It does not prove visual acceptance. Final acceptance still requires the verified binary build layer, exact-engine validation, isolated cache-copy hash proof, and a real local v308 GUI/world session.
+
+No current release (#431) acceptance claim is implied by this next-train branch.
