@@ -220,9 +220,11 @@ public final class CustomAssetPipelineContractTest {
                 79999,
                 "shared-model-invalid"
             );
-        } catch (IllegalArgumentException expected) {
+        } catch (IllegalStateException expected) {
             sharedModelRejected =
-                expected.getMessage().contains("restricted to exact-v308 texture slot 278");
+                expected.getMessage().contains(
+                    "SHARED_CUSTOM_NAMESPACE_UNSUPPORTED"
+                );
         }
         if (!sharedModelRejected)
             throw new AssertionError("non-texture namespace became shareable");
