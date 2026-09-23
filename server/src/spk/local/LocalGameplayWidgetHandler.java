@@ -15,6 +15,7 @@ final class LocalGameplayWidgetHandler {
     private final CombatStyleState combatStyles;
     private final MagicState magic;
     private final BankState bank;
+    private boolean acceptedHomeTeleport;
 
     LocalGameplayWidgetHandler(
         PrayerState prayers,
@@ -33,6 +34,7 @@ final class LocalGameplayWidgetHandler {
     }
 
     String handle(int widget,ServerPacketWriter serverPackets)throws IOException{
+        acceptedHomeTeleport=false;
         PrayerDefinitionRepository.Def prayer=
             PrayerDefinitionRepository.byWidget(widget);
         if(prayer!=null){
@@ -56,6 +58,11 @@ final class LocalGameplayWidgetHandler {
         MagicState.Check directSpell=
             magic.direct(widget,bank,equipment,playerState);
         if(directSpell.handled){
+            if(directSpell.accepted&&
+               directSpell.spell!=null&&
+               isHomeTeleportWidget(widget))
+                acceptedHomeTeleport=true;
+
             return "V510_MAGIC_DIRECT widget="+widget+
                 " result="+directSpell.message+
                 " state={"+magic.summary()+"}";
@@ -63,4 +70,17 @@ final class LocalGameplayWidgetHandler {
 
         return null;
     }
+
+    boolean consumeAcceptedHomeTeleport(){
+        boolean value=acceptedHomeTeleport;
+        acceptedHomeTeleport=false;
+        return value;
+    }
+
+    static boolean isHomeTeleportWidget(int widget){
+        return widget==1195||
+               widget==12856||
+               widget==30000;
+    }
+
 }
