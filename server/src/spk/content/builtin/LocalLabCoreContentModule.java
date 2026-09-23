@@ -31,6 +31,12 @@ public final class LocalLabCoreContentModule
             this::nurse
         );
 
+        registrar.command(
+            "appfixture",
+            100,
+            this::appFixture
+        );
+
         registrar.npcOption(
             MAKEOVER_MAGE_NPC,
             1,
@@ -56,6 +62,28 @@ public final class LocalLabCoreContentModule
                 .ACTION_APPLY_CHARACTER_DESIGN,
             100,
             makeover::authorizeCharacterDesign
+        );
+    }
+
+    private ContentResult appFixture(
+        ContentCommandContext context
+    ){
+        String fixture=
+            context.arguments().isEmpty()
+                ?"help"
+                :context.arguments().get(0);
+
+        String result=
+            context.presentation()
+                .applicationFixture(
+                    fixture
+                );
+
+        return ContentResult.handled(
+            "R85_APP_FIXTURE "+
+                result+
+                " authority=LOCAL_DEV_FIXTURE clientProtocol=EXACT_CURRENT",
+            null
         );
     }
 
