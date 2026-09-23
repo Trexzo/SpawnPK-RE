@@ -192,6 +192,32 @@ public final class AppearanceClientParityTest {
                 "worn HEAD leaked into bs"
             );
 
+        for(int dynamicHat:new int[]{
+                22131,22132,23480,23482,23483
+            }){
+            int[] dynamic=new int[12];
+            Arrays.fill(dynamic,-1);
+            dynamic[0]=dynamicHat;
+            Parsed parsed=
+                parse(
+                    BootstrapPackets.appearanceBlock(
+                        "dynamichat",
+                        dynamic,
+                        new PlayerState(),
+                        null,
+                        45
+                    )
+                );
+            if(parsed.appearanceRole!=45||
+               parsed.appearance[0]!=512+dynamicHat)
+                throw new AssertionError(
+                    "dynamic partyhat projection id="+
+                    dynamicHat+
+                    " aC="+parsed.appearanceRole+
+                    " br0="+parsed.appearance[0]
+                );
+        }
+
         int[] noWorn=new int[12];
         Arrays.fill(noWorn,-1);
         PlayerState overrideState=
@@ -255,6 +281,7 @@ public final class AppearanceClientParityTest {
             "aC=45 adminWornBr0="+wornParsed.appearance[0]+
             " adminOverrideBs="+overrideParsed.extraAppearanceItem+
             " overrideHeadGate=false "+
+            "dynamicStaffPartyhatHeadFamily=true "+
             "fixedModWealthyTevinsHead=true "+
             "ctDerived=false"
         );
@@ -312,16 +339,20 @@ public final class AppearanceClientParityTest {
             playerClass
                 .getField("aY")
                 .getInt(player),
-            playerClass
-                .getField("aC")
-                .getInt(player),
+            numericField(
+                playerClass,
+                player,
+                "aC"
+            ),
             ((int[])playerClass
                 .getField("br")
                 .get(player))
                 .clone(),
-            playerClass
-                .getField("bs")
-                .getInt(player),
+            numericField(
+                playerClass,
+                player,
+                "bs"
+            ),
             ((int[])playerClass
                 .getField("aV")
                 .get(player))
@@ -332,6 +363,22 @@ public final class AppearanceClientParityTest {
                 )
             )
         );
+    }
+
+    private static int numericField(
+        Class<?> type,
+        Object target,
+        String name
+    )throws Exception{
+        Object value=
+            type.getField(name)
+                .get(target);
+        if(!(value instanceof Number))
+            throw new AssertionError(
+                "non-numeric exact-client field "+
+                name+"="+value
+            );
+        return ((Number)value).intValue();
     }
 
     private static final class Parsed {
