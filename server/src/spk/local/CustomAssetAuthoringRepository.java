@@ -21,7 +21,7 @@ final class CustomAssetAuthoringRepository {
     enum SkinMode { RIGID_ONE_HOT }
     enum HierarchyMode { GUARDED_RIGID }
     enum TextureMode { NONE, SLOT_278_ATLAS }
-    enum AnimationMode { REUSE_EXISTING, CUSTOM_FRAME_GROUP }
+    enum AnimationMode { NONE, REUSE_EXISTING, CUSTOM_FRAME_GROUP }
     enum GfxMode { NONE, REFERENCE_EXISTING, CUSTOM }
     enum GfxModelContext { EXACT_CURRENT, PRIMARY, OSRS }
     enum EquipmentCoverage { NONE, FULL_HELM, FULL_BODY }
@@ -135,7 +135,13 @@ final class CustomAssetAuthoringRepository {
                     );
             }
 
-            if (animationMode == AnimationMode.REUSE_EXISTING) {
+            if (animationMode == AnimationMode.NONE) {
+                if (standAnim >= 0 || walkAnim >= 0 ||
+                    frameGroupId >= 0 || sequenceId >= 0)
+                    throw new IllegalArgumentException(
+                        "NONE animation mode must not claim stand/walk/frame-group/sequence ids"
+                    );
+            } else if (animationMode == AnimationMode.REUSE_EXISTING) {
                 if (standAnim < 0 || walkAnim < 0)
                     throw new IllegalArgumentException("existing animation reuse requires stand/walk ids");
                 if (frameGroupId >= 0 || sequenceId >= 0)
