@@ -38,6 +38,16 @@ Slot 278 is not an unlimited custom-texture namespace.
 
 Declares semantic asset identity and build constraints. The initial Voidglass row requests item `29999`, NPC `12000`, primary-context model `79999`, texture `278`, 12 legacy mapping triangles, **no stand/walk animation binding yet**, and exact existing GFX `5042`, all under `CUSTOM_LOCALLAB_VOIDGLASS_V308_PIPELINE` authority. The static `-1/-1` NPC animation state is directly proven for the custom `12000 -> 79999` presentation path; a concrete stand/walk sequence must not be assigned until that exact model/skeleton pairing is independently proven.
 
+The client item overlay also preserves the exact fields from the successful v308 item-sprite proof for model `79999`:
+
+- inventory actions: `[null,null,null,null,"Drop"]`;
+- zoom: `2086`;
+- rotations: `[567,2031]`;
+- offsets: `[-4,0]`;
+- `zan2d=0`.
+
+For PET assets, namespace preflight additionally requires client option 5 to match the server's `ItemActionResolver.inventoryOption5Semantic(...)` result. This keeps the client-visible `Drop` action aligned with the server Drop -> follower lifecycle.
+
 These are **requested claims/references**, not proof that the IDs are free. A build must not proceed until preflight validates them against an exact-current snapshot.
 
 ### `custom_definition_overlays.tsv`
