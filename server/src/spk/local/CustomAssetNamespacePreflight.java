@@ -128,6 +128,9 @@ final class CustomAssetNamespacePreflight {
             }
 
             if (asset.animationMode ==
+                CustomAssetAuthoringRepository.AnimationMode.NONE) {
+                // Static exact-v308 presentation: do not invent an animation binding.
+            } else if (asset.animationMode ==
                 CustomAssetAuthoringRepository.AnimationMode.REUSE_EXISTING) {
                 reference(
                     snapshot, references,
