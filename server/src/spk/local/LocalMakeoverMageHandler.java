@@ -725,9 +725,7 @@ final class LocalMakeoverMageHandler {
            dialogue.snapshot(
                dialoguePlayerRef
            ).active)
-            throw new IllegalStateException(
-                "cannot replace active Make-over dialogue definition"
-            );
+            return;
 
         dialogue=
             createDialogueSession(
