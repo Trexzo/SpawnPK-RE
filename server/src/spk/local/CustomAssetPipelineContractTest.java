@@ -97,6 +97,8 @@ public final class CustomAssetPipelineContractTest {
         assertRejectedItemField("param_1");
         assertRejectedItemField("unknownField");
 
+        assertNonPetSchema();
+
         PetDefinitionRepository.Def pet = PetDefinitionRepository.get(29999);
         if (pet == null || pet.npcId != 12000 ||
             pet.standAnim != -1 || pet.walkAnim != -1 ||
@@ -206,10 +208,49 @@ public final class CustomAssetPipelineContractTest {
             "definitionProjectionParity=true " +
             "sharedTextureAtlas=true " +
             "staticUntilAnimationProven=true " +
+            "nonPetNpcSentinel=true " +
             "namespaceCollisionRejected=true " +
             "gfxContextRequired=true " +
             "planSha256=" + first.planSha256
         );
+    }
+
+    private static void assertNonPetSchema() throws Exception {
+        String header =
+            "kind\tcontentKey\titemId\tnpcId\tname\tmodelId\tmodelContext\ttextureId\t" +
+            "mappingTriangles\tmodelFamily\tskinMode\thierarchyMode\ttextureMode\tanimationMode\t" +
+            "standAnim\twalkAnim\tframeGroupId\tsequenceId\tgfxId\tgfxMode\tgfxModelContext\t" +
+            "npcSize\tequipmentSlot\ttwoHanded\tcoverage\tprovenance\n";
+        String validItem =
+            "ITEM\tstatic_item_probe\t29998\t-1\tStatic Item Probe\t79998\tPRIMARY\t-1\t0\t" +
+            "LEGACY_TEXTURED_SKINNED\tRIGID_ONE_HOT\tGUARDED_RIGID\tNONE\tNONE\t" +
+            "-1\t-1\t-1\t-1\t-1\tNONE\tEXACT_CURRENT\t-1\t-\tfalse\tNONE\t" +
+            "CUSTOM_LOCALLAB_SCHEMA_TEST\n";
+
+        java.util.List<CustomAssetAuthoringRepository.Asset> parsed =
+            CustomAssetAuthoringRepository.parse(
+                new StringReader(header + validItem)
+            );
+        if (parsed.size() != 1 ||
+            parsed.get(0).kind != CustomAssetAuthoringRepository.Kind.ITEM ||
+            parsed.get(0).npcId != -1 ||
+            parsed.get(0).npcSize != -1)
+            throw new AssertionError("valid non-PET sentinel schema");
+
+        boolean rejectedNpcSize = false;
+        try {
+            CustomAssetAuthoringRepository.parse(
+                new StringReader(
+                    header +
+                    validItem.replace("\t-1\t-\tfalse\tNONE\t", "\t1\t-\tfalse\tNONE\t")
+                )
+            );
+        } catch (IllegalArgumentException expected) {
+            rejectedNpcSize =
+                expected.getMessage().contains("non-PET asset must use npcSize=-1");
+        }
+        if (!rejectedNpcSize)
+            throw new AssertionError("non-PET npcSize leakage was not rejected");
     }
 
     private static void assertProjectionRejected(
