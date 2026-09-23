@@ -115,6 +115,7 @@ final class CustomAssetNamespaceSnapshot {
                 CustomAssetAuthoringRepository.EXACT_V308_CLIENT_SHA256 +
                 " actual=" + clientSha
             );
+        clientSha = CustomAssetAuthoringRepository.EXACT_V308_CLIENT_SHA256;
 
         if (scopeLine == null || !scopeLine.startsWith("scope\t"))
             throw new IOException("namespace snapshot missing scope");
