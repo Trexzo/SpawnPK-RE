@@ -1,6 +1,8 @@
 package spk.local;
 
 import java.io.IOException;
+import spk.content.api.*;
+import spk.content.builtin.MakeoverMageDialogueContent;
 
 /**
  * Session-local Make-over Mage dialogue + character designer coordinator.
@@ -37,6 +39,9 @@ final class LocalMakeoverMageHandler {
     private final InteractionApproachResolver approach;
     private final String dialoguePlayerRef;
     private final DialogueSessionService dialogue;
+    private final ContentRegistry contentRegistry;
+    private final ContentDialogueHandler fallbackDialoguePolicy=
+        new MakeoverMageDialogueContent();
 
     private boolean designActive;
 
@@ -68,6 +73,22 @@ final class LocalMakeoverMageHandler {
         MovementState movement,
         NpcRegistry npcs
     ){
+        this(
+            worldPlayer,
+            equipment,
+            movement,
+            npcs,
+            null
+        );
+    }
+
+    LocalMakeoverMageHandler(
+        WorldPlayer worldPlayer,
+        EquipmentState equipment,
+        MovementState movement,
+        NpcRegistry npcs,
+        ContentRegistry contentRegistry
+    ){
         this.worldPlayer=java.util.Objects.requireNonNull(
             worldPlayer,
             "worldPlayer"
@@ -81,6 +102,7 @@ final class LocalMakeoverMageHandler {
             "movement"
         );
         this.npcs=npcs;
+        this.contentRegistry=contentRegistry;
         this.approach=
             new InteractionApproachResolver(
                 this.movement
@@ -91,35 +113,11 @@ final class LocalMakeoverMageHandler {
         this.dialogue=
             new DialogueSessionService(
                 DIALOGUE_POLICY,
-                (player,definition,node,intent,before)->{
-                    if(INTRO_NODE.equals(
-                            node.nodeKey)&&
-                       intent.kind==
-                            DialogueSessionService
-                                .IntentKind.CONTINUE)
-                        return DialogueSessionService
-                            .Transition.move(
-                                OPTIONS_NODE
-                            );
-
-                    if(OPTIONS_NODE.equals(
-                            node.nodeKey)&&
-                       (intent.kind==
-                            DialogueSessionService
-                                .IntentKind.OPTION||
-                        intent.kind==
-                            DialogueSessionService
-                                .IntentKind.CLOSE))
-                        return DialogueSessionService
-                            .Transition.end();
-
-                    throw new IllegalStateException(
-                        "unsupported Make-over dialogue transition node="+
-                        node.nodeKey+
-                        " intent="+
-                        intent.kind
-                    );
-                }
+                (player,definition,node,intent,before)->
+                    resolveDialogueTransition(
+                        node.nodeKey,
+                        intent
+                    )
             );
 
         this.dialogue.register(
@@ -735,6 +733,98 @@ final class LocalMakeoverMageHandler {
                 movement.y()-npc.y
             )
         );
+    }
+
+    private DialogueSessionService.Transition
+        resolveDialogueTransition(
+            String nodeKey,
+            DialogueSessionService.Intent intent
+        )
+    {
+        ContentDialogueIntent contentIntent=
+            toContentIntent(intent);
+
+        ContentDialogueTransition contentTransition;
+
+        if(contentRegistry!=null){
+            contentTransition=
+                contentRegistry.dispatchDialogue(
+                    worldPlayer,
+                    DIALOGUE_KEY,
+                    nodeKey,
+                    contentIntent
+                );
+
+            if(contentTransition==null)
+                throw new IllegalStateException(
+                    "Make-over dialogue content binding missing key="+
+                    DIALOGUE_KEY
+                );
+        }else{
+            contentTransition=
+                fallbackDialoguePolicy.handle(
+                    new ContentDialogueContext(){
+                        @Override public String dialogueKey(){
+                            return DIALOGUE_KEY;
+                        }
+
+                        @Override public String nodeKey(){
+                            return nodeKey;
+                        }
+
+                        @Override public ContentDialogueIntent intent(){
+                            return contentIntent;
+                        }
+
+                        @Override public ContentPlayer player(){
+                            return ContentRuntimeAdapters.player(
+                                worldPlayer
+                            );
+                        }
+                    }
+                );
+        }
+
+        switch(contentTransition.kind()){
+            case STAY:
+                return DialogueSessionService
+                    .Transition.stay();
+            case MOVE:
+                return DialogueSessionService
+                    .Transition.move(
+                        contentTransition.nextNodeKey()
+                    );
+            case END:
+                return DialogueSessionService
+                    .Transition.end();
+            default:
+                throw new AssertionError(
+                    contentTransition.kind()
+                );
+        }
+    }
+
+    private static ContentDialogueIntent
+        toContentIntent(
+            DialogueSessionService.Intent intent
+        )
+    {
+        switch(intent.kind){
+            case CONTINUE:
+                return ContentDialogueIntent
+                    .continueIntent();
+            case OPTION:
+                return ContentDialogueIntent.option(
+                    intent.optionIndex
+                );
+            case CLOSE:
+                return ContentDialogueIntent
+                    .closeIntent();
+            default:
+                throw new AssertionError(
+                    intent.kind
+                );
+        }
     }
 
     private void clearPending(
