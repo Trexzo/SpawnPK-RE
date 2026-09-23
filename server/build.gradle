@@ -527,6 +527,24 @@ tasks.register('clientBuildRevision308Compatibility', JavaExec) {
     mainClass.set('spk.local.ClientBuildRevision308CompatibilityTest')
 }
 
+tasks.register('taskScrollPresentationRegression') {
+    group = 'verification'
+    description = 'Validates exact-v308 Task Scroll text/reward projection and control-family metadata while leaving ambiguous raw-widget dispatch unowned.'
+    dependsOn tasks.named('testClasses')
+
+    doLast {
+        project.javaexec {
+            workingDir repoRoot
+            classpath = sourceSets.test.runtimeClasspath
+            mainClass.set('spk.local.TaskScrollPresentationTest')
+        }
+
+        logger.lifecycle(
+            'TASK_SCROLL_PRESENTATION_REGRESSION_PASS infoRows20=true rewardSlots100=true rawWidgetDispatchOwned=false'
+        )
+    }
+}
+
 tasks.named('check') {
     dependsOn tasks.named('verifyJava11Bytecode')
     dependsOn tasks.named('clientBuildRevision308Compatibility')
