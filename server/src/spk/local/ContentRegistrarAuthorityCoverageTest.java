@@ -18,6 +18,7 @@ public final class ContentRegistrarAuthorityCoverageTest {
         Collections.unmodifiableSet(
             new TreeSet<>(
                 Arrays.asList(
+                    "action(java.lang.String,int,spk.content.api.ContentActionHandler)->spk.content.api.ContentRegistration",
                     "command(java.lang.String,int,spk.content.api.ContentCommandHandler)->spk.content.api.ContentRegistration",
                     "dialogue(java.lang.String,int,spk.content.api.ContentDialogueHandler)->spk.content.api.ContentRegistration",
                     "itemOnGroundItem(int,int,int,spk.content.api.ContentItemOnGroundItemHandler)->spk.content.api.ContentRegistration",
