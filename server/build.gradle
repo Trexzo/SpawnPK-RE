@@ -527,6 +527,31 @@ tasks.register('clientBuildRevision308Compatibility', JavaExec) {
     mainClass.set('spk.local.ClientBuildRevision308CompatibilityTest')
 }
 
+tasks.register('standardDialoguePresentationRegression') {
+    group = 'verification'
+    description = 'Validates exact-current standard dialogue presentation mappings and Make-over wire/flow parity after raw UI ids move behind the adapter.'
+    dependsOn tasks.named('testClasses')
+
+    doLast {
+        [
+            'spk.local.StandardDialoguePresentationAdapterTest',
+            'spk.local.MakeoverMageFlowTest',
+            'spk.local.MakeoverDesignRejectionIsolationTest',
+            'spk.local.MakeoverNpcProximityLifecycleTest'
+        ].each { mainClassName ->
+            project.javaexec {
+                workingDir repoRoot
+                classpath = sourceSets.test.runtimeClasspath
+                mainClass.set(mainClassName)
+            }
+        }
+
+        logger.lifecycle(
+            'STANDARD_DIALOGUE_PRESENTATION_REGRESSION_PASS adapter=true makeoverWireParity=true rawDialogueIdsInHandler=false'
+        )
+    }
+}
+
 tasks.named('check') {
     dependsOn tasks.named('verifyJava11Bytecode')
     dependsOn tasks.named('clientBuildRevision308Compatibility')
