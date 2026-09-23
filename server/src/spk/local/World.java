@@ -8,6 +8,7 @@ import spk.content.builtin.LocalLabCoreContentModule;
 import spk.content.builtin.UnknownServerInteractionModule;
 import spk.content.builtin.RuntimeProvenNpcInteractionModule;
 import spk.event.DomainEventBus;
+import spk.plugin.api.PluginManager;
 
 /** Shared authoritative ownership root. R2 adds membership, one WorldPulse and command execution. */
 final class World implements AutoCloseable {
@@ -28,6 +29,7 @@ final class World implements AutoCloseable {
     private final WorldPulse pulse;
     private final WorldPlayerPersistence persistence;
     private final ContentRegistry content;
+    private final WorldPluginManager plugins;
     private final Object loginInitializationLock=new Object();
     private final Object lifecycleLock=new Object();
     private final CountDownLatch closeCompleted=new CountDownLatch(1);
@@ -96,6 +98,12 @@ final class World implements AutoCloseable {
             new RuntimeProvenNpcInteractionModule(),
             ContentProvenance.LOCAL_RUNTIME_PROVEN
         );
+        plugins=
+            new WorldPluginManager(
+                content,
+                domainEvents,
+                ()->!closed.get()
+            );
     }
 
     static World shared(){return SHARED;}
@@ -147,6 +155,7 @@ final class World implements AutoCloseable {
         }
     }
     ContentRegistry content(){return content;}
+    PluginManager plugins(){return plugins;}
     Object loginInitializationLock(){return loginInitializationLock;}
 
     interface OwnedPlayerIoAction {
@@ -604,8 +613,10 @@ final class World implements AutoCloseable {
         try{
             failure=
                 WorldCloseSequence.run(
+                    plugins::beginClose,
                     pulse::close,
                     npcPresentationEvents::close,
+                    plugins::closeResources,
                     domainEvents::close,
                     commands::close,
                     realtime::close,
