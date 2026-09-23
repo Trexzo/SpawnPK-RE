@@ -4,16 +4,27 @@ import java.io.*;
 
 /** Session-only player presentation controls backed by exact packet-81 appearance publication. */
 final class PlayerPresentationService {
+    private final World world;
     private final DevAuthorityWorkbench dev;
 
-    PlayerPresentationService(DevAuthorityWorkbench dev){
+    PlayerPresentationService(World world,DevAuthorityWorkbench dev){
+        if(world==null) throw new NullPointerException("world");
         if(dev==null) throw new NullPointerException("dev");
+        this.world=world;
         this.dev=dev;
     }
 
     void refresh(String username,EquipmentState equipment,PlayerState player,ServerPacketWriter packets) throws IOException {
-        packets.varShort(81,BootstrapPackets.player81AppearanceOnly(
-            username,equipment.appearanceItems(),player,dev.playerNpcTransformId()));
+        packets.varShort(
+            81,
+            BootstrapPackets.player81AppearanceOnly(
+                username,
+                equipment.appearanceItems(),
+                player,
+                dev.playerNpcTransformId(),
+                world.appearanceRoleFor(username)
+            )
+        );
     }
 
     String morph(int npcId,String username,EquipmentState equipment,PlayerState player,ServerPacketWriter packets) throws IOException {
