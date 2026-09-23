@@ -453,12 +453,16 @@ def currentTrainFocusedTests = [
     'spk.local.LocalWorldTickCoordinatorTest',
     'spk.local.LocalPetRealtimeSchedulerTest',
     'spk.local.TransientRegionPetViewTest'
+,
+    'spk.local.PluginKernelLifecycleTest',
+    'spk.local.PluginWorldAdmissionFenceTest',
+    'spk.plugin.api.PluginPublicApiBoundaryTest'
 ]
 
-if (currentTrainFocusedTests.size() != 144 ||
-    currentTrainFocusedTests.toSet().size() != 144) {
+if (currentTrainFocusedTests.size() != 147 ||
+    currentTrainFocusedTests.toSet().size() != 147) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 144 unique tests, found " +
+        "Current-train focused manifest drift: expected 147 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
