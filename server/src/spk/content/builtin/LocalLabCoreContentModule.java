@@ -41,11 +41,21 @@ public final class LocalLabCoreContentModule
                 )
         );
 
+        MakeoverMageDialogueContent makeover=
+            new MakeoverMageDialogueContent();
+
         registrar.dialogue(
             MakeoverMageDialogueContent
                 .DIALOGUE_KEY,
             100,
-            new MakeoverMageDialogueContent()
+            makeover
+        );
+
+        registrar.action(
+            MakeoverMageDialogueContent
+                .ACTION_APPLY_CHARACTER_DESIGN,
+            100,
+            makeover::authorizeCharacterDesign
         );
     }
 
