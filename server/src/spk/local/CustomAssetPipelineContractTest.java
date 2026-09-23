@@ -16,6 +16,10 @@ public final class CustomAssetPipelineContractTest {
             throw new AssertionError("identity");
         if (asset.textureId != 278 || asset.mappingTriangles != 12)
             throw new AssertionError("texture/mapping");
+        if (asset.animationMode != CustomAssetAuthoringRepository.AnimationMode.NONE ||
+            asset.standAnim != -1 || asset.walkAnim != -1 ||
+            asset.frameGroupId != -1 || asset.sequenceId != -1)
+            throw new AssertionError("unproven animation binding was retained");
         if (asset.modelFamily !=
             CustomAssetAuthoringRepository.ModelFamily.LEGACY_TEXTURED_SKINNED)
             throw new AssertionError("model family");
@@ -35,8 +39,8 @@ public final class CustomAssetPipelineContractTest {
             throw new AssertionError("item overlay");
         if (npc == null || !"79999".equals(npc.field("models")))
             throw new AssertionError("npc overlay");
-        if (!"1662".equals(npc.field("standAnim")) ||
-            !"1663".equals(npc.field("walkAnim")))
+        if (!"-1".equals(npc.field("standAnim")) ||
+            !"-1".equals(npc.field("walkAnim")))
             throw new AssertionError("npc animation overlay");
 
         if (!asset.name.equals(item.field("name")) ||
@@ -95,7 +99,7 @@ public final class CustomAssetPipelineContractTest {
 
         PetDefinitionRepository.Def pet = PetDefinitionRepository.get(29999);
         if (pet == null || pet.npcId != 12000 ||
-            pet.standAnim != 1662 || pet.walkAnim != 1663 ||
+            pet.standAnim != -1 || pet.walkAnim != -1 ||
             !"79999".equals(pet.models) ||
             !pet.provenance.startsWith("CUSTOM_LOCALLAB"))
             throw new AssertionError("server pet mapping=" + pet);
@@ -109,7 +113,7 @@ public final class CustomAssetPipelineContractTest {
             CustomAssetNamespacePreflight.run(snapshot);
         if (!first.planSha256.equals(second.planSha256))
             throw new AssertionError("non-deterministic plan hash");
-        if (first.claims != 4 || first.references != 3)
+        if (first.claims != 4 || first.references != 1)
             throw new AssertionError(
                 "claim/reference counts=" + first.claims + "/" + first.references
             );
@@ -201,6 +205,7 @@ public final class CustomAssetPipelineContractTest {
             "cloneOrdering=true " +
             "definitionProjectionParity=true " +
             "sharedTextureAtlas=true " +
+            "staticUntilAnimationProven=true " +
             "namespaceCollisionRejected=true " +
             "gfxContextRequired=true " +
             "planSha256=" + first.planSha256
@@ -267,8 +272,6 @@ public final class CustomAssetPipelineContractTest {
         s.append("CAPACITY\tANIMATION\tGLOBAL\t35260\n");
         s.append("CAPACITY\tGFX\tGLOBAL\t7964\n");
         s.append("CAPACITY\tFRAME_GROUP\tGLOBAL\t65536\n");
-        s.append("PRESENT\tANIMATION\tGLOBAL\t1662\n");
-        s.append("PRESENT\tANIMATION\tGLOBAL\t1663\n");
         s.append("PRESENT\tGFX\tGLOBAL\t5042\n");
         if (includeGfxContext)
             s.append("GFX_CONTEXT\tGFX\tPRIMARY\t5042\n");
