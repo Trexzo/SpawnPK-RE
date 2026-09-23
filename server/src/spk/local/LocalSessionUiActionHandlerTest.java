@@ -11,6 +11,7 @@ public final class LocalSessionUiActionHandlerTest {
         boolean logoutRequested;
         int devPanelWidgets;
         int petDialogResults;
+        int homeTeleportRequests;
 
         @Override public void saveAccount(
             String tag,
@@ -36,6 +37,13 @@ public final class LocalSessionUiActionHandlerTest {
             String tag
         ){
             petDialogResults++;
+        }
+
+        @Override public void handleHomeTeleport(
+            ServerPacketWriter serverPackets,
+            String tag
+        ){
+            homeTeleportRequests++;
         }
 
         @Override public void requestLogout(){
@@ -126,6 +134,18 @@ public final class LocalSessionUiActionHandlerTest {
         if(wire.size()<=runBefore)
             throw new AssertionError("run-toggle config packet not emitted");
 
+        int homeBefore=wire.size();
+        h.handleWidget(1195,w,"[ui-test] ");
+        if(bridge.homeTeleportRequests!=1)
+            throw new AssertionError(
+                "Home Teleport bridge count="+
+                bridge.homeTeleportRequests
+            );
+        if(wire.size()!=homeBefore)
+            throw new AssertionError(
+                "routing-only test unexpectedly emitted Home Teleport packets"
+            );
+
         bridge.saveReason=null;
         bridge.clearedKeys=false;
         h.handleInterfaceClose(true,w,"[ui-test] ");
@@ -143,7 +163,7 @@ public final class LocalSessionUiActionHandlerTest {
 
         System.out.println(
             "LOCAL_SESSION_UI_ACTION_HANDLER_PASS "+
-            "logout=true runToggle=true interfaceClose=true "+
+            "logout=true runToggle=true homeTeleport=true interfaceClose=true "+
             "panelBoundary=true"
         );
     }
