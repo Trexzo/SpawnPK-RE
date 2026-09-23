@@ -157,4 +157,3 @@ The current integration successor additionally requires:
 - the proven Voidglass item definition retains `Drop`, zoom 2086, rotations 567/2031, offsets -4/0, and zan2d 0.
 
 These checks preserve the existing non-PET `npcSize=-1` sentinel and strict duplicate/negative GFX-context census from the refreshed current-head successor.
-
