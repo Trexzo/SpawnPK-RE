@@ -741,6 +741,36 @@ tasks.register('twoOptionContentDialoguePresentationRegression') {
     }
 }
 
+tasks.register('contentDialogueDefinitionOwnershipRegression') {
+    group = 'verification'
+    description = 'Validates content-owned semantic dialogue topology, transition-only inheritance, priority override/restore and Make-over runtime refresh.'
+    dependsOn tasks.named('testClasses')
+
+    doLast {
+        [
+            'spk.local.ContentDialogueDefinitionOwnershipTest',
+            'spk.local.ContentHandlerSamCompatibilityTest',
+            'spk.local.ContentPublicApiBoundaryTest',
+            'spk.local.ContentDialogueTransitionOwnershipTest',
+            'spk.local.ContentDialoguePresentationRuntimeTest',
+            'spk.local.MakeoverDialoguePresentationOwnershipTest',
+            'spk.local.MakeoverSemanticDialogueSessionTest',
+            'spk.local.MakeoverMageFlowTest',
+            'spk.local.MakeoverDialogueContentOwnershipTest'
+        ].each { mainClassName ->
+            project.javaexec {
+                workingDir repoRoot
+                classpath = sourceSets.test.runtimeClasspath
+                mainClass.set(mainClassName)
+            }
+        }
+
+        logger.lifecycle(
+            'CONTENT_DIALOGUE_DEFINITION_OWNERSHIP_REGRESSION_PASS topology=true inheritance=true overrideRestore=true runtimeRefresh=true partialWire=false boundary=true'
+        )
+    }
+}
+
 tasks.named('check') {
     dependsOn tasks.named('verifyJava11Bytecode')
     dependsOn tasks.named('clientBuildRevision308Compatibility')
