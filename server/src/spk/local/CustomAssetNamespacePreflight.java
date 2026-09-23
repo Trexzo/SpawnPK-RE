@@ -83,6 +83,10 @@ final class CustomAssetNamespacePreflight {
     static Result run(CustomAssetNamespaceSnapshot snapshot) {
         List<CustomAssetAuthoringRepository.Asset> assets =
             CustomAssetAuthoringRepository.all();
+        validateOverlayOwnership(
+            assets,
+            CustomDefinitionOverlayRepository.all()
+        );
         LinkedHashSet<IdKey> claims = new LinkedHashSet<>();
         LinkedHashSet<IdKey> references = new LinkedHashSet<>();
 
@@ -237,6 +241,31 @@ final class CustomAssetNamespacePreflight {
             CustomDefinitionOverlayRepository.fingerprintSha256(),
             planSha
         );
+    }
+
+    static void validateOverlayOwnership(
+        List<CustomAssetAuthoringRepository.Asset> assets,
+        List<CustomDefinitionOverlayRepository.Overlay> overlays
+    ) {
+        HashSet<Integer> itemIds = new HashSet<>();
+        HashSet<Integer> petNpcIds = new HashSet<>();
+        for (CustomAssetAuthoringRepository.Asset asset : assets) {
+            itemIds.add(asset.itemId);
+            if (asset.kind == CustomAssetAuthoringRepository.Kind.PET)
+                petNpcIds.add(asset.npcId);
+        }
+
+        for (CustomDefinitionOverlayRepository.Overlay overlay : overlays) {
+            boolean owned =
+                overlay.kind == CustomDefinitionOverlayPolicy.Kind.ITEM
+                    ? itemIds.contains(overlay.id)
+                    : petNpcIds.contains(overlay.id);
+            if (!owned)
+                throw new IllegalStateException(
+                    "ORPHAN_CUSTOM_DEFINITION_OVERLAY " +
+                    overlay.kind + ":" + overlay.id
+                );
+        }
     }
 
     private static void validateDefinitionProjection(
