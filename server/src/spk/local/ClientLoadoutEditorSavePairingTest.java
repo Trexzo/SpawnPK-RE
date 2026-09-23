@@ -119,7 +119,7 @@ public final class ClientLoadoutEditorSavePairingTest {
 
         int[] source=
             LoadoutEditorCompatibilityPairer
-                .EQUIPMENT_SOURCE_INDICES;
+                .equipmentSourceIndices();
         for(int i=0;i<source.length;i++){
             LoadoutEditorSaveClientRequest.WireEntry e=
                 paired.equipment().get(i);
@@ -308,7 +308,7 @@ public final class ClientLoadoutEditorSavePairingTest {
             Arrays.equals(
                 expected,
                 LoadoutEditorCompatibilityPairer
-                    .EQUIPMENT_SOURCE_INDICES
+                    .equipmentSourceIndices()
             ),
             "exact equipment projection order"
         );
@@ -329,7 +329,7 @@ public final class ClientLoadoutEditorSavePairingTest {
             new ArrayList<>();
         for(int source:
                 LoadoutEditorCompatibilityPairer
-                    .EQUIPMENT_SOURCE_INDICES){
+                    .equipmentSourceIndices()){
             entries.add(
                 source<0
                 ?"0,0"
