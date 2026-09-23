@@ -313,17 +313,6 @@ final class LocalCommandDispatcher {
             return true;
         }
 
-        if(p.length>=1&&p[0].equalsIgnoreCase("appfixture")){
-            String which=p.length>=2?p[1]:"help";
-            String appResult=
-                ApplicationUiFixtureService.run(which,serverPackets);
-            System.out.println(
-                tag+"R85_APP_FIXTURE "+appResult+
-                " authority=LOCAL_DEV_FIXTURE clientProtocol=EXACT_CURRENT"
-            );
-            return true;
-        }
-
         LocalVoidglassCommandHandler.Outcome voidglassCommand=
             voidglassCommands.handle(p,serverPackets);
         if(voidglassCommand!=null){
