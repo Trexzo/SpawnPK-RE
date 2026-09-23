@@ -149,12 +149,14 @@ final class CustomAssetNamespaceSnapshot {
             }
 
             if ("CAPACITY".equals(type)) {
+                validateNamespaceContext(namespace, context, line);
                 if (value <= 0)
                     throw new IOException("capacity must be positive: " + line);
                 CapacityKey key = new CapacityKey(namespace, context);
                 if (capacities.put(key, value) != null)
                     throw new IOException("duplicate capacity: " + key);
             } else if ("PRESENT".equals(type)) {
+                validateNamespaceContext(namespace, context, line);
                 if (value < 0)
                     throw new IOException("negative namespace id: " + line);
                 Key key = new Key(namespace, context, value);
@@ -178,6 +180,24 @@ final class CustomAssetNamespaceSnapshot {
         return new CustomAssetNamespaceSnapshot(
             clientSha, scope, capacities, present, gfxContexts
         );
+    }
+
+    private static void validateNamespaceContext(
+        Namespace namespace,
+        Context context,
+        String line
+    ) throws IOException {
+        if (namespace == Namespace.MODEL) {
+            if (context != Context.PRIMARY && context != Context.OSRS)
+                throw new IOException(
+                    "MODEL namespace requires PRIMARY or OSRS context: " + line
+                );
+            return;
+        }
+        if (context != Context.GLOBAL)
+            throw new IOException(
+                namespace + " namespace requires GLOBAL context: " + line
+            );
     }
 
     String clientSha256() { return clientSha256; }
