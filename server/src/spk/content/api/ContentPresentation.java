@@ -20,6 +20,20 @@ public interface ContentPresentation {
         );
     }
 
+    /**
+     * Run one explicitly LocalLab developer application-UI fixture.
+     *
+     * The semantic fixture name is public; exact roots/widgets/packets remain
+     * internal to the runtime implementation.
+     */
+    default String applicationFixture(
+        String fixtureName
+    ){
+        throw new UnsupportedOperationException(
+            "application fixture presentation unavailable"
+        );
+    }
+
     void skill(
         ContentSkill skill,
         int experience,
