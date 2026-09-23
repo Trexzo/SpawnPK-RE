@@ -88,6 +88,8 @@ final class CustomDefinitionOverlayPolicy {
                 throw new IllegalArgumentException(field + " must be true/false");
         } else if (INTEGER_LIST_FIELDS.contains(field)) {
             parseIntegerList(value, field);
+        } else if ("actions".equals(field)) {
+            parseActionList(value);
         }
     }
 
@@ -136,5 +138,22 @@ final class CustomDefinitionOverlayPolicy {
         String[] parts = trimmed.split(",");
         for (String part : parts)
             parseInt(part, field);
+    }
+
+    private static void parseActionList(String value) {
+        String[] parts = value.split(",", -1);
+        if (parts.length != 5)
+            throw new IllegalArgumentException(
+                "actions must contain exactly five inventory slots"
+            );
+        for (String part : parts) {
+            String token = part.trim();
+            if (token.isEmpty())
+                throw new IllegalArgumentException("actions slot must be null or text");
+            if ("null".equals(token)) continue;
+            if (token.indexOf(',') >= 0 || token.indexOf('\t') >= 0 ||
+                token.indexOf('\n') >= 0 || token.indexOf('\r') >= 0)
+                throw new IllegalArgumentException("invalid actions token: " + token);
+        }
     }
 }

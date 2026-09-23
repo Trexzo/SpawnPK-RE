@@ -83,11 +83,24 @@ final class CustomAssetNamespacePreflight {
     static Result run(CustomAssetNamespaceSnapshot snapshot) {
         List<CustomAssetAuthoringRepository.Asset> assets =
             CustomAssetAuthoringRepository.all();
+        validateOverlayOwnership(
+            assets,
+            CustomDefinitionOverlayRepository.all()
+        );
         LinkedHashSet<IdKey> claims = new LinkedHashSet<>();
         LinkedHashSet<IdKey> references = new LinkedHashSet<>();
 
         for (CustomAssetAuthoringRepository.Asset asset : assets) {
             validateDefinitionProjection(asset);
+            referenceDefinitionCloneSources(
+                snapshot,
+                references,
+                asset,
+                CustomDefinitionOverlayRepository.item(asset.itemId),
+                asset.kind == CustomAssetAuthoringRepository.Kind.PET
+                    ? CustomDefinitionOverlayRepository.npc(asset.npcId)
+                    : null
+            );
 
             claim(
                 snapshot, claims,
@@ -127,59 +140,12 @@ final class CustomAssetNamespacePreflight {
                 );
             }
 
-            if (asset.animationMode ==
-                CustomAssetAuthoringRepository.AnimationMode.NONE) {
-                // Static exact-v308 presentation: do not invent an animation binding.
-            } else if (asset.animationMode ==
-                CustomAssetAuthoringRepository.AnimationMode.REUSE_EXISTING) {
-                reference(
-                    snapshot, references,
-                    CustomAssetNamespaceSnapshot.Namespace.ANIMATION,
-                    CustomAssetNamespaceSnapshot.Context.GLOBAL,
-                    asset.standAnim,
-                    asset.contentKey + ":standAnim"
-                );
-                reference(
-                    snapshot, references,
-                    CustomAssetNamespaceSnapshot.Namespace.ANIMATION,
-                    CustomAssetNamespaceSnapshot.Context.GLOBAL,
-                    asset.walkAnim,
-                    asset.contentKey + ":walkAnim"
-                );
-            } else {
-                claim(
-                    snapshot, claims,
-                    CustomAssetNamespaceSnapshot.Namespace.FRAME_GROUP,
-                    CustomAssetNamespaceSnapshot.Context.GLOBAL,
-                    asset.frameGroupId,
-                    asset.contentKey + ":frameGroup"
-                );
-                claim(
-                    snapshot, claims,
-                    CustomAssetNamespaceSnapshot.Namespace.ANIMATION,
-                    CustomAssetNamespaceSnapshot.Context.GLOBAL,
-                    asset.sequenceId,
-                    asset.contentKey + ":sequence"
-                );
-                if (asset.standAnim >= 0) {
-                    reference(
-                        snapshot, references,
-                        CustomAssetNamespaceSnapshot.Namespace.ANIMATION,
-                        CustomAssetNamespaceSnapshot.Context.GLOBAL,
-                        asset.standAnim,
-                        asset.contentKey + ":standAnim"
-                    );
-                }
-                if (asset.walkAnim >= 0) {
-                    reference(
-                        snapshot, references,
-                        CustomAssetNamespaceSnapshot.Namespace.ANIMATION,
-                        CustomAssetNamespaceSnapshot.Context.GLOBAL,
-                        asset.walkAnim,
-                        asset.contentKey + ":walkAnim"
-                    );
-                }
-            }
+            recordAnimationClaimsAndReferences(
+                snapshot,
+                claims,
+                references,
+                asset
+            );
 
             if (asset.gfxMode ==
                 CustomAssetAuthoringRepository.GfxMode.REFERENCE_EXISTING) {
@@ -239,6 +205,128 @@ final class CustomAssetNamespacePreflight {
         );
     }
 
+    static void recordAnimationClaimsAndReferences(
+        CustomAssetNamespaceSnapshot snapshot,
+        Set<IdKey> claims,
+        Set<IdKey> references,
+        CustomAssetAuthoringRepository.Asset asset
+    ) {
+        if (asset.animationMode ==
+            CustomAssetAuthoringRepository.AnimationMode.NONE) {
+            return;
+        }
+
+        if (asset.animationMode ==
+            CustomAssetAuthoringRepository.AnimationMode.REUSE_EXISTING) {
+            reference(
+                snapshot, references,
+                CustomAssetNamespaceSnapshot.Namespace.ANIMATION,
+                CustomAssetNamespaceSnapshot.Context.GLOBAL,
+                asset.standAnim,
+                asset.contentKey + ":standAnim"
+            );
+            reference(
+                snapshot, references,
+                CustomAssetNamespaceSnapshot.Namespace.ANIMATION,
+                CustomAssetNamespaceSnapshot.Context.GLOBAL,
+                asset.walkAnim,
+                asset.contentKey + ":walkAnim"
+            );
+            return;
+        }
+
+        claim(
+            snapshot, claims,
+            CustomAssetNamespaceSnapshot.Namespace.FRAME_GROUP,
+            CustomAssetNamespaceSnapshot.Context.GLOBAL,
+            asset.frameGroupId,
+            asset.contentKey + ":frameGroup"
+        );
+        claim(
+            snapshot, claims,
+            CustomAssetNamespaceSnapshot.Namespace.ANIMATION,
+            CustomAssetNamespaceSnapshot.Context.GLOBAL,
+            asset.sequenceId,
+            asset.contentKey + ":sequence"
+        );
+
+        if (asset.standAnim >= 0 && asset.standAnim != asset.sequenceId) {
+            reference(
+                snapshot, references,
+                CustomAssetNamespaceSnapshot.Namespace.ANIMATION,
+                CustomAssetNamespaceSnapshot.Context.GLOBAL,
+                asset.standAnim,
+                asset.contentKey + ":standAnim"
+            );
+        }
+        if (asset.walkAnim >= 0 && asset.walkAnim != asset.sequenceId) {
+            reference(
+                snapshot, references,
+                CustomAssetNamespaceSnapshot.Namespace.ANIMATION,
+                CustomAssetNamespaceSnapshot.Context.GLOBAL,
+                asset.walkAnim,
+                asset.contentKey + ":walkAnim"
+            );
+        }
+    }
+
+    static void referenceDefinitionCloneSources(
+        CustomAssetNamespaceSnapshot snapshot,
+        Set<IdKey> references,
+        CustomAssetAuthoringRepository.Asset asset,
+        CustomDefinitionOverlayRepository.Overlay item,
+        CustomDefinitionOverlayRepository.Overlay npc
+    ) {
+        int itemSource = item == null ? -1 : item.cloneSourceId();
+        if (itemSource >= 0)
+            reference(
+                snapshot,
+                references,
+                CustomAssetNamespaceSnapshot.Namespace.ITEM,
+                CustomAssetNamespaceSnapshot.Context.GLOBAL,
+                itemSource,
+                asset.contentKey + ":itemCloneSource"
+            );
+
+        if (asset.kind != CustomAssetAuthoringRepository.Kind.PET) return;
+
+        int npcSource = npc == null ? -1 : npc.cloneSourceId();
+        if (npcSource >= 0)
+            reference(
+                snapshot,
+                references,
+                CustomAssetNamespaceSnapshot.Namespace.NPC,
+                CustomAssetNamespaceSnapshot.Context.GLOBAL,
+                npcSource,
+                asset.contentKey + ":npcCloneSource"
+            );
+    }
+
+    static void validateOverlayOwnership(
+        List<CustomAssetAuthoringRepository.Asset> assets,
+        List<CustomDefinitionOverlayRepository.Overlay> overlays
+    ) {
+        HashSet<Integer> itemIds = new HashSet<>();
+        HashSet<Integer> petNpcIds = new HashSet<>();
+        for (CustomAssetAuthoringRepository.Asset asset : assets) {
+            itemIds.add(asset.itemId);
+            if (asset.kind == CustomAssetAuthoringRepository.Kind.PET)
+                petNpcIds.add(asset.npcId);
+        }
+
+        for (CustomDefinitionOverlayRepository.Overlay overlay : overlays) {
+            boolean owned =
+                overlay.kind == CustomDefinitionOverlayPolicy.Kind.ITEM
+                    ? itemIds.contains(overlay.id)
+                    : petNpcIds.contains(overlay.id);
+            if (!owned)
+                throw new IllegalStateException(
+                    "ORPHAN_CUSTOM_DEFINITION_OVERLAY " +
+                    overlay.kind + ":" + overlay.id
+                );
+        }
+    }
+
     private static void validateDefinitionProjection(
         CustomAssetAuthoringRepository.Asset asset
     ) {
@@ -268,6 +356,22 @@ final class CustomAssetNamespacePreflight {
             item, "modelId", asset.modelId,
             "ITEM overlay modelId mismatch for " + asset.contentKey
         );
+
+        if (asset.kind == CustomAssetAuthoringRepository.Kind.PET) {
+            String[] actions = requireActionVector(
+                item.field("actions"),
+                "ITEM overlay actions mismatch for " + asset.contentKey
+            );
+            String serverOption5 =
+                ItemActionResolver.inventoryOption5Semantic(asset.itemId);
+            String clientOption5 = actions[4];
+            if (serverOption5 == null || serverOption5.trim().isEmpty() ||
+                !serverOption5.equalsIgnoreCase(clientOption5))
+                throw new IllegalStateException(
+                    "ITEM option-5 lifecycle mismatch for " + asset.contentKey +
+                    " server=" + serverOption5 + " client=" + clientOption5
+                );
+        }
 
         if (asset.kind != CustomAssetAuthoringRepository.Kind.PET) return;
 
@@ -335,6 +439,15 @@ final class CustomAssetNamespacePreflight {
             throw new IllegalStateException(message);
     }
 
+    private static String[] requireActionVector(String value, String message) {
+        if (value == null) throw new IllegalStateException(message);
+        String[] parts = value.split(",", -1);
+        if (parts.length != 5) throw new IllegalStateException(message);
+        for (int i = 0; i < parts.length; i++)
+            parts[i] = parts[i].trim();
+        return parts;
+    }
+
     static void claim(
         CustomAssetNamespaceSnapshot snapshot,
         Set<IdKey> claims,
@@ -357,8 +470,9 @@ final class CustomAssetNamespacePreflight {
         if (namespace != CustomAssetNamespaceSnapshot.Namespace.TEXTURE ||
             context != CustomAssetNamespaceSnapshot.Context.GLOBAL ||
             id != 278)
-            throw new IllegalArgumentException(
-                "shared namespace claims are restricted to exact-v308 texture slot 278"
+            throw new IllegalStateException(
+                "SHARED_CUSTOM_NAMESPACE_UNSUPPORTED " +
+                namespace + ":" + context + ":" + id + " at " + label
             );
         recordClaim(snapshot, claims, namespace, context, id, label, true);
     }

@@ -142,3 +142,19 @@ One reproducibility boundary remains explicit: the standalone legacy textured+sk
 `6cf617b5e14e60b5bc58d4f1c72e11476f09382d40a72f49be122009157c7fad`
 
 Do not substitute the preserved R10 FF-FF model converter: R11 rejected that family for the combined texture+skin contract. Until the legacy writer source is recovered or independently re-established against exact v308, the repository must report `modelWriterSourcePreserved=false` and must not claim source-to-model reproducibility.
+
+## Current-head fail-closed hardening
+
+The current integration successor additionally requires:
+
+- shared namespace claims are restricted to `TEXTURE:GLOBAL:278`;
+- namespace snapshots reject impossible namespace/context pairs;
+- snapshot client SHA casing is canonicalized before deterministic hashing;
+- every definition overlay is owned by an authored item or PET NPC;
+- item `clone/fullClone` and NPC `clone` sources must resolve in the exact snapshot;
+- `CUSTOM_FRAME_GROUP` sequence ids must be bound to stand or walk and same-plan custom sequence claims are not mistaken for pre-existing exact references;
+- PET item option-5 presentation must match the server inventory option-5 semantic;
+- the proven Voidglass item definition retains `Drop`, zoom 2086, rotations 567/2031, offsets -4/0, and zan2d 0.
+
+These checks preserve the existing non-PET `npcSize=-1` sentinel and strict duplicate/negative GFX-context census from the refreshed current-head successor.
+

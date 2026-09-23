@@ -537,8 +537,17 @@ tasks.register('customAssetPipelineRegression', JavaExec) {
     mainClass.set('spk.local.CustomAssetPipelineContractTest')
 }
 
+tasks.register('customAssetPipelineHardeningRegression', JavaExec) {
+    group = 'verification'
+    description = 'Validates fail-closed Issue #9 namespace, clone, sequence and exact client-definition hardening.'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.CustomAssetPipelineHardeningTest')
+}
+
 tasks.named('check') {
     dependsOn tasks.named('customAssetPipelineRegression')
+    dependsOn tasks.named('customAssetPipelineHardeningRegression')
     dependsOn tasks.named('verifyJava11Bytecode')
     dependsOn tasks.named('clientBuildRevision308Compatibility')
     dependsOn tasks.named('currentTrainFocusedRegression')
