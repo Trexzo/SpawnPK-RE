@@ -119,7 +119,12 @@ final class LocalDevPlayerCommandHandler {
                raw.equalsIgnoreCase("none")){
                 rank=0;
             }else{
-                rank=parseInt(raw,-1);
+                try{
+                    rank=Integer.parseInt(raw);
+                }catch(NumberFormatException e){
+                    return one(
+                        "V5186_DEV_PLAYER_RANK result=REJECTED expected=signed_short_or_clear");
+                }
             }
 
             if(rank<Short.MIN_VALUE||rank>Short.MAX_VALUE){
