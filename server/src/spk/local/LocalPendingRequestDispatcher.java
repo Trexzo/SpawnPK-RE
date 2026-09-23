@@ -544,6 +544,20 @@ final class LocalPendingRequestDispatcher {
             }
 
             if(request instanceof
+                    DailyChallengeClientRequest){
+                DailyChallengeClientRequest dailyChallenge=
+                    (DailyChallengeClientRequest)request;
+
+                System.out.println(
+                    tag+
+                    dailyChallengeFailClosedDiagnostic(
+                        dailyChallenge
+                    )
+                );
+                continue;
+            }
+
+            if(request instanceof
                     CommandClientRequest){
                 CommandClientRequest command=
                     (CommandClientRequest)request;
@@ -566,6 +580,23 @@ final class LocalPendingRequestDispatcher {
                 request
             );
         }
+    }
+
+    static String dailyChallengeFailClosedDiagnostic(
+        DailyChallengeClientRequest request
+    ){
+        Objects.requireNonNull(
+            request,
+            "request"
+        );
+
+        return "DAILY_CHALLENGE_REQUEST_FAIL_CLOSED action="+
+            request.action()+
+            " challengeKey="+
+            request.challengeKey()+
+            " reason=DAILY_CHALLENGE_KEY_ADAPTER_UNPROVEN"+
+            " stateMutation=false"+
+            " authority=EXACT_CURRENT_CLIENT";
     }
 
     static String publicChatFailClosedDiagnostic(
