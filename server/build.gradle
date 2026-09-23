@@ -628,7 +628,10 @@ tasks.register('makeoverNpcContentActionOwnershipRegression') {
     doLast {
         [
             'spk.local.ContentPublicApiBoundaryTest',
+            'spk.local.ContentRegistrarAuthorityCoverageTest',
+            'spk.local.ContentRegistrarSealTest',
             'spk.local.ContentRegistryTest',
+            'spk.local.NpcOptionContentRegistryParityTest',
             'spk.local.MakeoverNpcContentActionOwnershipTest',
             'spk.local.MakeoverSemanticDialogueSessionTest',
             'spk.local.LocalRoutedNpcInteractionHandlerTest',
