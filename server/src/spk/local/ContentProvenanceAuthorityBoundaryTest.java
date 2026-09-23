@@ -34,6 +34,7 @@ public final class ContentProvenanceAuthorityBoundaryTest {
             "customItemOnObject=CUSTOM_LOCALLAB "+
             "customItemOnPlayer=CUSTOM_LOCALLAB "+
             "customNpc=CUSTOM_LOCALLAB "+
+            "customDialogue=CUSTOM_LOCALLAB "+
             "trustedRuntimeProven=true"
         );
     }
@@ -244,6 +245,13 @@ public final class ContentProvenanceAuthorityBoundaryTest {
                                             ContentNpcService.TALK
                                         )
                             );
+
+                            registrar.dialogue(
+                                "dialogue:provenance-guard",
+                                321,
+                                context->
+                                    ContentDialogueTransition.stay()
+                            );
                         }
                     }
                 );
@@ -332,6 +340,15 @@ public final class ContentProvenanceAuthorityBoundaryTest {
                     .npcOptionBinding(
                         12_345,
                         4
+                    ),
+                misleadingModuleId
+            );
+
+            assertCustom(
+                "dialogue",
+                world.content()
+                    .dialogueBinding(
+                        "dialogue:provenance-guard"
                     ),
                 misleadingModuleId
             );
