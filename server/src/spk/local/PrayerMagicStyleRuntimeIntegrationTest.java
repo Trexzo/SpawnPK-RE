@@ -75,7 +75,10 @@ public final class PrayerMagicStyleRuntimeIntegrationTest {
                 // present in the exact current WORLD-R7 bootstrap, so successful routing can be
                 // distinguished from an absent-target rejection without inventing spell effects.
                 send131(out,c2s,103,1152);
-                Thread.sleep(150L);
+                waitForLog(capturedBytes,
+                    "result=TARGET_NPC_VISIBLE def=7605 effect=UNIMPLEMENTED_SERVER_AUTHORITY",
+                    3000L,
+                    "spell route completion");
 
                 // Alignment proof after the spell: toggle the active curse back off and require
                 // the exact config response. If C2S131 were left pending/misaligned, this fails.
@@ -170,6 +173,15 @@ public final class PrayerMagicStyleRuntimeIntegrationTest {
         public void write(int v)throws IOException{a.write(v);b.write(v);}
         public void write(byte[] x,int o,int l)throws IOException{a.write(x,o,l);b.write(x,o,l);}
         public void flush()throws IOException{a.flush();b.flush();}
+    }
+    private static void waitForLog(ByteArrayOutputStream capturedBytes,String needle,long timeout,String label)throws Exception{
+        long end=System.currentTimeMillis()+timeout;
+        while(System.currentTimeMillis()<end){
+            if(capturedBytes.toString("UTF-8").contains(needle))return;
+            Thread.sleep(5L);
+        }
+        String logs=capturedBytes.toString("UTF-8");
+        throw new AssertionError(label+" timeout missing="+needle+" bytes="+logs.length());
     }
     private static void require(boolean c,String m){if(!c)throw new AssertionError(m);}
 }
