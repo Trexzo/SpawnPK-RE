@@ -23,7 +23,7 @@ final class LocalSession implements Runnable {
     private final MiniPetService miniPets;
     private final VoidglassPetState voidglass = new VoidglassPetState();
     private final DevAuthorityWorkbench dev = new DevAuthorityWorkbench();
-    private final PlayerPresentationService playerPresentation = new PlayerPresentationService(dev);
+    private final PlayerPresentationService playerPresentation;
     private final NpcRegistry npcs;
     private final HomeWorldRuntimePlan homeWorld;
     private final CombatEngine combat;
@@ -98,6 +98,11 @@ final class LocalSession implements Runnable {
         this.bootstrap = bootstrap;
         this.movementEnabled = movementEnabled;
         this.world = java.util.Objects.requireNonNull(world,"world");
+        this.playerPresentation =
+            new PlayerPresentationService(
+                this.world,
+                dev
+            );
         this.regionLoads = new RegionLoadLifecycle();
         this.homeWorld = new HomeWorldRuntimePlan(this.world.homeNpcs());
         this.worldPlayer = new WorldPlayer();
