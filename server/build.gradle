@@ -527,6 +527,32 @@ tasks.register('clientBuildRevision308Compatibility', JavaExec) {
     mainClass.set('spk.local.ClientBuildRevision308CompatibilityTest')
 }
 
+tasks.register('bankerTalkToContentOwnershipRegression') {
+    group = 'verification'
+    description = 'Validates banker 7605 Talk-to policy is content-owned while native Bank routing and deferred bank coordination remain unchanged.'
+    dependsOn tasks.named('testClasses')
+
+    doLast {
+        [
+            'spk.local.NpcInteractionRouterTest',
+            'spk.local.LocalRoutedNpcInteractionHandlerTest',
+            'spk.local.NpcBankDeferredIdentityFenceTest',
+            'spk.local.NpcOptionContentRegistryParityTest',
+            'spk.local.BankerTalkToContentOwnershipTest'
+        ].each { mainClassName ->
+            project.javaexec {
+                workingDir repoRoot
+                classpath = sourceSets.test.runtimeClasspath
+                mainClass.set(mainClassName)
+            }
+        }
+
+        logger.lifecycle(
+            'BANKER_TALK_TO_CONTENT_OWNERSHIP_REGRESSION_PASS genericTalk=true contentBank=true bankWireParity=true'
+        )
+    }
+}
+
 tasks.named('check') {
     dependsOn tasks.named('verifyJava11Bytecode')
     dependsOn tasks.named('clientBuildRevision308Compatibility')
