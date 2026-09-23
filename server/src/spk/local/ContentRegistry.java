@@ -433,6 +433,19 @@ final class ContentRegistry {
         }
     }
 
+    private static final class ActionBinding {
+        final BindingInfo info;
+        final ContentActionHandler handler;
+
+        ActionBinding(
+            BindingInfo info,
+            ContentActionHandler handler
+        ){
+            this.info=info;
+            this.handler=handler;
+        }
+    }
+
     private final World world;
     private final LinkedHashMap<String,CommandBinding>
         commands=new LinkedHashMap<>();
@@ -454,6 +467,8 @@ final class ContentRegistry {
         npcOptions=new LinkedHashMap<>();
     private final LinkedHashMap<String,DialogueBinding>
         dialogues=new LinkedHashMap<>();
+    private final LinkedHashMap<String,ActionBinding>
+        actions=new LinkedHashMap<>();
 
     /*
      * Keep every committed candidate, not just the current priority winner.
@@ -480,6 +495,8 @@ final class ContentRegistry {
         npcOptionRegistrations=new ArrayList<>();
     private final ArrayList<DialogueRegistration>
         dialogueRegistrations=new ArrayList<>();
+    private final ArrayList<ActionRegistration>
+        actionRegistrations=new ArrayList<>();
 
     private final LinkedHashSet<String>
         installedModules=new LinkedHashSet<>();
@@ -610,6 +627,12 @@ final class ContentRegistry {
                             dialogueRegistrations
                         );
 
+                ArrayList<ActionRegistration>
+                    nextActionRegistrations=
+                        new ArrayList<>(
+                            actionRegistrations
+                        );
+
                 for(CommandRegistration registration:
                         registrar.pendingCommands)
                     if(registration.handle.pending())
@@ -690,6 +713,14 @@ final class ContentRegistry {
                             registration
                         );
 
+                for(ActionRegistration registration:
+                        registrar.pendingActions)
+                    if(registration.handle.pending())
+                        addActionRegistration(
+                            nextActionRegistrations,
+                            registration
+                        );
+
                 LinkedHashMap<String,CommandBinding>
                     nextCommands=
                         buildCommandBindings(
@@ -750,6 +781,12 @@ final class ContentRegistry {
                             nextDialogueRegistrations
                         );
 
+                LinkedHashMap<String,ActionBinding>
+                    nextActions=
+                        buildActionBindings(
+                            nextActionRegistrations
+                        );
+
                 commandRegistrations.clear();
                 commandRegistrations.addAll(
                     nextCommandRegistrations
@@ -800,6 +837,11 @@ final class ContentRegistry {
                     nextDialogueRegistrations
                 );
 
+                actionRegistrations.clear();
+                actionRegistrations.addAll(
+                    nextActionRegistrations
+                );
+
                 commands.clear();
                 commands.putAll(nextCommands);
 
@@ -846,6 +888,11 @@ final class ContentRegistry {
                 dialogues.clear();
                 dialogues.putAll(
                     nextDialogues
+                );
+
+                actions.clear();
+                actions.putAll(
+                    nextActions
                 );
 
                 installedModules.add(moduleId);
@@ -906,6 +953,10 @@ final class ContentRegistry {
             dialogueRegistrations,
             clean
         );
+        removeModuleRegistrations(
+            actionRegistrations,
+            clean
+        );
 
         installedModules.remove(clean);
         rebuildEffectiveBindings();
@@ -963,6 +1014,8 @@ final class ContentRegistry {
             return ((NpcOptionRegistration)registration).info;
         if(registration instanceof DialogueRegistration)
             return ((DialogueRegistration)registration).info;
+        if(registration instanceof ActionRegistration)
+            return ((ActionRegistration)registration).info;
 
         throw new IllegalArgumentException(
             "unknown content registration type="+
@@ -993,6 +1046,8 @@ final class ContentRegistry {
             return ((NpcOptionRegistration)registration).handle;
         if(registration instanceof DialogueRegistration)
             return ((DialogueRegistration)registration).handle;
+        if(registration instanceof ActionRegistration)
+            return ((ActionRegistration)registration).handle;
 
         throw new IllegalArgumentException(
             "unknown content registration type="+
@@ -1310,6 +1365,39 @@ final class ContentRegistry {
         );
     }
 
+    ContentActionResult dispatchAction(
+        WorldPlayer player,
+        String actionKey
+    ){
+        requireWorldThread();
+        Objects.requireNonNull(
+            player,
+            "player"
+        );
+        String key=actionKey(actionKey);
+
+        ActionBinding binding;
+
+        synchronized(this){
+            binding=actions.get(key);
+        }
+
+        if(binding==null)
+            return null;
+
+        return Objects.requireNonNull(
+            binding.handler.handle(
+                new ActionContext(
+                    key,
+                    ContentRuntimeAdapters.player(
+                        player
+                    )
+                )
+            ),
+            "content action result"
+        );
+    }
+
     ContentDialogueTransition dispatchDialogue(
         WorldPlayer player,
         String dialogueKey,
@@ -1491,6 +1579,18 @@ final class ContentRegistry {
             :binding.info;
     }
 
+    synchronized BindingInfo actionBinding(
+        String actionKey
+    ){
+        ActionBinding binding=
+            actions.get(
+                actionKey(actionKey)
+            );
+        return binding==null
+            ?null
+            :binding.info;
+    }
+
     synchronized BindingInfo dialogueBinding(
         String dialogueKey
     ){
@@ -1595,6 +1695,10 @@ final class ContentRegistry {
                 dialogues.values())
             result.add(binding.info);
 
+        for(ActionBinding binding:
+                actions.values())
+            result.add(binding.info);
+
         return Collections.unmodifiableList(
             result
         );
@@ -1622,6 +1726,8 @@ final class ContentRegistry {
                 npcOptions.size()+
             ",dialogues="+
                 dialogues.size()+
+            ",actions="+
+                actions.size()+
             ",bindings="+bindings()+
             "}";
     }
@@ -1786,6 +1892,24 @@ final class ContentRegistry {
                 target)
             if(existing.key.equals(
                     incoming.key)&&
+               existing.info.priority==
+                    incoming.info.priority)
+                throw conflict(
+                    incoming.info,
+                    existing.info
+                );
+
+        target.add(incoming);
+    }
+
+    private static void addActionRegistration(
+        List<ActionRegistration> target,
+        ActionRegistration incoming
+    ){
+        for(ActionRegistration existing:
+                target)
+            if(existing.info.key.equals(
+                    incoming.info.key)&&
                existing.info.priority==
                     incoming.info.priority)
                 throw conflict(
@@ -1967,6 +2091,23 @@ final class ContentRegistry {
         return result;
     }
 
+    private static LinkedHashMap<String,ActionBinding>
+        buildActionBindings(
+            List<ActionRegistration> registrations
+        ){
+        LinkedHashMap<String,ActionBinding>
+            result=new LinkedHashMap<>();
+
+        for(ActionRegistration registration:
+                registrations)
+            applyAction(
+                result,
+                registration
+            );
+
+        return result;
+    }
+
     private static LinkedHashMap<String,DialogueBinding>
         buildDialogueBindings(
             List<DialogueRegistration> registrations
@@ -2055,6 +2196,12 @@ final class ContentRegistry {
                     registration.handle==handle
             )||removed;
 
+        removed=
+            actionRegistrations.removeIf(
+                registration->
+                    registration.handle==handle
+            )||removed;
+
         if(!removed)
             throw new IllegalStateException(
                 "active content registration missing"
@@ -2126,6 +2273,12 @@ final class ContentRegistry {
                     dialogueRegistrations
                 );
 
+        LinkedHashMap<String,ActionBinding>
+            nextActions=
+                buildActionBindings(
+                    actionRegistrations
+                );
+
         commands.clear();
         commands.putAll(nextCommands);
 
@@ -2172,6 +2325,11 @@ final class ContentRegistry {
         dialogues.clear();
         dialogues.putAll(
             nextDialogues
+        );
+
+        actions.clear();
+        actions.putAll(
+            nextActions
         );
     }
 
@@ -2517,6 +2675,44 @@ final class ContentRegistry {
             );
     }
 
+    private static void applyAction(
+        Map<String,ActionBinding> target,
+        ActionRegistration registration
+    ){
+        ActionBinding existing=
+            target.get(
+                registration.info.key
+            );
+
+        if(existing==null){
+            target.put(
+                registration.info.key,
+                new ActionBinding(
+                    registration.info,
+                    registration.handler
+                )
+            );
+            return;
+        }
+
+        if(registration.info.priority==
+                existing.info.priority)
+            throw conflict(
+                registration.info,
+                existing.info
+            );
+
+        if(registration.info.priority>
+                existing.info.priority)
+            target.put(
+                registration.info.key,
+                new ActionBinding(
+                    registration.info,
+                    registration.handler
+                )
+            );
+    }
+
     private static void applyDialogue(
         Map<String,DialogueBinding> target,
         DialogueRegistration registration
@@ -2596,6 +2792,38 @@ final class ContentRegistry {
                 .toLowerCase(
                     Locale.ROOT
                 );
+    }
+
+    private static String actionKey(
+        String value
+    ){
+        String key=canonical(value);
+
+        if(key.isEmpty())
+            throw new IllegalArgumentException(
+                "action key"
+            );
+
+        if(key.length()>160)
+            throw new IllegalArgumentException(
+                "action key too long"
+            );
+
+        for(int i=0;i<key.length();i++){
+            char ch=key.charAt(i);
+            if((ch>='a'&&ch<='z')||
+               (ch>='0'&&ch<='9')||
+               ch=='.'||ch=='_'||
+               ch=='-'||ch==':')
+                continue;
+
+            throw new IllegalArgumentException(
+                "action key invalid character index="+
+                i
+            );
+        }
+
+        return key;
     }
 
     private static String dialogueKey(
@@ -2802,6 +3030,22 @@ final class ContentRegistry {
         }
     }
 
+    private static final class ActionRegistration {
+        final BindingInfo info;
+        final ContentActionHandler handler;
+        final RegistrationHandle handle;
+
+        ActionRegistration(
+            BindingInfo info,
+            ContentActionHandler handler,
+            RegistrationHandle handle
+        ){
+            this.info=info;
+            this.handler=handler;
+            this.handle=handle;
+        }
+    }
+
     private static final class DialogueRegistration {
         final BindingInfo info;
         final ContentDialogueHandler handler;
@@ -2894,6 +3138,9 @@ final class ContentRegistry {
                 new ArrayList<>();
         private final ArrayList<DialogueRegistration>
             pendingDialogues=
+                new ArrayList<>();
+        private final ArrayList<ActionRegistration>
+            pendingActions=
                 new ArrayList<>();
 
         Registrar(
@@ -3339,6 +3586,39 @@ final class ContentRegistry {
             return handle;
         }
 
+        @Override public synchronized ContentRegistration action(
+            String actionKey,
+            int priority,
+            ContentActionHandler handler
+        ){
+            requireAccepting();
+            String key=actionKey(actionKey);
+
+            Objects.requireNonNull(
+                handler,
+                "handler"
+            );
+
+            RegistrationHandle handle=
+                new RegistrationHandle();
+
+            pendingActions.add(
+                new ActionRegistration(
+                    new BindingInfo(
+                        "ACTION",
+                        key,
+                        moduleId,
+                        priority,
+                        provenance
+                    ),
+                    handler,
+                    handle
+                )
+            );
+
+            return handle;
+        }
+
         @Override public synchronized ContentRegistration dialogue(
             String dialogueKey,
             int priority,
@@ -3439,6 +3719,11 @@ final class ContentRegistry {
                     pendingDialogues)
                 registration.handle
                     .activatePending();
+
+            for(ActionRegistration registration:
+                    pendingActions)
+                registration.handle
+                    .activatePending();
         }
 
         synchronized void invalidatePending(){
@@ -3490,6 +3775,11 @@ final class ContentRegistry {
 
             for(DialogueRegistration registration:
                     pendingDialogues)
+                registration.handle
+                    .invalidatePending();
+
+            for(ActionRegistration registration:
+                    pendingActions)
                 registration.handle
                     .invalidatePending();
         }
@@ -3755,6 +4045,32 @@ final class ContentRegistry {
 
         @Override public ContentPlayer target(){
             return target;
+        }
+    }
+
+    private static final class ActionContext
+        implements ContentActionContext {
+
+        private final String actionKey;
+        private final ContentPlayer player;
+
+        ActionContext(
+            String actionKey,
+            ContentPlayer player
+        ){
+            this.actionKey=actionKey;
+            this.player=Objects.requireNonNull(
+                player,
+                "player"
+            );
+        }
+
+        @Override public String actionKey(){
+            return actionKey;
+        }
+
+        @Override public ContentPlayer player(){
+            return player;
         }
     }
 
