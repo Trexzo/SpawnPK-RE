@@ -141,6 +141,23 @@ public final class CustomAssetPipelineContractTest {
                 "slot-278 shared atlas should remain one namespace allocation"
             );
 
+        boolean invalidSharedNamespaceRejected = false;
+        try {
+            CustomAssetNamespacePreflight.claimShared(
+                snapshot,
+                new LinkedHashSet<>(),
+                CustomAssetNamespaceSnapshot.Namespace.MODEL,
+                CustomAssetNamespaceSnapshot.Context.PRIMARY,
+                79999,
+                "shared-model:invalid"
+            );
+        } catch (IllegalStateException expected) {
+            invalidSharedNamespaceRejected =
+                expected.getMessage().contains("SHARED_CUSTOM_NAMESPACE_UNSUPPORTED");
+        }
+        if (!invalidSharedNamespaceRejected)
+            throw new AssertionError("non-texture shared namespace was not rejected");
+
         LinkedHashSet<CustomAssetNamespacePreflight.IdKey> exclusiveModelClaims =
             new LinkedHashSet<>();
         CustomAssetNamespacePreflight.claim(
@@ -205,6 +222,7 @@ public final class CustomAssetPipelineContractTest {
             "cloneOrdering=true " +
             "definitionProjectionParity=true " +
             "sharedTextureAtlas=true " +
+            "sharedNamespaceScopeGuard=true " +
             "staticUntilAnimationProven=true " +
             "namespaceCollisionRejected=true " +
             "gfxContextRequired=true " +
