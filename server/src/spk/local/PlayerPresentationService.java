@@ -26,7 +26,10 @@ final class PlayerPresentationService {
                 equipment.appearanceItems(),
                 player,
                 dev.playerNpcTransformId(),
-                world.appearanceRoleFor(username)
+                world.appearanceRoleFor(
+                    username,
+                    player
+                )
             )
         );
     }
