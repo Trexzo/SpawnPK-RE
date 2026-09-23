@@ -153,6 +153,10 @@ final class CustomAssetAuthoringRepository {
                     throw new IllegalArgumentException(
                         "CUSTOM_FRAME_GROUP requires explicit frameGroupId and sequenceId"
                     );
+                if (standAnim != sequenceId && walkAnim != sequenceId)
+                    throw new IllegalArgumentException(
+                        "CUSTOM_FRAME_GROUP sequenceId must be bound to standAnim or walkAnim"
+                    );
             }
 
             if (gfxMode == GfxMode.NONE) {
