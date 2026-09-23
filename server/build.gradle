@@ -527,7 +527,87 @@ tasks.register('clientBuildRevision308Compatibility', JavaExec) {
     mainClass.set('spk.local.ClientBuildRevision308CompatibilityTest')
 }
 
+tasks.register('playerAppearanceRoleRegression') {
+    group = 'verification'
+    description = 'Validates semantic privilege -> packet81 appearance-role publication without an external client fixture.'
+    dependsOn tasks.named('testClasses')
+
+    doLast {
+        [
+            'spk.local.PlayerAppearanceRoleProjectionTest',
+            'spk.local.PlayerAppearanceRolePacket81Test'
+        ].each { className ->
+            project.javaexec {
+                workingDir repoRoot
+                classpath = sourceSets.test.runtimeClasspath
+                mainClass.set(className)
+            }
+        }
+
+        logger.lifecycle(
+            'PLAYER_APPEARANCE_ROLE_REGRESSION_PASS count=2 semanticProjection=true packet81=true'
+        )
+    }
+}
+
+tasks.register('playerAppearanceRoleV308Parity') {
+    group = 'verification'
+    description = 'Runs exact-v308 rs.a.k appearance parser parity for aC and worn-HEAD vs cosmetic-bs separation.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+
+    doLast {
+        String explicitClientPath =
+            providers.gradleProperty('v308ClientPath')
+                .orElse(
+                    providers.environmentVariable('SPK_V308_CLIENT')
+                )
+                .getOrNull()
+
+        File client
+        if (explicitClientPath != null &&
+            !explicitClientPath.trim().isEmpty()) {
+            client = new File(explicitClientPath.trim()).canonicalFile
+            if (!client.isFile()) {
+                throw new GradleException(
+                    'Explicit v308 client.jar is not a file: ' + client
+                )
+            }
+            String actual = sha256(client)
+            if (!actual.equalsIgnoreCase(v308AcceptanceClientSha256)) {
+                throw new GradleException(
+                    'Explicit v308 client.jar SHA-256 mismatch: expected=' +
+                    v308AcceptanceClientSha256 +
+                    ' actual=' + actual +
+                    ' path=' + client
+                )
+            }
+        } else {
+            client = findExactClientBySha(v308AcceptanceClientSha256)
+        }
+
+        if (client == null) {
+            throw new GradleException(
+                'Exact v308 client.jar is required for player appearance-role parity; provide -Pv308ClientPath=<path> or SPK_V308_CLIENT; required SHA-256=' +
+                v308AcceptanceClientSha256
+            )
+        }
+
+        project.javaexec {
+            workingDir repoRoot
+            classpath = sourceSets.test.runtimeClasspath + files(client)
+            mainClass.set('spk.local.AppearanceClientParityTest')
+        }
+
+        logger.lifecycle(
+            'PLAYER_APPEARANCE_ROLE_V308_PARITY_PASS clientSha256=' +
+            sha256(client) +
+            ' ac=true wornHeadVsOverrideBs=true'
+        )
+    }
+}
+
 tasks.named('check') {
+    dependsOn tasks.named('playerAppearanceRoleRegression')
     dependsOn tasks.named('verifyJava11Bytecode')
     dependsOn tasks.named('clientBuildRevision308Compatibility')
     dependsOn tasks.named('currentTrainFocusedRegression')
