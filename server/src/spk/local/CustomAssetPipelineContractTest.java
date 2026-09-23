@@ -224,6 +224,24 @@ public final class CustomAssetPipelineContractTest {
             CustomAssetNamespacePreflight.run(snapshot);
         if (!first.planSha256.equals(second.planSha256))
             throw new AssertionError("non-deterministic plan hash");
+        CustomAssetNamespaceSnapshot uppercaseShaSnapshot =
+            CustomAssetNamespaceSnapshot.parse(
+                new StringReader(
+                    baseSnapshot.replace(
+                        CustomAssetAuthoringRepository.EXACT_V308_CLIENT_SHA256,
+                        CustomAssetAuthoringRepository.EXACT_V308_CLIENT_SHA256
+                            .toUpperCase(java.util.Locale.ROOT)
+                    )
+                )
+            );
+        CustomAssetNamespacePreflight.Result uppercaseShaResult =
+            CustomAssetNamespacePreflight.run(uppercaseShaSnapshot);
+        if (!snapshot.fingerprintSha256().equals(
+                uppercaseShaSnapshot.fingerprintSha256()) ||
+            !first.planSha256.equals(uppercaseShaResult.planSha256))
+            throw new AssertionError(
+                "client SHA representation changed canonical snapshot/plan hash"
+            );
         if (first.claims != 4 || first.references != 1)
             throw new AssertionError(
                 "claim/reference counts=" + first.claims + "/" + first.references
@@ -347,6 +365,7 @@ public final class CustomAssetPipelineContractTest {
             "overlayOwnership=true " +
             "cloneSourcePreflight=true " +
             "customSequenceBinding=true " +
+            "canonicalSnapshotSha=true " +
             "staticUntilAnimationProven=true " +
             "namespaceCollisionRejected=true " +
             "gfxContextRequired=true " +
