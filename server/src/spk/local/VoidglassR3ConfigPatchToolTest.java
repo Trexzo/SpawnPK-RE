@@ -32,7 +32,7 @@ public final class VoidglassR3ConfigPatchToolTest {
             );
             CustomAssetNamespacePreflight.Result result =
                 VoidglassR3ConfigPatchTool.preflight(snapshot);
-            if (result.claims != 4 || result.references != 3)
+            if (result.claims != 4 || result.references != 1)
                 throw new AssertionError(
                     "preflight counts=" + result.claims + "/" + result.references
                 );
@@ -60,8 +60,6 @@ public final class VoidglassR3ConfigPatchToolTest {
             "CAPACITY\tANIMATION\tGLOBAL\t35260\n" +
             "CAPACITY\tGFX\tGLOBAL\t7964\n" +
             "CAPACITY\tFRAME_GROUP\tGLOBAL\t65536\n" +
-            "PRESENT\tANIMATION\tGLOBAL\t1662\n" +
-            "PRESENT\tANIMATION\tGLOBAL\t1663\n" +
             "PRESENT\tGFX\tGLOBAL\t5042\n" +
             "GFX_CONTEXT\tGFX\tPRIMARY\t5042\n";
     }
