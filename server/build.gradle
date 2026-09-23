@@ -801,6 +801,39 @@ tasks.register('dialogueOutcomeContentOwnershipRegression') {
     }
 }
 
+tasks.register('semanticActionContentOwnershipRegression') {
+    group = 'verification'
+    description = 'Validates semantic content action lifecycle and Make-over character-design authorization without exposing C2S101 payload/cache identities.'
+    dependsOn tasks.named('testClasses')
+
+    doLast {
+        [
+            'spk.local.ContentSemanticActionOwnershipTest',
+            'spk.local.ContentRegistrarAuthorityCoverageTest',
+            'spk.local.ContentHandlerSamCompatibilityTest',
+            'spk.local.ContentProvenanceAuthorityBoundaryTest',
+            'spk.local.ContentPublicApiBoundaryTest',
+            'spk.local.ContentRegistrationLifecycleTest',
+            'spk.local.ContentRegistrarSealTest',
+            'spk.local.PluginKernelLifecycleTest',
+            'spk.local.ContentDialogueOutcomeOwnershipTest',
+            'spk.local.MakeoverDesignRejectionIsolationTest',
+            'spk.local.MakeoverAppearancePersistenceTest',
+            'spk.local.MakeoverMageFlowTest'
+        ].each { mainClassName ->
+            project.javaexec {
+                workingDir repoRoot
+                classpath = sourceSets.test.runtimeClasspath
+                mainClass.set(mainClassName)
+            }
+        }
+
+        logger.lifecycle(
+            'SEMANTIC_ACTION_CONTENT_OWNERSHIP_REGRESSION_PASS registry=true pluginLifecycle=true designAuthorization=true rawDesignPayloadExposed=false denyNoMutation=true denyNoSave=true persistenceCompatibility=true'
+        )
+    }
+}
+
 tasks.named('check') {
     dependsOn tasks.named('verifyJava11Bytecode')
     dependsOn tasks.named('clientBuildRevision308Compatibility')
