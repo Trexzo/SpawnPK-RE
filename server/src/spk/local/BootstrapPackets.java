@@ -412,7 +412,14 @@ final class BootstrapPackets {
         b.write(255); // bf: no prayer/status icon
         b.write(0);   // bg: presentation channel intentionally zero; v5.6 collection-icon guess was incorrect
         b.write(0);   // bh: default overhead offset state
-        putU16(b, 0); // signed-short role aC; zero is safe in the parser
+        // Exact current-client role/rank field rs.a.k.aC. Variable staff-partyhat
+        // overhead icons resolve through this value; 0 means no appearance rank.
+        putU16(
+            b,
+            player==null
+                ?0
+                :player.appearanceRank()
+        );
 
         // A player with all 12 slots zero parses correctly but has no renderable
         // body parts.  The 317 appearance editor maps its seven identity-kit

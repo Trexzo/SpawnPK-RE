@@ -116,11 +116,21 @@ final class LocalPendingRequestDispatcher {
         this.equipmentItemActions=Objects.requireNonNull(
             equipmentItemActions,"equipmentItemActions");
         this.petDialogs=Objects.requireNonNull(petDialogs,"petDialogs");
+
+        LocalMakeoverMageHandler sharedMakeover=
+            routedNpcHandler==null
+                ?null
+                :routedNpcHandler.makeoverMage();
+
         this.makeoverMage=
-            new LocalMakeoverMageHandler(
-                worldPlayer,
-                equipment
-            );
+            sharedMakeover!=null
+                ?sharedMakeover
+                :new LocalMakeoverMageHandler(
+                    worldPlayer,
+                    equipment,
+                    movement,
+                    npcs
+                );
         this.compCapeCustomize=Objects.requireNonNull(
             compCapeCustomize,"compCapeCustomize");
         this.itemOnItemHandler=Objects.requireNonNull(
@@ -967,6 +977,11 @@ final class LocalPendingRequestDispatcher {
             npcs.scene(action.sceneIndex);
 
         NpcEntity pet=npcs.pet();
+
+        makeoverMage.cancelForNewNpcAction(
+            serverPackets,
+            tag
+        );
 
         if(petDropPickup.handlePickupNpcAction(
             action,

@@ -151,7 +151,13 @@ final class LocalSession implements Runnable {
             prayers,playerState,equipment,combatStyles,magic,bank);
         this.bankObjectHandler = new LocalBankObjectInteractionHandler(bank,movement);
         this.routedNpcHandler = new LocalRoutedNpcInteractionHandler(
-            npcs,bank,movement,world.content());
+            npcs,
+            bank,
+            movement,
+            world.content(),
+            worldPlayer,
+            equipment
+        );
         this.genericInteractionHandler =
             new LocalGenericInteractionHandler(
                 world.content()
@@ -491,6 +497,22 @@ final class LocalSession implements Runnable {
             new LocalMovementRequestHandler.SessionBridge(){
                 @Override public void clearDialogNumberKeys(){
                     LocalSession.this.dialogNumberKeys.clear();
+                }
+
+                @Override public void cancelActiveDialogue(
+                    ServerPacketWriter writer,
+                    String tag,
+                    String reason
+                )throws IOException{
+                    LocalMakeoverMageHandler handler=
+                        LocalSession.this.routedNpcHandler
+                            .makeoverMage();
+
+                    if(handler!=null)
+                        handler.cancelForManualMovement(
+                            writer,
+                            tag
+                        );
                 }
 
                 @Override public void clearOpponentOverlay(

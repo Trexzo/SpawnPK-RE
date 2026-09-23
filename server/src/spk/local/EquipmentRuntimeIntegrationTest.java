@@ -13,7 +13,8 @@ public final class EquipmentRuntimeIntegrationTest {
         try(ServerSocket ss=new ServerSocket(0,1,loop)){
             ExecutorService ex=Executors.newSingleThreadExecutor();
             Future<?> server=ex.submit(()->{try{new LocalSession(ss.accept(),true,true).run();}catch(IOException e){throw new RuntimeException(e);}});
-            try(Socket s=new Socket(loop,ss.getLocalPort())){
+            try {
+                try(Socket s=new Socket(loop,ss.getLocalPort())){
                 s.setSoTimeout(5000);InputStream in=s.getInputStream();OutputStream out=s.getOutputStream();
                 out.write(14);out.write(7);out.flush();byte[] pre=Binary.readExactly(in,9);if((pre[8]&255)!=0)throw new AssertionError();
                 long seed=Binary.i64(Binary.readExactly(in,8),0);int[] seeds={0x01020304,0x11223344,(int)(seed>>>32),(int)seed};
@@ -41,12 +42,38 @@ public final class EquipmentRuntimeIntegrationTest {
                 if(Binary.u16(normal,0)!=3214||back[0]!=28526||back[1]!=1)throw new AssertionError("Bloodrend return="+Arrays.toString(back));
                 EquipmentState eq=new EquipmentState();eq.setWeapon(4151);
                 byte[] appearance=expectEventuallyVarShort(in,s2c,81);
-                byte[] expected=BootstrapPackets.player81AppearanceOnly("local",eq.appearanceItems(),new PlayerState());
+
+                /*
+                 * LocalSessionPlayerInitializer aligns exact-current rs.a.k.aC
+                 * with LOCAL_DEV_RANK. The runtime packet oracle must reflect
+                 * the live LocalLab session rather than the old implicit aC=0.
+                 */
+                PlayerState expectedPlayer=new PlayerState();
+                expectedPlayer.setAppearanceRank(
+                    LocalLoginTransport.LOCAL_DEV_RANK
+                );
+                byte[] expected=BootstrapPackets.player81AppearanceOnly(
+                    "local",
+                    eq.appearanceItems(),
+                    expectedPlayer
+                );
                 if(!Arrays.equals(appearance,expected))throw new AssertionError("appearance swap mismatch");
 
                 sendVarByte(out,c2s,164,walkBody(3088,3495,false));expectEventually81(in,s2c,BootstrapPackets.player81WalkStep(4));
+                }
+                try{server.get(2,TimeUnit.SECONDS);}catch(Exception ignored){}
             }
-            try{server.get(2,TimeUnit.SECONDS);}catch(Exception ignored){}ex.shutdownNow();
+            finally {
+                ex.shutdownNow();
+                try{
+                    ex.awaitTermination(
+                        2,
+                        TimeUnit.SECONDS
+                    );
+                }catch(InterruptedException interrupted){
+                    Thread.currentThread().interrupt();
+                }
+            }
         }
         System.out.println("V521_EQUIPMENT_RUNTIME_PASS loginWeapon=28526 withdrawWhip4151 bankSlot5->inventorySlot0 closeBankRefresh3214=true opcode41Wield=true oldBloodrendReturnsSameSlot=true appearance81Weapon4151=true movementAfterEquip=true aligned=true");
     }

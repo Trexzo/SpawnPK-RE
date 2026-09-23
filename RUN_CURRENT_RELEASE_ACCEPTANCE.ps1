@@ -37,10 +37,11 @@ if (-not (Test-Path -LiteralPath $launcherContract -PathType Leaf)) {
     throw "Missing launcher contract regression: $launcherContract"
 }
 
-& $launcherContract -SkipJavaProbe
-
-if ($LASTEXITCODE -ne 0) {
-    throw "Launcher contract regression failed with exit code $LASTEXITCODE"
+try {
+    & $launcherContract -SkipJavaProbe
+}
+catch {
+    throw "Launcher contract regression failed: $($_.Exception.Message)"
 }
 
 Write-Host "CURRENT_RELEASE_LAUNCHER_CONTRACT_PASS" -ForegroundColor Green

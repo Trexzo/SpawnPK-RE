@@ -319,6 +319,17 @@ final class LocalWorldTickCoordinator {
                 tag+routedNpcTick
             );
 
+        String makeoverTick=
+            routedNpcHandler.tickMakeover(
+                now,
+                writer,
+                tag
+            );
+        if(makeoverTick!=null)
+            System.out.println(
+                tag+makeoverTick
+            );
+
         applyGroundItemResult(
             groundItemHandler.tick(
                 now,

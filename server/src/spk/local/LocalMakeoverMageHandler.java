@@ -11,11 +11,13 @@ import java.io.IOException;
  * - C2S40 / C2S101 schemas: exact current v308 client
  * - wording/normal branch: historical SpawnPK screenshot evidence
  *
- * This remains an additive LocalLab coordinator until dialogue-tree publication
- * is exposed through the language-neutral content API (#7 migration boundary).
+ * Interaction policy is LocalLab-owned: Talk-to is resolved against the exact
+ * clicked NPC identity, server-routed to adjacent range when necessary, and an
+ * active dialogue is invalidated when that source disappears or leaves range.
  */
 final class LocalMakeoverMageHandler {
     static final int NPC_ID=599;
+    static final long APPROACH_TIMEOUT_MS=10_000L;
 
     static final int INTRO_ROOT=4882;
     static final int INTRO_HEAD_WIDGET=4883;
@@ -35,11 +37,39 @@ final class LocalMakeoverMageHandler {
 
     private final WorldPlayer worldPlayer;
     private final EquipmentState equipment;
+    private final MovementState movement;
+    private final NpcRegistry npcs;
+    private final InteractionApproachResolver approach;
+
     private Stage stage=Stage.NONE;
+
+    private Integer pendingScene;
+    private NpcEntity pendingNpc;
+    private long pendingDeadlineMs;
+
+    private Integer activeScene;
+    private NpcEntity activeNpc;
 
     LocalMakeoverMageHandler(
         WorldPlayer worldPlayer,
         EquipmentState equipment
+    ){
+        this(
+            worldPlayer,
+            equipment,
+            java.util.Objects.requireNonNull(
+                worldPlayer,
+                "worldPlayer"
+            ).movement(),
+            null
+        );
+    }
+
+    LocalMakeoverMageHandler(
+        WorldPlayer worldPlayer,
+        EquipmentState equipment,
+        MovementState movement,
+        NpcRegistry npcs
     ){
         this.worldPlayer=java.util.Objects.requireNonNull(
             worldPlayer,
@@ -49,6 +79,15 @@ final class LocalMakeoverMageHandler {
             equipment,
             "equipment"
         );
+        this.movement=java.util.Objects.requireNonNull(
+            movement,
+            "movement"
+        );
+        this.npcs=npcs;
+        this.approach=
+            new InteractionApproachResolver(
+                this.movement
+            );
     }
 
     boolean beginIfSupported(
@@ -70,42 +109,215 @@ final class LocalMakeoverMageHandler {
            route.service!=NpcInteractionRouter.Service.TALK)
             return false;
 
-        packets.varShort(
-            126,
-            BootstrapPackets.widgetText126(
-                INTRO_NAME_WIDGET,
-                "Make-over Mage"
-            )
-        );
-        packets.varShort(
-            126,
-            BootstrapPackets.widgetText126(
-                INTRO_TEXT_WIDGET,
-                "How may I help you?"
-            )
-        );
-        packets.fixed(
-            75,
-            BootstrapPackets.interfaceNpcHead75(
-                NPC_ID,
-                INTRO_HEAD_WIDGET
-            )
-        );
-        packets.fixed(
-            164,
-            BootstrapPackets.chatboxInterface164(
-                INTRO_ROOT
-            )
-        );
+        if(approach.adjacent(
+                clicked.x,
+                clicked.y)){
+            clearPending(false);
+            openIntro(
+                clicked,
+                packets,
+                tag,
+                "ADJACENT_IMMEDIATE"
+            );
+            return true;
+        }
 
-        stage=Stage.INTRO;
+        InteractionApproachResolver.Result result=
+            approach.queueAdjacent(
+                clicked.x,
+                clicked.y
+            );
+
+        if(result.queued()){
+            pendingScene=clicked.sceneIndex;
+            pendingNpc=clicked;
+            pendingDeadlineMs=
+                System.currentTimeMillis()+
+                APPROACH_TIMEOUT_MS;
+
+            System.out.println(
+                tag+
+                "MAKEOVER_MAGE_DIALOG_DEFERRED npc="+
+                clicked.definitionId+
+                " scene="+clicked.sceneIndex+
+                " world="+clicked.x+","+clicked.y+
+                " distance="+distanceTo(clicked)+
+                " action=SERVER_APPROACH"+
+                " approach="+result
+            );
+            return true;
+        }
+
+        clearPending(false);
 
         System.out.println(
             tag+
-            "MAKEOVER_MAGE_DIALOG_OPEN npc=599"+
-            " root="+INTRO_ROOT+
-            " headWidget="+INTRO_HEAD_WIDGET+
-            " authority=EXACT_CURRENT_CLIENT_UI+HISTORICAL_SCREENSHOT"
+            "MAKEOVER_MAGE_DIALOG_REJECTED npc="+
+            clicked.definitionId+
+            " scene="+clicked.sceneIndex+
+            " distance="+distanceTo(clicked)+
+            " reason=SERVER_APPROACH_"+result.status+
+            " approach="+result
+        );
+
+        return true;
+    }
+
+    String tick(
+        long now,
+        ServerPacketWriter packets,
+        String tag
+    )throws IOException{
+        if(pendingScene!=null){
+            NpcEntity target=
+                exactTarget(
+                    pendingScene,
+                    pendingNpc
+                );
+
+            if(target==null||
+               now>pendingDeadlineMs){
+                int scene=pendingScene;
+                clearPending(true);
+                return "MAKEOVER_MAGE_DIALOG_CANCEL scene="+
+                    scene+
+                    " reason="+
+                    (target==null
+                        ?"PENDING_TARGET_LOST"
+                        :"PENDING_APPROACH_TIMEOUT");
+            }
+
+            if(approach.adjacent(
+                    target.x,
+                    target.y)){
+                movement.clearQueuedPath();
+                clearPending(false);
+                openIntro(
+                    target,
+                    packets,
+                    tag,
+                    "SERVER_ARRIVAL"
+                );
+                return null;
+            }
+
+            if(movement.queued()==0){
+                InteractionApproachResolver.Result reroute=
+                    approach.queueAdjacent(
+                        target.x,
+                        target.y
+                    );
+
+                if(reroute.queued()){
+                    return "MAKEOVER_MAGE_DIALOG_APPROACH_REROUTED scene="+
+                        target.sceneIndex+
+                        " world="+target.x+","+target.y+
+                        " approach="+reroute;
+                }
+
+                int scene=target.sceneIndex;
+                clearPending(false);
+                return "MAKEOVER_MAGE_DIALOG_CANCEL scene="+
+                    scene+
+                    " reason=PATH_ENDED_NOT_ADJACENT"+
+                    " approach="+reroute;
+            }
+        }
+
+        if(stage!=Stage.NONE){
+            NpcEntity target=
+                exactTarget(
+                    activeScene,
+                    activeNpc
+                );
+
+            if(target==null||
+               !approach.adjacent(
+                   target.x,
+                   target.y
+               )){
+                int scene=
+                    activeScene==null
+                        ?-1
+                        :activeScene.intValue();
+                int distance=
+                    target==null
+                        ?-1
+                        :distanceTo(target);
+
+                packets.fixed(
+                    219,
+                    new byte[0]
+                );
+                clearActive();
+
+                return "MAKEOVER_MAGE_DIALOG_CANCEL scene="+
+                    scene+
+                    " reason="+
+                    (target==null
+                        ?"ACTIVE_TARGET_LOST"
+                        :"ACTIVE_TARGET_OUT_OF_RANGE")+
+                    " distance="+distance;
+            }
+        }
+
+        return null;
+    }
+
+    boolean cancelForManualMovement(
+        ServerPacketWriter packets,
+        String tag
+    )throws IOException{
+        boolean pending=pendingScene!=null;
+        boolean visible=stage!=Stage.NONE;
+
+        if(!pending&&!visible)
+            return false;
+
+        if(visible){
+            packets.fixed(
+                219,
+                new byte[0]
+            );
+        }
+
+        clearPending(false);
+        clearActive();
+
+        System.out.println(
+            tag+
+            "MAKEOVER_MAGE_DIALOG_CANCEL reason=MANUAL_MOVEMENT"+
+            " pending="+pending+
+            " active="+visible
+        );
+        return true;
+    }
+
+    boolean cancelForNewNpcAction(
+        ServerPacketWriter packets,
+        String tag
+    )throws IOException{
+        boolean pending=pendingScene!=null;
+        boolean visible=stage!=Stage.NONE;
+
+        if(!pending&&!visible)
+            return false;
+
+        if(visible){
+            packets.fixed(
+                219,
+                new byte[0]
+            );
+        }
+
+        clearPending(pending);
+        clearActive();
+
+        System.out.println(
+            tag+
+            "MAKEOVER_MAGE_DIALOG_CANCEL reason=NEW_NPC_ACTION"+
+            " pending="+pending+
+            " active="+visible
         );
         return true;
     }
@@ -215,7 +427,7 @@ final class LocalMakeoverMageHandler {
                 219,
                 new byte[0]
             );
-            stage=Stage.NONE;
+            clearActive();
 
             System.out.println(
                 tag+
@@ -247,7 +459,7 @@ final class LocalMakeoverMageHandler {
                 219,
                 new byte[0]
             );
-            stage=Stage.NONE;
+            clearActive();
             return Result.handled(
                 null,
                 "MAKEOVER_MAGE_DESIGN_REJECTED reason=INVALID_EXACT_PROFILE request="+
@@ -270,7 +482,7 @@ final class LocalMakeoverMageHandler {
             219,
             new byte[0]
         );
-        stage=Stage.NONE;
+        clearActive();
 
         return Result.handled(
             "CHARACTER_DESIGN",
@@ -289,13 +501,123 @@ final class LocalMakeoverMageHandler {
     }
 
     boolean cancel(){
-        boolean active=stage!=Stage.NONE;
-        stage=Stage.NONE;
-        return active;
+        boolean hadAnything=
+            stage!=Stage.NONE||
+            pendingScene!=null;
+
+        clearPending(
+            pendingScene!=null
+        );
+        clearActive();
+        return hadAnything;
     }
 
     boolean active(){
         return stage!=Stage.NONE;
+    }
+
+    boolean pending(){
+        return pendingScene!=null;
+    }
+
+    private void openIntro(
+        NpcEntity clicked,
+        ServerPacketWriter packets,
+        String tag,
+        String reason
+    )throws IOException{
+        packets.varShort(
+            126,
+            BootstrapPackets.widgetText126(
+                INTRO_NAME_WIDGET,
+                "Make-over Mage"
+            )
+        );
+        packets.varShort(
+            126,
+            BootstrapPackets.widgetText126(
+                INTRO_TEXT_WIDGET,
+                "How may I help you?"
+            )
+        );
+        packets.fixed(
+            75,
+            BootstrapPackets.interfaceNpcHead75(
+                NPC_ID,
+                INTRO_HEAD_WIDGET
+            )
+        );
+        packets.fixed(
+            164,
+            BootstrapPackets.chatboxInterface164(
+                INTRO_ROOT
+            )
+        );
+
+        stage=Stage.INTRO;
+        activeScene=clicked.sceneIndex;
+        activeNpc=clicked;
+
+        System.out.println(
+            tag+
+            "MAKEOVER_MAGE_DIALOG_OPEN npc=599"+
+            " scene="+clicked.sceneIndex+
+            " root="+INTRO_ROOT+
+            " headWidget="+INTRO_HEAD_WIDGET+
+            " distance="+distanceTo(clicked)+
+            " action="+reason+
+            " authority=EXACT_CURRENT_CLIENT_UI+HISTORICAL_SCREENSHOT+LOCAL_LAB_INTERACTION_RANGE"
+        );
+    }
+
+    private NpcEntity exactTarget(
+        Integer scene,
+        NpcEntity expected
+    ){
+        if(scene==null||expected==null)
+            return null;
+
+        if(npcs==null)
+            return expected;
+
+        NpcEntity current=
+            npcs.scene(
+                scene.intValue()
+            );
+
+        return current==expected
+            ?current
+            :null;
+    }
+
+    private int distanceTo(
+        NpcEntity npc
+    ){
+        return Math.max(
+            Math.abs(
+                movement.x()-npc.x
+            ),
+            Math.abs(
+                movement.y()-npc.y
+            )
+        );
+    }
+
+    private void clearPending(
+        boolean clearRoute
+    ){
+        pendingScene=null;
+        pendingNpc=null;
+        pendingDeadlineMs=0L;
+
+        if(clearRoute)
+            movement.clearQueuedPath();
+    }
+
+    private void clearActive(){
+        stage=Stage.NONE;
+        activeScene=null;
+        activeNpc=null;
     }
 
     static final class Result {

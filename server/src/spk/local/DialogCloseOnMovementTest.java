@@ -8,9 +8,10 @@ public final class DialogCloseOnMovementTest {
     public static void main(String[] args)throws Exception{
         testMini();
         testColor();
+        testMakeover();
         System.out.println(
             "V5129_DIALOG_CLOSE_ON_MOVEMENT_PASS "+
-            "mini=true petColor=true closePacket219=true stateCleared=true"
+            "mini=true petColor=true makeover=true closePacket219=true stateCleared=true"
         );
     }
 
@@ -77,6 +78,82 @@ public final class DialogCloseOnMovementTest {
         if(out.size()==0)
             throw new AssertionError(
                 "color emitted no close packet"
+            );
+    }
+
+    static void testMakeover()throws Exception{
+        LocalSession session=session();
+
+        MovementState movement=
+            (MovementState)getField(
+                session,
+                "movement"
+            );
+        NpcRegistry npcs=
+            (NpcRegistry)getField(
+                session,
+                "npcs"
+            );
+        LocalRoutedNpcInteractionHandler routed=
+            (LocalRoutedNpcInteractionHandler)getField(
+                session,
+                "routedNpcHandler"
+            );
+
+        LocalMakeoverMageHandler makeover=
+            routed.makeoverMage();
+
+        if(makeover==null)
+            throw new AssertionError(
+                "runtime makeover handler missing"
+            );
+
+        ByteArrayOutputStream setupOut=
+            new ByteArrayOutputStream();
+        ServerPacketWriter setupWriter=
+            new ServerPacketWriter(
+                setupOut,
+                new IsaacCipher(
+                    new int[]{5,6,7,8}
+                )
+            );
+
+        NpcEntity mage=
+            npcs.spawnMirroredNpc(
+                LocalMakeoverMageHandler.NPC_ID,
+                movement.x()+1,
+                movement.y(),
+                null,
+                movement,
+                setupWriter
+            );
+
+        if(!makeover.beginIfSupported(
+                new NpcAction(
+                    155,
+                    mage.sceneIndex
+                ),
+                mage,
+                setupWriter,
+                "[test] "
+            )||
+           !makeover.active())
+            throw new AssertionError(
+                "makeover did not open adjacent"
+            );
+
+        ByteArrayOutputStream movementOut=
+            move(session);
+
+        if(makeover.active()||
+           makeover.pending())
+            throw new AssertionError(
+                "makeover not cleared by manual movement"
+            );
+
+        if(movementOut.size()==0)
+            throw new AssertionError(
+                "makeover movement emitted no close packet"
             );
     }
 
@@ -196,6 +273,16 @@ public final class DialogCloseOnMovementTest {
             target.getClass().getDeclaredField(name);
         field.setAccessible(true);
         field.set(target,value);
+    }
+
+    static Object getField(
+        Object target,
+        String name
+    )throws Exception{
+        Field field=
+            target.getClass().getDeclaredField(name);
+        field.setAccessible(true);
+        return field.get(target);
     }
 
     static Object get(

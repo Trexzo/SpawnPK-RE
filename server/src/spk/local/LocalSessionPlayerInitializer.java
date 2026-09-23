@@ -108,6 +108,16 @@ final class LocalSessionPlayerInitializer {
 
         playerState.syncEquipmentPresentation(equipment);
 
+        /*
+         * LocalLoginTransport publishes LOCAL_DEV_RANK to Client.cT. The exact
+         * v308 player appearance parser exposes the parallel rs.a.k.aC rank
+         * channel used by staff-partyhat overhead rendering. Keep the localhost
+         * session coherent without persisting this development privilege.
+         */
+        playerState.setAppearanceRank(
+            LocalLoginTransport.LOCAL_DEV_RANK
+        );
+
         if(petState.active()){
             PetDefinitionRepository.Def persistedDef=
                 PetDefinitionRepository.get(

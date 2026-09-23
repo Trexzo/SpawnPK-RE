@@ -76,6 +76,7 @@ public final class MakeoverDesignRejectionIsolationTest {
             );
 
         openDesigner(
+            player,
             handler,
             packets
         );
@@ -150,6 +151,7 @@ public final class MakeoverDesignRejectionIsolationTest {
 
         // Fresh normal interaction must still succeed after the rejection path.
         openDesigner(
+            player,
             handler,
             packets
         );
@@ -193,15 +195,21 @@ public final class MakeoverDesignRejectionIsolationTest {
     }
 
     private static void openDesigner(
+        WorldPlayer player,
         LocalMakeoverMageHandler handler,
         ServerPacketWriter packets
     )throws Exception{
+        /*
+         * This regression tests C2S101 rejection/isolation, not approach routing.
+         * Keep its synthetic NPC already adjacent so the designer opens
+         * synchronously under the runtime's real NPC-range contract.
+         */
         NpcEntity mage=
             new NpcEntity(
                 30,
                 LocalMakeoverMageHandler.NPC_ID,
-                3082,
-                3506
+                player.movement().x()+1,
+                player.movement().y()
             );
 
         NpcAction talk=

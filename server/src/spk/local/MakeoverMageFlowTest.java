@@ -29,8 +29,8 @@ public final class MakeoverMageFlowTest {
             new NpcEntity(
                 30,
                 LocalMakeoverMageHandler.NPC_ID,
-                3082,
-                3506
+                player.movement().x()+1,
+                player.movement().y()
             );
 
         NpcAction talk=

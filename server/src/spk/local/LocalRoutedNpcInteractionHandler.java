@@ -17,6 +17,7 @@ final class LocalRoutedNpcInteractionHandler {
     private final MovementState movement;
     private final InteractionApproachResolver approach;
     private final ContentRegistry contentRegistry;
+    private final LocalMakeoverMageHandler makeoverMage;
 
     private Integer pendingBankScene;
     private NpcEntity pendingBankNpc;
@@ -31,6 +32,8 @@ final class LocalRoutedNpcInteractionHandler {
             npcs,
             bank,
             movement,
+            null,
+            null,
             null
         );
     }
@@ -41,11 +44,62 @@ final class LocalRoutedNpcInteractionHandler {
         MovementState movement,
         ContentRegistry contentRegistry
     ){
+        this(
+            npcs,
+            bank,
+            movement,
+            contentRegistry,
+            null,
+            null
+        );
+    }
+
+    LocalRoutedNpcInteractionHandler(
+        NpcRegistry npcs,
+        BankState bank,
+        MovementState movement,
+        ContentRegistry contentRegistry,
+        WorldPlayer worldPlayer,
+        EquipmentState equipment
+    ){
         this.npcs=java.util.Objects.requireNonNull(npcs,"npcs");
         this.bank=java.util.Objects.requireNonNull(bank,"bank");
         this.movement=java.util.Objects.requireNonNull(movement,"movement");
         this.approach=new InteractionApproachResolver(this.movement);
         this.contentRegistry=contentRegistry;
+
+        if((worldPlayer==null)!=(equipment==null))
+            throw new IllegalArgumentException(
+                "worldPlayer/equipment must be supplied together"
+            );
+
+        this.makeoverMage=
+            worldPlayer==null
+                ?null
+                :new LocalMakeoverMageHandler(
+                    worldPlayer,
+                    equipment,
+                    movement,
+                    npcs
+                );
+    }
+
+    LocalMakeoverMageHandler makeoverMage(){
+        return makeoverMage;
+    }
+
+    String tickMakeover(
+        long now,
+        ServerPacketWriter serverPackets,
+        String tag
+    )throws IOException{
+        return makeoverMage==null
+            ?null
+            :makeoverMage.tick(
+                now,
+                serverPackets,
+                tag
+            );
     }
 
     String handle(

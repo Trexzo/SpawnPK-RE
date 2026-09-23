@@ -109,6 +109,38 @@ final class LocalDevPlayerCommandHandler {
             }
         }
 
+        if(sub.equals("rank")||
+           sub.equals("appearance-rank")||
+           sub.equals("arank")){
+            String raw=p.length>=3?p[2]:"";
+            int rank;
+
+            if(raw.equalsIgnoreCase("clear")||
+               raw.equalsIgnoreCase("none")){
+                rank=0;
+            }else{
+                rank=parseInt(raw,-1);
+            }
+
+            if(rank<0||rank>=386){
+                return one(
+                    "V5186_DEV_PLAYER_RANK result=REJECTED expected=0..385_or_clear");
+            }
+
+            playerState.setAppearanceRank(rank);
+            playerPresentation.refresh(
+                username,
+                equipment,
+                playerState,
+                serverPackets
+            );
+
+            return one(
+                "V5186_DEV_PLAYER_RANK rank="+rank+
+                " persisted=false"+
+                " authority=EXACT_CURRENT_CLIENT_AC_CHANNEL+LOCAL_LAB_DEV_POLICY");
+        }
+
         if(sub.equals("morph")||sub.equals("npc")){
             int npc=p.length>=3?parseInt(p[2],-1):-1;
             if(npc<0||npc>16383){
@@ -146,11 +178,13 @@ final class LocalDevPlayerCommandHandler {
 
         if(sub.equals("info")){
             return one(
-                "V592_"+playerPresentation.info());
+                "V592_"+playerPresentation.info()+
+                " appearanceRank="+
+                playerState.appearanceRank());
         }
 
         return one(
-            "V592_DEV_PLAYER_HELP commands=info | morph <npcId> | clear | anim <id> | gfx <id> [height] [delay] | animfx <anim> <gfx> [height] [delay] nurseIsolation='anim 10184' vs 'gfx 1310' vs 'animfx 10184 1310'");
+            "V592_DEV_PLAYER_HELP commands=info | rank <0..385|clear> | morph <npcId> | clear | anim <id> | gfx <id> [height] [delay] | animfx <anim> <gfx> [height] [delay] nurseIsolation='anim 10184' vs 'gfx 1310' vs 'animfx 10184 1310'");
     }
 
     private static List<String> one(String line){

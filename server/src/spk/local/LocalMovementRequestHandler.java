@@ -13,6 +13,13 @@ import java.util.Objects;
 final class LocalMovementRequestHandler {
     interface SessionBridge {
         void clearDialogNumberKeys();
+
+        default void cancelActiveDialogue(
+            ServerPacketWriter serverPackets,
+            String tag,
+            String reason
+        )throws IOException{}
+
         void clearOpponentOverlay(
             ServerPacketWriter serverPackets,
             String tag,
@@ -209,8 +216,21 @@ final class LocalMovementRequestHandler {
                 npcs.needsFollow(movement)
             );
 
+        int authorityStartX=movement.x();
+        int authorityStartY=movement.y();
+
         String result=movement.accept(req);
         String petRouteReset="NONE";
+
+        if(result.startsWith("ACCEPTED")&&
+           (req.finalX()!=authorityStartX||
+            req.finalY()!=authorityStartY)){
+            bridge.cancelActiveDialogue(
+                serverPackets,
+                tag,
+                "MANUAL_MOVEMENT"
+            );
+        }
 
         if(result.startsWith("ACCEPTED")&&
            replacingLiveRoute){
