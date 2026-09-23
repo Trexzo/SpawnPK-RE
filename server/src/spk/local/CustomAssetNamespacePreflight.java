@@ -48,7 +48,7 @@ final class CustomAssetNamespacePreflight {
         }
     }
 
-    private static final class IdKey {
+    static final class IdKey {
         final CustomAssetNamespaceSnapshot.Namespace namespace;
         final CustomAssetNamespaceSnapshot.Context context;
         final int id;
@@ -118,7 +118,7 @@ final class CustomAssetNamespacePreflight {
             );
 
             if (asset.textureMode != CustomAssetAuthoringRepository.TextureMode.NONE) {
-                claim(
+                claimShared(
                     snapshot, claims,
                     CustomAssetNamespaceSnapshot.Namespace.TEXTURE,
                     CustomAssetNamespaceSnapshot.Context.GLOBAL,
@@ -332,7 +332,7 @@ final class CustomAssetNamespacePreflight {
             throw new IllegalStateException(message);
     }
 
-    private static void claim(
+    static void claim(
         CustomAssetNamespaceSnapshot snapshot,
         Set<IdKey> claims,
         CustomAssetNamespaceSnapshot.Namespace namespace,
@@ -340,15 +340,38 @@ final class CustomAssetNamespacePreflight {
         int id,
         String label
     ) {
+        recordClaim(snapshot, claims, namespace, context, id, label, false);
+    }
+
+    static void claimShared(
+        CustomAssetNamespaceSnapshot snapshot,
+        Set<IdKey> claims,
+        CustomAssetNamespaceSnapshot.Namespace namespace,
+        CustomAssetNamespaceSnapshot.Context context,
+        int id,
+        String label
+    ) {
+        recordClaim(snapshot, claims, namespace, context, id, label, true);
+    }
+
+    private static void recordClaim(
+        CustomAssetNamespaceSnapshot snapshot,
+        Set<IdKey> claims,
+        CustomAssetNamespaceSnapshot.Namespace namespace,
+        CustomAssetNamespaceSnapshot.Context context,
+        int id,
+        String label,
+        boolean allowShared
+    ) {
         requireInCapacity(snapshot, namespace, context, id, label);
         IdKey key = new IdKey(namespace, context, id);
-        if (!claims.add(key))
-            throw new IllegalStateException(
-                "duplicate custom namespace claim " + key + " at " + label
-            );
         if (snapshot.contains(namespace, context, id))
             throw new IllegalStateException(
                 "CUSTOM_ASSET_NAMESPACE_COLLISION " + key + " at " + label
+            );
+        if (!claims.add(key) && !allowShared)
+            throw new IllegalStateException(
+                "duplicate custom namespace claim " + key + " at " + label
             );
     }
 
