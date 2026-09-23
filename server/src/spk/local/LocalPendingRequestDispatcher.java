@@ -544,6 +544,20 @@ final class LocalPendingRequestDispatcher {
             }
 
             if(request instanceof
+                    LoadoutEditorSaveClientRequest){
+                LoadoutEditorSaveClientRequest loadout=
+                    (LoadoutEditorSaveClientRequest)request;
+
+                System.out.println(
+                    tag+
+                    loadoutEditorSaveFailClosedDiagnostic(
+                        loadout
+                    )
+                );
+                continue;
+            }
+
+            if(request instanceof
                     DailyChallengeClientRequest){
                 DailyChallengeClientRequest dailyChallenge=
                     (DailyChallengeClientRequest)request;
@@ -580,6 +594,27 @@ final class LocalPendingRequestDispatcher {
                 request
             );
         }
+    }
+
+    static String loadoutEditorSaveFailClosedDiagnostic(
+        LoadoutEditorSaveClientRequest request
+    ){
+        Objects.requireNonNull(
+            request,
+            "request"
+        );
+
+        return "LOADOUT_EDITOR_SAVE_FAIL_CLOSED inventoryEntries="+
+            request.inventory().size()+
+            " equipmentEntries="+
+            request.equipment().size()+
+            " packetSeq="+
+            request.inventoryPacketSequence()+
+            "->"+
+            request.equipmentPacketSequence()+
+            " reason=LOADOUT_EDITOR_TARGET_ADAPTER_UNPROVEN"+
+            " stateMutation=false"+
+            " authority=EXACT_CURRENT_CLIENT";
     }
 
     static String dailyChallengeFailClosedDiagnostic(
