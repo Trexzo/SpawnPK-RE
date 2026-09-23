@@ -140,59 +140,12 @@ final class CustomAssetNamespacePreflight {
                 );
             }
 
-            if (asset.animationMode ==
-                CustomAssetAuthoringRepository.AnimationMode.NONE) {
-                // Static exact-v308 presentation: do not invent an animation binding.
-            } else if (asset.animationMode ==
-                CustomAssetAuthoringRepository.AnimationMode.REUSE_EXISTING) {
-                reference(
-                    snapshot, references,
-                    CustomAssetNamespaceSnapshot.Namespace.ANIMATION,
-                    CustomAssetNamespaceSnapshot.Context.GLOBAL,
-                    asset.standAnim,
-                    asset.contentKey + ":standAnim"
-                );
-                reference(
-                    snapshot, references,
-                    CustomAssetNamespaceSnapshot.Namespace.ANIMATION,
-                    CustomAssetNamespaceSnapshot.Context.GLOBAL,
-                    asset.walkAnim,
-                    asset.contentKey + ":walkAnim"
-                );
-            } else {
-                claim(
-                    snapshot, claims,
-                    CustomAssetNamespaceSnapshot.Namespace.FRAME_GROUP,
-                    CustomAssetNamespaceSnapshot.Context.GLOBAL,
-                    asset.frameGroupId,
-                    asset.contentKey + ":frameGroup"
-                );
-                claim(
-                    snapshot, claims,
-                    CustomAssetNamespaceSnapshot.Namespace.ANIMATION,
-                    CustomAssetNamespaceSnapshot.Context.GLOBAL,
-                    asset.sequenceId,
-                    asset.contentKey + ":sequence"
-                );
-                if (asset.standAnim >= 0) {
-                    reference(
-                        snapshot, references,
-                        CustomAssetNamespaceSnapshot.Namespace.ANIMATION,
-                        CustomAssetNamespaceSnapshot.Context.GLOBAL,
-                        asset.standAnim,
-                        asset.contentKey + ":standAnim"
-                    );
-                }
-                if (asset.walkAnim >= 0) {
-                    reference(
-                        snapshot, references,
-                        CustomAssetNamespaceSnapshot.Namespace.ANIMATION,
-                        CustomAssetNamespaceSnapshot.Context.GLOBAL,
-                        asset.walkAnim,
-                        asset.contentKey + ":walkAnim"
-                    );
-                }
-            }
+            recordAnimationClaimsAndReferences(
+                snapshot,
+                claims,
+                references,
+                asset
+            );
 
             if (asset.gfxMode ==
                 CustomAssetAuthoringRepository.GfxMode.REFERENCE_EXISTING) {
@@ -250,6 +203,71 @@ final class CustomAssetNamespacePreflight {
             CustomDefinitionOverlayRepository.fingerprintSha256(),
             planSha
         );
+    }
+
+    static void recordAnimationClaimsAndReferences(
+        CustomAssetNamespaceSnapshot snapshot,
+        Set<IdKey> claims,
+        Set<IdKey> references,
+        CustomAssetAuthoringRepository.Asset asset
+    ) {
+        if (asset.animationMode ==
+            CustomAssetAuthoringRepository.AnimationMode.NONE) {
+            return;
+        }
+
+        if (asset.animationMode ==
+            CustomAssetAuthoringRepository.AnimationMode.REUSE_EXISTING) {
+            reference(
+                snapshot, references,
+                CustomAssetNamespaceSnapshot.Namespace.ANIMATION,
+                CustomAssetNamespaceSnapshot.Context.GLOBAL,
+                asset.standAnim,
+                asset.contentKey + ":standAnim"
+            );
+            reference(
+                snapshot, references,
+                CustomAssetNamespaceSnapshot.Namespace.ANIMATION,
+                CustomAssetNamespaceSnapshot.Context.GLOBAL,
+                asset.walkAnim,
+                asset.contentKey + ":walkAnim"
+            );
+            return;
+        }
+
+        claim(
+            snapshot, claims,
+            CustomAssetNamespaceSnapshot.Namespace.FRAME_GROUP,
+            CustomAssetNamespaceSnapshot.Context.GLOBAL,
+            asset.frameGroupId,
+            asset.contentKey + ":frameGroup"
+        );
+        claim(
+            snapshot, claims,
+            CustomAssetNamespaceSnapshot.Namespace.ANIMATION,
+            CustomAssetNamespaceSnapshot.Context.GLOBAL,
+            asset.sequenceId,
+            asset.contentKey + ":sequence"
+        );
+
+        if (asset.standAnim >= 0 && asset.standAnim != asset.sequenceId) {
+            reference(
+                snapshot, references,
+                CustomAssetNamespaceSnapshot.Namespace.ANIMATION,
+                CustomAssetNamespaceSnapshot.Context.GLOBAL,
+                asset.standAnim,
+                asset.contentKey + ":standAnim"
+            );
+        }
+        if (asset.walkAnim >= 0 && asset.walkAnim != asset.sequenceId) {
+            reference(
+                snapshot, references,
+                CustomAssetNamespaceSnapshot.Namespace.ANIMATION,
+                CustomAssetNamespaceSnapshot.Context.GLOBAL,
+                asset.walkAnim,
+                asset.contentKey + ":walkAnim"
+            );
+        }
     }
 
     static void referenceDefinitionCloneSources(
