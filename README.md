@@ -19,19 +19,21 @@ The certified foundation is:
 - inherited regression contract: **179/179**
 - Java bytecode target: **Java 11 / class major 55**
 
-The historical certified regression fixture remains:
+The historical certified regression fixture remains preserved as provenance:
 
 - client build/config: **307**
 - SHA-256: `6232bae206846a4ba8d09766a2dee886b69016066a3f50f83b201bf705f93662`
 
-Current exact-client research also covers:
+The canonical exact-client runtime/regression fixture is now:
 
 - client build/config: **308**
 - SHA-256: `854f26ff9f134b0317572e7ac1688e6f40a231d5a4c66f8db5d655b7f45ce7c6`
 
 Static comparison of the supplied v307 and v308 JARs found the same 10,970 entries with one changed class and an embedded `307 -> 308` build/config constant change.
 
-**v308 is current exact-client research authority, but it is not yet promoted as the canonical runtime regression fixture until the real v308 artifact passes the inherited 179/179 acceptance gate.**
+**The real v308 artifact completed the inherited 179/179 acceptance gate and the post-promotion canonical revalidation on 22 September 2026. v307 remains historical certification provenance; v308 is the canonical current client pin.**
+
+Acceptance evidence is recorded in `evidence/V308_ACCEPTANCE_2026-09-22.md`.
 
 See:
 
