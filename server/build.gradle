@@ -858,6 +858,60 @@ tasks.register('customAssetPipelineHardeningRegression', JavaExec) {
     mainClass.set('spk.local.CustomAssetPipelineHardeningTest')
 }
 
+tasks.register('bossTeleportPresentationRegression') {
+    group = 'verification'
+    description = 'Validates exact-v308 Boss Teleport rows/actions and 12-slot preview projection without owning destination or drop policy.'
+    dependsOn tasks.named('testClasses')
+
+    doLast {
+        project.javaexec {
+            workingDir repoRoot
+            classpath = sourceSets.test.runtimeClasspath
+            mainClass.set('spk.local.BossTeleportPresentationTest')
+        }
+
+        logger.lifecycle(
+            'BOSS_TELEPORT_PRESENTATION_REGRESSION_PASS rows=13 dropPreview12=true policyOwned=false'
+        )
+    }
+}
+
+tasks.register('goodwillWellPresentationRegression') {
+    group = 'verification'
+    description = 'Validates exact-v308 Goodwill Well root/action/text channels without owning contribution, goal or reward policy.'
+    dependsOn tasks.named('testClasses')
+
+    doLast {
+        project.javaexec {
+            workingDir repoRoot
+            classpath = sourceSets.test.runtimeClasspath
+            mainClass.set('spk.local.GoodwillWellPresentationTest')
+        }
+
+        logger.lifecycle(
+            'GOODWILL_WELL_PRESENTATION_REGRESSION_PASS donate=true textChannels=true policyOwned=false'
+        )
+    }
+}
+
+tasks.register('eventChestPresentationRegression') {
+    group = 'verification'
+    description = 'Validates exact-v308 Event Chest actions and container capacities without owning roll, token or reward policy.'
+    dependsOn tasks.named('testClasses')
+
+    doLast {
+        project.javaexec {
+            workingDir repoRoot
+            classpath = sourceSets.test.runtimeClasspath
+            mainClass.set('spk.local.EventChestPresentationTest')
+        }
+
+        logger.lifecycle(
+            'EVENT_CHEST_PRESENTATION_REGRESSION_PASS actions=3 mainGrid175=true smallGrids3x4=true policyOwned=false'
+        )
+    }
+}
+
 tasks.named('check') {
     dependsOn tasks.named('customAssetPipelineRegression')
     dependsOn tasks.named('customAssetPipelineHardeningRegression')
