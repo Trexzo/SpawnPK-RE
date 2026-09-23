@@ -228,7 +228,7 @@ public final class MakeoverDesignRejectionIsolationTest {
             );
 
         if(!handler.handleContinue(
-                LocalMakeoverMageHandler.INTRO_CONTINUE_WIDGET,
+                StandardDialoguePresentationAdapter.namedNpcContinueWidget(1),
                 packets,
                 "[makeover-reject-test] "))
             throw new AssertionError(
@@ -236,7 +236,7 @@ public final class MakeoverDesignRejectionIsolationTest {
             );
 
         if(!handler.handleWidget(
-                LocalMakeoverMageHandler.CHANGE_LOOK_WIDGET,
+                StandardDialoguePresentationAdapter.twoOptionWidget(1),
                 packets,
                 "[makeover-reject-test] "))
             throw new AssertionError(
