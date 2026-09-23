@@ -109,15 +109,11 @@ final class LocalSessionPlayerInitializer {
         playerState.syncEquipmentPresentation(equipment);
 
         /*
-         * LocalLoginTransport publishes LOCAL_DEV_RANK to Client.cT. The exact
-         * v308 player appearance parser exposes the parallel rs.a.k.aC rank
-         * channel used by staff-partyhat overhead rendering. Keep the localhost
-         * session coherent without persisting this development privilege.
+         * Keep login privilege (Client.cT) separate from per-player appearance
+         * role (rs.a.k.aC). Exact v308 proves these are distinct channels, and
+         * the original SpawnPK named-rank -> aC table is still unknown server
+         * authority. Do not infer aC from LOCAL_DEV_RANK here.
          */
-        playerState.setAppearanceRank(
-            LocalLoginTransport.LOCAL_DEV_RANK
-        );
-
         if(petState.active()){
             PetDefinitionRepository.Def persistedDef=
                 PetDefinitionRepository.get(
