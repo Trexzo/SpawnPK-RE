@@ -527,6 +527,24 @@ tasks.register('clientBuildRevision308Compatibility', JavaExec) {
     mainClass.set('spk.local.ClientBuildRevision308CompatibilityTest')
 }
 
+tasks.register('eventChestPresentationRegression') {
+    group = 'verification'
+    description = 'Validates exact-v308 Event Chest actions and container capacities without owning roll, token or reward policy.'
+    dependsOn tasks.named('testClasses')
+
+    doLast {
+        project.javaexec {
+            workingDir repoRoot
+            classpath = sourceSets.test.runtimeClasspath
+            mainClass.set('spk.local.EventChestPresentationTest')
+        }
+
+        logger.lifecycle(
+            'EVENT_CHEST_PRESENTATION_REGRESSION_PASS actions=3 mainGrid175=true smallGrids3x4=true policyOwned=false'
+        )
+    }
+}
+
 tasks.named('check') {
     dependsOn tasks.named('verifyJava11Bytecode')
     dependsOn tasks.named('clientBuildRevision308Compatibility')
