@@ -172,8 +172,14 @@ final class CustomAssetAuthoringRepository {
                     );
             }
 
-            if (npcSize <= 0)
-                throw new IllegalArgumentException("npcSize must be positive");
+            if (kind == Kind.PET) {
+                if (npcSize <= 0)
+                    throw new IllegalArgumentException("PET npcSize must be positive");
+            } else if (npcSize != -1) {
+                throw new IllegalArgumentException(
+                    "non-pet asset must use npcSize=-1 sentinel: " + npcSize
+                );
+            }
             if (kind == Kind.EQUIPMENT && equipmentSlot == null)
                 throw new IllegalArgumentException("EQUIPMENT requires equipmentSlot");
             if (equipmentSlot == null && (twoHanded || coverage != EquipmentCoverage.NONE))
