@@ -28,6 +28,14 @@ final class World implements AutoCloseable {
     private final LinkedHashMap<EntityId,WorldTickTarget> tickTargets=new LinkedHashMap<>();
     private final WorldPulse pulse;
     private final WorldPlayerPersistence persistence;
+    private final PlayerPrivilegeService playerPrivileges=
+        new PlayerPrivilegeService(
+            AtomicTransactionService.SourceAuthority.CUSTOM_LOCALLAB
+        );
+    private final PlayerAppearanceRoleProjection appearanceRoles=
+        new PlayerAppearanceRoleProjection(
+            AtomicTransactionService.SourceAuthority.CUSTOM_LOCALLAB
+        );
     private final ContentRegistry content;
     private final WorldPluginManager plugins;
     private final Object loginInitializationLock=new Object();
@@ -134,6 +142,22 @@ final class World implements AutoCloseable {
     DomainEventBus domainEvents(){return domainEvents;}
     WorldPulse pulse(){return pulse;}
     WorldPlayerPersistence persistence(){return persistence;}
+    PlayerPrivilegeService playerPrivileges(){return playerPrivileges;}
+    PlayerAppearanceRoleProjection appearanceRoles(){return appearanceRoles;}
+    int appearanceRoleFor(String playerRef){
+        return appearanceRoles.project(
+            playerPrivileges.snapshot(playerRef)
+        );
+    }
+    int appearanceRoleFor(
+        String playerRef,
+        PlayerState playerState
+    ){
+        if(playerState!=null&&
+           playerState.hasAppearanceRankOverride())
+            return playerState.appearanceRank();
+        return appearanceRoleFor(playerRef);
+    }
 
     void scheduleRealtime(
         long atMillis,

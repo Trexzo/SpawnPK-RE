@@ -26,9 +26,16 @@ public final class AppearanceRankChannelTest {
                 readU16(plain,5)
             );
 
-        player.setAppearanceRank(
-            LocalLoginTransport.LOCAL_DEV_RANK
-        );
+        if(LocalLoginTransport.LOCAL_DEV_RANK==0)
+            throw new AssertionError(
+                "login privilege fixture unexpectedly zero"
+            );
+        if(player.appearanceRank()==LocalLoginTransport.LOCAL_DEV_RANK)
+            throw new AssertionError(
+                "login privilege leaked into appearance rank"
+            );
+
+        player.setAppearanceRank(45);
 
         byte[] ranked=
             BootstrapPackets.appearanceBlock(
@@ -37,12 +44,57 @@ public final class AppearanceRankChannelTest {
                 player
             );
 
-        if(readU16(ranked,5)!=
-                LocalLoginTransport.LOCAL_DEV_RANK)
+        if(readU16(ranked,5)!=45)
             throw new AssertionError(
                 "ranked aC wire="+
                 readU16(ranked,5)
             );
+
+        int[] wornHead=new int[12];
+        java.util.Arrays.fill(wornHead,-1);
+        wornHead[EquipmentSlot.HEAD.appearanceIndex]=22131;
+        AppearanceProjection wornProjection=
+            readAppearanceProjection(
+                BootstrapPackets.appearanceBlock(
+                    "ranktest",
+                    wornHead,
+                    player
+                )
+            );
+        if(wornProjection.head!=512+22131)
+            throw new AssertionError(
+                "worn staff partyhat did not occupy br[0]: "+
+                wornProjection.head
+            );
+        if(wornProjection.extraItem!=-1)
+            throw new AssertionError(
+                "worn staff partyhat leaked into bs: "+
+                wornProjection.extraItem
+            );
+
+        EquipmentState emptyEquipment=new EquipmentState();
+        player.cosmetic().set(22131);
+        player.syncEquipmentPresentation(emptyEquipment);
+        AppearanceProjection overrideProjection=
+            readAppearanceProjection(
+                BootstrapPackets.appearanceBlock(
+                    "ranktest",
+                    emptyEquipment.appearanceItems(),
+                    player
+                )
+            );
+        if(overrideProjection.head!=0)
+            throw new AssertionError(
+                "cosmetic Override falsely occupied br[0]: "+
+                overrideProjection.head
+            );
+        if(overrideProjection.extraItem!=22131)
+            throw new AssertionError(
+                "cosmetic Override did not use bs: "+
+                overrideProjection.extraItem
+            );
+        player.cosmetic().clear();
+        player.syncEquipmentPresentation(emptyEquipment);
 
         EquipmentState equipment=
             new EquipmentState();
@@ -114,23 +166,112 @@ public final class AppearanceRankChannelTest {
                 player.appearanceRank()
             );
 
-        boolean rejected=false;
-        try{
-            player.setAppearanceRank(386);
-        }catch(IllegalArgumentException expected){
-            rejected=true;
-        }
-
-        if(!rejected)
+        player.setAppearanceRank(-1);
+        byte[] negative=
+            BootstrapPackets.appearanceBlock(
+                "ranktest",
+                null,
+                player
+            );
+        if(readS16(negative,5)!=-1)
             throw new AssertionError(
-                "out-of-range rank accepted"
+                "signed-short aC wire="+
+                readS16(negative,5)
+            );
+        player.setAppearanceRank(0);
+
+        assertStateRankRejected(
+            player,
+            Short.MAX_VALUE+1
+        );
+        assertStateRankRejected(
+            player,
+            Short.MIN_VALUE-1
+        );
+
+        List<String> invalid=
+            commands.handle(
+                new String[]{
+                    "devplayer",
+                    "rank",
+                    "not-a-number"
+                },
+                "ranktest",
+                packets
+            );
+        if(invalid==null||
+           invalid.isEmpty()||
+           !invalid.get(0).contains(
+               "result=REJECTED"
+           ))
+            throw new AssertionError(
+                "invalid rank text accepted="+
+                invalid
             );
 
         System.out.println(
             "APPEARANCE_RANK_CHANNEL_PASS "+
-            "aC=true localDev205=true "+
-            "devOverride38=true clear0=true persisted=false"
+            "aC=true loginPrivilegeSeparate=true explicit45=true "+
+            "signedShort=true wornHeadVsOverrideBs=true "+
+            "devOverride38=true clear0=true invalidTextRejected=true persisted=false"
         );
+    }
+
+    private static final class AppearanceProjection{
+        final int head;
+        final int extraItem;
+
+        AppearanceProjection(int head,int extraItem){
+            this.head=head;
+            this.extraItem=extraItem;
+        }
+    }
+
+    private static AppearanceProjection readAppearanceProjection(
+        byte[] data
+    ){
+        int offset=7; // five state bytes + signed-short aC
+        int head=0;
+        for(int slot=0;slot<12;slot++){
+            int high=data[offset++]&255;
+            int value=0;
+            if(high!=0){
+                value=(high<<8)|(data[offset++]&255);
+            }
+            if(slot==EquipmentSlot.HEAD.appearanceIndex)
+                head=value;
+        }
+
+        int extraFlag=data[offset++]&255;
+        int extraItem=-1;
+        if(extraFlag!=0){
+            extraItem=readU16(data,offset);
+        }
+        return new AppearanceProjection(head,extraItem);
+    }
+
+    private static void assertStateRankRejected(
+        PlayerState player,
+        int rank
+    ){
+        boolean rejected=false;
+        try{
+            player.setAppearanceRank(rank);
+        }catch(IllegalArgumentException expected){
+            rejected=true;
+        }
+        if(!rejected)
+            throw new AssertionError(
+                "out-of-range appearance rank accepted="+
+                rank
+            );
+    }
+
+    private static int readS16(
+        byte[] data,
+        int offset
+    ){
+        return (short)readU16(data,offset);
     }
 
     private static int readU16(
