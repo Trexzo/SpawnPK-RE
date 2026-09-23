@@ -63,25 +63,40 @@ public final class ConversionServiceTest {
         AtomicTransactionService transactions=
             new AtomicTransactionService();
 
+        final ConversionService[] holder=
+            new ConversionService[1];
+
         ConversionService service=
             new ConversionService(
                 catalog,
                 transactions,
-                (actor,definition)->
-                    "player:blocked".equals(actor)
+                (actor,definition)->{
+                    if(holder[0]!=null)
+                        holder[0].size();
+
+                    return "player:blocked".equals(actor)
                         ?ConversionService.EligibilityDecision.deny(
                             "CUSTOM_LOCALLAB fixture denial"
                         )
-                        :ConversionService.EligibilityDecision.allow(),
-                (actor,definition,attempt)->
-                    "player:bob".equals(actor)
+                        :ConversionService.EligibilityDecision.allow();
+                },
+                (actor,definition,attempt)->{
+                    if(holder[0]!=null)
+                        holder[0].get(
+                            attempt.attemptId
+                        );
+
+                    return "player:bob".equals(actor)
                         ?ConversionService.OutcomeResolution.failure(
                             ConversionService.InputSettlement.CANCEL_RESERVED_INPUTS
                         )
                         :ConversionService.OutcomeResolution.success(
                             ConversionService.InputSettlement.COMMIT_RESERVED_INPUTS
-                        )
+                        );
+                }
             );
+
+        holder[0]=service;
 
         expect(
             IllegalStateException.class,
@@ -260,6 +275,7 @@ public final class ConversionServiceTest {
         );
 
         protocolBoundaryGuard();
+        externalLifecycleNotMethodSynchronized();
 
         System.out.println(
             "ISSUE168_RECIPE_CONVERSION_PASS "+
@@ -309,6 +325,42 @@ public final class ConversionServiceTest {
         );
 
         return transactionId;
+    }
+
+    private static void externalLifecycleNotMethodSynchronized(){
+        for(String name:new String[]{
+                "createAttempt",
+                "reserveInputs",
+                "resolveOutcome",
+                "acknowledgeSettlement",
+                "cancelAttempt"
+        }){
+            boolean found=false;
+
+            for(java.lang.reflect.Method method:
+                    ConversionService.class
+                        .getDeclaredMethods()){
+                if(!method.getName().equals(name))
+                    continue;
+
+                found=true;
+
+                check(
+                    !java.lang.reflect.Modifier
+                        .isSynchronized(
+                            method.getModifiers()
+                        ),
+                    "Conversion external lifecycle still synchronized "+
+                    name
+                );
+            }
+
+            check(
+                found,
+                "Conversion lifecycle method missing "+
+                name
+            );
+        }
     }
 
     private static void protocolBoundaryGuard(){
