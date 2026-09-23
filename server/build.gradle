@@ -912,6 +912,168 @@ tasks.register('eventChestPresentationRegression') {
     }
 }
 
+tasks.register('collectionLogPresentationRegression') {
+    group = 'verification'
+    description = 'Validates exact-v308 Collection Log text/container projection while leaving root/selection transport and reward economics unowned.'
+    dependsOn tasks.named('testClasses')
+
+    doLast {
+        project.javaexec {
+            workingDir repoRoot
+            classpath = sourceSets.test.runtimeClasspath
+            mainClass.set('spk.local.CollectionLogPresentationTest')
+        }
+
+        logger.lifecycle(
+            'COLLECTION_LOG_PRESENTATION_REGRESSION_PASS slots120=true rootOwned=false selectionTransportOwned=false'
+        )
+    }
+}
+
+tasks.register('donorPanelPresentationRegression') {
+    group = 'verification'
+    description = 'Validates exact-v308 donor navigation intents and promotion text projection without owning payment, entitlement or destination policy.'
+    dependsOn tasks.named('testClasses')
+
+    doLast {
+        project.javaexec {
+            workingDir repoRoot
+            classpath = sourceSets.test.runtimeClasspath
+            mainClass.set('spk.local.DonorPanelPresentationTest')
+        }
+
+        logger.lifecycle(
+            'DONOR_PANEL_PRESENTATION_REGRESSION_PASS intents=7 paymentOwned=false policyOwned=false'
+        )
+    }
+}
+
+tasks.register('lotteryPresentationRegression') {
+    group = 'verification'
+    description = 'Validates exact-v308 ordinary/Bloodcore Lottery roots, entry actions and winner-history text capacities without owning economics or draw policy.'
+    dependsOn tasks.named('testClasses')
+
+    doLast {
+        project.javaexec {
+            workingDir repoRoot
+            classpath = sourceSets.test.runtimeClasspath
+            mainClass.set('spk.local.LotteryPresentationTest')
+        }
+
+        logger.lifecycle(
+            'LOTTERY_PRESENTATION_REGRESSION_PASS ordinaryHistory6=true bloodcoreHistory35=true policyOwned=false'
+        )
+    }
+}
+
+tasks.register('votingPresentationRegression') {
+    group = 'verification'
+    description = 'Validates exact-v308 Voting root and visible provider catalog while leaving click transport and reward policy unowned.'
+    dependsOn tasks.named('testClasses')
+
+    doLast {
+        project.javaexec {
+            workingDir repoRoot
+            classpath = sourceSets.test.runtimeClasspath
+            mainClass.set('spk.local.VotingPresentationTest')
+        }
+
+        logger.lifecycle(
+            'VOTING_PRESENTATION_REGRESSION_PASS visibleProviders=3 clickTransportOwned=false policyOwned=false'
+        )
+    }
+}
+
+tasks.register('donationCartPresentationRegression') {
+    group = 'verification'
+    description = 'Validates exact-v308 Donation Cart slot controls, checkout intent and payment-mode selection without trusting client prices or performing payment settlement.'
+    dependsOn tasks.named('testClasses')
+
+    doLast {
+        project.javaexec {
+            workingDir repoRoot
+            classpath = sourceSets.test.runtimeClasspath
+            mainClass.set('spk.local.DonationCartPresentationTest')
+        }
+
+        logger.lifecycle(
+            'DONATION_CART_PRESENTATION_REGRESSION_PASS productSlots=8 controls=16 paymentSettlementOwned=false'
+        )
+    }
+}
+
+tasks.register('taskScrollPresentationRegression') {
+    group = 'verification'
+    description = 'Validates exact-v308 Task Scroll text/reward projection and control-family metadata while leaving ambiguous raw-widget dispatch unowned.'
+    dependsOn tasks.named('testClasses')
+
+    doLast {
+        project.javaexec {
+            workingDir repoRoot
+            classpath = sourceSets.test.runtimeClasspath
+            mainClass.set('spk.local.TaskScrollPresentationTest')
+        }
+
+        logger.lifecycle(
+            'TASK_SCROLL_PRESENTATION_REGRESSION_PASS infoRows20=true rewardSlots100=true rawWidgetDispatchOwned=false'
+        )
+    }
+}
+
+tasks.register('bloodShardSalvagePresentationRegression') {
+    group = 'verification'
+    description = 'Validates exact-v308 Blood Shard Salvage actions and five remove modes while leaving recipes, yields and the second item surface unowned.'
+    dependsOn tasks.named('testClasses')
+
+    doLast {
+        project.javaexec {
+            workingDir repoRoot
+            classpath = sourceSets.test.runtimeClasspath
+            mainClass.set('spk.local.BloodShardSalvagePresentationTest')
+        }
+
+        logger.lifecycle(
+            'BLOOD_SHARD_SALVAGE_PRESENTATION_REGRESSION_PASS removeModes5=true secondSurfaceRoleOwned=false'
+        )
+    }
+}
+
+tasks.register('bloodDiamondFuserPresentationRegression') {
+    group = 'verification'
+    description = 'Validates exact-v308 Blood Diamond Fuser rows/cycle routing without owning recipe visuals, economics or outcome policy.'
+    dependsOn tasks.named('testClasses')
+
+    doLast {
+        project.javaexec {
+            workingDir repoRoot
+            classpath = sourceSets.test.runtimeClasspath
+            mainClass.set('spk.local.BloodDiamondFuserPresentationTest')
+        }
+
+        logger.lifecycle(
+            'BLOOD_DIAMOND_FUSER_PRESENTATION_REGRESSION_PASS rows3=true cycle=true policyOwned=false'
+        )
+    }
+}
+
+tasks.register('bloodcoreSynthesisPresentationRegression') {
+    group = 'verification'
+    description = 'Validates exact-v308 Bloodcore Synthesis control families, remove modes and status channels while leaving ambiguous raw-widget dispatch and second-surface semantics unowned.'
+    dependsOn tasks.named('testClasses')
+
+    doLast {
+        project.javaexec {
+            workingDir repoRoot
+            classpath = sourceSets.test.runtimeClasspath
+            mainClass.set('spk.local.BloodcoreSynthesisPresentationTest')
+        }
+
+        logger.lifecycle(
+            'BLOODCORE_SYNTHESIS_PRESENTATION_REGRESSION_PASS controls4=true removeModes5=true rawWidgetDispatchOwned=false'
+        )
+    }
+}
+
 tasks.named('check') {
     dependsOn tasks.named('customAssetPipelineRegression')
     dependsOn tasks.named('customAssetPipelineHardeningRegression')
