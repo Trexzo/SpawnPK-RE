@@ -23,6 +23,7 @@ public final class EventActivityPresentationTest {
             "clearAppendRender=true "+
             "maxRows7=true "+
             "visibleDetails3=true "+
+            "detailCountU8=true "+
             "i32CurrentLimit=true "+
             "i64Duration=true "+
             "lockedUnlimitedFinite=true "+
@@ -214,7 +215,7 @@ public final class EventActivityPresentationTest {
         EventActivityService service=
             new EventActivityService(quotas);
 
-        EventActivityService.Snapshot tooManyDetails=
+        EventActivityService.Snapshot fourDetails=
             service.replaceRows(
                 Collections.singletonList(
                     new EventActivityService.RowSpec(
@@ -235,13 +236,16 @@ public final class EventActivityPresentationTest {
                 )
             );
 
-        expect(
-            IllegalArgumentException.class,
-            ()->EventActivityPresentation
-                .appendBody(
-                    tooManyDetails.row(0)
-                ),
-            "more than three visible details"
+        byte[] fourDetailBody=
+            EventActivityPresentation.appendBody(
+                fourDetails.row(0)
+            );
+
+        require(
+            (fourDetailBody[
+                1+"Details".length()+1
+            ]&255)==4,
+            "wire permits fourth detail even though only three lines are visible"
         );
 
         EventActivityService.Snapshot newline=
@@ -339,7 +343,7 @@ public final class EventActivityPresentationTest {
                name.contains("resetpolicy")||
                name.contains("accountscope")||
                name.contains("ipscope")||
-               name.contains("ant abuse".replace(" ","")))
+               name.contains("antiabuse"))
                 throw new AssertionError(
                     "unowned Event Activity policy field "+
                     field.getName()
