@@ -7,6 +7,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import spk.content.api.*;
 import spk.content.builtin.LocalLabCoreContentModule;
 import spk.content.builtin.MakeoverMageDialogueContent;
+import spk.plugin.api.*;
 
 public final class ContentDialogueDefinitionOwnershipTest {
     public static void main(String[] args)throws Exception{
@@ -185,6 +186,36 @@ public final class ContentDialogueDefinitionOwnershipTest {
 
             assertBuiltInDefinition(
                 registry,
+                "restored built-in before plugin probe"
+            );
+
+            PluginHandle pluginHandle=
+                world.plugins().enable(
+                    new TopologyPlugin()
+                );
+
+            require(
+                pluginHandle.enabled(),
+                "topology plugin not enabled"
+            );
+
+            assertDefinitionBinding(
+                registry,
+                "plugin:dialogue.topology.override",
+                350,
+                "plugin topology override"
+            );
+
+            require(
+                world.plugins().disable(
+                    "dialogue.topology.override"
+                )&&
+                !pluginHandle.enabled(),
+                "topology plugin disable"
+            );
+
+            assertBuiltInDefinition(
+                registry,
                 "restored built-in before incompatible probe"
             );
 
@@ -325,6 +356,7 @@ public final class ContentDialogueDefinitionOwnershipTest {
                 "builtInTopology=true "+
                 "transitionOnlyInherits=true "+
                 "compatibleOverride=true "+
+                "pluginOverrideRestore=true "+
                 "keyMismatchRollback=true "+
                 "incompatibleOverrideFailsClosed=true "+
                 "partialWire=false "+
@@ -769,6 +801,30 @@ public final class ContentDialogueDefinitionOwnershipTest {
 
         @Override public ContentDialogueDefinition definition(){
             return definition;
+        }
+    }
+
+    private static final class TopologyPlugin
+        implements Plugin {
+
+        @Override public PluginManifest manifest(){
+            return new PluginManifest(
+                "dialogue.topology.override",
+                "1.0.0",
+                PluginApiVersion.CURRENT,
+                Collections.<String>emptyList()
+            );
+        }
+
+        @Override public void enable(
+            PluginContext context
+        ){
+            context.content().dialogue(
+                MakeoverMageDialogueContent
+                    .DIALOGUE_KEY,
+                350,
+                new CompatibleMakeoverHandler()
+            );
         }
     }
 
