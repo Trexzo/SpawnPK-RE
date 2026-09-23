@@ -552,6 +552,30 @@ tasks.register('standardDialoguePresentationRegression') {
     }
 }
 
+tasks.register('contentDialoguePresentationApiRegression') {
+    group = 'verification'
+    description = 'Validates the public semantic dialogue presentation capability, API boundary, fail-closed compatibility and exact-current runtime wire parity.'
+    dependsOn tasks.named('testClasses')
+
+    doLast {
+        [
+            'spk.local.StandardDialoguePresentationAdapterTest',
+            'spk.local.ContentDialoguePresentationRuntimeTest',
+            'spk.local.ContentPublicApiBoundaryTest'
+        ].each { mainClassName ->
+            project.javaexec {
+                workingDir repoRoot
+                classpath = sourceSets.test.runtimeClasspath
+                mainClass.set(mainClassName)
+            }
+        }
+
+        logger.lifecycle(
+            'CONTENT_DIALOGUE_PRESENTATION_API_REGRESSION_PASS statement=true namedNpc=true close=true boundary=true wireParity=true'
+        )
+    }
+}
+
 tasks.named('check') {
     dependsOn tasks.named('verifyJava11Bytecode')
     dependsOn tasks.named('clientBuildRevision308Compatibility')
