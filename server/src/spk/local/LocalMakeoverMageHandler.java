@@ -38,7 +38,7 @@ final class LocalMakeoverMageHandler {
     private final NpcRegistry npcs;
     private final InteractionApproachResolver approach;
     private final String dialoguePlayerRef;
-    private final DialogueSessionService dialogue;
+    private DialogueSessionService dialogue;
     private final ContentRegistry contentRegistry;
     private final ContentDialogueHandler fallbackDialoguePolicy=
         new MakeoverMageDialogueContent();
@@ -111,43 +111,9 @@ final class LocalMakeoverMageHandler {
             "entity:"+
             this.worldPlayer.id();
         this.dialogue=
-            new DialogueSessionService(
-                DIALOGUE_POLICY,
-                (player,definition,node,intent,before)->
-                    resolveDialogueTransition(
-                        node.nodeKey,
-                        intent
-                    )
+            createDialogueSession(
+                effectiveDialogueDefinition()
             );
-
-        this.dialogue.register(
-            new DialogueSessionService
-                .DialogueDefinition(
-                    DIALOGUE_KEY,
-                    INTRO_NODE,
-                    java.util.Arrays.asList(
-                        new DialogueSessionService
-                            .NodeDefinition(
-                                INTRO_NODE,
-                                DialogueSessionService
-                                    .InputMode.CONTINUE,
-                                0,
-                                false,
-                                DIALOGUE_POLICY
-                            ),
-                        new DialogueSessionService
-                            .NodeDefinition(
-                                OPTIONS_NODE,
-                                DialogueSessionService
-                                    .InputMode.OPTIONS,
-                                2,
-                                true,
-                                DIALOGUE_POLICY
-                            )
-                    ),
-                    DIALOGUE_POLICY
-                )
-        );
     }
 
     boolean beginIfSupported(
@@ -653,6 +619,8 @@ final class LocalMakeoverMageHandler {
         String tag,
         String reason
     )throws IOException{
+        refreshDialogueDefinitionForNewSession();
+
         DialogueSessionService.Snapshot begun=
             dialogue.begin(
                 dialoguePlayerRef,
@@ -724,6 +692,97 @@ final class LocalMakeoverMageHandler {
                 movement.y()-npc.y
             )
         );
+    }
+
+    private ContentDialogueDefinition
+        effectiveDialogueDefinition()
+    {
+        ContentDialogueDefinition definition=
+            contentRegistry==null
+                ?fallbackDialoguePolicy.definition()
+                :contentRegistry.dialogueDefinition(
+                    DIALOGUE_KEY
+                );
+
+        if(definition==null)
+            throw new IllegalStateException(
+                "Make-over dialogue definition missing key="+
+                DIALOGUE_KEY
+            );
+
+        if(!DIALOGUE_KEY.equals(
+                definition.dialogueKey()))
+            throw new IllegalStateException(
+                "Make-over dialogue definition key mismatch "+
+                definition.dialogueKey()
+            );
+
+        return definition;
+    }
+
+    private void refreshDialogueDefinitionForNewSession(){
+        if(dialogue!=null&&
+           dialogue.snapshot(
+               dialoguePlayerRef
+           ).active)
+            throw new IllegalStateException(
+                "cannot replace active Make-over dialogue definition"
+            );
+
+        dialogue=
+            createDialogueSession(
+                effectiveDialogueDefinition()
+            );
+    }
+
+    private DialogueSessionService createDialogueSession(
+        ContentDialogueDefinition contentDefinition
+    ){
+        DialogueSessionService service=
+            new DialogueSessionService(
+                DIALOGUE_POLICY,
+                (player,definition,node,intent,before)->
+                    resolveDialogueTransition(
+                        node.nodeKey,
+                        intent
+                    )
+            );
+
+        java.util.ArrayList<
+            DialogueSessionService.NodeDefinition
+        > nodes=
+            new java.util.ArrayList<>();
+
+        for(ContentDialogueNode node:
+                contentDefinition.nodes())
+            nodes.add(
+                new DialogueSessionService
+                    .NodeDefinition(
+                        node.nodeKey(),
+                        node.inputMode()==
+                            ContentDialogueNode
+                                .InputMode.CONTINUE
+                            ?DialogueSessionService
+                                .InputMode.CONTINUE
+                            :DialogueSessionService
+                                .InputMode.OPTIONS,
+                        node.optionCount(),
+                        node.closeSupported(),
+                        DIALOGUE_POLICY
+                    )
+            );
+
+        service.register(
+            new DialogueSessionService
+                .DialogueDefinition(
+                    contentDefinition.dialogueKey(),
+                    contentDefinition.startNodeKey(),
+                    nodes,
+                    DIALOGUE_POLICY
+                )
+        );
+
+        return service;
     }
 
     private DialogueSessionService.Transition
