@@ -32,11 +32,12 @@ final class PlayerState {
     /** Exact-current optional extra player appearance item (rs.a.k.bs), -1 absent. */
     private int nativeIconItemId=-1;
     /**
-     * Exact-current player appearance role/rank (rs.a.k.aC).
+     * Exact-current per-player appearance role/rank (rs.a.k.aC).
      *
      * This is session presentation state, deliberately excluded from account
-     * snapshots. LocalLab aligns it with the localhost login privilege rank
-     * after account load, while ::devplayer rank may override it temporarily.
+     * snapshots and independent from login privilege Client.cT. The original
+     * SpawnPK named-rank -> numeric aC mapping remains unknown server authority;
+     * localhost development tooling may set this channel explicitly.
      */
     private int appearanceRank;
     /** Dedicated bottom-center COSMETIC channel. Ammo/arrows remain ordinary equipment slot 13. */
