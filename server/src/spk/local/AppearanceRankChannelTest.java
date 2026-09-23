@@ -166,23 +166,54 @@ public final class AppearanceRankChannelTest {
                 player.appearanceRank()
             );
 
-        boolean rejected=false;
-        try{
-            player.setAppearanceRank(386);
-        }catch(IllegalArgumentException expected){
-            rejected=true;
-        }
-
-        if(!rejected)
+        player.setAppearanceRank(-1);
+        byte[] negative=
+            BootstrapPackets.appearanceBlock(
+                "ranktest",
+                null,
+                player
+            );
+        if(readS16(negative,5)!=-1)
             throw new AssertionError(
-                "out-of-range rank accepted"
+                "signed-short aC wire="+
+                readS16(negative,5)
+            );
+        player.setAppearanceRank(0);
+
+        assertStateRankRejected(
+            player,
+            Short.MAX_VALUE+1
+        );
+        assertStateRankRejected(
+            player,
+            Short.MIN_VALUE-1
+        );
+
+        List<String> invalid=
+            commands.handle(
+                new String[]{
+                    "devplayer",
+                    "rank",
+                    "not-a-number"
+                },
+                "ranktest",
+                packets
+            );
+        if(invalid==null||
+           invalid.isEmpty()||
+           !invalid.get(0).contains(
+               "result=REJECTED"
+           ))
+            throw new AssertionError(
+                "invalid rank text accepted="+
+                invalid
             );
 
         System.out.println(
             "APPEARANCE_RANK_CHANNEL_PASS "+
             "aC=true loginPrivilegeSeparate=true explicit45=true "+
-            "wornHeadVsOverrideBs=true "+
-            "devOverride38=true clear0=true persisted=false"
+            "signedShort=true wornHeadVsOverrideBs=true "+
+            "devOverride38=true clear0=true invalidTextRejected=true persisted=false"
         );
     }
 
@@ -217,6 +248,30 @@ public final class AppearanceRankChannelTest {
             extraItem=readU16(data,offset);
         }
         return new AppearanceProjection(head,extraItem);
+    }
+
+    private static void assertStateRankRejected(
+        PlayerState player,
+        int rank
+    ){
+        boolean rejected=false;
+        try{
+            player.setAppearanceRank(rank);
+        }catch(IllegalArgumentException expected){
+            rejected=true;
+        }
+        if(!rejected)
+            throw new AssertionError(
+                "out-of-range appearance rank accepted="+
+                rank
+            );
+    }
+
+    private static int readS16(
+        byte[] data,
+        int offset
+    ){
+        return (short)readU16(data,offset);
     }
 
     private static int readU16(
