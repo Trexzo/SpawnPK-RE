@@ -96,7 +96,7 @@ final class LocalRegionStreamHandler {
             return false;
 
         if(movement.transientRegion()&&
-           movement.insideHomeInnerCore(24)){
+           movement.insideHomeInnerCore(16)){
             reattachHome(
                 writer,
                 tag,
@@ -218,6 +218,89 @@ final class LocalRegionStreamHandler {
         return true;
     }
 
+    void completeRegionLoad(
+        RegionLoadLifecycle.Completion completion,
+        ServerPacketWriter writer,
+        String tag
+    )throws IOException{
+        if(completion==null||!completion.matched)
+            return;
+
+        String reason=completion.reason;
+
+        if(!("AUTO_HOME_REATTACH".equals(reason)||
+             "RESPAWN_REATTACH".equals(reason)||
+             "DEV_RETURN_HOME_RELOCATION".equals(reason)||
+             "MAGIC_HOME_TELEPORT".equals(reason)))
+            return;
+
+        if(movement.transientRegion()||
+           movement.loadedBaseX()!=MovementState.REGION_BASE_X||
+           movement.loadedBaseY()!=MovementState.REGION_BASE_Y){
+            System.out.println(
+                tag+
+                "V5182_HOME_SCENE_POST_ACK_SKIPPED seq="+
+                completion.sequence+
+                " reason="+reason+
+                " world="+movement.x()+","+movement.y()+","+movement.plane()+
+                " base="+movement.loadedBaseX()+","+movement.loadedBaseY()+
+                " transient="+movement.transientRegion()
+            );
+            return;
+        }
+
+        SceneUpdatePublisher publisher=
+            bridge.scenePublisher();
+
+        if(publisher==null)
+            throw new IllegalStateException(
+                "HOME post-ACK replay has no scene publisher"
+            );
+
+        HomeObjectOverlayReplayer.Stats scene=
+            homeWorld.replayScene(
+                writer,
+                MovementState.REGION_BASE_X,
+                MovementState.REGION_BASE_Y
+            );
+
+        publisher.context().invalidate();
+
+        int homeNpcAdded=
+            npcs.reattachHomeView(
+                writer,
+                movement,
+                homeWorld
+            );
+        int npcView=npcs.visibleCount();
+
+        int groundReplay=0;
+        for(GroundItem item:
+            world.groundItems().snapshot()){
+            if(item.owner==null||
+               item.owner.equalsIgnoreCase(
+                   bridge.username()
+               )){
+                publisher.groundSpawn(item);
+                groundReplay++;
+            }
+        }
+
+        bridge.resetPetFollowRuntime();
+
+        System.out.println(
+            tag+
+            "V5182_HOME_SCENE_POST_ACK seq="+
+            completion.sequence+
+            " reason="+reason+
+            " scene={"+scene+"}"+
+            " homeNpcAdded="+homeNpcAdded+
+            " npcView="+npcView+
+            " groundReplay="+groundReplay+
+            " overlayTiming=AFTER_OPCODE121"
+        );
+    }
+
     void reattachHomeForRespawn(
         ServerPacketWriter writer,
         String tag
@@ -279,35 +362,6 @@ final class LocalRegionStreamHandler {
             );
         bridge.replaceScenePublisher(replacement);
 
-        HomeObjectOverlayReplayer.Stats scene=
-            homeWorld.replayScene(
-                writer,
-                MovementState.REGION_BASE_X,
-                MovementState.REGION_BASE_Y
-            );
-
-        replacement.context().invalidate();
-
-        int homeNpcAdded=
-            npcs.reattachHomeView(
-                writer,
-                movement,
-                homeWorld
-            );
-        List<NpcEntity> homeNpcs=npcs.snapshot();
-
-        int replay=0;
-        for(GroundItem item:
-            world.groundItems().snapshot()){
-            if(item.owner==null||
-               item.owner.equalsIgnoreCase(
-                   bridge.username()
-               )){
-                replacement.groundSpawn(item);
-                replay++;
-            }
-        }
-
         bridge.resetPetFollowRuntime();
 
         System.out.println(
@@ -324,11 +378,8 @@ final class LocalRegionStreamHandler {
                 (emitPlacement
                     ?"SERVER_PLAYER81_RELOCATION"
                     :"CLIENT_PACKET73_REBASE_PRESERVES_WORLD")+
-            " scene={"+scene+"}"+
             " transientNpcPruned="+prunedTransientNpcView+
-            " homeNpcAdded="+homeNpcAdded+
-            " npcView="+homeNpcs.size()+
-            " groundReplay="+replay+
+            " homeSceneReplay=DEFERRED_UNTIL_OPCODE121"+
             " dynamicOutsideHome=false"
         );
     }
