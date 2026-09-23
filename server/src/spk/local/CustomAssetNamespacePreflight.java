@@ -239,43 +239,97 @@ final class CustomAssetNamespacePreflight {
     private static void validateDefinitionProjection(
         CustomAssetAuthoringRepository.Asset asset
     ) {
-        CustomDefinitionOverlayRepository.Overlay item =
-            CustomDefinitionOverlayRepository.item(asset.itemId);
+        validateDefinitionProjection(
+            asset,
+            CustomDefinitionOverlayRepository.item(asset.itemId),
+            asset.kind == CustomAssetAuthoringRepository.Kind.PET
+                ? CustomDefinitionOverlayRepository.npc(asset.npcId)
+                : null
+        );
+    }
+
+    static void validateDefinitionProjection(
+        CustomAssetAuthoringRepository.Asset asset,
+        CustomDefinitionOverlayRepository.Overlay item,
+        CustomDefinitionOverlayRepository.Overlay npc
+    ) {
         if (item == null)
             throw new IllegalStateException(
                 "missing authored ITEM overlay for " + asset.contentKey
             );
-        String modelId = item.field("modelId");
-        if (modelId == null || Integer.parseInt(modelId) != asset.modelId)
-            throw new IllegalStateException(
-                "ITEM overlay modelId mismatch for " + asset.contentKey
-            );
+        requireFieldEquals(
+            item, "name", asset.name,
+            "ITEM overlay name mismatch for " + asset.contentKey
+        );
+        requireIntegerFieldEquals(
+            item, "modelId", asset.modelId,
+            "ITEM overlay modelId mismatch for " + asset.contentKey
+        );
 
-        if (asset.kind == CustomAssetAuthoringRepository.Kind.PET) {
-            CustomDefinitionOverlayRepository.Overlay npc =
-                CustomDefinitionOverlayRepository.npc(asset.npcId);
-            if (npc == null)
-                throw new IllegalStateException(
-                    "missing authored NPC overlay for " + asset.contentKey
-                );
-            if (!integerListContains(npc.field("models"), asset.modelId))
-                throw new IllegalStateException(
-                    "NPC overlay model mismatch for " + asset.contentKey
-                );
-            if (!String.valueOf(asset.standAnim).equals(npc.field("standAnim")) ||
-                !String.valueOf(asset.walkAnim).equals(npc.field("walkAnim")))
-                throw new IllegalStateException(
-                    "NPC overlay animation mismatch for " + asset.contentKey
-                );
-        }
+        if (asset.kind != CustomAssetAuthoringRepository.Kind.PET) return;
+
+        if (npc == null)
+            throw new IllegalStateException(
+                "missing authored NPC overlay for " + asset.contentKey
+            );
+        requireFieldEquals(
+            npc, "name", asset.name,
+            "NPC overlay name mismatch for " + asset.contentKey
+        );
+        requireSingleIntegerListFieldEquals(
+            npc, "models", asset.modelId,
+            "NPC overlay model mismatch for " + asset.contentKey
+        );
+        requireIntegerFieldEquals(
+            npc, "standAnim", asset.standAnim,
+            "NPC overlay standAnim mismatch for " + asset.contentKey
+        );
+        requireIntegerFieldEquals(
+            npc, "walkAnim", asset.walkAnim,
+            "NPC overlay walkAnim mismatch for " + asset.contentKey
+        );
+        requireFieldEquals(
+            npc, "pet", "true",
+            "NPC overlay pet mismatch for " + asset.contentKey
+        );
+        requireIntegerFieldEquals(
+            npc, "size", asset.npcSize,
+            "NPC overlay size mismatch for " + asset.contentKey
+        );
     }
 
-    private static boolean integerListContains(String value, int expected) {
-        if (value == null) return false;
-        for (String raw : value.split(",")) {
-            if (Integer.parseInt(raw.trim()) == expected) return true;
-        }
-        return false;
+    private static void requireFieldEquals(
+        CustomDefinitionOverlayRepository.Overlay overlay,
+        String field,
+        String expected,
+        String message
+    ) {
+        if (!expected.equals(overlay.field(field)))
+            throw new IllegalStateException(message);
+    }
+
+    private static void requireIntegerFieldEquals(
+        CustomDefinitionOverlayRepository.Overlay overlay,
+        String field,
+        int expected,
+        String message
+    ) {
+        String value = overlay.field(field);
+        if (value == null || Integer.parseInt(value) != expected)
+            throw new IllegalStateException(message);
+    }
+
+    private static void requireSingleIntegerListFieldEquals(
+        CustomDefinitionOverlayRepository.Overlay overlay,
+        String field,
+        int expected,
+        String message
+    ) {
+        String value = overlay.field(field);
+        if (value == null) throw new IllegalStateException(message);
+        String[] parts = value.split(",");
+        if (parts.length != 1 || Integer.parseInt(parts[0].trim()) != expected)
+            throw new IllegalStateException(message);
     }
 
     private static void claim(
