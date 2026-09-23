@@ -309,6 +309,22 @@ final class ContentRuntimeAdapters {
             );
         }
 
+        @Override public void twoOptions(
+            String title,
+            List<String> options
+        ){
+            write(
+                "dialogueTwoOptions",
+                ()->
+                    StandardDialoguePresentationAdapter
+                        .openTwoOptions(
+                            writer,
+                            title,
+                            options
+                        )
+            );
+        }
+
         @Override public void close(){
             write(
                 "dialogueClose",
