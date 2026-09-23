@@ -23,6 +23,10 @@ final class LocalSessionUiActionHandler {
             LocalPetInventoryDialogHandler.Result result,
             String tag
         );
+        default void handleHomeTeleport(
+            ServerPacketWriter serverPackets,
+            String tag
+        )throws IOException{}
         void requestLogout();
     }
 
@@ -192,6 +196,13 @@ final class LocalSessionUiActionHandler {
             gameplayWidgetHandler.handle(widget,serverPackets);
         if(gameplayWidget!=null){
             System.out.println(tag+gameplayWidget);
+
+            if(gameplayWidgetHandler.consumeAcceptedHomeTeleport())
+                bridge.handleHomeTeleport(
+                    serverPackets,
+                    tag
+                );
+
             return;
         }
 
