@@ -130,6 +130,22 @@ final class EquipmentMetadataRepository {
     private static Meta resolveInternal(int itemId, Set<Integer> seen, boolean lineageContext) {
         if (!seen.add(itemId)) return null;
 
+        CustomAssetAuthoringRepository.Asset authored =
+            CustomAssetAuthoringRepository.byItem(itemId);
+        if (authored != null && authored.equipmentSlot != null) {
+            EquipmentSlot slot = authored.equipmentSlot;
+            Coverage coverage = Coverage.valueOf(authored.coverage.name());
+            return new Meta(
+                itemId,
+                slot,
+                authored.twoHanded,
+                slot == EquipmentSlot.WEAPON ? "Wield" : "Wear",
+                poseFor(itemId, slot),
+                coverage,
+                authored.provenance + "+CUSTOM_ASSET_AUTHORING"
+            );
+        }
+
         Meta exact = EXPLICIT.get(itemId);
         if (exact != null) return withPose(exact, itemId, exact.evidence);
 
