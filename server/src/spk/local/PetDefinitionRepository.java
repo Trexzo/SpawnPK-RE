@@ -33,6 +33,7 @@ final class PetDefinitionRepository {
     static {
         try {
             loadMappings(resolveData("pet_mappings.tsv"));
+            loadCustomMappings();
             loadAmbiguous(resolveData("pet_ambiguous.tsv"));
         } catch (IOException e) { throw new ExceptionInInitializerError(e); }
     }
@@ -71,6 +72,36 @@ final class PetDefinitionRepository {
             }
         }
     }
+    private static void loadCustomMappings() throws IOException {
+        for (CustomAssetAuthoringRepository.Asset asset :
+            CustomAssetAuthoringRepository.all()) {
+            if (asset.kind != CustomAssetAuthoringRepository.Kind.PET) continue;
+
+            Def d = new Def(
+                asset.itemId,
+                asset.npcId,
+                asset.name,
+                asset.name,
+                asset.standAnim,
+                asset.walkAnim,
+                asset.walkAnim,
+                asset.walkAnim,
+                asset.walkAnim,
+                asset.npcSize,
+                String.valueOf(asset.modelId),
+                asset.provenance
+            );
+
+            Def previous = BY_ITEM.put(d.itemId, d);
+            if (previous != null) {
+                BY_ITEM.put(previous.itemId, previous);
+                throw new IOException(
+                    "custom pet item collision: authored=" + d + " existing=" + previous
+                );
+            }
+        }
+    }
+
     private static void loadAmbiguous(Path p) throws IOException {
         try(BufferedReader r=Files.newBufferedReader(p,StandardCharsets.UTF_8)){
             String line=r.readLine();
