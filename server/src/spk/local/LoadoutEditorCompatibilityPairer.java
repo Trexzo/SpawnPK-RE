@@ -17,9 +17,13 @@ final class LoadoutEditorCompatibilityPairer {
      * -1 marks a literal client-emitted 0,0 placeholder rather than a source
      * equipment-array index.
      */
-    static final int[] EQUIPMENT_SOURCE_INDICES={
+    private static final int[] EQUIPMENT_SOURCE_INDICES={
         1,3,4,6,7,8,-1,10,-1,12,13,-1,14,5
     };
+
+    static int[] equipmentSourceIndices(){
+        return EQUIPMENT_SOURCE_INDICES.clone();
+    }
 
     enum Kind {
         UNRECOGNIZED,
