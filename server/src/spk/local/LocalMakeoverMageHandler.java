@@ -19,29 +19,26 @@ final class LocalMakeoverMageHandler {
     static final int NPC_ID=599;
     static final long APPROACH_TIMEOUT_MS=10_000L;
 
-    static final int INTRO_ROOT=4882;
-    static final int INTRO_HEAD_WIDGET=4883;
-    static final int INTRO_NAME_WIDGET=4884;
-    static final int INTRO_TEXT_WIDGET=4885;
-    static final int INTRO_CONTINUE_WIDGET=4886;
-    static final int KEYBOARD_CONTINUE_WIDGET=4907;
-
-    static final int OPTIONS_ROOT=2459;
-    static final int OPTIONS_TITLE_WIDGET=2460;
-    static final int CHANGE_LOOK_WIDGET=2461;
-    static final int NEVERMIND_WIDGET=2462;
-
     static final int DESIGN_ROOT=3559;
 
-    private enum Stage { NONE, INTRO, OPTIONS, DESIGN }
+    private static final String DIALOGUE_POLICY=
+        "LOCAL_LAB_POLICY_MAKEOVER_MAGE_DIALOGUE";
+    private static final String DIALOGUE_KEY=
+        "dialogue:makeover-mage";
+    private static final String INTRO_NODE=
+        "node:intro";
+    private static final String OPTIONS_NODE=
+        "node:options";
 
     private final WorldPlayer worldPlayer;
     private final EquipmentState equipment;
     private final MovementState movement;
     private final NpcRegistry npcs;
     private final InteractionApproachResolver approach;
+    private final String dialoguePlayerRef;
+    private final DialogueSessionService dialogue;
 
-    private Stage stage=Stage.NONE;
+    private boolean designActive;
 
     private Integer pendingScene;
     private NpcEntity pendingNpc;
@@ -88,6 +85,71 @@ final class LocalMakeoverMageHandler {
             new InteractionApproachResolver(
                 this.movement
             );
+        this.dialoguePlayerRef=
+            "entity:"+
+            this.worldPlayer.id();
+        this.dialogue=
+            new DialogueSessionService(
+                DIALOGUE_POLICY,
+                (player,definition,node,intent,before)->{
+                    if(INTRO_NODE.equals(
+                            node.nodeKey)&&
+                       intent.kind==
+                            DialogueSessionService
+                                .IntentKind.CONTINUE)
+                        return DialogueSessionService
+                            .Transition.move(
+                                OPTIONS_NODE
+                            );
+
+                    if(OPTIONS_NODE.equals(
+                            node.nodeKey)&&
+                       (intent.kind==
+                            DialogueSessionService
+                                .IntentKind.OPTION||
+                        intent.kind==
+                            DialogueSessionService
+                                .IntentKind.CLOSE))
+                        return DialogueSessionService
+                            .Transition.end();
+
+                    throw new IllegalStateException(
+                        "unsupported Make-over dialogue transition node="+
+                        node.nodeKey+
+                        " intent="+
+                        intent.kind
+                    );
+                }
+            );
+
+        this.dialogue.register(
+            new DialogueSessionService
+                .DialogueDefinition(
+                    DIALOGUE_KEY,
+                    INTRO_NODE,
+                    java.util.Arrays.asList(
+                        new DialogueSessionService
+                            .NodeDefinition(
+                                INTRO_NODE,
+                                DialogueSessionService
+                                    .InputMode.CONTINUE,
+                                0,
+                                false,
+                                DIALOGUE_POLICY
+                            ),
+                        new DialogueSessionService
+                            .NodeDefinition(
+                                OPTIONS_NODE,
+                                DialogueSessionService
+                                    .InputMode.OPTIONS,
+                                2,
+                                true,
+                                DIALOGUE_POLICY
+                            )
+                    ),
+                    DIALOGUE_POLICY
+                )
+        );
     }
 
     boolean beginIfSupported(
@@ -224,7 +286,7 @@ final class LocalMakeoverMageHandler {
             }
         }
 
-        if(stage!=Stage.NONE){
+        if(active()){
             NpcEntity target=
                 exactTarget(
                     activeScene,
@@ -245,10 +307,8 @@ final class LocalMakeoverMageHandler {
                         ?-1
                         :distanceTo(target);
 
-                packets.fixed(
-                    219,
-                    new byte[0]
-                );
+                StandardDialoguePresentationAdapter
+                    .close(packets);
                 clearActive();
 
                 return "MAKEOVER_MAGE_DIALOG_CANCEL scene="+
@@ -269,16 +329,14 @@ final class LocalMakeoverMageHandler {
         String tag
     )throws IOException{
         boolean pending=pendingScene!=null;
-        boolean visible=stage!=Stage.NONE;
+        boolean visible=active();
 
         if(!pending&&!visible)
             return false;
 
         if(visible){
-            packets.fixed(
-                219,
-                new byte[0]
-            );
+            StandardDialoguePresentationAdapter
+                .close(packets);
         }
 
         clearPending(false);
@@ -298,16 +356,14 @@ final class LocalMakeoverMageHandler {
         String tag
     )throws IOException{
         boolean pending=pendingScene!=null;
-        boolean visible=stage!=Stage.NONE;
+        boolean visible=active();
 
         if(!pending&&!visible)
             return false;
 
         if(visible){
-            packets.fixed(
-                219,
-                new byte[0]
-            );
+            StandardDialoguePresentationAdapter
+                .close(packets);
         }
 
         clearPending(pending);
@@ -327,47 +383,54 @@ final class LocalMakeoverMageHandler {
         ServerPacketWriter packets,
         String tag
     )throws IOException{
-        if(stage!=Stage.INTRO||
-           (widget!=INTRO_CONTINUE_WIDGET&&
-            widget!=KEYBOARD_CONTINUE_WIDGET))
+        DialogueSessionService.Snapshot before=
+            dialogue.snapshot(
+                dialoguePlayerRef
+            );
+
+        if(!before.active||
+           !INTRO_NODE.equals(
+                before.nodeKey)||
+           !StandardDialoguePresentationAdapter
+                .acceptsNamedNpcContinue(
+                    1,
+                    widget
+                ))
             return false;
 
-        packets.varShort(
-            126,
-            BootstrapPackets.widgetText126(
-                OPTIONS_TITLE_WIDGET,
-                "Select an Option"
-            )
-        );
-        packets.varShort(
-            126,
-            BootstrapPackets.widgetText126(
-                CHANGE_LOOK_WIDGET,
-                "I'd like to change my look."
-            )
-        );
-        packets.varShort(
-            126,
-            BootstrapPackets.widgetText126(
-                NEVERMIND_WIDGET,
-                "Nevermind."
-            )
-        );
-        packets.fixed(
-            164,
-            BootstrapPackets.chatboxInterface164(
-                OPTIONS_ROOT
-            )
-        );
+        StandardDialoguePresentationAdapter
+            .openTwoOptions(
+                packets,
+                "Select an Option",
+                java.util.Arrays.asList(
+                    "I'd like to change my look.",
+                    "Nevermind."
+                )
+            );
 
-        stage=Stage.OPTIONS;
+        DialogueSessionService.Snapshot after=
+            dialogue.continueDialogue(
+                dialoguePlayerRef
+            );
+
+        if(!after.active||
+           !OPTIONS_NODE.equals(
+                after.nodeKey))
+            throw new IllegalStateException(
+                "Make-over Continue did not enter options"
+            );
 
         System.out.println(
             tag+
             "MAKEOVER_MAGE_OPTIONS_OPEN root="+
-            OPTIONS_ROOT+
-            " changeWidget="+CHANGE_LOOK_WIDGET+
-            " nevermindWidget="+NEVERMIND_WIDGET
+            StandardDialoguePresentationAdapter
+                .twoOptionRoot()+
+            " changeWidget="+
+            StandardDialoguePresentationAdapter
+                .twoOptionWidget(1)+
+            " nevermindWidget="+
+            StandardDialoguePresentationAdapter
+                .twoOptionWidget(2)
         );
         return true;
     }
@@ -377,20 +440,23 @@ final class LocalMakeoverMageHandler {
         ServerPacketWriter packets,
         String tag
     )throws IOException{
-        if(stage!=Stage.OPTIONS)return false;
-        if(option==1)
-            return handleWidget(
-                CHANGE_LOOK_WIDGET,
-                packets,
-                tag
+        DialogueSessionService.Snapshot current=
+            dialogue.snapshot(
+                dialoguePlayerRef
             );
-        if(option==2)
-            return handleWidget(
-                NEVERMIND_WIDGET,
-                packets,
-                tag
-            );
-        return false;
+
+        if(!current.active||
+           !OPTIONS_NODE.equals(
+                current.nodeKey))
+            return false;
+        if(option<1||option>2)return false;
+
+        return handleWidget(
+            StandardDialoguePresentationAdapter
+                .twoOptionWidget(option),
+            packets,
+            tag
+        );
     }
 
     boolean handleWidget(
@@ -398,20 +464,68 @@ final class LocalMakeoverMageHandler {
         ServerPacketWriter packets,
         String tag
     )throws IOException{
-        if(stage!=Stage.OPTIONS)return false;
-
-        if(widget==CHANGE_LOOK_WIDGET){
-            packets.fixed(
-                219,
-                new byte[0]
+        DialogueSessionService.Snapshot current=
+            dialogue.snapshot(
+                dialoguePlayerRef
             );
+
+        if(!current.active||
+           !OPTIONS_NODE.equals(
+                current.nodeKey))
+            return false;
+
+        if(StandardDialoguePresentationAdapter
+                .isAugmentedOptionCloseWidget(
+                    widget
+                )){
+            StandardDialoguePresentationAdapter
+                .close(packets);
+
+            DialogueSessionService.Snapshot ended=
+                dialogue.close(
+                    dialoguePlayerRef
+                );
+
+            if(ended.active)
+                throw new IllegalStateException(
+                    "Make-over close did not end semantic dialogue"
+                );
+
+            clearActive();
+
+            System.out.println(
+                tag+
+                "MAKEOVER_MAGE_DIALOG_CANCEL reason=CLIENT_CANCEL"
+            );
+            return true;
+        }
+
+        int optionIndex=
+            StandardDialoguePresentationAdapter
+                .twoOptionIndexForWidget(widget);
+
+        if(optionIndex==1){
+            StandardDialoguePresentationAdapter
+                .close(packets);
             packets.fixed(
                 97,
                 BootstrapPackets.interface97(
                     DESIGN_ROOT
                 )
             );
-            stage=Stage.DESIGN;
+
+            DialogueSessionService.Snapshot ended=
+                dialogue.chooseOption(
+                    dialoguePlayerRef,
+                    1
+                );
+
+            if(ended.active)
+                throw new IllegalStateException(
+                    "Make-over option 1 did not end semantic dialogue"
+                );
+
+            designActive=true;
 
             System.out.println(
                 tag+
@@ -422,11 +536,21 @@ final class LocalMakeoverMageHandler {
             return true;
         }
 
-        if(widget==NEVERMIND_WIDGET){
-            packets.fixed(
-                219,
-                new byte[0]
-            );
+        if(optionIndex==2){
+            StandardDialoguePresentationAdapter
+                .close(packets);
+
+            DialogueSessionService.Snapshot ended=
+                dialogue.chooseOption(
+                    dialoguePlayerRef,
+                    2
+                );
+
+            if(ended.active)
+                throw new IllegalStateException(
+                    "Make-over option 2 did not end semantic dialogue"
+                );
+
             clearActive();
 
             System.out.println(
@@ -446,7 +570,7 @@ final class LocalMakeoverMageHandler {
     )throws IOException{
         if(request==null)return Result.notHandled();
 
-        if(stage!=Stage.DESIGN){
+        if(!designActive){
             return Result.handled(
                 null,
                 "MAKEOVER_MAGE_DESIGN_REJECTED reason=NO_ACTIVE_DESIGN request="+
@@ -455,10 +579,8 @@ final class LocalMakeoverMageHandler {
         }
 
         if(!request.valid()){
-            packets.fixed(
-                219,
-                new byte[0]
-            );
+            StandardDialoguePresentationAdapter
+                .close(packets);
             clearActive();
             return Result.handled(
                 null,
@@ -478,10 +600,8 @@ final class LocalMakeoverMageHandler {
                 "validated character design was rejected"
             );
 
-        packets.fixed(
-            219,
-            new byte[0]
-        );
+        StandardDialoguePresentationAdapter
+            .close(packets);
         clearActive();
 
         return Result.handled(
@@ -502,7 +622,7 @@ final class LocalMakeoverMageHandler {
 
     boolean cancel(){
         boolean hadAnything=
-            stage!=Stage.NONE||
+            active()||
             pendingScene!=null;
 
         clearPending(
@@ -513,7 +633,22 @@ final class LocalMakeoverMageHandler {
     }
 
     boolean active(){
-        return stage!=Stage.NONE;
+        return designActive||
+            dialogue.snapshot(
+                dialoguePlayerRef
+            ).active;
+    }
+
+    DialogueSessionService.Snapshot
+        semanticDialogueSnapshot()
+    {
+        return dialogue.snapshot(
+            dialoguePlayerRef
+        );
+    }
+
+    boolean designActive(){
+        return designActive;
     }
 
     boolean pending(){
@@ -526,35 +661,30 @@ final class LocalMakeoverMageHandler {
         String tag,
         String reason
     )throws IOException{
-        packets.varShort(
-            126,
-            BootstrapPackets.widgetText126(
-                INTRO_NAME_WIDGET,
-                "Make-over Mage"
-            )
-        );
-        packets.varShort(
-            126,
-            BootstrapPackets.widgetText126(
-                INTRO_TEXT_WIDGET,
-                "How may I help you?"
-            )
-        );
-        packets.fixed(
-            75,
-            BootstrapPackets.interfaceNpcHead75(
+        StandardDialoguePresentationAdapter
+            .openNamedNpc(
+                packets,
                 NPC_ID,
-                INTRO_HEAD_WIDGET
-            )
-        );
-        packets.fixed(
-            164,
-            BootstrapPackets.chatboxInterface164(
-                INTRO_ROOT
-            )
-        );
+                "Make-over Mage",
+                java.util.Collections.singletonList(
+                    "How may I help you?"
+                )
+            );
 
-        stage=Stage.INTRO;
+        DialogueSessionService.Snapshot begun=
+            dialogue.begin(
+                dialoguePlayerRef,
+                DIALOGUE_KEY
+            );
+
+        if(!begun.active||
+           !INTRO_NODE.equals(
+                begun.nodeKey))
+            throw new IllegalStateException(
+                "Make-over dialogue did not begin at intro"
+            );
+
+        designActive=false;
         activeScene=clicked.sceneIndex;
         activeNpc=clicked;
 
@@ -562,8 +692,12 @@ final class LocalMakeoverMageHandler {
             tag+
             "MAKEOVER_MAGE_DIALOG_OPEN npc=599"+
             " scene="+clicked.sceneIndex+
-            " root="+INTRO_ROOT+
-            " headWidget="+INTRO_HEAD_WIDGET+
+            " root="+
+            StandardDialoguePresentationAdapter
+                .namedNpcRoot(1)+
+            " headWidget="+
+            StandardDialoguePresentationAdapter
+                .namedNpcModelWidget(1)+
             " distance="+distanceTo(clicked)+
             " action="+reason+
             " authority=EXACT_CURRENT_CLIENT_UI+HISTORICAL_SCREENSHOT+LOCAL_LAB_INTERACTION_RANGE"
@@ -615,7 +749,10 @@ final class LocalMakeoverMageHandler {
     }
 
     private void clearActive(){
-        stage=Stage.NONE;
+        dialogue.abort(
+            dialoguePlayerRef
+        );
+        designActive=false;
         activeScene=null;
         activeNpc=null;
     }

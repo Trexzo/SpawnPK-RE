@@ -7,7 +7,10 @@ public final class NpcInteractionRouterTest {
         NpcInteractionRouter.Route bank=NpcInteractionRouter.resolve(new NpcAction(17,204),banker);
         if(bank.option!=3||bank.service!=NpcInteractionRouter.Service.BANK)throw new AssertionError("bank route "+bank);
         NpcInteractionRouter.Route talk=NpcInteractionRouter.resolve(new NpcAction(155,204),banker);
-        if(talk.option!=1||talk.service!=NpcInteractionRouter.Service.BANK)throw new AssertionError("banker talk-to route "+talk);
-        System.out.println("V5122_NPC_INTERACTION_ROUTER_PASS definitions=8086 banker7605_option3=BANK banker7605_option1TalkTo=BANK definitionDriven=true");
+        if(talk.option!=1||
+           talk.service!=NpcInteractionRouter.Service.TALK||
+           !"EXACT_CLIENT_ACTION_SLOT".equals(talk.authority))
+            throw new AssertionError("banker talk-to generic route "+talk);
+        System.out.println("V5122_NPC_INTERACTION_ROUTER_PASS definitions=8086 banker7605_option3=BANK banker7605_option1TalkTo=TALK_CONTENT_OWNED definitionDriven=true");
     }
 }

@@ -3,6 +3,7 @@ package spk.local;
 import java.io.IOException;
 import spk.content.api.ContentNpcOptionResult;
 import spk.content.api.ContentNpcService;
+import spk.content.builtin.LocalLabCoreContentModule;
 
 /**
  * Residual definition-routed NPC interaction coordinator.
@@ -107,15 +108,45 @@ final class LocalRoutedNpcInteractionHandler {
         NpcEntity clicked,
         ServerPacketWriter serverPackets
     )throws IOException{
+        return handle(
+            request,
+            clicked,
+            serverPackets,
+            ""
+        );
+    }
+
+    String handle(
+        NpcAction request,
+        NpcEntity clicked,
+        ServerPacketWriter serverPackets,
+        String tag
+    )throws IOException{
         if(request==null)return null;
 
         NpcInteractionRouter.Route route=
             NpcInteractionRouter.resolve(request,clicked);
 
+        ContentNpcOptionResult content=
+            contentDecision(
+                route,
+                clicked
+            );
+
+        if(content!=null&&
+           content.hasAction())
+            return executeContentAction(
+                content.actionKey(),
+                request,
+                clicked,
+                serverPackets,
+                tag
+            );
+
         NpcInteractionRouter.Service service=
             contentService(
                 route,
-                clicked
+                content
             );
 
         if(service==NpcInteractionRouter.Service.BANK && clicked!=null){
@@ -235,25 +266,32 @@ final class LocalRoutedNpcInteractionHandler {
         pendingBankDeadlineMs=0L;
     }
 
-    private NpcInteractionRouter.Service contentService(
-        NpcInteractionRouter.Route route,
-        NpcEntity clicked
-    ){
+    private ContentNpcOptionResult
+        contentDecision(
+            NpcInteractionRouter.Route route,
+            NpcEntity clicked
+        )
+    {
         if(contentRegistry==null||
            route==null||
            clicked==null||
            route.option<1)
-            return route==null
-                ?NpcInteractionRouter.Service.NONE
-                :route.service;
+            return null;
 
-        ContentNpcOptionResult content=
-            contentRegistry.dispatchNpcOption(
-                clicked.definitionId,
-                route.option,
-                clicked.x,
-                clicked.y
-            );
+        return contentRegistry.dispatchNpcOption(
+            clicked.definitionId,
+            route.option,
+            clicked.x,
+            clicked.y
+        );
+    }
+
+    private NpcInteractionRouter.Service contentService(
+        NpcInteractionRouter.Route route,
+        ContentNpcOptionResult content
+    ){
+        if(route==null)
+            return NpcInteractionRouter.Service.NONE;
 
         if(content==null)
             return route.service;
@@ -276,6 +314,41 @@ final class LocalRoutedNpcInteractionHandler {
             default:
                 return NpcInteractionRouter.Service.NONE;
         }
+    }
+
+    private String executeContentAction(
+        String actionKey,
+        NpcAction request,
+        NpcEntity clicked,
+        ServerPacketWriter serverPackets,
+        String tag
+    )throws IOException{
+        if(LocalLabCoreContentModule
+                .MAKEOVER_MAGE_ACTION
+                .equals(actionKey)){
+            if(makeoverMage==null)
+                return "CONTENT_NPC_ACTION key="+
+                    actionKey+
+                    " result=REJECTED_SESSION_ACTION_UNAVAILABLE";
+
+            boolean handled=
+                makeoverMage.beginIfSupported(
+                    request,
+                    clicked,
+                    serverPackets,
+                    tag
+                );
+
+            return handled
+                ?null
+                :"CONTENT_NPC_ACTION key="+
+                    actionKey+
+                    " result=REJECTED_TARGET_OR_OPTION_MISMATCH";
+        }
+
+        return "CONTENT_NPC_ACTION key="+
+            actionKey+
+            " result=REJECTED_UNSUPPORTED_CONTENT_ACTION";
     }
 
     private String openBank(

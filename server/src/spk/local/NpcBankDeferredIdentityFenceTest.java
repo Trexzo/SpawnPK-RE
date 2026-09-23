@@ -53,7 +53,7 @@ public final class NpcBankDeferredIdentityFenceTest {
         String deferred=
             handler.handle(
                 new NpcAction(
-                    155,
+                    17,
                     original.sceneIndex
                 ),
                 original,
@@ -182,7 +182,7 @@ public final class NpcBankDeferredIdentityFenceTest {
         String opened=
             handler.handle(
                 new NpcAction(
-                    155,
+                    17,
                     fresh.sceneIndex
                 ),
                 fresh,

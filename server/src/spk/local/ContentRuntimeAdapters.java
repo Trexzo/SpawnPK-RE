@@ -152,6 +152,7 @@ final class ContentRuntimeAdapters {
         implements ContentPresentation {
 
         private final ServerPacketWriter writer;
+        private final ContentDialoguePresentation dialogue;
 
         PresentationAdapter(
             ServerPacketWriter writer
@@ -161,6 +162,15 @@ final class ContentRuntimeAdapters {
                     writer,
                     "writer"
                 );
+            this.dialogue=
+                new DialogueAdapter(
+                    this.writer
+                );
+        }
+
+        @Override public ContentDialoguePresentation
+            dialogue(){
+            return dialogue;
         }
 
         @Override public void skill(
@@ -227,6 +237,86 @@ final class ContentRuntimeAdapters {
                         gfxDelay
                     )
                 )
+            );
+        }
+
+        private void write(
+            String operation,
+            PacketWrite action
+        ){
+            try{
+                action.run();
+            }catch(IOException e){
+                throw new ContentPresentationException(
+                    "content presentation "+
+                    operation+
+                    " failed",
+                    e
+                );
+            }
+        }
+
+        @FunctionalInterface
+        private interface PacketWrite {
+            void run()throws IOException;
+        }
+    }
+
+    private static final class DialogueAdapter
+        implements ContentDialoguePresentation {
+
+        private final ServerPacketWriter writer;
+
+        DialogueAdapter(
+            ServerPacketWriter writer
+        ){
+            this.writer=
+                Objects.requireNonNull(
+                    writer,
+                    "writer"
+                );
+        }
+
+        @Override public void statement(
+            List<String> lines
+        ){
+            write(
+                "dialogueStatement",
+                ()->
+                    StandardDialoguePresentationAdapter
+                        .openStatement(
+                            writer,
+                            lines
+                        )
+            );
+        }
+
+        @Override public void namedNpc(
+            int npcDefinitionId,
+            String speakerName,
+            List<String> lines
+        ){
+            write(
+                "dialogueNamedNpc",
+                ()->
+                    StandardDialoguePresentationAdapter
+                        .openNamedNpc(
+                            writer,
+                            npcDefinitionId,
+                            speakerName,
+                            lines
+                        )
+            );
+        }
+
+        @Override public void close(){
+            write(
+                "dialogueClose",
+                ()->
+                    StandardDialoguePresentationAdapter
+                        .close(
+                            writer
+                        )
             );
         }
 

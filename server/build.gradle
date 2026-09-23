@@ -1074,6 +1074,209 @@ tasks.register('bloodcoreSynthesisPresentationRegression') {
     }
 }
 
+tasks.register('nurseContentOwnershipRegression') {
+    group = 'verification'
+    description = 'Validates Nurse is runtime-owned by the semantic content registry while preserving byte-for-byte legacy parity evidence.'
+    dependsOn tasks.named('testClasses')
+
+    doLast {
+        project.javaexec {
+            workingDir repoRoot
+            classpath = sourceSets.test.runtimeClasspath
+            mainClass.set('spk.local.NurseContentOwnershipTest')
+        }
+
+        project.javaexec {
+            workingDir repoRoot
+            classpath = sourceSets.test.runtimeClasspath
+            mainClass.set('spk.local.NurseContentRegistryParityTest')
+        }
+
+        logger.lifecycle(
+            'NURSE_CONTENT_OWNERSHIP_REGRESSION_PASS runtimeLegacyDependency=false parity=true'
+        )
+    }
+}
+
+
+tasks.register('bankerTalkToContentOwnershipRegression') {
+    group = 'verification'
+    description = 'Validates banker 7605 Talk-to policy is content-owned while native Bank routing and deferred bank coordination remain unchanged.'
+    dependsOn tasks.named('testClasses')
+
+    doLast {
+        [
+            'spk.local.NpcInteractionRouterTest',
+            'spk.local.LocalRoutedNpcInteractionHandlerTest',
+            'spk.local.NpcBankDeferredIdentityFenceTest',
+            'spk.local.NpcOptionContentRegistryParityTest',
+            'spk.local.BankerTalkToContentOwnershipTest'
+        ].each { mainClassName ->
+            project.javaexec {
+                workingDir repoRoot
+                classpath = sourceSets.test.runtimeClasspath
+                mainClass.set(mainClassName)
+            }
+        }
+
+        logger.lifecycle(
+            'BANKER_TALK_TO_CONTENT_OWNERSHIP_REGRESSION_PASS genericTalk=true contentBank=true bankWireParity=true'
+        )
+    }
+}
+
+
+tasks.register('standardDialoguePresentationRegression') {
+    group = 'verification'
+    description = 'Validates exact-current standard dialogue presentation mappings and Make-over wire/flow parity after raw UI ids move behind the adapter.'
+    dependsOn tasks.named('testClasses')
+
+    doLast {
+        [
+            'spk.local.StandardDialoguePresentationAdapterTest',
+            'spk.local.MakeoverMageFlowTest',
+            'spk.local.MakeoverDesignRejectionIsolationTest',
+            'spk.local.MakeoverNpcProximityLifecycleTest'
+        ].each { mainClassName ->
+            project.javaexec {
+                workingDir repoRoot
+                classpath = sourceSets.test.runtimeClasspath
+                mainClass.set(mainClassName)
+            }
+        }
+
+        logger.lifecycle(
+            'STANDARD_DIALOGUE_PRESENTATION_REGRESSION_PASS adapter=true makeoverWireParity=true rawDialogueIdsInHandler=false'
+        )
+    }
+}
+
+tasks.register('contentDialoguePresentationApiRegression') {
+    group = 'verification'
+    description = 'Validates the public semantic dialogue presentation capability, API boundary, fail-closed compatibility and exact-current runtime wire parity.'
+    dependsOn tasks.named('testClasses')
+
+    doLast {
+        [
+            'spk.local.StandardDialoguePresentationAdapterTest',
+            'spk.local.ContentDialoguePresentationRuntimeTest',
+            'spk.local.ContentPublicApiBoundaryTest'
+        ].each { mainClassName ->
+            project.javaexec {
+                workingDir repoRoot
+                classpath = sourceSets.test.runtimeClasspath
+                mainClass.set(mainClassName)
+            }
+        }
+
+        logger.lifecycle(
+            'CONTENT_DIALOGUE_PRESENTATION_API_REGRESSION_PASS statement=true namedNpc=true close=true boundary=true wireParity=true'
+        )
+    }
+}
+
+tasks.register('dialogueSessionAbortRegression') {
+    group = 'verification'
+    description = 'Validates server-owned dialogue abort lifecycle, idempotence and stale-resolver fencing without conflating abort with client close intent.'
+    dependsOn tasks.named('testClasses')
+
+    doLast {
+        project.javaexec {
+            workingDir repoRoot
+            classpath = sourceSets.test.runtimeClasspath
+            mainClass.set('spk.local.DialogueSessionServiceTest')
+        }
+
+        logger.lifecycle(
+            'DIALOGUE_SESSION_ABORT_REGRESSION_PASS abort=true idempotent=true staleResolverFenced=true'
+        )
+    }
+}
+
+tasks.register('makeoverSemanticDialogueSessionRegression') {
+    group = 'verification'
+    description = 'Validates Make-over intro/options use DialogueSessionService semantics while preserving designer, wire and proximity behavior.'
+    dependsOn tasks.named('testClasses')
+
+    doLast {
+        [
+            'spk.local.DialogueSessionServiceTest',
+            'spk.local.MakeoverSemanticDialogueSessionTest',
+            'spk.local.MakeoverMageFlowTest',
+            'spk.local.MakeoverDesignRejectionIsolationTest',
+            'spk.local.MakeoverNpcProximityLifecycleTest'
+        ].each { mainClassName ->
+            project.javaexec {
+                workingDir repoRoot
+                classpath = sourceSets.test.runtimeClasspath
+                mainClass.set(mainClassName)
+            }
+        }
+
+        logger.lifecycle(
+            'MAKEOVER_SEMANTIC_DIALOGUE_SESSION_REGRESSION_PASS intro=true options=true designer=true abort=true legacyStage=false'
+        )
+    }
+}
+
+tasks.register('makeoverNpcContentActionOwnershipRegression') {
+    group = 'verification'
+    description = 'Validates NPC 599 Talk-to is selected by content priority and executed only through the allowlisted semantic Make-over action.'
+    dependsOn tasks.named('testClasses')
+
+    doLast {
+        [
+            'spk.local.ContentPublicApiBoundaryTest',
+            'spk.local.ContentRegistrarAuthorityCoverageTest',
+            'spk.local.ContentRegistrarSealTest',
+            'spk.local.ContentRegistryTest',
+            'spk.local.NpcOptionContentRegistryParityTest',
+            'spk.local.MakeoverNpcContentActionOwnershipTest',
+            'spk.local.MakeoverSemanticDialogueSessionTest',
+            'spk.local.LocalRoutedNpcInteractionHandlerTest',
+            'spk.local.LocalPendingRequestDispatcherTest'
+        ].each { mainClassName ->
+            project.javaexec {
+                workingDir repoRoot
+                classpath = sourceSets.test.runtimeClasspath
+                mainClass.set(mainClassName)
+            }
+        }
+
+        logger.lifecycle(
+            'MAKEOVER_NPC_CONTENT_ACTION_OWNERSHIP_REGRESSION_PASS npc599=true contentAction=true priorityOverride=true unsupportedFailsClosed=true directIntercept=false'
+        )
+    }
+}
+
+
+tasks.register('makeoverDialogueCloseRegression') {
+    group = 'verification'
+    description = 'Validates exact augmented option Cancel widget 54195 closes only an active close-capable Make-over semantic option node.'
+    dependsOn tasks.named('testClasses')
+
+    doLast {
+        [
+            'spk.local.StandardDialoguePresentationAdapterTest',
+            'spk.local.DialogueSessionServiceTest',
+            'spk.local.MakeoverSemanticDialogueSessionTest',
+            'spk.local.LocalPendingRequestDispatcherTest',
+            'spk.local.LocalSessionUiActionHandlerTest'
+        ].each { mainClassName ->
+            project.javaexec {
+                workingDir repoRoot
+                classpath = sourceSets.test.runtimeClasspath
+                mainClass.set(mainClassName)
+            }
+        }
+
+        logger.lifecycle(
+            'MAKEOVER_DIALOGUE_CLOSE_REGRESSION_PASS widget54195=true semanticClose=true introRejected=true genericUiPreserved=true'
+        )
+    }
+}
+
+
 tasks.named('check') {
     dependsOn tasks.named('customAssetPipelineRegression')
     dependsOn tasks.named('customAssetPipelineHardeningRegression')

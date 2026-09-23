@@ -17,7 +17,6 @@ final class LocalCommandDispatcher {
         SceneUpdatePublisher scenePublisher();
         void replaceScenePublisher(SceneUpdatePublisher scenePublisher);
         void saveAccount(String tag,String reason);
-        boolean scopesightActive();
         void openDevPanel(ServerPacketWriter serverPackets)throws IOException;
         void applyPetDialog(LocalPetInventoryDialogHandler.Result result,String tag);
     }
@@ -35,7 +34,6 @@ final class LocalCommandDispatcher {
     private final LocalDevPlayerCommandHandler devPlayerCommands;
     private final LocalDevNpcCommandHandler devNpcCommands;
     private final LocalDevToolCommandHandler devToolCommands;
-    private final LocalNurseCommandHandler nurseCommands;
     private final LocalVoidglassCommandHandler voidglassCommands;
     private final LocalPetRuntimeCommandHandler petRuntimeCommands;
     private final LocalCompColorsCommandHandler compColorsCommands;
@@ -60,7 +58,6 @@ final class LocalCommandDispatcher {
         LocalDevPlayerCommandHandler devPlayerCommands,
         LocalDevNpcCommandHandler devNpcCommands,
         LocalDevToolCommandHandler devToolCommands,
-        LocalNurseCommandHandler nurseCommands,
         LocalVoidglassCommandHandler voidglassCommands,
         LocalPetRuntimeCommandHandler petRuntimeCommands,
         LocalCompColorsCommandHandler compColorsCommands,
@@ -84,7 +81,6 @@ final class LocalCommandDispatcher {
         this.devPlayerCommands=Objects.requireNonNull(devPlayerCommands,"devPlayerCommands");
         this.devNpcCommands=Objects.requireNonNull(devNpcCommands,"devNpcCommands");
         this.devToolCommands=Objects.requireNonNull(devToolCommands,"devToolCommands");
-        this.nurseCommands=Objects.requireNonNull(nurseCommands,"nurseCommands");
         this.voidglassCommands=Objects.requireNonNull(voidglassCommands,"voidglassCommands");
         this.petRuntimeCommands=Objects.requireNonNull(petRuntimeCommands,"petRuntimeCommands");
         this.compColorsCommands=Objects.requireNonNull(compColorsCommands,"compColorsCommands");
@@ -296,20 +292,6 @@ final class LocalCommandDispatcher {
         if(devToolCommand!=null){
             for(String line:devToolCommand)
                 System.out.println(tag+line);
-            return true;
-        }
-
-        LocalNurseCommandHandler.Result nurseCommand=
-            nurseCommands.handle(
-                p,
-                command,
-                bridge.scopesightActive(),
-                serverPackets
-            );
-        if(nurseCommand!=null){
-            if(nurseCommand.saveReason!=null)
-                bridge.saveAccount(tag,nurseCommand.saveReason);
-            System.out.println(tag+nurseCommand.logText);
             return true;
         }
 
