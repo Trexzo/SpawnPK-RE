@@ -354,6 +354,13 @@ final class CustomAssetNamespacePreflight {
         int id,
         String label
     ) {
+        if (namespace != CustomAssetNamespaceSnapshot.Namespace.TEXTURE ||
+            context != CustomAssetNamespaceSnapshot.Context.GLOBAL ||
+            id != 278)
+            throw new IllegalStateException(
+                "SHARED_CUSTOM_NAMESPACE_UNSUPPORTED " +
+                namespace + ":" + context + ":" + id + " at " + label
+            );
         recordClaim(snapshot, claims, namespace, context, id, label, true);
     }
 
