@@ -13,10 +13,13 @@ public final class AppearanceClientParityTest {
     public static void main(String[] args) throws Exception {
         verifyDefault();
         verifyMakeoverFemale();
+        verifyRoleHeadOverrideSeparation();
 
         System.out.println(
             "APPEARANCE_CLIENT_PARSER_PARITY_PASS "+
-            "default=true makeoverFemale=true fullConsumption=true"
+            "default=true makeoverFemale=true "+
+            "appearanceRoleAc=true wornHeadVsOverrideBs=true "+
+            "fullConsumption=true"
         );
     }
 
@@ -153,6 +156,137 @@ public final class AppearanceClientParityTest {
         );
     }
 
+    private static void verifyRoleHeadOverrideSeparation()
+        throws Exception{
+        if(EquipmentSlot.HEAD.appearanceIndex!=0)
+            throw new AssertionError(
+                "exact staff-partyhat branch requires HEAD br[0]"
+            );
+
+        int[] worn=new int[12];
+        Arrays.fill(worn,-1);
+        worn[EquipmentSlot.HEAD.appearanceIndex]=22131;
+
+        Parsed wornParsed=
+            parse(
+                BootstrapPackets.appearanceBlock(
+                    "wornadmin",
+                    worn,
+                    new PlayerState(),
+                    null,
+                    45
+                )
+            );
+
+        if(wornParsed.appearanceRole!=45)
+            throw new AssertionError(
+                "worn aC="+wornParsed.appearanceRole
+            );
+        if(wornParsed.appearance[0]!=512+22131)
+            throw new AssertionError(
+                "worn HEAD br0="+
+                wornParsed.appearance[0]
+            );
+        if(wornParsed.extraAppearanceItem==22131)
+            throw new AssertionError(
+                "worn HEAD leaked into bs"
+            );
+
+        for(int dynamicHat:new int[]{
+                22131,22132,23480,23482,23483
+            }){
+            int[] dynamic=new int[12];
+            Arrays.fill(dynamic,-1);
+            dynamic[0]=dynamicHat;
+            Parsed parsed=
+                parse(
+                    BootstrapPackets.appearanceBlock(
+                        "dynamichat",
+                        dynamic,
+                        new PlayerState(),
+                        null,
+                        45
+                    )
+                );
+            if(parsed.appearanceRole!=45||
+               parsed.appearance[0]!=512+dynamicHat)
+                throw new AssertionError(
+                    "dynamic partyhat projection id="+
+                    dynamicHat+
+                    " aC="+parsed.appearanceRole+
+                    " br0="+parsed.appearance[0]
+                );
+        }
+
+        int[] noWorn=new int[12];
+        Arrays.fill(noWorn,-1);
+        PlayerState overrideState=
+            new PlayerState();
+        overrideState.cosmetic().set(22131);
+        overrideState.syncEquipmentPresentation(
+            new EquipmentState()
+        );
+
+        Parsed overrideParsed=
+            parse(
+                BootstrapPackets.appearanceBlock(
+                    "overrideadmin",
+                    noWorn,
+                    overrideState,
+                    null,
+                    45
+                )
+            );
+
+        if(overrideParsed.appearanceRole!=45)
+            throw new AssertionError(
+                "override aC="+
+                overrideParsed.appearanceRole
+            );
+        if(overrideParsed.appearance[0]==512+22131)
+            throw new AssertionError(
+                "Override falsely occupied HEAD br0"
+            );
+        if(overrideParsed.extraAppearanceItem!=22131)
+            throw new AssertionError(
+                "Override bs="+
+                overrideParsed.extraAppearanceItem
+            );
+
+        for(int fixedHat:new int[]{23481,22133,22130}){
+            int[] fixed=new int[12];
+            Arrays.fill(fixed,-1);
+            fixed[0]=fixedHat;
+            Parsed parsed=
+                parse(
+                    BootstrapPackets.appearanceBlock(
+                        "fixedhat",
+                        fixed,
+                        new PlayerState(),
+                        null,
+                        0
+                    )
+                );
+            if(parsed.appearance[0]!=512+fixedHat)
+                throw new AssertionError(
+                    "fixed partyhat HEAD publication id="+
+                    fixedHat+
+                    " br0="+
+                    parsed.appearance[0]
+                );
+        }
+
+        System.out.println(
+            "APPEARANCE_ROLE_HEAD_OVERRIDE_CLIENT_PASS "+
+            "aC=45 adminWornBr0="+wornParsed.appearance[0]+
+            " adminOverrideBs="+overrideParsed.extraAppearanceItem+
+            " overrideHeadGate=false "+
+            "dynamicStaffPartyhatHeadFamily=true "+
+            "fixedModWealthyTevinsHead=true "+
+            "ctDerived=false"
+        );
+    }
+
     private static Parsed parse(
         byte[] data
     )throws Exception{
@@ -205,10 +339,20 @@ public final class AppearanceClientParityTest {
             playerClass
                 .getField("aY")
                 .getInt(player),
+            numericField(
+                playerClass,
+                player,
+                "aC"
+            ),
             ((int[])playerClass
                 .getField("br")
                 .get(player))
                 .clone(),
+            numericField(
+                playerClass,
+                player,
+                "bs"
+            ),
             ((int[])playerClass
                 .getField("aV")
                 .get(player))
@@ -221,23 +365,51 @@ public final class AppearanceClientParityTest {
         );
     }
 
+    private static int numericField(
+        Class<?> type,
+        Object target,
+        String name
+    )throws Exception{
+        Field field;
+        try{
+            field=type.getField(name);
+        }catch(NoSuchFieldException notPublic){
+            field=type.getDeclaredField(name);
+            field.setAccessible(true);
+        }
+
+        Object value=field.get(target);
+        if(!(value instanceof Number))
+            throw new AssertionError(
+                "non-numeric exact-client field "+
+                name+"="+value
+            );
+        return ((Number)value).intValue();
+    }
+
     private static final class Parsed {
         final int consumed;
         final int gender;
+        final int appearanceRole;
         final int[] appearance;
+        final int extraAppearanceItem;
         final int[] colours;
         final String name;
 
         Parsed(
             int consumed,
             int gender,
+            int appearanceRole,
             int[] appearance,
+            int extraAppearanceItem,
             int[] colours,
             String name
         ){
             this.consumed=consumed;
             this.gender=gender;
+            this.appearanceRole=appearanceRole;
             this.appearance=appearance;
+            this.extraAppearanceItem=extraAppearanceItem;
             this.colours=colours;
             this.name=name;
         }
