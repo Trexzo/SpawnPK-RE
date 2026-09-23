@@ -524,9 +524,18 @@ tasks.register('clientBuildRevision308Compatibility', JavaExec) {
     mainClass.set('spk.local.ClientBuildRevision308CompatibilityTest')
 }
 
+tasks.register('dailyChallengeTransportRegression', JavaExec) {
+    group = 'verification'
+    description = 'Verifies exact-v308 Daily Challenge C2S103 command normalization, FIFO ordering and fail-closed dispatch.'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.ClientDailyChallengeRequestQueueTest')
+}
+
 tasks.named('check') {
     dependsOn tasks.named('verifyJava11Bytecode')
     dependsOn tasks.named('clientBuildRevision308Compatibility')
+    dependsOn tasks.named('dailyChallengeTransportRegression')
     dependsOn tasks.named('currentTrainFocusedRegression')
     dependsOn tasks.named('r85Regression')
 }
