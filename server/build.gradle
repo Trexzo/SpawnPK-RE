@@ -527,6 +527,24 @@ tasks.register('clientBuildRevision308Compatibility', JavaExec) {
     mainClass.set('spk.local.ClientBuildRevision308CompatibilityTest')
 }
 
+tasks.register('teleportNavigationWidgetAdapterRegression') {
+    group = 'verification'
+    description = 'Validates exact-v308 spellbook teleport widget aliases normalize to semantic navigation entries without owning teleport policy.'
+    dependsOn tasks.named('testClasses')
+
+    doLast {
+        project.javaexec {
+            workingDir repoRoot
+            classpath = sourceSets.test.runtimeClasspath
+            mainClass.set('spk.local.TeleportNavigationWidgetAdapterTest')
+        }
+
+        logger.lifecycle(
+            'TELEPORT_NAVIGATION_WIDGET_ADAPTER_REGRESSION_PASS exactAliases=23 homeAliases=2 c2s185=true policyOwned=false'
+        )
+    }
+}
+
 tasks.named('check') {
     dependsOn tasks.named('verifyJava11Bytecode')
     dependsOn tasks.named('clientBuildRevision308Compatibility')
