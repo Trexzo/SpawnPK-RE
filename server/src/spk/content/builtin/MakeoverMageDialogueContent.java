@@ -21,6 +21,13 @@ public final class MakeoverMageDialogueContent
     public static final String OPTIONS_NODE=
         "node:options";
 
+    public static final String OUTCOME_OPEN_DESIGNER=
+        "makeover:open-designer";
+    public static final String OUTCOME_CANCEL=
+        "makeover:cancel";
+    public static final String OUTCOME_CLIENT_CLOSE=
+        "makeover:client-close";
+
     private static final ContentDialogueDefinition DEFINITION=
         new ContentDialogueDefinition(
             DIALOGUE_KEY,
@@ -101,12 +108,26 @@ public final class MakeoverMageDialogueContent
             );
 
         if(OPTIONS_NODE.equals(
-                context.nodeKey())&&
-           (intent.kind()==
-                ContentDialogueIntent.Kind.OPTION||
-            intent.kind()==
-                ContentDialogueIntent.Kind.CLOSE))
-            return ContentDialogueTransition.end();
+                context.nodeKey())){
+            if(intent.kind()==
+                    ContentDialogueIntent.Kind.OPTION){
+                if(intent.optionIndex()==1)
+                    return ContentDialogueTransition.end(
+                        OUTCOME_OPEN_DESIGNER
+                    );
+
+                if(intent.optionIndex()==2)
+                    return ContentDialogueTransition.end(
+                        OUTCOME_CANCEL
+                    );
+            }
+
+            if(intent.kind()==
+                    ContentDialogueIntent.Kind.CLOSE)
+                return ContentDialogueTransition.end(
+                    OUTCOME_CLIENT_CLOSE
+                );
+        }
 
         throw new IllegalStateException(
             "unsupported Make-over dialogue transition node="+
