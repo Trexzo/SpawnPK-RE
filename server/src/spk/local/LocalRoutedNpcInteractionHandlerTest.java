@@ -16,7 +16,7 @@ public final class LocalRoutedNpcInteractionHandlerTest {
         LocalRoutedNpcInteractionHandler h=
             new LocalRoutedNpcInteractionHandler(npcs,bank,movement);
 
-        // Runtime-certified banker 7605: option 1 Talk-to routes to BANK.
+        // Native option 3 Bank exercises the generic bank coordinator.
         String spawned=npcs.devSpawnNpc(
             7605,1,0,movement,w);
         if(!spawned.startsWith("DEV_NPC_SPAWN_OK"))
@@ -30,7 +30,7 @@ public final class LocalRoutedNpcInteractionHandlerTest {
 
         int before=wire.size();
         String opened=h.handle(
-            new NpcAction(155,banker.sceneIndex),
+            new NpcAction(17,banker.sceneIndex),
             banker,
             w
         );
@@ -57,7 +57,7 @@ public final class LocalRoutedNpcInteractionHandlerTest {
         if(far==null)throw new AssertionError("far banker not visible");
 
         String deferred=h.handle(
-            new NpcAction(155,far.sceneIndex),
+            new NpcAction(17,far.sceneIndex),
             far,
             w
         );
