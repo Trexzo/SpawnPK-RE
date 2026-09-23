@@ -129,15 +129,15 @@ public final class LocalRegionStreamHandlerTest {
             enabledWorld.registerPlayer(player,"opensrc");
 
             MovementState movement=player.movement();
-            int beforeX=movement.x();
-            int beforeY=movement.y();
+            int beforeX=MovementState.INITIAL_X;
+            int beforeY=3527; // inside HOME margin 16, outside old margin 24.
 
             movement.enterTransientRegion(
                 beforeX,
                 beforeY,
                 0,
                 3040,
-                3456
+                3480
             );
 
             DevAuthorityWorkbench dev=
@@ -153,14 +153,29 @@ public final class LocalRegionStreamHandlerTest {
                     )
                 );
 
+            RegionLoadLifecycle homeLifecycle=
+                new RegionLoadLifecycle();
+            NpcRegistry homeNpcs=
+                new NpcRegistry(dev);
+            HomeWorldRuntimePlan homePlan=
+                new HomeWorldRuntimePlan();
+
             LocalRegionStreamHandler h=
-                create(
+                new LocalRegionStreamHandler(
                     true,
                     enabledWorld,
                     player,
-                    new NpcRegistry(dev),
-                    new HomeWorldRuntimePlan(),
+                    movement,
+                    homePlan,
+                    homeNpcs,
+                    new LocalPlayerInteractionHandler(
+                        enabledWorld,
+                        player,
+                        movement,
+                        player.equipment()
+                    ),
                     new CombatEngine(dev),
+                    homeLifecycle,
                     bridge
                 );
 
@@ -204,10 +219,41 @@ public final class LocalRegionStreamHandlerTest {
                     "HOME reattach emitted no packets"
                 );
 
+            if(!homeLifecycle.pending())
+                throw new AssertionError(
+                    "HOME reattach did not await opcode121"
+                );
+
+            int wireBeforeAck=wire.size();
+            RegionLoadLifecycle.Completion completion=
+                homeLifecycle.complete();
+
+            h.completeRegionLoad(
+                completion,
+                writer,
+                "[region-stream-test] "
+            );
+
+            if(wire.size()<=wireBeforeAck)
+                throw new AssertionError(
+                    "HOME overlays were not replayed after opcode121"
+                );
+
+            if(homeNpcs.visibleCount()<=0)
+                throw new AssertionError(
+                    "HOME NPC view was not republished after opcode121"
+                );
+
+            if(bridge.petFollowResets!=1)
+                throw new AssertionError(
+                    "post-ACK replay duplicated pet reset"
+                );
+
             System.out.println(
                 "LOCAL_REGION_STREAM_HANDLER_PASS "+
                 "disabledFailClosed=true homeReattach=true "+
-                "positionPreserved=true sceneReplaced=true"
+                "homeMargin16=true positionPreserved=true "+
+                "sceneReplaced=true overlayAfter121=true"
             );
         }finally{
             enabledWorld.close();
