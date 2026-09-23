@@ -36,7 +36,10 @@ final class CollectionLogPresentation {
         ApplicationBus126Publisher.send(
             packets,
             COLLECTION_NAME_WIDGET,
-            collection.name
+            wireText(
+                collection.name,
+                "collection.name"
+            )
         );
         ApplicationBus126Publisher.send(
             packets,
@@ -57,12 +60,18 @@ final class CollectionLogPresentation {
         ApplicationBus126Publisher.send(
             packets,
             REWARD_HEADING_WIDGET,
-            collection.completionRewardHeading
+            wireText(
+                collection.completionRewardHeading,
+                "collection.completionRewardHeading"
+            )
         );
         ApplicationBus126Publisher.send(
             packets,
             REWARD_DESCRIPTION_WIDGET,
-            collection.completionRewardDescription
+            wireText(
+                collection.completionRewardDescription,
+                "collection.completionRewardDescription"
+            )
         );
 
         publishItems(
@@ -105,11 +114,21 @@ final class CollectionLogPresentation {
         if(value==null)
             throw new NullPointerException(field);
 
-        if(value.indexOf('\n')>=0||
-           value.indexOf('\r')>=0)
-            throw new IllegalArgumentException(
-                field+" contains line terminator"
-            );
+        for(int i=0;i<value.length();i++){
+            char ch=value.charAt(i);
+
+            if(ch=='\n'||ch=='\r')
+                throw new IllegalArgumentException(
+                    field+" contains line terminator"
+                );
+
+            if(ch>0xff)
+                throw new IllegalArgumentException(
+                    field+
+                    " not ISO-8859-1 at index="+
+                    i
+                );
+        }
 
         return value;
     }
