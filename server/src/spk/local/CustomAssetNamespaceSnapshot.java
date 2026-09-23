@@ -167,9 +167,16 @@ final class CustomAssetNamespaceSnapshot {
                     throw new IOException(
                         "GFX_CONTEXT requires PRIMARY or OSRS context: " + line
                     );
+                if (value < 0)
+                    throw new IOException("negative GFX context id: " + line);
                 Context previous = gfxContexts.put(value, context);
-                if (previous != null && previous != context)
-                    throw new IOException("conflicting GFX model context for " + value);
+                if (previous != null)
+                    throw new IOException(
+                        (previous == context
+                            ? "duplicate GFX model context for "
+                            : "conflicting GFX model context for ") +
+                        value
+                    );
             } else {
                 throw new IOException("unknown namespace snapshot recordType: " + type);
             }
