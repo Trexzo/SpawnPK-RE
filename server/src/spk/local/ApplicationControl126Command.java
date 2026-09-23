@@ -19,6 +19,10 @@ final class ApplicationControl126Command {
             1,
             "global-control-dispatch"
         ),
+        BLOOD_POOL_SLOT_APPEND(
+            37,
+            "blood-pool-slot-append"
+        ),
         COLLECTION_CLEAR_ROWS(
             54315,
             "collection-log-clear-rows"
@@ -72,7 +76,8 @@ final class ApplicationControl126Command {
         TOGGLE_BOUNTY_HUNTER("togglebh"),
         QUICK_PRAYERS_ON("QUICK_PRAYERS_ON"),
         QUICK_PRAYERS_OFF("QUICK_PRAYERS_OFF"),
-        DISABLE_QUICK_PRAYERS("DISABLE_QUICK_PRAYERS");
+        DISABLE_QUICK_PRAYERS("DISABLE_QUICK_PRAYERS"),
+        RESET_BLOOD_POOL_SHOP_SLOTS("RESET_BLOOD_POOL_SHOP_SLOTS");
 
         private final String payload;
 
@@ -168,6 +173,40 @@ final class ApplicationControl126Command {
             "LOGIN_REWARD_IDX "+
                 index,
             "login-reward:index"
+        );
+    }
+
+    static ApplicationControl126Command bloodPoolResetSlots(){
+        return token(
+            Token.RESET_BLOOD_POOL_SHOP_SLOTS
+        );
+    }
+
+    static ApplicationControl126Command bloodPoolAppendOpaque(
+        String exactRecord
+    ){
+        if(exactRecord==null)
+            throw new NullPointerException(
+                "exactRecord"
+            );
+
+        String payload=exactRecord.trim();
+
+        if(payload.isEmpty())
+            throw new IllegalArgumentException(
+                "Blood Pool slot record blank"
+            );
+
+        if(payload.indexOf('\n')>=0||
+           payload.indexOf('\r')>=0)
+            throw new IllegalArgumentException(
+                "Blood Pool slot record must remain one S2C126 string"
+            );
+
+        return exact(
+            Target.BLOOD_POOL_SLOT_APPEND,
+            payload,
+            "blood-pool:slot-append:opaque-fields"
         );
     }
 
