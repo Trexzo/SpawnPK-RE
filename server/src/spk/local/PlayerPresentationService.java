@@ -7,6 +7,10 @@ final class PlayerPresentationService {
     private final World world;
     private final DevAuthorityWorkbench dev;
 
+    PlayerPresentationService(DevAuthorityWorkbench dev){
+        this(World.shared(),dev);
+    }
+
     PlayerPresentationService(World world,DevAuthorityWorkbench dev){
         if(world==null) throw new NullPointerException("world");
         if(dev==null) throw new NullPointerException("dev");
