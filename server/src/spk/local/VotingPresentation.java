@@ -19,13 +19,13 @@ final class VotingPresentation {
 
     static final class SiteControl {
         final VotingService.Provider provider;
-        final int actionWidget;
+        final int primaryWidget;
         final int pairedWidget;
         final String displayName;
 
         SiteControl(
             VotingService.Provider provider,
-            int actionWidget,
+            int primaryWidget,
             int pairedWidget,
             String displayName
         ){
@@ -34,7 +34,7 @@ final class VotingPresentation {
                     provider,
                     "provider"
                 );
-            this.actionWidget=actionWidget;
+            this.primaryWidget=primaryWidget;
             this.pairedWidget=pairedWidget;
             this.displayName=
                 requireText(
