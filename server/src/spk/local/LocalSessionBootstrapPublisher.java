@@ -70,12 +70,19 @@ final class LocalSessionBootstrapPublisher {
         boolean persistentAccount,
         String tag
     )throws IOException{
+        int appearanceRole=
+            world.appearanceRoleFor(
+                username,
+                playerState
+            );
+
         BootstrapPackets.send(
             serverPackets,
             username,
             equipment.appearanceItems(),
             movement.runEnergy(),
-            playerState
+            playerState,
+            appearanceRole
         );
 
         // BootstrapPackets retains the certified HOME spawn bootstrap. Restore a
@@ -308,13 +315,16 @@ final class LocalSessionBootstrapPublisher {
             BootstrapPackets.appearanceBlock(
                 username,
                 equipment.appearanceItems(),
-                playerState
+                playerState,
+                null,
+                appearanceRole
             );
 
         System.out.println(
             tag+
             "M4_BOOTSTRAP_SENT packets=249,73,81 region=385,436 local=55,55"+
             " appearanceMask=0x10 appearanceBytes="+appearance.length+
+            " appearanceRole="+appearanceRole+
             " status=M4_CERTIFIED"
         );
         System.out.println(

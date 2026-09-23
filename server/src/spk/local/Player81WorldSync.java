@@ -552,7 +552,17 @@ final class Player81WorldSync {
                 rc.dev==null
                     ?null
                     :rc.dev.playerNpcTransformId();
-            byte[] block=BootstrapPackets.appearanceBlock(p.username(),p.equipment().appearanceItems(),p.playerState(),morph);
+            byte[] block=
+                BootstrapPackets.appearanceBlock(
+                    p.username(),
+                    p.equipment().appearanceItems(),
+                    p.playerState(),
+                    morph,
+                    state.world.appearanceRoleFor(
+                        p.username(),
+                        p.playerState()
+                    )
+                );
             ByteArrayOutputStream out=new ByteArrayOutputStream(block.length+2);
             out.write(0x10);out.write((-block.length)&255);out.write(block);return out.toByteArray();
         }

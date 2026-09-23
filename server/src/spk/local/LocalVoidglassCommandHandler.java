@@ -121,7 +121,7 @@ final class LocalVoidglassCommandHandler {
             }
 
             return Outcome.noSave(
-                "CUSTOM_PET_R3_VOIDGLASS_HELP usage=::voidglass3 give|candidate <1..4>|next|proc|status|reset item=29999 note=voidglass2_alias_migrated_to_R3 customAuthority=LOCAL_DEV_ONLY");
+                "CUSTOM_PET_R3_VOIDGLASS_HELP usage=::voidglass3 give|candidate <1>|next|proc|status|reset item=29999 note=voidglass2_alias_migrated_to_R3 nativeCompositorRetired=true customAuthority=LOCAL_DEV_ONLY");
         }
 
         if(p[0].equalsIgnoreCase("voidglass")){
@@ -325,7 +325,7 @@ final class LocalVoidglassCommandHandler {
             VoidglassR3CustomContent.candidate(index);
 
         if(candidate==null){
-            return "VOIDGLASS_R3_CANDIDATE_REJECTED expected=1..4";
+            return "VOIDGLASS_R3_CANDIDATE_REJECTED expected=1 nativeCompositorRetired=true";
         }
 
         String result=npcs.previewPetDefinition(
@@ -364,7 +364,7 @@ final class LocalVoidglassCommandHandler {
     )throws IOException{
         if(!VoidglassR3CustomContent.active(
             petState,npcs.pet())){
-            return "VOIDGLASS_R3_PROC_REJECTED activePetMustBe=item29999 candidateNpc12000..12003";
+            return "VOIDGLASS_R3_PROC_REJECTED activePetMustBe=item29999 customNpc12000";
         }
 
         VoidglassR3CustomContent.Candidate candidate=
@@ -393,7 +393,7 @@ final class LocalVoidglassCommandHandler {
             " gfx="+VoidglassR3CustomContent.PROC_GFX+
             " text={"+text+"}"+
             " visual={"+fx+"}"+
-            " hydraAssets=false gameplayModifier=NONE";
+            " customPipelineAsset=true gameplayModifier=NONE";
     }
 
     String statusR3(){

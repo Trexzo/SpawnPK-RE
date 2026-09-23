@@ -50,15 +50,11 @@ public final class NormalInventoryDragRuntimeIntegrationTest {
                 byte[] appearance=expectEventuallyVarShort(in,s2c,81);
 
                 /*
-                 * LocalSessionPlayerInitializer aligns the exact-current
-                 * appearance rank channel (rs.a.k.aC) with LOCAL_DEV_RANK.
-                 * Keep this runtime packet oracle aligned with the live session
-                 * rather than implicitly asserting the historical aC=0 block.
+                 * Exact v308 keeps login privilege Client.cT separate from
+                 * per-player appearance role rs.a.k.aC. Normal login therefore
+                 * leaves aC at its independent default 0.
                  */
                 PlayerState expectedPlayer=new PlayerState();
-                expectedPlayer.setAppearanceRank(
-                    LocalLoginTransport.LOCAL_DEV_RANK
-                );
                 byte[] expected=BootstrapPackets.player81AppearanceOnly(
                     "local",
                     eq.appearanceItems(),

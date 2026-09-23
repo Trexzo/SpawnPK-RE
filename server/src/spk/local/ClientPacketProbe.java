@@ -40,6 +40,9 @@ final class ClientPacketProbe {
     private long opcode0Count;
     private final ClientRequestQueue typedRequests=
         new ClientRequestQueue();
+    private final LoadoutEditorCompatibilityPairer
+        loadoutEditorPairer=
+            new LoadoutEditorCompatibilityPairer();
 
     ClientPacketProbe(InputStream in, IsaacCipher cipher, String tag) {
         this.in = in;
@@ -87,6 +90,21 @@ final class ClientPacketProbe {
         if (encoded < 0) return false;
         int opcode = (encoded - cipher.nextInt()) & 0xff;
         decodedCount++;
+
+        if(opcode!=103){
+            String expired=
+                loadoutEditorPairer
+                    .expireForInterveningPacket(
+                        decodedCount
+                    );
+            if(expired!=null)
+                System.out.printf(
+                    "%sCLIENT_LOADOUT_PAIR seq=%d state=EXPIRED reason=%s%n",
+                    tag,
+                    decodedCount,
+                    expired
+                );
+        }
 
         switch (opcode) {
             case 3: {
@@ -1096,33 +1114,75 @@ final class ClientPacketProbe {
                 int dialogueOption=
                     dialogueOptionIndex(text);
 
-                ClientRequest request=
-                    dialogueOption>0
-                    ? new DialogueOptionClientRequest(
-                        dialogueOption,
-                        ClientRequestMetadata.exactCurrent(
-                            103,
-                            "VAR_BYTE_DIALOGUEOPTION_INDEX_OPTIONAL_LF",
-                            "V308_CLIENT_DIALOGUE_OPTION_HOTKEY"
-                        )
-                    )
-                    : new CommandClientRequest(
-                        text,
-                        ClientRequestMetadata.exactCurrent(
-                            103,
-                            "VAR_BYTE_ISO_8859_1_OPTIONAL_LF",
-                            "PINNED_CLIENT_OPCODE_103_WRITER"
-                        )
+                LoadoutEditorCompatibilityPairer.Outcome
+                    loadout=
+                        loadoutEditorPairer.accept(
+                            text,
+                            decodedCount
+                        );
+
+                DailyChallengeClientRequest
+                    dailyChallenge=
+                        dialogueOption>0||
+                        loadout.recognized()
+                        ?null
+                        :dailyChallengeRequest(
+                            text
+                        );
+
+                ClientRequest request=null;
+
+                if(dialogueOption>0)
+                    request=
+                        new DialogueOptionClientRequest(
+                            dialogueOption,
+                            ClientRequestMetadata.exactCurrent(
+                                103,
+                                "VAR_BYTE_DIALOGUEOPTION_INDEX_OPTIONAL_LF",
+                                "V308_CLIENT_DIALOGUE_OPTION_HOTKEY"
+                            )
+                        );
+                else if(loadout.kind==
+                        LoadoutEditorCompatibilityPairer
+                            .Kind.COMPLETE)
+                    request=loadout.request;
+                else if(loadout.recognized()){
+                    // cld1 is staged; malformed/orphan halves are consumed
+                    // fail-closed and never exposed as generic commands.
+                }else if(dailyChallenge!=null)
+                    request=dailyChallenge;
+                else
+                    request=
+                        new CommandClientRequest(
+                            text,
+                            ClientRequestMetadata.exactCurrent(
+                                103,
+                                "VAR_BYTE_ISO_8859_1_OPTIONAL_LF",
+                                "PINNED_CLIENT_OPCODE_103_WRITER"
+                            )
+                        );
+
+                if(request!=null)
+                    offerTypedRequest(
+                        request,
+                        opcode
                     );
 
-                offerTypedRequest(
-                    request,
-                    opcode
-                );
-
                 System.out.printf(
-                    "%sCLIENT_PACKET seq=%d opcode=103 len=%d command=%s dialogueOption=%d newline=%s%n",
-                    tag,decodedCount,len,quote(text),dialogueOption,newline
+                    "%sCLIENT_PACKET seq=%d opcode=103 len=%d command=%s dialogueOption=%d loadout=%s loadoutReason=%s dailyChallenge=%s newline=%s%n",
+                    tag,
+                    decodedCount,
+                    len,
+                    quote(text),
+                    dialogueOption,
+                    loadout.kind,
+                    loadout.reason==null
+                        ?"none"
+                        :loadout.reason,
+                    dailyChallenge==null
+                        ?"none"
+                        :dailyChallenge.action(),
+                    newline
                 );
                 return true;
             }
@@ -1352,6 +1412,56 @@ final class ClientPacketProbe {
         return value>='1'&&value<='5'
             ? value-'0'
             : -1;
+    }
+
+    static DailyChallengeClientRequest
+        dailyChallengeRequest(
+            String text
+        ){
+        if(text==null)
+            return null;
+
+        String claimPrefix=
+            "claimchallenge ";
+        String infoPrefix=
+            "infochallenge ";
+
+        DailyChallengeClientRequest.Action action;
+        int keyOffset;
+
+        if(text.startsWith(
+                claimPrefix)){
+            action=
+                DailyChallengeClientRequest.Action.CLAIM;
+            keyOffset=
+                claimPrefix.length();
+        }else if(text.startsWith(
+                infoPrefix)){
+            action=
+                DailyChallengeClientRequest.Action.INFO;
+            keyOffset=
+                infoPrefix.length();
+        }else{
+            return null;
+        }
+
+        if(keyOffset>=text.length())
+            return null;
+
+        String key=
+            text.substring(
+                keyOffset
+            );
+
+        return new DailyChallengeClientRequest(
+            action,
+            key,
+            ClientRequestMetadata.exactCurrent(
+                103,
+                "VAR_BYTE_DAILY_CHALLENGE_ACTION_KEY_OPTIONAL_LF",
+                "V308_CLIENT_DAILY_CHALLENGE_COMPAT_COMMAND"
+            )
+        );
     }
 
     static boolean isFramingOnlyVarByte(int opcode) {

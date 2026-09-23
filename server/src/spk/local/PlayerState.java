@@ -32,13 +32,15 @@ final class PlayerState {
     /** Exact-current optional extra player appearance item (rs.a.k.bs), -1 absent. */
     private int nativeIconItemId=-1;
     /**
-     * Exact-current player appearance role/rank (rs.a.k.aC).
+     * Exact-current per-player appearance role/rank (rs.a.k.aC).
      *
      * This is session presentation state, deliberately excluded from account
-     * snapshots. LocalLab aligns it with the localhost login privilege rank
-     * after account load, while ::devplayer rank may override it temporarily.
+     * snapshots and independent from login privilege Client.cT. The original
+     * SpawnPK named-rank -> numeric aC mapping remains unknown server authority;
+     * localhost development tooling may set this channel explicitly.
      */
     private int appearanceRank;
+    private boolean appearanceRankOverride;
     /** Dedicated bottom-center COSMETIC channel. Ammo/arrows remain ordinary equipment slot 13. */
     private final CosmeticState cosmetic=new CosmeticState();
 
@@ -62,12 +64,18 @@ final class PlayerState {
     int[] characterColours(){ return characterColours.clone(); }
     int nativeIconItemId(){ return nativeIconItemId; }
     int appearanceRank(){ return appearanceRank; }
+    boolean hasAppearanceRankOverride(){ return appearanceRankOverride; }
     void setAppearanceRank(int rank){
-        if(rank<0||rank>=386)
+        if(rank<Short.MIN_VALUE||rank>Short.MAX_VALUE)
             throw new IllegalArgumentException(
-                "appearance rank 0..385"
+                "appearance rank signed-short"
             );
         appearanceRank=rank;
+        appearanceRankOverride=true;
+    }
+    void clearAppearanceRankOverride(){
+        appearanceRank=0;
+        appearanceRankOverride=false;
     }
     CosmeticState cosmetic(){ return cosmetic; }
     int specialEnergy(){ return specialEnergy; }

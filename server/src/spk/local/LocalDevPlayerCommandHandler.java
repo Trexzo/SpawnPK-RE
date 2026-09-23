@@ -114,20 +114,30 @@ final class LocalDevPlayerCommandHandler {
            sub.equals("arank")){
             String raw=p.length>=3?p[2]:"";
             int rank;
+            boolean clearOverride=
+                raw.equalsIgnoreCase("clear")||
+                raw.equalsIgnoreCase("none");
 
-            if(raw.equalsIgnoreCase("clear")||
-               raw.equalsIgnoreCase("none")){
+            if(clearOverride){
                 rank=0;
             }else{
-                rank=parseInt(raw,-1);
+                try{
+                    rank=Integer.parseInt(raw);
+                }catch(NumberFormatException e){
+                    return one(
+                        "V5186_DEV_PLAYER_RANK result=REJECTED expected=signed_short_or_clear");
+                }
             }
 
-            if(rank<0||rank>=386){
+            if(rank<Short.MIN_VALUE||rank>Short.MAX_VALUE){
                 return one(
-                    "V5186_DEV_PLAYER_RANK result=REJECTED expected=0..385_or_clear");
+                    "V5186_DEV_PLAYER_RANK result=REJECTED expected=signed_short_or_clear");
             }
 
-            playerState.setAppearanceRank(rank);
+            if(clearOverride)
+                playerState.clearAppearanceRankOverride();
+            else
+                playerState.setAppearanceRank(rank);
             playerPresentation.refresh(
                 username,
                 equipment,
@@ -137,6 +147,8 @@ final class LocalDevPlayerCommandHandler {
 
             return one(
                 "V5186_DEV_PLAYER_RANK rank="+rank+
+                " overrideActive="+
+                playerState.hasAppearanceRankOverride()+
                 " persisted=false"+
                 " authority=EXACT_CURRENT_CLIENT_AC_CHANNEL+LOCAL_LAB_DEV_POLICY");
         }
@@ -184,7 +196,7 @@ final class LocalDevPlayerCommandHandler {
         }
 
         return one(
-            "V592_DEV_PLAYER_HELP commands=info | rank <0..385|clear> | morph <npcId> | clear | anim <id> | gfx <id> [height] [delay] | animfx <anim> <gfx> [height] [delay] nurseIsolation='anim 10184' vs 'gfx 1310' vs 'animfx 10184 1310'");
+            "V592_DEV_PLAYER_HELP commands=info | rank <signed-short|clear> | morph <npcId> | clear | anim <id> | gfx <id> [height] [delay] | animfx <anim> <gfx> [height] [delay] nurseIsolation='anim 10184' vs 'gfx 1310' vs 'animfx 10184 1310'");
     }
 
     private static List<String> one(String line){
