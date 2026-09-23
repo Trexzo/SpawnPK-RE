@@ -163,6 +163,50 @@ final class LocalRegionDevCommandHandler {
         return returnHome(username,currentScenePublisher,writer);
     }
 
+    Result teleportHomeFromMagic(
+        String username,
+        SceneUpdatePublisher currentScenePublisher,
+        ServerPacketWriter writer
+    )throws IOException{
+        if(movement.transientRegion())
+            return returnHome(
+                username,
+                currentScenePublisher,
+                writer,
+                "MAGIC_HOME_TELEPORT",
+                "MAGIC_HOME_TELEPORT"
+            );
+
+        TradeService.cancelIfActive(
+            worldPlayer,
+            "MAGIC_HOME_TELEPORT"
+        );
+        playerInteractions.clearTargets();
+        combat.cancelForManualMovement();
+        cancelPetFollowSchedule.run();
+
+        movement.returnHome();
+
+        writer.varShort(
+            81,
+            BootstrapPackets.player81TeleportNoAppearance(
+                0,
+                55,
+                55
+            )
+        );
+
+        return new Result(
+            "V5160_MAGIC_HOME_TELEPORT OK world="+
+            movement.x()+","+movement.y()+
+            " placement=SERVER_PLAYER81_RELOCATION"+
+            " regionReload=false"+
+            " sceneReplay=NOT_REQUIRED_ALREADY_HOME",
+            "MAGIC_HOME_TELEPORT",
+            currentScenePublisher
+        );
+    }
+
     private Result enter(
         int regionId,
         int plane,
@@ -305,6 +349,22 @@ final class LocalRegionDevCommandHandler {
         SceneUpdatePublisher currentScenePublisher,
         ServerPacketWriter writer
     )throws IOException{
+        return returnHome(
+            username,
+            currentScenePublisher,
+            writer,
+            "DEV_RETURN_HOME_RELOCATION",
+            "REGION_DEV_RETURN_HOME"
+        );
+    }
+
+    private Result returnHome(
+        String username,
+        SceneUpdatePublisher currentScenePublisher,
+        ServerPacketWriter writer,
+        String lifecycleReason,
+        String saveReason
+    )throws IOException{
         if(!movement.transientRegion()){
             return new Result(
                 "V5160_REGION_HOME ALREADY_HOME world="+
@@ -340,7 +400,7 @@ final class LocalRegionDevCommandHandler {
                 436,
                 MovementState.REGION_BASE_X,
                 MovementState.REGION_BASE_Y,
-                "DEV_RETURN_HOME_RELOCATION"
+                lifecycleReason
             );
         writer.varShort(
             81,
@@ -355,44 +415,17 @@ final class LocalRegionDevCommandHandler {
                     MovementState.REGION_BASE_Y,
                     0));
 
-        HomeObjectOverlayReplayer.Stats scene=
-            homeWorld.replayScene(
-                writer,
-                MovementState.REGION_BASE_X,
-                MovementState.REGION_BASE_Y);
-
-        nextPublisher.context().invalidate();
-
-        int homeNpcAdded=
-            npcs.reattachHomeView(
-                writer,
-                movement,
-                homeWorld
-            );
-        List<NpcEntity> homeNpcs=npcs.snapshot();
-
-        int replay=0;
-        for(GroundItem item:world.groundItems().snapshot()){
-            if(item.owner==null||
-               item.owner.equalsIgnoreCase(username)){
-                nextPublisher.groundSpawn(item);
-                replay++;
-            }
-        }
-
         return new Result(
             "V5160_REGION_HOME OK world="+
             movement.x()+","+movement.y()+
             " packet73=385,436"+
             " regionLoadSeq="+regionLoad.sequence+
             " placement=SERVER_PLAYER81_RELOCATION"+
-            " scene={"+scene+"}"+
-            " groundReplay="+replay+
             " transientNpcPruned="+prunedTransientNpcView+
-            " homeNpcAdded="+homeNpcAdded+
-            " npcView="+homeNpcs.size()+
-            " pet="+petState.active(),
-            "REGION_DEV_RETURN_HOME",
+            " homeSceneReplay=DEFERRED_UNTIL_OPCODE121"+
+            " pet="+petState.active()+
+            " lifecycleReason="+lifecycleReason,
+            saveReason,
             nextPublisher
         );
     }
