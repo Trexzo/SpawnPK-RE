@@ -72,7 +72,7 @@ public final class MakeoverMageFlowTest {
                 packets,
                 "[makeover-flow-test] ")||
            !keyboardAlias.handleContinue(
-                LocalMakeoverMageHandler.KEYBOARD_CONTINUE_WIDGET,
+                StandardDialoguePresentationAdapter.KEYBOARD_CONTINUE_WIDGET,
                 packets,
                 "[makeover-flow-test] ")||
            !keyboardAlias.handleOption(
@@ -84,7 +84,7 @@ public final class MakeoverMageFlowTest {
             );
 
         if(!handler.handleContinue(
-                LocalMakeoverMageHandler.INTRO_CONTINUE_WIDGET,
+                StandardDialoguePresentationAdapter.namedNpcContinueWidget(1),
                 packets,
                 "[makeover-flow-test] "))
             throw new AssertionError(
@@ -92,7 +92,7 @@ public final class MakeoverMageFlowTest {
             );
 
         if(!handler.handleWidget(
-                LocalMakeoverMageHandler.CHANGE_LOOK_WIDGET,
+                StandardDialoguePresentationAdapter.twoOptionWidget(1),
                 packets,
                 "[makeover-flow-test] "))
             throw new AssertionError(
