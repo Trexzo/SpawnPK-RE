@@ -265,6 +265,17 @@ public final class CustomAssetPipelineContractTest {
         if (!unresolvedGfxContextRejected)
             throw new AssertionError("missing GFX model context was not rejected");
 
+        assertSnapshotRejected(
+            validSnapshot(false, true) +
+                "GFX_CONTEXT\tGFX\tPRIMARY\t5042\n",
+            "duplicate GFX model context"
+        );
+        assertSnapshotRejected(
+            validSnapshot(false, false) +
+                "GFX_CONTEXT\tGFX\tPRIMARY\t-1\n",
+            "negative GFX context id"
+        );
+
         System.out.println(
             "CUSTOM_ASSET_PIPELINE_CONTRACT_PASS " +
             "modelFamily=legacy_textured_skinned " +
@@ -278,8 +289,25 @@ public final class CustomAssetPipelineContractTest {
             "nonPetNpcSizeSentinel=true " +
             "namespaceCollisionRejected=true " +
             "gfxContextRequired=true " +
+            "strictGfxContextCensus=true " +
             "planSha256=" + first.planSha256
         );
+    }
+
+    private static void assertSnapshotRejected(
+        String snapshot,
+        String expectedMessage
+    ) throws Exception {
+        boolean rejected = false;
+        try {
+            CustomAssetNamespaceSnapshot.parse(new StringReader(snapshot));
+        } catch (java.io.IOException expected) {
+            rejected = expected.getMessage().contains(expectedMessage);
+        }
+        if (!rejected)
+            throw new AssertionError(
+                "namespace snapshot should fail closed: " + expectedMessage
+            );
     }
 
     private static void assertProjectionRejected(
