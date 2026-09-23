@@ -7,6 +7,7 @@ public final class MakeoverSemanticDialogueSessionTest {
     public static void main(String[] args)throws Exception{
         designerHandoffUsesSemanticDialogue();
         nevermindEndsSemanticDialogue();
+        clientCancelEndsSemanticDialogue();
         serverCancellationUsesAbortRevision();
         noLegacyStageState();
 
@@ -16,6 +17,7 @@ public final class MakeoverSemanticDialogueSessionTest {
             "options=true "+
             "designerHandoff=true "+
             "nevermind=true "+
+            "clientCancel=true "+
             "serverAbortRevision=true "+
             "legacyStage=false"
         );
@@ -175,6 +177,85 @@ public final class MakeoverSemanticDialogueSessionTest {
             !handler.designActive()&&
             !handler.active(),
             "Nevermind end state"
+        );
+    }
+
+    private static void clientCancelEndsSemanticDialogue()
+        throws Exception
+    {
+        WorldPlayer player=
+            new WorldPlayer();
+        LocalMakeoverMageHandler handler=
+            handler(player);
+        ServerPacketWriter packets=
+            writer();
+        NpcEntity mage=
+            adjacentMage(player,33);
+
+        handler.beginIfSupported(
+            new NpcAction(
+                155,
+                mage.sceneIndex
+            ),
+            mage,
+            packets,
+            "[makeover-semantic-test] "
+        );
+
+        require(
+            !handler.handleWidget(
+                54195,
+                packets,
+                "[makeover-semantic-test] "
+            ),
+            "Cancel must not be accepted on intro node"
+        );
+
+        require(
+            handler.semanticDialogueSnapshot()
+                .revision==1L&&
+            handler.semanticDialogueSnapshot()
+                .active,
+            "intro changed by option Cancel"
+        );
+
+        handler.handleContinue(
+            StandardDialoguePresentationAdapter
+                .namedNpcContinueWidget(1),
+            packets,
+            "[makeover-semantic-test] "
+        );
+
+        DialogueSessionService.Snapshot options=
+            handler.semanticDialogueSnapshot();
+
+        require(
+            options.active&&
+            "node:options".equals(
+                options.nodeKey)&&
+            options.closeSupported&&
+            options.revision==2L,
+            "pre-client-cancel options state"
+        );
+
+        require(
+            handler.handleWidget(
+                54195,
+                packets,
+                "[makeover-semantic-test] "
+            ),
+            "client Cancel"
+        );
+
+        DialogueSessionService.Snapshot ended=
+            handler.semanticDialogueSnapshot();
+
+        require(
+            !ended.active&&
+            ended.revision==3L&&
+            !handler.designActive()&&
+            !handler.active(),
+            "client Cancel end state"
         );
     }
 
