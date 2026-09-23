@@ -12,6 +12,7 @@ public final class ContentPublicApiBoundaryTest {
     private static final Class<?>[] API_TYPES={
         ContentCommandContext.class,
         ContentCommandHandler.class,
+        ContentDialoguePresentation.class,
         ContentInteractionResult.class,
         ContentItemOnGroundItemContext.class,
         ContentItemOnGroundItemHandler.class,
