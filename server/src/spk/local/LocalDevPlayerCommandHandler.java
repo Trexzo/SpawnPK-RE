@@ -114,9 +114,11 @@ final class LocalDevPlayerCommandHandler {
            sub.equals("arank")){
             String raw=p.length>=3?p[2]:"";
             int rank;
+            boolean clearOverride=
+                raw.equalsIgnoreCase("clear")||
+                raw.equalsIgnoreCase("none");
 
-            if(raw.equalsIgnoreCase("clear")||
-               raw.equalsIgnoreCase("none")){
+            if(clearOverride){
                 rank=0;
             }else{
                 try{
@@ -132,7 +134,10 @@ final class LocalDevPlayerCommandHandler {
                     "V5186_DEV_PLAYER_RANK result=REJECTED expected=signed_short_or_clear");
             }
 
-            playerState.setAppearanceRank(rank);
+            if(clearOverride)
+                playerState.clearAppearanceRankOverride();
+            else
+                playerState.setAppearanceRank(rank);
             playerPresentation.refresh(
                 username,
                 equipment,
@@ -142,6 +147,8 @@ final class LocalDevPlayerCommandHandler {
 
             return one(
                 "V5186_DEV_PLAYER_RANK rank="+rank+
+                " overrideActive="+
+                playerState.hasAppearanceRankOverride()+
                 " persisted=false"+
                 " authority=EXACT_CURRENT_CLIENT_AC_CHANNEL+LOCAL_LAB_DEV_POLICY");
         }
