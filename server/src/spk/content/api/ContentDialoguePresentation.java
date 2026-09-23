@@ -36,10 +36,14 @@ public interface ContentDialoguePresentation {
      * only that child-widget presentation contract is closed by current v308
      * evidence. It must not be interpreted as a generalized 2..5 option API.
      */
-    void twoOptions(
+    default void twoOptions(
         String title,
         List<String> options
-    );
+    ){
+        throw new UnsupportedOperationException(
+            "two-option dialogue presentation unavailable"
+        );
+    }
 
     /**
      * Close the current dialogue/interface presentation.
