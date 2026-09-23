@@ -1,5 +1,8 @@
 package spk.content.builtin;
 
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Objects;
 import spk.content.api.*;
 
 /**
@@ -17,6 +20,37 @@ public final class MakeoverMageDialogueContent
         "node:intro";
     public static final String OPTIONS_NODE=
         "node:options";
+
+    public static void presentIntro(
+        ContentDialoguePresentation presentation
+    ){
+        Objects.requireNonNull(
+            presentation,
+            "presentation"
+        ).namedNpc(
+            LocalLabCoreContentModule
+                .MAKEOVER_MAGE_NPC,
+            "Make-over Mage",
+            Collections.singletonList(
+                "How may I help you?"
+            )
+        );
+    }
+
+    public static void presentOptions(
+        ContentDialoguePresentation presentation
+    ){
+        Objects.requireNonNull(
+            presentation,
+            "presentation"
+        ).twoOptions(
+            "Select an Option",
+            Arrays.asList(
+                "I'd like to change my look.",
+                "Nevermind."
+            )
+        );
+    }
 
     @Override public ContentDialogueTransition handle(
         ContentDialogueContext context
