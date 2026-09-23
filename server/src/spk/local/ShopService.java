@@ -407,6 +407,8 @@ final class ShopService {
     private static final class OfferState {
         final Offer offer;
         long availableStock;
+        final LinkedHashMap<String,Long> incomingReservations=
+            new LinkedHashMap<>();
 
         OfferState(Offer offer){
             this.offer=offer;
@@ -493,7 +495,7 @@ final class ShopService {
 
     private final LinkedHashMap<
         AtomicTransactionService.TransactionId,
-        PurchaseId
+        String
     > settlementUses=
         new LinkedHashMap<>();
 
@@ -711,28 +713,16 @@ final class ShopService {
                             purchase.id
                         );
 
-                    PurchaseId existing=
-                        settlementUses.get(
-                            settlement.transactionId
-                        );
-
-                    if(existing!=null&&
-                       !existing.equals(
-                           purchase.id))
-                        throw new IllegalStateException(
-                            "settlement transaction already used by "+
-                            existing
-                        );
+                    claimSettlementUse(
+                        settlement.transactionId,
+                        "purchase:"+
+                            purchase.id.value()
+                    );
 
                     purchase.settlementTransactionId=
                         settlement.transactionId;
                     purchase.state=
                         PurchaseState.SETTLED;
-
-                    settlementUses.put(
-                        settlement.transactionId,
-                        purchase.id
-                    );
 
                     return purchase.snapshot();
                 }
@@ -776,17 +766,6 @@ final class ShopService {
                 Math.addExact(
                     purchase.offer.availableStock,
                     purchase.quantity
-                );
-
-            if(restored>
-                    purchase.offer.offer
-                        .initialStock)
-                throw new IllegalStateException(
-                    "finite stock restore exceeds initial stock item="+
-                    purchase.offer.offer.itemRef+
-                    " restored="+restored+
-                    " initial="+
-                    purchase.offer.offer.initialStock
                 );
 
             purchase.offer.availableStock=
@@ -891,6 +870,267 @@ final class ShopService {
         return Collections.unmodifiableList(
             out
         );
+    }
+
+    AtomicTransactionService transactions(){
+        return transactions;
+    }
+
+    synchronized OfferSnapshot offerSnapshot(
+        ShopId shopId,
+        String itemRef
+    ){
+        return new OfferSnapshot(
+            requireOffer(
+                requireShop(shopId),
+                itemRef
+            )
+        );
+    }
+
+    synchronized void reserveIncomingStock(
+        ShopId shopId,
+        String itemRef,
+        String reservationRef,
+        long quantity
+    ){
+        if(quantity<=0L)
+            throw new IllegalArgumentException(
+                "incoming quantity="+quantity
+            );
+
+        OfferState offer=
+            requireOffer(
+                requireShop(shopId),
+                itemRef
+            );
+
+        if(offer.offer.stockMode==
+                StockMode.UNLIMITED)
+            return;
+
+        String ref=
+            requireText(
+                reservationRef,
+                "reservationRef"
+            );
+
+        Long existing=
+            offer.incomingReservations.get(
+                ref
+            );
+
+        if(existing!=null){
+            if(existing.longValue()==quantity)
+                return;
+
+            throw new IllegalStateException(
+                "incoming stock reservation conflict ref="+
+                ref+
+                " existing="+existing+
+                " requested="+quantity
+            );
+        }
+
+        long pending=0L;
+
+        try{
+            for(long value:
+                    offer.incomingReservations.values())
+                pending=Math.addExact(
+                    pending,
+                    value
+                );
+
+            Math.addExact(
+                Math.addExact(
+                    offer.availableStock,
+                    pending
+                ),
+                quantity
+            );
+        }catch(ArithmeticException overflow){
+            throw new IllegalStateException(
+                "incoming Shop stock capacity overflow item="+
+                offer.offer.itemRef,
+                overflow
+            );
+        }
+
+        offer.incomingReservations.put(
+            ref,
+            quantity
+        );
+    }
+
+    synchronized boolean cancelIncomingStock(
+        ShopId shopId,
+        String itemRef,
+        String reservationRef
+    ){
+        OfferState offer=
+            requireOffer(
+                requireShop(shopId),
+                itemRef
+            );
+
+        if(offer.offer.stockMode==
+                StockMode.UNLIMITED)
+            return false;
+
+        return offer.incomingReservations.remove(
+            requireText(
+                reservationRef,
+                "reservationRef"
+            )
+        )!=null;
+    }
+
+    synchronized boolean claimSettlementUse(
+        AtomicTransactionService.TransactionId transactionId,
+        String useKey
+    ){
+        AtomicTransactionService.TransactionId id=
+            Objects.requireNonNull(
+                transactionId,
+                "transactionId"
+            );
+
+        String key=
+            requireText(
+                useKey,
+                "useKey"
+            );
+
+        String existing=
+            settlementUses.get(id);
+
+        if(existing!=null){
+            if(existing.equals(key))
+                return false;
+
+            throw new IllegalStateException(
+                "settlement transaction already used by "+
+                existing
+            );
+        }
+
+        settlementUses.put(
+            id,
+            key
+        );
+
+        return true;
+    }
+
+    synchronized void commitIncomingStockSettlement(
+        ShopId shopId,
+        String itemRef,
+        String reservationRef,
+        AtomicTransactionService.TransactionId transactionId,
+        String useKey
+    ){
+        OfferState offer=
+            requireOffer(
+                requireShop(shopId),
+                itemRef
+            );
+
+        AtomicTransactionService.TransactionId id=
+            Objects.requireNonNull(
+                transactionId,
+                "transactionId"
+            );
+        String key=
+            requireText(
+                useKey,
+                "useKey"
+            );
+
+        String existingUse=
+            settlementUses.get(id);
+
+        if(existingUse!=null&&
+           !existingUse.equals(key))
+            throw new IllegalStateException(
+                "settlement transaction already used by "+
+                existingUse
+            );
+
+        String ref=
+            requireText(
+                reservationRef,
+                "reservationRef"
+            );
+
+        Long quantity=null;
+        long nextStock=offer.availableStock;
+
+        if(offer.offer.stockMode==
+                StockMode.FINITE){
+            quantity=
+                offer.incomingReservations.get(
+                    ref
+                );
+
+            if(quantity==null)
+                throw new IllegalStateException(
+                    "unknown incoming stock reservation "+
+                    ref
+                );
+
+            try{
+                nextStock=
+                    Math.addExact(
+                        offer.availableStock,
+                        quantity.longValue()
+                    );
+            }catch(ArithmeticException overflow){
+                throw new IllegalStateException(
+                    "committed Shop stock overflow item="+
+                    offer.offer.itemRef,
+                    overflow
+                );
+            }
+        }
+
+        if(existingUse==null)
+            settlementUses.put(
+                id,
+                key
+            );
+
+        if(offer.offer.stockMode==
+                StockMode.FINITE){
+            offer.incomingReservations.remove(
+                ref
+            );
+            offer.availableStock=
+                nextStock;
+        }
+    }
+
+    private static OfferState requireOffer(
+        ShopEntry shop,
+        String itemRef
+    ){
+        String item=
+            normalizeKey(
+                itemRef,
+                "itemRef"
+            );
+
+        OfferState offer=
+            shop.offers.get(item);
+
+        if(offer==null)
+            throw new IllegalArgumentException(
+                "unknown shop item "+
+                item+
+                " shop="+shop.definition.id
+            );
+
+        return offer;
     }
 
     private ShopEntry requireShop(
