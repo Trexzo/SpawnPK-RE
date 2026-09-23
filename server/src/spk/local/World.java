@@ -102,6 +102,8 @@ final class World implements AutoCloseable {
             new WorldPluginManager(
                 content,
                 domainEvents,
+                clock,
+                events,
                 ()->!closed.get()
             );
     }
