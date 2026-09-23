@@ -32,6 +32,19 @@ Path:     $client"
 
 Write-Host "V308_FIXTURE_SHA256_PASS $actual" -ForegroundColor Green
 
+$launcherContract = Join-Path $repo "scripts\Test-LauncherContract.ps1"
+if (-not (Test-Path -LiteralPath $launcherContract -PathType Leaf)) {
+    throw "Missing launcher contract regression: $launcherContract"
+}
+
+& $launcherContract -SkipJavaProbe
+
+if ($LASTEXITCODE -ne 0) {
+    throw "Launcher contract regression failed with exit code $LASTEXITCODE"
+}
+
+Write-Host "CURRENT_RELEASE_LAUNCHER_CONTRACT_PASS" -ForegroundColor Green
+
 function Test-LoopbackPort {
     param(
         [Parameter(Mandatory=$true)]

@@ -81,3 +81,5 @@ desktop.ini
 # Gradle local state
 server/.gradle/
 .gradle/
+*.lock
+*.pid
