@@ -61,62 +61,36 @@ public final class ContentDialogueDefinitionOwnershipTest {
                 "transition-only topology inheritance"
             );
 
+            require(
+                transitionOnly.get()!=null&&
+                transitionOnly.get().unregister(),
+                "transition-only unregister"
+            );
+
             AtomicReference<ContentRegistration>
-                topologyOverride=
+                compatibleOverride=
                     new AtomicReference<>();
 
             registry.installCustom(
                 module(
-                    "dialogue-topology-override",
+                    "dialogue-topology-compatible",
                     registrar->
-                        topologyOverride.set(
+                        compatibleOverride.set(
                             registrar.dialogue(
                                 MakeoverMageDialogueContent
                                     .DIALOGUE_KEY,
                                 300,
-                                new OneOptionMakeoverHandler()
+                                new CompatibleMakeoverHandler()
                             )
                         )
                 )
             );
 
-            ContentRegistry.BindingInfo topologyBinding=
-                registry.dialogueDefinitionBinding(
-                    MakeoverMageDialogueContent
-                        .DIALOGUE_KEY
-                );
-
-            require(
-                topologyBinding!=null&&
-                "dialogue-topology-override".equals(
-                    topologyBinding.moduleId)&&
-                topologyBinding.priority==300&&
-                topologyBinding.provenance==
-                    ContentProvenance.CUSTOM_LOCALLAB,
-                "topology override binding "+
-                topologyBinding
-            );
-
-            ContentDialogueDefinition overridden=
-                registry.dialogueDefinition(
-                    MakeoverMageDialogueContent
-                        .DIALOGUE_KEY
-                );
-
-            ContentDialogueNode overriddenOptions=
-                overridden.node(
-                    MakeoverMageDialogueContent
-                        .OPTIONS_NODE
-                );
-
-            require(
-                overriddenOptions!=null&&
-                overriddenOptions.inputMode()==
-                    ContentDialogueNode
-                        .InputMode.OPTIONS&&
-                overriddenOptions.optionCount()==1&&
-                !overriddenOptions.closeSupported(),
-                "one-option override definition"
+            assertDefinitionBinding(
+                registry,
+                "dialogue-topology-compatible",
+                300,
+                "compatible topology override"
             );
 
             boolean mismatchRejected=false;
@@ -160,7 +134,8 @@ public final class ContentDialogueDefinitionOwnershipTest {
                     world,
                     player
                 );
-            NpcEntity mage=
+
+            NpcEntity firstMage=
                 adjacentMage(
                     player,
                     51
@@ -170,9 +145,9 @@ public final class ContentDialogueDefinitionOwnershipTest {
                 world,
                 player,
                 routed,
-                mage
+                firstMage,
+                new ByteArrayOutputStream()
             );
-
             continueDialogue(
                 world,
                 player,
@@ -180,20 +155,71 @@ public final class ContentDialogueDefinitionOwnershipTest {
                 new ByteArrayOutputStream()
             );
 
-            DialogueSessionService.Snapshot customOptions=
+            DialogueSessionService.Snapshot compatible=
                 routed.makeoverMage()
                     .semanticDialogueSnapshot();
 
             require(
-                customOptions.active&&
+                compatible.active&&
                 MakeoverMageDialogueContent
                     .OPTIONS_NODE
                     .equals(
-                        customOptions.nodeKey)&&
-                customOptions.optionCount==1&&
-                !customOptions.closeSupported&&
-                customOptions.revision==2L,
-                "runtime did not consume override topology"
+                        compatible.nodeKey)&&
+                compatible.optionCount==2&&
+                compatible.closeSupported&&
+                compatible.revision==2L,
+                "compatible topology not consumed by runtime"
+            );
+
+            cancel(
+                world,
+                player,
+                routed
+            );
+
+            require(
+                compatibleOverride.get()!=null&&
+                compatibleOverride.get().unregister(),
+                "compatible topology unregister"
+            );
+
+            assertBuiltInDefinition(
+                registry,
+                "restored built-in before incompatible probe"
+            );
+
+            AtomicReference<ContentRegistration>
+                incompatibleOverride=
+                    new AtomicReference<>();
+
+            registry.installCustom(
+                module(
+                    "dialogue-topology-incompatible",
+                    registrar->
+                        incompatibleOverride.set(
+                            registrar.dialogue(
+                                MakeoverMageDialogueContent
+                                    .DIALOGUE_KEY,
+                                300,
+                                new OneOptionMakeoverHandler()
+                            )
+                        )
+                )
+            );
+
+            ContentDialogueDefinition incompatible=
+                registry.dialogueDefinition(
+                    MakeoverMageDialogueContent
+                        .DIALOGUE_KEY
+                );
+
+            require(
+                incompatible!=null&&
+                incompatible.node(
+                    MakeoverMageDialogueContent
+                        .OPTIONS_NODE
+                ).optionCount()==1,
+                "incompatible topology not selected by registry"
             );
 
             ByteArrayOutputStream rejectedWire=
@@ -201,16 +227,25 @@ public final class ContentDialogueDefinitionOwnershipTest {
             AtomicReference<Throwable> rejection=
                 new AtomicReference<>();
 
+            NpcEntity rejectedMage=
+                adjacentMage(
+                    player,
+                    52
+                );
+
             world.submitAndWait(
                 player,
                 ()->{
                     try{
-                        routed.makeoverMage()
-                            .handleOption(
-                                2,
-                                writer(rejectedWire),
-                                "[dialogue-definition-test] "
-                            );
+                        routed.handle(
+                            new NpcAction(
+                                155,
+                                rejectedMage.sceneIndex
+                            ),
+                            rejectedMage,
+                            writer(rejectedWire),
+                            "[dialogue-definition-test] "
+                        );
                     }catch(Throwable failure){
                         rejection.set(failure);
                     }
@@ -219,55 +254,52 @@ public final class ContentDialogueDefinitionOwnershipTest {
             );
 
             require(
-                rejection.get()!=null,
-                "option 2 accepted by one-option topology"
+                rejection.get() instanceof
+                    IllegalStateException&&
+                rejection.get().getMessage()!=null&&
+                rejection.get().getMessage().contains(
+                    "incompatible Make-over options topology"
+                ),
+                "incompatible topology did not fail closed "+
+                rejection.get()
             );
+
             require(
                 rejectedWire.size()==0,
-                "invalid topology input emitted bytes="+
+                "incompatible topology emitted presentation bytes="+
                 rejectedWire.size()
             );
 
-            DialogueSessionService.Snapshot afterReject=
-                routed.makeoverMage()
-                    .semanticDialogueSnapshot();
-
             require(
-                afterReject.active&&
-                afterReject.revision==2L&&
-                afterReject.optionCount==1,
-                "invalid option mutated semantic session"
+                !routed.makeoverMage()
+                    .semanticDialogueSnapshot()
+                    .active,
+                "incompatible topology left semantic dialogue active"
             );
 
-            routed.makeoverMage().cancel();
-
             require(
-                topologyOverride.get()!=null&&
-                topologyOverride.get().unregister(),
-                "topology override unregister"
-            );
-            require(
-                transitionOnly.get()!=null&&
-                transitionOnly.get().unregister(),
-                "transition-only override unregister"
+                incompatibleOverride.get()!=null&&
+                incompatibleOverride.get().unregister(),
+                "incompatible topology unregister"
             );
 
             assertBuiltInDefinition(
                 registry,
-                "restored built-in"
+                "restored built-in after incompatible probe"
             );
 
-            NpcEntity secondMage=
+            NpcEntity restoredMage=
                 adjacentMage(
                     player,
-                    52
+                    53
                 );
 
             begin(
                 world,
                 player,
                 routed,
-                secondMage
+                restoredMage,
+                new ByteArrayOutputStream()
             );
             continueDialogue(
                 world,
@@ -292,10 +324,11 @@ public final class ContentDialogueDefinitionOwnershipTest {
                 "CONTENT_DIALOGUE_DEFINITION_OWNERSHIP_PASS "+
                 "builtInTopology=true "+
                 "transitionOnlyInherits=true "+
-                "priorityTopologyOverride=true "+
+                "compatibleOverride=true "+
                 "keyMismatchRollback=true "+
+                "incompatibleOverrideFailsClosed=true "+
+                "partialWire=false "+
                 "runtimeRefresh=true "+
-                "invalidOptionPartialWire=false "+
                 "unregisterRestore=true"
             );
         }finally{
@@ -365,27 +398,18 @@ public final class ContentDialogueDefinitionOwnershipTest {
         ContentRegistry registry,
         String phase
     ){
-        ContentRegistry.BindingInfo binding=
-            registry.dialogueDefinitionBinding(
-                MakeoverMageDialogueContent
-                    .DIALOGUE_KEY
-            );
+        assertDefinitionBinding(
+            registry,
+            "locallab-core",
+            100,
+            phase
+        );
 
         ContentDialogueDefinition definition=
             registry.dialogueDefinition(
                 MakeoverMageDialogueContent
                     .DIALOGUE_KEY
             );
-
-        require(
-            binding!=null&&
-            "locallab-core".equals(
-                binding.moduleId)&&
-            binding.priority==100&&
-            binding.provenance==
-                ContentProvenance.CUSTOM_LOCALLAB,
-            phase+" binding="+binding
-        );
 
         require(
             definition!=null&&
@@ -433,11 +457,34 @@ public final class ContentDialogueDefinitionOwnershipTest {
         );
     }
 
+    private static void assertDefinitionBinding(
+        ContentRegistry registry,
+        String module,
+        int priority,
+        String phase
+    ){
+        ContentRegistry.BindingInfo binding=
+            registry.dialogueDefinitionBinding(
+                MakeoverMageDialogueContent
+                    .DIALOGUE_KEY
+            );
+
+        require(
+            binding!=null&&
+            module.equals(binding.moduleId)&&
+            binding.priority==priority&&
+            binding.provenance==
+                ContentProvenance.CUSTOM_LOCALLAB,
+            phase+" binding="+binding
+        );
+    }
+
     private static void begin(
         World world,
         WorldPlayer player,
         LocalRoutedNpcInteractionHandler routed,
-        NpcEntity mage
+        NpcEntity mage,
+        ByteArrayOutputStream wire
     )throws Exception{
         AtomicReference<Throwable> failure=
             new AtomicReference<>();
@@ -453,9 +500,7 @@ public final class ContentDialogueDefinitionOwnershipTest {
                                 mage.sceneIndex
                             ),
                             mage,
-                            writer(
-                                new ByteArrayOutputStream()
-                            ),
+                            writer(wire),
                             "[dialogue-definition-test] "
                         );
 
@@ -517,6 +562,18 @@ public final class ContentDialogueDefinitionOwnershipTest {
                 "Continue failed",
                 failure.get()
             );
+    }
+
+    private static void cancel(
+        World world,
+        WorldPlayer player,
+        LocalRoutedNpcInteractionHandler routed
+    )throws Exception{
+        world.submitAndWait(
+            player,
+            ()->routed.makeoverMage().cancel(),
+            5_000L
+        );
     }
 
     private static ContentModule module(
@@ -611,8 +668,78 @@ public final class ContentDialogueDefinitionOwnershipTest {
         );
     }
 
-    private static final class OneOptionMakeoverHandler
+    private abstract static class BaseMakeoverHandler
         implements ContentDialogueHandler {
+
+        @Override public ContentDialogueTransition handle(
+            ContentDialogueContext context
+        ){
+            if(MakeoverMageDialogueContent
+                    .INTRO_NODE
+                    .equals(
+                        context.nodeKey())&&
+               context.intent().kind()==
+                    ContentDialogueIntent
+                        .Kind.CONTINUE)
+                return ContentDialogueTransition.move(
+                    MakeoverMageDialogueContent
+                        .OPTIONS_NODE
+                );
+
+            if(MakeoverMageDialogueContent
+                    .OPTIONS_NODE
+                    .equals(
+                        context.nodeKey())&&
+               (context.intent().kind()==
+                    ContentDialogueIntent
+                        .Kind.OPTION||
+                context.intent().kind()==
+                    ContentDialogueIntent
+                        .Kind.CLOSE))
+                return ContentDialogueTransition.end();
+
+            throw new IllegalStateException(
+                "unsupported test Make-over transition"
+            );
+        }
+    }
+
+    private static final class CompatibleMakeoverHandler
+        extends BaseMakeoverHandler {
+
+        private final ContentDialogueDefinition definition=
+            new ContentDialogueDefinition(
+                MakeoverMageDialogueContent
+                    .DIALOGUE_KEY,
+                MakeoverMageDialogueContent
+                    .INTRO_NODE,
+                Arrays.asList(
+                    new ContentDialogueNode(
+                        MakeoverMageDialogueContent
+                            .INTRO_NODE,
+                        ContentDialogueNode
+                            .InputMode.CONTINUE,
+                        0,
+                        false
+                    ),
+                    new ContentDialogueNode(
+                        MakeoverMageDialogueContent
+                            .OPTIONS_NODE,
+                        ContentDialogueNode
+                            .InputMode.OPTIONS,
+                        2,
+                        true
+                    )
+                )
+            );
+
+        @Override public ContentDialogueDefinition definition(){
+            return definition;
+        }
+    }
+
+    private static final class OneOptionMakeoverHandler
+        extends BaseMakeoverHandler {
 
         private final ContentDialogueDefinition definition=
             new ContentDialogueDefinition(
@@ -642,35 +769,6 @@ public final class ContentDialogueDefinitionOwnershipTest {
 
         @Override public ContentDialogueDefinition definition(){
             return definition;
-        }
-
-        @Override public ContentDialogueTransition handle(
-            ContentDialogueContext context
-        ){
-            if(MakeoverMageDialogueContent
-                    .INTRO_NODE
-                    .equals(
-                        context.nodeKey())&&
-               context.intent().kind()==
-                    ContentDialogueIntent
-                        .Kind.CONTINUE)
-                return ContentDialogueTransition.move(
-                    MakeoverMageDialogueContent
-                        .OPTIONS_NODE
-                );
-
-            if(MakeoverMageDialogueContent
-                    .OPTIONS_NODE
-                    .equals(
-                        context.nodeKey())&&
-               context.intent().kind()==
-                    ContentDialogueIntent
-                        .Kind.OPTION)
-                return ContentDialogueTransition.end();
-
-            throw new IllegalStateException(
-                "unsupported one-option Make-over transition"
-            );
         }
     }
 
