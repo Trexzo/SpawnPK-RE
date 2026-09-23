@@ -39,8 +39,8 @@ public final class VoidglassR3CustomContentTest {
         PetDefinitionRepository.Def d = PetDefinitionRepository.get(29999);
         if (d == null ||
             d.npcId != 12000 ||
-            d.standAnim != 1662 ||
-            d.walkAnim != 1663 ||
+            d.standAnim != -1 ||
+            d.walkAnim != -1 ||
             !"79999".equals(d.models) ||
             !d.provenance.startsWith("CUSTOM_LOCALLAB"))
             throw new AssertionError("mapping=" + d);
@@ -59,6 +59,7 @@ public final class VoidglassR3CustomContentTest {
             "V5185_VOIDGLASS_R3_CUSTOM_CONTENT_PASS " +
             "item=29999 npc=12000 model=79999 texture=278 " +
             "legacyModelFamily=true rigidOneHot=true " +
+            "staticUntilAnimationProven=true " +
             "nativeCompositorCandidatesRetired=true reflectionMutation=false"
         );
     }
