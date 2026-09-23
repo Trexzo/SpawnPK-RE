@@ -14,7 +14,7 @@ final class EventActivityPresentation {
     static final int APPLICATION_SUBTYPE=6;
     static final int ROOT=30072;
     static final int MAX_ROWS=7;
-    static final int MAX_VISIBLE_DETAILS=3;
+    static final int MAX_DETAIL_COUNT=255;
     static final String PRESENTATION_AUTHORITY="EXACT_CURRENT_CLIENT";
 
     static void open(
@@ -111,12 +111,12 @@ final class EventActivityPresentation {
             );
 
         if(checked.details.size()>
-                MAX_VISIBLE_DETAILS)
+                MAX_DETAIL_COUNT)
             throw new IllegalArgumentException(
-                "Event Activity visible details="+
+                "Event Activity detail count="+
                 checked.details.size()+
                 " max="+
-                MAX_VISIBLE_DETAILS+
+                MAX_DETAIL_COUNT+
                 " activity="+
                 checked.activityKey
             );
