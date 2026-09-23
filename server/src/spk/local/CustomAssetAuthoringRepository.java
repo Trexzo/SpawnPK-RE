@@ -262,7 +262,7 @@ final class CustomAssetAuthoringRepository {
                 GfxModelContext.valueOf(a[20]),
                 pi(a[21]),
                 slot,
-                Boolean.parseBoolean(a[23]),
+                parseBooleanStrict(a[23], "twoHanded"),
                 EquipmentCoverage.valueOf(a[24]),
                 a[25]
             );
@@ -323,6 +323,13 @@ final class CustomAssetAuthoringRepository {
 
     private static int pi(String value) {
         return Integer.parseInt(value.trim());
+    }
+
+    private static boolean parseBooleanStrict(String value, String field) {
+        String normalized = value.trim();
+        if ("true".equals(normalized)) return true;
+        if ("false".equals(normalized)) return false;
+        throw new IllegalArgumentException(field + " must be true/false: " + value);
     }
 
     private static String requireText(String value, String field) {
