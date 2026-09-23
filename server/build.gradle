@@ -650,6 +650,32 @@ tasks.register('makeoverNpcContentActionOwnershipRegression') {
     }
 }
 
+tasks.register('makeoverDialogueCloseRegression') {
+    group = 'verification'
+    description = 'Validates exact augmented option Cancel widget 54195 closes only an active close-capable Make-over semantic option node.'
+    dependsOn tasks.named('testClasses')
+
+    doLast {
+        [
+            'spk.local.StandardDialoguePresentationAdapterTest',
+            'spk.local.DialogueSessionServiceTest',
+            'spk.local.MakeoverSemanticDialogueSessionTest',
+            'spk.local.LocalPendingRequestDispatcherTest',
+            'spk.local.LocalSessionUiActionHandlerTest'
+        ].each { mainClassName ->
+            project.javaexec {
+                workingDir repoRoot
+                classpath = sourceSets.test.runtimeClasspath
+                mainClass.set(mainClassName)
+            }
+        }
+
+        logger.lifecycle(
+            'MAKEOVER_DIALOGUE_CLOSE_REGRESSION_PASS widget54195=true semanticClose=true introRejected=true genericUiPreserved=true'
+        )
+    }
+}
+
 tasks.named('check') {
     dependsOn tasks.named('verifyJava11Bytecode')
     dependsOn tasks.named('clientBuildRevision308Compatibility')
