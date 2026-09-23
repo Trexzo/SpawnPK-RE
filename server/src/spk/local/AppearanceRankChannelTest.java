@@ -26,9 +26,16 @@ public final class AppearanceRankChannelTest {
                 readU16(plain,5)
             );
 
-        player.setAppearanceRank(
-            LocalLoginTransport.LOCAL_DEV_RANK
-        );
+        if(LocalLoginTransport.LOCAL_DEV_RANK==0)
+            throw new AssertionError(
+                "login privilege fixture unexpectedly zero"
+            );
+        if(player.appearanceRank()==LocalLoginTransport.LOCAL_DEV_RANK)
+            throw new AssertionError(
+                "login privilege leaked into appearance rank"
+            );
+
+        player.setAppearanceRank(45);
 
         byte[] ranked=
             BootstrapPackets.appearanceBlock(
@@ -37,8 +44,7 @@ public final class AppearanceRankChannelTest {
                 player
             );
 
-        if(readU16(ranked,5)!=
-                LocalLoginTransport.LOCAL_DEV_RANK)
+        if(readU16(ranked,5)!=45)
             throw new AssertionError(
                 "ranked aC wire="+
                 readU16(ranked,5)
@@ -128,7 +134,7 @@ public final class AppearanceRankChannelTest {
 
         System.out.println(
             "APPEARANCE_RANK_CHANNEL_PASS "+
-            "aC=true localDev205=true "+
+            "aC=true loginPrivilegeSeparate=true explicit45=true "+
             "devOverride38=true clear0=true persisted=false"
         );
     }
