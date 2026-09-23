@@ -168,6 +168,14 @@ final class LocalRegionDevCommandHandler {
         SceneUpdatePublisher currentScenePublisher,
         ServerPacketWriter writer
     )throws IOException{
+        if(regionLoads.pending())
+            return new Result(
+                "V5160_MAGIC_HOME_TELEPORT DEFERRED regionLoadPending=true"+
+                " pendingSeq="+regionLoads.pendingSequence(),
+                null,
+                currentScenePublisher
+            );
+
         if(movement.transientRegion())
             return returnHome(
                 username,
