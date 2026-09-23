@@ -670,10 +670,92 @@ tasks.register('teleportNavigationWidgetAdapterRegression') {
     }
 }
 
+tasks.register('dailyChallengeTransportRegression', JavaExec) {
+    group = 'verification'
+    description = 'Verifies exact-v308 Daily Challenge C2S103 command normalization, FIFO ordering and fail-closed dispatch.'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.ClientDailyChallengeRequestQueueTest')
+}
+
+tasks.register('loadoutEditorTransportRegression', JavaExec) {
+    group = 'verification'
+    description = 'Verifies exact-v308 cld1/cld2 loadout save pairing, bounded staging and fail-closed dispatch.'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.ClientLoadoutEditorSavePairingTest')
+}
+
+tasks.register('loadoutEditorV308Parity') {
+    group = 'verification'
+    description = 'Runs exact-v308 rs.n.c.al loadout serializer parity against the canonical external client fixture.'
+    dependsOn tasks.named('testClasses')
+
+    doLast {
+        String explicitClientPath =
+            providers.gradleProperty('v308ClientPath')
+                .orElse(
+                    providers.environmentVariable(
+                        'SPK_V308_CLIENT'
+                    )
+                )
+                .getOrNull()
+
+        File client
+
+        if (explicitClientPath != null &&
+            !explicitClientPath.trim().isEmpty()) {
+            client =
+                new File(
+                    explicitClientPath.trim()
+                ).canonicalFile
+
+            if (!client.isFile()) {
+                throw new GradleException(
+                    "Explicit v308 loadout parity client.jar is not a file: ${client}"
+                )
+            }
+
+            String explicitSha = sha256(client)
+
+            if (!explicitSha.equalsIgnoreCase(
+                    v308AcceptanceClientSha256)) {
+                throw new GradleException(
+                    "Explicit v308 loadout parity client.jar SHA-256 mismatch: expected=${v308AcceptanceClientSha256} actual=${explicitSha} path=${client}"
+                )
+            }
+        } else {
+            client =
+                findExactClientBySha(
+                    v308AcceptanceClientSha256
+                )
+        }
+
+        if (client == null) {
+            throw new GradleException(
+                "Exact v308 loadout parity client.jar is not present; provide -Pv308ClientPath=<path> or SPK_V308_CLIENT; required SHA-256=${v308AcceptanceClientSha256}"
+            )
+        }
+
+        project.javaexec {
+            workingDir repoRoot
+            classpath = sourceSets.test.runtimeClasspath + files(client)
+            mainClass.set('spk.local.LoadoutEditorV308SerializerParityTest')
+            jvmArgs '-Djava.awt.headless=true'
+        }
+
+        logger.lifecycle(
+            "GRADLE_LOADOUT_EDITOR_V308_PARITY_PASS clientSha256=${v308AcceptanceClientSha256}"
+        )
+    }
+}
+
 tasks.named('check') {
     dependsOn tasks.named('playerAppearanceRoleRegression')
     dependsOn tasks.named('verifyJava11Bytecode')
     dependsOn tasks.named('clientBuildRevision308Compatibility')
+    dependsOn tasks.named('dailyChallengeTransportRegression')
+    dependsOn tasks.named('loadoutEditorTransportRegression')
     dependsOn tasks.named('currentTrainFocusedRegression')
     dependsOn tasks.named('r85Regression')
 }

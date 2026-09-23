@@ -554,6 +554,34 @@ final class LocalPendingRequestDispatcher {
             }
 
             if(request instanceof
+                    LoadoutEditorSaveClientRequest){
+                LoadoutEditorSaveClientRequest loadout=
+                    (LoadoutEditorSaveClientRequest)request;
+
+                System.out.println(
+                    tag+
+                    loadoutEditorSaveFailClosedDiagnostic(
+                        loadout
+                    )
+                );
+                continue;
+            }
+
+            if(request instanceof
+                    DailyChallengeClientRequest){
+                DailyChallengeClientRequest dailyChallenge=
+                    (DailyChallengeClientRequest)request;
+
+                System.out.println(
+                    tag+
+                    dailyChallengeFailClosedDiagnostic(
+                        dailyChallenge
+                    )
+                );
+                continue;
+            }
+
+            if(request instanceof
                     CommandClientRequest){
                 CommandClientRequest command=
                     (CommandClientRequest)request;
@@ -576,6 +604,44 @@ final class LocalPendingRequestDispatcher {
                 request
             );
         }
+    }
+
+    static String loadoutEditorSaveFailClosedDiagnostic(
+        LoadoutEditorSaveClientRequest request
+    ){
+        Objects.requireNonNull(
+            request,
+            "request"
+        );
+
+        return "LOADOUT_EDITOR_SAVE_FAIL_CLOSED inventoryEntries="+
+            request.inventory().size()+
+            " equipmentEntries="+
+            request.equipment().size()+
+            " packetSeq="+
+            request.inventoryPacketSequence()+
+            "->"+
+            request.equipmentPacketSequence()+
+            " reason=LOADOUT_EDITOR_TARGET_ADAPTER_UNPROVEN"+
+            " stateMutation=false"+
+            " authority=EXACT_CURRENT_CLIENT";
+    }
+
+    static String dailyChallengeFailClosedDiagnostic(
+        DailyChallengeClientRequest request
+    ){
+        Objects.requireNonNull(
+            request,
+            "request"
+        );
+
+        return "DAILY_CHALLENGE_REQUEST_FAIL_CLOSED action="+
+            request.action()+
+            " challengeKey="+
+            request.challengeKey()+
+            " reason=DAILY_CHALLENGE_KEY_ADAPTER_UNPROVEN"+
+            " stateMutation=false"+
+            " authority=EXACT_CURRENT_CLIENT";
     }
 
     static String publicChatFailClosedDiagnostic(
