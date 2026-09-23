@@ -198,6 +198,12 @@ final class StandardDialoguePresentationAdapter {
         return 0;
     }
 
+    static boolean isAugmentedOptionCloseWidget(
+        int widgetId
+    ){
+        return widgetId==54195;
+    }
+
     static int namedNpcRoot(int lineCount){
         return NPC_ROOTS[
             checkedRange(
