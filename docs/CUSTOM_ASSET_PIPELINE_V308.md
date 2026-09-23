@@ -25,7 +25,8 @@ The current proven model boundary is intentionally narrow:
 - hierarchy flattening only when the guarded decomposition does not introduce meaningful shear;
 - deterministic UV/material binding;
 - texture slot `278` as the proven bootstrap/atlas slot only;
-- existing exact animations may be referenced;
+- existing exact animations may be referenced only when the authored model/skeleton pairing is independently proven;
+- `AnimationMode.NONE` keeps an asset static rather than inventing an animation binding;
 - custom frame-group/sequence identities are representable, but must still pass exact namespace preflight before build;
 - blended weights are unsupported and must fail closed.
 
@@ -35,7 +36,7 @@ Slot 278 is not an unlimited custom-texture namespace.
 
 ### `custom_asset_authoring.tsv`
 
-Declares semantic asset identity and build constraints. The initial Voidglass row requests item `29999`, NPC `12000`, primary-context model `79999`, texture `278`, 12 legacy mapping triangles, exact existing stand/walk animations `1662/1663`, and exact existing GFX `5042`, all under `CUSTOM_LOCALLAB_VOIDGLASS_V308_PIPELINE` authority.
+Declares semantic asset identity and build constraints. The initial Voidglass row requests item `29999`, NPC `12000`, primary-context model `79999`, texture `278`, 12 legacy mapping triangles, **no stand/walk animation binding yet**, and exact existing GFX `5042`, all under `CUSTOM_LOCALLAB_VOIDGLASS_V308_PIPELINE` authority. The static `-1/-1` NPC animation state is directly proven for the custom `12000 -> 79999` presentation path; a concrete stand/walk sequence must not be assigned until that exact model/skeleton pairing is independently proven.
 
 These are **requested claims/references**, not proof that the IDs are free. A build must not proceed until preflight validates them against an exact-current snapshot.
 
