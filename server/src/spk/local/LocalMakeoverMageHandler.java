@@ -19,18 +19,6 @@ final class LocalMakeoverMageHandler {
     static final int NPC_ID=599;
     static final long APPROACH_TIMEOUT_MS=10_000L;
 
-    static final int INTRO_ROOT=4882;
-    static final int INTRO_HEAD_WIDGET=4883;
-    static final int INTRO_NAME_WIDGET=4884;
-    static final int INTRO_TEXT_WIDGET=4885;
-    static final int INTRO_CONTINUE_WIDGET=4886;
-    static final int KEYBOARD_CONTINUE_WIDGET=4907;
-
-    static final int OPTIONS_ROOT=2459;
-    static final int OPTIONS_TITLE_WIDGET=2460;
-    static final int CHANGE_LOOK_WIDGET=2461;
-    static final int NEVERMIND_WIDGET=2462;
-
     static final int DESIGN_ROOT=3559;
 
     private enum Stage { NONE, INTRO, OPTIONS, DESIGN }
@@ -275,10 +263,8 @@ final class LocalMakeoverMageHandler {
             return false;
 
         if(visible){
-            packets.fixed(
-                219,
-                new byte[0]
-            );
+            StandardDialoguePresentationAdapter
+                .close(packets);
         }
 
         clearPending(false);
@@ -304,10 +290,8 @@ final class LocalMakeoverMageHandler {
             return false;
 
         if(visible){
-            packets.fixed(
-                219,
-                new byte[0]
-            );
+            StandardDialoguePresentationAdapter
+                .close(packets);
         }
 
         clearPending(pending);
@@ -328,46 +312,36 @@ final class LocalMakeoverMageHandler {
         String tag
     )throws IOException{
         if(stage!=Stage.INTRO||
-           (widget!=INTRO_CONTINUE_WIDGET&&
-            widget!=KEYBOARD_CONTINUE_WIDGET))
+           !StandardDialoguePresentationAdapter
+                .acceptsNamedNpcContinue(
+                    1,
+                    widget
+                ))
             return false;
 
-        packets.varShort(
-            126,
-            BootstrapPackets.widgetText126(
-                OPTIONS_TITLE_WIDGET,
-                "Select an Option"
-            )
-        );
-        packets.varShort(
-            126,
-            BootstrapPackets.widgetText126(
-                CHANGE_LOOK_WIDGET,
-                "I'd like to change my look."
-            )
-        );
-        packets.varShort(
-            126,
-            BootstrapPackets.widgetText126(
-                NEVERMIND_WIDGET,
-                "Nevermind."
-            )
-        );
-        packets.fixed(
-            164,
-            BootstrapPackets.chatboxInterface164(
-                OPTIONS_ROOT
-            )
-        );
+        StandardDialoguePresentationAdapter
+            .openTwoOptions(
+                packets,
+                "Select an Option",
+                java.util.Arrays.asList(
+                    "I'd like to change my look.",
+                    "Nevermind."
+                )
+            );
 
         stage=Stage.OPTIONS;
 
         System.out.println(
             tag+
             "MAKEOVER_MAGE_OPTIONS_OPEN root="+
-            OPTIONS_ROOT+
-            " changeWidget="+CHANGE_LOOK_WIDGET+
-            " nevermindWidget="+NEVERMIND_WIDGET
+            StandardDialoguePresentationAdapter
+                .twoOptionRoot()+
+            " changeWidget="+
+            StandardDialoguePresentationAdapter
+                .twoOptionWidget(1)+
+            " nevermindWidget="+
+            StandardDialoguePresentationAdapter
+                .twoOptionWidget(2)
         );
         return true;
     }
@@ -400,11 +374,13 @@ final class LocalMakeoverMageHandler {
     )throws IOException{
         if(stage!=Stage.OPTIONS)return false;
 
-        if(widget==CHANGE_LOOK_WIDGET){
-            packets.fixed(
-                219,
-                new byte[0]
-            );
+        int optionIndex=
+            StandardDialoguePresentationAdapter
+                .twoOptionIndexForWidget(widget);
+
+        if(optionIndex==1){
+            StandardDialoguePresentationAdapter
+                .close(packets);
             packets.fixed(
                 97,
                 BootstrapPackets.interface97(
@@ -422,11 +398,9 @@ final class LocalMakeoverMageHandler {
             return true;
         }
 
-        if(widget==NEVERMIND_WIDGET){
-            packets.fixed(
-                219,
-                new byte[0]
-            );
+        if(optionIndex==2){
+            StandardDialoguePresentationAdapter
+                .close(packets);
             clearActive();
 
             System.out.println(
@@ -455,10 +429,8 @@ final class LocalMakeoverMageHandler {
         }
 
         if(!request.valid()){
-            packets.fixed(
-                219,
-                new byte[0]
-            );
+            StandardDialoguePresentationAdapter
+                .close(packets);
             clearActive();
             return Result.handled(
                 null,
@@ -526,33 +498,15 @@ final class LocalMakeoverMageHandler {
         String tag,
         String reason
     )throws IOException{
-        packets.varShort(
-            126,
-            BootstrapPackets.widgetText126(
-                INTRO_NAME_WIDGET,
-                "Make-over Mage"
-            )
-        );
-        packets.varShort(
-            126,
-            BootstrapPackets.widgetText126(
-                INTRO_TEXT_WIDGET,
-                "How may I help you?"
-            )
-        );
-        packets.fixed(
-            75,
-            BootstrapPackets.interfaceNpcHead75(
+        StandardDialoguePresentationAdapter
+            .openNamedNpc(
+                packets,
                 NPC_ID,
-                INTRO_HEAD_WIDGET
-            )
-        );
-        packets.fixed(
-            164,
-            BootstrapPackets.chatboxInterface164(
-                INTRO_ROOT
-            )
-        );
+                "Make-over Mage",
+                java.util.Collections.singletonList(
+                    "How may I help you?"
+                )
+            );
 
         stage=Stage.INTRO;
         activeScene=clicked.sceneIndex;
@@ -562,8 +516,12 @@ final class LocalMakeoverMageHandler {
             tag+
             "MAKEOVER_MAGE_DIALOG_OPEN npc=599"+
             " scene="+clicked.sceneIndex+
-            " root="+INTRO_ROOT+
-            " headWidget="+INTRO_HEAD_WIDGET+
+            " root="+
+            StandardDialoguePresentationAdapter
+                .namedNpcRoot(1)+
+            " headWidget="+
+            StandardDialoguePresentationAdapter
+                .namedNpcModelWidget(1)+
             " distance="+distanceTo(clicked)+
             " action="+reason+
             " authority=EXACT_CURRENT_CLIENT_UI+HISTORICAL_SCREENSHOT+LOCAL_LAB_INTERACTION_RANGE"
