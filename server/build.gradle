@@ -527,6 +527,24 @@ tasks.register('clientBuildRevision308Compatibility', JavaExec) {
     mainClass.set('spk.local.ClientBuildRevision308CompatibilityTest')
 }
 
+tasks.register('bloodSlayerPresentationRegression') {
+    group = 'verification'
+    description = 'Validates exact-v308 Blood Slayer selector widgets, Get Task intent and compatible point-text channels without owning task/reward policy.'
+    dependsOn tasks.named('testClasses')
+
+    doLast {
+        project.javaexec {
+            workingDir repoRoot
+            classpath = sourceSets.test.runtimeClasspath
+            mainClass.set('spk.local.BloodSlayerPresentationTest')
+        }
+
+        logger.lifecycle(
+            'BLOOD_SLAYER_PRESENTATION_REGRESSION_PASS modeWidgets=4 getTask=true policyOwned=false'
+        )
+    }
+}
+
 tasks.named('check') {
     dependsOn tasks.named('verifyJava11Bytecode')
     dependsOn tasks.named('clientBuildRevision308Compatibility')
