@@ -50,6 +50,52 @@ public final class AppearanceRankChannelTest {
                 readU16(ranked,5)
             );
 
+        int[] wornHead=new int[12];
+        java.util.Arrays.fill(wornHead,-1);
+        wornHead[EquipmentSlot.HEAD.appearanceIndex]=22131;
+        AppearanceProjection wornProjection=
+            readAppearanceProjection(
+                BootstrapPackets.appearanceBlock(
+                    "ranktest",
+                    wornHead,
+                    player
+                )
+            );
+        if(wornProjection.head!=512+22131)
+            throw new AssertionError(
+                "worn staff partyhat did not occupy br[0]: "+
+                wornProjection.head
+            );
+        if(wornProjection.extraItem!=-1)
+            throw new AssertionError(
+                "worn staff partyhat leaked into bs: "+
+                wornProjection.extraItem
+            );
+
+        EquipmentState emptyEquipment=new EquipmentState();
+        player.cosmetic().set(22131);
+        player.syncEquipmentPresentation(emptyEquipment);
+        AppearanceProjection overrideProjection=
+            readAppearanceProjection(
+                BootstrapPackets.appearanceBlock(
+                    "ranktest",
+                    emptyEquipment.appearanceItems(),
+                    player
+                )
+            );
+        if(overrideProjection.head!=0)
+            throw new AssertionError(
+                "cosmetic Override falsely occupied br[0]: "+
+                overrideProjection.head
+            );
+        if(overrideProjection.extraItem!=22131)
+            throw new AssertionError(
+                "cosmetic Override did not use bs: "+
+                overrideProjection.extraItem
+            );
+        player.cosmetic().clear();
+        player.syncEquipmentPresentation(emptyEquipment);
+
         EquipmentState equipment=
             new EquipmentState();
         PlayerPresentationService presentation=
@@ -135,8 +181,42 @@ public final class AppearanceRankChannelTest {
         System.out.println(
             "APPEARANCE_RANK_CHANNEL_PASS "+
             "aC=true loginPrivilegeSeparate=true explicit45=true "+
+            "wornHeadVsOverrideBs=true "+
             "devOverride38=true clear0=true persisted=false"
         );
+    }
+
+    private static final class AppearanceProjection{
+        final int head;
+        final int extraItem;
+
+        AppearanceProjection(int head,int extraItem){
+            this.head=head;
+            this.extraItem=extraItem;
+        }
+    }
+
+    private static AppearanceProjection readAppearanceProjection(
+        byte[] data
+    ){
+        int offset=7; // five state bytes + signed-short aC
+        int head=0;
+        for(int slot=0;slot<12;slot++){
+            int high=data[offset++]&255;
+            int value=0;
+            if(high!=0){
+                value=(high<<8)|(data[offset++]&255);
+            }
+            if(slot==EquipmentSlot.HEAD.appearanceIndex)
+                head=value;
+        }
+
+        int extraFlag=data[offset++]&255;
+        int extraItem=-1;
+        if(extraFlag!=0){
+            extraItem=readU16(data,offset);
+        }
+        return new AppearanceProjection(head,extraItem);
     }
 
     private static int readU16(
