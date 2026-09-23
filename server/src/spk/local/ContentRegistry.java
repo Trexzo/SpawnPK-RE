@@ -1503,6 +1503,54 @@ final class ContentRegistry {
             :binding.info;
     }
 
+    synchronized ContentDialogueDefinition dialogueDefinition(
+        String dialogueKey
+    ){
+        DialogueRegistration registration=
+            dialogueDefinitionRegistration(
+                dialogueKey(dialogueKey)
+            );
+
+        return registration==null
+            ?null
+            :registration.definition;
+    }
+
+    synchronized BindingInfo dialogueDefinitionBinding(
+        String dialogueKey
+    ){
+        DialogueRegistration registration=
+            dialogueDefinitionRegistration(
+                dialogueKey(dialogueKey)
+            );
+
+        return registration==null
+            ?null
+            :registration.info;
+    }
+
+    private DialogueRegistration
+        dialogueDefinitionRegistration(
+            String key
+        )
+    {
+        DialogueRegistration selected=null;
+
+        for(DialogueRegistration registration:
+                dialogueRegistrations){
+            if(!registration.info.key.equals(key)||
+               registration.definition==null)
+                continue;
+
+            if(selected==null||
+               registration.info.priority>
+                    selected.info.priority)
+                selected=registration;
+        }
+
+        return selected;
+    }
+
     synchronized List<BindingInfo> bindings(){
         ArrayList<BindingInfo> result=
             new ArrayList<>();
@@ -2757,15 +2805,18 @@ final class ContentRegistry {
     private static final class DialogueRegistration {
         final BindingInfo info;
         final ContentDialogueHandler handler;
+        final ContentDialogueDefinition definition;
         final RegistrationHandle handle;
 
         DialogueRegistration(
             BindingInfo info,
             ContentDialogueHandler handler,
+            ContentDialogueDefinition definition,
             RegistrationHandle handle
         ){
             this.info=info;
             this.handler=handler;
+            this.definition=definition;
             this.handle=handle;
         }
     }
@@ -3301,6 +3352,21 @@ final class ContentRegistry {
                 "handler"
             );
 
+            ContentDialogueDefinition definition=
+                handler.definition();
+
+            if(definition!=null&&
+               !key.equals(
+                   dialogueKey(
+                       definition.dialogueKey()
+                   )))
+                throw new IllegalArgumentException(
+                    "dialogue definition key mismatch registration="+
+                    key+
+                    " definition="+
+                    definition.dialogueKey()
+                );
+
             RegistrationHandle handle=
                 new RegistrationHandle();
 
@@ -3314,6 +3380,7 @@ final class ContentRegistry {
                         provenance
                     ),
                     handler,
+                    definition,
                     handle
                 )
             );
