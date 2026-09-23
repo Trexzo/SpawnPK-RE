@@ -100,6 +100,61 @@ public final class CustomAssetPipelineContractTest {
             "NPC:12001"
         );
 
+        CustomDefinitionOverlayRepository.Overlay cloneItemOverlay =
+            new CustomDefinitionOverlayRepository.Overlay(
+                CustomDefinitionOverlayPolicy.Kind.ITEM,
+                asset.itemId,
+                singletonField("clone", "100"),
+                singletonField("clone", "CUSTOM_LOCALLAB_TEST_CLONE")
+            );
+        CustomDefinitionOverlayRepository.Overlay cloneNpcOverlay =
+            new CustomDefinitionOverlayRepository.Overlay(
+                CustomDefinitionOverlayPolicy.Kind.NPC,
+                asset.npcId,
+                singletonField("clone", "200"),
+                singletonField("clone", "CUSTOM_LOCALLAB_TEST_CLONE")
+            );
+
+        boolean unresolvedCloneSourceRejected = false;
+        try {
+            CustomAssetNamespacePreflight.referenceDefinitionCloneSources(
+                CustomAssetNamespaceSnapshot.parse(
+                    new StringReader(validSnapshot(false, true))
+                ),
+                new LinkedHashSet<>(),
+                asset,
+                cloneItemOverlay,
+                cloneNpcOverlay
+            );
+        } catch (IllegalStateException expected) {
+            unresolvedCloneSourceRejected =
+                expected.getMessage().contains("UNRESOLVED_EXACT_REFERENCE");
+        }
+        if (!unresolvedCloneSourceRejected)
+            throw new AssertionError("unresolved clone source was not rejected");
+
+        CustomAssetNamespaceSnapshot cloneSnapshot =
+            CustomAssetNamespaceSnapshot.parse(
+                new StringReader(
+                    validSnapshot(false, true) +
+                    "PRESENT\tITEM\tGLOBAL\t100\n" +
+                    "PRESENT\tNPC\tGLOBAL\t200\n"
+                )
+            );
+        LinkedHashSet<CustomAssetNamespacePreflight.IdKey> cloneReferences =
+            new LinkedHashSet<>();
+        CustomAssetNamespacePreflight.referenceDefinitionCloneSources(
+            cloneSnapshot,
+            cloneReferences,
+            asset,
+            cloneItemOverlay,
+            cloneNpcOverlay
+        );
+        if (cloneReferences.size() != 2)
+            throw new AssertionError(
+                "clone source references=" + cloneReferences.size()
+            );
+
         Map<String,String> itemClone = new LinkedHashMap<>();
         itemClone.put("clone", "100");
         itemClone.put("fullClone", "200");
@@ -253,6 +308,7 @@ public final class CustomAssetPipelineContractTest {
             "sharedNamespaceScopeGuard=true " +
             "namespaceContextMatrix=true " +
             "overlayOwnership=true " +
+            "cloneSourcePreflight=true " +
             "staticUntilAnimationProven=true " +
             "namespaceCollisionRejected=true " +
             "gfxContextRequired=true " +
