@@ -21,6 +21,30 @@ public final class MakeoverMageDialogueContent
     public static final String OPTIONS_NODE=
         "node:options";
 
+    private static final ContentDialogueDefinition DEFINITION=
+        new ContentDialogueDefinition(
+            DIALOGUE_KEY,
+            INTRO_NODE,
+            Arrays.asList(
+                new ContentDialogueNode(
+                    INTRO_NODE,
+                    ContentDialogueNode.InputMode.CONTINUE,
+                    0,
+                    false
+                ),
+                new ContentDialogueNode(
+                    OPTIONS_NODE,
+                    ContentDialogueNode.InputMode.OPTIONS,
+                    2,
+                    true
+                )
+            )
+        );
+
+    @Override public ContentDialogueDefinition definition(){
+        return DEFINITION;
+    }
+
     public static void presentIntro(
         ContentDialoguePresentation presentation
     ){
