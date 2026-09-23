@@ -40,6 +40,9 @@ final class ClientPacketProbe {
     private long opcode0Count;
     private final ClientRequestQueue typedRequests=
         new ClientRequestQueue();
+    private final LoadoutEditorCompatibilityPairer
+        loadoutEditorPairer=
+            new LoadoutEditorCompatibilityPairer();
 
     ClientPacketProbe(InputStream in, IsaacCipher cipher, String tag) {
         this.in = in;
@@ -87,6 +90,21 @@ final class ClientPacketProbe {
         if (encoded < 0) return false;
         int opcode = (encoded - cipher.nextInt()) & 0xff;
         decodedCount++;
+
+        if(opcode!=103){
+            String expired=
+                loadoutEditorPairer
+                    .expireForInterveningPacket(
+                        decodedCount
+                    );
+            if(expired!=null)
+                System.out.printf(
+                    "%sCLIENT_LOADOUT_PAIR seq=%d state=EXPIRED reason=%s%n",
+                    tag,
+                    decodedCount,
+                    expired
+                );
+        }
 
         switch (opcode) {
             case 3: {
@@ -1096,15 +1114,28 @@ final class ClientPacketProbe {
                 int dialogueOption=
                     dialogueOptionIndex(text);
 
+                LoadoutEditorCompatibilityPairer.Outcome
+                    loadout=
+                        dialogueOption>0
+                        ?loadoutEditorPairer.accept(
+                            text,
+                            decodedCount
+                        )
+                        :loadoutEditorPairer.accept(
+                            text,
+                            decodedCount
+                        );
+
                 DailyChallengeClientRequest
                     dailyChallenge=
-                        dialogueOption>0
+                        dialogueOption>0||
+                        loadout.recognized()
                         ?null
                         :dailyChallengeRequest(
                             text
                         );
 
-                ClientRequest request;
+                ClientRequest request=null;
 
                 if(dialogueOption>0)
                     request=
@@ -1116,7 +1147,14 @@ final class ClientPacketProbe {
                                 "V308_CLIENT_DIALOGUE_OPTION_HOTKEY"
                             )
                         );
-                else if(dailyChallenge!=null)
+                else if(loadout.kind==
+                        LoadoutEditorCompatibilityPairer
+                            .Kind.COMPLETE)
+                    request=loadout.request;
+                else if(loadout.recognized()){
+                    // cld1 is staged; malformed/orphan halves are consumed
+                    // fail-closed and never exposed as generic commands.
+                }else if(dailyChallenge!=null)
                     request=dailyChallenge;
                 else
                     request=
@@ -1129,18 +1167,23 @@ final class ClientPacketProbe {
                             )
                         );
 
-                offerTypedRequest(
-                    request,
-                    opcode
-                );
+                if(request!=null)
+                    offerTypedRequest(
+                        request,
+                        opcode
+                    );
 
                 System.out.printf(
-                    "%sCLIENT_PACKET seq=%d opcode=103 len=%d command=%s dialogueOption=%d dailyChallenge=%s newline=%s%n",
+                    "%sCLIENT_PACKET seq=%d opcode=103 len=%d command=%s dialogueOption=%d loadout=%s loadoutReason=%s dailyChallenge=%s newline=%s%n",
                     tag,
                     decodedCount,
                     len,
                     quote(text),
                     dialogueOption,
+                    loadout.kind,
+                    loadout.reason==null
+                        ?"none"
+                        :loadout.reason,
                     dailyChallenge==null
                         ?"none"
                         :dailyChallenge.action(),
