@@ -19,16 +19,24 @@ final class WorldPluginManager
 
     private final ContentRegistry content;
     private final DomainEventBus events;
+    private final GameClock clock;
+    private final WorldEventQueue worldEvents;
     private final BooleanSupplier worldOpen;
     private final LinkedHashMap<String,Entry>
         enabled=new LinkedHashMap<>();
+    private final HashSet<String>
+        disabling=new HashSet<>();
 
+    private int activeCleanups;
     private boolean closed;
+    private boolean resourcesClosing;
     private boolean resourcesClosed;
 
     WorldPluginManager(
         ContentRegistry content,
         DomainEventBus events,
+        GameClock clock,
+        WorldEventQueue worldEvents,
         BooleanSupplier worldOpen
     ){
         this.content=Objects.requireNonNull(
@@ -38,6 +46,14 @@ final class WorldPluginManager
         this.events=Objects.requireNonNull(
             events,
             "events"
+        );
+        this.clock=Objects.requireNonNull(
+            clock,
+            "clock"
+        );
+        this.worldEvents=Objects.requireNonNull(
+            worldEvents,
+            "worldEvents"
         );
         this.worldOpen=Objects.requireNonNull(
             worldOpen,
@@ -49,7 +65,10 @@ final class WorldPluginManager
         Plugin plugin
     )throws Exception{
         requireOpen();
-        return enableOne(plugin);
+        return enableOne(
+            plugin,
+            true
+        );
     }
 
     @Override public synchronized List<PluginHandle>
@@ -67,8 +86,14 @@ final class WorldPluginManager
         try{
             for(Plugin plugin:ordered)
                 added.add(
-                    enableOne(plugin)
+                    enableOne(
+                        plugin,
+                        false
+                    )
                 );
+
+            for(Entry entry:added)
+                entry.tasks.activate();
         }catch(Throwable failure){
             for(int i=added.size()-1;i>=0;i--)
                 disableEntry(
@@ -84,30 +109,50 @@ final class WorldPluginManager
         );
     }
 
-    @Override public synchronized boolean disable(
+    @Override public boolean disable(
         String pluginId
     ){
-        String id=canonicalId(pluginId);
-        Entry entry=enabled.get(id);
+        String id=
+            canonicalId(pluginId);
+        Entry entry;
 
-        if(entry==null)
-            return false;
+        synchronized(this){
+            entry=enabled.get(id);
 
-        for(Entry candidate:enabled.values())
-            if(candidate!=entry&&
-               candidate.enabled&&
-               candidate.manifest.dependencies()
-                    .contains(id))
-                throw new IllegalStateException(
-                    "plugin has enabled dependent: "+
-                    candidate.manifest.id()+
-                    " -> "+id
-                );
+            if(entry==null)
+                return false;
 
-        disableEntry(
-            entry,
-            "EXPLICIT_DISABLE"
-        );
+            for(Entry candidate:
+                    enabled.values())
+                if(candidate!=entry&&
+                   candidate.enabled&&
+                   candidate.manifest
+                        .dependencies()
+                        .contains(id))
+                    throw new IllegalStateException(
+                        "plugin has enabled dependent: "+
+                        candidate.manifest.id()+
+                        " -> "+id
+                    );
+
+            detachEntry(entry);
+            disabling.add(id);
+            activeCleanups++;
+        }
+
+        try{
+            cleanupEntry(
+                entry,
+                "EXPLICIT_DISABLE"
+            );
+        }finally{
+            synchronized(this){
+                activeCleanups--;
+                disabling.remove(id);
+                notifyAll();
+            }
+        }
+
         return true;
     }
 
@@ -137,22 +182,47 @@ final class WorldPluginManager
     }
 
     /** Disable resources after the World pulse has stopped. */
-    synchronized void closeResources(){
-        if(resourcesClosed)
-            return;
+    void closeResources(){
+        ArrayList<Entry> entries;
 
-        closed=true;
+        synchronized(this){
+            if(resourcesClosed)
+                return;
 
-        ArrayList<Entry> entries=
-            new ArrayList<>(enabled.values());
+            if(resourcesClosing){
+                awaitResourcesClosed();
+                return;
+            }
 
-        for(int i=entries.size()-1;i>=0;i--)
-            disableEntry(
-                entries.get(i),
-                "WORLD_CLOSE"
-            );
+            resourcesClosing=true;
+            closed=true;
 
-        resourcesClosed=true;
+            awaitExplicitCleanups();
+
+            entries=
+                new ArrayList<>(
+                    enabled.values()
+                );
+
+            for(Entry entry:entries)
+                detachEntry(entry);
+        }
+
+        try{
+            for(int i=entries.size()-1;
+                i>=0;
+                i--)
+                cleanupEntry(
+                    entries.get(i),
+                    "WORLD_CLOSE"
+                );
+        }finally{
+            synchronized(this){
+                resourcesClosed=true;
+                resourcesClosing=false;
+                notifyAll();
+            }
+        }
     }
 
     @Override public void close(){
@@ -161,7 +231,8 @@ final class WorldPluginManager
     }
 
     private Entry enableOne(
-        Plugin plugin
+        Plugin plugin,
+        boolean activateTasks
     )throws Exception{
         Objects.requireNonNull(
             plugin,
@@ -183,6 +254,11 @@ final class WorldPluginManager
                 "plugin already enabled: "+id
             );
 
+        if(disabling.contains(id))
+            throw new IllegalStateException(
+                "plugin disable in progress: "+id
+            );
+
         for(String dependency:
                 manifest.dependencies())
             if(!enabled.containsKey(dependency))
@@ -196,12 +272,19 @@ final class WorldPluginManager
 
         EventTracker tracker=
             new EventTracker();
+        PluginTaskTracker tasks=
+            new PluginTaskTracker(
+                clock,
+                worldEvents,
+                worldOpen
+            );
 
         PluginContentModule module=
             new PluginContentModule(
                 moduleId,
                 plugin,
-                tracker
+                tracker,
+                tasks
             );
 
         try{
@@ -212,13 +295,20 @@ final class WorldPluginManager
                     plugin,
                     manifest,
                     moduleId,
-                    tracker
+                    tracker,
+                    tasks
                 );
 
             enabled.put(id,entry);
+
+            if(activateTasks)
+                tasks.activate();
+
             return entry;
         }catch(Throwable failure){
+            enabled.remove(id);
             module.seal();
+            tasks.close();
 
             if(module.enableAttempted())
                 try{
@@ -251,10 +341,33 @@ final class WorldPluginManager
         if(entry==null||!entry.enabled)
             return;
 
+        detachEntry(entry);
+        cleanupEntry(
+            entry,
+            reason
+        );
+    }
+
+    private void detachEntry(
+        Entry entry
+    ){
+        if(entry==null||!entry.enabled)
+            return;
+
         entry.enabled=false;
         enabled.remove(
             entry.manifest.id()
         );
+    }
+
+    private void cleanupEntry(
+        Entry entry,
+        String reason
+    ){
+        if(entry==null)
+            return;
+
+        entry.tasks.close();
 
         try{
             entry.plugin.disable();
@@ -281,6 +394,36 @@ final class WorldPluginManager
                 " error="+failure
             );
         }
+    }
+
+    private synchronized void awaitExplicitCleanups(){
+        boolean interrupted=false;
+
+        while(activeCleanups>0)
+            try{
+                wait();
+            }catch(InterruptedException error){
+                interrupted=true;
+            }
+
+        if(interrupted)
+            Thread.currentThread()
+                .interrupt();
+    }
+
+    private synchronized void awaitResourcesClosed(){
+        boolean interrupted=false;
+
+        while(!resourcesClosed)
+            try{
+                wait();
+            }catch(InterruptedException error){
+                interrupted=true;
+            }
+
+        if(interrupted)
+            Thread.currentThread()
+                .interrupt();
     }
 
     private List<Plugin> dependencyOrder(
@@ -446,17 +589,20 @@ final class WorldPluginManager
         private final String moduleId;
         private final Plugin plugin;
         private final EventTracker tracker;
+        private final PluginTaskTracker tasks;
         private volatile ScopedPluginContext context;
         private volatile boolean enableAttempted;
 
         PluginContentModule(
             String moduleId,
             Plugin plugin,
-            EventTracker tracker
+            EventTracker tracker,
+            PluginTaskTracker tasks
         ){
             this.moduleId=moduleId;
             this.plugin=plugin;
             this.tracker=tracker;
+            this.tasks=tasks;
         }
 
         @Override public String id(){
@@ -469,7 +615,8 @@ final class WorldPluginManager
             ScopedPluginContext local=
                 new ScopedPluginContext(
                     registrar,
-                    tracker
+                    tracker,
+                    tasks
                 );
 
             context=local;
@@ -502,11 +649,13 @@ final class WorldPluginManager
 
         private final ScopedContentRegistrar content;
         private final ScopedPluginEvents events;
+        private final PluginScheduler scheduler;
         private boolean open=true;
 
         ScopedPluginContext(
             ContentRegistrar registrar,
-            EventTracker tracker
+            EventTracker tracker,
+            PluginTaskTracker tasks
         ){
             content=
                 new ScopedContentRegistrar(
@@ -518,6 +667,7 @@ final class WorldPluginManager
                     tracker,
                     this
                 );
+            scheduler=tasks;
         }
 
         @Override public ContentRegistrar content(){
@@ -528,6 +678,11 @@ final class WorldPluginManager
         @Override public PluginEvents events(){
             requireOpen();
             return events;
+        }
+
+        @Override public PluginScheduler scheduler(){
+            requireOpen();
+            return scheduler;
         }
 
         synchronized boolean open(){
@@ -645,18 +800,21 @@ final class WorldPluginManager
         final PluginManifest manifest;
         final String moduleId;
         final EventTracker events;
+        final PluginTaskTracker tasks;
         volatile boolean enabled=true;
 
         Entry(
             Plugin plugin,
             PluginManifest manifest,
             String moduleId,
-            EventTracker events
+            EventTracker events,
+            PluginTaskTracker tasks
         ){
             this.plugin=plugin;
             this.manifest=manifest;
             this.moduleId=moduleId;
             this.events=events;
+            this.tasks=tasks;
         }
 
         @Override public PluginManifest manifest(){
