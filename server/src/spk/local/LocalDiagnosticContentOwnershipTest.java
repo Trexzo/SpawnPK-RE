@@ -28,6 +28,10 @@ public final class LocalDiagnosticContentOwnershipTest {
                 "authority"
             );
 
+            legacyAuthorityFallbackRemoved(
+                world
+            );
+
             world.registerPlayer(
                 player,
                 "diagnostic-content-owner"
@@ -113,6 +117,7 @@ public final class LocalDiagnosticContentOwnershipTest {
                 " priority100=true "+
                 "provenance=CUSTOM_LOCALLAB "+
                 "dynamicSummary=true "+
+                "legacyAuthorityFallback=false "+
                 "wireBytes=0"
             );
         }finally{
@@ -120,6 +125,55 @@ public final class LocalDiagnosticContentOwnershipTest {
                 world.unregisterPlayer(player);
             world.close();
         }
+    }
+
+    private static void legacyAuthorityFallbackRemoved(
+        World world
+    )throws Exception{
+        ByteArrayOutputStream wire=
+            new ByteArrayOutputStream();
+
+        ServerPacketWriter packets=
+            new ServerPacketWriter(
+                wire,
+                new IsaacCipher(
+                    new int[]{145,146,147,148}
+                )
+            );
+
+        LocalDiagnosticCommandHandler legacy=
+            new LocalDiagnosticCommandHandler(
+                world,
+                new EquipmentState(),
+                new MovementState(),
+                new PrayerState(),
+                new MagicState(),
+                new CombatStyleState(),
+                new NativeItemLibraryService()
+            );
+
+        boolean claimed=
+            legacy.handle(
+                new String[]{"authority"},
+                packets,
+                "[diagnostic-content-test] ",
+                "diagnostic-content-owner",
+                "diagnostic-content-owner",
+                false,
+                null
+            );
+
+        packets.flush();
+
+        require(
+            !claimed,
+            "legacy LocalDiagnosticCommandHandler still claims authority"
+        );
+        require(
+            wire.size()==0,
+            "legacy authority fallback emitted wire bytes="+
+                wire.size()
+        );
     }
 
     private static ContentResult dispatch(
