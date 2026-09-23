@@ -676,6 +676,40 @@ tasks.register('makeoverDialogueCloseRegression') {
     }
 }
 
+tasks.register('contentDialogueTransitionOwnershipRegression') {
+    group = 'verification'
+    description = 'Validates semantic dialogue transition registration, plugin lifecycle override/restore, Make-over content ownership and fail-closed presentation ordering.'
+    dependsOn tasks.named('testClasses')
+
+    doLast {
+        [
+            'spk.local.ContentDialogueTransitionOwnershipTest',
+            'spk.local.MakeoverDialogueContentOwnershipTest',
+            'spk.local.ContentHandlerSamCompatibilityTest',
+            'spk.local.ContentRegistrarAuthorityCoverageTest',
+            'spk.local.ContentProvenanceAuthorityBoundaryTest',
+            'spk.local.ContentPublicApiBoundaryTest',
+            'spk.local.ContentRegistrationLifecycleTest',
+            'spk.local.ContentRegistrarSealTest',
+            'spk.local.PluginKernelLifecycleTest',
+            'spk.local.DialogueSessionServiceTest',
+            'spk.local.MakeoverSemanticDialogueSessionTest',
+            'spk.local.MakeoverDialogueContentOwnershipTest',
+            'spk.local.LocalPendingRequestDispatcherTest'
+        ].each { mainClassName ->
+            project.javaexec {
+                workingDir repoRoot
+                classpath = sourceSets.test.runtimeClasspath
+                mainClass.set(mainClassName)
+            }
+        }
+
+        logger.lifecycle(
+            'CONTENT_DIALOGUE_TRANSITION_OWNERSHIP_REGRESSION_PASS registry=true pluginLifecycle=true makeover=true partialWire=false boundary=true'
+        )
+    }
+}
+
 tasks.named('check') {
     dependsOn tasks.named('verifyJava11Bytecode')
     dependsOn tasks.named('clientBuildRevision308Compatibility')
