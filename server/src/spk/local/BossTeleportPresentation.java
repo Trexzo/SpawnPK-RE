@@ -152,8 +152,6 @@ final class BossTeleportPresentation {
         int[] itemIds,
         int[] quantities
     )throws IOException{
-        Objects.requireNonNull(packets,"packets");
-
         if(itemIds==null||
            quantities==null||
            itemIds.length!=DROP_PREVIEW_SLOTS||
@@ -163,6 +161,8 @@ final class BossTeleportPresentation {
                 DROP_PREVIEW_SLOTS+
                 " slots"
             );
+
+        Objects.requireNonNull(packets,"packets");
 
         packets.varShort(
             53,
