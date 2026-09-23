@@ -40,6 +40,7 @@ public final class LocalWorldTickCoordinatorTest {
     {
         SceneUpdatePublisher publisher;
         String lastSaveReason;
+        int saveCalls;
         long petDeadline=Long.MAX_VALUE;
         int followScheduleCalls;
         int testSequenceScheduleCalls;
@@ -59,6 +60,7 @@ public final class LocalWorldTickCoordinatorTest {
             String reason
         ){
             lastSaveReason=reason;
+            saveCalls++;
         }
 
         @Override public void publishOpponentOverlay(
@@ -323,6 +325,12 @@ public final class LocalWorldTickCoordinatorTest {
                     "queued movement did not advance exactly once"
                 );
 
+            if(bridge.saveCalls!=1)
+                throw new AssertionError(
+                    "HOME movement save count="+
+                    bridge.saveCalls
+                );
+
             if(!"POSITION_TICK".equals(
                 bridge.lastSaveReason
             )){
@@ -338,6 +346,103 @@ public final class LocalWorldTickCoordinatorTest {
                     "authoritative movement position changed"
                 );
             }
+        }
+
+        try(Fixture transientMove=new Fixture()){
+            TickBridge bridge=new TickBridge();
+            LocalWorldTickCoordinator coordinator=
+                transientMove.coordinator(true,bridge);
+
+            Tile start=
+                WorldCollisionAuthority.safeTile(
+                    16193,
+                    0
+                );
+
+            if(start==null)
+                throw new AssertionError(
+                    "transient safe-tile fixture missing"
+                );
+
+            int targetX=-1;
+            int targetY=-1;
+            for(int dx=-1;dx<=1&&targetX<0;dx++){
+                for(int dy=-1;dy<=1;dy++){
+                    if(dx==0&&dy==0)
+                        continue;
+
+                    int nx=start.x+dx;
+                    int ny=start.y+dy;
+
+                    if(CollisionStepAuthority.canStep(
+                            CollisionStepAuthority.Policy.WORLD_STATIC,
+                            start.x,
+                            start.y,
+                            0,
+                            nx,
+                            ny)){
+                        targetX=nx;
+                        targetY=ny;
+                        break;
+                    }
+                }
+            }
+
+            if(targetX<0)
+                throw new AssertionError(
+                    "transient safe tile has no traversable neighbor "+
+                    start
+                );
+
+            int chunkX=start.x>>3;
+            int chunkY=start.y>>3;
+            int baseX=(chunkX-6)<<3;
+            int baseY=(chunkY-6)<<3;
+
+            transientMove.movement.enterTransientRegion(
+                start.x,
+                start.y,
+                0,
+                baseX,
+                baseY
+            );
+
+            String accepted=
+                transientMove.movement.accept(
+                    new MovementRequest(
+                        164,
+                        false,
+                        new int[]{targetX},
+                        new int[]{targetY},
+                        new byte[0]
+                    )
+                );
+
+            if(!accepted.startsWith("ACCEPTED"))
+                throw new AssertionError(
+                    "transient movement rejected: "+
+                    accepted
+                );
+
+            coordinator.tick(
+                5L,
+                2_500L,
+                transientMove.writer,
+                "[tick-transient-test] "
+            );
+
+            if(coordinator.movementTickCount()!=1L)
+                throw new AssertionError(
+                    "transient movement did not advance"
+                );
+
+            if(bridge.saveCalls!=0||
+               bridge.lastSaveReason!=null)
+                throw new AssertionError(
+                    "nonpersistent transient movement saved account calls="+
+                    bridge.saveCalls+
+                    " reason="+bridge.lastSaveReason
+                );
         }
 
         try(Fixture respawning=new Fixture()){
@@ -459,6 +564,7 @@ public final class LocalWorldTickCoordinatorTest {
             "idlePulse=true authoritativeMove=true "+
             "tickCountersOwned=true schedulerHooks=true "+
             "respawnLifecycle=true "+
+            "transientMovementSave=false "+
             "sharedHomeClockReconnect=true"
         );
     }
