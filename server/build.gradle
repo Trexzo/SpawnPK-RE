@@ -480,7 +480,7 @@ def currentTrainFocusedTests = [
 if (currentTrainFocusedTests.size() != 166 ||
     currentTrainFocusedTests.toSet().size() != 166) {
     throw new GradleException(
-        "Current-train focused manifest drift: expected 164 unique tests, found " +
+        "Current-train focused manifest drift: expected 166 unique tests, found " +
         currentTrainFocusedTests.size() +
         " / " +
         currentTrainFocusedTests.toSet().size()
