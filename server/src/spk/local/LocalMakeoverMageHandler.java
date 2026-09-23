@@ -21,15 +21,24 @@ final class LocalMakeoverMageHandler {
 
     static final int DESIGN_ROOT=3559;
 
-    private enum Stage { NONE, INTRO, OPTIONS, DESIGN }
+    private static final String DIALOGUE_POLICY=
+        "LOCAL_LAB_POLICY_MAKEOVER_MAGE_DIALOGUE";
+    private static final String DIALOGUE_KEY=
+        "dialogue:makeover-mage";
+    private static final String INTRO_NODE=
+        "node:intro";
+    private static final String OPTIONS_NODE=
+        "node:options";
 
     private final WorldPlayer worldPlayer;
     private final EquipmentState equipment;
     private final MovementState movement;
     private final NpcRegistry npcs;
     private final InteractionApproachResolver approach;
+    private final String dialoguePlayerRef;
+    private final DialogueSessionService dialogue;
 
-    private Stage stage=Stage.NONE;
+    private boolean designActive;
 
     private Integer pendingScene;
     private NpcEntity pendingNpc;
@@ -76,6 +85,71 @@ final class LocalMakeoverMageHandler {
             new InteractionApproachResolver(
                 this.movement
             );
+        this.dialoguePlayerRef=
+            "entity:"+
+            this.worldPlayer.id();
+        this.dialogue=
+            new DialogueSessionService(
+                DIALOGUE_POLICY,
+                (player,definition,node,intent,before)->{
+                    if(INTRO_NODE.equals(
+                            node.nodeKey)&&
+                       intent.kind==
+                            DialogueSessionService
+                                .IntentKind.CONTINUE)
+                        return DialogueSessionService
+                            .Transition.move(
+                                OPTIONS_NODE
+                            );
+
+                    if(OPTIONS_NODE.equals(
+                            node.nodeKey)&&
+                       (intent.kind==
+                            DialogueSessionService
+                                .IntentKind.OPTION||
+                        intent.kind==
+                            DialogueSessionService
+                                .IntentKind.CLOSE))
+                        return DialogueSessionService
+                            .Transition.end();
+
+                    throw new IllegalStateException(
+                        "unsupported Make-over dialogue transition node="+
+                        node.nodeKey+
+                        " intent="+
+                        intent.kind
+                    );
+                }
+            );
+
+        this.dialogue.register(
+            new DialogueSessionService
+                .DialogueDefinition(
+                    DIALOGUE_KEY,
+                    INTRO_NODE,
+                    java.util.Arrays.asList(
+                        new DialogueSessionService
+                            .NodeDefinition(
+                                INTRO_NODE,
+                                DialogueSessionService
+                                    .InputMode.CONTINUE,
+                                0,
+                                false,
+                                DIALOGUE_POLICY
+                            ),
+                        new DialogueSessionService
+                            .NodeDefinition(
+                                OPTIONS_NODE,
+                                DialogueSessionService
+                                    .InputMode.OPTIONS,
+                                2,
+                                true,
+                                DIALOGUE_POLICY
+                            )
+                    ),
+                    DIALOGUE_POLICY
+                )
+        );
     }
 
     boolean beginIfSupported(
