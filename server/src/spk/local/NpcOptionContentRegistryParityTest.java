@@ -39,7 +39,7 @@ public final class NpcOptionContentRegistryParityTest {
 
         NpcAction request=
             new NpcAction(
-                155,
+                17,
                 legacyBanker.sceneIndex
             );
 
@@ -76,7 +76,7 @@ public final class NpcOptionContentRegistryParityTest {
                     .npcOptionBinding(
                         RuntimeProvenNpcInteractionModule
                             .BANKER_7605,
-                        1
+                        3
                     );
 
             if(binding==null||
@@ -95,6 +95,7 @@ public final class NpcOptionContentRegistryParityTest {
                 world.content().installCustom(
                     npcModule(
                         "equal-priority-test",
+                        3,
                         100,
                         ContentNpcService.TALK
                     )
@@ -117,7 +118,7 @@ public final class NpcOptionContentRegistryParityTest {
                     .npcOptionBinding(
                         RuntimeProvenNpcInteractionModule
                             .BANKER_7605,
-                        1
+                        3
                     );
 
             if(afterConflict==null||
@@ -147,7 +148,7 @@ public final class NpcOptionContentRegistryParityTest {
 
             NpcAction contentRequest=
                 new NpcAction(
-                    155,
+                    17,
                     contentBanker.sceneIndex
                 );
 
@@ -203,6 +204,7 @@ public final class NpcOptionContentRegistryParityTest {
             world.content().installCustom(
                 npcModule(
                     "test-npc-override",
+                    1,
                     200,
                     ContentNpcService.TALK
                 )
@@ -302,6 +304,7 @@ public final class NpcOptionContentRegistryParityTest {
 
     private static ContentModule npcModule(
         String id,
+        int option,
         int priority,
         ContentNpcService service
     ){
@@ -316,7 +319,7 @@ public final class NpcOptionContentRegistryParityTest {
                 registrar.npcOption(
                     RuntimeProvenNpcInteractionModule
                         .BANKER_7605,
-                    1,
+                    option,
                     priority,
                     context->
                         ContentNpcOptionResult.handled(

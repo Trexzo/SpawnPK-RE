@@ -7,6 +7,19 @@ package spk.content.api;
  * modules never receive ServerPacketWriter, ISAAC state or packet buffers.
  */
 public interface ContentPresentation {
+    /**
+     * Semantic standard-dialogue presentation capability.
+     *
+     * The production LocalLab runtime overrides this capability. The default
+     * keeps alternate/test implementations source-compatible while failing
+     * closed if they do not provide dialogue presentation.
+     */
+    default ContentDialoguePresentation dialogue(){
+        throw new UnsupportedOperationException(
+            "dialogue presentation unavailable"
+        );
+    }
+
     void skill(
         ContentSkill skill,
         int experience,

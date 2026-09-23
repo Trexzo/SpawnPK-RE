@@ -283,6 +283,10 @@ public final class DialogueSessionServiceTest {
             "semantic close delegated"
         );
 
+        serverAbortLifecycle(
+            service,
+            resolverCalls
+        );
         resolverFailureAtomic(
             service
         );
@@ -293,6 +297,7 @@ public final class DialogueSessionServiceTest {
             service
         );
         resolverOutsideMonitorAndStaleCommitRejected();
+        serverAbortFencesInFlightResolver();
         nodeValidation();
         protocolBoundary();
 
@@ -303,6 +308,9 @@ public final class DialogueSessionServiceTest {
             "optionIntent=true " +
             "optionRange1to5=true " +
             "closeIntentDelegated=true " +
+            "serverAbort=true " +
+            "abortIdempotent=true " +
+            "abortFencesStaleResolver=true " +
             "resolverOwnedTransitions=true " +
             "invalidIntentNoResolver=true " +
             "resolverFailureAtomic=true " +
@@ -354,6 +362,67 @@ public final class DialogueSessionServiceTest {
                 ),
                 POLICY
             );
+    }
+
+    private static void serverAbortLifecycle(
+        DialogueSessionService service,
+        AtomicInteger resolverCalls
+    ) {
+        service.begin(
+            "player:abort",
+            "dialogue:test"
+        );
+
+        DialogueSessionService.Snapshot before =
+            service.snapshot(
+                "player:abort"
+            );
+
+        int beforeResolverCalls =
+            resolverCalls.get();
+
+        DialogueSessionService.Snapshot aborted =
+            service.abort(
+                "player:abort"
+            );
+
+        require(
+            !aborted.active &&
+            aborted.revision ==
+                before.revision + 1L &&
+            aborted.dialogueKey == null &&
+            aborted.nodeKey == null,
+            "server abort did not terminate active dialogue"
+        );
+
+        require(
+            resolverCalls.get() ==
+                beforeResolverCalls,
+            "server abort invoked transition resolver"
+        );
+
+        DialogueSessionService.Snapshot again =
+            service.abort(
+                "player:abort"
+            );
+
+        require(
+            !again.active &&
+            again.revision ==
+                aborted.revision,
+            "inactive abort was not idempotent"
+        );
+
+        DialogueSessionService.Snapshot missing =
+            service.abort(
+                "player:never-begun"
+            );
+
+        require(
+            !missing.active &&
+            missing.revision == 0L,
+            "missing-player abort created revisioned state"
+        );
     }
 
     private static void resolverFailureAtomic(
@@ -629,6 +698,128 @@ public final class DialogueSessionServiceTest {
             current.revision == 2L &&
             calls.get() == 2,
             "dialogue stale callback overwrote newer state"
+        );
+    }
+
+    private static void
+        serverAbortFencesInFlightResolver()
+    {
+        CountDownLatch entered =
+            new CountDownLatch(1);
+        CountDownLatch release =
+            new CountDownLatch(1);
+        AtomicReference<Throwable> failure =
+            new AtomicReference<>();
+
+        DialogueSessionService concurrent =
+            new DialogueSessionService(
+                POLICY,
+                (player, definition, node, intent, before) -> {
+                    entered.countDown();
+
+                    try {
+                        if (!release.await(
+                                2L,
+                                TimeUnit.SECONDS)) {
+                            throw new AssertionError(
+                                "abort resolver release timeout"
+                            );
+                        }
+                    } catch (
+                        InterruptedException interrupted
+                    ) {
+                        Thread.currentThread().interrupt();
+                        throw new AssertionError(
+                            "abort resolver interrupted",
+                            interrupted
+                        );
+                    }
+
+                    return DialogueSessionService
+                        .Transition.move(
+                            "node:options"
+                        );
+                }
+            );
+
+        concurrent.register(
+            definition()
+        );
+        concurrent.begin(
+            "player:abort-race",
+            "dialogue:test"
+        );
+
+        Thread resolver =
+            new Thread(
+                () -> {
+                    try {
+                        concurrent.continueDialogue(
+                            "player:abort-race"
+                        );
+                    } catch (Throwable thrown) {
+                        failure.set(
+                            thrown
+                        );
+                    }
+                },
+                "dialogue-abort-resolver"
+            );
+
+        try {
+            resolver.start();
+
+            require(
+                entered.await(
+                    2L,
+                    TimeUnit.SECONDS
+                ),
+                "abort resolver did not enter"
+            );
+
+            DialogueSessionService.Snapshot aborted =
+                concurrent.abort(
+                    "player:abort-race"
+                );
+
+            require(
+                !aborted.active &&
+                aborted.revision == 2L,
+                "abort did not revision-fence active resolver"
+            );
+
+            release.countDown();
+
+            resolver.join(
+                2000L
+            );
+        } catch (
+            InterruptedException interrupted
+        ) {
+            release.countDown();
+            Thread.currentThread().interrupt();
+            throw new AssertionError(
+                "abort concurrency test interrupted",
+                interrupted
+            );
+        }
+
+        require(
+            failure.get() instanceof
+                IllegalStateException,
+            "stale resolver survived server abort failure=" +
+            failure.get()
+        );
+
+        DialogueSessionService.Snapshot current =
+            concurrent.snapshot(
+                "player:abort-race"
+            );
+
+        require(
+            !current.active &&
+            current.revision == 2L,
+            "stale resolver resurrected aborted dialogue"
         );
     }
 

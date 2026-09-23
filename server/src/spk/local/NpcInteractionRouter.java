@@ -16,9 +16,7 @@ final class NpcInteractionRouter {
         if(key==null)return new Route(opt,null,Service.NONE,"EXACT_DEFINITION_EMPTY_SLOT");
         String k=key.toLowerCase(java.util.Locale.ROOT).replaceAll("<[^>]+>","").trim();
         Service s; String authority="EXACT_CLIENT_ACTION_SLOT";
-        if(npc.definitionId==7605 && opt==1 && (k.equals("talk-to")||k.equals("talk to"))){
-            s=Service.BANK; authority="BANKER_7605_TALK_TO_BANK_USER_RUNTIME_PARITY";
-        } else if(k.equals("bank"))s=Service.BANK; else if(k.equals("attack"))s=Service.ATTACK; else if(k.equals("talk-to")||k.equals("talk to"))s=Service.TALK; else if(k.equals("trade")||k.startsWith("trade"))s=Service.TRADE; else s=Service.UNIMPLEMENTED;
+        if(k.equals("bank"))s=Service.BANK; else if(k.equals("attack"))s=Service.ATTACK; else if(k.equals("talk-to")||k.equals("talk to"))s=Service.TALK; else if(k.equals("trade")||k.startsWith("trade"))s=Service.TRADE; else s=Service.UNIMPLEMENTED;
         return new Route(opt,action,s,authority);
     }
 }

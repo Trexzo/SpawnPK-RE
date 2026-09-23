@@ -36,7 +36,6 @@ final class LocalSession implements Runnable {
     private final LocalCosmeticCommandHandler cosmeticCommands;
     private final LocalCompColorsCommandHandler compColorsCommands;
     private final LocalItemSpawnCommandHandler itemSpawnCommands;
-    private final LocalNurseCommandHandler nurseCommands;
     private final LocalBankRequestHandler bankRequests;
     private final LocalItemOnItemHandler itemOnItemHandler;
     private final LocalSpellTargetHandler spellTargetHandler;
@@ -139,11 +138,6 @@ final class LocalSession implements Runnable {
         this.cosmeticCommands = new LocalCosmeticCommandHandler(bank,equipment,playerState,playerPresentation);
         this.compColorsCommands = new LocalCompColorsCommandHandler(playerState,equipment,playerPresentation);
         this.itemSpawnCommands = new LocalItemSpawnCommandHandler(bank);
-        this.nurseCommands = new LocalNurseCommandHandler(
-            playerState,
-            movement,
-            statuses
-        );
         this.bankRequests = new LocalBankRequestHandler(worldPlayer,bank);
         this.itemOnItemHandler = new LocalItemOnItemHandler(bank);
         this.spellTargetHandler = new LocalSpellTargetHandler(
@@ -309,7 +303,6 @@ final class LocalSession implements Runnable {
             devPlayerCommands,
             devNpcCommands,
             devToolCommands,
-            nurseCommands,
             voidglassCommands,
             petRuntimeCommands,
             compColorsCommands,
@@ -334,10 +327,6 @@ final class LocalSession implements Runnable {
                     String reason
                 ){
                     LocalSession.this.saveAccountQuiet(tag,reason);
-                }
-
-                @Override public boolean scopesightActive(){
-                    return LocalSession.this.scopesightActive();
                 }
 
                 @Override public void openDevPanel(

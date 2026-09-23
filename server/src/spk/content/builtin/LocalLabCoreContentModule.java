@@ -4,13 +4,19 @@ import java.util.*;
 import spk.content.api.*;
 
 /**
- * First static Java module proving the content API boundary.
+ * Built-in LocalLab custom-content module.
  *
- * Nurse is explicitly CUSTOM_LOCALLAB behavior; the core registry assigns that
- * provenance externally when installing this module.
+ * Nurse behavior and the Make-over Mage interaction trigger are explicitly
+ * CUSTOM_LOCALLAB content. The core registry assigns that provenance externally
+ * when installing this module; the exact client/cache identities used by the
+ * runtime remain separate evidence from original-server policy.
  */
 public final class LocalLabCoreContentModule
     implements ContentModule {
+
+    public static final int MAKEOVER_MAGE_NPC=599;
+    public static final String MAKEOVER_MAGE_ACTION=
+        "locallab.makeover-mage";
 
     @Override public String id(){
         return "locallab-core";
@@ -23,6 +29,16 @@ public final class LocalLabCoreContentModule
             "nurse",
             100,
             this::nurse
+        );
+
+        registrar.npcOption(
+            MAKEOVER_MAGE_NPC,
+            1,
+            100,
+            context->
+                ContentNpcOptionResult.action(
+                    MAKEOVER_MAGE_ACTION
+                )
         );
     }
 

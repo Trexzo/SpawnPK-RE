@@ -526,6 +526,58 @@ final class DialogueSessionService {
         );
     }
 
+    /**
+     * Server-owned lifecycle termination.
+     *
+     * Unlike close(...), abort is not a client dialogue intent and therefore
+     * does not validate the current node or invoke the transition resolver.
+     * Active state is revisioned before being cleared so any resolver already
+     * executing outside the service monitor is fenced from committing stale
+     * dialogue state.
+     *
+     * Aborting an already-inactive player is idempotent and does not advance
+     * the revision.
+     */
+    synchronized Snapshot abort(
+        String playerRef
+    ) {
+        String player =
+            normalizePlayer(
+                playerRef
+            );
+
+        PlayerSession state =
+            players.get(player);
+
+        if (state == null) {
+            return inactiveSnapshot(
+                player,
+                0L
+            );
+        }
+
+        if (!state.active) {
+            return inactiveSnapshot(
+                player,
+                state.revision
+            );
+        }
+
+        state.revision =
+            addOne(
+                state.revision,
+                "dialogue revision"
+            );
+        state.active = false;
+        state.dialogueKey = null;
+        state.nodeKey = null;
+
+        return inactiveSnapshot(
+            player,
+            state.revision
+        );
+    }
+
     synchronized Snapshot snapshot(
         String playerRef
     ) {

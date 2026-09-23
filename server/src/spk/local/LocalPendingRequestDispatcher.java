@@ -1082,13 +1082,6 @@ final class LocalPendingRequestDispatcher {
             return;
         }
 
-        if(makeoverMage.beginIfSupported(
-                action,
-                clicked,
-                serverPackets,
-                tag))
-            return;
-
         if(isCombatAttackAction(
             action,
             clicked
@@ -1140,7 +1133,8 @@ final class LocalPendingRequestDispatcher {
             routedNpcHandler.handle(
                 action,
                 clicked,
-                serverPackets
+                serverPackets,
+                tag
             );
 
         if(routed!=null)
