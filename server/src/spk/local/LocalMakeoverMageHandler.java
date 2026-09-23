@@ -44,6 +44,7 @@ final class LocalMakeoverMageHandler {
         new MakeoverMageDialogueContent();
 
     private boolean designActive;
+    private String pendingDialogueOutcome;
 
     private Integer pendingScene;
     private NpcEntity pendingNpc;
@@ -362,6 +363,8 @@ final class LocalMakeoverMageHandler {
                 ))
             return false;
 
+        pendingDialogueOutcome=null;
+
         DialogueSessionService.Snapshot after=
             dialogue.continueDialogue(
                 dialoguePlayerRef
@@ -372,6 +375,11 @@ final class LocalMakeoverMageHandler {
                 after.nodeKey))
             throw new IllegalStateException(
                 "Make-over Continue did not enter options"
+            );
+
+        if(takeDialogueOutcome()!=null)
+            throw new IllegalStateException(
+                "Make-over Continue produced unexpected outcome"
             );
 
         MakeoverMageDialogueContent
@@ -439,6 +447,8 @@ final class LocalMakeoverMageHandler {
                 .isAugmentedOptionCloseWidget(
                     widget
                 )){
+            pendingDialogueOutcome=null;
+
             DialogueSessionService.Snapshot ended=
                 dialogue.close(
                     dialoguePlayerRef
@@ -447,6 +457,16 @@ final class LocalMakeoverMageHandler {
             if(ended.active)
                 throw new IllegalStateException(
                     "Make-over close did not end semantic dialogue"
+                );
+
+            String outcome=takeDialogueOutcome();
+
+            if(!MakeoverMageDialogueContent
+                    .OUTCOME_CLIENT_CLOSE
+                    .equals(outcome))
+                throw new IllegalStateException(
+                    "unsupported Make-over close outcome="+
+                    outcome
                 );
 
             StandardDialoguePresentationAdapter
@@ -464,18 +484,28 @@ final class LocalMakeoverMageHandler {
             StandardDialoguePresentationAdapter
                 .twoOptionIndexForWidget(widget);
 
-        if(optionIndex==1){
-            DialogueSessionService.Snapshot ended=
-                dialogue.chooseOption(
-                    dialoguePlayerRef,
-                    1
-                );
+        if(optionIndex==0)
+            return false;
 
-            if(ended.active)
-                throw new IllegalStateException(
-                    "Make-over option 1 did not end semantic dialogue"
-                );
+        pendingDialogueOutcome=null;
 
+        DialogueSessionService.Snapshot ended=
+            dialogue.chooseOption(
+                dialoguePlayerRef,
+                optionIndex
+            );
+
+        if(ended.active)
+            throw new IllegalStateException(
+                "Make-over option did not end semantic dialogue option="+
+                optionIndex
+            );
+
+        String outcome=takeDialogueOutcome();
+
+        if(MakeoverMageDialogueContent
+                .OUTCOME_OPEN_DESIGNER
+                .equals(outcome)){
             StandardDialoguePresentationAdapter
                 .close(packets);
             packets.fixed(
@@ -495,18 +525,9 @@ final class LocalMakeoverMageHandler {
             return true;
         }
 
-        if(optionIndex==2){
-            DialogueSessionService.Snapshot ended=
-                dialogue.chooseOption(
-                    dialoguePlayerRef,
-                    2
-                );
-
-            if(ended.active)
-                throw new IllegalStateException(
-                    "Make-over option 2 did not end semantic dialogue"
-                );
-
+        if(MakeoverMageDialogueContent
+                .OUTCOME_CANCEL
+                .equals(outcome)){
             StandardDialoguePresentationAdapter
                 .close(packets);
             clearActive();
@@ -518,7 +539,11 @@ final class LocalMakeoverMageHandler {
             return true;
         }
 
-        return false;
+        throw new IllegalStateException(
+            "unsupported Make-over option outcome="+
+            outcome+
+            " option="+optionIndex
+        );
     }
 
     Result handleDesign(
@@ -877,6 +902,9 @@ final class LocalMakeoverMageHandler {
                 );
         }
 
+        pendingDialogueOutcome=
+            contentTransition.outcomeKey();
+
         switch(contentTransition.kind()){
             case STAY:
                 return DialogueSessionService
@@ -919,6 +947,12 @@ final class LocalMakeoverMageHandler {
         }
     }
 
+    private String takeDialogueOutcome(){
+        String outcome=pendingDialogueOutcome;
+        pendingDialogueOutcome=null;
+        return outcome;
+    }
+
     private void clearPending(
         boolean clearRoute
     ){
@@ -934,6 +968,7 @@ final class LocalMakeoverMageHandler {
         dialogue.abort(
             dialoguePlayerRef
         );
+        pendingDialogueOutcome=null;
         designActive=false;
         activeScene=null;
         activeNpc=null;
