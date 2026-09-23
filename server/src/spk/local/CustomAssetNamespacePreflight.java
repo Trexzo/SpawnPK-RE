@@ -354,6 +354,12 @@ final class CustomAssetNamespacePreflight {
         int id,
         String label
     ) {
+        if (namespace != CustomAssetNamespaceSnapshot.Namespace.TEXTURE ||
+            context != CustomAssetNamespaceSnapshot.Context.GLOBAL ||
+            id != 278)
+            throw new IllegalArgumentException(
+                "shared namespace claims are restricted to exact-v308 texture slot 278"
+            );
         recordClaim(snapshot, claims, namespace, context, id, label, true);
     }
 
