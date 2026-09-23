@@ -38,6 +38,44 @@ public final class CustomAssetPipelineContractTest {
             !"1663".equals(npc.field("walkAnim")))
             throw new AssertionError("npc animation overlay");
 
+        if (!asset.name.equals(item.field("name")) ||
+            !asset.name.equals(npc.field("name")))
+            throw new AssertionError("definition name projection");
+        if (!"true".equals(npc.field("pet")) ||
+            !String.valueOf(asset.npcSize).equals(npc.field("size")))
+            throw new AssertionError("npc semantic projection");
+
+        assertProjectionRejected(
+            asset,
+            withField(item, "name", "Drifted item name"),
+            npc,
+            "ITEM overlay name mismatch"
+        );
+        assertProjectionRejected(
+            asset,
+            item,
+            withField(npc, "name", "Drifted NPC name"),
+            "NPC overlay name mismatch"
+        );
+        assertProjectionRejected(
+            asset,
+            item,
+            withField(npc, "models", "79999,80000"),
+            "NPC overlay model mismatch"
+        );
+        assertProjectionRejected(
+            asset,
+            item,
+            withField(npc, "pet", "false"),
+            "NPC overlay pet mismatch"
+        );
+        assertProjectionRejected(
+            asset,
+            item,
+            withField(npc, "size", "2"),
+            "NPC overlay size mismatch"
+        );
+
         Map<String,String> itemClone = new LinkedHashMap<>();
         itemClone.put("clone", "100");
         itemClone.put("fullClone", "200");
@@ -110,9 +148,43 @@ public final class CustomAssetPipelineContractTest {
             "mappingCapacity=64 " +
             "textureBootstrap=278 " +
             "cloneOrdering=true " +
+            "definitionProjectionParity=true " +
             "namespaceCollisionRejected=true " +
             "gfxContextRequired=true " +
             "planSha256=" + first.planSha256
+        );
+    }
+
+    private static void assertProjectionRejected(
+        CustomAssetAuthoringRepository.Asset asset,
+        CustomDefinitionOverlayRepository.Overlay item,
+        CustomDefinitionOverlayRepository.Overlay npc,
+        String expectedMessage
+    ) {
+        boolean rejected = false;
+        try {
+            CustomAssetNamespacePreflight.validateDefinitionProjection(asset, item, npc);
+        } catch (IllegalStateException expected) {
+            rejected = expected.getMessage().contains(expectedMessage);
+        }
+        if (!rejected)
+            throw new AssertionError(
+                "definition projection drift was not rejected: " + expectedMessage
+            );
+    }
+
+    private static CustomDefinitionOverlayRepository.Overlay withField(
+        CustomDefinitionOverlayRepository.Overlay source,
+        String field,
+        String value
+    ) {
+        Map<String,String> fields = new LinkedHashMap<>(source.fields());
+        fields.put(field, value);
+        Map<String,String> provenance = new LinkedHashMap<>();
+        for (String name : fields.keySet())
+            provenance.put(name, "CUSTOM_LOCALLAB_TEST_PROJECTION");
+        return new CustomDefinitionOverlayRepository.Overlay(
+            source.kind, source.id, fields, provenance
         );
     }
 
