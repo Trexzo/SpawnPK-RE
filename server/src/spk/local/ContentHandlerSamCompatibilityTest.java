@@ -37,6 +37,11 @@ public final class ContentHandlerSamCompatibilityTest {
             ContentResult.class
         ),
         new Contract(
+            ContentDialogueHandler.class,
+            ContentDialogueContext.class,
+            ContentDialogueTransition.class
+        ),
+        new Contract(
             ContentObjectOptionHandler.class,
             ContentObjectOptionContext.class,
             ContentInteractionResult.class
