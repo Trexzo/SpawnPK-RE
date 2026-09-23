@@ -27,7 +27,7 @@ The current proven model boundary is intentionally narrow:
 - texture slot `278` as the proven bootstrap/atlas slot only;
 - existing exact animations may be referenced only when the authored model/skeleton pairing is independently proven;
 - `AnimationMode.NONE` keeps an asset static rather than inventing an animation binding;
-- custom frame-group/sequence identities are representable, but must still pass exact namespace preflight before build;
+- custom frame-group/sequence identities are representable when the claimed custom `sequenceId` is explicitly bound to `standAnim` or `walkAnim`; that bound sequence is satisfied by the same-plan custom claim, while any other animation id still requires an exact namespace reference;
 - blended weights are unsupported and must fail closed.
 
 Slot 278 is not an unlimited custom-texture namespace.
