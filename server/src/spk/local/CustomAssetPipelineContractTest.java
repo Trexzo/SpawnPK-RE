@@ -155,6 +155,43 @@ public final class CustomAssetPipelineContractTest {
                 "clone source references=" + cloneReferences.size()
             );
 
+        boolean unboundCustomSequenceRejected = false;
+        try {
+            customFrameAsset(-1, -1);
+        } catch (IllegalArgumentException expected) {
+            unboundCustomSequenceRejected =
+                expected.getMessage().contains("sequenceId must be bound");
+        }
+        if (!unboundCustomSequenceRejected)
+            throw new AssertionError("unbound custom sequence was not rejected");
+
+        CustomAssetAuthoringRepository.Asset customFrameAsset =
+            customFrameAsset(30009, 1662);
+        CustomAssetNamespaceSnapshot customFrameSnapshot =
+            CustomAssetNamespaceSnapshot.parse(
+                new StringReader(
+                    validSnapshot(false, true) +
+                    "PRESENT\tANIMATION\tGLOBAL\t1662\n"
+                )
+            );
+        LinkedHashSet<CustomAssetNamespacePreflight.IdKey> customFrameClaims =
+            new LinkedHashSet<>();
+        LinkedHashSet<CustomAssetNamespacePreflight.IdKey> customFrameReferences =
+            new LinkedHashSet<>();
+        CustomAssetNamespacePreflight.recordAnimationClaimsAndReferences(
+            customFrameSnapshot,
+            customFrameClaims,
+            customFrameReferences,
+            customFrameAsset
+        );
+        if (customFrameClaims.size() != 2 ||
+            customFrameReferences.size() != 1)
+            throw new AssertionError(
+                "custom sequence claim/reference split=" +
+                customFrameClaims.size() + "/" +
+                customFrameReferences.size()
+            );
+
         Map<String,String> itemClone = new LinkedHashMap<>();
         itemClone.put("clone", "100");
         itemClone.put("fullClone", "200");
@@ -309,10 +346,45 @@ public final class CustomAssetPipelineContractTest {
             "namespaceContextMatrix=true " +
             "overlayOwnership=true " +
             "cloneSourcePreflight=true " +
+            "customSequenceBinding=true " +
             "staticUntilAnimationProven=true " +
             "namespaceCollisionRejected=true " +
             "gfxContextRequired=true " +
             "planSha256=" + first.planSha256
+        );
+    }
+
+    private static CustomAssetAuthoringRepository.Asset customFrameAsset(
+        int standAnim,
+        int walkAnim
+    ) {
+        return new CustomAssetAuthoringRepository.Asset(
+            CustomAssetAuthoringRepository.Kind.PET,
+            "custom_frame_test",
+            29998,
+            12001,
+            "Custom Frame Test",
+            79998,
+            CustomAssetAuthoringRepository.ModelContext.PRIMARY,
+            278,
+            12,
+            CustomAssetAuthoringRepository.ModelFamily.LEGACY_TEXTURED_SKINNED,
+            CustomAssetAuthoringRepository.SkinMode.RIGID_ONE_HOT,
+            CustomAssetAuthoringRepository.HierarchyMode.GUARDED_RIGID,
+            CustomAssetAuthoringRepository.TextureMode.SLOT_278_ATLAS,
+            CustomAssetAuthoringRepository.AnimationMode.CUSTOM_FRAME_GROUP,
+            standAnim,
+            walkAnim,
+            3990,
+            30009,
+            -1,
+            CustomAssetAuthoringRepository.GfxMode.NONE,
+            CustomAssetAuthoringRepository.GfxModelContext.EXACT_CURRENT,
+            1,
+            null,
+            false,
+            CustomAssetAuthoringRepository.EquipmentCoverage.NONE,
+            "CUSTOM_LOCALLAB_TEST_CUSTOM_FRAME"
         );
     }
 
