@@ -26,11 +26,11 @@ final class LocalMakeoverMageHandler {
     private static final String DIALOGUE_POLICY=
         "LOCAL_LAB_POLICY_MAKEOVER_MAGE_DIALOGUE";
     private static final String DIALOGUE_KEY=
-        "dialogue:makeover-mage";
+        MakeoverMageDialogueContent.DIALOGUE_KEY;
     private static final String INTRO_NODE=
-        "node:intro";
+        MakeoverMageDialogueContent.INTRO_NODE;
     private static final String OPTIONS_NODE=
-        "node:options";
+        MakeoverMageDialogueContent.OPTIONS_NODE;
 
     private final WorldPlayer worldPlayer;
     private final EquipmentState equipment;
@@ -396,16 +396,6 @@ final class LocalMakeoverMageHandler {
                 ))
             return false;
 
-        StandardDialoguePresentationAdapter
-            .openTwoOptions(
-                packets,
-                "Select an Option",
-                java.util.Arrays.asList(
-                    "I'd like to change my look.",
-                    "Nevermind."
-                )
-            );
-
         DialogueSessionService.Snapshot after=
             dialogue.continueDialogue(
                 dialoguePlayerRef
@@ -416,6 +406,16 @@ final class LocalMakeoverMageHandler {
                 after.nodeKey))
             throw new IllegalStateException(
                 "Make-over Continue did not enter options"
+            );
+
+        StandardDialoguePresentationAdapter
+            .openTwoOptions(
+                packets,
+                "Select an Option",
+                java.util.Arrays.asList(
+                    "I'd like to change my look.",
+                    "Nevermind."
+                )
             );
 
         System.out.println(
@@ -476,9 +476,6 @@ final class LocalMakeoverMageHandler {
                 .isAugmentedOptionCloseWidget(
                     widget
                 )){
-            StandardDialoguePresentationAdapter
-                .close(packets);
-
             DialogueSessionService.Snapshot ended=
                 dialogue.close(
                     dialoguePlayerRef
@@ -489,6 +486,8 @@ final class LocalMakeoverMageHandler {
                     "Make-over close did not end semantic dialogue"
                 );
 
+            StandardDialoguePresentationAdapter
+                .close(packets);
             clearActive();
 
             System.out.println(
@@ -503,15 +502,6 @@ final class LocalMakeoverMageHandler {
                 .twoOptionIndexForWidget(widget);
 
         if(optionIndex==1){
-            StandardDialoguePresentationAdapter
-                .close(packets);
-            packets.fixed(
-                97,
-                BootstrapPackets.interface97(
-                    DESIGN_ROOT
-                )
-            );
-
             DialogueSessionService.Snapshot ended=
                 dialogue.chooseOption(
                     dialoguePlayerRef,
@@ -523,6 +513,14 @@ final class LocalMakeoverMageHandler {
                     "Make-over option 1 did not end semantic dialogue"
                 );
 
+            StandardDialoguePresentationAdapter
+                .close(packets);
+            packets.fixed(
+                97,
+                BootstrapPackets.interface97(
+                    DESIGN_ROOT
+                )
+            );
             designActive=true;
 
             System.out.println(
@@ -535,9 +533,6 @@ final class LocalMakeoverMageHandler {
         }
 
         if(optionIndex==2){
-            StandardDialoguePresentationAdapter
-                .close(packets);
-
             DialogueSessionService.Snapshot ended=
                 dialogue.chooseOption(
                     dialoguePlayerRef,
@@ -549,6 +544,8 @@ final class LocalMakeoverMageHandler {
                     "Make-over option 2 did not end semantic dialogue"
                 );
 
+            StandardDialoguePresentationAdapter
+                .close(packets);
             clearActive();
 
             System.out.println(
