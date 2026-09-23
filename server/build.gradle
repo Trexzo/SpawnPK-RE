@@ -527,6 +527,24 @@ tasks.register('clientBuildRevision308Compatibility', JavaExec) {
     mainClass.set('spk.local.ClientBuildRevision308CompatibilityTest')
 }
 
+tasks.register('donorPanelPresentationRegression') {
+    group = 'verification'
+    description = 'Validates exact-v308 donor navigation intents and promotion text projection without owning payment, entitlement or destination policy.'
+    dependsOn tasks.named('testClasses')
+
+    doLast {
+        project.javaexec {
+            workingDir repoRoot
+            classpath = sourceSets.test.runtimeClasspath
+            mainClass.set('spk.local.DonorPanelPresentationTest')
+        }
+
+        logger.lifecycle(
+            'DONOR_PANEL_PRESENTATION_REGRESSION_PASS intents=7 paymentOwned=false policyOwned=false'
+        )
+    }
+}
+
 tasks.named('check') {
     dependsOn tasks.named('verifyJava11Bytecode')
     dependsOn tasks.named('clientBuildRevision308Compatibility')
