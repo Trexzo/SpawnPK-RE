@@ -85,6 +85,66 @@ public final class LocalRegionDevCommandHandlerTest {
                     (home==null?null:home.logText));
             }
 
+            int homeTeleportWireBefore=wire.size();
+            LocalRegionDevCommandHandler.Result magicHome=
+                handler.teleportHomeFromMagic(
+                    "regiontest",
+                    original,
+                    writer
+                );
+
+            if(magicHome==null||
+               !magicHome.logText.contains(
+                   "V5160_MAGIC_HOME_TELEPORT OK")||
+               !magicHome.logText.contains(
+                   "regionReload=false")||
+               !"MAGIC_HOME_TELEPORT".equals(
+                   magicHome.saveReason)||
+               magicHome.scenePublisher!=original||
+               wire.size()<=homeTeleportWireBefore){
+                throw new AssertionError(
+                    "already-home magic teleport="+
+                    (magicHome==null?null:magicHome.logText));
+            }
+
+            followCancelled[0]=false;
+            player.movement().enterTransientRegion(
+                3090,
+                3535,
+                0,
+                3040,
+                3480
+            );
+
+            LocalRegionDevCommandHandler.Result magicReturn=
+                handler.teleportHomeFromMagic(
+                    "regiontest",
+                    original,
+                    writer
+                );
+
+            if(magicReturn==null||
+               !magicReturn.logText.contains(
+                   "homeSceneReplay=DEFERRED_UNTIL_OPCODE121")||
+               !magicReturn.logText.contains(
+                   "lifecycleReason=MAGIC_HOME_TELEPORT")||
+               !"MAGIC_HOME_TELEPORT".equals(
+                   magicReturn.saveReason)||
+               magicReturn.scenePublisher==original||
+               player.movement().transientRegion()||
+               player.movement().x()!=MovementState.INITIAL_X||
+               player.movement().y()!=MovementState.INITIAL_Y||
+               !followCancelled[0]){
+                throw new AssertionError(
+                    "transient magic home="+
+                    (magicReturn==null?null:magicReturn.logText)+
+                    " transient="+
+                    player.movement().transientRegion()+
+                    " followCancelled="+followCancelled[0]);
+            }
+
+            followCancelled[0]=false;
+
             LocalRegionDevCommandHandler.Result unknown=
                 handler.handle(
                     new String[]{"regionload","-1"},
@@ -112,7 +172,7 @@ public final class LocalRegionDevCommandHandlerTest {
             }
 
             System.out.println(
-                "LOCAL_REGION_DEV_COMMAND_HANDLER_PASS syntaxGuard=true homeNoop=true unknownRegionFailClosed=true followHookDeferred=true boundary=true");
+                "LOCAL_REGION_DEV_COMMAND_HANDLER_PASS syntaxGuard=true homeNoop=true magicHome=true magicTransientHome=true unknownRegionFailClosed=true followHookDeferred=true boundary=true");
         }finally{
             world.close();
         }
