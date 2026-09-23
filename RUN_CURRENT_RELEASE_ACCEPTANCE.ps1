@@ -32,6 +32,151 @@ Path:     $client"
 
 Write-Host "V308_FIXTURE_SHA256_PASS $actual" -ForegroundColor Green
 
+function Test-LoopbackPort {
+    param(
+        [Parameter(Mandatory=$true)]
+        [int]$Port,
+        [int]$TimeoutMs = 500
+    )
+
+    $client = New-Object System.Net.Sockets.TcpClient
+    $attempt = $null
+
+    try {
+        $attempt = $client.BeginConnect("127.0.0.1", $Port, $null, $null)
+
+        if (-not $attempt.AsyncWaitHandle.WaitOne($TimeoutMs, $false)) {
+            return $false
+        }
+
+        $client.EndConnect($attempt)
+        return $true
+    }
+    catch {
+        return $false
+    }
+    finally {
+        if ($null -ne $attempt) {
+            $attempt.AsyncWaitHandle.Close()
+        }
+
+        $client.Close()
+    }
+}
+
+function Invoke-CurrentServerLoopbackSmoke {
+    $jar = Join-Path $server "build\SpawnPKLocalServer.jar"
+
+    if (-not (Test-Path -LiteralPath $jar -PathType Leaf)) {
+        throw "Missing built LocalLab server JAR: $jar"
+    }
+
+    $javaCommand = Get-Command java.exe -ErrorAction SilentlyContinue
+
+    if ($null -eq $javaCommand) {
+        $javaCommand = Get-Command java -ErrorAction Stop
+    }
+
+    $smokeDir = Join-Path $server "build\release-smoke"
+    $stdout = Join-Path $smokeDir "server.stdout.log"
+    $stderr = Join-Path $smokeDir "server.stderr.log"
+    $versionsPath = Join-Path $smokeDir "versions.txt"
+    $shaPath = Join-Path $smokeDir "server-sha256.txt"
+
+    New-Item -ItemType Directory -Force -Path $smokeDir | Out-Null
+    Remove-Item -LiteralPath $stdout, $stderr, $versionsPath, $shaPath -Force -ErrorAction SilentlyContinue
+
+    $process = Start-Process `
+        -FilePath $javaCommand.Source `
+        -ArgumentList @("-jar", "`"$jar`"", "--bootstrap", "--movement") `
+        -WorkingDirectory $repo `
+        -RedirectStandardOutput $stdout `
+        -RedirectStandardError $stderr `
+        -PassThru
+
+    try {
+        $gameReady = $false
+
+        for ($i = 0; $i -lt 60; $i++) {
+            if ($process.HasExited) {
+                break
+            }
+
+            if (Test-LoopbackPort -Port 43594) {
+                $gameReady = $true
+                break
+            }
+
+            Start-Sleep -Milliseconds 250
+        }
+
+        if (-not $gameReady) {
+            throw "Current LocalLab game listener did not become ready on 127.0.0.1:43594"
+        }
+
+        $body = $null
+        $lastHttpError = $null
+
+        for ($i = 0; $i -lt 20; $i++) {
+            try {
+                $response = Invoke-WebRequest `
+                    -UseBasicParsing `
+                    -Uri "http://127.0.0.1:43595/spk_live/versions.txt" `
+                    -TimeoutSec 3
+                $body = [string]$response.Content
+                break
+            }
+            catch {
+                $lastHttpError = $_
+
+                if ($process.HasExited) {
+                    break
+                }
+
+                Start-Sleep -Milliseconds 250
+            }
+        }
+
+        if ($null -eq $body) {
+            throw "Current LocalLab AUX versions endpoint did not respond: $lastHttpError"
+        }
+
+        foreach ($required in @("cache_version", "sprite_version", "config_version")) {
+            if (-not $body.Contains($required)) {
+                throw "Current LocalLab versions response is missing '$required'"
+            }
+        }
+
+        Set-Content -LiteralPath $versionsPath -Value $body -Encoding ASCII
+
+        $jarSha = (Get-FileHash -LiteralPath $jar -Algorithm SHA256).Hash.ToLowerInvariant()
+        Set-Content -LiteralPath $shaPath -Value "$jarSha  SpawnPKLocalServer.jar" -Encoding ASCII
+
+        Start-Sleep -Milliseconds 100
+
+        $outText = Get-Content -LiteralPath $stdout -Raw -ErrorAction SilentlyContinue
+        $errText = Get-Content -LiteralPath $stderr -Raw -ErrorAction SilentlyContinue
+        $combinedLog = ([string]$outText) + "`n" + ([string]$errText)
+
+        foreach ($requiredLog in @(
+            "GAME  : /127.0.0.1:43594",
+            "AUX   : /127.0.0.1:43595"
+        )) {
+            if (-not $combinedLog.Contains($requiredLog)) {
+                throw "Current LocalLab server log is missing '$requiredLog'"
+            }
+        }
+
+        Write-Host "CURRENT_RELEASE_SERVER_LOOPBACK_PASS game=43594 aux=43595 versions=true jarSha256=$jarSha" -ForegroundColor Green
+    }
+    finally {
+        if ($null -ne $process -and -not $process.HasExited) {
+            Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+            Wait-Process -Id $process.Id -ErrorAction SilentlyContinue
+        }
+    }
+}
+
 Push-Location $server
 try {
     & $gradle clean build
@@ -41,6 +186,8 @@ try {
     }
 
     Write-Host "CURRENT_RELEASE_BUILD_PASS focusedGate=true" -ForegroundColor Green
+
+    Invoke-CurrentServerLoopbackSmoke
 
     & $gradle r85V308Acceptance "-Pv308ClientPath=$client"
 
