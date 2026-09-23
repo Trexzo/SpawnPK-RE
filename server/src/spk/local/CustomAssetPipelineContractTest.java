@@ -185,6 +185,15 @@ public final class CustomAssetPipelineContractTest {
         if (!duplicateExclusiveClaimRejected)
             throw new AssertionError("exclusive model claim was incorrectly shareable");
 
+        assertInvalidNamespaceContextRejected(
+            "CAPACITY\tMODEL\tGLOBAL\t100000\n",
+            "MODEL namespace requires PRIMARY or OSRS context"
+        );
+        assertInvalidNamespaceContextRejected(
+            "PRESENT\tITEM\tPRIMARY\t29999\n",
+            "ITEM namespace requires GLOBAL context"
+        );
+
         boolean collisionRejected = false;
         try {
             CustomAssetNamespaceSnapshot collided =
@@ -223,11 +232,30 @@ public final class CustomAssetPipelineContractTest {
             "definitionProjectionParity=true " +
             "sharedTextureAtlas=true " +
             "sharedNamespaceScopeGuard=true " +
+            "namespaceContextMatrix=true " +
             "staticUntilAnimationProven=true " +
             "namespaceCollisionRejected=true " +
             "gfxContextRequired=true " +
             "planSha256=" + first.planSha256
         );
+    }
+
+    private static void assertInvalidNamespaceContextRejected(
+        String extraRow,
+        String expectedMessage
+    ) throws Exception {
+        boolean rejected = false;
+        try {
+            CustomAssetNamespaceSnapshot.parse(
+                new StringReader(validSnapshot(false, true) + extraRow)
+            );
+        } catch (java.io.IOException expected) {
+            rejected = expected.getMessage().contains(expectedMessage);
+        }
+        if (!rejected)
+            throw new AssertionError(
+                "invalid namespace context was not rejected: " + extraRow.trim()
+            );
     }
 
     private static void assertProjectionRejected(
