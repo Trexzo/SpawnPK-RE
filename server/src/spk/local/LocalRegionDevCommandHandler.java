@@ -383,6 +383,14 @@ final class LocalRegionDevCommandHandler {
             );
         }
 
+        TradeService.cancelIfActive(
+            worldPlayer,
+            lifecycleReason
+        );
+        playerInteractions.clearTargets();
+        combat.cancelForManualMovement();
+        cancelPetFollowSchedule.run();
+
         int prunedTransientNpcView=
             npcs.detachRegionViewPreservingFollowers(
                 writer
