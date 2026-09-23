@@ -64,9 +64,9 @@ final class PlayerState {
     int nativeIconItemId(){ return nativeIconItemId; }
     int appearanceRank(){ return appearanceRank; }
     void setAppearanceRank(int rank){
-        if(rank<0||rank>=386)
+        if(rank<Short.MIN_VALUE||rank>Short.MAX_VALUE)
             throw new IllegalArgumentException(
-                "appearance rank 0..385"
+                "appearance rank signed-short"
             );
         appearanceRank=rank;
     }
