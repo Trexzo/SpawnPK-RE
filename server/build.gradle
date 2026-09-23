@@ -712,6 +712,35 @@ tasks.register('contentDialogueTransitionOwnershipRegression') {
     }
 }
 
+tasks.register('twoOptionContentDialoguePresentationRegression') {
+    group = 'verification'
+    description = 'Validates exact two-option content presentation and Make-over content-owned dialogue copy without widening to unclosed option families.'
+    dependsOn tasks.named('testClasses')
+
+    doLast {
+        [
+            'spk.local.StandardDialoguePresentationAdapterTest',
+            'spk.local.ContentDialoguePresentationRuntimeTest',
+            'spk.local.ContentPublicApiBoundaryTest',
+            'spk.local.MakeoverDialoguePresentationOwnershipTest',
+            'spk.local.ContentDialogueTransitionOwnershipTest',
+            'spk.local.MakeoverSemanticDialogueSessionTest',
+            'spk.local.MakeoverMageFlowTest',
+            'spk.local.MakeoverDialogueContentOwnershipTest'
+        ].each { mainClassName ->
+            project.javaexec {
+                workingDir repoRoot
+                classpath = sourceSets.test.runtimeClasspath
+                mainClass.set(mainClassName)
+            }
+        }
+
+        logger.lifecycle(
+            'TWO_OPTION_CONTENT_DIALOGUE_PRESENTATION_REGRESSION_PASS exact2459=true contentApi=true makeoverCopy=true wireParity=true generalizedOptions=false'
+        )
+    }
+}
+
 tasks.named('check') {
     dependsOn tasks.named('verifyJava11Bytecode')
     dependsOn tasks.named('clientBuildRevision308Compatibility')
