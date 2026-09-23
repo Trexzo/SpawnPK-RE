@@ -183,6 +183,7 @@ final class ConversionService {
         final String actorRef;
 
         AttemptState state=AttemptState.CREATED;
+        boolean externalOperationInFlight;
         AtomicTransactionService.TransactionId transactionId;
         OutcomeKind outcome;
         InputSettlement inputSettlement;
@@ -234,11 +235,15 @@ final class ConversionService {
             );
     }
 
-    synchronized RecipeAttemptId createAttempt(
+    RecipeAttemptId createAttempt(
         String actorRef,
         RecipeId recipeId
     ){
-        String actor=requireText(actorRef,"actorRef");
+        String actor=
+            requireText(
+                actorRef,
+                "actorRef"
+            );
         RecipeDefinition recipe=
             catalog.require(
                 Objects.requireNonNull(
@@ -247,6 +252,10 @@ final class ConversionService {
                 )
             );
 
+        /*
+         * Eligibility is caller-owned policy. It may re-enter Conversion or
+         * unrelated services, so never execute it under the Conversion lock.
+         */
         EligibilityDecision decision=
             Objects.requireNonNull(
                 eligibilityValidator.validate(
@@ -269,156 +278,332 @@ final class ConversionService {
                 sequence.incrementAndGet()
             );
 
-        attempts.put(
-            id,
-            new Attempt(
+        synchronized(this){
+            attempts.put(
                 id,
-                recipe,
-                actor
-            )
-        );
+                new Attempt(
+                    id,
+                    recipe,
+                    actor
+                )
+            );
+        }
 
         return id;
     }
 
-    synchronized Snapshot reserveInputs(
+    Snapshot reserveInputs(
         RecipeAttemptId attemptId,
         AtomicTransactionService.TransactionId transactionId
     ){
-        Attempt attempt=require(attemptId);
-
-        if(attempt.state!=AttemptState.CREATED)
-            throw invalid(attempt,"reserveInputs");
-
-        AtomicTransactionService.Snapshot transaction=
-            transactions.snapshot(
-                Objects.requireNonNull(
-                    transactionId,
-                    "transactionId"
-                )
-            );
-
-        if(transaction.state!=
-                AtomicTransactionService.TransactionState.RESERVED)
-            throw new IllegalStateException(
-                "input transaction must be RESERVED "+
-                transaction.transactionId+
-                " state="+transaction.state
-            );
-
-        if(!attempt.actorRef.equals(
-                transaction.ownerRef))
-            throw new IllegalStateException(
-                "transaction owner mismatch "+
-                transaction.transactionId
-            );
-
-        if(!exactInputCoverage(
-                attempt.recipe,
-                attempt.actorRef,
-                transaction))
-            throw new IllegalStateException(
-                "transaction does not exactly cover recipe inputs "+
-                attempt.recipe.id
-            );
-
-        attempt.transactionId=transaction.transactionId;
-        attempt.state=AttemptState.RESERVED;
-        return attempt.snapshot();
-    }
-
-    synchronized Snapshot resolveOutcome(
-        RecipeAttemptId attemptId
-    ){
-        Attempt attempt=require(attemptId);
-
-        if(attempt.state!=AttemptState.RESERVED)
-            throw invalid(attempt,"resolveOutcome");
-
-        AtomicTransactionService.Snapshot transaction=
-            transactions.snapshot(
-                attempt.transactionId
-            );
-
-        if(transaction.state!=
-                AtomicTransactionService.TransactionState.RESERVED)
-            throw new IllegalStateException(
-                "input transaction changed before outcome "+
-                transaction.transactionId+
-                " state="+transaction.state
-            );
-
-        OutcomeResolution resolution=
+        final Attempt live;
+        final AtomicTransactionService.TransactionId requested=
             Objects.requireNonNull(
-                outcomeResolver.resolve(
-                    attempt.actorRef,
-                    attempt.recipe,
-                    attempt.snapshot()
-                ),
-                "outcome resolution"
+                transactionId,
+                "transactionId"
             );
 
-        attempt.outcome=resolution.outcome;
-        attempt.inputSettlement=
-            resolution.inputSettlement;
-        attempt.state=AttemptState.RESOLVED;
+        synchronized(this){
+            live=require(attemptId);
 
-        return attempt.snapshot();
+            if(live.state!=AttemptState.CREATED)
+                throw invalid(
+                    live,
+                    "reserveInputs"
+                );
+
+            reserveExternalOperation(live);
+        }
+
+        AtomicTransactionService.Snapshot transaction=null;
+        RuntimeException failure=null;
+
+        try{
+            transaction=
+                transactions.snapshot(
+                    requested
+                );
+
+            if(transaction.state!=
+                    AtomicTransactionService.TransactionState.RESERVED)
+                throw new IllegalStateException(
+                    "input transaction must be RESERVED "+
+                    transaction.transactionId+
+                    " state="+transaction.state
+                );
+
+            if(!live.actorRef.equals(
+                    transaction.ownerRef))
+                throw new IllegalStateException(
+                    "transaction owner mismatch "+
+                    transaction.transactionId
+                );
+
+            if(!exactInputCoverage(
+                    live.recipe,
+                    live.actorRef,
+                    transaction))
+                throw new IllegalStateException(
+                    "transaction does not exactly cover recipe inputs "+
+                    live.recipe.id
+                );
+        }catch(RuntimeException error){
+            failure=error;
+        }
+
+        final Snapshot result;
+
+        synchronized(this){
+            Attempt current=require(attemptId);
+
+            if(current!=live)
+                throw new IllegalStateException(
+                    "recipe attempt identity changed "+
+                    attemptId
+                );
+
+            try{
+                if(failure==null){
+                    if(current.state!=AttemptState.CREATED)
+                        throw invalid(
+                            current,
+                            "reserveInputs"
+                        );
+
+                    current.transactionId=
+                        transaction.transactionId;
+                    current.state=
+                        AttemptState.RESERVED;
+                }
+
+                result=current.snapshot();
+            }finally{
+                current.externalOperationInFlight=false;
+            }
+        }
+
+        if(failure!=null)
+            throw failure;
+
+        return result;
     }
 
-    synchronized boolean acknowledgeSettlement(
+    Snapshot resolveOutcome(
         RecipeAttemptId attemptId
     ){
-        Attempt attempt=require(attemptId);
+        final Attempt live;
+        final Snapshot before;
 
-        if(attempt.state==AttemptState.SETTLED)
-            return false;
+        synchronized(this){
+            live=require(attemptId);
 
-        if(attempt.state!=AttemptState.RESOLVED)
-            throw invalid(
-                attempt,
-                "acknowledgeSettlement"
-            );
+            if(live.state!=AttemptState.RESERVED)
+                throw invalid(
+                    live,
+                    "resolveOutcome"
+                );
 
-        AtomicTransactionService.Snapshot transaction=
-            transactions.snapshot(
-                attempt.transactionId
-            );
+            reserveExternalOperation(live);
+            before=live.snapshot();
+        }
 
-        AtomicTransactionService.TransactionState expected=
-            attempt.inputSettlement==
-                InputSettlement.COMMIT_RESERVED_INPUTS
-                    ?AtomicTransactionService.TransactionState.COMMITTED
-                    :AtomicTransactionService.TransactionState.CANCELLED;
+        AtomicTransactionService.Snapshot transaction=null;
+        OutcomeResolution resolution=null;
+        RuntimeException failure=null;
 
-        if(transaction.state!=expected)
-            throw new IllegalStateException(
-                "settlement transaction "+
-                transaction.transactionId+
-                " expected="+expected+
-                " actual="+transaction.state
-            );
+        try{
+            transaction=
+                transactions.snapshot(
+                    live.transactionId
+                );
 
-        attempt.state=AttemptState.SETTLED;
+            if(transaction.state!=
+                    AtomicTransactionService.TransactionState.RESERVED)
+                throw new IllegalStateException(
+                    "input transaction changed before outcome "+
+                    transaction.transactionId+
+                    " state="+transaction.state
+                );
+
+            resolution=
+                Objects.requireNonNull(
+                    outcomeResolver.resolve(
+                        live.actorRef,
+                        live.recipe,
+                        before
+                    ),
+                    "outcome resolution"
+                );
+        }catch(RuntimeException error){
+            failure=error;
+        }
+
+        final Snapshot result;
+
+        synchronized(this){
+            Attempt current=require(attemptId);
+
+            if(current!=live)
+                throw new IllegalStateException(
+                    "recipe attempt identity changed "+
+                    attemptId
+                );
+
+            try{
+                if(failure==null){
+                    if(current.state!=AttemptState.RESERVED)
+                        throw invalid(
+                            current,
+                            "resolveOutcome"
+                        );
+
+                    current.outcome=
+                        resolution.outcome;
+                    current.inputSettlement=
+                        resolution.inputSettlement;
+                    current.state=
+                        AttemptState.RESOLVED;
+                }
+
+                result=current.snapshot();
+            }finally{
+                current.externalOperationInFlight=false;
+            }
+        }
+
+        if(failure!=null)
+            throw failure;
+
+        return result;
+    }
+
+    boolean acknowledgeSettlement(
+        RecipeAttemptId attemptId
+    ){
+        final Attempt live;
+        final AtomicTransactionService.TransactionId
+            transactionId;
+        final AtomicTransactionService.TransactionState
+            expected;
+
+        synchronized(this){
+            live=require(attemptId);
+
+            if(live.state==AttemptState.SETTLED)
+                return false;
+
+            if(live.state!=AttemptState.RESOLVED)
+                throw invalid(
+                    live,
+                    "acknowledgeSettlement"
+                );
+
+            reserveExternalOperation(live);
+
+            transactionId=
+                live.transactionId;
+            expected=
+                live.inputSettlement==
+                    InputSettlement.COMMIT_RESERVED_INPUTS
+                        ?AtomicTransactionService.TransactionState.COMMITTED
+                        :AtomicTransactionService.TransactionState.CANCELLED;
+        }
+
+        AtomicTransactionService.Snapshot transaction=null;
+        RuntimeException failure=null;
+
+        try{
+            transaction=
+                transactions.snapshot(
+                    transactionId
+                );
+
+            if(transaction.state!=expected)
+                throw new IllegalStateException(
+                    "settlement transaction "+
+                    transaction.transactionId+
+                    " expected="+expected+
+                    " actual="+transaction.state
+                );
+        }catch(RuntimeException error){
+            failure=error;
+        }
+
+        synchronized(this){
+            Attempt current=require(attemptId);
+
+            if(current!=live)
+                throw new IllegalStateException(
+                    "recipe attempt identity changed "+
+                    attemptId
+                );
+
+            try{
+                if(failure==null){
+                    if(current.state!=AttemptState.RESOLVED)
+                        throw invalid(
+                            current,
+                            "acknowledgeSettlement"
+                        );
+
+                    current.state=
+                        AttemptState.SETTLED;
+                }
+            }finally{
+                current.externalOperationInFlight=false;
+            }
+        }
+
+        if(failure!=null)
+            throw failure;
+
         return true;
     }
 
-    synchronized boolean cancelAttempt(
+    boolean cancelAttempt(
         RecipeAttemptId attemptId
     ){
-        Attempt attempt=require(attemptId);
+        final Attempt live;
+        final AtomicTransactionService.TransactionId
+            transactionId;
 
-        if(attempt.state==AttemptState.CANCELLED)
-            return false;
+        synchronized(this){
+            live=require(attemptId);
 
-        if(attempt.state==AttemptState.SETTLED||
-           attempt.state==AttemptState.RESOLVED)
-            throw invalid(attempt,"cancelAttempt");
+            if(live.externalOperationInFlight)
+                throw new IllegalStateException(
+                    "recipe attempt external operation already in flight "+
+                    live.id
+                );
 
-        if(attempt.state==AttemptState.RESERVED){
-            AtomicTransactionService.Snapshot transaction=
+            if(live.state==AttemptState.CANCELLED)
+                return false;
+
+            if(live.state==AttemptState.SETTLED||
+               live.state==AttemptState.RESOLVED)
+                throw invalid(
+                    live,
+                    "cancelAttempt"
+                );
+
+            if(live.state==AttemptState.CREATED){
+                live.state=
+                    AttemptState.CANCELLED;
+                return true;
+            }
+
+            reserveExternalOperation(live);
+            transactionId=
+                live.transactionId;
+        }
+
+        AtomicTransactionService.Snapshot transaction=null;
+        RuntimeException failure=null;
+
+        try{
+            transaction=
                 transactions.snapshot(
-                    attempt.transactionId
+                    transactionId
                 );
 
             if(transaction.state!=
@@ -427,9 +612,38 @@ final class ConversionService {
                     "reserved input transaction must be externally cancelled first "+
                     transaction.transactionId
                 );
+        }catch(RuntimeException error){
+            failure=error;
         }
 
-        attempt.state=AttemptState.CANCELLED;
+        synchronized(this){
+            Attempt current=require(attemptId);
+
+            if(current!=live)
+                throw new IllegalStateException(
+                    "recipe attempt identity changed "+
+                    attemptId
+                );
+
+            try{
+                if(failure==null){
+                    if(current.state!=AttemptState.RESERVED)
+                        throw invalid(
+                            current,
+                            "cancelAttempt"
+                        );
+
+                    current.state=
+                        AttemptState.CANCELLED;
+                }
+            }finally{
+                current.externalOperationInFlight=false;
+            }
+        }
+
+        if(failure!=null)
+            throw failure;
+
         return true;
     }
 
@@ -457,6 +671,18 @@ final class ConversionService {
             out.add(attempt.snapshot());
 
         return Collections.unmodifiableList(out);
+    }
+
+    private static void reserveExternalOperation(
+        Attempt attempt
+    ){
+        if(attempt.externalOperationInFlight)
+            throw new IllegalStateException(
+                "recipe attempt external operation already in flight "+
+                attempt.id
+            );
+
+        attempt.externalOperationInFlight=true;
     }
 
     private Attempt require(
