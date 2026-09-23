@@ -91,6 +91,12 @@ final class World implements AutoCloseable {
             ContentProvenance.CUSTOM_LOCALLAB
         );
         content.installTrusted(
+            new LocalDiagnosticContentModule(
+                content
+            ),
+            ContentProvenance.CUSTOM_LOCALLAB
+        );
+        content.installTrusted(
             new UnknownServerInteractionModule(),
             ContentProvenance.UNKNOWN_SERVER_AUTHORITY
         );
