@@ -40,6 +40,7 @@ final class PlayerState {
      * localhost development tooling may set this channel explicitly.
      */
     private int appearanceRank;
+    private boolean appearanceRankOverride;
     /** Dedicated bottom-center COSMETIC channel. Ammo/arrows remain ordinary equipment slot 13. */
     private final CosmeticState cosmetic=new CosmeticState();
 
@@ -63,12 +64,18 @@ final class PlayerState {
     int[] characterColours(){ return characterColours.clone(); }
     int nativeIconItemId(){ return nativeIconItemId; }
     int appearanceRank(){ return appearanceRank; }
+    boolean hasAppearanceRankOverride(){ return appearanceRankOverride; }
     void setAppearanceRank(int rank){
         if(rank<Short.MIN_VALUE||rank>Short.MAX_VALUE)
             throw new IllegalArgumentException(
                 "appearance rank signed-short"
             );
         appearanceRank=rank;
+        appearanceRankOverride=true;
+    }
+    void clearAppearanceRankOverride(){
+        appearanceRank=0;
+        appearanceRankOverride=false;
     }
     CosmeticState cosmetic(){ return cosmetic; }
     int specialEnergy(){ return specialEnergy; }
