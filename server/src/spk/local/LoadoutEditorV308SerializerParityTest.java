@@ -207,7 +207,7 @@ public final class LoadoutEditorV308SerializerParityTest {
             new ArrayList<>();
         for(int source:
                 LoadoutEditorCompatibilityPairer
-                    .EQUIPMENT_SOURCE_INDICES){
+                    .equipmentSourceIndices()){
             entries.add(
                 source<0
                 ?"0,0"
