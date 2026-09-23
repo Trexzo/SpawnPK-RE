@@ -168,6 +168,12 @@ final class LootingBagPresentation {
         ArrayList<ProjectedSlot> slots=
             new ArrayList<>();
 
+        /*
+         * LOCAL_LAB adapter projection: the semantic service owns stable
+         * SlotIds but exact client evidence does not recover original server
+         * physical-slot allocation. Project current semantic order compactly
+         * into client slots and require item-identity revalidation on input.
+         */
         for(int i=0;
             i<checked.slots.size();
             i++)
