@@ -269,6 +269,22 @@ final class CustomAssetNamespacePreflight {
             "ITEM overlay modelId mismatch for " + asset.contentKey
         );
 
+        if (asset.kind == CustomAssetAuthoringRepository.Kind.PET) {
+            String[] actions = requireActionVector(
+                item.field("actions"),
+                "ITEM overlay actions mismatch for " + asset.contentKey
+            );
+            String serverOption5 =
+                ItemActionResolver.inventoryOption5Semantic(asset.itemId);
+            String clientOption5 = actions[4];
+            if (serverOption5 == null || serverOption5.trim().isEmpty() ||
+                !serverOption5.equalsIgnoreCase(clientOption5))
+                throw new IllegalStateException(
+                    "ITEM option-5 lifecycle mismatch for " + asset.contentKey +
+                    " server=" + serverOption5 + " client=" + clientOption5
+                );
+        }
+
         if (asset.kind != CustomAssetAuthoringRepository.Kind.PET) return;
 
         if (npc == null)
@@ -320,6 +336,15 @@ final class CustomAssetNamespacePreflight {
         String value = overlay.field(field);
         if (value == null || Integer.parseInt(value) != expected)
             throw new IllegalStateException(message);
+    }
+
+    private static String[] requireActionVector(String value, String message) {
+        if (value == null) throw new IllegalStateException(message);
+        String[] parts = value.split(",", -1);
+        if (parts.length != 5) throw new IllegalStateException(message);
+        for (int i = 0; i < parts.length; i++)
+            parts[i] = parts[i].trim();
+        return parts;
     }
 
     private static void requireSingleIntegerListFieldEquals(
