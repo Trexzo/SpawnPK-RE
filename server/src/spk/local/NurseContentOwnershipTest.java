@@ -72,7 +72,7 @@ public final class NurseContentOwnershipTest {
                     "content Nurse binding missing"
                 );
 
-            if(!"command".equals(
+            if(!"COMMAND".equals(
                     binding.kind))
                 throw new AssertionError(
                     "Nurse binding kind="+
