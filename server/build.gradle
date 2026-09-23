@@ -620,6 +620,33 @@ tasks.register('makeoverSemanticDialogueSessionRegression') {
     }
 }
 
+tasks.register('makeoverNpcContentActionOwnershipRegression') {
+    group = 'verification'
+    description = 'Validates NPC 599 Talk-to is selected by content priority and executed only through the allowlisted semantic Make-over action.'
+    dependsOn tasks.named('testClasses')
+
+    doLast {
+        [
+            'spk.local.ContentPublicApiBoundaryTest',
+            'spk.local.ContentRegistryTest',
+            'spk.local.MakeoverNpcContentActionOwnershipTest',
+            'spk.local.MakeoverSemanticDialogueSessionTest',
+            'spk.local.LocalRoutedNpcInteractionHandlerTest',
+            'spk.local.LocalPendingRequestDispatcherTest'
+        ].each { mainClassName ->
+            project.javaexec {
+                workingDir repoRoot
+                classpath = sourceSets.test.runtimeClasspath
+                mainClass.set(mainClassName)
+            }
+        }
+
+        logger.lifecycle(
+            'MAKEOVER_NPC_CONTENT_ACTION_OWNERSHIP_REGRESSION_PASS npc599=true contentAction=true priorityOverride=true unsupportedFailsClosed=true directIntercept=false'
+        )
+    }
+}
+
 tasks.named('check') {
     dependsOn tasks.named('verifyJava11Bytecode')
     dependsOn tasks.named('clientBuildRevision308Compatibility')
