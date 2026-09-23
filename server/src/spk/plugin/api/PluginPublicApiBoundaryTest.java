@@ -15,7 +15,9 @@ public final class PluginPublicApiBoundaryTest {
         PluginEvents.class,
         PluginHandle.class,
         PluginManager.class,
-        PluginManifest.class
+        PluginManifest.class,
+        PluginScheduler.class,
+        PluginTask.class
     };
 
     private static final Set<String> FORBIDDEN_SIMPLE_NAMES=
@@ -30,8 +32,15 @@ public final class PluginPublicApiBoundaryTest {
                 "ServerPacketWriter",
                 "World",
                 "WorldPlayer",
+                "WorldEventQueue",
+                "GameClock",
                 "NpcEntity",
-                "NpcRegistry"
+                "NpcRegistry",
+                "Thread",
+                "Executor",
+                "ExecutorService",
+                "Future",
+                "Timer"
             )
         );
 
