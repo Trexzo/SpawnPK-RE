@@ -1,6 +1,7 @@
 package spk.local;
 
 import java.io.IOException;
+import java.util.Objects;
 
 final class SceneUpdatePublisher {
     private final ServerPacketWriter packets;
@@ -15,18 +16,84 @@ final class SceneUpdatePublisher {
     }
     private void ensureBase(int cx,int cy)throws IOException{ if(!ctx.isCurrent(cx,cy)){ packets.fixed(85,SceneObjectPacketCodec.sceneBase85(cx,cy)); ctx.setCurrent(cx,cy); } }
 
-    void groundSpawn(GroundItem g)throws IOException{ int c=packed(g.tile); packets.fixed(44,new PacketPayloadWriter().putU16LELowAdd128(g.itemId).putU16BE(g.amount).putU8(c).toByteArray()); }
-    void groundAmount(GroundItem g,int oldAmount)throws IOException{ int c=packed(g.tile); packets.fixed(84,new PacketPayloadWriter().putU8(c).putU16BE(g.itemId).putU16BE(oldAmount).putU16BE(g.amount).toByteArray()); }
-    void groundRemove(GroundItem g)throws IOException{ int c=packed(g.tile); packets.fixed(156,new PacketPayloadWriter().putU8Add128(c).putU16BE(g.itemId).toByteArray()); }
-    void objectAdd(int objectId,Tile t,int shape,int rotation)throws IOException{ int lx=ctx.localX(t.x),ly=ctx.localY(t.y),cx=SceneObjectPacketCodec.chunkBase(lx),cy=SceneObjectPacketCodec.chunkBase(ly);ensureBase(cx,cy);packets.fixed(151,SceneObjectPacketCodec.objectAdd151(objectId,lx,ly,cx,cy,shape,rotation)); }
-    void objectRemove(Tile t,int shape,int rotation)throws IOException{ int lx=ctx.localX(t.x),ly=ctx.localY(t.y),cx=SceneObjectPacketCodec.chunkBase(lx),cy=SceneObjectPacketCodec.chunkBase(ly);ensureBase(cx,cy);packets.fixed(101,SceneObjectPacketCodec.objectRemove101(lx,ly,cx,cy,shape,rotation)); }
-    void objectAnimation(int animationId,Tile t,int shape,int rotation)throws IOException{ int c=packed(t),sr=SceneObjectPacketCodec.packedShapeRotation(shape,rotation); packets.fixed(160,new PacketPayloadWriter().putU8_128Minus(c).putU8_128Minus(sr).putU16BELowAdd128(animationId).toByteArray()); }
-    void spotGraphic(int gfxId,Tile t,int height,int delay)throws IOException{ int c=packed(t); packets.fixed(4,new PacketPayloadWriter().putU8(c).putU16BE(gfxId).putU8(height).putU16BE(delay).toByteArray()); }
-    void positionalSound(int soundId,Tile t,int radius,int volume)throws IOException{ int c=packed(t); if(radius<0||radius>15||volume<0||volume>7)throw new IllegalArgumentException("radius/volume"); packets.fixed(105,new PacketPayloadWriter().putU8(c).putU16BE(soundId).putU8((radius<<4)|volume).toByteArray()); }
-    void soundEffect(int soundId,int delay,int loops)throws IOException{ packets.fixed(174,new PacketPayloadWriter().putU16BE(soundId).putU16BE(delay).putU16BE(loops).toByteArray()); }
-    void projectile(int projectileId,Tile source,int dx,int dy,int rawTarget,int startHeight,int endHeight,int startCycle,int endCycle,int slope,int startDistance)throws IOException{
-        int c=packed(source); PacketPayloadWriter p=new PacketPayloadWriter().putU8(c).putI8(dx).putI8(dy).putI16BE(rawTarget).putU16BE(projectileId).putU8(startHeight).putU8(endHeight).putU16BE(startCycle).putU16BE(endCycle).putU8(slope).putU8(startDistance); packets.fixed(117,p.toByteArray());
+    void groundSpawn(GroundItem g)throws IOException{
+        int c=packed(g.tile);
+        packets.fixed(44,SceneUpdateEncoding.groundSpawn(c,g.itemId,g.amount));
     }
-    void clear8x8(Tile anyTileInChunk)throws IOException{ int cx=ctx.chunkXFor(anyTileInChunk.x),cy=ctx.chunkYFor(anyTileInChunk.y); packets.fixed(64,new PacketPayloadWriter().putU8Neg(cy).putU8_128Minus(cx).toByteArray()); ctx.invalidate(); }
+    void groundAmount(GroundItem g,int oldAmount)throws IOException{
+        int c=packed(g.tile);
+        packets.fixed(84,SceneUpdateEncoding.groundAmount(c,g.itemId,oldAmount,g.amount));
+    }
+    void groundRemove(GroundItem g)throws IOException{
+        int c=packed(g.tile);
+        packets.fixed(156,SceneUpdateEncoding.groundRemove(c,g.itemId));
+    }
+    void objectAdd(int objectId,Tile t,int shape,int rotation)throws IOException{
+        int c=packed(t);
+        packets.fixed(151,SceneUpdateEncoding.objectAdd(c,objectId,shape,rotation));
+    }
+    void objectRemove(Tile t,int shape,int rotation)throws IOException{
+        int c=packed(t);
+        packets.fixed(101,SceneUpdateEncoding.objectRemove(c,shape,rotation));
+    }
+    void objectAnimation(int animationId,Tile t,int shape,int rotation)throws IOException{
+        int c=packed(t);
+        packets.fixed(160,SceneUpdateEncoding.objectAnimation(c,animationId,shape,rotation));
+    }
+    void spotGraphic(int gfxId,Tile t,int height,int delay)throws IOException{
+        int c=packed(t);
+        packets.fixed(4,SceneUpdateEncoding.spotGraphic(c,gfxId,height,delay));
+    }
+    void positionalSound(int soundId,Tile t,int radius,int volume)throws IOException{
+        int c=packed(t);
+        packets.fixed(105,SceneUpdateEncoding.positionalSound(c,soundId,radius,volume));
+    }
+    void soundEffect(int soundId,int delay,int loops)throws IOException{
+        packets.fixed(174,new PacketPayloadWriter().putU16BE(soundId).putU16BE(delay).putU16BE(loops).toByteArray());
+    }
+    void projectile(int projectileId,Tile source,int dx,int dy,int rawTarget,int startHeight,int endHeight,int startCycle,int endCycle,int slope,int startDistance)throws IOException{
+        int c=packed(source);
+        packets.fixed(117,SceneUpdateEncoding.projectile(
+            c,projectileId,dx,dy,rawTarget,startHeight,endHeight,
+            startCycle,endCycle,slope,startDistance
+        ));
+    }
+
+    void attachTemporaryObjectToPlayer(
+        WorldPlayer target,Tile tile,int objectDefinitionId,int shape,int rotation,
+        int startDelayTicks,int endDelayTicks,
+        int xOffsetA,int xOffsetB,int yOffsetA,int yOffsetB
+    )throws IOException{
+        Objects.requireNonNull(target,"target");
+        if(endDelayTicks<startDelayTicks)
+            throw new IllegalArgumentException("endDelayTicks < startDelayTicks");
+        int playerIndex=Player81WorldSync.clientIndexFor(packets,target);
+        if(playerIndex<0)
+            throw new IllegalStateException("target has no client index for viewer: "+target.id());
+        int c=packed(tile);
+        packets.fixed(147,SceneUpdateEncoding.attachedTemporaryObject(
+            c,playerIndex,xOffsetA,startDelayTicks,yOffsetA,endDelayTicks,
+            shape,rotation,xOffsetB,objectDefinitionId,yOffsetB
+        ));
+    }
+
+    void groundSpawnExcept(GroundItem g,WorldPlayer excludedPlayer)throws IOException{
+        Objects.requireNonNull(excludedPlayer,"excludedPlayer");
+        int playerIndex=Player81WorldSync.clientIndexFor(packets,excludedPlayer);
+        if(playerIndex<0){
+            groundSpawn(g);
+            return;
+        }
+        int c=packed(g.tile);
+        packets.fixed(215,SceneUpdateEncoding.groundSpawnExcept(
+            c,g.itemId,playerIndex,g.amount
+        ));
+    }
+
+    void clear8x8(Tile anyTileInChunk)throws IOException{
+        int cx=ctx.chunkXFor(anyTileInChunk.x),cy=ctx.chunkYFor(anyTileInChunk.y);
+        packets.fixed(64,new PacketPayloadWriter().putU8Neg(cy).putU8_128Minus(cx).toByteArray());
+        ctx.invalidate();
+    }
     SceneCoordinateContext context(){return ctx;}
 }

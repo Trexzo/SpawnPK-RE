@@ -462,6 +462,8 @@ def currentTrainFocusedTests = [
     'spk.local.PluginSchedulerLifecycleTest',
     'spk.local.WidgetPresentationPublisherTest',
     'spk.local.SocialChatPresentationPublisherTest',
+    'spk.local.WorldClientStatePublisherTest',
+    'spk.local.FinalComplexPresentationPublisherTest',
     'spk.local.EventActivityServiceTest',
     'spk.local.TaskScrollServiceTest',
     'spk.local.SlayerTaskServiceTest',
@@ -475,8 +477,8 @@ def currentTrainFocusedTests = [
     'spk.local.BloodDiamondFuserServiceTest'
 ]
 
-if (currentTrainFocusedTests.size() != 164 ||
-    currentTrainFocusedTests.toSet().size() != 164) {
+if (currentTrainFocusedTests.size() != 166 ||
+    currentTrainFocusedTests.toSet().size() != 166) {
     throw new GradleException(
         "Current-train focused manifest drift: expected 164 unique tests, found " +
         currentTrainFocusedTests.size() +
