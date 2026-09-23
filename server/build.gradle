@@ -527,6 +527,30 @@ tasks.register('clientBuildRevision308Compatibility', JavaExec) {
     mainClass.set('spk.local.ClientBuildRevision308CompatibilityTest')
 }
 
+tasks.register('nurseContentOwnershipRegression') {
+    group = 'verification'
+    description = 'Validates Nurse is runtime-owned by the semantic content registry while preserving byte-for-byte legacy parity evidence.'
+    dependsOn tasks.named('testClasses')
+
+    doLast {
+        project.javaexec {
+            workingDir repoRoot
+            classpath = sourceSets.test.runtimeClasspath
+            mainClass.set('spk.local.NurseContentOwnershipTest')
+        }
+
+        project.javaexec {
+            workingDir repoRoot
+            classpath = sourceSets.test.runtimeClasspath
+            mainClass.set('spk.local.NurseContentRegistryParityTest')
+        }
+
+        logger.lifecycle(
+            'NURSE_CONTENT_OWNERSHIP_REGRESSION_PASS runtimeLegacyDependency=false parity=true'
+        )
+    }
+}
+
 tasks.named('check') {
     dependsOn tasks.named('verifyJava11Bytecode')
     dependsOn tasks.named('clientBuildRevision308Compatibility')
