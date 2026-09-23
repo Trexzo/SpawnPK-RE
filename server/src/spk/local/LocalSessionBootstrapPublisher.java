@@ -72,7 +72,8 @@ final class LocalSessionBootstrapPublisher {
     )throws IOException{
         int appearanceRole=
             world.appearanceRoleFor(
-                username
+                username,
+                playerState
             );
 
         BootstrapPackets.send(
