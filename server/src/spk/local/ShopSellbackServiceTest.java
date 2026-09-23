@@ -564,7 +564,7 @@ public final class ShopSellbackServiceTest {
         ShopSellbackService.SaleSnapshot duplicate=
             sellbacks.requestSale(
                 shopId,
-                "player:z",
+                "player:y",
                 "item:sword",
                 1L
             );

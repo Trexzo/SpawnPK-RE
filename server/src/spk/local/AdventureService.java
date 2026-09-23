@@ -368,7 +368,7 @@ final class AdventureService {
     }
 
     synchronized boolean previousChapter(){
-        requireConfigured();
+        requireConfiguredLocked();
 
         if(selectedChapterOrdinal<=0)
             return false;
@@ -591,7 +591,7 @@ final class AdventureService {
     }
 
     private Chapter selectedChapterLocked(){
-        requireConfigured();
+        requireConfiguredLocked();
         return chapters.get(
             selectedChapterOrdinal
         );

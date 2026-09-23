@@ -378,7 +378,7 @@ public final class BloodPoolStoreServiceTest {
         ShopService.ShopId shopId
     ){
         expect(
-            IllegalArgumentException.class,
+            IllegalStateException.class,
             ()->new BloodPoolStoreService(
                 shops,
                 shopId,

@@ -438,7 +438,7 @@ public final class TaskScrollServiceTest {
         );
 
         expect(
-            IllegalArgumentException.class,
+            IllegalStateException.class,
             ()->service.assign(
                 "player:authority",
                 "scroll:authority",

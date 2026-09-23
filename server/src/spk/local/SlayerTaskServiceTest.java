@@ -291,7 +291,7 @@ public final class SlayerTaskServiceTest {
         );
 
         expect(
-            IllegalArgumentException.class,
+            IllegalStateException.class,
             ()->service.assign(
                 "player:no-objective",
                 "task:blood-revenant",
