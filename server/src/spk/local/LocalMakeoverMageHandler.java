@@ -233,10 +233,8 @@ final class LocalMakeoverMageHandler {
                         ?-1
                         :distanceTo(target);
 
-                packets.fixed(
-                    219,
-                    new byte[0]
-                );
+                StandardDialoguePresentationAdapter
+                    .close(packets);
                 clearActive();
 
                 return "MAKEOVER_MAGE_DIALOG_CANCEL scene="+
@@ -450,10 +448,8 @@ final class LocalMakeoverMageHandler {
                 "validated character design was rejected"
             );
 
-        packets.fixed(
-            219,
-            new byte[0]
-        );
+        StandardDialoguePresentationAdapter
+            .close(packets);
         clearActive();
 
         return Result.handled(
