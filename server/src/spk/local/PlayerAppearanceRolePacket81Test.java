@@ -85,10 +85,7 @@ public final class PlayerAppearanceRolePacket81Test {
                 "Override must not occupy HEAD"
             );
             require(
-                containsBe16AfterAppearanceSlots(
-                    overrideBlock,
-                    22131
-                ),
+                extraAppearanceItem(overrideBlock)==22131,
                 "Override cosmetic bs item missing"
             );
 
@@ -145,16 +142,17 @@ public final class PlayerAppearanceRolePacket81Test {
             (data[offset+1]&255);
     }
 
-    private static boolean containsBe16AfterAppearanceSlots(
-        byte[] data,
-        int value
-    ){
-        byte hi=(byte)((value>>>8)&255);
-        byte lo=(byte)(value&255);
-        for(int i=9;i+1<data.length;i++)
-            if(data[i]==hi&&data[i+1]==lo)
-                return true;
-        return false;
+    private static int extraAppearanceItem(byte[] data){
+        int p=7;
+        for(int slot=0;slot<12;slot++){
+            int first=data[p++]&255;
+            if(first!=0)
+                p++;
+        }
+        int present=data[p++]&255;
+        return present==0
+            ?-1
+            :unsignedBe16(data,p);
     }
 
     private static void expect(
