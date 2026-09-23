@@ -693,7 +693,9 @@ tasks.register('contentDialogueTransitionOwnershipRegression') {
             'spk.local.ContentRegistrarSealTest',
             'spk.local.PluginKernelLifecycleTest',
             'spk.local.DialogueSessionServiceTest',
+            'spk.local.StandardDialoguePresentationAdapterTest',
             'spk.local.MakeoverSemanticDialogueSessionTest',
+            'spk.local.MakeoverMageFlowTest',
             'spk.local.MakeoverDialogueContentOwnershipTest',
             'spk.local.LocalPendingRequestDispatcherTest'
         ].each { mainClassName ->
