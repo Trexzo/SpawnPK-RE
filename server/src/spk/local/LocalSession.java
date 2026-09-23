@@ -390,6 +390,16 @@ final class LocalSession implements Runnable {
                     );
                 }
 
+                @Override public void handleHomeTeleport(
+                    ServerPacketWriter writer,
+                    String tag
+                )throws IOException{
+                    LocalSession.this.handleHomeTeleportFromWidget(
+                        writer,
+                        tag
+                    );
+                }
+
                 @Override public void requestLogout(){
                     LocalSession.this.logoutRequested=true;
                 }
@@ -972,6 +982,32 @@ final class LocalSession implements Runnable {
         }
     }
 
+    private void handleHomeTeleportFromWidget(
+        ServerPacketWriter writer,
+        String tag
+    )throws IOException{
+        LocalRegionDevCommandHandler.Result result=
+            regionDevCommands.teleportHomeFromMagic(
+                username,
+                scenePublisher,
+                writer
+            );
+
+        if(result.scenePublisher!=null)
+            scenePublisher=result.scenePublisher;
+
+        if(result.saveReason!=null)
+            saveAccountQuiet(
+                tag,
+                result.saveReason
+            );
+
+        System.out.println(
+            tag+
+            result.logText
+        );
+    }
+
     private void logRegionLoadBegin(
         RegionLoadLifecycle.Begin begin,
         int centerX,
@@ -1029,6 +1065,21 @@ final class LocalSession implements Runnable {
             " opcode=121"+
             " authority=V308_RUNTIME_PROBE_RS_CLIENT_BW"
         );
+
+        try{
+            regionStreams.completeRegionLoad(
+                completion,
+                sessionPackets,
+                tag
+            );
+        }catch(IOException e){
+            throw new IllegalStateException(
+                "post-region-load scene replay failed seq="+
+                completion.sequence+
+                " reason="+completion.reason,
+                e
+            );
+        }
     }
 
     private void processPendingOnWorld(
