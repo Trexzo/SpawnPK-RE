@@ -862,6 +862,34 @@ tasks.register('appFixtureContentOwnershipRegression') {
     }
 }
 
+tasks.register('localDiagnosticContentOwnershipRegression') {
+    group = 'verification'
+    description = 'Validates content ownership of contentregistry/authority diagnostics without widening the public plugin API.'
+    dependsOn tasks.named('testClasses')
+
+    doLast {
+        [
+            'spk.local.LocalDiagnosticContentOwnershipTest',
+            'spk.local.ContentRegistryTest',
+            'spk.local.LocalCommandDispatcherTest',
+            'spk.local.ContentRegistrarAuthorityCoverageTest',
+            'spk.local.ContentHandlerSamCompatibilityTest',
+            'spk.local.ContentProvenanceAuthorityBoundaryTest',
+            'spk.local.ContentPublicApiBoundaryTest'
+        ].each { mainClassName ->
+            project.javaexec {
+                workingDir repoRoot
+                classpath = sourceSets.test.runtimeClasspath
+                mainClass.set(mainClassName)
+            }
+        }
+
+        logger.lifecycle(
+            'LOCAL_DIAGNOSTIC_CONTENT_OWNERSHIP_REGRESSION_PASS contentregistry=true authority=true dispatcherHardcode=false publicApiExpanded=false dynamicSummary=true'
+        )
+    }
+}
+
 tasks.named('check') {
     dependsOn tasks.named('verifyJava11Bytecode')
     dependsOn tasks.named('clientBuildRevision308Compatibility')
