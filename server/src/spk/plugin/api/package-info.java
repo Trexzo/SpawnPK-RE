@@ -16,8 +16,10 @@
  *       Language-specific runtimes must not create a parallel gameplay API.</li>
  * </ul>
  *
- * <p>Registration capabilities supplied through {@link spk.plugin.api.PluginContext}
- * are enable-phase scoped. Runtime behavior happens through registered content
- * handlers and validated domain-event listeners.</p>
+ * <p>Content and event registration capabilities supplied through
+ * {@link spk.plugin.api.PluginContext} are enable-phase scoped. The logical-tick
+ * {@link spk.plugin.api.PluginScheduler} may be retained for the enabled plugin
+ * lifetime; all owned tasks are cancelled when that plugin is disabled or its
+ * World becomes terminal.</p>
  */
 package spk.plugin.api;
