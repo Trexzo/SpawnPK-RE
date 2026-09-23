@@ -452,8 +452,7 @@ def currentTrainFocusedTests = [
     'spk.local.LocalRegionStreamHandlerTest',
     'spk.local.LocalWorldTickCoordinatorTest',
     'spk.local.LocalPetRealtimeSchedulerTest',
-    'spk.local.TransientRegionPetViewTest'
-,
+    'spk.local.TransientRegionPetViewTest',
     'spk.local.PluginKernelLifecycleTest',
     'spk.local.PluginWorldAdmissionFenceTest',
     'spk.plugin.api.PluginPublicApiBoundaryTest'
