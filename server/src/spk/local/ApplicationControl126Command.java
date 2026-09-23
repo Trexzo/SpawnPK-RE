@@ -190,22 +190,20 @@ final class ApplicationControl126Command {
                 "exactRecord"
             );
 
-        String payload=exactRecord.trim();
-
-        if(payload.isEmpty())
+        if(exactRecord.trim().isEmpty())
             throw new IllegalArgumentException(
                 "Blood Pool slot record blank"
             );
 
-        if(payload.indexOf('\n')>=0||
-           payload.indexOf('\r')>=0)
+        if(exactRecord.indexOf('\n')>=0||
+           exactRecord.indexOf('\r')>=0)
             throw new IllegalArgumentException(
                 "Blood Pool slot record must remain one S2C126 string"
             );
 
         return exact(
             Target.BLOOD_POOL_SLOT_APPEND,
-            payload,
+            exactRecord,
             "blood-pool:slot-append:opaque-fields"
         );
     }
