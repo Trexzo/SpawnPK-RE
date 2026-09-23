@@ -572,6 +572,24 @@ final class LocalMakeoverMageHandler {
             );
         }
 
+        ContentActionResult authorization=
+            authorizeCharacterDesign();
+
+        if(!authorization.allowed()){
+            StandardDialoguePresentationAdapter
+                .close(packets);
+            clearActive();
+
+            return Result.handled(
+                null,
+                "MAKEOVER_MAGE_DESIGN_REJECTED reason=CONTENT_ACTION_DENIED action="+
+                    MakeoverMageDialogueContent
+                        .ACTION_APPLY_CHARACTER_DESIGN+
+                    " reasonKey="+
+                    authorization.reasonKey()
+            );
+        }
+
         PlayerState player=
             worldPlayer.playerState();
 
@@ -716,6 +734,48 @@ final class LocalMakeoverMageHandler {
             Math.abs(
                 movement.y()-npc.y
             )
+        );
+    }
+
+    private ContentActionResult authorizeCharacterDesign(){
+        ContentActionResult result;
+
+        if(contentRegistry!=null){
+            result=
+                contentRegistry.dispatchAction(
+                    worldPlayer,
+                    MakeoverMageDialogueContent
+                        .ACTION_APPLY_CHARACTER_DESIGN
+                );
+
+            if(result==null)
+                throw new IllegalStateException(
+                    "Make-over character-design content action missing key="+
+                    MakeoverMageDialogueContent
+                        .ACTION_APPLY_CHARACTER_DESIGN
+                );
+        }else{
+            result=
+                fallbackDialoguePolicy
+                    .authorizeCharacterDesign(
+                        new ContentActionContext(){
+                            @Override public String actionKey(){
+                                return MakeoverMageDialogueContent
+                                    .ACTION_APPLY_CHARACTER_DESIGN;
+                            }
+
+                            @Override public ContentPlayer player(){
+                                return ContentRuntimeAdapters.player(
+                                    worldPlayer
+                                );
+                            }
+                        }
+                    );
+        }
+
+        return java.util.Objects.requireNonNull(
+            result,
+            "Make-over character-design authorization"
         );
     }
 
