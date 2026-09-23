@@ -527,6 +527,24 @@ tasks.register('clientBuildRevision308Compatibility', JavaExec) {
     mainClass.set('spk.local.ClientBuildRevision308CompatibilityTest')
 }
 
+tasks.register('goodwillWellPresentationRegression') {
+    group = 'verification'
+    description = 'Validates exact-v308 Goodwill Well root/action/text channels without owning contribution, goal or reward policy.'
+    dependsOn tasks.named('testClasses')
+
+    doLast {
+        project.javaexec {
+            workingDir repoRoot
+            classpath = sourceSets.test.runtimeClasspath
+            mainClass.set('spk.local.GoodwillWellPresentationTest')
+        }
+
+        logger.lifecycle(
+            'GOODWILL_WELL_PRESENTATION_REGRESSION_PASS donate=true textChannels=true policyOwned=false'
+        )
+    }
+}
+
 tasks.named('check') {
     dependsOn tasks.named('verifyJava11Bytecode')
     dependsOn tasks.named('clientBuildRevision308Compatibility')
