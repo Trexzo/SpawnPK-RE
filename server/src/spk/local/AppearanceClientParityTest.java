@@ -370,9 +370,15 @@ public final class AppearanceClientParityTest {
         Object target,
         String name
     )throws Exception{
-        Object value=
-            type.getField(name)
-                .get(target);
+        Field field;
+        try{
+            field=type.getField(name);
+        }catch(NoSuchFieldException notPublic){
+            field=type.getDeclaredField(name);
+            field.setAccessible(true);
+        }
+
+        Object value=field.get(target);
         if(!(value instanceof Number))
             throw new AssertionError(
                 "non-numeric exact-client field "+
