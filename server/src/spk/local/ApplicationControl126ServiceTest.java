@@ -126,6 +126,15 @@ public final class ApplicationControl126ServiceTest {
         );
 
         assertPayload(
+            ApplicationControl126Command
+                .bloodPoolAppendOpaque(
+                    "  opaque-slot-record  "
+                ),
+            "  opaque-slot-record  ",
+            37
+        );
+
+        assertPayload(
             ApplicationControl126Command.itemGuideSelected(
                 47505
             ),
