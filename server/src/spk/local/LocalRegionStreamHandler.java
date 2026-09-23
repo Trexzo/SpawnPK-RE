@@ -286,8 +286,6 @@ final class LocalRegionStreamHandler {
             }
         }
 
-        bridge.resetPetFollowRuntime();
-
         System.out.println(
             tag+
             "V5182_HOME_SCENE_POST_ACK seq="+
