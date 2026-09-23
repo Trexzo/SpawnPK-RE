@@ -81,6 +81,25 @@ public final class CustomAssetPipelineContractTest {
             "NPC overlay size mismatch"
         );
 
+        assertOrphanOverlayRejected(
+            new CustomDefinitionOverlayRepository.Overlay(
+                CustomDefinitionOverlayPolicy.Kind.ITEM,
+                29998,
+                singletonField("name", "Orphan item"),
+                singletonField("name", "CUSTOM_LOCALLAB_TEST_ORPHAN")
+            ),
+            "ITEM:29998"
+        );
+        assertOrphanOverlayRejected(
+            new CustomDefinitionOverlayRepository.Overlay(
+                CustomDefinitionOverlayPolicy.Kind.NPC,
+                12001,
+                singletonField("name", "Orphan npc"),
+                singletonField("name", "CUSTOM_LOCALLAB_TEST_ORPHAN")
+            ),
+            "NPC:12001"
+        );
+
         Map<String,String> itemClone = new LinkedHashMap<>();
         itemClone.put("clone", "100");
         itemClone.put("fullClone", "200");
@@ -233,11 +252,39 @@ public final class CustomAssetPipelineContractTest {
             "sharedTextureAtlas=true " +
             "sharedNamespaceScopeGuard=true " +
             "namespaceContextMatrix=true " +
+            "overlayOwnership=true " +
             "staticUntilAnimationProven=true " +
             "namespaceCollisionRejected=true " +
             "gfxContextRequired=true " +
             "planSha256=" + first.planSha256
         );
+    }
+
+    private static void assertOrphanOverlayRejected(
+        CustomDefinitionOverlayRepository.Overlay overlay,
+        String expectedId
+    ) {
+        boolean rejected = false;
+        try {
+            CustomAssetNamespacePreflight.validateOverlayOwnership(
+                CustomAssetAuthoringRepository.all(),
+                java.util.Collections.singletonList(overlay)
+            );
+        } catch (IllegalStateException expected) {
+            rejected =
+                expected.getMessage().contains("ORPHAN_CUSTOM_DEFINITION_OVERLAY") &&
+                expected.getMessage().contains(expectedId);
+        }
+        if (!rejected)
+            throw new AssertionError(
+                "orphan definition overlay was not rejected: " + expectedId
+            );
+    }
+
+    private static Map<String,String> singletonField(String key, String value) {
+        LinkedHashMap<String,String> out = new LinkedHashMap<>();
+        out.put(key, value);
+        return out;
     }
 
     private static void assertInvalidNamespaceContextRejected(
