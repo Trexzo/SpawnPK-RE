@@ -2,6 +2,7 @@ package spk.local;
 
 import java.io.StringReader;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.Map;
 
 public final class CustomAssetPipelineContractTest {
@@ -113,6 +114,56 @@ public final class CustomAssetPipelineContractTest {
                 "claim/reference counts=" + first.claims + "/" + first.references
             );
 
+        LinkedHashSet<CustomAssetNamespacePreflight.IdKey> sharedTextureClaims =
+            new LinkedHashSet<>();
+        CustomAssetNamespacePreflight.claimShared(
+            snapshot,
+            sharedTextureClaims,
+            CustomAssetNamespaceSnapshot.Namespace.TEXTURE,
+            CustomAssetNamespaceSnapshot.Context.GLOBAL,
+            278,
+            "shared-atlas:first"
+        );
+        CustomAssetNamespacePreflight.claimShared(
+            snapshot,
+            sharedTextureClaims,
+            CustomAssetNamespaceSnapshot.Namespace.TEXTURE,
+            CustomAssetNamespaceSnapshot.Context.GLOBAL,
+            278,
+            "shared-atlas:second"
+        );
+        if (sharedTextureClaims.size() != 1)
+            throw new AssertionError(
+                "slot-278 shared atlas should remain one namespace allocation"
+            );
+
+        LinkedHashSet<CustomAssetNamespacePreflight.IdKey> exclusiveModelClaims =
+            new LinkedHashSet<>();
+        CustomAssetNamespacePreflight.claim(
+            snapshot,
+            exclusiveModelClaims,
+            CustomAssetNamespaceSnapshot.Namespace.MODEL,
+            CustomAssetNamespaceSnapshot.Context.PRIMARY,
+            79999,
+            "exclusive-model:first"
+        );
+        boolean duplicateExclusiveClaimRejected = false;
+        try {
+            CustomAssetNamespacePreflight.claim(
+                snapshot,
+                exclusiveModelClaims,
+                CustomAssetNamespaceSnapshot.Namespace.MODEL,
+                CustomAssetNamespaceSnapshot.Context.PRIMARY,
+                79999,
+                "exclusive-model:second"
+            );
+        } catch (IllegalStateException expected) {
+            duplicateExclusiveClaimRejected =
+                expected.getMessage().contains("duplicate custom namespace claim");
+        }
+        if (!duplicateExclusiveClaimRejected)
+            throw new AssertionError("exclusive model claim was incorrectly shareable");
+
         boolean collisionRejected = false;
         try {
             CustomAssetNamespaceSnapshot collided =
@@ -149,6 +200,7 @@ public final class CustomAssetPipelineContractTest {
             "textureBootstrap=278 " +
             "cloneOrdering=true " +
             "definitionProjectionParity=true " +
+            "sharedTextureAtlas=true " +
             "namespaceCollisionRejected=true " +
             "gfxContextRequired=true " +
             "planSha256=" + first.planSha256
