@@ -67,4 +67,10 @@ public interface ContentRegistrar {
         int priority,
         ContentNpcOptionHandler handler
     );
+
+    ContentRegistration dialogue(
+        String dialogueKey,
+        int priority,
+        ContentDialogueHandler handler
+    );
 }

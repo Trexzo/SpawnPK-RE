@@ -420,6 +420,19 @@ final class ContentRegistry {
         }
     }
 
+    private static final class DialogueBinding {
+        final BindingInfo info;
+        final ContentDialogueHandler handler;
+
+        DialogueBinding(
+            BindingInfo info,
+            ContentDialogueHandler handler
+        ){
+            this.info=info;
+            this.handler=handler;
+        }
+    }
+
     private final World world;
     private final LinkedHashMap<String,CommandBinding>
         commands=new LinkedHashMap<>();
@@ -439,6 +452,8 @@ final class ContentRegistry {
         itemOnPlayerActions=new LinkedHashMap<>();
     private final LinkedHashMap<NpcOptionKey,NpcOptionBinding>
         npcOptions=new LinkedHashMap<>();
+    private final LinkedHashMap<String,DialogueBinding>
+        dialogues=new LinkedHashMap<>();
 
     /*
      * Keep every committed candidate, not just the current priority winner.
@@ -463,6 +478,8 @@ final class ContentRegistry {
         itemOnPlayerRegistrations=new ArrayList<>();
     private final ArrayList<NpcOptionRegistration>
         npcOptionRegistrations=new ArrayList<>();
+    private final ArrayList<DialogueRegistration>
+        dialogueRegistrations=new ArrayList<>();
 
     private final LinkedHashSet<String>
         installedModules=new LinkedHashSet<>();
@@ -587,6 +604,12 @@ final class ContentRegistry {
                             npcOptionRegistrations
                         );
 
+                ArrayList<DialogueRegistration>
+                    nextDialogueRegistrations=
+                        new ArrayList<>(
+                            dialogueRegistrations
+                        );
+
                 for(CommandRegistration registration:
                         registrar.pendingCommands)
                     if(registration.handle.pending())
@@ -659,6 +682,14 @@ final class ContentRegistry {
                             registration
                         );
 
+                for(DialogueRegistration registration:
+                        registrar.pendingDialogues)
+                    if(registration.handle.pending())
+                        addDialogueRegistration(
+                            nextDialogueRegistrations,
+                            registration
+                        );
+
                 LinkedHashMap<String,CommandBinding>
                     nextCommands=
                         buildCommandBindings(
@@ -713,6 +744,12 @@ final class ContentRegistry {
                             nextNpcOptionRegistrations
                         );
 
+                LinkedHashMap<String,DialogueBinding>
+                    nextDialogues=
+                        buildDialogueBindings(
+                            nextDialogueRegistrations
+                        );
+
                 commandRegistrations.clear();
                 commandRegistrations.addAll(
                     nextCommandRegistrations
@@ -758,6 +795,11 @@ final class ContentRegistry {
                     nextNpcOptionRegistrations
                 );
 
+                dialogueRegistrations.clear();
+                dialogueRegistrations.addAll(
+                    nextDialogueRegistrations
+                );
+
                 commands.clear();
                 commands.putAll(nextCommands);
 
@@ -799,6 +841,11 @@ final class ContentRegistry {
                 npcOptions.clear();
                 npcOptions.putAll(
                     nextNpcOptions
+                );
+
+                dialogues.clear();
+                dialogues.putAll(
+                    nextDialogues
                 );
 
                 installedModules.add(moduleId);
@@ -853,6 +900,10 @@ final class ContentRegistry {
         );
         removeModuleRegistrations(
             npcOptionRegistrations,
+            clean
+        );
+        removeModuleRegistrations(
+            dialogueRegistrations,
             clean
         );
 
@@ -910,6 +961,8 @@ final class ContentRegistry {
             return ((ItemOnPlayerRegistration)registration).info;
         if(registration instanceof NpcOptionRegistration)
             return ((NpcOptionRegistration)registration).info;
+        if(registration instanceof DialogueRegistration)
+            return ((DialogueRegistration)registration).info;
 
         throw new IllegalArgumentException(
             "unknown content registration type="+
@@ -938,6 +991,8 @@ final class ContentRegistry {
             return ((ItemOnPlayerRegistration)registration).handle;
         if(registration instanceof NpcOptionRegistration)
             return ((NpcOptionRegistration)registration).handle;
+        if(registration instanceof DialogueRegistration)
+            return ((DialogueRegistration)registration).handle;
 
         throw new IllegalArgumentException(
             "unknown content registration type="+
@@ -1255,6 +1310,49 @@ final class ContentRegistry {
         );
     }
 
+    ContentDialogueTransition dispatchDialogue(
+        WorldPlayer player,
+        String dialogueKey,
+        String nodeKey,
+        ContentDialogueIntent intent
+    ){
+        requireWorldThread();
+        Objects.requireNonNull(
+            player,
+            "player"
+        );
+        String key=dialogueKey(dialogueKey);
+        String node=dialogueKey(nodeKey);
+        ContentDialogueIntent checked=
+            Objects.requireNonNull(
+                intent,
+                "intent"
+            );
+
+        DialogueBinding binding;
+
+        synchronized(this){
+            binding=dialogues.get(key);
+        }
+
+        if(binding==null)
+            return null;
+
+        return Objects.requireNonNull(
+            binding.handler.handle(
+                new DialogueContext(
+                    key,
+                    node,
+                    checked,
+                    ContentRuntimeAdapters.player(
+                        player
+                    )
+                )
+            ),
+            "dialogue transition"
+        );
+    }
+
     synchronized BindingInfo commandBinding(
         String name
     ){
@@ -1393,6 +1491,18 @@ final class ContentRegistry {
             :binding.info;
     }
 
+    synchronized BindingInfo dialogueBinding(
+        String dialogueKey
+    ){
+        DialogueBinding binding=
+            dialogues.get(
+                dialogueKey(dialogueKey)
+            );
+        return binding==null
+            ?null
+            :binding.info;
+    }
+
     synchronized List<BindingInfo> bindings(){
         ArrayList<BindingInfo> result=
             new ArrayList<>();
@@ -1433,6 +1543,10 @@ final class ContentRegistry {
                 npcOptions.values())
             result.add(binding.info);
 
+        for(DialogueBinding binding:
+                dialogues.values())
+            result.add(binding.info);
+
         return Collections.unmodifiableList(
             result
         );
@@ -1458,6 +1572,8 @@ final class ContentRegistry {
                 itemOnPlayerActions.size()+
             ",npcOptions="+
                 npcOptions.size()+
+            ",dialogues="+
+                dialogues.size()+
             ",bindings="+bindings()+
             "}";
     }
@@ -1632,6 +1748,24 @@ final class ContentRegistry {
         target.add(incoming);
     }
 
+    private static void addDialogueRegistration(
+        List<DialogueRegistration> target,
+        DialogueRegistration incoming
+    ){
+        for(DialogueRegistration existing:
+                target)
+            if(existing.info.key.equals(
+                    incoming.info.key)&&
+               existing.info.priority==
+                    incoming.info.priority)
+                throw conflict(
+                    incoming.info,
+                    existing.info
+                );
+
+        target.add(incoming);
+    }
+
     private static LinkedHashMap<String,CommandBinding>
         buildCommandBindings(
             List<CommandRegistration> registrations
@@ -1785,6 +1919,23 @@ final class ContentRegistry {
         return result;
     }
 
+    private static LinkedHashMap<String,DialogueBinding>
+        buildDialogueBindings(
+            List<DialogueRegistration> registrations
+        ){
+        LinkedHashMap<String,DialogueBinding>
+            result=new LinkedHashMap<>();
+
+        for(DialogueRegistration registration:
+                registrations)
+            applyDialogue(
+                result,
+                registration
+            );
+
+        return result;
+    }
+
     private synchronized boolean unregister(
         RegistrationHandle handle
     ){
@@ -1846,6 +1997,12 @@ final class ContentRegistry {
 
         removed=
             npcOptionRegistrations.removeIf(
+                registration->
+                    registration.handle==handle
+            )||removed;
+
+        removed=
+            dialogueRegistrations.removeIf(
                 registration->
                     registration.handle==handle
             )||removed;
@@ -1915,6 +2072,12 @@ final class ContentRegistry {
                     npcOptionRegistrations
                 );
 
+        LinkedHashMap<String,DialogueBinding>
+            nextDialogues=
+                buildDialogueBindings(
+                    dialogueRegistrations
+                );
+
         commands.clear();
         commands.putAll(nextCommands);
 
@@ -1956,6 +2119,11 @@ final class ContentRegistry {
         npcOptions.clear();
         npcOptions.putAll(
             nextNpcOptions
+        );
+
+        dialogues.clear();
+        dialogues.putAll(
+            nextDialogues
         );
     }
 
@@ -2301,6 +2469,44 @@ final class ContentRegistry {
             );
     }
 
+    private static void applyDialogue(
+        Map<String,DialogueBinding> target,
+        DialogueRegistration registration
+    ){
+        DialogueBinding existing=
+            target.get(
+                registration.info.key
+            );
+
+        if(existing==null){
+            target.put(
+                registration.info.key,
+                new DialogueBinding(
+                    registration.info,
+                    registration.handler
+                )
+            );
+            return;
+        }
+
+        if(registration.info.priority==
+                existing.info.priority)
+            throw conflict(
+                registration.info,
+                existing.info
+            );
+
+        if(registration.info.priority>
+                existing.info.priority)
+            target.put(
+                registration.info.key,
+                new DialogueBinding(
+                    registration.info,
+                    registration.handler
+                )
+            );
+    }
+
     private static IllegalStateException conflict(
         BindingInfo incoming,
         BindingInfo existing
@@ -2342,6 +2548,38 @@ final class ContentRegistry {
                 .toLowerCase(
                     Locale.ROOT
                 );
+    }
+
+    private static String dialogueKey(
+        String value
+    ){
+        String key=canonical(value);
+
+        if(key.isEmpty())
+            throw new IllegalArgumentException(
+                "dialogue key"
+            );
+
+        if(key.length()>160)
+            throw new IllegalArgumentException(
+                "dialogue key too long"
+            );
+
+        for(int i=0;i<key.length();i++){
+            char ch=key.charAt(i);
+            if((ch>='a'&&ch<='z')||
+               (ch>='0'&&ch<='9')||
+               ch=='.'||ch=='_'||
+               ch=='-'||ch==':')
+                continue;
+
+            throw new IllegalArgumentException(
+                "dialogue key invalid character index="+
+                i
+            );
+        }
+
+        return key;
     }
 
     private static final int REGISTRATION_PENDING=0;
@@ -2516,6 +2754,22 @@ final class ContentRegistry {
         }
     }
 
+    private static final class DialogueRegistration {
+        final BindingInfo info;
+        final ContentDialogueHandler handler;
+        final RegistrationHandle handle;
+
+        DialogueRegistration(
+            BindingInfo info,
+            ContentDialogueHandler handler,
+            RegistrationHandle handle
+        ){
+            this.info=info;
+            this.handler=handler;
+            this.handle=handle;
+        }
+    }
+
     private final class RegistrationHandle
         implements ContentRegistration {
 
@@ -2586,6 +2840,9 @@ final class ContentRegistry {
                 new ArrayList<>();
         private final ArrayList<NpcOptionRegistration>
             pendingNpcOptions=
+                new ArrayList<>();
+        private final ArrayList<DialogueRegistration>
+            pendingDialogues=
                 new ArrayList<>();
 
         Registrar(
@@ -3031,6 +3288,39 @@ final class ContentRegistry {
             return handle;
         }
 
+        @Override public synchronized ContentRegistration dialogue(
+            String dialogueKey,
+            int priority,
+            ContentDialogueHandler handler
+        ){
+            requireAccepting();
+            String key=dialogueKey(dialogueKey);
+
+            Objects.requireNonNull(
+                handler,
+                "handler"
+            );
+
+            RegistrationHandle handle=
+                new RegistrationHandle();
+
+            pendingDialogues.add(
+                new DialogueRegistration(
+                    new BindingInfo(
+                        "DIALOGUE",
+                        key,
+                        moduleId,
+                        priority,
+                        provenance
+                    ),
+                    handler,
+                    handle
+                )
+            );
+
+            return handle;
+        }
+
         synchronized void activatePending(){
             accepting=false;
             for(CommandRegistration registration:
@@ -3075,6 +3365,11 @@ final class ContentRegistry {
 
             for(NpcOptionRegistration registration:
                     pendingNpcOptions)
+                registration.handle
+                    .activatePending();
+
+            for(DialogueRegistration registration:
+                    pendingDialogues)
                 registration.handle
                     .activatePending();
         }
@@ -3123,6 +3418,11 @@ final class ContentRegistry {
 
             for(NpcOptionRegistration registration:
                     pendingNpcOptions)
+                registration.handle
+                    .invalidatePending();
+
+            for(DialogueRegistration registration:
+                    pendingDialogues)
                 registration.handle
                     .invalidatePending();
         }
@@ -3388,6 +3688,49 @@ final class ContentRegistry {
 
         @Override public ContentPlayer target(){
             return target;
+        }
+    }
+
+    private static final class DialogueContext
+        implements ContentDialogueContext {
+
+        private final String dialogueKey;
+        private final String nodeKey;
+        private final ContentDialogueIntent intent;
+        private final ContentPlayer player;
+
+        DialogueContext(
+            String dialogueKey,
+            String nodeKey,
+            ContentDialogueIntent intent,
+            ContentPlayer player
+        ){
+            this.dialogueKey=dialogueKey;
+            this.nodeKey=nodeKey;
+            this.intent=Objects.requireNonNull(
+                intent,
+                "intent"
+            );
+            this.player=Objects.requireNonNull(
+                player,
+                "player"
+            );
+        }
+
+        @Override public String dialogueKey(){
+            return dialogueKey;
+        }
+
+        @Override public String nodeKey(){
+            return nodeKey;
+        }
+
+        @Override public ContentDialogueIntent intent(){
+            return intent;
+        }
+
+        @Override public ContentPlayer player(){
+            return player;
         }
     }
 

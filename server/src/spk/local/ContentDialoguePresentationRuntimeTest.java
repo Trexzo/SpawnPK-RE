@@ -9,12 +9,15 @@ import spk.content.api.*;
 public final class ContentDialoguePresentationRuntimeTest {
     public static void main(String[] args)throws Exception{
         defaultCapabilityFailsClosed();
+        legacyDialogueCapabilityFailsClosedForTwoOptions();
         runtimeContentWireParity();
 
         System.out.println(
             "CONTENT_DIALOGUE_PRESENTATION_RUNTIME_PASS "+
             "statement=true "+
             "namedNpc=true "+
+            "twoOptions=true "+
+            "twoOptionsDefaultFailsClosed=true "+
             "close=true "+
             "wireParity=true "+
             "rawWidgetIdentity=false "+
@@ -65,6 +68,46 @@ public final class ContentDialoguePresentationRuntimeTest {
             );
     }
 
+    private static void legacyDialogueCapabilityFailsClosedForTwoOptions(){
+        ContentDialoguePresentation legacy=
+            new ContentDialoguePresentation(){
+                @Override public void statement(
+                    java.util.List<String> lines
+                ){}
+
+                @Override public void namedNpc(
+                    int npcDefinitionId,
+                    String speakerName,
+                    java.util.List<String> lines
+                ){}
+
+                @Override public void close(){}
+            };
+
+        boolean rejected=false;
+
+        try{
+            legacy.twoOptions(
+                "Select an Option",
+                Arrays.asList(
+                    "One",
+                    "Two"
+                )
+            );
+        }catch(UnsupportedOperationException expected){
+            rejected=
+                expected.getMessage()!=null&&
+                expected.getMessage().contains(
+                    "two-option dialogue presentation unavailable"
+                );
+        }
+
+        if(!rejected)
+            throw new AssertionError(
+                "legacy ContentDialoguePresentation did not fail closed for twoOptions"
+            );
+    }
+
     private static void runtimeContentWireParity()
         throws Exception
     {
@@ -87,6 +130,7 @@ public final class ContentDialoguePresentationRuntimeTest {
 
             assertStatement(world,player);
             assertNamedNpc(world,player);
+            assertTwoOptions(world,player);
             assertClose(world,player);
 
             assertCustomBinding(
@@ -96,6 +140,10 @@ public final class ContentDialoguePresentationRuntimeTest {
             assertCustomBinding(
                 world,
                 "dialognpc"
+            );
+            assertCustomBinding(
+                world,
+                "dialogoptions"
             );
             assertCustomBinding(
                 world,
@@ -206,6 +254,56 @@ public final class ContentDialoguePresentationRuntimeTest {
             actualWire,
             expectedWire,
             "named NPC"
+        );
+    }
+
+    private static void assertTwoOptions(
+        World world,
+        WorldPlayer player
+    )throws Exception{
+        ByteArrayOutputStream actualWire=
+            new ByteArrayOutputStream();
+        ByteArrayOutputStream expectedWire=
+            new ByteArrayOutputStream();
+
+        ServerPacketWriter actual=
+            writer(actualWire);
+        ServerPacketWriter expected=
+            writer(expectedWire);
+
+        ContentResult result=
+            dispatch(
+                world,
+                player,
+                "::dialogoptions",
+                actual
+            );
+
+        if(result==null||
+           !"DIALOG_OPTIONS".equals(
+                result.logText()))
+            throw new AssertionError(
+                "two-option content result="+
+                result
+            );
+
+        StandardDialoguePresentationAdapter
+            .openTwoOptions(
+                expected,
+                "Select an Option",
+                Arrays.asList(
+                    "I'd like to change my look.",
+                    "Nevermind."
+                )
+            );
+
+        actual.flush();
+        expected.flush();
+
+        requireWireParity(
+            actualWire,
+            expectedWire,
+            "two options"
         );
     }
 
@@ -339,6 +437,27 @@ public final class ContentDialoguePresentationRuntimeTest {
 
                         return ContentResult.handled(
                             "DIALOG_NPC",
+                            null
+                        );
+                    }
+                );
+
+                registrar.command(
+                    "dialogoptions",
+                    100,
+                    context->{
+                        context.presentation()
+                            .dialogue()
+                            .twoOptions(
+                                "Select an Option",
+                                Arrays.asList(
+                                    "I'd like to change my look.",
+                                    "Nevermind."
+                                )
+                            );
+
+                        return ContentResult.handled(
+                            "DIALOG_OPTIONS",
                             null
                         );
                     }

@@ -1,0 +1,97 @@
+package spk.content.api;
+
+import java.util.Locale;
+import java.util.Objects;
+
+/** Protocol-independent content decision for a semantic dialogue transition. */
+public final class ContentDialogueTransition {
+    public enum Kind {
+        STAY,
+        MOVE,
+        END
+    }
+
+    private final Kind kind;
+    private final String nextNodeKey;
+
+    private ContentDialogueTransition(
+        Kind kind,
+        String nextNodeKey
+    ){
+        this.kind=Objects.requireNonNull(kind,"kind");
+        this.nextNodeKey=nextNodeKey;
+    }
+
+    public static ContentDialogueTransition stay(){
+        return new ContentDialogueTransition(
+            Kind.STAY,
+            null
+        );
+    }
+
+    public static ContentDialogueTransition move(
+        String nextNodeKey
+    ){
+        return new ContentDialogueTransition(
+            Kind.MOVE,
+            normalizeKey(
+                nextNodeKey,
+                "nextNodeKey"
+            )
+        );
+    }
+
+    public static ContentDialogueTransition end(){
+        return new ContentDialogueTransition(
+            Kind.END,
+            null
+        );
+    }
+
+    public Kind kind(){
+        return kind;
+    }
+
+    public String nextNodeKey(){
+        return nextNodeKey;
+    }
+
+    private static String normalizeKey(
+        String value,
+        String field
+    ){
+        if(value==null)
+            throw new NullPointerException(field);
+
+        String clean=value.trim().toLowerCase(
+            Locale.ROOT
+        );
+
+        if(clean.isEmpty())
+            throw new IllegalArgumentException(
+                field+" blank"
+            );
+
+        if(clean.length()>160)
+            throw new IllegalArgumentException(
+                field+" too long"
+            );
+
+        for(int i=0;i<clean.length();i++){
+            char ch=clean.charAt(i);
+            if((ch>='a'&&ch<='z')||
+               (ch>='0'&&ch<='9')||
+               ch=='.'||ch=='_'||
+               ch=='-'||ch==':')
+                continue;
+
+            throw new IllegalArgumentException(
+                field+
+                " invalid character at index="+
+                i
+            );
+        }
+
+        return clean;
+    }
+}

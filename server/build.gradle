@@ -1277,6 +1277,72 @@ tasks.register('makeoverDialogueCloseRegression') {
 }
 
 
+tasks.register('contentDialogueTransitionOwnershipRegression') {
+    group = 'verification'
+    description = 'Validates semantic dialogue transition registration, plugin lifecycle override/restore, Make-over content ownership and fail-closed presentation ordering.'
+    dependsOn tasks.named('testClasses')
+
+    doLast {
+        [
+            'spk.local.ContentDialogueTransitionOwnershipTest',
+            'spk.local.MakeoverDialogueContentOwnershipTest',
+            'spk.local.ContentHandlerSamCompatibilityTest',
+            'spk.local.ContentRegistrarAuthorityCoverageTest',
+            'spk.local.ContentProvenanceAuthorityBoundaryTest',
+            'spk.local.ContentPublicApiBoundaryTest',
+            'spk.local.ContentRegistrationLifecycleTest',
+            'spk.local.ContentRegistrarSealTest',
+            'spk.local.PluginKernelLifecycleTest',
+            'spk.local.DialogueSessionServiceTest',
+            'spk.local.StandardDialoguePresentationAdapterTest',
+            'spk.local.MakeoverSemanticDialogueSessionTest',
+            'spk.local.MakeoverMageFlowTest',
+            'spk.local.MakeoverDialogueContentOwnershipTest',
+            'spk.local.LocalPendingRequestDispatcherTest'
+        ].each { mainClassName ->
+            project.javaexec {
+                workingDir repoRoot
+                classpath = sourceSets.test.runtimeClasspath
+                mainClass.set(mainClassName)
+            }
+        }
+
+        logger.lifecycle(
+            'CONTENT_DIALOGUE_TRANSITION_OWNERSHIP_REGRESSION_PASS registry=true pluginLifecycle=true makeover=true partialWire=false boundary=true'
+        )
+    }
+}
+
+tasks.register('twoOptionContentDialoguePresentationRegression') {
+    group = 'verification'
+    description = 'Validates exact two-option content presentation and Make-over content-owned dialogue copy without widening to unclosed option families.'
+    dependsOn tasks.named('testClasses')
+
+    doLast {
+        [
+            'spk.local.StandardDialoguePresentationAdapterTest',
+            'spk.local.ContentDialoguePresentationRuntimeTest',
+            'spk.local.ContentPublicApiBoundaryTest',
+            'spk.local.MakeoverDialoguePresentationOwnershipTest',
+            'spk.local.ContentDialogueTransitionOwnershipTest',
+            'spk.local.MakeoverSemanticDialogueSessionTest',
+            'spk.local.MakeoverMageFlowTest',
+            'spk.local.MakeoverDialogueContentOwnershipTest'
+        ].each { mainClassName ->
+            project.javaexec {
+                workingDir repoRoot
+                classpath = sourceSets.test.runtimeClasspath
+                mainClass.set(mainClassName)
+            }
+        }
+
+        logger.lifecycle(
+            'TWO_OPTION_CONTENT_DIALOGUE_PRESENTATION_REGRESSION_PASS exact2459=true contentApi=true makeoverCopy=true wireParity=true generalizedOptions=false'
+        )
+    }
+}
+
+
 tasks.named('check') {
     dependsOn tasks.named('customAssetPipelineRegression')
     dependsOn tasks.named('customAssetPipelineHardeningRegression')

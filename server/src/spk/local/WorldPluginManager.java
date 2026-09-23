@@ -994,5 +994,18 @@ final class WorldPluginManager
                 handler
             );
         }
+
+        @Override public ContentRegistration dialogue(
+            String dialogueKey,
+            int priority,
+            ContentDialogueHandler handler
+        ){
+            requireOpen();
+            return delegate.dialogue(
+                dialogueKey,
+                priority,
+                handler
+            );
+        }
     }
 }

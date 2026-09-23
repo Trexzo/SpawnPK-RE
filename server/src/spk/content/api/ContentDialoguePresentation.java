@@ -30,6 +30,22 @@ public interface ContentDialoguePresentation {
     );
 
     /**
+     * Show the exact-current standard two-option dialogue family.
+     *
+     * This capability is deliberately limited to exactly two options because
+     * only that child-widget presentation contract is closed by current v308
+     * evidence. It must not be interpreted as a generalized 2..5 option API.
+     */
+    default void twoOptions(
+        String title,
+        List<String> options
+    ){
+        throw new UnsupportedOperationException(
+            "two-option dialogue presentation unavailable"
+        );
+    }
+
+    /**
      * Close the current dialogue/interface presentation.
      */
     void close();
