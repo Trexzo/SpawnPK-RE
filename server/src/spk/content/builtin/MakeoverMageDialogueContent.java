@@ -28,6 +28,9 @@ public final class MakeoverMageDialogueContent
     public static final String OUTCOME_CLIENT_CLOSE=
         "makeover:client-close";
 
+    public static final String ACTION_APPLY_CHARACTER_DESIGN=
+        "makeover:apply-character-design";
+
     private static final ContentDialogueDefinition DEFINITION=
         new ContentDialogueDefinition(
             DIALOGUE_KEY,
@@ -81,6 +84,22 @@ public final class MakeoverMageDialogueContent
                 "Nevermind."
             )
         );
+    }
+
+    public ContentActionResult authorizeCharacterDesign(
+        ContentActionContext context
+    ){
+        if(context==null)
+            throw new NullPointerException("context");
+
+        if(!ACTION_APPLY_CHARACTER_DESIGN.equals(
+                context.actionKey()))
+            throw new IllegalArgumentException(
+                "unexpected action "+
+                context.actionKey()
+            );
+
+        return ContentActionResult.allow();
     }
 
     @Override public ContentDialogueTransition handle(
