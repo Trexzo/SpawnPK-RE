@@ -786,6 +786,42 @@ tasks.register('bloodSlayerPresentationRegression') {
     }
 }
 
+tasks.register('eventActivityPresentationRegression') {
+    group = 'verification'
+    description = 'Validates exact-v308 Event Activity S2C250 subtype-6 clear/append/render grammar over semantic quota rows.'
+    dependsOn tasks.named('testClasses')
+
+    doLast {
+        project.javaexec {
+            workingDir repoRoot
+            classpath = sourceSets.test.runtimeClasspath
+            mainClass.set('spk.local.EventActivityPresentationTest')
+        }
+
+        logger.lifecycle(
+            'EVENT_ACTIVITY_PRESENTATION_REGRESSION_PASS subtype6=true rows=7 policyOwned=false'
+        )
+    }
+}
+
+tasks.register('lootingBagPresentationRegression') {
+    group = 'verification'
+    description = 'Validates exact-v308 Looting Bag 28-slot S2C53 projection and per-stack item-option normalization without inventing bulk-widget/server rules.'
+    dependsOn tasks.named('testClasses')
+
+    doLast {
+        project.javaexec {
+            workingDir repoRoot
+            classpath = sourceSets.test.runtimeClasspath
+            mainClass.set('spk.local.LootingBagPresentationTest')
+        }
+
+        logger.lifecycle(
+            'LOOTING_BAG_PRESENTATION_REGRESSION_PASS capacity=28 perSlotOptions=4 bulkTransportOwned=false'
+        )
+    }
+}
+
 tasks.named('check') {
     dependsOn tasks.named('playerAppearanceRoleRegression')
     dependsOn tasks.named('verifyJava11Bytecode')
