@@ -115,6 +115,7 @@ final class CustomAssetNamespaceSnapshot {
                 CustomAssetAuthoringRepository.EXACT_V308_CLIENT_SHA256 +
                 " actual=" + clientSha
             );
+        clientSha = CustomAssetAuthoringRepository.EXACT_V308_CLIENT_SHA256;
 
         if (scopeLine == null || !scopeLine.startsWith("scope\t"))
             throw new IOException("namespace snapshot missing scope");
@@ -149,12 +150,14 @@ final class CustomAssetNamespaceSnapshot {
             }
 
             if ("CAPACITY".equals(type)) {
+                validateNamespaceContext(namespace, context, line);
                 if (value <= 0)
                     throw new IOException("capacity must be positive: " + line);
                 CapacityKey key = new CapacityKey(namespace, context);
                 if (capacities.put(key, value) != null)
                     throw new IOException("duplicate capacity: " + key);
             } else if ("PRESENT".equals(type)) {
+                validateNamespaceContext(namespace, context, line);
                 if (value < 0)
                     throw new IOException("negative namespace id: " + line);
                 Key key = new Key(namespace, context, value);
@@ -167,16 +170,9 @@ final class CustomAssetNamespaceSnapshot {
                     throw new IOException(
                         "GFX_CONTEXT requires PRIMARY or OSRS context: " + line
                     );
-                if (value < 0)
-                    throw new IOException("negative GFX context id: " + line);
                 Context previous = gfxContexts.put(value, context);
-                if (previous != null)
-                    throw new IOException(
-                        (previous == context
-                            ? "duplicate GFX model context for "
-                            : "conflicting GFX model context for ") +
-                        value
-                    );
+                if (previous != null && previous != context)
+                    throw new IOException("conflicting GFX model context for " + value);
             } else {
                 throw new IOException("unknown namespace snapshot recordType: " + type);
             }
@@ -185,6 +181,24 @@ final class CustomAssetNamespaceSnapshot {
         return new CustomAssetNamespaceSnapshot(
             clientSha, scope, capacities, present, gfxContexts
         );
+    }
+
+    private static void validateNamespaceContext(
+        Namespace namespace,
+        Context context,
+        String line
+    ) throws IOException {
+        if (namespace == Namespace.MODEL) {
+            if (context != Context.PRIMARY && context != Context.OSRS)
+                throw new IOException(
+                    "MODEL namespace requires PRIMARY or OSRS context: " + line
+                );
+            return;
+        }
+        if (context != Context.GLOBAL)
+            throw new IOException(
+                namespace + " namespace requires GLOBAL context: " + line
+            );
     }
 
     String clientSha256() { return clientSha256; }
