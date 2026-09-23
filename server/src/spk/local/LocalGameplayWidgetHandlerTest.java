@@ -61,10 +61,20 @@ public final class LocalGameplayWidgetHandlerTest {
         if(!player.magic().last().contains("DIRECT_ACCEPT"))
             throw new AssertionError("direct spell state not delegated");
 
+        String home=h.handle(1195,w);
+        if(home==null||
+           !home.contains("V510_MAGIC_DIRECT widget=1195")||
+           !home.contains("ACCEPTED_CLIENT_VISIBLE_REQUIREMENTS spell=Home Teleport"))
+            throw new AssertionError("home teleport route="+home);
+        if(!h.consumeAcceptedHomeTeleport())
+            throw new AssertionError("accepted home teleport effect not exposed");
+        if(h.consumeAcceptedHomeTeleport())
+            throw new AssertionError("home teleport effect was not one-shot");
+
         if(h.handle(999999,w)!=null)
             throw new AssertionError("unrelated widget must fall through");
 
         System.out.println(
-            "LOCAL_GAMEPLAY_WIDGET_HANDLER_PASS prayer=true combatStyle=true directSpell=true unrelatedFallthrough=true");
+            "LOCAL_GAMEPLAY_WIDGET_HANDLER_PASS prayer=true combatStyle=true directSpell=true homeTeleportEffect=true unrelatedFallthrough=true");
     }
 }
