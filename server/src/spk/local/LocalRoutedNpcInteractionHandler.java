@@ -81,7 +81,8 @@ final class LocalRoutedNpcInteractionHandler {
                     worldPlayer,
                     equipment,
                     movement,
-                    npcs
+                    npcs,
+                    contentRegistry
                 );
     }
 
