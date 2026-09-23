@@ -408,14 +408,11 @@ final class LocalMakeoverMageHandler {
                 "Make-over Continue did not enter options"
             );
 
-        StandardDialoguePresentationAdapter
-            .openTwoOptions(
-                packets,
-                "Select an Option",
-                java.util.Arrays.asList(
-                    "I'd like to change my look.",
-                    "Nevermind."
-                )
+        MakeoverMageDialogueContent
+            .presentOptions(
+                ContentRuntimeAdapters
+                    .presentation(packets)
+                    .dialogue()
             );
 
         System.out.println(
@@ -656,16 +653,6 @@ final class LocalMakeoverMageHandler {
         String tag,
         String reason
     )throws IOException{
-        StandardDialoguePresentationAdapter
-            .openNamedNpc(
-                packets,
-                NPC_ID,
-                "Make-over Mage",
-                java.util.Collections.singletonList(
-                    "How may I help you?"
-                )
-            );
-
         DialogueSessionService.Snapshot begun=
             dialogue.begin(
                 dialoguePlayerRef,
@@ -677,6 +664,13 @@ final class LocalMakeoverMageHandler {
                 begun.nodeKey))
             throw new IllegalStateException(
                 "Make-over dialogue did not begin at intro"
+            );
+
+        MakeoverMageDialogueContent
+            .presentIntro(
+                ContentRuntimeAdapters
+                    .presentation(packets)
+                    .dialogue()
             );
 
         designActive=false;
