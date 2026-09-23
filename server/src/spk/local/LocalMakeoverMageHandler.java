@@ -736,6 +736,10 @@ final class LocalMakeoverMageHandler {
     private DialogueSessionService createDialogueSession(
         ContentDialogueDefinition contentDefinition
     ){
+        validateMakeoverDefinition(
+            contentDefinition
+        );
+
         DialogueSessionService service=
             new DialogueSessionService(
                 DIALOGUE_POLICY,
@@ -781,6 +785,46 @@ final class LocalMakeoverMageHandler {
         );
 
         return service;
+    }
+
+    private static void validateMakeoverDefinition(
+        ContentDialogueDefinition definition
+    ){
+        if(!DIALOGUE_KEY.equals(
+                definition.dialogueKey())||
+           !INTRO_NODE.equals(
+                definition.startNodeKey())||
+           definition.nodes().size()!=2)
+            throw new IllegalStateException(
+                "incompatible Make-over dialogue topology key/start/nodeCount"
+            );
+
+        ContentDialogueNode intro=
+            definition.node(
+                INTRO_NODE
+            );
+        ContentDialogueNode options=
+            definition.node(
+                OPTIONS_NODE
+            );
+
+        if(intro==null||
+           intro.inputMode()!=
+                ContentDialogueNode.InputMode.CONTINUE||
+           intro.optionCount()!=0||
+           intro.closeSupported())
+            throw new IllegalStateException(
+                "incompatible Make-over intro topology"
+            );
+
+        if(options==null||
+           options.inputMode()!=
+                ContentDialogueNode.InputMode.OPTIONS||
+           options.optionCount()!=2||
+           !options.closeSupported())
+            throw new IllegalStateException(
+                "incompatible Make-over options topology"
+            );
     }
 
     private DialogueSessionService.Transition
