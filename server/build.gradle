@@ -594,6 +594,32 @@ tasks.register('dialogueSessionAbortRegression') {
     }
 }
 
+tasks.register('makeoverSemanticDialogueSessionRegression') {
+    group = 'verification'
+    description = 'Validates Make-over intro/options use DialogueSessionService semantics while preserving designer, wire and proximity behavior.'
+    dependsOn tasks.named('testClasses')
+
+    doLast {
+        [
+            'spk.local.DialogueSessionServiceTest',
+            'spk.local.MakeoverSemanticDialogueSessionTest',
+            'spk.local.MakeoverMageFlowTest',
+            'spk.local.MakeoverDesignRejectionIsolationTest',
+            'spk.local.MakeoverNpcProximityLifecycleTest'
+        ].each { mainClassName ->
+            project.javaexec {
+                workingDir repoRoot
+                classpath = sourceSets.test.runtimeClasspath
+                mainClass.set(mainClassName)
+            }
+        }
+
+        logger.lifecycle(
+            'MAKEOVER_SEMANTIC_DIALOGUE_SESSION_REGRESSION_PASS intro=true options=true designer=true abort=true legacyStage=false'
+        )
+    }
+}
+
 tasks.named('check') {
     dependsOn tasks.named('verifyJava11Bytecode')
     dependsOn tasks.named('clientBuildRevision308Compatibility')
