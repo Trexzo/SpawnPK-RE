@@ -210,6 +210,23 @@ public final class CustomAssetPipelineContractTest {
                 "slot-278 shared atlas should remain one namespace allocation"
             );
 
+        boolean sharedModelRejected = false;
+        try {
+            CustomAssetNamespacePreflight.claimShared(
+                snapshot,
+                new LinkedHashSet<>(),
+                CustomAssetNamespaceSnapshot.Namespace.MODEL,
+                CustomAssetNamespaceSnapshot.Context.PRIMARY,
+                79999,
+                "shared-model-invalid"
+            );
+        } catch (IllegalArgumentException expected) {
+            sharedModelRejected =
+                expected.getMessage().contains("restricted to exact-v308 texture slot 278");
+        }
+        if (!sharedModelRejected)
+            throw new AssertionError("non-texture namespace became shareable");
+
         LinkedHashSet<CustomAssetNamespacePreflight.IdKey> exclusiveModelClaims =
             new LinkedHashSet<>();
         CustomAssetNamespacePreflight.claim(
@@ -285,6 +302,7 @@ public final class CustomAssetPipelineContractTest {
             "cloneOrdering=true " +
             "definitionProjectionParity=true " +
             "sharedTextureAtlas=true " +
+            "sharedClaimRestricted=true " +
             "staticUntilAnimationProven=true " +
             "nonPetNpcSizeSentinel=true " +
             "namespaceCollisionRejected=true " +
