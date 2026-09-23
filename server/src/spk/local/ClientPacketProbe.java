@@ -1116,12 +1116,7 @@ final class ClientPacketProbe {
 
                 LoadoutEditorCompatibilityPairer.Outcome
                     loadout=
-                        dialogueOption>0
-                        ?loadoutEditorPairer.accept(
-                            text,
-                            decodedCount
-                        )
-                        :loadoutEditorPairer.accept(
+                        loadoutEditorPairer.accept(
                             text,
                             decodedCount
                         );
