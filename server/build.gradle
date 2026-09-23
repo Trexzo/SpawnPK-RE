@@ -11,6 +11,8 @@ def pinnedClientSha256 = '854f26ff9f134b0317572e7ac1688e6f40a231d5a4c66f8db5d655
 def v308AcceptanceClientSha256 = pinnedClientSha256
 
 def runtimeDataFiles = [
+    'custom_asset_authoring.tsv',
+    'custom_definition_overlays.tsv',
     'items.tsv',
     'equipment_slots.tsv',
     'production_appearance_slots.tsv',
@@ -840,7 +842,25 @@ tasks.register('rewardCofferPresentationRegression') {
     }
 }
 
+tasks.register('customAssetPipelineRegression', JavaExec) {
+    group = 'verification'
+    description = 'Validates the exact-v308 custom-asset authoring and namespace-preflight contract.'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.CustomAssetPipelineContractTest')
+}
+
+tasks.register('customAssetPipelineHardeningRegression', JavaExec) {
+    group = 'verification'
+    description = 'Validates fail-closed Issue #9 namespace, clone, sequence and exact client-definition hardening.'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass.set('spk.local.CustomAssetPipelineHardeningTest')
+}
+
 tasks.named('check') {
+    dependsOn tasks.named('customAssetPipelineRegression')
+    dependsOn tasks.named('customAssetPipelineHardeningRegression')
     dependsOn tasks.named('playerAppearanceRoleRegression')
     dependsOn tasks.named('verifyJava11Bytecode')
     dependsOn tasks.named('clientBuildRevision308Compatibility')

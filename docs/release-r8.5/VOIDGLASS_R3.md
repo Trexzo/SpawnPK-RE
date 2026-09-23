@@ -1,64 +1,50 @@
-# Voidglass Nistirio R3 — native compositor trial
+# Voidglass Nistirio R3 — retired native compositor trial
 
-R3 explicitly supersedes the rejected R2 Hydra recolor.
+R3 originally replaced the rejected Hydra recolor with four compositions of existing native models. That compositor path is now **superseded by Issue #9's exact-v308 custom asset pipeline**.
 
-## Corrected identity
+## Identity retained
 
-- Item: **29999** (inside the exact client's hard 0..29999 item-definition table).
-- Legacy R2 item 32760 is retired and removed from the live custom `i.bin` record set.
-- Item action 5 is `Drop` in both the client definition and LocalLab semantic authority.
-- Inventory model: 32324.
-- Default pet mapping: item 29999 -> NPC 12000.
+- LocalLab item: **29999**.
+- LocalLab pet NPC: **12000**.
+- Legacy invalid R2 item 32760 remains retired.
+- Server lifecycle remains normal item -> Drop -> pet mapping.
 
-The R3 patcher migrates exact R2 live configs, verifies the result, and is byte-idempotent on a second application.
+## What is retired
 
-## Four non-Hydra live candidates
+- the four NPC candidate family `12000..12003`;
+- native-model composition as the intended final visual;
+- `::voidglass3 candidate 2..4` as meaningful visual alternatives;
+- direct mutation of live `i.bin` / `e.bin` by `VoidglassR3ConfigPatchTool`.
 
-1. NPC 12000 — **Rift Reaper**
-   - models: 32327, 32325, 32324, 32326, 32765, 32530
-   - stand/walk: 1662 / 1663
-   - scale: 58
+`VoidglassR3ConfigPatchTool` now exposes only the exact-v308 namespace-preflight bridge. Patch/verify mutation modes fail closed.
 
-2. NPC 12001 — **Arcane Singularity**
-   - models: 17378, 17394, 17387, 17399, 17390, 34252
-   - stand/walk: 66 / 63
-   - scale: 45
+## Successor
 
-3. NPC 12002 — **Nightmare Shard**
-   - models: 39182, 32530, 40177
-   - stand/walk: 8593 / 8592
-   - scale: 45
+See `docs/CUSTOM_ASSET_PIPELINE_V308.md`.
 
-4. NPC 12003 — **Ripper Soul**
-   - models: 44733, 42282, 34252
-   - stand/walk: 10921 / 10920
-   - scale: 55
+The successor authoring row requests a single custom model identity and requires all item/NPC/model/animation/GFX/texture claims and references to pass an external `BASE_PLUS_EXACT_OVERRIDES` exact-v308 census before any binary build.
 
-No candidate uses Hydra model 36185 or Hydra idle/walk 8233/8232.
+Current proven format boundary:
 
-## Proc
+- legacy/no-marker textured + skinned model family;
+- rigid one-hot vertex skin groups;
+- guarded hierarchy flattening;
+- at most 64 mapping triangles;
+- texture slot 278 bootstrap;
+- exact GFX model context;
+- isolated cache copies only.
 
-- forced text: `VOIDGLASS RIFT`
-- GFX: 5042
-- candidate-specific animation
-- no gameplay modifier
-
-Hydra proc animation 8236 and GFX 4098 are not used.
+The repository-side successor does not claim the final binary model/cache build or live GUI visual acceptance yet.
 
 ## Runtime controls
 
+Compatibility commands remain:
+
 - `::voidglass3 give`
 - `::voidglass3 candidate 1`
-- `::voidglass3 candidate 2`
-- `::voidglass3 candidate 3`
-- `::voidglass3 candidate 4`
-- `::voidglass3 next`
+- `::voidglass3 next` (reselects the single authored identity)
 - `::voidglass3 proc`
 - `::voidglass3 status`
 - `::voidglass3 reset`
 
-`::voidglass2` remains an alias to the R3 controls for compatibility.
-
-## Boundary
-
-R3 is a **new composition of existing native model bytes**. It is deliberately no longer a Hydra recolor, but it is not yet a newly-authored raw 3D mesh/model archive. If none of the four candidates is visually good enough, the next lane is true model/cache injection rather than another recolor/compositor tweak.
+`::voidglass2` remains an alias for compatibility. Candidate indices 2..4 are retired.
