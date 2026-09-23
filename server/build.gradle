@@ -771,6 +771,36 @@ tasks.register('contentDialogueDefinitionOwnershipRegression') {
     }
 }
 
+tasks.register('dialogueOutcomeContentOwnershipRegression') {
+    group = 'verification'
+    description = 'Validates content-owned semantic dialogue outcomes and fail-closed Make-over effect execution.'
+    dependsOn tasks.named('testClasses')
+
+    doLast {
+        [
+            'spk.local.ContentDialogueOutcomeOwnershipTest',
+            'spk.local.ContentDialogueDefinitionOwnershipTest',
+            'spk.local.ContentDialogueTransitionOwnershipTest',
+            'spk.local.ContentHandlerSamCompatibilityTest',
+            'spk.local.ContentPublicApiBoundaryTest',
+            'spk.local.MakeoverDialoguePresentationOwnershipTest',
+            'spk.local.MakeoverSemanticDialogueSessionTest',
+            'spk.local.MakeoverMageFlowTest',
+            'spk.local.MakeoverDialogueContentOwnershipTest'
+        ].each { mainClassName ->
+            project.javaexec {
+                workingDir repoRoot
+                classpath = sourceSets.test.runtimeClasspath
+                mainClass.set(mainClassName)
+            }
+        }
+
+        logger.lifecycle(
+            'CONTENT_DIALOGUE_OUTCOME_OWNERSHIP_REGRESSION_PASS semanticOutcome=true optionEffectsContentOwned=true unsupportedFailsClosed=true partialWire=false boundary=true'
+        )
+    }
+}
+
 tasks.named('check') {
     dependsOn tasks.named('verifyJava11Bytecode')
     dependsOn tasks.named('clientBuildRevision308Compatibility')
