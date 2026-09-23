@@ -350,19 +350,14 @@ final class LocalMakeoverMageHandler {
         String tag
     )throws IOException{
         if(stage!=Stage.OPTIONS)return false;
-        if(option==1)
-            return handleWidget(
-                CHANGE_LOOK_WIDGET,
-                packets,
-                tag
-            );
-        if(option==2)
-            return handleWidget(
-                NEVERMIND_WIDGET,
-                packets,
-                tag
-            );
-        return false;
+        if(option<1||option>2)return false;
+
+        return handleWidget(
+            StandardDialoguePresentationAdapter
+                .twoOptionWidget(option),
+            packets,
+            tag
+        );
     }
 
     boolean handleWidget(
