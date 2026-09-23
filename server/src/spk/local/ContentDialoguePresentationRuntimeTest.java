@@ -9,6 +9,7 @@ import spk.content.api.*;
 public final class ContentDialoguePresentationRuntimeTest {
     public static void main(String[] args)throws Exception{
         defaultCapabilityFailsClosed();
+        legacyDialogueCapabilityFailsClosedForTwoOptions();
         runtimeContentWireParity();
 
         System.out.println(
@@ -16,6 +17,7 @@ public final class ContentDialoguePresentationRuntimeTest {
             "statement=true "+
             "namedNpc=true "+
             "twoOptions=true "+
+            "twoOptionsDefaultFailsClosed=true "+
             "close=true "+
             "wireParity=true "+
             "rawWidgetIdentity=false "+
@@ -63,6 +65,46 @@ public final class ContentDialoguePresentationRuntimeTest {
         if(!rejected)
             throw new AssertionError(
                 "alternate ContentPresentation did not fail closed"
+            );
+    }
+
+    private static void legacyDialogueCapabilityFailsClosedForTwoOptions(){
+        ContentDialoguePresentation legacy=
+            new ContentDialoguePresentation(){
+                @Override public void statement(
+                    java.util.List<String> lines
+                ){}
+
+                @Override public void namedNpc(
+                    int npcDefinitionId,
+                    String speakerName,
+                    java.util.List<String> lines
+                ){}
+
+                @Override public void close(){}
+            };
+
+        boolean rejected=false;
+
+        try{
+            legacy.twoOptions(
+                "Select an Option",
+                Arrays.asList(
+                    "One",
+                    "Two"
+                )
+            );
+        }catch(UnsupportedOperationException expected){
+            rejected=
+                expected.getMessage()!=null&&
+                expected.getMessage().contains(
+                    "two-option dialogue presentation unavailable"
+                );
+        }
+
+        if(!rejected)
+            throw new AssertionError(
+                "legacy ContentDialoguePresentation did not fail closed for twoOptions"
             );
     }
 
