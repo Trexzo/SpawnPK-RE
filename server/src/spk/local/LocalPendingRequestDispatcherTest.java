@@ -97,11 +97,6 @@ public final class LocalPendingRequestDispatcherTest {
                 );
             LocalItemSpawnCommandHandler itemSpawnCommands=
                 new LocalItemSpawnCommandHandler(bank);
-            LocalNurseCommandHandler nurseCommands=
-                new LocalNurseCommandHandler(
-                    playerState,
-                    movement
-                );
             LocalBankRequestHandler bankRequests=
                 new LocalBankRequestHandler(
                     player,
@@ -277,7 +272,6 @@ public final class LocalPendingRequestDispatcherTest {
                     devPlayerCommands,
                     devNpcCommands,
                     devToolCommands,
-                    nurseCommands,
                     voidglassCommands,
                     petRuntimeCommands,
                     compColorsCommands,
@@ -297,9 +291,6 @@ public final class LocalPendingRequestDispatcherTest {
                             String tag,
                             String reason
                         ){}
-                        @Override public boolean scopesightActive(){
-                            return false;
-                        }
                         @Override public void openDevPanel(
                             ServerPacketWriter serverPackets
                         ){}
