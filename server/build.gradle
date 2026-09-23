@@ -576,6 +576,24 @@ tasks.register('contentDialoguePresentationApiRegression') {
     }
 }
 
+tasks.register('dialogueSessionAbortRegression') {
+    group = 'verification'
+    description = 'Validates server-owned dialogue abort lifecycle, idempotence and stale-resolver fencing without conflating abort with client close intent.'
+    dependsOn tasks.named('testClasses')
+
+    doLast {
+        project.javaexec {
+            workingDir repoRoot
+            classpath = sourceSets.test.runtimeClasspath
+            mainClass.set('spk.local.DialogueSessionServiceTest')
+        }
+
+        logger.lifecycle(
+            'DIALOGUE_SESSION_ABORT_REGRESSION_PASS abort=true idempotent=true staleResolverFenced=true'
+        )
+    }
+}
+
 tasks.named('check') {
     dependsOn tasks.named('verifyJava11Bytecode')
     dependsOn tasks.named('clientBuildRevision308Compatibility')
