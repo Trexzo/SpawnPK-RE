@@ -31,6 +31,75 @@ public final class CustomAssetPipelineContractTest {
         if (!asset.provenance.startsWith("CUSTOM_LOCALLAB"))
             throw new AssertionError("provenance");
 
+        CustomAssetAuthoringRepository.Asset standaloneItem =
+            new CustomAssetAuthoringRepository.Asset(
+                CustomAssetAuthoringRepository.Kind.ITEM,
+                "test_item_no_npc",
+                29998,
+                -1,
+                "Test Item",
+                79998,
+                CustomAssetAuthoringRepository.ModelContext.PRIMARY,
+                -1,
+                0,
+                CustomAssetAuthoringRepository.ModelFamily.LEGACY_TEXTURED_SKINNED,
+                CustomAssetAuthoringRepository.SkinMode.RIGID_ONE_HOT,
+                CustomAssetAuthoringRepository.HierarchyMode.GUARDED_RIGID,
+                CustomAssetAuthoringRepository.TextureMode.NONE,
+                CustomAssetAuthoringRepository.AnimationMode.NONE,
+                -1,
+                -1,
+                -1,
+                -1,
+                -1,
+                CustomAssetAuthoringRepository.GfxMode.NONE,
+                CustomAssetAuthoringRepository.GfxModelContext.EXACT_CURRENT,
+                -1,
+                null,
+                false,
+                CustomAssetAuthoringRepository.EquipmentCoverage.NONE,
+                "CUSTOM_LOCALLAB_TEST_ITEM"
+            );
+        if (standaloneItem.npcId != -1 || standaloneItem.npcSize != -1)
+            throw new AssertionError("non-pet sentinel contract");
+
+        boolean nonPetNpcSizeRejected = false;
+        try {
+            new CustomAssetAuthoringRepository.Asset(
+                CustomAssetAuthoringRepository.Kind.EQUIPMENT,
+                "test_equipment_bad_npc_size",
+                29997,
+                -1,
+                "Test Equipment",
+                79997,
+                CustomAssetAuthoringRepository.ModelContext.PRIMARY,
+                -1,
+                0,
+                CustomAssetAuthoringRepository.ModelFamily.LEGACY_TEXTURED_SKINNED,
+                CustomAssetAuthoringRepository.SkinMode.RIGID_ONE_HOT,
+                CustomAssetAuthoringRepository.HierarchyMode.GUARDED_RIGID,
+                CustomAssetAuthoringRepository.TextureMode.NONE,
+                CustomAssetAuthoringRepository.AnimationMode.NONE,
+                -1,
+                -1,
+                -1,
+                -1,
+                -1,
+                CustomAssetAuthoringRepository.GfxMode.NONE,
+                CustomAssetAuthoringRepository.GfxModelContext.EXACT_CURRENT,
+                1,
+                EquipmentSlot.HEAD,
+                false,
+                CustomAssetAuthoringRepository.EquipmentCoverage.NONE,
+                "CUSTOM_LOCALLAB_TEST_EQUIPMENT"
+            );
+        } catch (IllegalArgumentException expected) {
+            nonPetNpcSizeRejected =
+                expected.getMessage().contains("non-pet asset must use npcSize=-1 sentinel");
+        }
+        if (!nonPetNpcSizeRejected)
+            throw new AssertionError("non-pet npcSize drift was not rejected");
+
         CustomDefinitionOverlayRepository.Overlay item =
             CustomDefinitionOverlayRepository.item(29999);
         CustomDefinitionOverlayRepository.Overlay npc =
@@ -206,6 +275,7 @@ public final class CustomAssetPipelineContractTest {
             "definitionProjectionParity=true " +
             "sharedTextureAtlas=true " +
             "staticUntilAnimationProven=true " +
+            "nonPetNpcSizeSentinel=true " +
             "namespaceCollisionRejected=true " +
             "gfxContextRequired=true " +
             "planSha256=" + first.planSha256
