@@ -92,6 +92,15 @@ final class CustomAssetNamespacePreflight {
 
         for (CustomAssetAuthoringRepository.Asset asset : assets) {
             validateDefinitionProjection(asset);
+            referenceDefinitionCloneSources(
+                snapshot,
+                references,
+                asset,
+                CustomDefinitionOverlayRepository.item(asset.itemId),
+                asset.kind == CustomAssetAuthoringRepository.Kind.PET
+                    ? CustomDefinitionOverlayRepository.npc(asset.npcId)
+                    : null
+            );
 
             claim(
                 snapshot, claims,
@@ -241,6 +250,38 @@ final class CustomAssetNamespacePreflight {
             CustomDefinitionOverlayRepository.fingerprintSha256(),
             planSha
         );
+    }
+
+    static void referenceDefinitionCloneSources(
+        CustomAssetNamespaceSnapshot snapshot,
+        Set<IdKey> references,
+        CustomAssetAuthoringRepository.Asset asset,
+        CustomDefinitionOverlayRepository.Overlay item,
+        CustomDefinitionOverlayRepository.Overlay npc
+    ) {
+        int itemSource = item == null ? -1 : item.cloneSourceId();
+        if (itemSource >= 0)
+            reference(
+                snapshot,
+                references,
+                CustomAssetNamespaceSnapshot.Namespace.ITEM,
+                CustomAssetNamespaceSnapshot.Context.GLOBAL,
+                itemSource,
+                asset.contentKey + ":itemCloneSource"
+            );
+
+        if (asset.kind != CustomAssetAuthoringRepository.Kind.PET) return;
+
+        int npcSource = npc == null ? -1 : npc.cloneSourceId();
+        if (npcSource >= 0)
+            reference(
+                snapshot,
+                references,
+                CustomAssetNamespaceSnapshot.Namespace.NPC,
+                CustomAssetNamespaceSnapshot.Context.GLOBAL,
+                npcSource,
+                asset.contentKey + ":npcCloneSource"
+            );
     }
 
     static void validateOverlayOwnership(
