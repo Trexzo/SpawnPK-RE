@@ -58,7 +58,7 @@ public final class VotingPresentationTest {
         for(VotingPresentation.SiteControl site:
                 sites)
             require(
-                site.actionWidget!=60164&&
+                site.primaryWidget!=60164&&
                 site.pairedWidget!=60165,
                 "Moparscape must remain dormant"
             );
@@ -66,7 +66,7 @@ public final class VotingPresentationTest {
 
     private static void requireSite(
         VotingService.Provider provider,
-        int actionWidget,
+        int primaryWidget,
         int pairedWidget,
         String displayName
     ){
@@ -75,7 +75,7 @@ public final class VotingPresentationTest {
 
         require(
             site.provider==provider&&
-            site.actionWidget==actionWidget&&
+            site.primaryWidget==primaryWidget&&
             site.pairedWidget==pairedWidget&&
             displayName.equals(site.displayName),
             "site "+provider
