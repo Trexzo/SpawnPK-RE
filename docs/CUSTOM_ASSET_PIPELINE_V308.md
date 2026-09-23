@@ -120,3 +120,24 @@ This proves metadata parsing, clone rules, deterministic plan hashing, collision
 It does not prove visual acceptance. Final acceptance still requires the verified binary build layer, exact-engine validation, isolated cache-copy hash proof, and a real local v308 GUI/world session.
 
 No current release (#431) acceptance claim is implied by this next-train branch.
+
+
+## Preserved R10-R12 research provenance
+
+The successor now carries `tools/custom-assets/verify_issue9_research_evidence.py` to pin the exact safe research packages that established the current format boundary.
+
+Verified package SHA-256 values:
+
+- R10 full authoring kit: `a83712a70b532dee3fde91c623cabe19e3e785064d9e03c45181f142f6f5a2f6`;
+- R11 successful Blender Actions artifact: `573b828ff42e2b8d563cd3fa985906d01f0625021f145a786783b805129d729b`;
+- R12 texture/render kit: `3143425a58240c424ba2ad189269627a0458500c6bde7e578619219e5a71a709`.
+
+The verifier also pins the preserved R10 rig/frame/a.bin compiler source, the R12 deterministic texture-278 archive builder, the exact R11 Blender-authored OBJ/skin/material/rig/PNG inputs, and the certified generated model/frame/animation hashes.
+
+The R11 authored-source hashes are byte-identical in the successful Actions artifact and in the R12 safe kit.
+
+One reproducibility boundary remains explicit: the standalone legacy textured+skinned model writer used for R11 was proven and independently rerun, but its source was not preserved in the surviving R11/R12 packages or research branch. The certified custom model output remains pinned at:
+
+`6cf617b5e14e60b5bc58d4f1c72e11476f09382d40a72f49be122009157c7fad`
+
+Do not substitute the preserved R10 FF-FF model converter: R11 rejected that family for the combined texture+skin contract. Until the legacy writer source is recovered or independently re-established against exact v308, the repository must report `modelWriterSourcePreserved=false` and must not claim source-to-model reproducibility.
