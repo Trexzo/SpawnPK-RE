@@ -559,7 +559,8 @@ final class Player81WorldSync {
                     p.playerState(),
                     morph,
                     state.world.appearanceRoleFor(
-                        p.username()
+                        p.username(),
+                        p.playerState()
                     )
                 );
             ByteArrayOutputStream out=new ByteArrayOutputStream(block.length+2);
