@@ -168,5 +168,28 @@ final class ApplicationControl126Service {
         );
     }
 
+    static void bloodPoolResetSlots(
+        ServerPacketWriter writer
+    )throws IOException{
+        publish(
+            writer,
+            ApplicationControl126Command
+                .bloodPoolResetSlots()
+        );
+    }
+
+    static void bloodPoolAppendOpaqueSlot(
+        ServerPacketWriter writer,
+        String exactRecord
+    )throws IOException{
+        publish(
+            writer,
+            ApplicationControl126Command
+                .bloodPoolAppendOpaque(
+                    exactRecord
+                )
+        );
+    }
+
     private ApplicationControl126Service(){}
 }
