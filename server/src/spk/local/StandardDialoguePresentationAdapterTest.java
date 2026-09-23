@@ -9,6 +9,7 @@ public final class StandardDialoguePresentationAdapterTest {
         namedNpcMakeoverParity();
         exactFamilies();
         twoOptionNormalization();
+        augmentedOptionCloseNormalization();
         statementProjection();
 
         System.out.println(
@@ -16,6 +17,7 @@ public final class StandardDialoguePresentationAdapterTest {
             "namedNpc1to4=true "+
             "statement1to5=true "+
             "twoOption2459=true "+
+            "augmentedClose54195=true "+
             "keyboardContinue4907=true "+
             "makeoverIntroWireParity=true "+
             "makeoverOptionsWireParity=true"
@@ -225,6 +227,27 @@ public final class StandardDialoguePresentationAdapterTest {
             StandardDialoguePresentationAdapter
                 .twoOptionIndexForWidget(2463)==0,
             "two-option normalization"
+        );
+    }
+
+    private static void augmentedOptionCloseNormalization(){
+        require(
+            StandardDialoguePresentationAdapter
+                .isAugmentedOptionCloseWidget(
+                    54195
+                ),
+            "augmented option close"
+        );
+        require(
+            !StandardDialoguePresentationAdapter
+                .isAugmentedOptionCloseWidget(
+                    54194
+                )&&
+            !StandardDialoguePresentationAdapter
+                .isAugmentedOptionCloseWidget(
+                    54196
+                ),
+            "augmented option close exactness"
         );
     }
 
