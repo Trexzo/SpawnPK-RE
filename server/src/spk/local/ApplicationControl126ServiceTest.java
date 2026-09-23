@@ -18,6 +18,7 @@ public final class ApplicationControl126ServiceTest {
         System.out.println(
             "APPLICATION_CONTROL_126_SERVICE_PASS "+
             "globalTarget=1 "+
+            "bloodPoolTarget=37 "+
             "collectionTargets=54315,54421,54422 "+
             "newline=true "+
             "targetTransform=shortA "+
@@ -32,6 +33,11 @@ public final class ApplicationControl126ServiceTest {
             ApplicationControl126Command.Target
                 .GLOBAL_CONTROL,
             1
+        );
+        assertTarget(
+            ApplicationControl126Command.Target
+                .BLOOD_POOL_SLOT_APPEND,
+            37
         );
         assertTarget(
             ApplicationControl126Command.Target
@@ -101,6 +107,22 @@ public final class ApplicationControl126ServiceTest {
             ),
             "LOGIN_REWARD_IDX 7",
             1
+        );
+
+        assertPayload(
+            ApplicationControl126Command
+                .bloodPoolResetSlots(),
+            "RESET_BLOOD_POOL_SHOP_SLOTS",
+            1
+        );
+
+        assertPayload(
+            ApplicationControl126Command
+                .bloodPoolAppendOpaque(
+                    "opaque-slot-record"
+                ),
+            "opaque-slot-record",
+            37
         );
 
         assertPayload(
@@ -186,6 +208,17 @@ public final class ApplicationControl126ServiceTest {
                     )
             );
 
+        ApplicationControl126Service
+            .bloodPoolResetSlots(
+                writer
+            );
+
+        ApplicationControl126Service
+            .bloodPoolAppendOpaqueSlot(
+                writer,
+                "opaque-slot-record"
+            );
+
         byte[] wire=
             out.toByteArray();
 
@@ -218,6 +251,22 @@ public final class ApplicationControl126ServiceTest {
             decode,
             "54314",
             54421
+        );
+
+        offset=assertPacket(
+            wire,
+            offset,
+            decode,
+            "RESET_BLOOD_POOL_SHOP_SLOTS",
+            1
+        );
+
+        offset=assertPacket(
+            wire,
+            offset,
+            decode,
+            "opaque-slot-record",
+            37
         );
 
         if(offset!=wire.length)
@@ -344,6 +393,18 @@ public final class ApplicationControl126ServiceTest {
         expectInvalid(
             ()->ApplicationControl126Command
                 .collectionSelectCategory(54307)
+        );
+
+        expectInvalid(
+            ()->ApplicationControl126Command
+                .bloodPoolAppendOpaque("   ")
+        );
+
+        expectInvalid(
+            ()->ApplicationControl126Command
+                .bloodPoolAppendOpaque(
+                    "row\nsecond"
+                )
         );
     }
 
