@@ -37,6 +37,13 @@ public final class CustomAssetPipelineContractTest {
             CustomDefinitionOverlayRepository.npc(12000);
         if (item == null || !"79999".equals(item.field("modelId")))
             throw new AssertionError("item overlay");
+        if (!"null,null,null,null,Drop".equals(item.field("actions")))
+            throw new AssertionError("item actions=" + item.field("actions"));
+        if (!"2086".equals(item.field("zoom")) ||
+            !"567,2031".equals(item.field("rotations")) ||
+            !"-4,0".equals(item.field("offsets")) ||
+            !"0".equals(item.field("zan2d")))
+            throw new AssertionError("proven item sprite camera fields");
         if (npc == null || !"79999".equals(npc.field("models")))
             throw new AssertionError("npc overlay");
         if (!"-1".equals(npc.field("standAnim")) ||
@@ -55,6 +62,12 @@ public final class CustomAssetPipelineContractTest {
             withField(item, "name", "Drifted item name"),
             npc,
             "ITEM overlay name mismatch"
+        );
+        assertProjectionRejected(
+            asset,
+            withField(item, "actions", "null,null,null,null,Use"),
+            npc,
+            "ITEM option-5 lifecycle mismatch"
         );
         assertProjectionRejected(
             asset,
@@ -96,6 +109,8 @@ public final class CustomAssetPipelineContractTest {
         assertRejectedItemField("cloneEquip");
         assertRejectedItemField("param_1");
         assertRejectedItemField("unknownField");
+        assertRejectedItemFieldValue("actions", "null,null,Drop");
+        assertRejectedItemFieldValue("actions", "null,null,null,null,");
 
         PetDefinitionRepository.Def pet = PetDefinitionRepository.get(29999);
         if (pet == null || pet.npcId != 12000 ||
@@ -206,6 +221,8 @@ public final class CustomAssetPipelineContractTest {
             "definitionProjectionParity=true " +
             "sharedTextureAtlas=true " +
             "staticUntilAnimationProven=true " +
+            "clientDropParity=true " +
+            "provenItemSpriteCamera=true " +
             "namespaceCollisionRejected=true " +
             "gfxContextRequired=true " +
             "planSha256=" + first.planSha256
@@ -256,6 +273,24 @@ public final class CustomAssetPipelineContractTest {
         }
         if (!rejected)
             throw new AssertionError("field should fail closed: " + field);
+    }
+
+    private static void assertRejectedItemFieldValue(
+        String field,
+        String value
+    ) {
+        boolean rejected = false;
+        try {
+            CustomDefinitionOverlayPolicy.validateField(
+                CustomDefinitionOverlayPolicy.Kind.ITEM, field, value
+            );
+        } catch (IllegalArgumentException expected) {
+            rejected = true;
+        }
+        if (!rejected)
+            throw new AssertionError(
+                "field value should fail closed: " + field + "=" + value
+            );
     }
 
     private static String validSnapshot(boolean collideModel, boolean includeGfxContext) {
