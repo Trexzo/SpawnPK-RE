@@ -45,6 +45,24 @@ final class BootstrapPackets {
 
     /** v5.4 player-aware bootstrap; old overloads deliberately remain for regression parity. */
     static void send(ServerPacketWriter w, String username, int[] equippedItems, int runEnergy, PlayerState player) throws IOException {
+        send(
+            w,
+            username,
+            equippedItems,
+            runEnergy,
+            player,
+            PlayerAppearanceRoleProjection.DEFAULT_ROLE
+        );
+    }
+
+    static void send(
+        ServerPacketWriter w,
+        String username,
+        int[] equippedItems,
+        int runEnergy,
+        PlayerState player,
+        int appearanceRole
+    ) throws IOException {
         // Packet 249 is fixed 3 bytes.
         // Client branch: Client.mk = mU.N(); Client.di = mU.U();
         // N() is byte-A, U() is little-endian short-A.
@@ -61,7 +79,18 @@ final class BootstrapPackets {
         // Local type-3 placement + local appearance update mask + zero other players.
         // Base after packet 73: (385-6)*8=3032, (436-6)*8=3440;
         // local offset 55,55 -> world 3087,3495.
-        w.varShort(81, player81TeleportWithAppearance(0, 55, 55, username, equippedItems, player));
+        w.varShort(
+            81,
+            player81TeleportWithAppearance(
+                0,
+                55,
+                55,
+                username,
+                equippedItems,
+                player,
+                appearanceRole
+            )
+        );
 
         // Packet 110 is fixed-1 and updates the legacy run-energy field eY.
         // The custom SpawnPK orb renderer does NOT draw directly from eY.
@@ -320,7 +349,33 @@ final class BootstrapPackets {
     }
 
     static byte[] player81TeleportWithAppearance(int plane, int localX, int localY, String username, int[] equippedItems, PlayerState player) throws IOException {
-        byte[] appearance = appearanceBlock(username, equippedItems, player);
+        return player81TeleportWithAppearance(
+            plane,
+            localX,
+            localY,
+            username,
+            equippedItems,
+            player,
+            PlayerAppearanceRoleProjection.DEFAULT_ROLE
+        );
+    }
+
+    static byte[] player81TeleportWithAppearance(
+        int plane,
+        int localX,
+        int localY,
+        String username,
+        int[] equippedItems,
+        PlayerState player,
+        int appearanceRole
+    ) throws IOException {
+        byte[] appearance = appearanceBlock(
+            username,
+            equippedItems,
+            player,
+            null,
+            appearanceRole
+        );
 
         BitWriter bits = new BitWriter();
         bits.write(1, 1);       // local update follows
@@ -353,7 +408,29 @@ final class BootstrapPackets {
     }
 
     static byte[] player81AppearanceOnly(String username, int[] equippedItems, PlayerState player, Integer npcTransformId) throws IOException {
-        byte[] appearance = appearanceBlock(username, equippedItems, player, npcTransformId);
+        return player81AppearanceOnly(
+            username,
+            equippedItems,
+            player,
+            npcTransformId,
+            PlayerAppearanceRoleProjection.DEFAULT_ROLE
+        );
+    }
+
+    static byte[] player81AppearanceOnly(
+        String username,
+        int[] equippedItems,
+        PlayerState player,
+        Integer npcTransformId,
+        int appearanceRole
+    ) throws IOException {
+        byte[] appearance = appearanceBlock(
+            username,
+            equippedItems,
+            player,
+            npcTransformId,
+            appearanceRole
+        );
         BitWriter bits = new BitWriter();
         bits.write(1, 1);      // local update follows
         bits.write(0, 2);      // movement type 0: no movement, mask follows
@@ -393,6 +470,28 @@ final class BootstrapPackets {
      * body/equipment slot decoding. The actor remains in the PLAYER array.
      */
     static byte[] appearanceBlock(String username, int[] equippedItems, PlayerState player, Integer npcTransformId) throws IOException {
+        return appearanceBlock(
+            username,
+            equippedItems,
+            player,
+            npcTransformId,
+            PlayerAppearanceRoleProjection.DEFAULT_ROLE
+        );
+    }
+
+    static byte[] appearanceBlock(
+        String username,
+        int[] equippedItems,
+        PlayerState player,
+        Integer npcTransformId,
+        int appearanceRole
+    ) throws IOException {
+        if(appearanceRole<Short.MIN_VALUE||
+           appearanceRole>Short.MAX_VALUE)
+            throw new IllegalArgumentException(
+                "appearanceRole outside signed-short range: "+
+                appearanceRole
+            );
         if(npcTransformId!=null && (npcTransformId<0 || npcTransformId>16383))
             throw new IllegalArgumentException("npcTransformId 0..16383");
         if (username == null || username.isEmpty()) username = "localtest";
@@ -412,7 +511,10 @@ final class BootstrapPackets {
         b.write(255); // bf: no prayer/status icon
         b.write(0);   // bg: presentation channel intentionally zero; v5.6 collection-icon guess was incorrect
         b.write(0);   // bh: default overhead offset state
-        putU16(b, 0); // signed-short role aC; zero is safe in the parser
+        putU16(
+            b,
+            appearanceRole & 0xffff
+        );            // signed-short role aC; semantic projection, default 0
 
         // A player with all 12 slots zero parses correctly but has no renderable
         // body parts.  The 317 appearance editor maps its seven identity-kit
