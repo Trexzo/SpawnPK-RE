@@ -37,6 +37,31 @@ public final class PlayerAppearanceRolePacket81Test {
                 "unassigned role default"
             );
 
+            PlayerState overrideProbe=new PlayerState();
+            require(
+                world.appearanceRoleFor(
+                    "player:alice",
+                    overrideProbe
+                )==45,
+                "semantic role without dev override"
+            );
+            overrideProbe.setAppearanceRank(38);
+            require(
+                world.appearanceRoleFor(
+                    "player:alice",
+                    overrideProbe
+                )==38,
+                "dev override precedence"
+            );
+            overrideProbe.clearAppearanceRankOverride();
+            require(
+                world.appearanceRoleFor(
+                    "player:alice",
+                    overrideProbe
+                )==45,
+                "dev override clear restores semantic role"
+            );
+
             int[] worn=new int[12];
             Arrays.fill(worn,-1);
             worn[EquipmentSlot.HEAD.appearanceIndex]=22131;
@@ -121,6 +146,8 @@ public final class PlayerAppearanceRolePacket81Test {
             System.out.println(
                 "PLAYER_APPEARANCE_ROLE_PACKET81_PASS "+
                 "semanticWorldProjection=true "+
+                "devOverridePrecedence=true "+
+                "clearRestoresSemantic=true "+
                 "signedBe16Ac=true "+
                 "wornHeadGatePreserved=true "+
                 "overrideBsSeparate=true "+
