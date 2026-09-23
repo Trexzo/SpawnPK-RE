@@ -515,10 +515,6 @@ final class LocalWorldTickCoordinator {
 
         if(movementTick!=null){
             movementTickCount++;
-            bridge.saveAccount(
-                tag,
-                "TRANSIENT_REGION_POSITION_NONPERSISTENT"
-            );
         }
 
         petDropPickup.tick(
@@ -552,7 +548,7 @@ final class LocalWorldTickCoordinator {
                 movement.loadedBaseX()+","+
                 movement.loadedBaseY()+
                 " queued="+movement.queued()+
-                " staticCollision=true homeWorldNpcSystemsSuspended=true petLifecycleActive=true"
+                " staticCollision=true homeWorldNpcSystemsSuspended=true petLifecycleActive=true transientPositionSave=false"
             );
         }
     }
