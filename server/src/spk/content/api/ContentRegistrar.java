@@ -73,4 +73,10 @@ public interface ContentRegistrar {
         int priority,
         ContentDialogueHandler handler
     );
+
+    ContentRegistration action(
+        String actionKey,
+        int priority,
+        ContentActionHandler handler
+    );
 }

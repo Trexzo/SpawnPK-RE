@@ -3,6 +3,7 @@ package spk.local;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import spk.content.api.ContentActionResult;
 import spk.content.api.ContentModule;
 import spk.content.api.ContentRegistrar;
 import spk.content.api.ContentRegistration;
@@ -227,6 +228,31 @@ public final class ContentRegistrarSealTest {
             registry.commandBinding(command)==null,
             "late registrar mutation accepted "+
             command
+        );
+
+        String action=command+":action";
+        boolean actionRejected=false;
+
+        try{
+            registrar.action(
+                action,
+                1,
+                context->
+                    ContentActionResult.allow()
+            );
+        }catch(IllegalStateException expected){
+            actionRejected=
+                expected.getMessage()!=null&&
+                expected.getMessage().contains(
+                    "content registrar closed"
+                );
+        }
+
+        require(
+            actionRejected&&
+            registry.actionBinding(action)==null,
+            "late action registrar mutation accepted "+
+            action
         );
     }
 

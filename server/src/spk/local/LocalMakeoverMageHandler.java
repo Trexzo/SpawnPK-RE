@@ -38,12 +38,13 @@ final class LocalMakeoverMageHandler {
     private final NpcRegistry npcs;
     private final InteractionApproachResolver approach;
     private final String dialoguePlayerRef;
-    private final DialogueSessionService dialogue;
+    private DialogueSessionService dialogue;
     private final ContentRegistry contentRegistry;
-    private final ContentDialogueHandler fallbackDialoguePolicy=
+    private final MakeoverMageDialogueContent fallbackDialoguePolicy=
         new MakeoverMageDialogueContent();
 
     private boolean designActive;
+    private String pendingDialogueOutcome;
 
     private Integer pendingScene;
     private NpcEntity pendingNpc;
@@ -111,43 +112,9 @@ final class LocalMakeoverMageHandler {
             "entity:"+
             this.worldPlayer.id();
         this.dialogue=
-            new DialogueSessionService(
-                DIALOGUE_POLICY,
-                (player,definition,node,intent,before)->
-                    resolveDialogueTransition(
-                        node.nodeKey,
-                        intent
-                    )
+            createDialogueSession(
+                effectiveDialogueDefinition()
             );
-
-        this.dialogue.register(
-            new DialogueSessionService
-                .DialogueDefinition(
-                    DIALOGUE_KEY,
-                    INTRO_NODE,
-                    java.util.Arrays.asList(
-                        new DialogueSessionService
-                            .NodeDefinition(
-                                INTRO_NODE,
-                                DialogueSessionService
-                                    .InputMode.CONTINUE,
-                                0,
-                                false,
-                                DIALOGUE_POLICY
-                            ),
-                        new DialogueSessionService
-                            .NodeDefinition(
-                                OPTIONS_NODE,
-                                DialogueSessionService
-                                    .InputMode.OPTIONS,
-                                2,
-                                true,
-                                DIALOGUE_POLICY
-                            )
-                    ),
-                    DIALOGUE_POLICY
-                )
-        );
     }
 
     boolean beginIfSupported(
@@ -396,6 +363,8 @@ final class LocalMakeoverMageHandler {
                 ))
             return false;
 
+        pendingDialogueOutcome=null;
+
         DialogueSessionService.Snapshot after=
             dialogue.continueDialogue(
                 dialoguePlayerRef
@@ -406,6 +375,11 @@ final class LocalMakeoverMageHandler {
                 after.nodeKey))
             throw new IllegalStateException(
                 "Make-over Continue did not enter options"
+            );
+
+        if(takeDialogueOutcome()!=null)
+            throw new IllegalStateException(
+                "Make-over Continue produced unexpected outcome"
             );
 
         MakeoverMageDialogueContent
@@ -473,6 +447,8 @@ final class LocalMakeoverMageHandler {
                 .isAugmentedOptionCloseWidget(
                     widget
                 )){
+            pendingDialogueOutcome=null;
+
             DialogueSessionService.Snapshot ended=
                 dialogue.close(
                     dialoguePlayerRef
@@ -481,6 +457,16 @@ final class LocalMakeoverMageHandler {
             if(ended.active)
                 throw new IllegalStateException(
                     "Make-over close did not end semantic dialogue"
+                );
+
+            String outcome=takeDialogueOutcome();
+
+            if(!MakeoverMageDialogueContent
+                    .OUTCOME_CLIENT_CLOSE
+                    .equals(outcome))
+                throw new IllegalStateException(
+                    "unsupported Make-over close outcome="+
+                    outcome
                 );
 
             StandardDialoguePresentationAdapter
@@ -498,18 +484,28 @@ final class LocalMakeoverMageHandler {
             StandardDialoguePresentationAdapter
                 .twoOptionIndexForWidget(widget);
 
-        if(optionIndex==1){
-            DialogueSessionService.Snapshot ended=
-                dialogue.chooseOption(
-                    dialoguePlayerRef,
-                    1
-                );
+        if(optionIndex==0)
+            return false;
 
-            if(ended.active)
-                throw new IllegalStateException(
-                    "Make-over option 1 did not end semantic dialogue"
-                );
+        pendingDialogueOutcome=null;
 
+        DialogueSessionService.Snapshot ended=
+            dialogue.chooseOption(
+                dialoguePlayerRef,
+                optionIndex
+            );
+
+        if(ended.active)
+            throw new IllegalStateException(
+                "Make-over option did not end semantic dialogue option="+
+                optionIndex
+            );
+
+        String outcome=takeDialogueOutcome();
+
+        if(MakeoverMageDialogueContent
+                .OUTCOME_OPEN_DESIGNER
+                .equals(outcome)){
             StandardDialoguePresentationAdapter
                 .close(packets);
             packets.fixed(
@@ -529,18 +525,9 @@ final class LocalMakeoverMageHandler {
             return true;
         }
 
-        if(optionIndex==2){
-            DialogueSessionService.Snapshot ended=
-                dialogue.chooseOption(
-                    dialoguePlayerRef,
-                    2
-                );
-
-            if(ended.active)
-                throw new IllegalStateException(
-                    "Make-over option 2 did not end semantic dialogue"
-                );
-
+        if(MakeoverMageDialogueContent
+                .OUTCOME_CANCEL
+                .equals(outcome)){
             StandardDialoguePresentationAdapter
                 .close(packets);
             clearActive();
@@ -552,7 +539,11 @@ final class LocalMakeoverMageHandler {
             return true;
         }
 
-        return false;
+        throw new IllegalStateException(
+            "unsupported Make-over option outcome="+
+            outcome+
+            " option="+optionIndex
+        );
     }
 
     Result handleDesign(
@@ -578,6 +569,24 @@ final class LocalMakeoverMageHandler {
                 null,
                 "MAKEOVER_MAGE_DESIGN_REJECTED reason=INVALID_EXACT_PROFILE request="+
                     request
+            );
+        }
+
+        ContentActionResult authorization=
+            authorizeCharacterDesign();
+
+        if(!authorization.allowed()){
+            StandardDialoguePresentationAdapter
+                .close(packets);
+            clearActive();
+
+            return Result.handled(
+                null,
+                "MAKEOVER_MAGE_DESIGN_REJECTED reason=CONTENT_ACTION_DENIED action="+
+                    MakeoverMageDialogueContent
+                        .ACTION_APPLY_CHARACTER_DESIGN+
+                    " reasonKey="+
+                    authorization.reasonKey()
             );
         }
 
@@ -653,6 +662,8 @@ final class LocalMakeoverMageHandler {
         String tag,
         String reason
     )throws IOException{
+        refreshDialogueDefinitionForNewSession();
+
         DialogueSessionService.Snapshot begun=
             dialogue.begin(
                 dialoguePlayerRef,
@@ -726,6 +737,181 @@ final class LocalMakeoverMageHandler {
         );
     }
 
+    private ContentActionResult authorizeCharacterDesign(){
+        ContentActionResult result;
+
+        if(contentRegistry!=null){
+            result=
+                contentRegistry.dispatchAction(
+                    worldPlayer,
+                    MakeoverMageDialogueContent
+                        .ACTION_APPLY_CHARACTER_DESIGN
+                );
+
+            if(result==null)
+                throw new IllegalStateException(
+                    "Make-over character-design content action missing key="+
+                    MakeoverMageDialogueContent
+                        .ACTION_APPLY_CHARACTER_DESIGN
+                );
+        }else{
+            result=
+                fallbackDialoguePolicy
+                    .authorizeCharacterDesign(
+                        new ContentActionContext(){
+                            @Override public String actionKey(){
+                                return MakeoverMageDialogueContent
+                                    .ACTION_APPLY_CHARACTER_DESIGN;
+                            }
+
+                            @Override public ContentPlayer player(){
+                                return ContentRuntimeAdapters.player(
+                                    worldPlayer
+                                );
+                            }
+                        }
+                    );
+        }
+
+        return java.util.Objects.requireNonNull(
+            result,
+            "Make-over character-design authorization"
+        );
+    }
+
+    private ContentDialogueDefinition
+        effectiveDialogueDefinition()
+    {
+        ContentDialogueDefinition definition=
+            contentRegistry==null
+                ?fallbackDialoguePolicy.definition()
+                :contentRegistry.dialogueDefinition(
+                    DIALOGUE_KEY
+                );
+
+        if(definition==null)
+            throw new IllegalStateException(
+                "Make-over dialogue definition missing key="+
+                DIALOGUE_KEY
+            );
+
+        if(!DIALOGUE_KEY.equals(
+                definition.dialogueKey()))
+            throw new IllegalStateException(
+                "Make-over dialogue definition key mismatch "+
+                definition.dialogueKey()
+            );
+
+        return definition;
+    }
+
+    private void refreshDialogueDefinitionForNewSession(){
+        if(dialogue!=null&&
+           dialogue.snapshot(
+               dialoguePlayerRef
+           ).active)
+            return;
+
+        dialogue=
+            createDialogueSession(
+                effectiveDialogueDefinition()
+            );
+    }
+
+    private DialogueSessionService createDialogueSession(
+        ContentDialogueDefinition contentDefinition
+    ){
+        validateMakeoverDefinition(
+            contentDefinition
+        );
+
+        DialogueSessionService service=
+            new DialogueSessionService(
+                DIALOGUE_POLICY,
+                (player,definition,node,intent,before)->
+                    resolveDialogueTransition(
+                        node.nodeKey,
+                        intent
+                    )
+            );
+
+        java.util.ArrayList<
+            DialogueSessionService.NodeDefinition
+        > nodes=
+            new java.util.ArrayList<>();
+
+        for(ContentDialogueNode node:
+                contentDefinition.nodes())
+            nodes.add(
+                new DialogueSessionService
+                    .NodeDefinition(
+                        node.nodeKey(),
+                        node.inputMode()==
+                            ContentDialogueNode
+                                .InputMode.CONTINUE
+                            ?DialogueSessionService
+                                .InputMode.CONTINUE
+                            :DialogueSessionService
+                                .InputMode.OPTIONS,
+                        node.optionCount(),
+                        node.closeSupported(),
+                        DIALOGUE_POLICY
+                    )
+            );
+
+        service.register(
+            new DialogueSessionService
+                .DialogueDefinition(
+                    contentDefinition.dialogueKey(),
+                    contentDefinition.startNodeKey(),
+                    nodes,
+                    DIALOGUE_POLICY
+                )
+        );
+
+        return service;
+    }
+
+    private static void validateMakeoverDefinition(
+        ContentDialogueDefinition definition
+    ){
+        if(!DIALOGUE_KEY.equals(
+                definition.dialogueKey())||
+           !INTRO_NODE.equals(
+                definition.startNodeKey())||
+           definition.nodes().size()!=2)
+            throw new IllegalStateException(
+                "incompatible Make-over dialogue topology key/start/nodeCount"
+            );
+
+        ContentDialogueNode intro=
+            definition.node(
+                INTRO_NODE
+            );
+        ContentDialogueNode options=
+            definition.node(
+                OPTIONS_NODE
+            );
+
+        if(intro==null||
+           intro.inputMode()!=
+                ContentDialogueNode.InputMode.CONTINUE||
+           intro.optionCount()!=0||
+           intro.closeSupported())
+            throw new IllegalStateException(
+                "incompatible Make-over intro topology"
+            );
+
+        if(options==null||
+           options.inputMode()!=
+                ContentDialogueNode.InputMode.OPTIONS||
+           options.optionCount()!=2||
+           !options.closeSupported())
+            throw new IllegalStateException(
+                "incompatible Make-over options topology"
+            );
+    }
+
     private DialogueSessionService.Transition
         resolveDialogueTransition(
             String nodeKey,
@@ -776,6 +962,9 @@ final class LocalMakeoverMageHandler {
                 );
         }
 
+        pendingDialogueOutcome=
+            contentTransition.outcomeKey();
+
         switch(contentTransition.kind()){
             case STAY:
                 return DialogueSessionService
@@ -818,6 +1007,12 @@ final class LocalMakeoverMageHandler {
         }
     }
 
+    private String takeDialogueOutcome(){
+        String outcome=pendingDialogueOutcome;
+        pendingDialogueOutcome=null;
+        return outcome;
+    }
+
     private void clearPending(
         boolean clearRoute
     ){
@@ -833,6 +1028,7 @@ final class LocalMakeoverMageHandler {
         dialogue.abort(
             dialoguePlayerRef
         );
+        pendingDialogueOutcome=null;
         designActive=false;
         activeScene=null;
         activeNpc=null;

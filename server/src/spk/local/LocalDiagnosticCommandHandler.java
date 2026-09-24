@@ -48,13 +48,6 @@ final class LocalDiagnosticCommandHandler {
         if(p==null||p.length==0)return false;
         String command=p[0];
 
-        if(command.equalsIgnoreCase("authority")){
-            int item=p.length>=2?parseInt(p[1],equipment.weapon()):equipment.weapon();
-            System.out.println(tag+"V5170_CONTENT_AUTHORITY "+ContentAuthorityRepository.summary()+
-                " current={"+ContentAuthorityRepository.itemSummary(item)+"}");
-            return true;
-        }
-
         if(command.equalsIgnoreCase("equipstr")){
             int item=p.length>=2?parseInt(p[1],-1):-1;
             ItemAuthorityRepository.Entry e=ItemAuthorityRepository.get(item);

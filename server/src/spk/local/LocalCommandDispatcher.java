@@ -149,18 +149,6 @@ final class LocalCommandDispatcher {
             );
         }
 
-        if(p.length>=1&&
-           p[0].equalsIgnoreCase(
-               "contentregistry"
-           )){
-            System.out.println(
-                tag+
-                "CONTENT_REGISTRY_DIAGNOSTIC "+
-                contentRegistry.summary()
-            );
-            return true;
-        }
-
         if(isDevPanelRoute(p)){
             bridge.openDevPanel(serverPackets);
             System.out.println(
@@ -202,18 +190,6 @@ final class LocalCommandDispatcher {
             serverPackets,
             tag
         ))return true;
-
-        if(p.length>=1&&p[0].equalsIgnoreCase("authority")){
-            System.out.println(
-                tag+"V5124_AUTHORITY "+AuthorityR16R25Publisher.status()+
-                " bankWrapperExact="+BankState.BANK_WRAPPER_ROOT+
-                " bankRuntimeRoot="+BankState.BANK_ROOT+
-                " combatProfiles="+CombatStyleRepository.rootCount()+
-                " combatStyles="+CombatStyleRepository.countStyles()+
-                " note=R25_core_17_59_plus_independent_exact_staff328_3; unproven_server_mechanics_remain_fail_closed"
-            );
-            return true;
-        }
 
         LocalMiniPetCommandHandler.Result miniPetCommand=
             miniPetCommands.handle(p,serverPackets);
@@ -292,17 +268,6 @@ final class LocalCommandDispatcher {
         if(devToolCommand!=null){
             for(String line:devToolCommand)
                 System.out.println(tag+line);
-            return true;
-        }
-
-        if(p.length>=1&&p[0].equalsIgnoreCase("appfixture")){
-            String which=p.length>=2?p[1]:"help";
-            String appResult=
-                ApplicationUiFixtureService.run(which,serverPackets);
-            System.out.println(
-                tag+"R85_APP_FIXTURE "+appResult+
-                " authority=LOCAL_DEV_FIXTURE clientProtocol=EXACT_CURRENT"
-            );
             return true;
         }
 

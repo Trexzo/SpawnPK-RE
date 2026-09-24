@@ -21,6 +21,40 @@ public final class MakeoverMageDialogueContent
     public static final String OPTIONS_NODE=
         "node:options";
 
+    public static final String OUTCOME_OPEN_DESIGNER=
+        "makeover:open-designer";
+    public static final String OUTCOME_CANCEL=
+        "makeover:cancel";
+    public static final String OUTCOME_CLIENT_CLOSE=
+        "makeover:client-close";
+
+    public static final String ACTION_APPLY_CHARACTER_DESIGN=
+        "makeover:apply-character-design";
+
+    private static final ContentDialogueDefinition DEFINITION=
+        new ContentDialogueDefinition(
+            DIALOGUE_KEY,
+            INTRO_NODE,
+            Arrays.asList(
+                new ContentDialogueNode(
+                    INTRO_NODE,
+                    ContentDialogueNode.InputMode.CONTINUE,
+                    0,
+                    false
+                ),
+                new ContentDialogueNode(
+                    OPTIONS_NODE,
+                    ContentDialogueNode.InputMode.OPTIONS,
+                    2,
+                    true
+                )
+            )
+        );
+
+    @Override public ContentDialogueDefinition definition(){
+        return DEFINITION;
+    }
+
     public static void presentIntro(
         ContentDialoguePresentation presentation
     ){
@@ -52,6 +86,22 @@ public final class MakeoverMageDialogueContent
         );
     }
 
+    public ContentActionResult authorizeCharacterDesign(
+        ContentActionContext context
+    ){
+        if(context==null)
+            throw new NullPointerException("context");
+
+        if(!ACTION_APPLY_CHARACTER_DESIGN.equals(
+                context.actionKey()))
+            throw new IllegalArgumentException(
+                "unexpected action "+
+                context.actionKey()
+            );
+
+        return ContentActionResult.allow();
+    }
+
     @Override public ContentDialogueTransition handle(
         ContentDialogueContext context
     ){
@@ -77,12 +127,26 @@ public final class MakeoverMageDialogueContent
             );
 
         if(OPTIONS_NODE.equals(
-                context.nodeKey())&&
-           (intent.kind()==
-                ContentDialogueIntent.Kind.OPTION||
-            intent.kind()==
-                ContentDialogueIntent.Kind.CLOSE))
-            return ContentDialogueTransition.end();
+                context.nodeKey())){
+            if(intent.kind()==
+                    ContentDialogueIntent.Kind.OPTION){
+                if(intent.optionIndex()==1)
+                    return ContentDialogueTransition.end(
+                        OUTCOME_OPEN_DESIGNER
+                    );
+
+                if(intent.optionIndex()==2)
+                    return ContentDialogueTransition.end(
+                        OUTCOME_CANCEL
+                    );
+            }
+
+            if(intent.kind()==
+                    ContentDialogueIntent.Kind.CLOSE)
+                return ContentDialogueTransition.end(
+                    OUTCOME_CLIENT_CLOSE
+                );
+        }
 
         throw new IllegalStateException(
             "unsupported Make-over dialogue transition node="+

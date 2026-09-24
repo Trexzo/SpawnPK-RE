@@ -1007,5 +1007,18 @@ final class WorldPluginManager
                 handler
             );
         }
+
+        @Override public ContentRegistration action(
+            String actionKey,
+            int priority,
+            ContentActionHandler handler
+        ){
+            requireOpen();
+            return delegate.action(
+                actionKey,
+                priority,
+                handler
+            );
+        }
     }
 }
