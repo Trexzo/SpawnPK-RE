@@ -136,7 +136,32 @@ public final class CosmeticContentCommandActionOwnershipTest {
             LocalContentCommandActionExecutor executor=
                 new LocalContentCommandActionExecutor(
                     cosmetics,
-                    compColors
+                    compColors,
+                    new LocalMiniPetCommandHandler(
+                        player.miniPets(),
+                        player.petState(),
+                        new NpcRegistry(
+                            dev
+                        ),
+                        player.movement()
+                    ),
+                    new LocalPetCompatibilityCommandHandler(
+                        player.petAccessoryState(),
+                        new NpcRegistry(
+                            dev
+                        ),
+                        player.movement(),
+                        new LocalPetInventoryDialogHandler(
+                            player.bank(),
+                            player.miniPets(),
+                            player.petState(),
+                            new NpcRegistry(
+                                dev
+                            ),
+                            player.movement(),
+                            player.petAccessoryState()
+                        )
+                    )
                 );
 
             ByteArrayOutputStream effectWire=

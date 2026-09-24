@@ -11,4 +11,8 @@ interface LocalDiagnosticContentPlayer {
     String magicStateSummary();
     int weaponItemId();
     String combatStyleStateSummary(int interfaceRoot);
+    String combatWeaponProfileSummary();
+    int combatTargetSceneIndex();
+    int combatTargetDefinitionId();
+    String combatContextSummary();
 }

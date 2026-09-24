@@ -87,6 +87,13 @@ final class LocalDiagnosticContentModule
             100,
             this::styleInfo
         );
+
+
+        registrar.command(
+            "combatprobe",
+            100,
+            this::combatProbe
+        );
     }
 
     private ContentResult prayerInfo(
@@ -119,6 +126,42 @@ final class LocalDiagnosticContentModule
                 player.magicStateSummary()+
                 " definitions="+
                 SpellDefinitionRepository.count(),
+            null
+        );
+    }
+
+    private ContentResult combatProbe(
+        ContentCommandContext context
+    ){
+        LocalDiagnosticContentPlayer player=
+            diagnosticPlayer(
+                context
+            );
+
+        int weapon=
+            player.weaponItemId();
+        int combatRoot=
+            CombatInterfaceRepository.forWeapon(
+                weapon
+            );
+
+        return ContentResult.handled(
+            "V56_COMBAT_PROBE weapon="+
+                weapon+
+                " profile="+
+                player.combatWeaponProfileSummary()+
+                " style={"+
+                player.combatStyleStateSummary(
+                    combatRoot
+                )+
+                "}"+
+                " targetScene="+
+                player.combatTargetSceneIndex()+
+                " targetDef="+
+                player.combatTargetDefinitionId()+
+                " context="+
+                player.combatContextSummary()+
+                " formula=UNRESOLVED_NO_DAMAGE_GUESS",
             null
         );
     }

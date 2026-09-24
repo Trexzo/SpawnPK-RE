@@ -1693,6 +1693,129 @@ tasks.register('playerStateDiagnosticContentOwnershipRegression') {
 }
 
 
+tasks.register('petSwitchColorContentCommandActionOwnershipRegression') {
+    group = 'verification'
+    description = 'Validates content-owned petswitchcolor policy with an internal runtime dialog outcome and session bridge.'
+    dependsOn tasks.named('testClasses')
+
+    doLast {
+        [
+            'spk.local.PetSwitchColorContentCommandActionOwnershipTest',
+            'spk.local.LocalPetCompatibilityCommandHandlerTest',
+            'spk.local.PetAccessoryContentCommandActionOwnershipTest',
+            'spk.local.MiniPetContentCommandActionOwnershipTest',
+            'spk.local.CompColorsContentCommandActionOwnershipTest',
+            'spk.local.CosmeticContentCommandActionOwnershipTest',
+            'spk.local.ContentPublicApiBoundaryTest',
+            'spk.local.ContentRegistryTest',
+            'spk.local.ContentHandlerSamCompatibilityTest',
+            'spk.local.ContentProvenanceAuthorityBoundaryTest',
+            'spk.local.LocalCommandDispatcherTest'
+        ].each { mainClassName ->
+            project.javaexec {
+                workingDir repoRoot
+                classpath = sourceSets.test.runtimeClasspath
+                mainClass.set(mainClassName)
+            }
+        }
+
+        logger.lifecycle(
+            'PET_SWITCH_COLOR_CONTENT_COMMAND_ACTION_OWNERSHIP_PASS binding=true semanticAction=true defaultRequest=true invalidRequest=true extraArgsCompatibility=true policyWireBytes=0 internalDialogOutcome=true rejectedDialogResult=true malformedFailClosed=true dialogOpen=true dialogWire=true legacyParser=false dispatcherBridge=true publicApiExpanded=false'
+        )
+    }
+}
+
+tasks.register('combatProbeDiagnosticContentOwnershipRegression') {
+    group = 'verification'
+    description = 'Validates zero-wire combatprobe ownership in the internal LocalLab diagnostic content module.'
+    dependsOn tasks.named('testClasses')
+
+    doLast {
+        [
+            'spk.local.CombatProbeDiagnosticContentOwnershipTest',
+            'spk.local.LocalCombatCommandHandlerTest',
+            'spk.local.PlayerStateDiagnosticContentOwnershipTest',
+            'spk.local.LocalDiagnosticContentOwnershipTest',
+            'spk.local.ContentPublicApiBoundaryTest',
+            'spk.local.ContentRegistryTest',
+            'spk.local.ContentHandlerSamCompatibilityTest',
+            'spk.local.ContentProvenanceAuthorityBoundaryTest'
+        ].each { mainClassName ->
+            project.javaexec {
+                workingDir repoRoot
+                classpath = sourceSets.test.runtimeClasspath
+                mainClass.set(mainClassName)
+            }
+        }
+
+        logger.lifecycle(
+            'COMBAT_PROBE_DIAGNOSTIC_CONTENT_OWNERSHIP_PASS binding=true internalProjection=true publicApiExpanded=false textParity=true wireBytes=0 legacyRuntimeRoute=false'
+        )
+    }
+}
+
+tasks.register('petAccessoryContentCommandActionOwnershipRegression') {
+    group = 'verification'
+    description = 'Validates content-owned petaccessory policy while preserving petswitchcolor dialog handling at the runtime/session boundary.'
+    dependsOn tasks.named('testClasses')
+
+    doLast {
+        [
+            'spk.local.PetAccessoryContentCommandActionOwnershipTest',
+            'spk.local.LocalPetCompatibilityCommandHandlerTest',
+            'spk.local.MiniPetContentCommandActionOwnershipTest',
+            'spk.local.CompColorsContentCommandActionOwnershipTest',
+            'spk.local.CosmeticContentCommandActionOwnershipTest',
+            'spk.local.ContentPublicApiBoundaryTest',
+            'spk.local.ContentRegistryTest',
+            'spk.local.ContentHandlerSamCompatibilityTest',
+            'spk.local.ContentProvenanceAuthorityBoundaryTest',
+            'spk.local.LocalCommandDispatcherTest'
+        ].each { mainClassName ->
+            project.javaexec {
+                workingDir repoRoot
+                classpath = sourceSets.test.runtimeClasspath
+                mainClass.set(mainClassName)
+            }
+        }
+
+        logger.lifecycle(
+            'PET_ACCESSORY_CONTENT_COMMAND_ACTION_OWNERSHIP_PASS binding=true semanticAction=true aliases=true legacyUnknownStatus=true policyWireBytes=0 statusRuntime=true offRuntime=true offSave=true unsupportedFailClosed=true legacyAccessoryParser=false petSwitchColorRuntimeOwned=true'
+        )
+    }
+}
+
+tasks.register('miniPetContentCommandActionOwnershipRegression') {
+    group = 'verification'
+    description = 'Validates content-owned minipet command policy with strict semantic runtime effects.'
+    dependsOn tasks.named('testClasses')
+
+    doLast {
+        [
+            'spk.local.MiniPetContentCommandActionOwnershipTest',
+            'spk.local.LocalMiniPetCommandHandlerTest',
+            'spk.local.CompColorsContentCommandActionOwnershipTest',
+            'spk.local.CosmeticContentCommandActionOwnershipTest',
+            'spk.local.ContentPublicApiBoundaryTest',
+            'spk.local.ContentRegistryTest',
+            'spk.local.ContentHandlerSamCompatibilityTest',
+            'spk.local.ContentProvenanceAuthorityBoundaryTest',
+            'spk.local.LocalCommandDispatcherTest'
+        ].each { mainClassName ->
+            project.javaexec {
+                workingDir repoRoot
+                classpath = sourceSets.test.runtimeClasspath
+                mainClass.set(mainClassName)
+            }
+        }
+
+        logger.lifecycle(
+            'MINIPET_CONTENT_COMMAND_ACTION_OWNERSHIP_PASS binding=true semanticAction=true aliases=true setItemSemantic=true policyWireBytes=0 allowlist=true malformedFailClosed=true configureState=true invalidNoSave=true offSave=true helpRuntimeOwned=true legacyParser=false dispatcherFallback=false'
+        )
+    }
+}
+
+
 tasks.named('check') {
     dependsOn tasks.named('customAssetPipelineRegression')
     dependsOn tasks.named('customAssetPipelineHardeningRegression')
