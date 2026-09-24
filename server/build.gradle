@@ -862,6 +862,32 @@ tasks.register('appFixtureContentOwnershipRegression') {
     }
 }
 
+tasks.register('opcode103SemanticDecoderBoundaryRegression') {
+    group = 'verification'
+    description = 'Validates transport-only opcode103 decoding with dialogue-option semantic classification downstream of ClientPacketProbe.'
+    dependsOn tasks.named('testClasses')
+
+    doLast {
+        [
+            'spk.local.Opcode103SemanticDecoderBoundaryTest',
+            'spk.local.MakeoverClientPacketProbeTest',
+            'spk.local.ClientPacketProbeTest',
+            'spk.local.LocalPendingRequestDispatcherTest',
+            'spk.local.MakeoverSemanticDialogueSessionTest'
+        ].each { mainClassName ->
+            project.javaexec {
+                workingDir repoRoot
+                classpath = sourceSets.test.runtimeClasspath
+                mainClass.set(mainClassName)
+            }
+        }
+
+        logger.lifecycle(
+            'OPCODE103_SEMANTIC_DECODER_BOUNDARY_PASS transportCommandOnly=true dialogueAliasDownstream=true exactAliasCompatibility=true invalidAliasFallsThrough=true decoderLiteralAbsent=true decoderSemanticTypeAbsent=true pendingRouterPresent=true'
+        )
+    }
+}
+
 tasks.register('devSessionContentCommandActionOwnershipRegression') {
     group = 'verification'
     description = 'Validates content-owned dev info/reset policy while dev panel and session reset effects remain runtime-owned.'
