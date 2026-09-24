@@ -26,8 +26,6 @@ public final class LocalCombatCommandHandlerTest {
         LocalCombatCommandHandler handler=
             new LocalCombatCommandHandler(
                 combat,
-                player.equipment(),
-                player.combatStyles(),
                 npcs,
                 petRuntime
             );
