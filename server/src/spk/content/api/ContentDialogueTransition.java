@@ -13,18 +13,22 @@ public final class ContentDialogueTransition {
 
     private final Kind kind;
     private final String nextNodeKey;
+    private final String outcomeKey;
 
     private ContentDialogueTransition(
         Kind kind,
-        String nextNodeKey
+        String nextNodeKey,
+        String outcomeKey
     ){
         this.kind=Objects.requireNonNull(kind,"kind");
         this.nextNodeKey=nextNodeKey;
+        this.outcomeKey=outcomeKey;
     }
 
     public static ContentDialogueTransition stay(){
         return new ContentDialogueTransition(
             Kind.STAY,
+            null,
             null
         );
     }
@@ -37,14 +41,29 @@ public final class ContentDialogueTransition {
             normalizeKey(
                 nextNodeKey,
                 "nextNodeKey"
-            )
+            ),
+            null
         );
     }
 
     public static ContentDialogueTransition end(){
         return new ContentDialogueTransition(
             Kind.END,
+            null,
             null
+        );
+    }
+
+    public static ContentDialogueTransition end(
+        String outcomeKey
+    ){
+        return new ContentDialogueTransition(
+            Kind.END,
+            null,
+            normalizeKey(
+                outcomeKey,
+                "outcomeKey"
+            )
         );
     }
 
@@ -54,6 +73,10 @@ public final class ContentDialogueTransition {
 
     public String nextNodeKey(){
         return nextNodeKey;
+    }
+
+    public String outcomeKey(){
+        return outcomeKey;
     }
 
     private static String normalizeKey(

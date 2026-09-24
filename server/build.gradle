@@ -1343,6 +1343,156 @@ tasks.register('twoOptionContentDialoguePresentationRegression') {
 }
 
 
+tasks.register('contentDialogueDefinitionOwnershipRegression') {
+    group = 'verification'
+    description = 'Validates content-owned semantic dialogue topology, transition-only inheritance, priority override/restore and Make-over runtime refresh.'
+    dependsOn tasks.named('testClasses')
+
+    doLast {
+        [
+            'spk.local.ContentDialogueDefinitionOwnershipTest',
+            'spk.local.ContentHandlerSamCompatibilityTest',
+            'spk.local.ContentPublicApiBoundaryTest',
+            'spk.local.ContentDialogueTransitionOwnershipTest',
+            'spk.local.ContentDialoguePresentationRuntimeTest',
+            'spk.local.MakeoverDialoguePresentationOwnershipTest',
+            'spk.local.MakeoverSemanticDialogueSessionTest',
+            'spk.local.MakeoverMageFlowTest',
+            'spk.local.MakeoverDialogueContentOwnershipTest'
+        ].each { mainClassName ->
+            project.javaexec {
+                workingDir repoRoot
+                classpath = sourceSets.test.runtimeClasspath
+                mainClass.set(mainClassName)
+            }
+        }
+
+        logger.lifecycle(
+            'CONTENT_DIALOGUE_DEFINITION_OWNERSHIP_REGRESSION_PASS topology=true inheritance=true overrideRestore=true runtimeRefresh=true partialWire=false boundary=true'
+        )
+    }
+}
+
+tasks.register('dialogueOutcomeContentOwnershipRegression') {
+    group = 'verification'
+    description = 'Validates content-owned semantic dialogue outcomes and fail-closed Make-over effect execution.'
+    dependsOn tasks.named('testClasses')
+
+    doLast {
+        [
+            'spk.local.ContentDialogueOutcomeOwnershipTest',
+            'spk.local.ContentDialogueDefinitionOwnershipTest',
+            'spk.local.ContentDialogueTransitionOwnershipTest',
+            'spk.local.ContentHandlerSamCompatibilityTest',
+            'spk.local.ContentPublicApiBoundaryTest',
+            'spk.local.MakeoverDialoguePresentationOwnershipTest',
+            'spk.local.MakeoverSemanticDialogueSessionTest',
+            'spk.local.MakeoverMageFlowTest',
+            'spk.local.MakeoverDialogueContentOwnershipTest'
+        ].each { mainClassName ->
+            project.javaexec {
+                workingDir repoRoot
+                classpath = sourceSets.test.runtimeClasspath
+                mainClass.set(mainClassName)
+            }
+        }
+
+        logger.lifecycle(
+            'CONTENT_DIALOGUE_OUTCOME_OWNERSHIP_REGRESSION_PASS semanticOutcome=true optionEffectsContentOwned=true unsupportedFailsClosed=true partialWire=false boundary=true'
+        )
+    }
+}
+
+tasks.register('semanticActionContentOwnershipRegression') {
+    group = 'verification'
+    description = 'Validates semantic content action lifecycle and Make-over character-design authorization without exposing C2S101 payload/cache identities.'
+    dependsOn tasks.named('testClasses')
+
+    doLast {
+        [
+            'spk.local.ContentSemanticActionOwnershipTest',
+            'spk.local.ContentRegistrarAuthorityCoverageTest',
+            'spk.local.ContentHandlerSamCompatibilityTest',
+            'spk.local.ContentProvenanceAuthorityBoundaryTest',
+            'spk.local.ContentPublicApiBoundaryTest',
+            'spk.local.ContentRegistrationLifecycleTest',
+            'spk.local.ContentRegistrarSealTest',
+            'spk.local.PluginKernelLifecycleTest',
+            'spk.local.ContentDialogueOutcomeOwnershipTest',
+            'spk.local.MakeoverDesignRejectionIsolationTest',
+            'spk.local.MakeoverAppearancePersistenceTest',
+            'spk.local.MakeoverMageFlowTest'
+        ].each { mainClassName ->
+            project.javaexec {
+                workingDir repoRoot
+                classpath = sourceSets.test.runtimeClasspath
+                mainClass.set(mainClassName)
+            }
+        }
+
+        logger.lifecycle(
+            'SEMANTIC_ACTION_CONTENT_OWNERSHIP_REGRESSION_PASS registry=true pluginLifecycle=true designAuthorization=true rawDesignPayloadExposed=false denyNoMutation=true denyNoSave=true persistenceCompatibility=true'
+        )
+    }
+}
+
+tasks.register('appFixtureContentOwnershipRegression') {
+    group = 'verification'
+    description = 'Validates appfixture content-command ownership and byte-identical LocalLab application UI fixture presentation.'
+    dependsOn tasks.named('testClasses')
+
+    doLast {
+        [
+            'spk.local.AppFixtureContentOwnershipTest',
+            'spk.local.ApplicationUiFixtureServiceTest',
+            'spk.local.ContentPublicApiBoundaryTest',
+            'spk.local.LocalCommandDispatcherTest',
+            'spk.local.ContentRegistrarAuthorityCoverageTest',
+            'spk.local.ContentHandlerSamCompatibilityTest',
+            'spk.local.ContentProvenanceAuthorityBoundaryTest'
+        ].each { mainClassName ->
+            project.javaexec {
+                workingDir repoRoot
+                classpath = sourceSets.test.runtimeClasspath
+                mainClass.set(mainClassName)
+            }
+        }
+
+        logger.lifecycle(
+            'APPFIXTURE_CONTENT_OWNERSHIP_REGRESSION_PASS binding=true wireParity=true dispatcherHardcode=false rawPacketAccess=false fixtureSnapshot=true'
+        )
+    }
+}
+
+tasks.register('localDiagnosticContentOwnershipRegression') {
+    group = 'verification'
+    description = 'Validates content ownership of contentregistry/authority diagnostics without widening the public plugin API.'
+    dependsOn tasks.named('testClasses')
+
+    doLast {
+        [
+            'spk.local.LocalDiagnosticContentOwnershipTest',
+            'spk.local.ContentRegistryTest',
+            'spk.local.LocalCommandDispatcherTest',
+            'spk.local.ContentRegistrarAuthorityCoverageTest',
+            'spk.local.ContentHandlerSamCompatibilityTest',
+            'spk.local.ContentProvenanceAuthorityBoundaryTest',
+            'spk.local.ContentPublicApiBoundaryTest'
+        ].each { mainClassName ->
+            project.javaexec {
+                workingDir repoRoot
+                classpath = sourceSets.test.runtimeClasspath
+                mainClass.set(mainClassName)
+            }
+        }
+
+        logger.lifecycle(
+            'LOCAL_DIAGNOSTIC_CONTENT_OWNERSHIP_REGRESSION_PASS contentregistry=true authority=true dispatcherHardcode=false publicApiExpanded=false dynamicSummary=true'
+        )
+    }
+}
+
+
 tasks.named('check') {
     dependsOn tasks.named('customAssetPipelineRegression')
     dependsOn tasks.named('customAssetPipelineHardeningRegression')

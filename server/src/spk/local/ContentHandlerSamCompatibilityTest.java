@@ -32,6 +32,11 @@ public final class ContentHandlerSamCompatibilityTest {
 
     private static final Contract[] CONTRACTS={
         new Contract(
+            ContentActionHandler.class,
+            ContentActionContext.class,
+            ContentActionResult.class
+        ),
+        new Contract(
             ContentCommandHandler.class,
             ContentCommandContext.class,
             ContentResult.class

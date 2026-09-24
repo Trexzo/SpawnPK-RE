@@ -7,6 +7,8 @@ import spk.content.api.*;
 public final class ContentRegistrationLifecycleTest {
     private static final int OBJECT_ID=900001;
     private static final int NPC_ID=900002;
+    private static final String ACTION_KEY=
+        "lifecycle:action";
 
     public static void main(String[] args)throws Exception{
         World world=World.isolatedForTest(20L);
@@ -52,9 +54,17 @@ public final class ContentRegistrationLifecycleTest {
                                 )
                         );
 
+                        low.action=registrar.action(
+                            ACTION_KEY,
+                            10,
+                            context->
+                                ContentActionResult.allow()
+                        );
+
                         assertPending(low.command);
                         assertPending(low.object);
                         assertPending(low.npc);
+                        assertPending(low.action);
                     }
                 )
             );
@@ -92,6 +102,15 @@ public final class ContentRegistrationLifecycleTest {
                                     ContentNpcService.TRADE
                                 )
                         );
+
+                        high.action=registrar.action(
+                            ACTION_KEY,
+                            20,
+                            context->
+                                ContentActionResult.deny(
+                                    "lifecycle:high"
+                                )
+                        );
                     }
                 )
             );
@@ -117,6 +136,14 @@ public final class ContentRegistrationLifecycleTest {
                 registry.npcOptionBinding(
                     NPC_ID,
                     3
+                ),
+                "lifecycle-high",
+                20
+            );
+
+            assertWinner(
+                registry.actionBinding(
+                    ACTION_KEY
                 ),
                 "lifecycle-high",
                 20
@@ -151,7 +178,10 @@ public final class ContentRegistrationLifecycleTest {
                !"OBJECT_HIGH".equals(
                     initial.object.outcome())||
                initial.npc.service()!=
-                    ContentNpcService.TRADE)
+                    ContentNpcService.TRADE||
+               initial.action.allowed()||
+               !"lifecycle:high".equals(
+                    initial.action.reasonKey()))
                 throw new AssertionError(
                     "initial priority dispatch "+
                     initial
@@ -163,6 +193,20 @@ public final class ContentRegistrationLifecycleTest {
                 throw new AssertionError(
                     "command handle idempotence"
                 );
+
+            if(!high.action.unregister()||
+               high.action.active())
+                throw new AssertionError(
+                    "action winner removal"
+                );
+
+            assertWinner(
+                registry.actionBinding(
+                    ACTION_KEY
+                ),
+                "lifecycle-low",
+                10
+            );
 
             assertWinner(
                 registry.commandBinding(
@@ -185,6 +229,11 @@ public final class ContentRegistrationLifecycleTest {
                         .logText()))
                 throw new AssertionError(
                     "command fallback not restored"
+                );
+
+            if(!commandFallback.action.allowed())
+                throw new AssertionError(
+                    "action fallback not restored"
                 );
 
             if(!low.object.unregister()||
@@ -355,6 +404,7 @@ public final class ContentRegistrationLifecycleTest {
                 "commandFallback=true "+
                 "hiddenRemovalStable=true "+
                 "npcFallback=true "+
+                "actionFallback=true "+
                 "idempotent=true "+
                 "failedInstallLeak=false "+
                 "pendingCancellation=true"
@@ -377,6 +427,8 @@ public final class ContentRegistrationLifecycleTest {
         AtomicReference<ContentInteractionResult> object=
             new AtomicReference<>();
         AtomicReference<ContentNpcOptionResult> npc=
+            new AtomicReference<>();
+        AtomicReference<ContentActionResult> action=
             new AtomicReference<>();
 
         world.submitAndWait(
@@ -405,6 +457,12 @@ public final class ContentRegistrationLifecycleTest {
                         3203
                     )
                 );
+                action.set(
+                    registry.dispatchAction(
+                        player,
+                        ACTION_KEY
+                    )
+                );
             },
             5_000L
         );
@@ -412,7 +470,8 @@ public final class ContentRegistrationLifecycleTest {
         return new Dispatch(
             command.get(),
             object.get(),
-            npc.get()
+            npc.get(),
+            action.get()
         );
     }
 
@@ -432,9 +491,11 @@ public final class ContentRegistrationLifecycleTest {
         if(handles.command==null||
            handles.object==null||
            handles.npc==null||
+           handles.action==null||
            !handles.command.active()||
            !handles.object.active()||
-           !handles.npc.active())
+           !handles.npc.active()||
+           !handles.action.active())
             throw new AssertionError(
                 "committed handles not active"
             );
@@ -485,21 +546,25 @@ public final class ContentRegistrationLifecycleTest {
         ContentRegistration command;
         ContentRegistration object;
         ContentRegistration npc;
+        ContentRegistration action;
     }
 
     private static final class Dispatch{
         final ContentResult command;
         final ContentInteractionResult object;
         final ContentNpcOptionResult npc;
+        final ContentActionResult action;
 
         Dispatch(
             ContentResult command,
             ContentInteractionResult object,
-            ContentNpcOptionResult npc
+            ContentNpcOptionResult npc,
+            ContentActionResult action
         ){
             this.command=command;
             this.object=object;
             this.npc=npc;
+            this.action=action;
         }
 
         @Override public String toString(){
@@ -507,6 +572,7 @@ public final class ContentRegistrationLifecycleTest {
                 command+
                 ",object="+object+
                 ",npc="+npc+
+                ",action="+action+
                 "}";
         }
     }

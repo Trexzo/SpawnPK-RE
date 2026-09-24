@@ -173,6 +173,22 @@ final class ContentRuntimeAdapters {
             return dialogue;
         }
 
+        @Override public String applicationFixture(
+            String fixtureName
+        ){
+            try{
+                return ApplicationUiFixtureService.run(
+                    fixtureName,
+                    writer
+                );
+            }catch(IOException e){
+                throw new ContentPresentationException(
+                    "content presentation applicationFixture failed",
+                    e
+                );
+            }
+        }
+
         @Override public void skill(
             ContentSkill skill,
             int experience,

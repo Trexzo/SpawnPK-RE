@@ -10,10 +10,15 @@ import spk.content.api.*;
 
 public final class ContentPublicApiBoundaryTest {
     private static final Class<?>[] API_TYPES={
+        ContentActionContext.class,
+        ContentActionHandler.class,
+        ContentActionResult.class,
         ContentCommandContext.class,
         ContentCommandHandler.class,
         ContentDialogueContext.class,
+        ContentDialogueDefinition.class,
         ContentDialogueHandler.class,
+        ContentDialogueNode.class,
         ContentDialogueIntent.class,
         ContentDialoguePresentation.class,
         ContentDialogueTransition.class,
