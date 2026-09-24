@@ -27,6 +27,7 @@ final class LocalCommandDispatcher {
     private final LocalPrayerMagicCommandHandler prayerMagicCommands;
     private final LocalMiniPetCommandHandler miniPetCommands;
     private final LocalCosmeticCommandHandler cosmeticCommands;
+    private final LocalContentCommandActionExecutor contentCommandActions;
     private final LocalDevWorldCommandHandler devWorldCommands;
     private final DevAuthorityWorkbench dev;
     private final LocalDevSessionCommandHandler devSessionCommands;
@@ -72,6 +73,12 @@ final class LocalCommandDispatcher {
         this.prayerMagicCommands=Objects.requireNonNull(prayerMagicCommands,"prayerMagicCommands");
         this.miniPetCommands=Objects.requireNonNull(miniPetCommands,"miniPetCommands");
         this.cosmeticCommands=Objects.requireNonNull(cosmeticCommands,"cosmeticCommands");
+        this.compColorsCommands=Objects.requireNonNull(compColorsCommands,"compColorsCommands");
+        this.contentCommandActions=
+            new LocalContentCommandActionExecutor(
+                this.cosmeticCommands,
+                this.compColorsCommands
+            );
         this.devWorldCommands=Objects.requireNonNull(devWorldCommands,"devWorldCommands");
         this.dev=Objects.requireNonNull(dev,"dev");
         this.devSessionCommands=Objects.requireNonNull(devSessionCommands,"devSessionCommands");
@@ -81,7 +88,6 @@ final class LocalCommandDispatcher {
         this.devToolCommands=Objects.requireNonNull(devToolCommands,"devToolCommands");
         this.voidglassCommands=Objects.requireNonNull(voidglassCommands,"voidglassCommands");
         this.petRuntimeCommands=Objects.requireNonNull(petRuntimeCommands,"petRuntimeCommands");
-        this.compColorsCommands=Objects.requireNonNull(compColorsCommands,"compColorsCommands");
         this.combatCommands=Objects.requireNonNull(combatCommands,"combatCommands");
         this.petCompatibilityCommands=Objects.requireNonNull(petCompatibilityCommands,"petCompatibilityCommands");
         this.contentRegistry=Objects.requireNonNull(contentRegistry,"contentRegistry");
@@ -123,6 +129,15 @@ final class LocalCommandDispatcher {
                 );
 
             if(content!=null){
+                if(content.hasAction())
+                    content=
+                        contentCommandActions.execute(
+                            content.actionKey(),
+                            command,
+                            username,
+                            serverPackets
+                        );
+
                 if(content.saveReason()!=null)
                     bridge.saveAccount(
                         tag,
@@ -194,15 +209,6 @@ final class LocalCommandDispatcher {
             if(miniPetCommand.saveReason!=null)
                 bridge.saveAccount(tag,miniPetCommand.saveReason);
             System.out.println(tag+miniPetCommand.logText);
-            return true;
-        }
-
-        LocalCosmeticCommandHandler.Result cosmeticCommand=
-            cosmeticCommands.handle(p,username,serverPackets);
-        if(cosmeticCommand!=null){
-            if(cosmeticCommand.saveReason!=null)
-                bridge.saveAccount(tag,cosmeticCommand.saveReason);
-            System.out.println(tag+cosmeticCommand.logText);
             return true;
         }
 
@@ -282,20 +288,6 @@ final class LocalCommandDispatcher {
         if(petRuntimeCommand!=null){
             for(String line:petRuntimeCommand)
                 System.out.println(tag+line);
-            return true;
-        }
-
-        LocalCompColorsCommandHandler.Result compColorsCommand=
-            compColorsCommands.handle(
-                p,
-                command,
-                username,
-                serverPackets
-            );
-        if(compColorsCommand!=null){
-            if(compColorsCommand.saveReason!=null)
-                bridge.saveAccount(tag,compColorsCommand.saveReason);
-            System.out.println(tag+compColorsCommand.logText);
             return true;
         }
 

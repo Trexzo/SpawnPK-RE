@@ -68,6 +68,105 @@ final class LocalDiagnosticContentModule
             100,
             this::collisionAuthority
         );
+
+
+        registrar.command(
+            "prayerinfo",
+            100,
+            this::prayerInfo
+        );
+
+        registrar.command(
+            "magicinfo",
+            100,
+            this::magicInfo
+        );
+
+        registrar.command(
+            "styleinfo",
+            100,
+            this::styleInfo
+        );
+    }
+
+    private ContentResult prayerInfo(
+        ContentCommandContext context
+    ){
+        LocalDiagnosticContentPlayer player=
+            diagnosticPlayer(
+                context
+            );
+
+        return ContentResult.handled(
+            "V510_PRAYER_INFO "+
+                player.prayerStateSummary()+
+                " definitions="+
+                PrayerDefinitionRepository.count(),
+            null
+        );
+    }
+
+    private ContentResult magicInfo(
+        ContentCommandContext context
+    ){
+        LocalDiagnosticContentPlayer player=
+            diagnosticPlayer(
+                context
+            );
+
+        return ContentResult.handled(
+            "V510_MAGIC_INFO "+
+                player.magicStateSummary()+
+                " definitions="+
+                SpellDefinitionRepository.count(),
+            null
+        );
+    }
+
+    private ContentResult styleInfo(
+        ContentCommandContext context
+    ){
+        LocalDiagnosticContentPlayer player=
+            diagnosticPlayer(
+                context
+            );
+
+        int weapon=
+            player.weaponItemId();
+        int root=
+            CombatInterfaceRepository.forWeapon(
+                weapon
+            );
+
+        return ContentResult.handled(
+            "V510_STYLE_INFO weapon="+
+                weapon+" "+
+                player.combatStyleStateSummary(
+                    root
+                )+
+                " roots="+
+                CombatStyleRepository.rootCount()+
+                " styles="+
+                CombatStyleRepository.countStyles(),
+            null
+        );
+    }
+
+    private static LocalDiagnosticContentPlayer
+        diagnosticPlayer(
+            ContentCommandContext context
+        ){
+        ContentPlayer player=
+            context.player();
+
+        if(!(player instanceof
+                LocalDiagnosticContentPlayer))
+            throw new IllegalStateException(
+                "LocalLab diagnostic player projection unavailable"
+            );
+
+        return (LocalDiagnosticContentPlayer)
+            player;
     }
 
     private ContentResult worldAuthority(

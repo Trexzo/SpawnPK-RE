@@ -11,19 +11,24 @@ public final class LocalCosmeticCommandHandlerTest {
             player.bank(),player.equipment(),player.playerState(),presentation);
 
         ByteArrayOutputStream wire=new ByteArrayOutputStream();
-        ServerPacketWriter w=new ServerPacketWriter(wire,new IsaacCipher(new int[]{1,2,3,4}));
+        ServerPacketWriter w=new ServerPacketWriter(
+            wire,
+            new IsaacCipher(new int[]{1,2,3,4})
+        );
 
         LocalCosmeticCommandHandler.Result info=
-            h.handle(new String[]{"cosmetic","info"},"opensrc",w);
+            h.info();
         if(info==null||!info.logText.startsWith("V5124_COSMETIC_INFO"))
-            throw new AssertionError("info route");
-        if(info.saveReason!=null)throw new AssertionError("info must not save");
+            throw new AssertionError("info effect");
+        if(info.saveReason!=null)
+            throw new AssertionError("info must not save");
 
         LocalCosmeticCommandHandler.Result none=
-            h.handle(new String[]{"cosmetic","off"},"opensrc",w);
+            h.remove("opensrc",w);
         if(none==null||!none.logText.contains("COSMETIC_NONE_ACTIVE"))
-            throw new AssertionError("empty off route");
-        if(none.saveReason!=null)throw new AssertionError("empty off must not save");
+            throw new AssertionError("empty remove effect");
+        if(none.saveReason!=null)
+            throw new AssertionError("empty remove must not save");
 
         // Native icon root 10556 is exact-current cosmetic-family authority.
         player.playerState().cosmetic().set(10556);
@@ -33,9 +38,9 @@ public final class LocalCosmeticCommandHandlerTest {
 
         int before=wire.size();
         LocalCosmeticCommandHandler.Result off=
-            h.handle(new String[]{"cosmetic","remove"},"opensrc",w);
+            h.remove("opensrc",w);
         if(off==null||!off.logText.contains("COSMETIC_UNEQUIP_OK item=10556"))
-            throw new AssertionError("remove route="+(off==null?"null":off.logText));
+            throw new AssertionError("remove effect="+(off==null?"null":off.logText));
         if(!"COSMETIC_OFF".equals(off.saveReason))
             throw new AssertionError("remove save reason="+off.saveReason);
         if(player.playerState().cosmetic().active())
@@ -47,9 +52,29 @@ public final class LocalCosmeticCommandHandlerTest {
         if(wire.size()<=before)
             throw new AssertionError("successful remove emitted no presentation packets");
 
-        if(h.handle(new String[]{"item","10556"},"opensrc",w)!=null)
-            throw new AssertionError("unrelated command must remain outside cosmetic handler");
+        LocalCosmeticCommandHandler.Result help=
+            h.help();
+        if(help==null||
+           !help.logText.startsWith("V511_COSMETIC_HELP")||
+           help.saveReason!=null)
+            throw new AssertionError("help effect");
 
-        System.out.println("LOCAL_COSMETIC_COMMAND_HANDLER_PASS info=true remove=true inventoryReturn=true appearanceRefresh=true persistenceSignal=true");
+        for(java.lang.reflect.Method method:
+                LocalCosmeticCommandHandler.class.getDeclaredMethods())
+            if("handle".equals(method.getName()))
+                throw new AssertionError(
+                    "legacy cosmetic command parser still exists"
+                );
+
+        System.out.println(
+            "LOCAL_COSMETIC_COMMAND_HANDLER_PASS "+
+            "infoEffect=true "+
+            "removeEffect=true "+
+            "helpEffect=true "+
+            "legacyParser=false "+
+            "inventoryReturn=true "+
+            "appearanceRefresh=true "+
+            "persistenceSignal=true"
+        );
     }
 }

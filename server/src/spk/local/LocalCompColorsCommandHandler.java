@@ -3,11 +3,10 @@ package spk.local;
 import java.io.IOException;
 
 /**
- * Command adapter for completionist-cape color selectors.
+ * Runtime executor for semantic completionist-cape color actions.
  *
- * Selector state remains owned by PlayerState and appearance publication by
- * PlayerPresentationService. This adapter only owns parsing/range validation
- * and reports the existing persistence side effect.
+ * Command parsing/range policy is content-owned. This class retains selector
+ * mutation and current-session appearance publication.
  */
 final class LocalCompColorsCommandHandler {
     private final PlayerState playerState;
@@ -24,45 +23,53 @@ final class LocalCompColorsCommandHandler {
         this.playerPresentation=java.util.Objects.requireNonNull(playerPresentation,"playerPresentation");
     }
 
-    Result handle(
-        String[] p,
+    Result apply(
+        int[] selectors,
         String rawCommand,
         String username,
         ServerPacketWriter serverPackets
     )throws IOException{
-        if(p==null||p.length==0||!p[0].equalsIgnoreCase("compcolors"))return null;
+        if(selectors==null||selectors.length!=6)
+            return rejected(rawCommand);
 
-        if(p.length!=7){
-            return new Result(
-                "V54_COMP_COLORS command="+rawCommand+
-                " result=REJECTED_SELECTOR_RANGE expected=0..19",
-                null
+        int[] copy=selectors.clone();
+
+        for(int selector:copy)
+            if(selector<0||selector>19)
+                return rejected(rawCommand);
+
+        if(!playerState.setCompSelectors(copy))
+            return rejected(rawCommand);
+
+        boolean equipped=
+            BootstrapPackets.hasSpecialCompletionistCape(
+                equipment.appearanceItems()
             );
-        }
 
-        int[] selectors=new int[6];
-        boolean valid=true;
-        for(int i=0;i<6;i++){
-            selectors[i]=parseInt(p[i+1],-1);
-            if(selectors[i]<0||selectors[i]>19)valid=false;
-        }
-
-        if(!valid||!playerState.setCompSelectors(selectors)){
-            return new Result(
-                "V54_COMP_COLORS command="+rawCommand+
-                " result=REJECTED_SELECTOR_RANGE expected=0..19",
-                null
+        if(equipped)
+            playerPresentation.refresh(
+                username,
+                equipment,
+                playerState,
+                serverPackets
             );
-        }
-
-        boolean equipped=BootstrapPackets.hasSpecialCompletionistCape(equipment.appearanceItems());
-        if(equipped)playerPresentation.refresh(username,equipment,playerState,serverPackets);
 
         return new Result(
             "V55_COMP_COLORS command="+rawCommand+
             " result=APPLIED selectors="+playerState.compSelectorSummary()+
-            " capeEquipped="+equipped+" appearanceRefresh="+equipped,
+            " capeEquipped="+equipped+
+            " appearanceRefresh="+equipped,
             "COMP_COLORS"
+        );
+    }
+
+    private static Result rejected(
+        String rawCommand
+    ){
+        return new Result(
+            "V54_COMP_COLORS command="+rawCommand+
+            " result=REJECTED_SELECTOR_RANGE expected=0..19",
+            null
         );
     }
 
@@ -70,13 +77,12 @@ final class LocalCompColorsCommandHandler {
         final String logText;
         final String saveReason;
 
-        Result(String logText,String saveReason){
+        Result(
+            String logText,
+            String saveReason
+        ){
             this.logText=logText;
             this.saveReason=saveReason;
         }
-    }
-
-    private static int parseInt(String s,int fallback){
-        try{return Integer.parseInt(s);}catch(Exception e){return fallback;}
     }
 }

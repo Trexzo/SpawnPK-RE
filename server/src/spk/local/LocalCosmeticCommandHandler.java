@@ -3,11 +3,11 @@ package spk.local;
 import java.io.IOException;
 
 /**
- * Command adapter for the dedicated player cosmetic channel.
+ * Runtime executor for semantic cosmetic command effects.
  *
- * Cosmetic inventory mutation remains in BankState and appearance publication
- * remains in PlayerPresentationService. This adapter only owns command routing
- * and reports the existing persistence side effect back to LocalSession.
+ * Command/subcommand policy is content-owned. This class retains the exact
+ * session-bound inventory and appearance work because it depends on BankState,
+ * equipment, PlayerState and the current PlayerPresentationService.
  */
 final class LocalCosmeticCommandHandler {
     private final BankState bank;
@@ -27,44 +27,56 @@ final class LocalCosmeticCommandHandler {
         this.playerPresentation=java.util.Objects.requireNonNull(playerPresentation,"playerPresentation");
     }
 
-    Result handle(
-        String[] p,
+    Result info(){
+        return new Result(
+            "V5124_COSMETIC_INFO item="+playerState.cosmetic().itemId()+
+            " nativeBs="+playerState.nativeIconItemId()+
+            " ammo="+equipment.itemAt(EquipmentSlot.AMMO)+
+            " authority=PLAYER_APPEARANCE_BS ui1688=NORMAL_EQUIPMENT cosmeticWidget="+
+            BankState.COSMETIC_WIDGET+" cosmeticWidgetPublished=true",
+            null
+        );
+    }
+
+    Result remove(
         String username,
         ServerPacketWriter serverPackets
     )throws IOException{
-        if(p==null||p.length==0||!p[0].equalsIgnoreCase("cosmetic"))return null;
-
-        String sub=p.length>=2?p[1].toLowerCase(java.util.Locale.ROOT):"info";
-
-        if(sub.equals("info")||sub.equals("status")){
-            return new Result(
-                "V5124_COSMETIC_INFO item="+playerState.cosmetic().itemId()+
-                " nativeBs="+playerState.nativeIconItemId()+
-                " ammo="+equipment.itemAt(EquipmentSlot.AMMO)+
-                " authority=PLAYER_APPEARANCE_BS ui1688=NORMAL_EQUIPMENT cosmeticWidget="+
-                BankState.COSMETIC_WIDGET+" cosmeticWidgetPublished=true",
-                null
+        String r=
+            bank.unequipCosmeticToInventory(
+                playerState.cosmetic(),
+                serverPackets
             );
+
+        String saveReason=null;
+
+        if(r.startsWith("COSMETIC_UNEQUIP_OK")){
+            playerState.syncEquipmentPresentation(
+                equipment
+            );
+            bank.sendCosmetic(
+                serverPackets,
+                playerState.cosmetic()
+            );
+            playerPresentation.refresh(
+                username,
+                equipment,
+                playerState,
+                serverPackets
+            );
+            saveReason="COSMETIC_OFF";
         }
 
-        if(sub.equals("off")||sub.equals("remove")){
-            String r=bank.unequipCosmeticToInventory(playerState.cosmetic(),serverPackets);
-            String saveReason=null;
-            if(r.startsWith("COSMETIC_UNEQUIP_OK")){
-                playerState.syncEquipmentPresentation(equipment);
-                bank.sendCosmetic(serverPackets,playerState.cosmetic());
-                playerPresentation.refresh(username,equipment,playerState,serverPackets);
-                saveReason="COSMETIC_OFF";
-            }
-            return new Result(
-                "V5124_"+r+
-                " nativeBs="+playerState.nativeIconItemId()+
-                " ammo="+equipment.itemAt(EquipmentSlot.AMMO)+
-                " cosmeticWidget="+BankState.COSMETIC_WIDGET,
-                saveReason
-            );
-        }
+        return new Result(
+            "V5124_"+r+
+            " nativeBs="+playerState.nativeIconItemId()+
+            " ammo="+equipment.itemAt(EquipmentSlot.AMMO)+
+            " cosmeticWidget="+BankState.COSMETIC_WIDGET,
+            saveReason
+        );
+    }
 
+    Result help(){
         return new Result(
             "V511_COSMETIC_HELP commands=info | off equip=normal_inventory_Wear/Wield_opcode41_on_native_icon_item",
             null
