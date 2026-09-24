@@ -35,6 +35,34 @@ java {
     }
 }
 
+repositories {
+    mavenCentral()
+}
+
+def kotlinFixtureCompiler =
+    configurations.create('kotlinFixtureCompiler') {
+        canBeConsumed = false
+        canBeResolved = true
+        visible = false
+    }
+
+def kotlinFixtureStdlib =
+    configurations.create('kotlinFixtureStdlib') {
+        canBeConsumed = false
+        canBeResolved = true
+        visible = false
+        transitive = false
+    }
+
+dependencies {
+    kotlinFixtureCompiler(
+        'org.jetbrains.kotlin:kotlin-compiler-embeddable:2.4.20'
+    )
+    kotlinFixtureStdlib(
+        'org.jetbrains.kotlin:kotlin-stdlib:2.4.20'
+    )
+}
+
 sourceSets {
     main {
         java {
@@ -246,6 +274,262 @@ def compileJavaPluginApiFixture =
         options.release = 11
         options.encoding = 'UTF-8'
     }
+
+def kotlinPluginFixtureOutput =
+    layout.buildDirectory.dir(
+        'plugin-fixtures/kotlin-classes'
+    )
+
+def compileKotlinPluginApiFixture =
+    tasks.register(
+        'compileKotlinPluginApiFixture',
+        JavaExec
+    ) {
+        group = 'verification'
+        description = 'Compiles an external Kotlin/JVM plugin fixture against SpawnPKPluginApi.jar with validation-only Kotlin tooling.'
+        dependsOn pluginApiJar
+
+        classpath = kotlinFixtureCompiler
+        mainClass =
+            'org.jetbrains.kotlin.cli.jvm.K2JVMCompiler'
+        javaLauncher =
+            javaToolchains.launcherFor {
+                languageVersion =
+                    JavaLanguageVersion.of(21)
+            }
+
+        def kotlinSources =
+            fileTree(
+                'plugin-fixtures/kotlin'
+            ) {
+                include '**/*.kt'
+            }
+
+        inputs.files(kotlinSources)
+        outputs.dir(kotlinPluginFixtureOutput)
+
+        doFirst {
+            File output =
+                kotlinPluginFixtureOutput
+                    .get()
+                    .asFile
+
+            project.delete(output)
+
+            if(!output.mkdirs()&&
+               !output.isDirectory())
+                throw new GradleException(
+                    'Could not create Kotlin fixture output: ' +
+                    output
+                )
+
+            File apiJar =
+                pluginApiJar.get()
+                    .archiveFile.get()
+                    .asFile
+
+            def sources =
+                kotlinSources.files
+                    .sort {
+                        left,
+                        right ->
+                            left.absolutePath <=>
+                            right.absolutePath
+                    }
+
+            if(sources.empty)
+                throw new GradleException(
+                    'No Kotlin plugin API fixture sources found.'
+                )
+
+            String compileClasspath =
+                files(
+                    apiJar,
+                    kotlinFixtureStdlib
+                ).asPath
+
+            setArgs(
+                [
+                    '-jvm-target',
+                    '11',
+                    '-Xjdk-release=11',
+                    '-no-reflect',
+                    '-no-stdlib',
+                    '-classpath',
+                    compileClasspath,
+                    '-d',
+                    output.absolutePath
+                ] +
+                sources.collect {
+                    it.absolutePath
+                }
+            )
+        }
+    }
+
+tasks.register('pluginKotlinJvmConsumerRegression') {
+    group = 'verification'
+    description = 'Proves Kotlin/JVM target-11 plugins consume only the standalone plugin API artifact and do not widen the server runtime.'
+    dependsOn(
+        tasks.named(
+            'pluginDeveloperApiArtifactRegression'
+        ),
+        compileKotlinPluginApiFixture,
+        tasks.named('jar')
+    )
+
+    doLast {
+        File output =
+            kotlinPluginFixtureOutput
+                .get()
+                .asFile
+
+        def classFiles =
+            fileTree(output) {
+                include '**/*.class'
+            }.files
+
+        if(classFiles.empty)
+            throw new GradleException(
+                'Kotlin plugin API fixture produced no class files.'
+            )
+
+        classFiles.each { classFile ->
+            int major =
+                readClassMajor(
+                    classFile
+                )
+
+            if(major != 55)
+                throw new GradleException(
+                    "Kotlin plugin fixture major=" +
+                    major +
+                    ", expected=55 file=" +
+                    classFile
+                )
+        }
+
+        File fixtureClass =
+            new File(
+                output,
+                'spk/plugin/fixture/KotlinPluginApiFixture.class'
+            )
+
+        if(!fixtureClass.isFile())
+            throw new GradleException(
+                'KotlinPluginApiFixture.class missing.'
+            )
+
+        def runtimeKotlin =
+            configurations.runtimeClasspath
+                .allDependencies
+                .findAll {
+                    dependency ->
+                        dependency.group ==
+                            'org.jetbrains.kotlin' ||
+                        dependency.name
+                            .toLowerCase(
+                                Locale.ROOT
+                            )
+                            .contains(
+                                'kotlin'
+                            )
+                }
+
+        if(!runtimeKotlin.empty)
+            throw new GradleException(
+                'Kotlin validation dependency leaked to runtimeClasspath: ' +
+                runtimeKotlin
+            )
+
+        def implementationKotlin =
+            configurations.implementation
+                .allDependencies
+                .findAll {
+                    dependency ->
+                        dependency.group ==
+                            'org.jetbrains.kotlin' ||
+                        dependency.name
+                            .toLowerCase(
+                                Locale.ROOT
+                            )
+                            .contains(
+                                'kotlin'
+                            )
+                }
+
+        if(!implementationKotlin.empty)
+            throw new GradleException(
+                'Kotlin validation dependency leaked to implementation: ' +
+                implementationKotlin
+            )
+
+        File serverJar =
+            tasks.named(
+                'jar',
+                Jar
+            ).get()
+                .archiveFile.get()
+                .asFile
+
+        new java.util.jar.JarFile(
+            serverJar
+        ).withCloseable { jar ->
+            def enumeration =
+                jar.entries()
+
+            while(enumeration.hasMoreElements()) {
+                String name =
+                    enumeration
+                        .nextElement()
+                        .getName()
+
+                if(name.startsWith(
+                        'kotlin/') ||
+                   name.startsWith(
+                        'org/jetbrains/kotlin/') ||
+                   name.endsWith(
+                        '.kotlin_module'))
+                    throw new GradleException(
+                        'Kotlin validation tooling leaked into server artifact: ' +
+                        name
+                    )
+            }
+        }
+
+        File apiJar =
+            pluginApiJar.get()
+                .archiveFile.get()
+                .asFile
+
+        def fixtureClasspath =
+            files(
+                apiJar,
+                kotlinFixtureStdlib
+            ).files
+
+        if(fixtureClasspath.any {
+                it.name ==
+                    'SpawnPKLocalServer.jar'
+            })
+            throw new GradleException(
+                'Kotlin fixture compile classpath contains server JAR.'
+            )
+
+        logger.lifecycle(
+            'PLUGIN_KOTLIN_JVM_CONSUMER_PASS ' +
+            'kotlin=2.4.20 ' +
+            'apiArtifactOnly=true ' +
+            'jvmTarget=11 ' +
+            'jdkRelease=11 ' +
+            'bytecodeMajor=55 ' +
+            'serverRuntimeUnchanged=true ' +
+            'serverJarKotlinFree=true ' +
+            'scriptingRuntimeIntegrated=false'
+        )
+    }
+}
+
 
 tasks.register('pluginDeveloperApiArtifactRegression') {
     group = 'verification'
