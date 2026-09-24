@@ -144,7 +144,6 @@ public final class LocalDiagnosticContentOwnershipTest {
         LocalDiagnosticCommandHandler legacy=
             new LocalDiagnosticCommandHandler(
                 world,
-                new EquipmentState(),
                 new NativeItemLibraryService()
             );
 
