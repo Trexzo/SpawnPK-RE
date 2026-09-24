@@ -126,7 +126,7 @@ final class LocalSession implements Runnable {
             worldPlayer.id()
         );
         this.diagnosticCommands = new LocalDiagnosticCommandHandler(
-            world,equipment,movement,prayers,magic,combatStyles,itemLibrary);
+            world,equipment,itemLibrary);
         this.prayerMagicCommands = new LocalPrayerMagicCommandHandler(prayers,magic);
         this.devWorldCommands = new LocalDevWorldCommandHandler(world,movement);
         this.miniPetCommands = new LocalMiniPetCommandHandler(miniPets,petState,npcs,movement);
