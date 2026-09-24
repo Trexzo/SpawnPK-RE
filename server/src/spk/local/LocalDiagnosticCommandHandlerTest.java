@@ -38,7 +38,8 @@ public final class LocalDiagnosticCommandHandlerTest {
                 {"styleinfo"},
                 {"combatprobe"},
                 {"engine"},
-                {"equipstr","-1"}
+                {"equipstr","-1"},
+                {"itemlib","28860"}
             };
 
             for(String[] command:migrated)
@@ -77,6 +78,29 @@ public final class LocalDiagnosticCommandHandlerTest {
             if(wire.size()<=before)
                 throw new AssertionError(
                     "equipstr effect did not emit fail-closed reset packet"
+                );
+
+            int beforeItemLibrary=
+                wire.size();
+
+            String itemLibrary=
+                h.itemLibraryOpen(
+                    28860,
+                    w
+                );
+
+            if(!itemLibrary.contains(
+                    "V5150_ITEM_LIBRARY_DEV_OPEN result=")||
+               !itemLibrary.contains(
+                    "opener=LOCAL_DEV_ONLY nativeRoot=47500 normalRequest=igsearch"))
+                throw new AssertionError(
+                    "itemlib effect="+
+                    itemLibrary
+                );
+
+            if(wire.size()<=beforeItemLibrary)
+                throw new AssertionError(
+                    "itemlib effect emitted no native UI packets"
                 );
 
             if(h.handle(
@@ -120,6 +144,7 @@ public final class LocalDiagnosticCommandHandlerTest {
                 "LOCAL_DIAGNOSTIC_COMMAND_HANDLER_PASS "+
                 "migratedRoutesRejected=true "+
                 "equipstrRuntimeEffect=true "+
+                "itemlibRuntimeEffect=true "+
                 "engineEffect=true "+
                 "mutatingCommandRejected=true"
             );
