@@ -80,6 +80,7 @@ final class LocalCommandDispatcher {
         this.petCompatibilityCommands=Objects.requireNonNull(petCompatibilityCommands,"petCompatibilityCommands");
         this.combatCommands=Objects.requireNonNull(combatCommands,"combatCommands");
         this.devSessionCommands=Objects.requireNonNull(devSessionCommands,"devSessionCommands");
+        this.petRuntimeCommands=Objects.requireNonNull(petRuntimeCommands,"petRuntimeCommands");
         this.contentCommandActions=
             new LocalContentCommandActionExecutor(
                 this.cosmeticCommands,
@@ -89,7 +90,8 @@ final class LocalCommandDispatcher {
                 this.combatCommands,
                 this.diagnosticCommands,
                 this.devSessionCommands,
-                this.prayerMagicCommands
+                this.prayerMagicCommands,
+                this.petRuntimeCommands
             );
         this.devWorldCommands=Objects.requireNonNull(devWorldCommands,"devWorldCommands");
         this.dev=Objects.requireNonNull(dev,"dev");
@@ -99,7 +101,6 @@ final class LocalCommandDispatcher {
         this.devToolCommands=Objects.requireNonNull(devToolCommands,"devToolCommands");
         this.nurseCommands=Objects.requireNonNull(nurseCommands,"nurseCommands");
         this.voidglassCommands=Objects.requireNonNull(voidglassCommands,"voidglassCommands");
-        this.petRuntimeCommands=Objects.requireNonNull(petRuntimeCommands,"petRuntimeCommands");
         this.contentRegistry=Objects.requireNonNull(contentRegistry,"contentRegistry");
         this.worldPlayer=Objects.requireNonNull(worldPlayer,"worldPlayer");
         this.bridge=Objects.requireNonNull(bridge,"bridge");
