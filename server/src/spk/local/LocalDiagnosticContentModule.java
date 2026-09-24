@@ -15,6 +15,8 @@ final class LocalDiagnosticContentModule
 
     static final String MODULE_ID=
         "locallab-diagnostics";
+    static final String ENGINE_INFO_ACTION=
+        "locallab.engine.info";
 
     private final ContentRegistry registry;
 
@@ -93,6 +95,16 @@ final class LocalDiagnosticContentModule
             "combatprobe",
             100,
             this::combatProbe
+        );
+
+
+        registrar.command(
+            "engine",
+            100,
+            context->
+                ContentResult.action(
+                    ENGINE_INFO_ACTION
+                )
         );
     }
 
