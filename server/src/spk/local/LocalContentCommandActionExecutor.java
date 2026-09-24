@@ -188,6 +188,25 @@ final class LocalContentCommandActionExecutor {
                 )
             );
 
+        Integer itemLibraryItem=
+            diagnosticIntValue(
+                actionKey,
+                LocalDiagnosticContentModule
+                    .ITEMLIB_OPEN_ACTION_PREFIX
+            );
+
+        if(itemLibraryItem!=null&&
+           diagnostics!=null)
+            return Outcome.content(
+                ContentResult.handled(
+                    diagnostics.itemLibraryOpen(
+                        itemLibraryItem,
+                        packets
+                    ),
+                    null
+                )
+            );
+
         if(LocalDiagnosticContentModule
                 .ENGINE_INFO_ACTION
                 .equals(actionKey)&&
