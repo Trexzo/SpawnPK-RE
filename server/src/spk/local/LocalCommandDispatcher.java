@@ -78,7 +78,8 @@ final class LocalCommandDispatcher {
         this.cosmeticCommands=Objects.requireNonNull(cosmeticCommands,"cosmeticCommands");
         this.contentCommandActions=
             new LocalContentCommandActionExecutor(
-                this.cosmeticCommands
+                this.cosmeticCommands,
+                this.compColorsCommands
             );
         this.devWorldCommands=Objects.requireNonNull(devWorldCommands,"devWorldCommands");
         this.dev=Objects.requireNonNull(dev,"dev");
@@ -136,6 +137,7 @@ final class LocalCommandDispatcher {
                     content=
                         contentCommandActions.execute(
                             content.actionKey(),
+                            command,
                             username,
                             serverPackets
                         );
@@ -304,20 +306,6 @@ final class LocalCommandDispatcher {
         if(petRuntimeCommand!=null){
             for(String line:petRuntimeCommand)
                 System.out.println(tag+line);
-            return true;
-        }
-
-        LocalCompColorsCommandHandler.Result compColorsCommand=
-            compColorsCommands.handle(
-                p,
-                command,
-                username,
-                serverPackets
-            );
-        if(compColorsCommand!=null){
-            if(compColorsCommand.saveReason!=null)
-                bridge.saveAccount(tag,compColorsCommand.saveReason);
-            System.out.println(tag+compColorsCommand.logText);
             return true;
         }
 
