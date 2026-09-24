@@ -401,8 +401,6 @@ public final class DevHitContentCommandActionOwnershipTest {
             LocalCombatCommandHandler combatHandler=
                 new LocalCombatCommandHandler(
                     combat,
-                    player.equipment(),
-                    player.combatStyles(),
                     npcs,
                     petRuntime
                 );
