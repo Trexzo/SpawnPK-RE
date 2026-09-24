@@ -862,6 +862,35 @@ tasks.register('appFixtureContentOwnershipRegression') {
     }
 }
 
+tasks.register('cosmeticContentCommandActionOwnershipRegression') {
+    group = 'verification'
+    description = 'Validates content-owned cosmetic command policy through fail-closed semantic command actions while exact cosmetic effects remain runtime-owned.'
+    dependsOn tasks.named('testClasses')
+
+    doLast {
+        [
+            'spk.local.CosmeticContentCommandActionOwnershipTest',
+            'spk.local.LocalCosmeticCommandHandlerTest',
+            'spk.local.ContentPublicApiBoundaryTest',
+            'spk.local.ContentRegistryTest',
+            'spk.local.ContentRegistrationLifecycleTest',
+            'spk.local.ContentHandlerSamCompatibilityTest',
+            'spk.local.ContentProvenanceAuthorityBoundaryTest',
+            'spk.local.LocalCommandDispatcherTest'
+        ].each { mainClassName ->
+            project.javaexec {
+                workingDir repoRoot
+                classpath = sourceSets.test.runtimeClasspath
+                mainClass.set(mainClassName)
+            }
+        }
+
+        logger.lifecycle(
+            'COSMETIC_CONTENT_COMMAND_ACTION_OWNERSHIP_PASS binding=true semanticAction=true aliases=true policyWireBytes=0 allowlist=true unknownFailClosed=true removeState=true removeWire=true saveReason=true legacyParser=false dispatcherExecutor=true'
+        )
+    }
+}
+
 tasks.register('playerStateDiagnosticContentOwnershipRegression') {
     group = 'verification'
     description = 'Validates content ownership of prayerinfo/magicinfo/styleinfo through an internal diagnostic player projection with no public API expansion.'
