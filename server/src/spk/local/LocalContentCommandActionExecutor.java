@@ -1,6 +1,9 @@
 package spk.local;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import spk.content.api.ContentResult;
 import spk.content.builtin.LocalLabCoreContentModule;
 
@@ -12,13 +15,16 @@ final class LocalContentCommandActionExecutor {
     static final class Outcome {
         final ContentResult contentResult;
         final LocalPetInventoryDialogHandler.Result dialogResult;
+        final List<String> logLines;
 
         private Outcome(
             ContentResult contentResult,
-            LocalPetInventoryDialogHandler.Result dialogResult
+            LocalPetInventoryDialogHandler.Result dialogResult,
+            List<String> logLines
         ){
             this.contentResult=contentResult;
             this.dialogResult=dialogResult;
+            this.logLines=logLines;
         }
 
         static Outcome content(
@@ -29,6 +35,7 @@ final class LocalContentCommandActionExecutor {
                     result,
                     "result"
                 ),
+                null,
                 null
             );
         }
@@ -41,6 +48,24 @@ final class LocalContentCommandActionExecutor {
                 java.util.Objects.requireNonNull(
                     result,
                     "result"
+                ),
+                null
+            );
+        }
+
+        static Outcome lines(
+            List<String> lines
+        ){
+            return new Outcome(
+                null,
+                null,
+                Collections.unmodifiableList(
+                    new ArrayList<>(
+                        java.util.Objects.requireNonNull(
+                            lines,
+                            "lines"
+                        )
+                    )
                 )
             );
         }
@@ -50,12 +75,29 @@ final class LocalContentCommandActionExecutor {
     private final LocalCompColorsCommandHandler compColors;
     private final LocalMiniPetCommandHandler miniPets;
     private final LocalPetCompatibilityCommandHandler petCompatibility;
+    private final LocalCombatCommandHandler combat;
 
     LocalContentCommandActionExecutor(
         LocalCosmeticCommandHandler cosmetics,
         LocalCompColorsCommandHandler compColors,
         LocalMiniPetCommandHandler miniPets,
         LocalPetCompatibilityCommandHandler petCompatibility
+    ){
+        this(
+            cosmetics,
+            compColors,
+            miniPets,
+            petCompatibility,
+            null
+        );
+    }
+
+    LocalContentCommandActionExecutor(
+        LocalCosmeticCommandHandler cosmetics,
+        LocalCompColorsCommandHandler compColors,
+        LocalMiniPetCommandHandler miniPets,
+        LocalPetCompatibilityCommandHandler petCompatibility,
+        LocalCombatCommandHandler combat
     ){
         this.cosmetics=
             java.util.Objects.requireNonNull(
@@ -77,6 +119,7 @@ final class LocalContentCommandActionExecutor {
                 petCompatibility,
                 "petCompatibility"
             );
+        this.combat=combat;
     }
 
     Outcome executeOutcome(
@@ -94,6 +137,21 @@ final class LocalContentCommandActionExecutor {
             return Outcome.dialog(
                 petCompatibility.switchColor(
                     requested,
+                    packets
+                )
+            );
+
+        Integer damage=
+            combatFixtureDamage(
+                actionKey
+            );
+
+        if(damage!=null&&
+           combat!=null)
+            return Outcome.lines(
+                combat.fixture(
+                    damage,
+                    rawCommand,
                     packets
                 )
             );
@@ -185,6 +243,14 @@ final class LocalContentCommandActionExecutor {
                     accessoryResult.saveReason
                 );
 
+            ContentResult devHit=
+                devHitResult(
+                    actionKey
+                );
+
+            if(devHit!=null)
+                return devHit;
+
             return ContentResult.handled(
                 "CONTENT_COMMAND_ACTION key="+
                     actionKey+
@@ -197,6 +263,260 @@ final class LocalContentCommandActionExecutor {
             result.logText,
             result.saveReason
         );
+    }
+
+    private ContentResult devHitResult(
+        String actionKey
+    ){
+        if(combat==null)
+            return null;
+
+        if(LocalLabCoreContentModule
+                .DEV_HIT_INFO_ACTION
+                .equals(actionKey))
+            return ContentResult.handled(
+                combat.devHitInfo(),
+                null
+            );
+
+        if(LocalLabCoreContentModule
+                .DEV_HIT_RESET_ACTION
+                .equals(actionKey))
+            return ContentResult.handled(
+                combat.devHitReset(),
+                null
+            );
+
+        if(LocalLabCoreContentModule
+                .DEV_HIT_DAMAGE_AUTO_ACTION
+                .equals(actionKey))
+            return ContentResult.handled(
+                combat.devHitDamageAuto(),
+                null
+            );
+
+        if(LocalLabCoreContentModule
+                .DEV_HIT_SEQUENCE_OFF_ACTION
+                .equals(actionKey))
+            return ContentResult.handled(
+                combat.devHitSequenceOff(),
+                null
+            );
+
+        if(LocalLabCoreContentModule
+                .DEV_HIT_VARIANT_AUTO_ACTION
+                .equals(actionKey))
+            return ContentResult.handled(
+                combat.devHitVariant(
+                    true
+                ),
+                null
+            );
+
+        if(LocalLabCoreContentModule
+                .DEV_HIT_VARIANT_MANUAL_ACTION
+                .equals(actionKey))
+            return ContentResult.handled(
+                combat.devHitVariant(
+                    false
+                ),
+                null
+            );
+
+        if(LocalLabCoreContentModule
+                .DEV_HIT_NEXT_ACTION
+                .equals(actionKey))
+            return ContentResult.handled(
+                combat.devHitNextType(),
+                null
+            );
+
+        if(LocalLabCoreContentModule
+                .DEV_HIT_PREV_ACTION
+                .equals(actionKey))
+            return ContentResult.handled(
+                combat.devHitPreviousType(),
+                null
+            );
+
+        if(LocalLabCoreContentModule
+                .DEV_HIT_PLACEMENT_PRIMARY_ACTION
+                .equals(actionKey))
+            return ContentResult.handled(
+                combat.devHitPlacementPrimary(),
+                null
+            );
+
+        Integer damage=
+            scalarDevHitValue(
+                actionKey,
+                LocalLabCoreContentModule
+                    .DEV_HIT_DAMAGE_ACTION_PREFIX
+            );
+
+        if(damage!=null)
+            return ContentResult.handled(
+                combat.devHitDamage(
+                    damage
+                ),
+                null
+            );
+
+        Integer type=
+            scalarDevHitValue(
+                actionKey,
+                LocalLabCoreContentModule
+                    .DEV_HIT_TYPE_ACTION_PREFIX
+            );
+
+        if(type!=null)
+            return ContentResult.handled(
+                combat.devHitType(
+                    type
+                ),
+                null
+            );
+
+        Integer styleIcon=
+            scalarDevHitValue(
+                actionKey,
+                LocalLabCoreContentModule
+                    .DEV_HIT_STYLE_ICON_ACTION_PREFIX
+            );
+
+        if(styleIcon!=null)
+            return ContentResult.handled(
+                combat.devHitStyleIcon(
+                    styleIcon
+                ),
+                null
+            );
+
+        int[] sequence=
+            devHitSequence(
+                actionKey
+            );
+
+        if(sequence!=null)
+            return ContentResult.handled(
+                combat.devHitSequence(
+                    sequence
+                ),
+                null
+            );
+
+        return null;
+    }
+
+    private static Integer scalarDevHitValue(
+        String actionKey,
+        String actionPrefix
+    ){
+        String prefix=
+            actionPrefix+
+            ":";
+
+        if(actionKey==null||
+           !actionKey.startsWith(prefix))
+            return null;
+
+        String token=
+            actionKey.substring(
+                prefix.length()
+            );
+
+        if(token.isEmpty()||
+           token.indexOf(':')>=0)
+            return null;
+
+        try{
+            int value=
+                Integer.parseInt(
+                    token
+                );
+
+            return value>=0&&
+                value<=255
+                    ?Integer.valueOf(value)
+                    :null;
+        }catch(NumberFormatException ignored){
+            return null;
+        }
+    }
+
+    private static int[] devHitSequence(
+        String actionKey
+    ){
+        String prefix=
+            LocalLabCoreContentModule
+                .DEV_HIT_SEQUENCE_ACTION_PREFIX+
+            ":";
+
+        if(actionKey==null||
+           !actionKey.startsWith(prefix))
+            return null;
+
+        String[] tokens=
+            actionKey.substring(
+                prefix.length()
+            ).split(
+                ":",
+                -1
+            );
+
+        if(tokens.length<2||
+           tokens.length>16)
+            return null;
+
+        int[] sequence=
+            new int[tokens.length];
+
+        for(int i=0;i<tokens.length;i++){
+            try{
+                sequence[i]=
+                    Integer.parseInt(
+                        tokens[i]
+                    );
+            }catch(NumberFormatException ignored){
+                return null;
+            }
+
+            if(sequence[i]<0||
+               sequence[i]>255)
+                return null;
+        }
+
+        return sequence;
+    }
+
+    private static Integer combatFixtureDamage(
+        String actionKey
+    ){
+        String prefix=
+            LocalLabCoreContentModule
+                .COMBAT_FIXTURE_ACTION_PREFIX+
+            ":";
+
+        if(actionKey==null||
+           !actionKey.startsWith(prefix))
+            return null;
+
+        String token=
+            actionKey.substring(
+                prefix.length()
+            );
+
+        if(token.isEmpty()||
+           token.indexOf(':')>=0)
+            return null;
+
+        try{
+            return Integer.valueOf(
+                token
+            );
+        }catch(NumberFormatException ignored){
+            return null;
+        }
     }
 
     private static Integer petSwitchColorRequested(

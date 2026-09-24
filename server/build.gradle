@@ -1816,6 +1816,75 @@ tasks.register('miniPetContentCommandActionOwnershipRegression') {
 }
 
 
+tasks.register('devHitContentCommandActionOwnershipRegression') {
+    group = 'verification'
+    description = 'Validates content-owned devhit subcommand policy with typed fail-closed runtime combat fixture effects.'
+    dependsOn tasks.named('testClasses')
+
+    doLast {
+        [
+            'spk.local.DevHitContentCommandActionOwnershipTest',
+            'spk.local.LocalCombatCommandHandlerTest',
+            'spk.local.CombatFixtureContentCommandActionOwnershipTest',
+            'spk.local.CombatProbeDiagnosticContentOwnershipTest',
+            'spk.local.PetSwitchColorContentCommandActionOwnershipTest',
+            'spk.local.PetAccessoryContentCommandActionOwnershipTest',
+            'spk.local.MiniPetContentCommandActionOwnershipTest',
+            'spk.local.CompColorsContentCommandActionOwnershipTest',
+            'spk.local.CosmeticContentCommandActionOwnershipTest',
+            'spk.local.ContentPublicApiBoundaryTest',
+            'spk.local.ContentRegistryTest',
+            'spk.local.ContentHandlerSamCompatibilityTest',
+            'spk.local.ContentProvenanceAuthorityBoundaryTest',
+            'spk.local.LocalCommandDispatcherTest'
+        ].each { mainClassName ->
+            project.javaexec {
+                workingDir repoRoot
+                classpath = sourceSets.test.runtimeClasspath
+                mainClass.set(mainClassName)
+            }
+        }
+
+        logger.lifecycle(
+            'DEV_HIT_CONTENT_COMMAND_ACTION_OWNERSHIP_PASS binding=true semanticActions=true legacySyntax=true legacyRejections=true sequencePolicy=true policyWireBytes=0 typedRuntimeEffects=true malformedFailClosed=true runtimeWireBytes=0 combatEngineParser=false handlerParser=false dispatcherFallback=false publicApiExpanded=false'
+        )
+    }
+}
+
+tasks.register('combatFixtureContentCommandActionOwnershipRegression') {
+    group = 'verification'
+    description = 'Validates content-owned combatfixture parsing with internal runtime log-line effects and no public API widening.'
+    dependsOn tasks.named('testClasses')
+
+    doLast {
+        [
+            'spk.local.CombatFixtureContentCommandActionOwnershipTest',
+            'spk.local.LocalCombatCommandHandlerTest',
+            'spk.local.PetSwitchColorContentCommandActionOwnershipTest',
+            'spk.local.PetAccessoryContentCommandActionOwnershipTest',
+            'spk.local.MiniPetContentCommandActionOwnershipTest',
+            'spk.local.CompColorsContentCommandActionOwnershipTest',
+            'spk.local.CosmeticContentCommandActionOwnershipTest',
+            'spk.local.ContentPublicApiBoundaryTest',
+            'spk.local.ContentRegistryTest',
+            'spk.local.ContentHandlerSamCompatibilityTest',
+            'spk.local.ContentProvenanceAuthorityBoundaryTest',
+            'spk.local.LocalCommandDispatcherTest'
+        ].each { mainClassName ->
+            project.javaexec {
+                workingDir repoRoot
+                classpath = sourceSets.test.runtimeClasspath
+                mainClass.set(mainClassName)
+            }
+        }
+
+        logger.lifecycle(
+            'COMBAT_FIXTURE_CONTENT_COMMAND_ACTION_OWNERSHIP_PASS binding=true semanticAction=true defaultDamage=true invalidDamageCompatibility=true extraArgsCompatibility=true policyWireBytes=0 internalLogLines=true noTargetParity=true rangeParity=true malformedFailClosed=true legacyParser=false devhitRuntimeOwned=true publicApiExpanded=false'
+        )
+    }
+}
+
+
 tasks.named('check') {
     dependsOn tasks.named('customAssetPipelineRegression')
     dependsOn tasks.named('customAssetPipelineHardeningRegression')

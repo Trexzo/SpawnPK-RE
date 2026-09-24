@@ -521,69 +521,104 @@ final class CombatEngine {
             " hpFixture="+hp+"/"+DUMMY_HP_MAX+" hitsplatType="+hitType+" hitsplatVariantMode="+(devHitVariantAuto?"auto":"manual")+" authority=CLIENT_PACKET65_TRANSPORT_ONLY";
     }
 
-    String devHitCommand(String[] p){
-        String sub=p.length>=2?p[1].toLowerCase(java.util.Locale.ROOT):"info";
-        if(sub.equals("info")) return devHitSummary();
-        if(sub.equals("reset")){
-            devHitType=6;devHitVariantAuto=true;devHitStyleIcon=255;devHitPlacement="primary";
-            devHitDamage=null;devHitDamageSequence=null;devHitDamageSequenceIndex=0;
-            return "DEVHIT_RESET "+devHitSummary();
-        }
-        if(sub.equals("damage")&&p.length>=3){
-            String v=p[2].toLowerCase(java.util.Locale.ROOT);
-            if(v.equals("auto")||v.equals("off")||v.equals("reset")){
-                devHitDamage=null;devHitDamageSequence=null;devHitDamageSequenceIndex=0;
-                return "DEVHIT_DAMAGE "+devHitSummary();
-            }
-            try{
-                int n=Integer.parseInt(v);
-                if(n<0||n>255)return "DEVHIT_REJECTED damage=0..255|auto";
-                devHitDamage=Integer.valueOf(n);devHitDamageSequence=null;devHitDamageSequenceIndex=0;
-                return "DEVHIT_DAMAGE "+devHitSummary();
-            }catch(Exception e){return "DEVHIT_REJECTED damage=0..255|auto";}
-        }
-        if(sub.equals("sequence")&&p.length>=3){
-            String v=p[2].trim();
-            if(v.equalsIgnoreCase("off")||v.equalsIgnoreCase("auto")||v.equalsIgnoreCase("reset")){
-                devHitDamageSequence=null;devHitDamageSequenceIndex=0;devHitDamage=null;
-                return "DEVHIT_SEQUENCE "+devHitSummary();
-            }
-            try{
-                String[] parts=v.split(",");
-                if(parts.length<2||parts.length>16)return "DEVHIT_REJECTED sequence=comma-separated_2..16_values_0..255";
-                int[] seq=new int[parts.length];
-                for(int i=0;i<parts.length;i++){
-                    seq[i]=Integer.parseInt(parts[i].trim());
-                    if(seq[i]<0||seq[i]>255)return "DEVHIT_REJECTED sequence=value_range_0..255";
-                }
-                devHitDamageSequence=seq;devHitDamageSequenceIndex=0;devHitDamage=null;
-                return "DEVHIT_SEQUENCE "+devHitSummary();
-            }catch(Exception e){return "DEVHIT_REJECTED sequence=example_37,100";}
-        }
-        if(sub.equals("variant")&&p.length>=3){
-            String v=p[2].toLowerCase(java.util.Locale.ROOT);
-            if(v.equals("auto")){devHitVariantAuto=true;return "DEVHIT_VARIANT "+devHitSummary();}
-            if(v.equals("manual")){devHitVariantAuto=false;return "DEVHIT_VARIANT "+devHitSummary();}
-            return "DEVHIT_REJECTED variant=auto|manual";
-        }
-        if(sub.equals("next")){devHitVariantAuto=false;devHitType=(devHitType+1)&255;return "DEVHIT_TYPE "+devHitSummary();}
-        if(sub.equals("prev")){devHitVariantAuto=false;devHitType=(devHitType+255)&255;return "DEVHIT_TYPE "+devHitSummary();}
-        if(sub.equals("type")&&p.length>=3){
-            try{int v=Integer.parseInt(p[2]);if(v<0||v>255)return "DEVHIT_REJECTED type=0..255";devHitType=v;devHitVariantAuto=false;return "DEVHIT_TYPE "+devHitSummary();}
-            catch(Exception e){return "DEVHIT_REJECTED type=0..255";}
-        }
-        if(sub.equals("styleicon")&&p.length>=3){
-            try{int v=Integer.parseInt(p[2]);if(v<0||v>255)return "DEVHIT_REJECTED styleicon=0..255";devHitStyleIcon=v;return "DEVHIT_STYLEICON_METADATA_ONLY "+devHitSummary()+" transportNote=current_NPC_singleHit_mask_has_no_styleIcon_field";}
-            catch(Exception e){return "DEVHIT_REJECTED styleicon=0..255";}
-        }
-        if(sub.equals("placement")&&p.length>=3){
-            String v=p[2].toLowerCase(java.util.Locale.ROOT);
-            if(v.equals("primary")){devHitPlacement="primary";return "DEVHIT_PLACEMENT "+devHitSummary();}
-            if(v.equals("secondary"))return "DEVHIT_REJECTED placement=secondary reason=current_NPC_sync_encoder_only_certifies_primary_singleHit_mask";
-            return "DEVHIT_REJECTED placement=primary|secondary";
-        }
-        return "DEVHIT_HELP info | variant auto|manual | type <0..255> | next | prev | damage <0..255|auto> | sequence <a,b,...|off> | styleicon <0..255> | placement primary|secondary | reset";
+    String devHitInfo(){
+        return devHitSummary();
     }
+
+    String devHitReset(){
+        devHitType=6;
+        devHitVariantAuto=true;
+        devHitStyleIcon=255;
+        devHitPlacement="primary";
+        devHitDamage=null;
+        devHitDamageSequence=null;
+        devHitDamageSequenceIndex=0;
+        return "DEVHIT_RESET "+devHitSummary();
+    }
+
+    String devHitDamageAuto(){
+        devHitDamage=null;
+        devHitDamageSequence=null;
+        devHitDamageSequenceIndex=0;
+        return "DEVHIT_DAMAGE "+devHitSummary();
+    }
+
+    String devHitDamage(int damage){
+        if(damage<0||damage>255)
+            return "DEVHIT_REJECTED damage=0..255|auto";
+
+        devHitDamage=Integer.valueOf(damage);
+        devHitDamageSequence=null;
+        devHitDamageSequenceIndex=0;
+        return "DEVHIT_DAMAGE "+devHitSummary();
+    }
+
+    String devHitSequenceOff(){
+        devHitDamageSequence=null;
+        devHitDamageSequenceIndex=0;
+        devHitDamage=null;
+        return "DEVHIT_SEQUENCE "+devHitSummary();
+    }
+
+    String devHitSequence(int[] sequence){
+        if(sequence==null||
+           sequence.length<2||
+           sequence.length>16)
+            return "DEVHIT_REJECTED sequence=comma-separated_2..16_values_0..255";
+
+        int[] copy=sequence.clone();
+
+        for(int value:copy)
+            if(value<0||value>255)
+                return "DEVHIT_REJECTED sequence=value_range_0..255";
+
+        devHitDamageSequence=copy;
+        devHitDamageSequenceIndex=0;
+        devHitDamage=null;
+        return "DEVHIT_SEQUENCE "+devHitSummary();
+    }
+
+    String devHitVariant(boolean auto){
+        devHitVariantAuto=auto;
+        return "DEVHIT_VARIANT "+devHitSummary();
+    }
+
+    String devHitNextType(){
+        devHitVariantAuto=false;
+        devHitType=(devHitType+1)&255;
+        return "DEVHIT_TYPE "+devHitSummary();
+    }
+
+    String devHitPreviousType(){
+        devHitVariantAuto=false;
+        devHitType=(devHitType+255)&255;
+        return "DEVHIT_TYPE "+devHitSummary();
+    }
+
+    String devHitType(int type){
+        if(type<0||type>255)
+            return "DEVHIT_REJECTED type=0..255";
+
+        devHitType=type;
+        devHitVariantAuto=false;
+        return "DEVHIT_TYPE "+devHitSummary();
+    }
+
+    String devHitStyleIcon(int styleIcon){
+        if(styleIcon<0||styleIcon>255)
+            return "DEVHIT_REJECTED styleicon=0..255";
+
+        devHitStyleIcon=styleIcon;
+        return "DEVHIT_STYLEICON_METADATA_ONLY "+
+            devHitSummary()+
+            " transportNote=current_NPC_singleHit_mask_has_no_styleIcon_field";
+    }
+
+    String devHitPlacementPrimary(){
+        devHitPlacement="primary";
+        return "DEVHIT_PLACEMENT "+devHitSummary();
+    }
+
     String devHitSummary(){
         return "type="+devHitType+" variantMode="+(devHitVariantAuto?"auto(normal=1,max=6)":"manual")+" styleIcon="+devHitStyleIcon+" placement="+devHitPlacement+
             " damageMode="+devDamageSummary()+
