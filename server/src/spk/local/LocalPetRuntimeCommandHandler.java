@@ -117,31 +117,44 @@ final class LocalPetRuntimeCommandHandler {
         );
     }
 
+    List<String> proc(
+        ServerPacketWriter serverPackets
+    )throws IOException{
+        serverPackets.varShort(
+            81,
+            CombatSync.player81GfxOnly(
+                1310,
+                0,
+                0
+            )
+        );
+
+        String snipe=
+            "NOT_SCOPESIGHT";
+
+        if(scopesightActive()&&
+           npcs.pet()!=null&&
+           npcs.pet().definitionId==
+               ScopesightPetProfile.NPC_ID)
+            snipe=
+                npcs.forcePetText(
+                    ScopesightPetProfile
+                        .NATIVE_TRIGGER_TEXT,
+                    serverPackets
+                );
+
+        return one(
+            "V511_PET_PROC_FIXTURE playerAnim=NONE playerGfx=1310 scopesight="+
+            snipe+
+            " semantics=PRODUCTION_NORMAL_PET_BOOST_PRESENTATION"
+        );
+    }
+
     List<String> handle(
         String[] p,
         ServerPacketWriter serverPackets
     )throws IOException{
         if(p==null||p.length<1)return null;
-
-        if(p[0].equalsIgnoreCase("petproc")){
-            serverPackets.varShort(
-                81,
-                CombatSync.player81GfxOnly(1310,0,0));
-
-            String snipe="NOT_SCOPESIGHT";
-            if(scopesightActive()&&
-               npcs.pet()!=null&&
-               npcs.pet().definitionId==ScopesightPetProfile.NPC_ID){
-                snipe=npcs.forcePetText(
-                    ScopesightPetProfile.NATIVE_TRIGGER_TEXT,
-                    serverPackets);
-            }
-
-            return one(
-                "V511_PET_PROC_FIXTURE playerAnim=NONE playerGfx=1310 scopesight="+
-                snipe+
-                " semantics=PRODUCTION_NORMAL_PET_BOOST_PRESENTATION");
-        }
 
         if(p[0].equalsIgnoreCase("pettestall")){
             armSequence(System.currentTimeMillis());
