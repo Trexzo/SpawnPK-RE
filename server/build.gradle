@@ -862,6 +862,34 @@ tasks.register('appFixtureContentOwnershipRegression') {
     }
 }
 
+tasks.register('prayerIconContentCommandActionOwnershipRegression') {
+    group = 'verification'
+    description = 'Validates content-owned prayericon policy while manual head-icon packet publication remains runtime-owned.'
+    dependsOn tasks.named('testClasses')
+
+    doLast {
+        [
+            'spk.local.PrayerIconContentCommandActionOwnershipTest',
+            'spk.local.LocalPrayerMagicCommandHandlerTest',
+            'spk.local.ContentPublicApiBoundaryTest',
+            'spk.local.ContentRegistryTest',
+            'spk.local.ContentHandlerSamCompatibilityTest',
+            'spk.local.ContentProvenanceAuthorityBoundaryTest',
+            'spk.local.LocalCommandDispatcherTest'
+        ].each { mainClassName ->
+            project.javaexec {
+                workingDir repoRoot
+                classpath = sourceSets.test.runtimeClasspath
+                mainClass.set(mainClassName)
+            }
+        }
+
+        logger.lifecycle(
+            'PRAYER_ICON_CONTENT_COMMAND_ACTION_OWNERSHIP_PASS binding=true semanticAction=true missingFallthrough=true rangePolicy=true extraArgsCompatibility=true policyWireBytes=0 runtimeEffect=true malformedFailClosed=true outOfRangeFailClosed=true legacyParser=false dispatcherFallback=false magicDependencyTrim=true publicApiExpanded=false'
+        )
+    }
+}
+
 tasks.register('opcode103SemanticDecoderBoundaryRegression') {
     group = 'verification'
     description = 'Validates transport-only opcode103 decoding with dialogue-option semantic classification downstream of ClientPacketProbe.'
