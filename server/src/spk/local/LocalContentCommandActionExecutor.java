@@ -1,6 +1,9 @@
 package spk.local;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import spk.content.api.ContentResult;
 import spk.content.builtin.LocalLabCoreContentModule;
 
@@ -12,13 +15,16 @@ final class LocalContentCommandActionExecutor {
     static final class Outcome {
         final ContentResult contentResult;
         final LocalPetInventoryDialogHandler.Result dialogResult;
+        final List<String> logLines;
 
         private Outcome(
             ContentResult contentResult,
-            LocalPetInventoryDialogHandler.Result dialogResult
+            LocalPetInventoryDialogHandler.Result dialogResult,
+            List<String> logLines
         ){
             this.contentResult=contentResult;
             this.dialogResult=dialogResult;
+            this.logLines=logLines;
         }
 
         static Outcome content(
@@ -29,6 +35,7 @@ final class LocalContentCommandActionExecutor {
                     result,
                     "result"
                 ),
+                null,
                 null
             );
         }
@@ -41,6 +48,24 @@ final class LocalContentCommandActionExecutor {
                 java.util.Objects.requireNonNull(
                     result,
                     "result"
+                ),
+                null
+            );
+        }
+
+        static Outcome lines(
+            List<String> lines
+        ){
+            return new Outcome(
+                null,
+                null,
+                Collections.unmodifiableList(
+                    new ArrayList<>(
+                        java.util.Objects.requireNonNull(
+                            lines,
+                            "lines"
+                        )
+                    )
                 )
             );
         }
@@ -50,12 +75,29 @@ final class LocalContentCommandActionExecutor {
     private final LocalCompColorsCommandHandler compColors;
     private final LocalMiniPetCommandHandler miniPets;
     private final LocalPetCompatibilityCommandHandler petCompatibility;
+    private final LocalCombatCommandHandler combat;
 
     LocalContentCommandActionExecutor(
         LocalCosmeticCommandHandler cosmetics,
         LocalCompColorsCommandHandler compColors,
         LocalMiniPetCommandHandler miniPets,
         LocalPetCompatibilityCommandHandler petCompatibility
+    ){
+        this(
+            cosmetics,
+            compColors,
+            miniPets,
+            petCompatibility,
+            null
+        );
+    }
+
+    LocalContentCommandActionExecutor(
+        LocalCosmeticCommandHandler cosmetics,
+        LocalCompColorsCommandHandler compColors,
+        LocalMiniPetCommandHandler miniPets,
+        LocalPetCompatibilityCommandHandler petCompatibility,
+        LocalCombatCommandHandler combat
     ){
         this.cosmetics=
             java.util.Objects.requireNonNull(
@@ -77,6 +119,7 @@ final class LocalContentCommandActionExecutor {
                 petCompatibility,
                 "petCompatibility"
             );
+        this.combat=combat;
     }
 
     Outcome executeOutcome(
@@ -94,6 +137,21 @@ final class LocalContentCommandActionExecutor {
             return Outcome.dialog(
                 petCompatibility.switchColor(
                     requested,
+                    packets
+                )
+            );
+
+        Integer damage=
+            combatFixtureDamage(
+                actionKey
+            );
+
+        if(damage!=null&&
+           combat!=null)
+            return Outcome.lines(
+                combat.fixture(
+                    damage,
+                    rawCommand,
                     packets
                 )
             );
@@ -197,6 +255,36 @@ final class LocalContentCommandActionExecutor {
             result.logText,
             result.saveReason
         );
+    }
+
+    private static Integer combatFixtureDamage(
+        String actionKey
+    ){
+        String prefix=
+            LocalLabCoreContentModule
+                .COMBAT_FIXTURE_ACTION_PREFIX+
+            ":";
+
+        if(actionKey==null||
+           !actionKey.startsWith(prefix))
+            return null;
+
+        String token=
+            actionKey.substring(
+                prefix.length()
+            );
+
+        if(token.isEmpty()||
+           token.indexOf(':')>=0)
+            return null;
+
+        try{
+            return Integer.valueOf(
+                token
+            );
+        }catch(NumberFormatException ignored){
+            return null;
+        }
     }
 
     private static Integer petSwitchColorRequested(
