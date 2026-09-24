@@ -6,7 +6,7 @@ public final class LocalPrayerMagicCommandHandlerTest {
     public static void main(String[] args)throws Exception{
         WorldPlayer player=new WorldPlayer();
         LocalPrayerMagicCommandHandler h=
-            new LocalPrayerMagicCommandHandler(player.prayers(),player.magic());
+            new LocalPrayerMagicCommandHandler(player.prayers());
 
         ByteArrayOutputStream wire=new ByteArrayOutputStream();
         ServerPacketWriter w=new ServerPacketWriter(wire,new IsaacCipher(new int[]{1,2,3,4}));
