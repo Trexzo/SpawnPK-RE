@@ -56,6 +56,24 @@ public interface ContentPlayer {
         );
     }
 
+    default int worldX(){
+        throw new UnsupportedOperationException(
+            "player position unavailable"
+        );
+    }
+
+    default int worldY(){
+        throw new UnsupportedOperationException(
+            "player position unavailable"
+        );
+    }
+
+    default int plane(){
+        throw new UnsupportedOperationException(
+            "player position unavailable"
+        );
+    }
+
     int runEnergy();
     int specialEnergy();
     int poison();
