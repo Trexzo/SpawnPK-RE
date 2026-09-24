@@ -14,6 +14,16 @@ final class ContentRuntimeAdapters {
         );
     }
 
+    static ContentPlayer player(
+        WorldPlayer worldPlayer,
+        ServerPacketWriter writer
+    ){
+        return new PlayerAdapter(
+            worldPlayer,
+            writer
+        );
+    }
+
     static ContentPresentation presentation(
         ServerPacketWriter writer
     ){
@@ -29,14 +39,26 @@ final class ContentRuntimeAdapters {
         private final PlayerState player;
         private final MovementState movement;
         private final PlayerStatusService statuses;
+        private final ServerPacketWriter writer;
 
         PlayerAdapter(
             WorldPlayer worldPlayer
+        ){
+            this(
+                worldPlayer,
+                null
+            );
+        }
+
+        PlayerAdapter(
+            WorldPlayer worldPlayer,
+            ServerPacketWriter writer
         ){
             this.worldPlayer=Objects.requireNonNull(
                 worldPlayer,
                 "worldPlayer"
             );
+            this.writer=writer;
             this.player=worldPlayer.playerState();
             this.movement=worldPlayer.movement();
             this.statuses=
@@ -96,6 +118,30 @@ final class ContentRuntimeAdapters {
                     ScopesightPetProfile.ITEM_ID&&
                 pet.npcId()==
                     ScopesightPetProfile.NPC_ID;
+        }
+
+        @Override public String grantItem(
+            int itemId,
+            int amount
+        ){
+            if(writer==null)
+                throw new UnsupportedOperationException(
+                    "item grant unavailable"
+                );
+
+            try{
+                return worldPlayer.bank()
+                    .spawnItem(
+                        itemId,
+                        amount,
+                        writer
+                    );
+            }catch(IOException error){
+                throw new ContentPresentationException(
+                    "content item grant publication failed",
+                    error
+                );
+            }
         }
 
         @Override public int runEnergy(){
