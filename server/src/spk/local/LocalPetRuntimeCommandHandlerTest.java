@@ -36,18 +36,28 @@ public final class LocalPetRuntimeCommandHandlerTest {
             );
 
         int before=wire.size();
-        List<String> boost=handler.handle(
-            new String[]{"petboost"},
-            writer);
+        List<String> boost=
+            handler.boost(
+                writer
+            );
 
         assertContains(
             boost,
             "V593_PET_BOOST_FIXTURE",
-            "boost");
+            "boost"
+        );
 
         if(wire.size()<=before)
             throw new AssertionError(
-                "petboost emitted no packet");
+                "petboost emitted no packet"
+            );
+
+        if(handler.handle(
+                new String[]{"petboost"},
+                writer)!=null)
+            throw new AssertionError(
+                "raw petboost route remains"
+            );
 
         List<String> armed=handler.handle(
             new String[]{"pettestall"},
@@ -106,7 +116,7 @@ public final class LocalPetRuntimeCommandHandlerTest {
                 "unrelated command consumed");
 
         System.out.println(
-            "LOCAL_PET_RUNTIME_COMMAND_HANDLER_PASS statusEffect=true rawPetStatusRoute=false boost=true sequence=true damageBoundary=true unrelatedRejected=true");
+            "LOCAL_PET_RUNTIME_COMMAND_HANDLER_PASS statusEffect=true rawPetStatusRoute=false boostEffect=true rawPetBoostRoute=false sequence=true damageBoundary=true unrelatedRejected=true");
     }
 
     private static void assertContains(
