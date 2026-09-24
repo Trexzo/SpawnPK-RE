@@ -157,10 +157,6 @@ final class LocalDiagnosticCommandHandler {
         return b.toString();
     }
 
-    private static int parseInt(String s,int fallback){
-        try{return Integer.parseInt(s);}catch(Exception e){return fallback;}
-    }
-
     private static String clip(String s,int n){
         if(s==null)return "";
         String x=s.replace('\n',' ').replace('\r',' ').replaceAll("\\s+"," ").trim();
