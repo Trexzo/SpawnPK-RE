@@ -32,6 +32,15 @@ public final class LocalLabCoreContentModule
     public static final String COMP_COLORS_APPLY_ACTION_PREFIX=
         "locallab.compcolors.apply";
 
+    public static final String MINIPET_STATUS_ACTION=
+        "locallab.minipet.status";
+    public static final String MINIPET_OFF_ACTION=
+        "locallab.minipet.off";
+    public static final String MINIPET_SET_ACTION_PREFIX=
+        "locallab.minipet.set";
+    public static final String MINIPET_HELP_ACTION=
+        "locallab.minipet.help";
+
     @Override public String id(){
         return "locallab-core";
     }
@@ -93,6 +102,12 @@ public final class LocalLabCoreContentModule
             this::compColors
         );
 
+        registrar.command(
+            "minipet",
+            100,
+            this::miniPet
+        );
+
         registrar.objectOption(
             BANK_OBJECT,
             1,
@@ -150,6 +165,49 @@ public final class LocalLabCoreContentModule
                 result+
                 " authority=LOCAL_DEV_FIXTURE clientProtocol=EXACT_CURRENT",
             null
+        );
+    }
+
+    private ContentResult miniPet(
+        ContentCommandContext context
+    ){
+        String sub=
+            context.arguments().isEmpty()
+                ?"status"
+                :context.arguments().get(0)
+                    .toLowerCase(
+                        Locale.ROOT
+                    );
+
+        if("status".equals(sub)||
+           "info".equals(sub))
+            return ContentResult.action(
+                MINIPET_STATUS_ACTION
+            );
+
+        if("off".equals(sub)||
+           "disable".equals(sub))
+            return ContentResult.action(
+                MINIPET_OFF_ACTION
+            );
+
+        if("set".equals(sub)&&
+           context.arguments().size()>=2){
+            int itemId=
+                parseInt(
+                    context.arguments().get(1),
+                    -1
+                );
+
+            return ContentResult.action(
+                MINIPET_SET_ACTION_PREFIX+
+                ":"+
+                itemId
+            );
+        }
+
+        return ContentResult.action(
+            MINIPET_HELP_ACTION
         );
     }
 
