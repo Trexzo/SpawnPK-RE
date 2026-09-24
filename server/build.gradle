@@ -1816,6 +1816,40 @@ tasks.register('miniPetContentCommandActionOwnershipRegression') {
 }
 
 
+tasks.register('petChargeContentCommandActionOwnershipRegression') {
+    group = 'verification'
+    description = 'Validates content-owned pet charge aliases while charge-family eligibility, range ordering, state and native presentation remain runtime-owned.'
+    dependsOn tasks.named('testClasses')
+
+    doLast {
+        [
+            'spk.local.PetChargeContentCommandActionOwnershipTest',
+            'spk.local.BehemothChargeStateTest',
+            'spk.local.LocalPetRuntimeCommandHandlerTest',
+            'spk.local.PetProcContentCommandActionOwnershipTest',
+            'spk.local.ScopeSnipeContentCommandActionOwnershipTest',
+            'spk.local.PetBoostContentCommandActionOwnershipTest',
+            'spk.local.PetStatusContentCommandActionOwnershipTest',
+            'spk.local.ContentPublicApiBoundaryTest',
+            'spk.local.ContentRegistryTest',
+            'spk.local.ContentHandlerSamCompatibilityTest',
+            'spk.local.ContentProvenanceAuthorityBoundaryTest',
+            'spk.local.LocalCommandDispatcherTest'
+        ].each { mainClassName ->
+            project.javaexec {
+                workingDir repoRoot
+                classpath = sourceSets.test.runtimeClasspath
+                mainClass.set(mainClassName)
+            }
+        }
+
+        logger.lifecycle(
+            'PET_CHARGE_CONTENT_COMMAND_ACTION_OWNERSHIP_PASS aliases=true semanticAction=true invalidCompatibility=true extraArgsCompatibility=true policyWireBytes=0 eligibilityBeforeRange=true runtimeCharge=true nativeStateRuntimeOnly=true malformedFailClosed=true legacyRoute=false publicApiExpanded=false'
+        )
+    }
+}
+
+
 tasks.register('issue7CoreContentDecouplingAcceptance') {
     group = 'verification'
     description = 'Locks Issue #7 core acceptance: decoder purity and command selftest through the real JVM plugin/content dispatcher.'

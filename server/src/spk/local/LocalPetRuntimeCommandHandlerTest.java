@@ -111,6 +111,38 @@ public final class LocalPetRuntimeCommandHandlerTest {
                 "raw petproc route remains"
             );
 
+        int beforeCharge=wire.size();
+        List<String> noCharge=
+            handler.charge(
+                -1,
+                writer
+            );
+
+        assertContains(
+            noCharge,
+            "REJECTED_ACTIVE_PET_NOT_CHARGE_FAMILY",
+            "charge eligibility before range"
+        );
+
+        if(wire.size()!=beforeCharge)
+            throw new AssertionError(
+                "rejected charge emitted packet"
+            );
+
+        if(handler.handle(
+                new String[]{"behemothcharge","1"},
+                writer)!=null)
+            throw new AssertionError(
+                "raw behemothcharge route remains"
+            );
+
+        if(handler.handle(
+                new String[]{"petcharge","1"},
+                writer)!=null)
+            throw new AssertionError(
+                "raw petcharge route remains"
+            );
+
         List<String> armed=handler.handle(
             new String[]{"pettestall"},
             writer);
@@ -168,7 +200,7 @@ public final class LocalPetRuntimeCommandHandlerTest {
                 "unrelated command consumed");
 
         System.out.println(
-            "LOCAL_PET_RUNTIME_COMMAND_HANDLER_PASS statusEffect=true rawPetStatusRoute=false boostEffect=true rawPetBoostRoute=false scopeEffect=true rawScopeSnipeRoute=false procEffect=true rawPetProcRoute=false sequence=true damageBoundary=true unrelatedRejected=true");
+            "LOCAL_PET_RUNTIME_COMMAND_HANDLER_PASS statusEffect=true rawPetStatusRoute=false boostEffect=true rawPetBoostRoute=false scopeEffect=true rawScopeSnipeRoute=false procEffect=true rawPetProcRoute=false chargeEffect=true chargeEligibilityBeforeRange=true rawPetChargeRoutes=false sequence=true damageBoundary=true unrelatedRejected=true");
     }
 
     private static void assertContains(
