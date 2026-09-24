@@ -80,7 +80,8 @@ final class LocalCommandDispatcher {
         this.contentCommandActions=
             new LocalContentCommandActionExecutor(
                 this.cosmeticCommands,
-                this.compColorsCommands
+                this.compColorsCommands,
+                this.miniPetCommands
             );
         this.devWorldCommands=Objects.requireNonNull(devWorldCommands,"devWorldCommands");
         this.dev=Objects.requireNonNull(dev,"dev");
@@ -206,15 +207,6 @@ final class LocalCommandDispatcher {
             serverPackets,
             tag
         ))return true;
-
-        LocalMiniPetCommandHandler.Result miniPetCommand=
-            miniPetCommands.handle(p,serverPackets);
-        if(miniPetCommand!=null){
-            if(miniPetCommand.saveReason!=null)
-                bridge.saveAccount(tag,miniPetCommand.saveReason);
-            System.out.println(tag+miniPetCommand.logText);
-            return true;
-        }
 
         if(devWorldCommands.handle(
             p,
