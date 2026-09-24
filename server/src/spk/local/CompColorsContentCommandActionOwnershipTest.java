@@ -136,6 +136,14 @@ public final class CompColorsContentCommandActionOwnershipTest {
                         new PlayerPresentationService(
                             dev
                         )
+                    ),
+                    new LocalMiniPetCommandHandler(
+                        player.miniPets(),
+                        player.petState(),
+                        new NpcRegistry(
+                            dev
+                        ),
+                        player.movement()
                     )
                 );
 
