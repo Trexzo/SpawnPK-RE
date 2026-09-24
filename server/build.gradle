@@ -862,6 +862,35 @@ tasks.register('appFixtureContentOwnershipRegression') {
     }
 }
 
+tasks.register('combatProbeDiagnosticContentOwnershipRegression') {
+    group = 'verification'
+    description = 'Validates zero-wire combatprobe ownership in the internal LocalLab diagnostic content module.'
+    dependsOn tasks.named('testClasses')
+
+    doLast {
+        [
+            'spk.local.CombatProbeDiagnosticContentOwnershipTest',
+            'spk.local.LocalCombatCommandHandlerTest',
+            'spk.local.PlayerStateDiagnosticContentOwnershipTest',
+            'spk.local.LocalDiagnosticContentOwnershipTest',
+            'spk.local.ContentPublicApiBoundaryTest',
+            'spk.local.ContentRegistryTest',
+            'spk.local.ContentHandlerSamCompatibilityTest',
+            'spk.local.ContentProvenanceAuthorityBoundaryTest'
+        ].each { mainClassName ->
+            project.javaexec {
+                workingDir repoRoot
+                classpath = sourceSets.test.runtimeClasspath
+                mainClass.set(mainClassName)
+            }
+        }
+
+        logger.lifecycle(
+            'COMBAT_PROBE_DIAGNOSTIC_CONTENT_OWNERSHIP_PASS binding=true internalProjection=true publicApiExpanded=false textParity=true wireBytes=0 legacyRuntimeRoute=false'
+        )
+    }
+}
+
 tasks.register('petAccessoryContentCommandActionOwnershipRegression') {
     group = 'verification'
     description = 'Validates content-owned petaccessory policy while preserving petswitchcolor dialog handling at the runtime/session boundary.'
