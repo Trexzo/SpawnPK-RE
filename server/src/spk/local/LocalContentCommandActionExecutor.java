@@ -11,10 +11,12 @@ import spk.content.builtin.LocalLabCoreContentModule;
 final class LocalContentCommandActionExecutor {
     private final LocalCosmeticCommandHandler cosmetics;
     private final LocalCompColorsCommandHandler compColors;
+    private final LocalMiniPetCommandHandler miniPets;
 
     LocalContentCommandActionExecutor(
         LocalCosmeticCommandHandler cosmetics,
-        LocalCompColorsCommandHandler compColors
+        LocalCompColorsCommandHandler compColors,
+        LocalMiniPetCommandHandler miniPets
     ){
         this.cosmetics=
             java.util.Objects.requireNonNull(
@@ -25,6 +27,11 @@ final class LocalContentCommandActionExecutor {
             java.util.Objects.requireNonNull(
                 compColors,
                 "compColors"
+            );
+        this.miniPets=
+            java.util.Objects.requireNonNull(
+                miniPets,
+                "miniPets"
             );
     }
 
@@ -79,6 +86,19 @@ final class LocalContentCommandActionExecutor {
                 );
             }
 
+            LocalMiniPetCommandHandler.Result
+                miniResult=
+                    miniPetResult(
+                        actionKey,
+                        packets
+                    );
+
+            if(miniResult!=null)
+                return ContentResult.handled(
+                    miniResult.logText,
+                    miniResult.saveReason
+                );
+
             return ContentResult.handled(
                 "CONTENT_COMMAND_ACTION key="+
                     actionKey+
@@ -91,6 +111,57 @@ final class LocalContentCommandActionExecutor {
             result.logText,
             result.saveReason
         );
+    }
+
+    private LocalMiniPetCommandHandler.Result
+        miniPetResult(
+            String actionKey,
+            ServerPacketWriter packets
+        )throws IOException{
+        if(LocalLabCoreContentModule
+                .MINIPET_STATUS_ACTION
+                .equals(actionKey))
+            return miniPets.status();
+
+        if(LocalLabCoreContentModule
+                .MINIPET_OFF_ACTION
+                .equals(actionKey))
+            return miniPets.off(
+                packets
+            );
+
+        if(LocalLabCoreContentModule
+                .MINIPET_HELP_ACTION
+                .equals(actionKey))
+            return miniPets.help();
+
+        String prefix=
+            LocalLabCoreContentModule
+                .MINIPET_SET_ACTION_PREFIX+
+            ":";
+
+        if(!actionKey.startsWith(prefix))
+            return null;
+
+        String token=
+            actionKey.substring(
+                prefix.length()
+            );
+
+        if(token.isEmpty()||
+           token.indexOf(':')>=0)
+            return null;
+
+        try{
+            return miniPets.configure(
+                Integer.parseInt(
+                    token
+                ),
+                packets
+            );
+        }catch(NumberFormatException ignored){
+            return null;
+        }
     }
 
     private static int[] compColorSelectors(
