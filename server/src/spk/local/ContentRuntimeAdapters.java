@@ -263,6 +263,35 @@ final class ContentRuntimeAdapters {
                 );
         }
 
+        @Override public String combatWeaponProfileSummary(){
+            CombatWeaponProfile profile=
+                CombatWeaponRepository.resolve(
+                    worldPlayer.equipment()
+                        .weapon()
+                );
+
+            return String.valueOf(
+                profile
+            );
+        }
+
+        @Override public int combatTargetSceneIndex(){
+            return worldPlayer.combatState()
+                .targetSceneIndex;
+        }
+
+        @Override public int combatTargetDefinitionId(){
+            return worldPlayer.combatState()
+                .targetDefinitionId;
+        }
+
+        @Override public String combatContextSummary(){
+            return String.valueOf(
+                worldPlayer.combatState()
+                    .context
+            );
+        }
+
         @Override public int worldX(){
             return movement.x();
         }
