@@ -85,7 +85,8 @@ final class LocalCommandDispatcher {
                 this.compColorsCommands,
                 this.miniPetCommands,
                 this.petCompatibilityCommands,
-                this.combatCommands
+                this.combatCommands,
+                this.diagnosticCommands
             );
         this.devWorldCommands=Objects.requireNonNull(devWorldCommands,"devWorldCommands");
         this.dev=Objects.requireNonNull(dev,"dev");
@@ -143,6 +144,9 @@ final class LocalCommandDispatcher {
                                 content.actionKey(),
                                 command,
                                 username,
+                                loginAlias,
+                                persistentAccount,
+                                bridge.scenePublisher(),
                                 serverPackets
                             );
 
