@@ -862,6 +862,37 @@ tasks.register('appFixtureContentOwnershipRegression') {
     }
 }
 
+tasks.register('petAccessoryContentCommandActionOwnershipRegression') {
+    group = 'verification'
+    description = 'Validates content-owned petaccessory policy while preserving petswitchcolor dialog handling at the runtime/session boundary.'
+    dependsOn tasks.named('testClasses')
+
+    doLast {
+        [
+            'spk.local.PetAccessoryContentCommandActionOwnershipTest',
+            'spk.local.LocalPetCompatibilityCommandHandlerTest',
+            'spk.local.MiniPetContentCommandActionOwnershipTest',
+            'spk.local.CompColorsContentCommandActionOwnershipTest',
+            'spk.local.CosmeticContentCommandActionOwnershipTest',
+            'spk.local.ContentPublicApiBoundaryTest',
+            'spk.local.ContentRegistryTest',
+            'spk.local.ContentHandlerSamCompatibilityTest',
+            'spk.local.ContentProvenanceAuthorityBoundaryTest',
+            'spk.local.LocalCommandDispatcherTest'
+        ].each { mainClassName ->
+            project.javaexec {
+                workingDir repoRoot
+                classpath = sourceSets.test.runtimeClasspath
+                mainClass.set(mainClassName)
+            }
+        }
+
+        logger.lifecycle(
+            'PET_ACCESSORY_CONTENT_COMMAND_ACTION_OWNERSHIP_PASS binding=true semanticAction=true aliases=true legacyUnknownStatus=true policyWireBytes=0 statusRuntime=true offRuntime=true offSave=true unsupportedFailClosed=true legacyAccessoryParser=false petSwitchColorRuntimeOwned=true'
+        )
+    }
+}
+
 tasks.register('miniPetContentCommandActionOwnershipRegression') {
     group = 'verification'
     description = 'Validates content-owned minipet command policy with strict semantic runtime effects.'
