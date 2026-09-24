@@ -862,6 +862,33 @@ tasks.register('appFixtureContentOwnershipRegression') {
     }
 }
 
+tasks.register('prayerSpellbookContentOwnershipRegression') {
+    group = 'verification'
+    description = 'Validates content ownership of prayerbook/spellbook/prayeroff while keeping prayericon as a runtime fixture.'
+    dependsOn tasks.named('testClasses')
+
+    doLast {
+        [
+            'spk.local.PrayerSpellbookContentOwnershipTest',
+            'spk.local.ContentPublicApiBoundaryTest',
+            'spk.local.ContentRegistryTest',
+            'spk.local.ContentHandlerSamCompatibilityTest',
+            'spk.local.ContentProvenanceAuthorityBoundaryTest',
+            'spk.local.LocalCommandDispatcherTest'
+        ].each { mainClassName ->
+            project.javaexec {
+                workingDir repoRoot
+                classpath = sourceSets.test.runtimeClasspath
+                mainClass.set(mainClassName)
+            }
+        }
+
+        logger.lifecycle(
+            'PRAYER_SPELLBOOK_CONTENT_OWNERSHIP_REGRESSION_PASS prayerBook=true spellBook=true prayerOff=true typedBooks=true wireParity=true invalidParity=true missingArgumentParity=true legacyFallback=false prayerIconRuntimeOwned=true'
+        )
+    }
+}
+
 tasks.register('itemSpawnContentOwnershipRegression') {
     group = 'verification'
     description = 'Validates content ownership of item/tabitem while keeping inventory/container and packet publication runtime-owned.'
