@@ -79,6 +79,11 @@ public final class LocalLabCoreContentModule
     public static final String DEV_HIT_PLACEMENT_PRIMARY_ACTION=
         "locallab.devhit.placement-primary";
 
+    public static final String DEV_SESSION_INFO_ACTION=
+        "locallab.dev.info";
+    public static final String DEV_SESSION_RESET_ACTION=
+        "locallab.dev.reset";
+
     @Override public String id(){
         return "locallab-core";
     }
@@ -170,6 +175,12 @@ public final class LocalLabCoreContentModule
             this::devHit
         );
 
+        registrar.command(
+            "dev",
+            100,
+            this::devSession
+        );
+
         registrar.objectOption(
             BANK_OBJECT,
             1,
@@ -227,6 +238,30 @@ public final class LocalLabCoreContentModule
                 result+
                 " authority=LOCAL_DEV_FIXTURE clientProtocol=EXACT_CURRENT",
             null
+        );
+    }
+
+    private ContentResult devSession(
+        ContentCommandContext context
+    ){
+        String sub=
+            context.arguments().isEmpty()
+                ?"info"
+                :context.arguments().get(0)
+                    .toLowerCase(
+                        Locale.ROOT
+                    );
+
+        if("panel".equals(sub))
+            return null;
+
+        if("reset".equals(sub))
+            return ContentResult.action(
+                DEV_SESSION_RESET_ACTION
+            );
+
+        return ContentResult.action(
+            DEV_SESSION_INFO_ACTION
         );
     }
 
