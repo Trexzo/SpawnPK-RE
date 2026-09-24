@@ -862,6 +862,37 @@ tasks.register('appFixtureContentOwnershipRegression') {
     }
 }
 
+tasks.register('itemLibDiagnosticContentActionOwnershipRegression') {
+    group = 'verification'
+    description = 'Validates content-owned itemlib item resolution while exact native item-library UI transport remains runtime-owned.'
+    dependsOn tasks.named('testClasses')
+
+    doLast {
+        [
+            'spk.local.ItemLibDiagnosticContentActionOwnershipTest',
+            'spk.local.EquipStrDiagnosticContentActionOwnershipTest',
+            'spk.local.EngineDiagnosticContentActionOwnershipTest',
+            'spk.local.LocalDiagnosticCommandHandlerTest',
+            'spk.local.LocalDiagnosticContentOwnershipTest',
+            'spk.local.ContentPublicApiBoundaryTest',
+            'spk.local.ContentRegistryTest',
+            'spk.local.ContentHandlerSamCompatibilityTest',
+            'spk.local.ContentProvenanceAuthorityBoundaryTest',
+            'spk.local.LocalCommandDispatcherTest'
+        ].each { mainClassName ->
+            project.javaexec {
+                workingDir repoRoot
+                classpath = sourceSets.test.runtimeClasspath
+                mainClass.set(mainClassName)
+            }
+        }
+
+        logger.lifecycle(
+            'ITEMLIB_DIAGNOSTIC_CONTENT_ACTION_OWNERSHIP_PASS binding=true currentWeapon=true numericItem=true exactName=true unknownFailClosed=true policyWireBytes=0 nativeUiRuntimeOnly=true runtimeAuthorityRecheck=true malformedFailClosed=true legacyRoute=false equipmentDependencyTrim=true publicApiExpanded=false'
+        )
+    }
+}
+
 tasks.register('equipStrDiagnosticContentActionOwnershipRegression') {
     group = 'verification'
     description = 'Validates content-owned equipstr item policy while exact hover-reset packet handling remains runtime-owned and fail-closed.'
