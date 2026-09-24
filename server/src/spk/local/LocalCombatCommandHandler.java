@@ -151,7 +151,7 @@ final class LocalCombatCommandHandler {
                 fixture
         );
 
-        return Collections.unmodifiableList(
+        return java.util.Collections.unmodifiableList(
             lines
         );
     }
