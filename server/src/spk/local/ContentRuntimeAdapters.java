@@ -144,6 +144,100 @@ final class ContentRuntimeAdapters {
             }
         }
 
+        @Override public String switchPrayerBook(
+            ContentPrayerBook book
+        ){
+            Objects.requireNonNull(
+                book,
+                "book"
+            );
+
+            if(writer==null)
+                throw new UnsupportedOperationException(
+                    "prayer book mutation unavailable"
+                );
+
+            try{
+                return worldPlayer.prayers()
+                    .switchBook(
+                        book==ContentPrayerBook.NORMAL
+                            ?"normal"
+                            :"curses",
+                        writer
+                    );
+            }catch(IOException error){
+                throw new ContentPresentationException(
+                    "content prayer book publication failed",
+                    error
+                );
+            }
+        }
+
+        @Override public String switchSpellBook(
+            ContentSpellBook book
+        ){
+            Objects.requireNonNull(
+                book,
+                "book"
+            );
+
+            if(writer==null)
+                throw new UnsupportedOperationException(
+                    "spell book mutation unavailable"
+                );
+
+            String token;
+
+            switch(book){
+                case MODERN:
+                    token="modern";
+                    break;
+                case ANCIENT:
+                    token="ancient";
+                    break;
+                case LUNAR:
+                    token="lunar";
+                    break;
+                default:
+                    throw new AssertionError(
+                        "Unhandled ContentSpellBook "+
+                        book
+                    );
+            }
+
+            try{
+                return worldPlayer.magic()
+                    .switchBook(
+                        token,
+                        writer
+                    );
+            }catch(IOException error){
+                throw new ContentPresentationException(
+                    "content spell book publication failed",
+                    error
+                );
+            }
+        }
+
+        @Override public String deactivatePrayers(){
+            if(writer==null)
+                throw new UnsupportedOperationException(
+                    "prayer deactivation unavailable"
+                );
+
+            try{
+                return worldPlayer.prayers()
+                    .deactivateAll(
+                        writer
+                    );
+            }catch(IOException error){
+                throw new ContentPresentationException(
+                    "content prayer deactivation publication failed",
+                    error
+                );
+            }
+        }
+
         @Override public int runEnergy(){
             return movement.runEnergy();
         }
