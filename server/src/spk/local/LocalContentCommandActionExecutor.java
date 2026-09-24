@@ -12,11 +12,13 @@ final class LocalContentCommandActionExecutor {
     private final LocalCosmeticCommandHandler cosmetics;
     private final LocalCompColorsCommandHandler compColors;
     private final LocalMiniPetCommandHandler miniPets;
+    private final LocalPetCompatibilityCommandHandler petCompatibility;
 
     LocalContentCommandActionExecutor(
         LocalCosmeticCommandHandler cosmetics,
         LocalCompColorsCommandHandler compColors,
-        LocalMiniPetCommandHandler miniPets
+        LocalMiniPetCommandHandler miniPets,
+        LocalPetCompatibilityCommandHandler petCompatibility
     ){
         this.cosmetics=
             java.util.Objects.requireNonNull(
@@ -32,6 +34,11 @@ final class LocalContentCommandActionExecutor {
             java.util.Objects.requireNonNull(
                 miniPets,
                 "miniPets"
+            );
+        this.petCompatibility=
+            java.util.Objects.requireNonNull(
+                petCompatibility,
+                "petCompatibility"
             );
     }
 
@@ -99,6 +106,19 @@ final class LocalContentCommandActionExecutor {
                     miniResult.saveReason
                 );
 
+            LocalPetCompatibilityCommandHandler.Outcome
+                accessoryResult=
+                    petAccessoryResult(
+                        actionKey,
+                        packets
+                    );
+
+            if(accessoryResult!=null)
+                return ContentResult.handled(
+                    accessoryResult.logText,
+                    accessoryResult.saveReason
+                );
+
             return ContentResult.handled(
                 "CONTENT_COMMAND_ACTION key="+
                     actionKey+
@@ -111,6 +131,28 @@ final class LocalContentCommandActionExecutor {
             result.logText,
             result.saveReason
         );
+    }
+
+    private LocalPetCompatibilityCommandHandler.Outcome
+        petAccessoryResult(
+            String actionKey,
+            ServerPacketWriter packets
+        )throws IOException{
+        if(LocalLabCoreContentModule
+                .PET_ACCESSORY_STATUS_ACTION
+                .equals(actionKey))
+            return petCompatibility
+                .accessoryStatus();
+
+        if(LocalLabCoreContentModule
+                .PET_ACCESSORY_OFF_ACTION
+                .equals(actionKey))
+            return petCompatibility
+                .accessoryOff(
+                    packets
+                );
+
+        return null;
     }
 
     private LocalMiniPetCommandHandler.Result
