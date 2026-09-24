@@ -13,21 +13,15 @@ import java.util.List;
  */
 final class LocalCombatCommandHandler {
     private final CombatEngine combat;
-    private final EquipmentState equipment;
-    private final CombatStyleState combatStyles;
     private final NpcRegistry npcs;
     private final LocalPetRuntimeCommandHandler petRuntime;
 
     LocalCombatCommandHandler(
         CombatEngine combat,
-        EquipmentState equipment,
-        CombatStyleState combatStyles,
         NpcRegistry npcs,
         LocalPetRuntimeCommandHandler petRuntime
     ){
         this.combat=java.util.Objects.requireNonNull(combat,"combat");
-        this.equipment=java.util.Objects.requireNonNull(equipment,"equipment");
-        this.combatStyles=java.util.Objects.requireNonNull(combatStyles,"combatStyles");
         this.npcs=java.util.Objects.requireNonNull(npcs,"npcs");
         this.petRuntime=java.util.Objects.requireNonNull(petRuntime,"petRuntime");
     }
