@@ -19,6 +19,7 @@ public final class ContentRegistrarAuthorityCoverageTest {
             new TreeSet<>(
                 Arrays.asList(
                     "command(java.lang.String,int,spk.content.api.ContentCommandHandler)->spk.content.api.ContentRegistration",
+                    "dialogue(java.lang.String,int,spk.content.api.ContentDialogueHandler)->spk.content.api.ContentRegistration",
                     "itemOnGroundItem(int,int,int,spk.content.api.ContentItemOnGroundItemHandler)->spk.content.api.ContentRegistration",
                     "itemOnItem(int,int,int,spk.content.api.ContentItemOnItemHandler)->spk.content.api.ContentRegistration",
                     "itemOnNpc(int,int,int,spk.content.api.ContentItemOnNpcHandler)->spk.content.api.ContentRegistration",

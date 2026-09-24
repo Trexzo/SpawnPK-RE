@@ -40,6 +40,13 @@ public final class LocalLabCoreContentModule
                     MAKEOVER_MAGE_ACTION
                 )
         );
+
+        registrar.dialogue(
+            MakeoverMageDialogueContent
+                .DIALOGUE_KEY,
+            100,
+            new MakeoverMageDialogueContent()
+        );
     }
 
     private ContentResult nurse(
