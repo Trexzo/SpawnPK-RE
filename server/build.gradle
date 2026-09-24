@@ -862,6 +862,34 @@ tasks.register('appFixtureContentOwnershipRegression') {
     }
 }
 
+tasks.register('itemSpawnContentOwnershipRegression') {
+    group = 'verification'
+    description = 'Validates content ownership of item/tabitem while keeping inventory/container and packet publication runtime-owned.'
+    dependsOn tasks.named('testClasses')
+
+    doLast {
+        [
+            'spk.local.ItemSpawnContentOwnershipTest',
+            'spk.local.LocalItemSpawnCommandHandlerTest',
+            'spk.local.ContentPublicApiBoundaryTest',
+            'spk.local.LocalCommandDispatcherTest',
+            'spk.local.ContentRegistryTest',
+            'spk.local.ContentHandlerSamCompatibilityTest',
+            'spk.local.ContentProvenanceAuthorityBoundaryTest'
+        ].each { mainClassName ->
+            project.javaexec {
+                workingDir repoRoot
+                classpath = sourceSets.test.runtimeClasspath
+                mainClass.set(mainClassName)
+            }
+        }
+
+        logger.lifecycle(
+            'ITEM_SPAWN_CONTENT_OWNERSHIP_REGRESSION_PASS item=true tabitem=true wireParity=true stateParity=true rejectedSaveContract=true missingArgumentParity=true legacyFallback=false rawContainerIdentity=false'
+        )
+    }
+}
+
 tasks.register('localDiagnosticContentOwnershipRegression') {
     group = 'verification'
     description = 'Validates content ownership of contentregistry/authority diagnostics without widening the public plugin API.'
