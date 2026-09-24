@@ -49,6 +49,24 @@ public final class LocalLabCoreContentModule
             this::itemSpawn
         );
 
+        registrar.command(
+            "prayerbook",
+            100,
+            this::prayerBook
+        );
+
+        registrar.command(
+            "spellbook",
+            100,
+            this::spellBook
+        );
+
+        registrar.command(
+            "prayeroff",
+            100,
+            this::prayerOff
+        );
+
         registrar.npcOption(
             MAKEOVER_MAGE_NPC,
             1,
@@ -97,6 +115,119 @@ public final class LocalLabCoreContentModule
                 " authority=LOCAL_DEV_FIXTURE clientProtocol=EXACT_CURRENT",
             null
         );
+    }
+
+    private ContentResult prayerBook(
+        ContentCommandContext context
+    ){
+        if(context.arguments().isEmpty())
+            return null;
+
+        String token=
+            context.arguments().get(0)
+                .toLowerCase(
+                    Locale.ROOT
+                );
+
+        ContentPrayerBook book;
+
+        if("normal".equals(token)||
+           "prayer".equals(token))
+            book=ContentPrayerBook.NORMAL;
+        else if("curses".equals(token)||
+                "curse".equals(token))
+            book=ContentPrayerBook.CURSES;
+        else
+            return ContentResult.handled(
+                "V510_PRAYER_BOOK command="+
+                    cleanCommand(
+                        context.rawCommand())+
+                    " result=REJECTED_BOOK expected=normal|curses",
+                null
+            );
+
+        return ContentResult.handled(
+            "V510_PRAYER_BOOK command="+
+                cleanCommand(
+                    context.rawCommand())+
+                " result="+
+                context.player()
+                    .switchPrayerBook(
+                        book
+                    ),
+            null
+        );
+    }
+
+    private ContentResult spellBook(
+        ContentCommandContext context
+    ){
+        if(context.arguments().isEmpty())
+            return null;
+
+        String token=
+            context.arguments().get(0)
+                .toLowerCase(
+                    Locale.ROOT
+                );
+
+        ContentSpellBook book;
+
+        if("modern".equals(token)||
+           "normal".equals(token))
+            book=ContentSpellBook.MODERN;
+        else if("ancient".equals(token)||
+                "ancients".equals(token))
+            book=ContentSpellBook.ANCIENT;
+        else if("lunar".equals(token)||
+                "lunars".equals(token))
+            book=ContentSpellBook.LUNAR;
+        else
+            return ContentResult.handled(
+                "V510_SPELL_BOOK command="+
+                    cleanCommand(
+                        context.rawCommand())+
+                    " result=REJECTED_BOOK expected=modern|ancient|lunar",
+                null
+            );
+
+        return ContentResult.handled(
+            "V510_SPELL_BOOK command="+
+                cleanCommand(
+                    context.rawCommand())+
+                " result="+
+                context.player()
+                    .switchSpellBook(
+                        book
+                    ),
+            null
+        );
+    }
+
+    private ContentResult prayerOff(
+        ContentCommandContext context
+    ){
+        return ContentResult.handled(
+            "V510_PRAYER_OFF result="+
+                context.player()
+                    .deactivatePrayers(),
+            null
+        );
+    }
+
+    private static String cleanCommand(
+        String rawCommand
+    ){
+        String clean=
+            rawCommand==null
+                ?""
+                :rawCommand.trim();
+
+        if(clean.startsWith("::"))
+            clean=
+                clean.substring(2);
+
+        return clean;
     }
 
     private ContentResult itemSpawn(
