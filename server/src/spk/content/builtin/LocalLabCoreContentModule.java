@@ -52,6 +52,33 @@ public final class LocalLabCoreContentModule
     public static final String COMBAT_FIXTURE_ACTION_PREFIX=
         "locallab.combatfixture.hit";
 
+    public static final String DEV_HIT_INFO_ACTION=
+        "locallab.devhit.info";
+    public static final String DEV_HIT_RESET_ACTION=
+        "locallab.devhit.reset";
+    public static final String DEV_HIT_DAMAGE_AUTO_ACTION=
+        "locallab.devhit.damage-auto";
+    public static final String DEV_HIT_DAMAGE_ACTION_PREFIX=
+        "locallab.devhit.damage";
+    public static final String DEV_HIT_SEQUENCE_OFF_ACTION=
+        "locallab.devhit.sequence-off";
+    public static final String DEV_HIT_SEQUENCE_ACTION_PREFIX=
+        "locallab.devhit.sequence";
+    public static final String DEV_HIT_VARIANT_AUTO_ACTION=
+        "locallab.devhit.variant-auto";
+    public static final String DEV_HIT_VARIANT_MANUAL_ACTION=
+        "locallab.devhit.variant-manual";
+    public static final String DEV_HIT_NEXT_ACTION=
+        "locallab.devhit.next";
+    public static final String DEV_HIT_PREV_ACTION=
+        "locallab.devhit.prev";
+    public static final String DEV_HIT_TYPE_ACTION_PREFIX=
+        "locallab.devhit.type";
+    public static final String DEV_HIT_STYLE_ICON_ACTION_PREFIX=
+        "locallab.devhit.styleicon";
+    public static final String DEV_HIT_PLACEMENT_PRIMARY_ACTION=
+        "locallab.devhit.placement-primary";
+
     @Override public String id(){
         return "locallab-core";
     }
@@ -137,6 +164,12 @@ public final class LocalLabCoreContentModule
             this::combatFixture
         );
 
+        registrar.command(
+            "devhit",
+            100,
+            this::devHit
+        );
+
         registrar.objectOption(
             BANK_OBJECT,
             1,
@@ -193,6 +226,237 @@ public final class LocalLabCoreContentModule
             "R85_APP_FIXTURE "+
                 result+
                 " authority=LOCAL_DEV_FIXTURE clientProtocol=EXACT_CURRENT",
+            null
+        );
+    }
+
+    private ContentResult devHit(
+        ContentCommandContext context
+    ){
+        java.util.List<String> args=
+            context.arguments();
+
+        String sub=
+            args.isEmpty()
+                ?"info"
+                :args.get(0)
+                    .toLowerCase(
+                        Locale.ROOT
+                    );
+
+        if("info".equals(sub))
+            return ContentResult.action(
+                DEV_HIT_INFO_ACTION
+            );
+
+        if("reset".equals(sub))
+            return ContentResult.action(
+                DEV_HIT_RESET_ACTION
+            );
+
+        if("damage".equals(sub)&&
+           args.size()>=2){
+            String token=
+                args.get(1)
+                    .toLowerCase(
+                        Locale.ROOT
+                    );
+
+            if("auto".equals(token)||
+               "off".equals(token)||
+               "reset".equals(token))
+                return ContentResult.action(
+                    DEV_HIT_DAMAGE_AUTO_ACTION
+                );
+
+            int damage=
+                parseInt(
+                    token,
+                    Integer.MIN_VALUE
+                );
+
+            if(damage<0||
+               damage>255)
+                return ContentResult.handled(
+                    "V5128_DEVHIT_REJECTED damage=0..255|auto",
+                    null
+                );
+
+            return ContentResult.action(
+                DEV_HIT_DAMAGE_ACTION_PREFIX+
+                ":"+
+                damage
+            );
+        }
+
+        if("sequence".equals(sub)&&
+           args.size()>=2){
+            String token=
+                args.get(1)
+                    .trim();
+
+            if("off".equalsIgnoreCase(token)||
+               "auto".equalsIgnoreCase(token)||
+               "reset".equalsIgnoreCase(token))
+                return ContentResult.action(
+                    DEV_HIT_SEQUENCE_OFF_ACTION
+                );
+
+            String[] parts=
+                token.split(
+                    ","
+                );
+
+            if(parts.length<2||
+               parts.length>16)
+                return ContentResult.handled(
+                    "V5128_DEVHIT_REJECTED sequence=comma-separated_2..16_values_0..255",
+                    null
+                );
+
+            int[] sequence=
+                new int[parts.length];
+
+            for(int i=0;i<parts.length;i++){
+                try{
+                    sequence[i]=
+                        Integer.parseInt(
+                            parts[i].trim()
+                        );
+                }catch(Exception error){
+                    return ContentResult.handled(
+                        "V5128_DEVHIT_REJECTED sequence=example_37,100",
+                        null
+                    );
+                }
+
+                if(sequence[i]<0||
+                   sequence[i]>255)
+                    return ContentResult.handled(
+                        "V5128_DEVHIT_REJECTED sequence=value_range_0..255",
+                        null
+                    );
+            }
+
+            StringBuilder action=
+                new StringBuilder(
+                    DEV_HIT_SEQUENCE_ACTION_PREFIX
+                );
+
+            for(int value:sequence)
+                action.append(':')
+                    .append(value);
+
+            return ContentResult.action(
+                action.toString()
+            );
+        }
+
+        if("variant".equals(sub)&&
+           args.size()>=2){
+            String token=
+                args.get(1)
+                    .toLowerCase(
+                        Locale.ROOT
+                    );
+
+            if("auto".equals(token))
+                return ContentResult.action(
+                    DEV_HIT_VARIANT_AUTO_ACTION
+                );
+
+            if("manual".equals(token))
+                return ContentResult.action(
+                    DEV_HIT_VARIANT_MANUAL_ACTION
+                );
+
+            return ContentResult.handled(
+                "V5128_DEVHIT_REJECTED variant=auto|manual",
+                null
+            );
+        }
+
+        if("next".equals(sub))
+            return ContentResult.action(
+                DEV_HIT_NEXT_ACTION
+            );
+
+        if("prev".equals(sub))
+            return ContentResult.action(
+                DEV_HIT_PREV_ACTION
+            );
+
+        if("type".equals(sub)&&
+           args.size()>=2){
+            int type=
+                parseInt(
+                    args.get(1),
+                    Integer.MIN_VALUE
+                );
+
+            if(type<0||
+               type>255)
+                return ContentResult.handled(
+                    "V5128_DEVHIT_REJECTED type=0..255",
+                    null
+                );
+
+            return ContentResult.action(
+                DEV_HIT_TYPE_ACTION_PREFIX+
+                ":"+
+                type
+            );
+        }
+
+        if("styleicon".equals(sub)&&
+           args.size()>=2){
+            int styleIcon=
+                parseInt(
+                    args.get(1),
+                    Integer.MIN_VALUE
+                );
+
+            if(styleIcon<0||
+               styleIcon>255)
+                return ContentResult.handled(
+                    "V5128_DEVHIT_REJECTED styleicon=0..255",
+                    null
+                );
+
+            return ContentResult.action(
+                DEV_HIT_STYLE_ICON_ACTION_PREFIX+
+                ":"+
+                styleIcon
+            );
+        }
+
+        if("placement".equals(sub)&&
+           args.size()>=2){
+            String token=
+                args.get(1)
+                    .toLowerCase(
+                        Locale.ROOT
+                    );
+
+            if("primary".equals(token))
+                return ContentResult.action(
+                    DEV_HIT_PLACEMENT_PRIMARY_ACTION
+                );
+
+            if("secondary".equals(token))
+                return ContentResult.handled(
+                    "V5128_DEVHIT_REJECTED placement=secondary reason=current_NPC_sync_encoder_only_certifies_primary_singleHit_mask",
+                    null
+                );
+
+            return ContentResult.handled(
+                "V5128_DEVHIT_REJECTED placement=primary|secondary",
+                null
+            );
+        }
+
+        return ContentResult.handled(
+            "V5128_DEVHIT_HELP info | variant auto|manual | type <0..255> | next | prev | damage <0..255|auto> | sequence <a,b,...|off> | styleicon <0..255> | placement primary|secondary | reset",
             null
         );
     }
