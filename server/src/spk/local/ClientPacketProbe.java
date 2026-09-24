@@ -1093,36 +1093,21 @@ final class ClientPacketProbe {
                 int textLen = newline ? len - 1 : len;
                 String text = new String(body, 0, textLen, StandardCharsets.ISO_8859_1);
 
-                int dialogueOption=
-                    dialogueOptionIndex(text);
-
-                ClientRequest request=
-                    dialogueOption>0
-                    ? new DialogueOptionClientRequest(
-                        dialogueOption,
-                        ClientRequestMetadata.exactCurrent(
-                            103,
-                            "VAR_BYTE_DIALOGUEOPTION_INDEX_OPTIONAL_LF",
-                            "V308_CLIENT_DIALOGUE_OPTION_HOTKEY"
-                        )
-                    )
-                    : new CommandClientRequest(
+                offerTypedRequest(
+                    new CommandClientRequest(
                         text,
                         ClientRequestMetadata.exactCurrent(
                             103,
                             "VAR_BYTE_ISO_8859_1_OPTIONAL_LF",
                             "PINNED_CLIENT_OPCODE_103_WRITER"
                         )
-                    );
-
-                offerTypedRequest(
-                    request,
+                    ),
                     opcode
                 );
 
                 System.out.printf(
-                    "%sCLIENT_PACKET seq=%d opcode=103 len=%d command=%s dialogueOption=%d newline=%s%n",
-                    tag,decodedCount,len,quote(text),dialogueOption,newline
+                    "%sCLIENT_PACKET seq=%d opcode=103 len=%d command=%s newline=%s%n",
+                    tag,decodedCount,len,quote(text),newline
                 );
                 return true;
             }
@@ -1340,18 +1325,6 @@ final class ClientPacketProbe {
             default:
                 return -1;
         }
-    }
-
-    static int dialogueOptionIndex(String text){
-        if(text==null)return -1;
-        String prefix="dialogueoption ";
-        if(text.length()!=prefix.length()+1||
-           !text.startsWith(prefix))
-            return -1;
-        char value=text.charAt(prefix.length());
-        return value>='1'&&value<='5'
-            ? value-'0'
-            : -1;
     }
 
     static boolean isFramingOnlyVarByte(int opcode) {
