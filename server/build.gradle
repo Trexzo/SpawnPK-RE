@@ -862,6 +862,35 @@ tasks.register('appFixtureContentOwnershipRegression') {
     }
 }
 
+tasks.register('playerStateDiagnosticContentOwnershipRegression') {
+    group = 'verification'
+    description = 'Validates content ownership of prayerinfo/magicinfo/styleinfo through an internal diagnostic player projection with no public API expansion.'
+    dependsOn tasks.named('testClasses')
+
+    doLast {
+        [
+            'spk.local.PlayerStateDiagnosticContentOwnershipTest',
+            'spk.local.WorldDiagnosticContentOwnershipTest',
+            'spk.local.LocalDiagnosticContentOwnershipTest',
+            'spk.local.ContentPublicApiBoundaryTest',
+            'spk.local.ContentRegistryTest',
+            'spk.local.ContentRegistrationLifecycleTest',
+            'spk.local.ContentProvenanceAuthorityBoundaryTest',
+            'spk.local.LocalCommandDispatcherTest'
+        ].each { mainClassName ->
+            project.javaexec {
+                workingDir repoRoot
+                classpath = sourceSets.test.runtimeClasspath
+                mainClass.set(mainClassName)
+            }
+        }
+
+        logger.lifecycle(
+            'PLAYER_STATE_DIAGNOSTIC_CONTENT_OWNERSHIP_PASS prayerinfo=true magicinfo=true styleinfo=true internalProjection=true publicApiExpanded=false priorityOverride=true restore=true textParity=true legacyFallback=false wireBytes=0'
+        )
+    }
+}
+
 tasks.register('worldDiagnosticContentOwnershipRegression') {
     group = 'verification'
     description = 'Validates content ownership of worldauth/collisionauth through semantic player world position with zero packet output.'

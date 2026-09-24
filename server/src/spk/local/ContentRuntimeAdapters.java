@@ -33,7 +33,8 @@ final class ContentRuntimeAdapters {
     }
 
     private static final class PlayerAdapter
-        implements ContentPlayer {
+        implements ContentPlayer,
+                   LocalDiagnosticContentPlayer {
 
         private final WorldPlayer worldPlayer;
         private final PlayerState player;
@@ -236,6 +237,30 @@ final class ContentRuntimeAdapters {
                     error
                 );
             }
+        }
+
+        @Override public String prayerStateSummary(){
+            return worldPlayer.prayers()
+                .summary();
+        }
+
+        @Override public String magicStateSummary(){
+            return worldPlayer.magic()
+                .summary();
+        }
+
+        @Override public int weaponItemId(){
+            return worldPlayer.equipment()
+                .weapon();
+        }
+
+        @Override public String combatStyleStateSummary(
+            int interfaceRoot
+        ){
+            return worldPlayer.combatStyles()
+                .summary(
+                    interfaceRoot
+                );
         }
 
         @Override public int worldX(){
