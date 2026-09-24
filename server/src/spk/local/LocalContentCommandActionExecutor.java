@@ -169,6 +169,25 @@ final class LocalContentCommandActionExecutor {
         SceneUpdatePublisher scenePublisher,
         ServerPacketWriter packets
     )throws IOException{
+        Integer equipStrItem=
+            diagnosticIntValue(
+                actionKey,
+                LocalDiagnosticContentModule
+                    .EQUIPSTR_ACTION_PREFIX
+            );
+
+        if(equipStrItem!=null&&
+           diagnostics!=null)
+            return Outcome.content(
+                ContentResult.handled(
+                    diagnostics.equipStr(
+                        equipStrItem,
+                        packets
+                    ),
+                    null
+                )
+            );
+
         if(LocalDiagnosticContentModule
                 .ENGINE_INFO_ACTION
                 .equals(actionKey)&&
@@ -320,6 +339,36 @@ final class LocalContentCommandActionExecutor {
             result.logText,
             result.saveReason
         );
+    }
+
+    private static Integer diagnosticIntValue(
+        String actionKey,
+        String actionPrefix
+    ){
+        String prefix=
+            actionPrefix+
+            ":";
+
+        if(actionKey==null||
+           !actionKey.startsWith(prefix))
+            return null;
+
+        String token=
+            actionKey.substring(
+                prefix.length()
+            );
+
+        if(token.isEmpty()||
+           token.indexOf(':')>=0)
+            return null;
+
+        try{
+            return Integer.valueOf(
+                token
+            );
+        }catch(NumberFormatException ignored){
+            return null;
+        }
     }
 
     private ContentResult devHitResult(
