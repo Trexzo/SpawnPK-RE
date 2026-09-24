@@ -862,6 +862,37 @@ tasks.register('appFixtureContentOwnershipRegression') {
     }
 }
 
+tasks.register('issue7CoreContentDecouplingAcceptance') {
+    group = 'verification'
+    description = 'Locks Issue #7 core acceptance: decoder purity and command selftest through the real JVM plugin/content dispatcher.'
+    dependsOn tasks.named('testClasses')
+
+    doLast {
+        [
+            'spk.local.Issue7CoreContentDecouplingAcceptanceTest',
+            'spk.local.Opcode103SemanticDecoderBoundaryTest',
+            'spk.local.PluginKernelLifecycleTest',
+            'spk.plugin.api.PluginPublicApiBoundaryTest',
+            'spk.local.ContentRegistryTest',
+            'spk.local.NurseContentRegistryParityTest',
+            'spk.local.MakeoverDialogueContentOwnershipTest',
+            'spk.local.AppFixtureContentOwnershipTest',
+            'spk.local.ItemSpawnContentOwnershipTest',
+            'spk.local.BankObjectContentOwnershipTest'
+        ].each { mainClassName ->
+            project.javaexec {
+                workingDir repoRoot
+                classpath = sourceSets.test.runtimeClasspath
+                mainClass.set(mainClassName)
+            }
+        }
+
+        logger.lifecycle(
+            'ISSUE7_CORE_CONTENT_DECOUPLING_ACCEPTANCE_PASS productionDecoders=2 hardcodedCommandStrings=false dialogueTrees=false devControlStateOnly=true pluginCommandRegistered=true pluginCommandDispatched=true customProvenance=true zeroWire=true disableClean=true scriptRuntimeDelegatedToIssue5=true'
+        )
+    }
+}
+
 tasks.register('petProcContentCommandActionOwnershipRegression') {
     group = 'verification'
     description = 'Validates content-owned petproc recognition while player GFX and conditional Scopesight native trigger remain runtime-owned.'
