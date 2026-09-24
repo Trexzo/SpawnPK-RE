@@ -9,6 +9,43 @@ import spk.content.builtin.LocalLabCoreContentModule;
  * command results.
  */
 final class LocalContentCommandActionExecutor {
+    static final class Outcome {
+        final ContentResult contentResult;
+        final LocalPetInventoryDialogHandler.Result dialogResult;
+
+        private Outcome(
+            ContentResult contentResult,
+            LocalPetInventoryDialogHandler.Result dialogResult
+        ){
+            this.contentResult=contentResult;
+            this.dialogResult=dialogResult;
+        }
+
+        static Outcome content(
+            ContentResult result
+        ){
+            return new Outcome(
+                java.util.Objects.requireNonNull(
+                    result,
+                    "result"
+                ),
+                null
+            );
+        }
+
+        static Outcome dialog(
+            LocalPetInventoryDialogHandler.Result result
+        ){
+            return new Outcome(
+                null,
+                java.util.Objects.requireNonNull(
+                    result,
+                    "result"
+                )
+            );
+        }
+    }
+
     private final LocalCosmeticCommandHandler cosmetics;
     private final LocalCompColorsCommandHandler compColors;
     private final LocalMiniPetCommandHandler miniPets;
@@ -40,6 +77,35 @@ final class LocalContentCommandActionExecutor {
                 petCompatibility,
                 "petCompatibility"
             );
+    }
+
+    Outcome executeOutcome(
+        String actionKey,
+        String rawCommand,
+        String username,
+        ServerPacketWriter packets
+    )throws IOException{
+        Integer requested=
+            petSwitchColorRequested(
+                actionKey
+            );
+
+        if(requested!=null)
+            return Outcome.dialog(
+                petCompatibility.switchColor(
+                    requested,
+                    packets
+                )
+            );
+
+        return Outcome.content(
+            execute(
+                actionKey,
+                rawCommand,
+                username,
+                packets
+            )
+        );
     }
 
     ContentResult execute(
@@ -131,6 +197,36 @@ final class LocalContentCommandActionExecutor {
             result.logText,
             result.saveReason
         );
+    }
+
+    private static Integer petSwitchColorRequested(
+        String actionKey
+    ){
+        String prefix=
+            LocalLabCoreContentModule
+                .PET_SWITCH_COLOR_ACTION_PREFIX+
+            ":";
+
+        if(actionKey==null||
+           !actionKey.startsWith(prefix))
+            return null;
+
+        String token=
+            actionKey.substring(
+                prefix.length()
+            );
+
+        if(token.isEmpty()||
+           token.indexOf(':')>=0)
+            return null;
+
+        try{
+            return Integer.valueOf(
+                token
+            );
+        }catch(NumberFormatException ignored){
+            return null;
+        }
     }
 
     private LocalPetCompatibilityCommandHandler.Outcome
