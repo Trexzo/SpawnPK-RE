@@ -862,6 +862,37 @@ tasks.register('appFixtureContentOwnershipRegression') {
     }
 }
 
+tasks.register('scopeSnipeContentCommandActionOwnershipRegression') {
+    group = 'verification'
+    description = 'Validates content-owned scopesnipe recognition while active-pet eligibility and native forced-text presentation remain runtime-owned.'
+    dependsOn tasks.named('testClasses')
+
+    doLast {
+        [
+            'spk.local.ScopeSnipeContentCommandActionOwnershipTest',
+            'spk.local.PetBoostContentCommandActionOwnershipTest',
+            'spk.local.PetStatusContentCommandActionOwnershipTest',
+            'spk.local.LocalPetRuntimeCommandHandlerTest',
+            'spk.local.ScopesightNativePresentationTest',
+            'spk.local.ContentPublicApiBoundaryTest',
+            'spk.local.ContentRegistryTest',
+            'spk.local.ContentHandlerSamCompatibilityTest',
+            'spk.local.ContentProvenanceAuthorityBoundaryTest',
+            'spk.local.LocalCommandDispatcherTest'
+        ].each { mainClassName ->
+            project.javaexec {
+                workingDir repoRoot
+                classpath = sourceSets.test.runtimeClasspath
+                mainClass.set(mainClassName)
+            }
+        }
+
+        logger.lifecycle(
+            'SCOPE_SNIPE_CONTENT_COMMAND_ACTION_OWNERSHIP_PASS binding=true semanticAction=true extraArgsCompatibility=true policyWireBytes=0 inactiveFailClosed=true activeScopesight=true nativeTriggerRuntimeOnly=true malformedFailClosed=true legacyRoute=false publicApiExpanded=false'
+        )
+    }
+}
+
 tasks.register('petBoostContentCommandActionOwnershipRegression') {
     group = 'verification'
     description = 'Validates content-owned petboost recognition while exact player-GFX presentation remains runtime-owned.'
