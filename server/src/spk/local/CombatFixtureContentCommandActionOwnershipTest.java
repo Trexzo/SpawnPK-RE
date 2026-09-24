@@ -128,8 +128,6 @@ public final class CombatFixtureContentCommandActionOwnershipTest {
             LocalCombatCommandHandler combatHandler=
                 new LocalCombatCommandHandler(
                     combat,
-                    player.equipment(),
-                    player.combatStyles(),
                     npcs,
                     petRuntime
                 );
