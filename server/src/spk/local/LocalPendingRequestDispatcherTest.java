@@ -58,7 +58,6 @@ public final class LocalPendingRequestDispatcherTest {
             LocalDiagnosticCommandHandler diagnosticCommands=
                 new LocalDiagnosticCommandHandler(
                     world,
-                    equipment,
                     itemLibrary
                 );
             LocalPrayerMagicCommandHandler prayerMagicCommands=
