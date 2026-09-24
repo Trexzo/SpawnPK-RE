@@ -50,10 +50,25 @@ public final class LocalCombatCommandHandlerTest {
                 probe
             );
 
-        List<String> fixture=handler.handle(
-            new String[]{"combatfixture","37"},
-            "combatfixture 37",
-            writer);
+        List<String> legacyFixture=
+            handler.handle(
+                new String[]{"combatfixture","37"},
+                "combatfixture 37",
+                writer
+            );
+
+        if(legacyFixture!=null)
+            throw new AssertionError(
+                "legacy combatfixture route remains "+
+                legacyFixture
+            );
+
+        List<String> fixture=
+            handler.fixture(
+                37,
+                "combatfixture 37",
+                writer
+            );
 
         if(fixture==null||
            fixture.size()!=1||
@@ -62,7 +77,7 @@ public final class LocalCombatCommandHandlerTest {
            !fixture.get(0).contains(
                "REJECTED_NO_SELECTED_TARGET")){
             throw new AssertionError(
-                "fixture lines="+fixture);
+                "fixture effect lines="+fixture);
         }
 
         if(handler.handle(
@@ -74,7 +89,7 @@ public final class LocalCombatCommandHandlerTest {
         }
 
         System.out.println(
-            "LOCAL_COMBAT_COMMAND_HANDLER_PASS devhit=true probeLegacyRoute=false fixtureBoundary=true unrelatedRejected=true");
+            "LOCAL_COMBAT_COMMAND_HANDLER_PASS devhit=true probeLegacyRoute=false fixtureLegacyRoute=false fixtureEffect=true unrelatedRejected=true");
     }
 
     private static void assertOneContains(
