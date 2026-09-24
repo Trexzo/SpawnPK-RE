@@ -26,6 +26,22 @@ final class LocalContentCommandActionExecutor {
         String username,
         ServerPacketWriter packets
     )throws IOException{
+        return execute(
+            actionKey,
+            username,
+            null,
+            packets,
+            null
+        );
+    }
+
+    ContentResult execute(
+        String actionKey,
+        String username,
+        String sourceCommand,
+        ServerPacketWriter packets,
+        LocalCommandDispatcher.SessionBridge bridge
+    )throws IOException{
         if(actionKey==null)
             throw new NullPointerException(
                 "actionKey"
@@ -49,6 +65,32 @@ final class LocalContentCommandActionExecutor {
                 .COSMETIC_HELP_ACTION
                 .equals(actionKey)){
             result=cosmetics.help();
+        }else if(LocalLabCoreContentModule
+                .DEV_PANEL_OPEN_ACTION
+                .equals(actionKey)){
+            if(bridge==null||
+               sourceCommand==null||
+               sourceCommand.isEmpty())
+                return ContentResult.handled(
+                    "CONTENT_COMMAND_ACTION key="+
+                        actionKey+
+                        " result=REJECTED_RUNTIME_BRIDGE_UNAVAILABLE",
+                    null
+                );
+
+            bridge.openDevPanel(
+                packets
+            );
+
+            return ContentResult.handled(
+                "V5172_DEV_PANEL_OPEN route="+
+                    sourceCommand+
+                    " authority="+
+                    ContentAuthorityRepository.summary()+
+                    " runtimeWeaponProfiles="+
+                    V913WeaponRuntimeAuthority.count(),
+                null
+            );
         }else{
             return ContentResult.handled(
                 "CONTENT_COMMAND_ACTION key="+
