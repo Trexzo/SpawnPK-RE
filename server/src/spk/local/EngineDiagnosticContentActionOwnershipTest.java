@@ -86,7 +86,6 @@ public final class EngineDiagnosticContentActionOwnershipTest {
             LocalDiagnosticCommandHandler diagnostics=
                 new LocalDiagnosticCommandHandler(
                     world,
-                    player.equipment(),
                     new NativeItemLibraryService()
                 );
 
