@@ -94,21 +94,39 @@ final class LocalDiagnosticCommandHandler {
             return true;
         }
 
-        if(command.equalsIgnoreCase("engine")){
-            System.out.println(tag+"V5123_ENGINE "+BuildInfo.summary()+" account="+username+
-                " loginAlias="+loginAlias+" persistent="+persistentAccount+" "+world.summary()+
-                " metrics="+world.metrics()+" sceneBase="+
-                (scenePublisher==null?"none":scenePublisher.context().currentChunkX()+","+scenePublisher.context().currentChunkY())+
-                " npcDefinitions="+EffectiveNpcDefinitionRepository.count()+
-                " groundActionExceptions="+GroundItemActionRepository.exceptionCount()+
-                " miniDefinitions="+MiniPetDefinitionRepository.count()+
-                " itemAuthority="+ItemAuthorityRepository.count()+
-                " worldRegions="+WorldRegionAuthorityRepository.count()+
-                " worldAuthorityMode=DATA_ONLY");
-            return true;
-        }
-
         return false;
+    }
+
+    String engineSummary(
+        String username,
+        String loginAlias,
+        boolean persistentAccount,
+        SceneUpdatePublisher scenePublisher
+    ){
+        return "V5123_ENGINE "+
+            BuildInfo.summary()+
+            " account="+username+
+            " loginAlias="+loginAlias+
+            " persistent="+persistentAccount+
+            " "+world.summary()+
+            " metrics="+world.metrics()+
+            " sceneBase="+
+            (scenePublisher==null
+                ?"none"
+                :scenePublisher.context().currentChunkX()+
+                    ","+
+                    scenePublisher.context().currentChunkY())+
+            " npcDefinitions="+
+            EffectiveNpcDefinitionRepository.count()+
+            " groundActionExceptions="+
+            GroundItemActionRepository.exceptionCount()+
+            " miniDefinitions="+
+            MiniPetDefinitionRepository.count()+
+            " itemAuthority="+
+            ItemAuthorityRepository.count()+
+            " worldRegions="+
+            WorldRegionAuthorityRepository.count()+
+            " worldAuthorityMode=DATA_ONLY";
     }
 
     private static String joinTokens(String[] p,int start){
