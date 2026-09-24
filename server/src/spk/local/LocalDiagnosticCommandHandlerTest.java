@@ -17,10 +17,6 @@ public final class LocalDiagnosticCommandHandlerTest {
                 new LocalDiagnosticCommandHandler(
                     world,
                     player.equipment(),
-                    player.movement(),
-                    player.prayers(),
-                    player.magic(),
-                    player.combatStyles(),
                     new NativeItemLibraryService()
                 );
 
