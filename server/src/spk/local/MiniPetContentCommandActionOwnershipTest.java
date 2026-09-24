@@ -188,6 +188,19 @@ public final class MiniPetContentCommandActionOwnershipTest {
                         player.petState(),
                         npcs,
                         player.movement()
+                    ),
+                    new LocalPetCompatibilityCommandHandler(
+                        player.petAccessoryState(),
+                        npcs,
+                        player.movement(),
+                        new LocalPetInventoryDialogHandler(
+                            player.bank(),
+                            player.miniPets(),
+                            player.petState(),
+                            npcs,
+                            player.movement(),
+                            player.petAccessoryState()
+                        )
                     )
                 );
 
