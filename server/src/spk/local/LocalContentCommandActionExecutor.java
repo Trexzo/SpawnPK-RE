@@ -78,6 +78,7 @@ final class LocalContentCommandActionExecutor {
     private final LocalCombatCommandHandler combat;
     private final LocalDiagnosticCommandHandler diagnostics;
     private final LocalDevSessionCommandHandler devSession;
+    private final LocalPrayerMagicCommandHandler prayerMagic;
 
     LocalContentCommandActionExecutor(
         LocalCosmeticCommandHandler cosmetics,
@@ -140,6 +141,28 @@ final class LocalContentCommandActionExecutor {
         LocalDiagnosticCommandHandler diagnostics,
         LocalDevSessionCommandHandler devSession
     ){
+        this(
+            cosmetics,
+            compColors,
+            miniPets,
+            petCompatibility,
+            combat,
+            diagnostics,
+            devSession,
+            null
+        );
+    }
+
+    LocalContentCommandActionExecutor(
+        LocalCosmeticCommandHandler cosmetics,
+        LocalCompColorsCommandHandler compColors,
+        LocalMiniPetCommandHandler miniPets,
+        LocalPetCompatibilityCommandHandler petCompatibility,
+        LocalCombatCommandHandler combat,
+        LocalDiagnosticCommandHandler diagnostics,
+        LocalDevSessionCommandHandler devSession,
+        LocalPrayerMagicCommandHandler prayerMagic
+    ){
         this.cosmetics=
             java.util.Objects.requireNonNull(
                 cosmetics,
@@ -163,6 +186,7 @@ final class LocalContentCommandActionExecutor {
         this.combat=combat;
         this.diagnostics=diagnostics;
         this.devSession=devSession;
+        this.prayerMagic=prayerMagic;
     }
 
     Outcome executeOutcome(
@@ -191,6 +215,27 @@ final class LocalContentCommandActionExecutor {
         SceneUpdatePublisher scenePublisher,
         ServerPacketWriter packets
     )throws IOException{
+        Integer prayerIcon=
+            diagnosticIntValue(
+                actionKey,
+                LocalLabCoreContentModule
+                    .PRAYER_ICON_ACTION_PREFIX
+            );
+
+        if(prayerIcon!=null&&
+           prayerIcon>=-1&&
+           prayerIcon<=20&&
+           prayerMagic!=null)
+            return Outcome.content(
+                ContentResult.handled(
+                    prayerMagic.prayerIcon(
+                        prayerIcon,
+                        packets
+                    ),
+                    null
+                )
+            );
+
         if(LocalLabCoreContentModule
                 .DEV_SESSION_INFO_ACTION
                 .equals(actionKey)&&
