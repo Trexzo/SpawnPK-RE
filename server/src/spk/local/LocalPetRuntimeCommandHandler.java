@@ -37,81 +37,124 @@ final class LocalPetRuntimeCommandHandler {
             movement,"movement");
     }
 
+    List<String> status(){
+        NpcEntity pet=
+            npcs.pet();
+
+        return one(
+            "V59_PET_STATUS active="+
+            (pet!=null)+
+            " petState="+
+            (petState.active()
+                ?petState.itemId()+"->"+
+                    petState.npcId()
+                :"none")+
+            " visibleNpc="+
+            (pet==null
+                ?"none"
+                :pet.definitionId)+
+            " nativeFamily="+
+            (pet==null
+                ?"NONE"
+                :PetPresentationProfile
+                    .nativeStateFamily(
+                        pet.definitionId
+                    ))+
+            " effectState={"+
+            petEffects.summary()+
+            "}"+
+            " followOwnerRunning="+
+            npcs.recentOwnerRunning()
+        );
+    }
+
+    List<String> boost(
+        ServerPacketWriter serverPackets
+    )throws IOException{
+        serverPackets.varShort(
+            81,
+            CombatSync.player81GfxOnly(
+                1310,
+                0,
+                0
+            )
+        );
+
+        return one(
+            "V593_PET_BOOST_FIXTURE result=PLAYER_PRESENTATION anim=NONE gfx=1310 productionNormalPetEvidence=LIVE_COMPONENT_ISOLATION"
+        );
+    }
+
+    List<String> scopeSnipe(
+        ServerPacketWriter serverPackets
+    )throws IOException{
+        if(!scopesightActive()||
+           npcs.pet()==null||
+           npcs.pet().definitionId!=
+               ScopesightPetProfile.NPC_ID)
+            return one(
+                "V58_SCOPESIGHT_SNIPE result=REJECTED_NO_ACTIVE_SCOPESIGHT activePet="+
+                (
+                    petState.active()
+                        ?petState.itemId()+
+                            "->"+
+                            petState.npcId()
+                        :"none"
+                )
+            );
+
+        String result=
+            npcs.forcePetText(
+                ScopesightPetProfile
+                    .NATIVE_TRIGGER_TEXT,
+                serverPackets
+            );
+
+        return one(
+            "V58_SCOPESIGHT_SNIPE result="+
+            result+
+            " nativeClientTrigger=true"
+        );
+    }
+
+    List<String> proc(
+        ServerPacketWriter serverPackets
+    )throws IOException{
+        serverPackets.varShort(
+            81,
+            CombatSync.player81GfxOnly(
+                1310,
+                0,
+                0
+            )
+        );
+
+        String snipe=
+            "NOT_SCOPESIGHT";
+
+        if(scopesightActive()&&
+           npcs.pet()!=null&&
+           npcs.pet().definitionId==
+               ScopesightPetProfile.NPC_ID)
+            snipe=
+                npcs.forcePetText(
+                    ScopesightPetProfile
+                        .NATIVE_TRIGGER_TEXT,
+                    serverPackets
+                );
+
+        return one(
+            "V511_PET_PROC_FIXTURE playerAnim=NONE playerGfx=1310 scopesight="+
+            snipe+
+            " semantics=PRODUCTION_NORMAL_PET_BOOST_PRESENTATION"
+        );
+    }
+
     List<String> handle(
         String[] p,
         ServerPacketWriter serverPackets
     )throws IOException{
         if(p==null||p.length<1)return null;
-
-        if(p[0].equalsIgnoreCase("petboost")){
-            serverPackets.varShort(
-                81,
-                CombatSync.player81GfxOnly(1310,0,0));
-
-            return one(
-                "V593_PET_BOOST_FIXTURE result=PLAYER_PRESENTATION anim=NONE gfx=1310 productionNormalPetEvidence=LIVE_COMPONENT_ISOLATION");
-        }
-
-        if(p[0].equalsIgnoreCase("scopesnipe")){
-            if(!scopesightActive()||
-               npcs.pet()==null||
-               npcs.pet().definitionId!=ScopesightPetProfile.NPC_ID){
-                return one(
-                    "V58_SCOPESIGHT_SNIPE result=REJECTED_NO_ACTIVE_SCOPESIGHT activePet="+
-                    (petState.active()
-                        ?petState.itemId()+"->"+petState.npcId()
-                        :"none"));
-            }
-
-            String result=npcs.forcePetText(
-                ScopesightPetProfile.NATIVE_TRIGGER_TEXT,
-                serverPackets);
-
-            return one(
-                "V58_SCOPESIGHT_SNIPE result="+result+
-                " nativeClientTrigger=true");
-        }
-
-        if(p[0].equalsIgnoreCase("petproc")){
-            serverPackets.varShort(
-                81,
-                CombatSync.player81GfxOnly(1310,0,0));
-
-            String snipe="NOT_SCOPESIGHT";
-            if(scopesightActive()&&
-               npcs.pet()!=null&&
-               npcs.pet().definitionId==ScopesightPetProfile.NPC_ID){
-                snipe=npcs.forcePetText(
-                    ScopesightPetProfile.NATIVE_TRIGGER_TEXT,
-                    serverPackets);
-            }
-
-            return one(
-                "V511_PET_PROC_FIXTURE playerAnim=NONE playerGfx=1310 scopesight="+
-                snipe+
-                " semantics=PRODUCTION_NORMAL_PET_BOOST_PRESENTATION");
-        }
-
-        if(p[0].equalsIgnoreCase("petstatus")){
-            NpcEntity pet=npcs.pet();
-
-            return one(
-                "V59_PET_STATUS active="+(pet!=null)+
-                " petState="+
-                (petState.active()
-                    ?petState.itemId()+"->"+petState.npcId()
-                    :"none")+
-                " visibleNpc="+
-                (pet==null?"none":pet.definitionId)+
-                " nativeFamily="+
-                (pet==null
-                    ?"NONE"
-                    :PetPresentationProfile.nativeStateFamily(
-                        pet.definitionId))+
-                " effectState={"+petEffects.summary()+"}"+
-                " followOwnerRunning="+
-                npcs.recentOwnerRunning());
-        }
 
         if(p[0].equalsIgnoreCase("pettestall")){
             armSequence(System.currentTimeMillis());

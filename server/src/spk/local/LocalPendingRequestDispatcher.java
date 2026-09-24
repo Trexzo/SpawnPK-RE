@@ -227,24 +227,6 @@ final class LocalPendingRequestDispatcher {
             }
 
             if(request instanceof
-                    DialogueOptionClientRequest){
-                DialogueOptionClientRequest option=
-                    (DialogueOptionClientRequest)request;
-
-                if(!makeoverMage.handleOption(
-                        option.optionIndex(),
-                        serverPackets,
-                        tag))
-                    System.out.println(
-                        tag+
-                        "DIALOGUE_OPTION_UNHANDLED index="+
-                        option.optionIndex()+
-                        " framingPreserved=true"
-                    );
-                continue;
-            }
-
-            if(request instanceof
                     CharacterDesignClientRequest){
                 CharacterDesignClientRequest design=
                     (CharacterDesignClientRequest)request;
@@ -585,6 +567,27 @@ final class LocalPendingRequestDispatcher {
                     CommandClientRequest){
                 CommandClientRequest command=
                     (CommandClientRequest)request;
+
+                int dialogueOption=
+                    ClientCommandSemanticRouter
+                        .dialogueOptionIndex(
+                            command.command()
+                        );
+
+                if(dialogueOption>0){
+                    if(!makeoverMage.handleOption(
+                            dialogueOption,
+                            serverPackets,
+                            tag))
+                        System.out.println(
+                            tag+
+                            "DIALOGUE_OPTION_UNHANDLED index="+
+                            dialogueOption+
+                            " framingPreserved=true"
+                        );
+
+                    continue;
+                }
 
                 commandDispatcher.handle(
                     command.command(),

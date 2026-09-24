@@ -382,75 +382,62 @@ public final class PrayerSpellbookContentOwnershipTest {
     private static void migratedLegacyRoutesRemoved()
         throws Exception
     {
-        LocalPrayerMagicCommandHandler legacy=
-            new LocalPrayerMagicCommandHandler(
-                new PrayerState(),
-                new MagicState()
-            );
-
-        for(String[] tokens:
-                new String[][]{
-                    {"prayerbook","curses"},
-                    {"spellbook","ancient"},
-                    {"prayeroff"}
-                }){
-            ByteArrayOutputStream wire=
-                new ByteArrayOutputStream();
-            ServerPacketWriter packets=
-                writer(wire);
-
-            boolean claimed=
-                legacy.handle(
-                    tokens,
-                    String.join(
-                        " ",
-                        tokens
-                    ),
-                    packets,
-                    "[prayer-content-test] "
-                );
-
-            packets.flush();
-
+        for(Method method:
+                LocalPrayerMagicCommandHandler.class
+                    .getDeclaredMethods())
             require(
-                !claimed&&
-                wire.size()==0,
-                "legacy route still claimed "+
-                Arrays.toString(tokens)
+                !"handle".equals(
+                    method.getName()
+                ),
+                "legacy prayer/magic raw parser remains"
             );
-        }
+
+        for(java.lang.reflect.Constructor<?> constructor:
+                LocalPrayerMagicCommandHandler.class
+                    .getDeclaredConstructors())
+            require(
+                constructor.getParameterCount()==1&&
+                constructor.getParameterTypes()[0]==
+                    PrayerState.class,
+                "legacy prayer/magic constructor remains "+
+                constructor
+            );
     }
 
     private static void prayerIconRemainsRuntimeOwned()
         throws Exception
     {
-        LocalPrayerMagicCommandHandler legacy=
+        PrayerState prayers=
+            new PrayerState();
+        LocalPrayerMagicCommandHandler runtime=
             new LocalPrayerMagicCommandHandler(
-                new PrayerState(),
-                new MagicState()
+                prayers
             );
         ByteArrayOutputStream wire=
             new ByteArrayOutputStream();
         ServerPacketWriter packets=
             writer(wire);
 
-        boolean claimed=
-            legacy.handle(
-                new String[]{
-                    "prayericon",
-                    "3"
-                },
-                "prayericon 3",
-                packets,
-                "[prayer-content-test] "
+        String result=
+            runtime.prayerIcon(
+                3,
+                packets
             );
 
         packets.flush();
 
         require(
-            claimed&&
+            result.contains(
+                "LOCAL_PRAYER_HEADICON_FIXTURE value=3"
+            )&&
+            prayers.manualHeadIcon()==3&&
             wire.size()>0,
-            "prayericon runtime fixture ownership changed"
+            "prayericon runtime fixture ownership changed result="+
+            result+
+            " icon="+
+            prayers.manualHeadIcon()+
+            " wire="+
+            wire.size()
         );
     }
 

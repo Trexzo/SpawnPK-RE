@@ -267,11 +267,6 @@ public final class PlayerStateDiagnosticContentOwnershipTest {
         LocalDiagnosticCommandHandler legacy=
             new LocalDiagnosticCommandHandler(
                 world,
-                new EquipmentState(),
-                new MovementState(),
-                new PrayerState(),
-                new MagicState(),
-                new CombatStyleState(),
                 new NativeItemLibraryService()
             );
 

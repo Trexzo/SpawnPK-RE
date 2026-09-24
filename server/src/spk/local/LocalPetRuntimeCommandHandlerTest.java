@@ -20,28 +20,96 @@ public final class LocalPetRuntimeCommandHandlerTest {
         ServerPacketWriter writer=new ServerPacketWriter(
             wire,new IsaacCipher(new int[]{1,2,3,4}));
 
-        List<String> status=handler.handle(
-            new String[]{"petstatus"},
-            writer);
+        List<String> status=
+            handler.status();
 
         assertContains(
             status,
             "V59_PET_STATUS active=false",
             "status");
 
+        if(handler.handle(
+                new String[]{"petstatus"},
+                writer)!=null)
+            throw new AssertionError(
+                "raw petstatus route remains"
+            );
+
         int before=wire.size();
-        List<String> boost=handler.handle(
-            new String[]{"petboost"},
-            writer);
+        List<String> boost=
+            handler.boost(
+                writer
+            );
 
         assertContains(
             boost,
             "V593_PET_BOOST_FIXTURE",
-            "boost");
+            "boost"
+        );
 
         if(wire.size()<=before)
             throw new AssertionError(
-                "petboost emitted no packet");
+                "petboost emitted no packet"
+            );
+
+        if(handler.handle(
+                new String[]{"petboost"},
+                writer)!=null)
+            throw new AssertionError(
+                "raw petboost route remains"
+            );
+
+        int beforeScope=
+            wire.size();
+
+        List<String> noScope=
+            handler.scopeSnipe(
+                writer
+            );
+
+        assertContains(
+            noScope,
+            "REJECTED_NO_ACTIVE_SCOPESIGHT",
+            "scope reject"
+        );
+
+        if(wire.size()!=beforeScope)
+            throw new AssertionError(
+                "rejected scopesnipe emitted packet"
+            );
+
+        if(handler.handle(
+                new String[]{"scopesnipe"},
+                writer)!=null)
+            throw new AssertionError(
+                "raw scopesnipe route remains"
+            );
+
+        int beforeProc=
+            wire.size();
+
+        List<String> proc=
+            handler.proc(
+                writer
+            );
+
+        assertContains(
+            proc,
+            "V511_PET_PROC_FIXTURE playerAnim=NONE playerGfx=1310 scopesight=NOT_SCOPESIGHT",
+            "proc"
+        );
+
+        if(wire.size()<=beforeProc)
+            throw new AssertionError(
+                "petproc emitted no player GFX packet"
+            );
+
+        if(handler.handle(
+                new String[]{"petproc"},
+                writer)!=null)
+            throw new AssertionError(
+                "raw petproc route remains"
+            );
 
         List<String> armed=handler.handle(
             new String[]{"pettestall"},
@@ -100,7 +168,7 @@ public final class LocalPetRuntimeCommandHandlerTest {
                 "unrelated command consumed");
 
         System.out.println(
-            "LOCAL_PET_RUNTIME_COMMAND_HANDLER_PASS status=true boost=true sequence=true damageBoundary=true unrelatedRejected=true");
+            "LOCAL_PET_RUNTIME_COMMAND_HANDLER_PASS statusEffect=true rawPetStatusRoute=false boostEffect=true rawPetBoostRoute=false scopeEffect=true rawScopeSnipeRoute=false procEffect=true rawPetProcRoute=false sequence=true damageBoundary=true unrelatedRejected=true");
     }
 
     private static void assertContains(

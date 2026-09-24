@@ -49,6 +49,15 @@ public final class LocalLabCoreContentModule
     public static final String PET_SWITCH_COLOR_ACTION_PREFIX=
         "locallab.petswitchcolor.open";
 
+    public static final String PET_STATUS_ACTION=
+        "locallab.petruntime.status";
+    public static final String PET_BOOST_ACTION=
+        "locallab.petruntime.boost";
+    public static final String PET_SCOPE_SNIPE_ACTION=
+        "locallab.petruntime.scopesnipe";
+    public static final String PET_PROC_ACTION=
+        "locallab.petruntime.proc";
+
     public static final String COMBAT_FIXTURE_ACTION_PREFIX=
         "locallab.combatfixture.hit";
 
@@ -78,6 +87,14 @@ public final class LocalLabCoreContentModule
         "locallab.devhit.styleicon";
     public static final String DEV_HIT_PLACEMENT_PRIMARY_ACTION=
         "locallab.devhit.placement-primary";
+
+    public static final String DEV_SESSION_INFO_ACTION=
+        "locallab.dev.info";
+    public static final String DEV_SESSION_RESET_ACTION=
+        "locallab.dev.reset";
+
+    public static final String PRAYER_ICON_ACTION_PREFIX=
+        "locallab.prayericon.set";
 
     @Override public String id(){
         return "locallab-core";
@@ -129,6 +146,12 @@ public final class LocalLabCoreContentModule
         );
 
         registrar.command(
+            "prayericon",
+            100,
+            this::prayerIcon
+        );
+
+        registrar.command(
             "cosmetic",
             100,
             this::cosmetic
@@ -159,6 +182,45 @@ public final class LocalLabCoreContentModule
         );
 
         registrar.command(
+            "petstatus",
+            100,
+            context->
+                ContentResult.action(
+                    PET_STATUS_ACTION
+                )
+        );
+
+
+        registrar.command(
+            "petboost",
+            100,
+            context->
+                ContentResult.action(
+                    PET_BOOST_ACTION
+                )
+        );
+
+
+        registrar.command(
+            "scopesnipe",
+            100,
+            context->
+                ContentResult.action(
+                    PET_SCOPE_SNIPE_ACTION
+                )
+        );
+
+
+        registrar.command(
+            "petproc",
+            100,
+            context->
+                ContentResult.action(
+                    PET_PROC_ACTION
+                )
+        );
+
+        registrar.command(
             "combatfixture",
             100,
             this::combatFixture
@@ -168,6 +230,12 @@ public final class LocalLabCoreContentModule
             "devhit",
             100,
             this::devHit
+        );
+
+        registrar.command(
+            "dev",
+            100,
+            this::devSession
         );
 
         registrar.objectOption(
@@ -227,6 +295,30 @@ public final class LocalLabCoreContentModule
                 result+
                 " authority=LOCAL_DEV_FIXTURE clientProtocol=EXACT_CURRENT",
             null
+        );
+    }
+
+    private ContentResult devSession(
+        ContentCommandContext context
+    ){
+        String sub=
+            context.arguments().isEmpty()
+                ?"info"
+                :context.arguments().get(0)
+                    .toLowerCase(
+                        Locale.ROOT
+                    );
+
+        if("panel".equals(sub))
+            return null;
+
+        if("reset".equals(sub))
+            return ContentResult.action(
+                DEV_SESSION_RESET_ACTION
+            );
+
+        return ContentResult.action(
+            DEV_SESSION_INFO_ACTION
         );
     }
 
@@ -719,6 +811,32 @@ public final class LocalLabCoreContentModule
                         book
                     ),
             null
+        );
+    }
+
+    private ContentResult prayerIcon(
+        ContentCommandContext context
+    ){
+        if(context.arguments().isEmpty())
+            return null;
+
+        int icon=
+            parseInt(
+                context.arguments().get(0),
+                Integer.MIN_VALUE
+            );
+
+        if(icon<-1||
+           icon>20)
+            return ContentResult.handled(
+                "V510_PRAYER_ICON result=REJECTED_HEADICON_RANGE expected=-1..20",
+                null
+            );
+
+        return ContentResult.action(
+            PRAYER_ICON_ACTION_PREFIX+
+            ":"+
+            icon
         );
     }
 
