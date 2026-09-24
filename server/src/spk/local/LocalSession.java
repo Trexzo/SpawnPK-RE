@@ -190,7 +190,7 @@ final class LocalSession implements Runnable {
         this.petRuntimeCommands = new LocalPetRuntimeCommandHandler(
             petState,petEffects,npcs,movement);
         this.combatCommands = new LocalCombatCommandHandler(
-            combat,equipment,combatStyles,npcs,petRuntimeCommands);
+            combat,npcs,petRuntimeCommands);
         this.regionDevCommands = new LocalRegionDevCommandHandler(
             world,
             worldPlayer,
