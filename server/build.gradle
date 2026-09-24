@@ -862,6 +862,38 @@ tasks.register('appFixtureContentOwnershipRegression') {
     }
 }
 
+tasks.register('petSwitchColorContentCommandActionOwnershipRegression') {
+    group = 'verification'
+    description = 'Validates content-owned petswitchcolor policy with an internal runtime dialog outcome and session bridge.'
+    dependsOn tasks.named('testClasses')
+
+    doLast {
+        [
+            'spk.local.PetSwitchColorContentCommandActionOwnershipTest',
+            'spk.local.LocalPetCompatibilityCommandHandlerTest',
+            'spk.local.PetAccessoryContentCommandActionOwnershipTest',
+            'spk.local.MiniPetContentCommandActionOwnershipTest',
+            'spk.local.CompColorsContentCommandActionOwnershipTest',
+            'spk.local.CosmeticContentCommandActionOwnershipTest',
+            'spk.local.ContentPublicApiBoundaryTest',
+            'spk.local.ContentRegistryTest',
+            'spk.local.ContentHandlerSamCompatibilityTest',
+            'spk.local.ContentProvenanceAuthorityBoundaryTest',
+            'spk.local.LocalCommandDispatcherTest'
+        ].each { mainClassName ->
+            project.javaexec {
+                workingDir repoRoot
+                classpath = sourceSets.test.runtimeClasspath
+                mainClass.set(mainClassName)
+            }
+        }
+
+        logger.lifecycle(
+            'PET_SWITCH_COLOR_CONTENT_COMMAND_ACTION_OWNERSHIP_PASS binding=true semanticAction=true defaultRequest=true invalidRequest=true extraArgsCompatibility=true policyWireBytes=0 internalDialogOutcome=true rejectedDialogResult=true malformedFailClosed=true dialogOpen=true dialogWire=true legacyParser=false dispatcherBridge=true publicApiExpanded=false'
+        )
+    }
+}
+
 tasks.register('combatProbeDiagnosticContentOwnershipRegression') {
     group = 'verification'
     description = 'Validates zero-wire combatprobe ownership in the internal LocalLab diagnostic content module.'
