@@ -46,6 +46,9 @@ public final class LocalLabCoreContentModule
     public static final String PET_ACCESSORY_OFF_ACTION=
         "locallab.petaccessory.off";
 
+    public static final String PET_SWITCH_COLOR_ACTION_PREFIX=
+        "locallab.petswitchcolor.open";
+
     @Override public String id(){
         return "locallab-core";
     }
@@ -119,6 +122,12 @@ public final class LocalLabCoreContentModule
             this::petAccessory
         );
 
+        registrar.command(
+            "petswitchcolor",
+            100,
+            this::petSwitchColor
+        );
+
         registrar.objectOption(
             BANK_OBJECT,
             1,
@@ -176,6 +185,24 @@ public final class LocalLabCoreContentModule
                 result+
                 " authority=LOCAL_DEV_FIXTURE clientProtocol=EXACT_CURRENT",
             null
+        );
+    }
+
+    private ContentResult petSwitchColor(
+        ContentCommandContext context
+    ){
+        int requested=
+            context.arguments().isEmpty()
+                ?-1
+                :parseInt(
+                    context.arguments().get(0),
+                    -1
+                );
+
+        return ContentResult.action(
+            PET_SWITCH_COLOR_ACTION_PREFIX+
+            ":"+
+            requested
         );
     }
 
