@@ -29,6 +29,9 @@ public final class LocalLabCoreContentModule
     public static final String COSMETIC_HELP_ACTION=
         "locallab.cosmetic.help";
 
+    public static final String COMP_COLORS_APPLY_ACTION_PREFIX=
+        "locallab.compcolors.apply";
+
     @Override public String id(){
         return "locallab-core";
     }
@@ -82,6 +85,12 @@ public final class LocalLabCoreContentModule
             "cosmetic",
             100,
             this::cosmetic
+        );
+
+        registrar.command(
+            "compcolors",
+            100,
+            this::compColors
         );
 
         registrar.objectOption(
@@ -141,6 +150,50 @@ public final class LocalLabCoreContentModule
                 result+
                 " authority=LOCAL_DEV_FIXTURE clientProtocol=EXACT_CURRENT",
             null
+        );
+    }
+
+    private ContentResult compColors(
+        ContentCommandContext context
+    ){
+        if(context.arguments().size()!=6)
+            return ContentResult.handled(
+                "V54_COMP_COLORS command="+
+                    context.rawCommand()+
+                    " result=REJECTED_SELECTOR_RANGE expected=0..19",
+                null
+            );
+
+        int[] selectors=new int[6];
+
+        for(int i=0;i<selectors.length;i++){
+            selectors[i]=
+                parseInt(
+                    context.arguments().get(i),
+                    -1
+                );
+
+            if(selectors[i]<0||
+               selectors[i]>19)
+                return ContentResult.handled(
+                    "V54_COMP_COLORS command="+
+                        context.rawCommand()+
+                        " result=REJECTED_SELECTOR_RANGE expected=0..19",
+                    null
+                );
+        }
+
+        StringBuilder action=
+            new StringBuilder(
+                COMP_COLORS_APPLY_ACTION_PREFIX
+            );
+
+        for(int selector:selectors)
+            action.append(':')
+                .append(selector);
+
+        return ContentResult.action(
+            action.toString()
         );
     }
 
