@@ -862,6 +862,39 @@ tasks.register('appFixtureContentOwnershipRegression') {
     }
 }
 
+tasks.register('combatFixtureContentCommandActionOwnershipRegression') {
+    group = 'verification'
+    description = 'Validates content-owned combatfixture parsing with internal runtime log-line effects and no public API widening.'
+    dependsOn tasks.named('testClasses')
+
+    doLast {
+        [
+            'spk.local.CombatFixtureContentCommandActionOwnershipTest',
+            'spk.local.LocalCombatCommandHandlerTest',
+            'spk.local.PetSwitchColorContentCommandActionOwnershipTest',
+            'spk.local.PetAccessoryContentCommandActionOwnershipTest',
+            'spk.local.MiniPetContentCommandActionOwnershipTest',
+            'spk.local.CompColorsContentCommandActionOwnershipTest',
+            'spk.local.CosmeticContentCommandActionOwnershipTest',
+            'spk.local.ContentPublicApiBoundaryTest',
+            'spk.local.ContentRegistryTest',
+            'spk.local.ContentHandlerSamCompatibilityTest',
+            'spk.local.ContentProvenanceAuthorityBoundaryTest',
+            'spk.local.LocalCommandDispatcherTest'
+        ].each { mainClassName ->
+            project.javaexec {
+                workingDir repoRoot
+                classpath = sourceSets.test.runtimeClasspath
+                mainClass.set(mainClassName)
+            }
+        }
+
+        logger.lifecycle(
+            'COMBAT_FIXTURE_CONTENT_COMMAND_ACTION_OWNERSHIP_PASS binding=true semanticAction=true defaultDamage=true invalidDamageCompatibility=true extraArgsCompatibility=true policyWireBytes=0 internalLogLines=true noTargetParity=true rangeParity=true malformedFailClosed=true legacyParser=false devhitRuntimeOwned=true publicApiExpanded=false'
+        )
+    }
+}
+
 tasks.register('petSwitchColorContentCommandActionOwnershipRegression') {
     group = 'verification'
     description = 'Validates content-owned petswitchcolor policy with an internal runtime dialog outcome and session bridge.'
