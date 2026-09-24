@@ -36,24 +36,6 @@ final class LocalDiagnosticCommandHandler {
         if(p==null||p.length==0)return false;
         String command=p[0];
 
-        if(command.equalsIgnoreCase("equipstr")){
-            int item=p.length>=2?parseInt(p[1],-1):-1;
-            ItemAuthorityRepository.Entry e=ItemAuthorityRepository.get(item);
-            // Exact current client Ctrl-hover requests equipstr <id> and then waits
-            // for server-fed numeric key24 data. R8.1 refuses to invent those 14
-            // numbers, but it also must not leave the client stuck on Loading.
-            serverPackets.varShort(126,new PacketPayloadWriter()
-                .putStringNl("RESET_HOVER_EQUIPMENT")
-                .putU16BELowAdd128(0)
-                .toByteArray());
-            String relation=e==null?"":e.relationSummary;
-            String mechanics=e==null?"":e.mechanicsSummary;
-            System.out.println(tag+"V5181_EQUIPSTR_FAIL_CLOSED item="+item+" known="+(e!=null)+
-                " resetHover=true numeric14=UNRESOLVED_SERVER_AUTHORITY relation=["+clip(relation,100)+
-                "] mechanics=["+clip(mechanics,100)+"]");
-            return true;
-        }
-
         if(command.equalsIgnoreCase("igsearch")){
             String q=joinTokens(p,1);
             String r=itemLibrary.searchExact(serverPackets,q);
@@ -83,6 +65,58 @@ final class LocalDiagnosticCommandHandler {
         }
 
         return false;
+    }
+
+    String equipStr(
+        int item,
+        ServerPacketWriter serverPackets
+    )throws IOException{
+        ItemAuthorityRepository.Entry entry=
+            ItemAuthorityRepository.get(
+                item
+            );
+
+        // Exact current client Ctrl-hover requests equipstr <id> and then waits
+        // for server-fed numeric key24 data. This runtime effect refuses to
+        // invent those 14 values but still clears the client's Loading state.
+        serverPackets.varShort(
+            126,
+            new PacketPayloadWriter()
+                .putStringNl(
+                    "RESET_HOVER_EQUIPMENT"
+                )
+                .putU16BELowAdd128(
+                    0
+                )
+                .toByteArray()
+        );
+
+        String relation=
+            entry==null
+                ?""
+                :entry.relationSummary;
+        String mechanics=
+            entry==null
+                ?""
+                :entry.mechanicsSummary;
+
+        return "V5181_EQUIPSTR_FAIL_CLOSED item="+
+            item+
+            " known="+
+            (entry!=null)+
+            " resetHover=true"+
+            " numeric14=UNRESOLVED_SERVER_AUTHORITY"+
+            " relation=["+
+            clip(
+                relation,
+                100
+            )+
+            "] mechanics=["+
+            clip(
+                mechanics,
+                100
+            )+
+            "]";
     }
 
     String engineSummary(
