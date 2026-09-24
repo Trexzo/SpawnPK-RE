@@ -862,6 +862,36 @@ tasks.register('appFixtureContentOwnershipRegression') {
     }
 }
 
+tasks.register('miniPetContentCommandActionOwnershipRegression') {
+    group = 'verification'
+    description = 'Validates content-owned minipet command policy with strict semantic runtime effects.'
+    dependsOn tasks.named('testClasses')
+
+    doLast {
+        [
+            'spk.local.MiniPetContentCommandActionOwnershipTest',
+            'spk.local.LocalMiniPetCommandHandlerTest',
+            'spk.local.CompColorsContentCommandActionOwnershipTest',
+            'spk.local.CosmeticContentCommandActionOwnershipTest',
+            'spk.local.ContentPublicApiBoundaryTest',
+            'spk.local.ContentRegistryTest',
+            'spk.local.ContentHandlerSamCompatibilityTest',
+            'spk.local.ContentProvenanceAuthorityBoundaryTest',
+            'spk.local.LocalCommandDispatcherTest'
+        ].each { mainClassName ->
+            project.javaexec {
+                workingDir repoRoot
+                classpath = sourceSets.test.runtimeClasspath
+                mainClass.set(mainClassName)
+            }
+        }
+
+        logger.lifecycle(
+            'MINIPET_CONTENT_COMMAND_ACTION_OWNERSHIP_PASS binding=true semanticAction=true aliases=true setItemSemantic=true policyWireBytes=0 allowlist=true malformedFailClosed=true configureState=true invalidNoSave=true offSave=true helpRuntimeOwned=true legacyParser=false dispatcherFallback=false'
+        )
+    }
+}
+
 tasks.register('compColorsContentCommandActionOwnershipRegression') {
     group = 'verification'
     description = 'Validates content-owned compcolors policy with strict semantic action selectors and runtime-owned appearance publication.'
