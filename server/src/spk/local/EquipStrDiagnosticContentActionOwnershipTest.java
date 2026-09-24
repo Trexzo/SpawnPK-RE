@@ -110,7 +110,6 @@ public final class EquipStrDiagnosticContentActionOwnershipTest {
             LocalDiagnosticCommandHandler diagnostics=
                 new LocalDiagnosticCommandHandler(
                     world,
-                    player.equipment(),
                     new NativeItemLibraryService()
                 );
 
