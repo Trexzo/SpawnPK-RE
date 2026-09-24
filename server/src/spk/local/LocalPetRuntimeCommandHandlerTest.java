@@ -85,6 +85,32 @@ public final class LocalPetRuntimeCommandHandlerTest {
                 "raw scopesnipe route remains"
             );
 
+        int beforeProc=
+            wire.size();
+
+        List<String> proc=
+            handler.proc(
+                writer
+            );
+
+        assertContains(
+            proc,
+            "V511_PET_PROC_FIXTURE playerAnim=NONE playerGfx=1310 scopesight=NOT_SCOPESIGHT",
+            "proc"
+        );
+
+        if(wire.size()<=beforeProc)
+            throw new AssertionError(
+                "petproc emitted no player GFX packet"
+            );
+
+        if(handler.handle(
+                new String[]{"petproc"},
+                writer)!=null)
+            throw new AssertionError(
+                "raw petproc route remains"
+            );
+
         List<String> armed=handler.handle(
             new String[]{"pettestall"},
             writer);
@@ -142,7 +168,7 @@ public final class LocalPetRuntimeCommandHandlerTest {
                 "unrelated command consumed");
 
         System.out.println(
-            "LOCAL_PET_RUNTIME_COMMAND_HANDLER_PASS statusEffect=true rawPetStatusRoute=false boostEffect=true rawPetBoostRoute=false scopeEffect=true rawScopeSnipeRoute=false sequence=true damageBoundary=true unrelatedRejected=true");
+            "LOCAL_PET_RUNTIME_COMMAND_HANDLER_PASS statusEffect=true rawPetStatusRoute=false boostEffect=true rawPetBoostRoute=false scopeEffect=true rawScopeSnipeRoute=false procEffect=true rawPetProcRoute=false sequence=true damageBoundary=true unrelatedRejected=true");
     }
 
     private static void assertContains(
