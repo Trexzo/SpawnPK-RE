@@ -38,7 +38,8 @@ public final class LocalDiagnosticCommandHandlerTest {
                 {"magicinfo"},
                 {"styleinfo"},
                 {"combatprobe"},
-                {"engine"}
+                {"engine"},
+                {"equipstr","-1"}
             };
 
             for(String[] command:migrated)
@@ -60,24 +61,23 @@ public final class LocalDiagnosticCommandHandlerTest {
             int before=
                 wire.size();
 
-            if(!h.handle(
-                    new String[]{
-                        "equipstr",
-                        "-1"
-                    },
-                    w,
-                    "[diag-test] ",
-                    "opensrc",
-                    "localtest",
-                    true,
-                    null))
+            String equip=
+                h.equipStr(
+                    -1,
+                    w
+                );
+
+            if(!equip.contains(
+                    "V5181_EQUIPSTR_FAIL_CLOSED item=-1 known=false")||
+               !equip.contains(
+                    "numeric14=UNRESOLVED_SERVER_AUTHORITY"))
                 throw new AssertionError(
-                    "equipstr not handled"
+                    "equipstr effect="+equip
                 );
 
             if(wire.size()<=before)
                 throw new AssertionError(
-                    "equipstr did not emit fail-closed reset packet"
+                    "equipstr effect did not emit fail-closed reset packet"
                 );
 
             if(h.handle(
@@ -120,7 +120,7 @@ public final class LocalDiagnosticCommandHandlerTest {
             System.out.println(
                 "LOCAL_DIAGNOSTIC_COMMAND_HANDLER_PASS "+
                 "migratedRoutesRejected=true "+
-                "equipstrReset=true "+
+                "equipstrRuntimeEffect=true "+
                 "engineEffect=true "+
                 "mutatingCommandRejected=true"
             );
