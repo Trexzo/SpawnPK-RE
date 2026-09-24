@@ -28,6 +28,7 @@ final class LocalCommandDispatcher {
     private final LocalPrayerMagicCommandHandler prayerMagicCommands;
     private final LocalMiniPetCommandHandler miniPetCommands;
     private final LocalCosmeticCommandHandler cosmeticCommands;
+    private final LocalContentCommandActionExecutor contentCommandActions;
     private final LocalDevWorldCommandHandler devWorldCommands;
     private final DevAuthorityWorkbench dev;
     private final LocalDevSessionCommandHandler devSessionCommands;
@@ -75,6 +76,10 @@ final class LocalCommandDispatcher {
         this.prayerMagicCommands=Objects.requireNonNull(prayerMagicCommands,"prayerMagicCommands");
         this.miniPetCommands=Objects.requireNonNull(miniPetCommands,"miniPetCommands");
         this.cosmeticCommands=Objects.requireNonNull(cosmeticCommands,"cosmeticCommands");
+        this.contentCommandActions=
+            new LocalContentCommandActionExecutor(
+                this.cosmeticCommands
+            );
         this.devWorldCommands=Objects.requireNonNull(devWorldCommands,"devWorldCommands");
         this.dev=Objects.requireNonNull(dev,"dev");
         this.devSessionCommands=Objects.requireNonNull(devSessionCommands,"devSessionCommands");
@@ -127,6 +132,14 @@ final class LocalCommandDispatcher {
                 );
 
             if(content!=null){
+                if(content.hasAction())
+                    content=
+                        contentCommandActions.execute(
+                            content.actionKey(),
+                            username,
+                            serverPackets
+                        );
+
                 if(content.saveReason()!=null)
                     bridge.saveAccount(
                         tag,
@@ -198,15 +211,6 @@ final class LocalCommandDispatcher {
             if(miniPetCommand.saveReason!=null)
                 bridge.saveAccount(tag,miniPetCommand.saveReason);
             System.out.println(tag+miniPetCommand.logText);
-            return true;
-        }
-
-        LocalCosmeticCommandHandler.Result cosmeticCommand=
-            cosmeticCommands.handle(p,username,serverPackets);
-        if(cosmeticCommand!=null){
-            if(cosmeticCommand.saveReason!=null)
-                bridge.saveAccount(tag,cosmeticCommand.saveReason);
-            System.out.println(tag+cosmeticCommand.logText);
             return true;
         }
 
