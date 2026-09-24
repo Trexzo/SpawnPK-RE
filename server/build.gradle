@@ -862,6 +862,34 @@ tasks.register('appFixtureContentOwnershipRegression') {
     }
 }
 
+tasks.register('bankObjectContentOwnershipRegression') {
+    group = 'verification'
+    description = 'Validates content-owned bank object classification while keeping approach/pathing and exact bank presentation runtime-owned.'
+    dependsOn tasks.named('testClasses')
+
+    doLast {
+        [
+            'spk.local.BankObjectContentOwnershipTest',
+            'spk.local.LocalBankObjectInteractionHandlerTest',
+            'spk.local.ContentRegistryTest',
+            'spk.local.ContentRegistrationLifecycleTest',
+            'spk.local.ContentPublicApiBoundaryTest',
+            'spk.local.ContentProvenanceAuthorityBoundaryTest',
+            'spk.local.LocalPendingRequestDispatcherTest'
+        ].each { mainClassName ->
+            project.javaexec {
+                workingDir repoRoot
+                classpath = sourceSets.test.runtimeClasspath
+                mainClass.set(mainClassName)
+            }
+        }
+
+        logger.lifecycle(
+            'BANK_OBJECT_CONTENT_OWNERSHIP_REGRESSION_PASS binding=true priorityOverride=true restore=true exactOpcode132=true nonExactOpcodeFailClosed=true wireParity=true pathingRuntimeOwned=true bankPresentationRuntimeOwned=true'
+        )
+    }
+}
+
 tasks.register('prayerSpellbookContentOwnershipRegression') {
     group = 'verification'
     description = 'Validates content ownership of prayerbook/spellbook/prayeroff while keeping prayericon as a runtime fixture.'
