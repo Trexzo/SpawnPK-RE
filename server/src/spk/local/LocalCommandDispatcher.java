@@ -78,12 +78,14 @@ final class LocalCommandDispatcher {
         this.cosmeticCommands=Objects.requireNonNull(cosmeticCommands,"cosmeticCommands");
         this.compColorsCommands=Objects.requireNonNull(compColorsCommands,"compColorsCommands");
         this.petCompatibilityCommands=Objects.requireNonNull(petCompatibilityCommands,"petCompatibilityCommands");
+        this.combatCommands=Objects.requireNonNull(combatCommands,"combatCommands");
         this.contentCommandActions=
             new LocalContentCommandActionExecutor(
                 this.cosmeticCommands,
                 this.compColorsCommands,
                 this.miniPetCommands,
-                this.petCompatibilityCommands
+                this.petCompatibilityCommands,
+                this.combatCommands
             );
         this.devWorldCommands=Objects.requireNonNull(devWorldCommands,"devWorldCommands");
         this.dev=Objects.requireNonNull(dev,"dev");
@@ -95,7 +97,6 @@ final class LocalCommandDispatcher {
         this.nurseCommands=Objects.requireNonNull(nurseCommands,"nurseCommands");
         this.voidglassCommands=Objects.requireNonNull(voidglassCommands,"voidglassCommands");
         this.petRuntimeCommands=Objects.requireNonNull(petRuntimeCommands,"petRuntimeCommands");
-        this.combatCommands=Objects.requireNonNull(combatCommands,"combatCommands");
         this.contentRegistry=Objects.requireNonNull(contentRegistry,"contentRegistry");
         this.worldPlayer=Objects.requireNonNull(worldPlayer,"worldPlayer");
         this.bridge=Objects.requireNonNull(bridge,"bridge");
@@ -150,6 +151,15 @@ final class LocalCommandDispatcher {
                             action.dialogResult,
                             tag
                         );
+                        return true;
+                    }
+
+                    if(action.logLines!=null){
+                        for(String line:
+                                action.logLines)
+                            System.out.println(
+                                tag+line
+                            );
                         return true;
                     }
 
