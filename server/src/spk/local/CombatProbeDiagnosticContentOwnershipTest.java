@@ -173,56 +173,15 @@ public final class CombatProbeDiagnosticContentOwnershipTest {
 
     private static void legacyRuntimeRouteRemoved(
         WorldPlayer player
-    )throws Exception{
-        DevAuthorityWorkbench dev=
-            new DevAuthorityWorkbench();
-        NpcRegistry npcs=
-            new NpcRegistry(
-                dev
+    ){
+        for(java.lang.reflect.Method method:
+                LocalCombatCommandHandler.class
+                    .getDeclaredMethods())
+            require(
+                !"handle".equals(
+                    method.getName()),
+                "raw combat command handler remains"
             );
-        CombatEngine combat=
-            new CombatEngine(
-                dev
-            );
-        LocalPetRuntimeCommandHandler petRuntime=
-            new LocalPetRuntimeCommandHandler(
-                player.petState(),
-                player.petEffects(),
-                npcs,
-                player.movement()
-            );
-
-        LocalCombatCommandHandler handler=
-            new LocalCombatCommandHandler(
-                combat,
-                player.equipment(),
-                player.combatStyles(),
-                npcs,
-                petRuntime
-            );
-
-        ByteArrayOutputStream wire=
-            new ByteArrayOutputStream();
-        ServerPacketWriter packets=
-            writer(
-                wire
-            );
-
-        require(
-            handler.handle(
-                new String[]{"combatprobe"},
-                "combatprobe",
-                packets
-            )==null,
-            "legacy combat handler still claims combatprobe"
-        );
-
-        packets.flush();
-
-        require(
-            wire.size()==0,
-            "legacy combatprobe route emitted wire"
-        );
     }
 
     private static ContentResult dispatch(

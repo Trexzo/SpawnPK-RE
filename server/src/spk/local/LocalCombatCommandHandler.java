@@ -2,7 +2,6 @@ package spk.local;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 
 /**
@@ -14,71 +13,142 @@ import java.util.List;
  */
 final class LocalCombatCommandHandler {
     private final CombatEngine combat;
-    private final EquipmentState equipment;
-    private final CombatStyleState combatStyles;
     private final NpcRegistry npcs;
     private final LocalPetRuntimeCommandHandler petRuntime;
 
     LocalCombatCommandHandler(
         CombatEngine combat,
-        EquipmentState equipment,
-        CombatStyleState combatStyles,
         NpcRegistry npcs,
         LocalPetRuntimeCommandHandler petRuntime
     ){
         this.combat=java.util.Objects.requireNonNull(combat,"combat");
-        this.equipment=java.util.Objects.requireNonNull(equipment,"equipment");
-        this.combatStyles=java.util.Objects.requireNonNull(combatStyles,"combatStyles");
         this.npcs=java.util.Objects.requireNonNull(npcs,"npcs");
         this.petRuntime=java.util.Objects.requireNonNull(petRuntime,"petRuntime");
     }
 
-    List<String> handle(
-        String[] p,
+    String devHitInfo(){
+        return "V5128_"+
+            combat.devHitInfo();
+    }
+
+    String devHitReset(){
+        return "V5128_"+
+            combat.devHitReset();
+    }
+
+    String devHitDamageAuto(){
+        return "V5128_"+
+            combat.devHitDamageAuto();
+    }
+
+    String devHitDamage(
+        int damage
+    ){
+        return "V5128_"+
+            combat.devHitDamage(
+                damage
+            );
+    }
+
+    String devHitSequenceOff(){
+        return "V5128_"+
+            combat.devHitSequenceOff();
+    }
+
+    String devHitSequence(
+        int[] sequence
+    ){
+        return "V5128_"+
+            combat.devHitSequence(
+                sequence
+            );
+    }
+
+    String devHitVariant(
+        boolean auto
+    ){
+        return "V5128_"+
+            combat.devHitVariant(
+                auto
+            );
+    }
+
+    String devHitNextType(){
+        return "V5128_"+
+            combat.devHitNextType();
+    }
+
+    String devHitPreviousType(){
+        return "V5128_"+
+            combat.devHitPreviousType();
+    }
+
+    String devHitType(
+        int type
+    ){
+        return "V5128_"+
+            combat.devHitType(
+                type
+            );
+    }
+
+    String devHitStyleIcon(
+        int styleIcon
+    ){
+        return "V5128_"+
+            combat.devHitStyleIcon(
+                styleIcon
+            );
+    }
+
+    String devHitPlacementPrimary(){
+        return "V5128_"+
+            combat.devHitPlacementPrimary();
+    }
+
+    List<String> fixture(
+        int damage,
         String rawCommand,
         ServerPacketWriter serverPackets
     )throws IOException{
-        if(p==null||p.length<1)return null;
+        String fixture=
+            combat.fixtureHit(
+                damage,
+                npcs,
+                serverPackets
+            );
+        int dealt=
+            combat.consumeLastDamage();
 
-        if(p[0].equalsIgnoreCase("devhit")){
-            return one("V5128_"+combat.devHitCommand(p));
-        }
+        ArrayList<String> lines=
+            new ArrayList<>();
 
-        if(p[0].equalsIgnoreCase("combatfixture")){
-            int damage=p.length>=2?parseInt(p[1],0):0;
-            String fixture=combat.fixtureHit(
-                damage,npcs,serverPackets);
-            int dealt=combat.consumeLastDamage();
-
-            ArrayList<String> lines=new ArrayList<>();
-            if(dealt>0){
-                String petDamage=petRuntime.applyDamage(
+        if(dealt>0){
+            String petDamage=
+                petRuntime.applyDamage(
                     dealt,
                     System.currentTimeMillis(),
                     serverPackets,
-                    "COMBAT_FIXTURE");
-                if(petDamage!=null)lines.add(petDamage);
-            }
+                    "COMBAT_FIXTURE"
+                );
 
-            lines.add(
-                "V59_COMBAT_FIXTURE command="+rawCommand+
-                " result="+fixture);
-
-            return Collections.unmodifiableList(lines);
+            if(petDamage!=null)
+                lines.add(
+                    petDamage
+                );
         }
 
-        return null;
+        lines.add(
+            "V59_COMBAT_FIXTURE command="+
+                rawCommand+
+                " result="+
+                fixture
+        );
+
+        return java.util.Collections.unmodifiableList(
+            lines
+        );
     }
 
-    private static List<String> one(String line){
-        return Collections.singletonList(line);
-    }
 
-    private static int parseInt(String value,int fallback){
-        try{
-            return Integer.parseInt(value);
-        }catch(Exception e){
-            return fallback;
-        }
-    }
 }
