@@ -35,7 +35,6 @@ final class LocalSession implements Runnable {
     private final LocalMiniPetCommandHandler miniPetCommands;
     private final LocalCosmeticCommandHandler cosmeticCommands;
     private final LocalCompColorsCommandHandler compColorsCommands;
-    private final LocalItemSpawnCommandHandler itemSpawnCommands;
     private final LocalNurseCommandHandler nurseCommands;
     private final LocalBankRequestHandler bankRequests;
     private final LocalItemOnItemHandler itemOnItemHandler;
@@ -133,7 +132,6 @@ final class LocalSession implements Runnable {
         this.miniPetCommands = new LocalMiniPetCommandHandler(miniPets,petState,npcs,movement);
         this.cosmeticCommands = new LocalCosmeticCommandHandler(bank,equipment,playerState,playerPresentation);
         this.compColorsCommands = new LocalCompColorsCommandHandler(playerState,equipment,playerPresentation);
-        this.itemSpawnCommands = new LocalItemSpawnCommandHandler(bank);
         this.nurseCommands = new LocalNurseCommandHandler(
             playerState,
             movement,
@@ -310,7 +308,6 @@ final class LocalSession implements Runnable {
             compColorsCommands,
             combatCommands,
             petCompatibilityCommands,
-            itemSpawnCommands,
             world.content(),
             worldPlayer,
             new LocalCommandDispatcher.SessionBridge(){
