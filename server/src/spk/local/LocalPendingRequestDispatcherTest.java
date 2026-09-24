@@ -62,8 +62,7 @@ public final class LocalPendingRequestDispatcherTest {
                 );
             LocalPrayerMagicCommandHandler prayerMagicCommands=
                 new LocalPrayerMagicCommandHandler(
-                    prayers,
-                    magic
+                    prayers
                 );
             LocalDevWorldCommandHandler devWorldCommands=
                 new LocalDevWorldCommandHandler(
