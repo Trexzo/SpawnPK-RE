@@ -22,6 +22,13 @@ public final class LocalLabCoreContentModule
     public static final String BANK_OBJECT_SERVICE=
         "locallab.bank";
 
+    public static final String COSMETIC_INFO_ACTION=
+        "locallab.cosmetic.info";
+    public static final String COSMETIC_REMOVE_ACTION=
+        "locallab.cosmetic.remove";
+    public static final String COSMETIC_HELP_ACTION=
+        "locallab.cosmetic.help";
+
     @Override public String id(){
         return "locallab-core";
     }
@@ -69,6 +76,12 @@ public final class LocalLabCoreContentModule
             "prayeroff",
             100,
             this::prayerOff
+        );
+
+        registrar.command(
+            "cosmetic",
+            100,
+            this::cosmetic
         );
 
         registrar.objectOption(
@@ -128,6 +141,34 @@ public final class LocalLabCoreContentModule
                 result+
                 " authority=LOCAL_DEV_FIXTURE clientProtocol=EXACT_CURRENT",
             null
+        );
+    }
+
+    private ContentResult cosmetic(
+        ContentCommandContext context
+    ){
+        String sub=
+            context.arguments().isEmpty()
+                ?"info"
+                :context.arguments().get(0)
+                    .toLowerCase(
+                        Locale.ROOT
+                    );
+
+        if("info".equals(sub)||
+           "status".equals(sub))
+            return ContentResult.action(
+                COSMETIC_INFO_ACTION
+            );
+
+        if("off".equals(sub)||
+           "remove".equals(sub))
+            return ContentResult.action(
+                COSMETIC_REMOVE_ACTION
+            );
+
+        return ContentResult.action(
+            COSMETIC_HELP_ACTION
         );
     }
 
