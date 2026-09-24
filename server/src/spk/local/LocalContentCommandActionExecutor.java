@@ -279,6 +279,22 @@ final class LocalContentCommandActionExecutor {
                 )
             );
 
+        Integer petCharge=
+            diagnosticIntValue(
+                actionKey,
+                LocalLabCoreContentModule
+                    .PET_CHARGE_ACTION_PREFIX
+            );
+
+        if(petCharge!=null&&
+           petRuntime!=null)
+            return Outcome.lines(
+                petRuntime.charge(
+                    petCharge,
+                    packets
+                )
+            );
+
         Integer prayerIcon=
             diagnosticIntValue(
                 actionKey,

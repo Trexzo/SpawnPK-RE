@@ -57,6 +57,8 @@ public final class LocalLabCoreContentModule
         "locallab.petruntime.scopesnipe";
     public static final String PET_PROC_ACTION=
         "locallab.petruntime.proc";
+    public static final String PET_CHARGE_ACTION_PREFIX=
+        "locallab.petruntime.charge";
 
     public static final String COMBAT_FIXTURE_ACTION_PREFIX=
         "locallab.combatfixture.hit";
@@ -218,6 +220,18 @@ public final class LocalLabCoreContentModule
                 ContentResult.action(
                     PET_PROC_ACTION
                 )
+        );
+
+        registrar.command(
+            "behemothcharge",
+            100,
+            this::petCharge
+        );
+
+        registrar.command(
+            "petcharge",
+            100,
+            this::petCharge
         );
 
         registrar.command(
@@ -550,6 +564,24 @@ public final class LocalLabCoreContentModule
         return ContentResult.handled(
             "V5128_DEVHIT_HELP info | variant auto|manual | type <0..255> | next | prev | damage <0..255|auto> | sequence <a,b,...|off> | styleicon <0..255> | placement primary|secondary | reset",
             null
+        );
+    }
+
+    private ContentResult petCharge(
+        ContentCommandContext context
+    ){
+        int charge=
+            context.arguments().isEmpty()
+                ?-1
+                :parseInt(
+                    context.arguments().get(0),
+                    -1
+                );
+
+        return ContentResult.action(
+            PET_CHARGE_ACTION_PREFIX+
+            ":"+
+            charge
         );
     }
 

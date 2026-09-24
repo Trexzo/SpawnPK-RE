@@ -150,6 +150,35 @@ final class LocalPetRuntimeCommandHandler {
         );
     }
 
+    List<String> charge(
+        int charge,
+        ServerPacketWriter serverPackets
+    )throws IOException{
+        NpcEntity pet=npcs.pet();
+
+        if(pet==null||
+           !PetPresentationProfile.isChargePet(
+               pet.petItemId,
+               pet.definitionId)){
+            return one(
+                "V59_BEHEMOTH_CHARGE result=REJECTED_ACTIVE_PET_NOT_CHARGE_FAMILY");
+        }
+
+        if(charge<0||charge>3){
+            return one(
+                "V59_BEHEMOTH_CHARGE result=REJECTED_RANGE expected=0..3");
+        }
+
+        petEffects.forceCharge(
+            charge,System.currentTimeMillis());
+        String state=npcs.setPetNativeState(
+            charge,serverPackets);
+
+        return one(
+            "V59_BEHEMOTH_CHARGE result="+state+
+            " effectState={"+petEffects.summary()+"}");
+    }
+
     List<String> handle(
         String[] p,
         ServerPacketWriter serverPackets
@@ -398,33 +427,6 @@ final class LocalPetRuntimeCommandHandler {
                 "V59_PET_TEST result=UNKNOWN_SUBCOMMAND sub="+
                 sub+
                 " use=::pettest_help");
-        }
-
-        if(p[0].equalsIgnoreCase("behemothcharge")||
-           p[0].equalsIgnoreCase("petcharge")){
-            int charge=p.length>=2?parseInt(p[1],-1):-1;
-            NpcEntity pet=npcs.pet();
-
-            if(pet==null||
-               !PetPresentationProfile.isChargePet(
-                   pet.petItemId,pet.definitionId)){
-                return one(
-                    "V59_BEHEMOTH_CHARGE result=REJECTED_ACTIVE_PET_NOT_CHARGE_FAMILY");
-            }
-
-            if(charge<0||charge>3){
-                return one(
-                    "V59_BEHEMOTH_CHARGE result=REJECTED_RANGE expected=0..3");
-            }
-
-            petEffects.forceCharge(
-                charge,System.currentTimeMillis());
-            String state=npcs.setPetNativeState(
-                charge,serverPackets);
-
-            return one(
-                "V59_BEHEMOTH_CHARGE result="+state+
-                " effectState={"+petEffects.summary()+"}");
         }
 
         if(p[0].equalsIgnoreCase("behemothhit")||
