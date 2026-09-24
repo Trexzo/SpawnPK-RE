@@ -94,30 +94,6 @@ final class LocalDiagnosticCommandHandler {
             return true;
         }
 
-        if(command.equalsIgnoreCase("worldauth")){
-            int rid=p.length>=2?parseInt(p[1],-1):(((movement.x()>>6)<<8)|(movement.y()>>6));
-            WorldRegionAuthorityRepository.Region r=WorldRegionAuthorityRepository.get(rid);
-            System.out.println(tag+"V5150_WORLD_AUTHORITY region="+rid+" result="+(r==null?"UNKNOWN":r.toString())+
-                " repositoryRegions="+WorldRegionAuthorityRepository.count()+
-                " decoded="+WorldRegionAuthorityRepository.fullyDecodedCount()+
-                " productionConfirmed="+WorldRegionAuthorityRepository.productionConfirmedCount()+
-                " behavior=DATA_ONLY_NO_TELEPORT");
-            return true;
-        }
-
-        if(command.equalsIgnoreCase("collisionauth")){
-            int x=p.length>=3?parseInt(p[1],movement.x()):movement.x();
-            int y=p.length>=3?parseInt(p[2],movement.y()):movement.y();
-            int pl=p.length>=4?parseInt(p[3],movement.plane()):movement.plane();
-            int rid=((x>>6)<<8)|(y>>6);
-            System.out.println(tag+"V5160_COLLISION_AUTH world="+x+","+y+","+pl+" region="+rid+
-                " mask="+WorldCollisionAuthority.maskAt(x,y,pl)+
-                " blocked="+WorldCollisionAuthority.blockedTile(x,y,pl)+
-                " repositoryRegions="+WorldCollisionAuthority.regionCount()+
-                " entries="+WorldCollisionAuthority.entryCount());
-            return true;
-        }
-
         if(command.equalsIgnoreCase("prayerinfo")){
             System.out.println(tag+"V510_PRAYER_INFO "+prayers.summary()+
                 " definitions="+PrayerDefinitionRepository.count());

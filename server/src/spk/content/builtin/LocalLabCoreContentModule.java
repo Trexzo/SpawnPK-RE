@@ -18,6 +18,10 @@ public final class LocalLabCoreContentModule
     public static final String MAKEOVER_MAGE_ACTION=
         "locallab.makeover-mage";
 
+    public static final int BANK_OBJECT=26972;
+    public static final String BANK_OBJECT_SERVICE=
+        "locallab.bank";
+
     @Override public String id(){
         return "locallab-core";
     }
@@ -35,6 +39,46 @@ public final class LocalLabCoreContentModule
             "appfixture",
             100,
             this::appFixture
+        );
+
+        registrar.command(
+            "item",
+            100,
+            this::itemSpawn
+        );
+
+        registrar.command(
+            "tabitem",
+            100,
+            this::itemSpawn
+        );
+
+        registrar.command(
+            "prayerbook",
+            100,
+            this::prayerBook
+        );
+
+        registrar.command(
+            "spellbook",
+            100,
+            this::spellBook
+        );
+
+        registrar.command(
+            "prayeroff",
+            100,
+            this::prayerOff
+        );
+
+        registrar.objectOption(
+            BANK_OBJECT,
+            1,
+            100,
+            context->
+                ContentInteractionResult.handled(
+                    BANK_OBJECT_SERVICE
+                )
         );
 
         registrar.npcOption(
@@ -85,6 +129,233 @@ public final class LocalLabCoreContentModule
                 " authority=LOCAL_DEV_FIXTURE clientProtocol=EXACT_CURRENT",
             null
         );
+    }
+
+    private ContentResult prayerBook(
+        ContentCommandContext context
+    ){
+        if(context.arguments().isEmpty())
+            return null;
+
+        String token=
+            context.arguments().get(0)
+                .toLowerCase(
+                    Locale.ROOT
+                );
+
+        ContentPrayerBook book;
+
+        if("normal".equals(token)||
+           "prayer".equals(token))
+            book=ContentPrayerBook.NORMAL;
+        else if("curses".equals(token)||
+                "curse".equals(token))
+            book=ContentPrayerBook.CURSES;
+        else
+            return ContentResult.handled(
+                "V510_PRAYER_BOOK command="+
+                    cleanCommand(
+                        context.rawCommand())+
+                    " result=REJECTED_BOOK expected=normal|curses",
+                null
+            );
+
+        return ContentResult.handled(
+            "V510_PRAYER_BOOK command="+
+                cleanCommand(
+                    context.rawCommand())+
+                " result="+
+                context.player()
+                    .switchPrayerBook(
+                        book
+                    ),
+            null
+        );
+    }
+
+    private ContentResult spellBook(
+        ContentCommandContext context
+    ){
+        if(context.arguments().isEmpty())
+            return null;
+
+        String token=
+            context.arguments().get(0)
+                .toLowerCase(
+                    Locale.ROOT
+                );
+
+        ContentSpellBook book;
+
+        if("modern".equals(token)||
+           "normal".equals(token))
+            book=ContentSpellBook.MODERN;
+        else if("ancient".equals(token)||
+                "ancients".equals(token))
+            book=ContentSpellBook.ANCIENT;
+        else if("lunar".equals(token)||
+                "lunars".equals(token))
+            book=ContentSpellBook.LUNAR;
+        else
+            return ContentResult.handled(
+                "V510_SPELL_BOOK command="+
+                    cleanCommand(
+                        context.rawCommand())+
+                    " result=REJECTED_BOOK expected=modern|ancient|lunar",
+                null
+            );
+
+        return ContentResult.handled(
+            "V510_SPELL_BOOK command="+
+                cleanCommand(
+                    context.rawCommand())+
+                " result="+
+                context.player()
+                    .switchSpellBook(
+                        book
+                    ),
+            null
+        );
+    }
+
+    private ContentResult prayerOff(
+        ContentCommandContext context
+    ){
+        return ContentResult.handled(
+            "V510_PRAYER_OFF result="+
+                context.player()
+                    .deactivatePrayers(),
+            null
+        );
+    }
+
+    private static String cleanCommand(
+        String rawCommand
+    ){
+        String clean=
+            rawCommand==null
+                ?""
+                :rawCommand.trim();
+
+        if(clean.startsWith("::"))
+            clean=
+                clean.substring(2);
+
+        return clean;
+    }
+
+    private ContentResult itemSpawn(
+        ContentCommandContext context
+    ){
+        if(context.arguments().isEmpty())
+            return null;
+
+        int itemId=
+            parseInt(
+                context.arguments().get(0),
+                -1
+            );
+
+        int amount=
+            context.arguments().size()>=2
+                ?parseAmount(
+                    context.arguments().get(1),
+                    1
+                )
+                :1;
+
+        String result=
+            context.player().grantItem(
+                itemId,
+                amount
+            );
+
+        return ContentResult.handled(
+            "V522_ITEM_COMMAND source="+
+                context.commandName()
+                    .toLowerCase(
+                        Locale.ROOT
+                    )+
+                " command="+
+                context.rawCommand()+
+                " result="+result,
+            "ITEM_SPAWN"
+        );
+    }
+
+    private static int parseInt(
+        String value,
+        int fallback
+    ){
+        try{
+            return Integer.parseInt(
+                value
+            );
+        }catch(Exception ignored){
+            return fallback;
+        }
+    }
+
+    private static int parseAmount(
+        String value,
+        int fallback
+    ){
+        if(value==null)
+            return fallback;
+
+        String token=
+            value.trim()
+                .toLowerCase(
+                    Locale.ROOT
+                )
+                .replace(
+                    ",",
+                    ""
+                );
+
+        long multiplier=1L;
+
+        if(token.endsWith("k")){
+            multiplier=1_000L;
+            token=
+                token.substring(
+                    0,
+                    token.length()-1
+                );
+        }else if(token.endsWith("m")){
+            multiplier=1_000_000L;
+            token=
+                token.substring(
+                    0,
+                    token.length()-1
+                );
+        }else if(token.endsWith("b")){
+            multiplier=1_000_000_000L;
+            token=
+                token.substring(
+                    0,
+                    token.length()-1
+                );
+        }
+
+        try{
+            long base=
+                Long.parseLong(
+                    token
+                );
+            long amount=
+                Math.max(
+                    1L,
+                    Math.min(
+                        1_000_000_000L,
+                        base*multiplier
+                    )
+                );
+
+            return (int)amount;
+        }catch(Exception ignored){
+            return fallback;
+        }
     }
 
     private ContentResult nurse(

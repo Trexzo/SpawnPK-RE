@@ -1104,7 +1104,8 @@ final class ContentRegistry {
                     arguments
                 ),
                 ContentRuntimeAdapters.player(
-                    player
+                    player,
+                    writer
                 ),
                 ContentRuntimeAdapters.presentation(
                     writer

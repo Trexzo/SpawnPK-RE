@@ -1493,6 +1493,118 @@ tasks.register('localDiagnosticContentOwnershipRegression') {
 }
 
 
+tasks.register('worldDiagnosticContentOwnershipRegression') {
+    group = 'verification'
+    description = 'Validates content ownership of worldauth/collisionauth through semantic player world position with zero packet output.'
+    dependsOn tasks.named('testClasses')
+
+    doLast {
+        [
+            'spk.local.WorldDiagnosticContentOwnershipTest',
+            'spk.local.LocalDiagnosticContentOwnershipTest',
+            'spk.local.ContentPublicApiBoundaryTest',
+            'spk.local.ContentRegistryTest',
+            'spk.local.ContentRegistrationLifecycleTest',
+            'spk.local.ContentProvenanceAuthorityBoundaryTest',
+            'spk.local.LocalCommandDispatcherTest'
+        ].each { mainClassName ->
+            project.javaexec {
+                workingDir repoRoot
+                classpath = sourceSets.test.runtimeClasspath
+                mainClass.set(mainClassName)
+            }
+        }
+
+        logger.lifecycle(
+            'WORLD_DIAGNOSTIC_CONTENT_OWNERSHIP_PASS worldauth=true collisionauth=true semanticPosition=true positionDefaults=true priorityOverride=true restore=true explicitRegionParity=true collisionDefaultParity=true collisionLoneArgParity=true explicitCollisionParity=true legacyFallback=false wireBytes=0'
+        )
+    }
+}
+
+tasks.register('bankObjectContentOwnershipRegression') {
+    group = 'verification'
+    description = 'Validates content-owned bank object classification while keeping approach/pathing and exact bank presentation runtime-owned.'
+    dependsOn tasks.named('testClasses')
+
+    doLast {
+        [
+            'spk.local.BankObjectContentOwnershipTest',
+            'spk.local.LocalBankObjectInteractionHandlerTest',
+            'spk.local.ContentRegistryTest',
+            'spk.local.ContentRegistrationLifecycleTest',
+            'spk.local.ContentPublicApiBoundaryTest',
+            'spk.local.ContentProvenanceAuthorityBoundaryTest',
+            'spk.local.LocalPendingRequestDispatcherTest'
+        ].each { mainClassName ->
+            project.javaexec {
+                workingDir repoRoot
+                classpath = sourceSets.test.runtimeClasspath
+                mainClass.set(mainClassName)
+            }
+        }
+
+        logger.lifecycle(
+            'BANK_OBJECT_CONTENT_OWNERSHIP_REGRESSION_PASS binding=true priorityOverride=true restore=true exactOpcode132=true nonExactOpcodeFailClosed=true wireParity=true pathingRuntimeOwned=true bankPresentationRuntimeOwned=true'
+        )
+    }
+}
+
+tasks.register('prayerSpellbookContentOwnershipRegression') {
+    group = 'verification'
+    description = 'Validates content ownership of prayerbook/spellbook/prayeroff while keeping prayericon as a runtime fixture.'
+    dependsOn tasks.named('testClasses')
+
+    doLast {
+        [
+            'spk.local.PrayerSpellbookContentOwnershipTest',
+            'spk.local.ContentPublicApiBoundaryTest',
+            'spk.local.ContentRegistryTest',
+            'spk.local.ContentHandlerSamCompatibilityTest',
+            'spk.local.ContentProvenanceAuthorityBoundaryTest',
+            'spk.local.LocalCommandDispatcherTest'
+        ].each { mainClassName ->
+            project.javaexec {
+                workingDir repoRoot
+                classpath = sourceSets.test.runtimeClasspath
+                mainClass.set(mainClassName)
+            }
+        }
+
+        logger.lifecycle(
+            'PRAYER_SPELLBOOK_CONTENT_OWNERSHIP_REGRESSION_PASS prayerBook=true spellBook=true prayerOff=true typedBooks=true wireParity=true invalidParity=true missingArgumentParity=true legacyFallback=false prayerIconRuntimeOwned=true'
+        )
+    }
+}
+
+tasks.register('itemSpawnContentOwnershipRegression') {
+    group = 'verification'
+    description = 'Validates content ownership of item/tabitem while keeping inventory/container and packet publication runtime-owned.'
+    dependsOn tasks.named('testClasses')
+
+    doLast {
+        [
+            'spk.local.ItemSpawnContentOwnershipTest',
+            'spk.local.LocalItemSpawnCommandHandlerTest',
+            'spk.local.ContentPublicApiBoundaryTest',
+            'spk.local.LocalCommandDispatcherTest',
+            'spk.local.ContentRegistryTest',
+            'spk.local.ContentHandlerSamCompatibilityTest',
+            'spk.local.ContentProvenanceAuthorityBoundaryTest'
+        ].each { mainClassName ->
+            project.javaexec {
+                workingDir repoRoot
+                classpath = sourceSets.test.runtimeClasspath
+                mainClass.set(mainClassName)
+            }
+        }
+
+        logger.lifecycle(
+            'ITEM_SPAWN_CONTENT_OWNERSHIP_REGRESSION_PASS item=true tabitem=true wireParity=true stateParity=true rejectedSaveContract=true missingArgumentParity=true legacyFallback=false rawContainerIdentity=false'
+        )
+    }
+}
+
+
 tasks.named('check') {
     dependsOn tasks.named('customAssetPipelineRegression')
     dependsOn tasks.named('customAssetPipelineHardeningRegression')

@@ -14,6 +14,16 @@ final class ContentRuntimeAdapters {
         );
     }
 
+    static ContentPlayer player(
+        WorldPlayer worldPlayer,
+        ServerPacketWriter writer
+    ){
+        return new PlayerAdapter(
+            worldPlayer,
+            writer
+        );
+    }
+
     static ContentPresentation presentation(
         ServerPacketWriter writer
     ){
@@ -29,14 +39,26 @@ final class ContentRuntimeAdapters {
         private final PlayerState player;
         private final MovementState movement;
         private final PlayerStatusService statuses;
+        private final ServerPacketWriter writer;
 
         PlayerAdapter(
             WorldPlayer worldPlayer
+        ){
+            this(
+                worldPlayer,
+                null
+            );
+        }
+
+        PlayerAdapter(
+            WorldPlayer worldPlayer,
+            ServerPacketWriter writer
         ){
             this.worldPlayer=Objects.requireNonNull(
                 worldPlayer,
                 "worldPlayer"
             );
+            this.writer=writer;
             this.player=worldPlayer.playerState();
             this.movement=worldPlayer.movement();
             this.statuses=
@@ -96,6 +118,136 @@ final class ContentRuntimeAdapters {
                     ScopesightPetProfile.ITEM_ID&&
                 pet.npcId()==
                     ScopesightPetProfile.NPC_ID;
+        }
+
+        @Override public String grantItem(
+            int itemId,
+            int amount
+        ){
+            if(writer==null)
+                throw new UnsupportedOperationException(
+                    "item grant unavailable"
+                );
+
+            try{
+                return worldPlayer.bank()
+                    .spawnItem(
+                        itemId,
+                        amount,
+                        writer
+                    );
+            }catch(IOException error){
+                throw new ContentPresentationException(
+                    "content item grant publication failed",
+                    error
+                );
+            }
+        }
+
+        @Override public String switchPrayerBook(
+            ContentPrayerBook book
+        ){
+            Objects.requireNonNull(
+                book,
+                "book"
+            );
+
+            if(writer==null)
+                throw new UnsupportedOperationException(
+                    "prayer book mutation unavailable"
+                );
+
+            try{
+                return worldPlayer.prayers()
+                    .switchBook(
+                        book==ContentPrayerBook.NORMAL
+                            ?"normal"
+                            :"curses",
+                        writer
+                    );
+            }catch(IOException error){
+                throw new ContentPresentationException(
+                    "content prayer book publication failed",
+                    error
+                );
+            }
+        }
+
+        @Override public String switchSpellBook(
+            ContentSpellBook book
+        ){
+            Objects.requireNonNull(
+                book,
+                "book"
+            );
+
+            if(writer==null)
+                throw new UnsupportedOperationException(
+                    "spell book mutation unavailable"
+                );
+
+            String token;
+
+            switch(book){
+                case MODERN:
+                    token="modern";
+                    break;
+                case ANCIENT:
+                    token="ancient";
+                    break;
+                case LUNAR:
+                    token="lunar";
+                    break;
+                default:
+                    throw new AssertionError(
+                        "Unhandled ContentSpellBook "+
+                        book
+                    );
+            }
+
+            try{
+                return worldPlayer.magic()
+                    .switchBook(
+                        token,
+                        writer
+                    );
+            }catch(IOException error){
+                throw new ContentPresentationException(
+                    "content spell book publication failed",
+                    error
+                );
+            }
+        }
+
+        @Override public String deactivatePrayers(){
+            if(writer==null)
+                throw new UnsupportedOperationException(
+                    "prayer deactivation unavailable"
+                );
+
+            try{
+                return worldPlayer.prayers()
+                    .deactivateAll(
+                        writer
+                    );
+            }catch(IOException error){
+                throw new ContentPresentationException(
+                    "content prayer deactivation publication failed",
+                    error
+                );
+            }
+        }
+
+        @Override public int worldX(){
+            return movement.x();
+        }
+
+        @Override public int worldY(){
+            return movement.y();
+        }
+
+        @Override public int plane(){
+            return movement.plane();
         }
 
         @Override public int runEnergy(){
