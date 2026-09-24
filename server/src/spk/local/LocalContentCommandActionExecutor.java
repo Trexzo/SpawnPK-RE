@@ -76,6 +76,7 @@ final class LocalContentCommandActionExecutor {
     private final LocalMiniPetCommandHandler miniPets;
     private final LocalPetCompatibilityCommandHandler petCompatibility;
     private final LocalCombatCommandHandler combat;
+    private final LocalDiagnosticCommandHandler diagnostics;
 
     LocalContentCommandActionExecutor(
         LocalCosmeticCommandHandler cosmetics,
@@ -88,6 +89,7 @@ final class LocalContentCommandActionExecutor {
             compColors,
             miniPets,
             petCompatibility,
+            null,
             null
         );
     }
@@ -98,6 +100,24 @@ final class LocalContentCommandActionExecutor {
         LocalMiniPetCommandHandler miniPets,
         LocalPetCompatibilityCommandHandler petCompatibility,
         LocalCombatCommandHandler combat
+    ){
+        this(
+            cosmetics,
+            compColors,
+            miniPets,
+            petCompatibility,
+            combat,
+            null
+        );
+    }
+
+    LocalContentCommandActionExecutor(
+        LocalCosmeticCommandHandler cosmetics,
+        LocalCompColorsCommandHandler compColors,
+        LocalMiniPetCommandHandler miniPets,
+        LocalPetCompatibilityCommandHandler petCompatibility,
+        LocalCombatCommandHandler combat,
+        LocalDiagnosticCommandHandler diagnostics
     ){
         this.cosmetics=
             java.util.Objects.requireNonNull(
@@ -120,6 +140,7 @@ final class LocalContentCommandActionExecutor {
                 "petCompatibility"
             );
         this.combat=combat;
+        this.diagnostics=diagnostics;
     }
 
     Outcome executeOutcome(
@@ -128,6 +149,42 @@ final class LocalContentCommandActionExecutor {
         String username,
         ServerPacketWriter packets
     )throws IOException{
+        return executeOutcome(
+            actionKey,
+            rawCommand,
+            username,
+            null,
+            false,
+            null,
+            packets
+        );
+    }
+
+    Outcome executeOutcome(
+        String actionKey,
+        String rawCommand,
+        String username,
+        String loginAlias,
+        boolean persistentAccount,
+        SceneUpdatePublisher scenePublisher,
+        ServerPacketWriter packets
+    )throws IOException{
+        if(LocalDiagnosticContentModule
+                .ENGINE_INFO_ACTION
+                .equals(actionKey)&&
+           diagnostics!=null)
+            return Outcome.content(
+                ContentResult.handled(
+                    diagnostics.engineSummary(
+                        username,
+                        loginAlias,
+                        persistentAccount,
+                        scenePublisher
+                    ),
+                    null
+                )
+            );
+
         Integer requested=
             petSwitchColorRequested(
                 actionKey
