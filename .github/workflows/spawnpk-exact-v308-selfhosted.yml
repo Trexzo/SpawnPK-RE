@@ -1,0 +1,108 @@
+name: SpawnPK exact v308 self-hosted validation
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'Branch, tag, or commit SHA to validate'
+        required: true
+        type: string
+      client_path:
+        description: 'Absolute path to exact v308 client.jar on the trusted runner'
+        required: true
+        default: 'C:\Users\Felix\Desktop\fullspkclient\client.jar'
+        type: string
+      extra_tasks:
+        description: 'Optional space-separated Gradle tasks to run before exact v308 acceptance'
+        required: false
+        default: ''
+        type: string
+
+jobs:
+  exact-v308:
+    runs-on: [self-hosted, Windows, X64, spawnpk-v308]
+    timeout-minutes: 45
+
+    env:
+      SPK_V308_CLIENT: ${{ inputs.client_path }}
+      SPK_EXPECTED_V308_SHA256: 854F26FF9F134B0317572E7AC1688E6F40A231D5A4C66F8DB5D655B7F45CE7C6
+
+    steps:
+      - name: Check out requested ref
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+          fetch-depth: 0
+
+      - name: Verify JDK 21
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          java -version
+          javac -version
+          $javac = (& javac -version 2>&1 | Out-String)
+          if ($javac -notmatch '21\.') {
+              throw "JDK 21 required; javac reported: $javac"
+          }
+
+      - name: Verify exact v308 client fixture
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $client = $env:SPK_V308_CLIENT
+          if (-not (Test-Path -LiteralPath $client -PathType Leaf)) {
+              throw "Exact v308 client.jar not found: $client"
+          }
+          $actual = (Get-FileHash -Algorithm SHA256 -LiteralPath $client).Hash
+          if ($actual -ne $env:SPK_EXPECTED_V308_SHA256) {
+              throw "v308 SHA-256 mismatch: expected=$env:SPK_EXPECTED_V308_SHA256 actual=$actual path=$client"
+          }
+          Write-Host "CLIENT_HASH_OK $actual"
+
+      - name: Build and verify Java 11 bytecode
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          & .\server\gradlew.bat --no-daemon clean build
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Run focused 175 regression
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          & .\server\gradlew.bat --no-daemon currentTrainFocusedRegression
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Run Issue 7 aggregate acceptance when available
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $tasks = (& .\server\gradlew.bat --no-daemon tasks --all --console=plain | Out-String)
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if ($tasks -match 'issue7CoreContentDecouplingAcceptance') {
+              & .\server\gradlew.bat --no-daemon issue7CoreContentDecouplingAcceptance
+              if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          } else {
+              Write-Host 'issue7CoreContentDecouplingAcceptance is not defined on this ref; skipping.'
+          }
+
+      - name: Run optional train-specific tasks
+        if: ${{ inputs.extra_tasks != '' }}
+        shell: powershell
+        env:
+          EXTRA_TASKS: ${{ inputs.extra_tasks }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $tasks = @($env:EXTRA_TASKS -split '\s+' | Where-Object { $_ })
+          if ($tasks.Count -eq 0) {
+              throw 'extra_tasks was non-empty but parsed to zero Gradle tasks'
+          }
+          & .\server\gradlew.bat --no-daemon @tasks
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Run canonical exact-v308 179 acceptance
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          & .\server\gradlew.bat --no-daemon r85V308Acceptance
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
