@@ -269,6 +269,16 @@ final class LocalContentCommandActionExecutor {
                 )
             );
 
+        if(LocalLabCoreContentModule
+                .PET_PROC_ACTION
+                .equals(actionKey)&&
+           petRuntime!=null)
+            return Outcome.lines(
+                petRuntime.proc(
+                    packets
+                )
+            );
+
         Integer prayerIcon=
             diagnosticIntValue(
                 actionKey,
