@@ -20,14 +20,20 @@ public final class LocalPetRuntimeCommandHandlerTest {
         ServerPacketWriter writer=new ServerPacketWriter(
             wire,new IsaacCipher(new int[]{1,2,3,4}));
 
-        List<String> status=handler.handle(
-            new String[]{"petstatus"},
-            writer);
+        List<String> status=
+            handler.status();
 
         assertContains(
             status,
             "V59_PET_STATUS active=false",
             "status");
+
+        if(handler.handle(
+                new String[]{"petstatus"},
+                writer)!=null)
+            throw new AssertionError(
+                "raw petstatus route remains"
+            );
 
         int before=wire.size();
         List<String> boost=handler.handle(
@@ -100,7 +106,7 @@ public final class LocalPetRuntimeCommandHandlerTest {
                 "unrelated command consumed");
 
         System.out.println(
-            "LOCAL_PET_RUNTIME_COMMAND_HANDLER_PASS status=true boost=true sequence=true damageBoundary=true unrelatedRejected=true");
+            "LOCAL_PET_RUNTIME_COMMAND_HANDLER_PASS statusEffect=true rawPetStatusRoute=false boost=true sequence=true damageBoundary=true unrelatedRejected=true");
     }
 
     private static void assertContains(
