@@ -135,14 +135,27 @@ final class LocalCommandDispatcher {
                 );
 
             if(content!=null){
-                if(content.hasAction())
-                    content=
-                        contentCommandActions.execute(
-                            content.actionKey(),
-                            command,
-                            username,
-                            serverPackets
+                if(content.hasAction()){
+                    LocalContentCommandActionExecutor.Outcome
+                        action=
+                            contentCommandActions.executeOutcome(
+                                content.actionKey(),
+                                command,
+                                username,
+                                serverPackets
+                            );
+
+                    if(action.dialogResult!=null){
+                        bridge.applyPetDialog(
+                            action.dialogResult,
+                            tag
                         );
+                        return true;
+                    }
+
+                    content=
+                        action.contentResult;
+                }
 
                 if(content.saveReason()!=null)
                     bridge.saveAccount(
@@ -307,28 +320,6 @@ final class LocalCommandDispatcher {
         if(combatCommand!=null){
             for(String line:combatCommand)
                 System.out.println(tag+line);
-            return true;
-        }
-
-        LocalPetCompatibilityCommandHandler.Outcome petCompatibilityCommand=
-            petCompatibilityCommands.handle(p,serverPackets);
-        if(petCompatibilityCommand!=null){
-            if(petCompatibilityCommand.dialogResult!=null){
-                bridge.applyPetDialog(
-                    petCompatibilityCommand.dialogResult,
-                    tag
-                );
-            }else{
-                if(petCompatibilityCommand.saveReason!=null)
-                    bridge.saveAccount(
-                        tag,
-                        petCompatibilityCommand.saveReason
-                    );
-                if(petCompatibilityCommand.logText!=null)
-                    System.out.println(
-                        tag+petCompatibilityCommand.logText
-                    );
-            }
             return true;
         }
 
