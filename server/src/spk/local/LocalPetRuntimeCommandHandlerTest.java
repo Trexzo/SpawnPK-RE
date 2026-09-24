@@ -59,6 +59,32 @@ public final class LocalPetRuntimeCommandHandlerTest {
                 "raw petboost route remains"
             );
 
+        int beforeScope=
+            wire.size();
+
+        List<String> noScope=
+            handler.scopeSnipe(
+                writer
+            );
+
+        assertContains(
+            noScope,
+            "REJECTED_NO_ACTIVE_SCOPESIGHT",
+            "scope reject"
+        );
+
+        if(wire.size()!=beforeScope)
+            throw new AssertionError(
+                "rejected scopesnipe emitted packet"
+            );
+
+        if(handler.handle(
+                new String[]{"scopesnipe"},
+                writer)!=null)
+            throw new AssertionError(
+                "raw scopesnipe route remains"
+            );
+
         List<String> armed=handler.handle(
             new String[]{"pettestall"},
             writer);
@@ -116,7 +142,7 @@ public final class LocalPetRuntimeCommandHandlerTest {
                 "unrelated command consumed");
 
         System.out.println(
-            "LOCAL_PET_RUNTIME_COMMAND_HANDLER_PASS statusEffect=true rawPetStatusRoute=false boostEffect=true rawPetBoostRoute=false sequence=true damageBoundary=true unrelatedRejected=true");
+            "LOCAL_PET_RUNTIME_COMMAND_HANDLER_PASS statusEffect=true rawPetStatusRoute=false boostEffect=true rawPetBoostRoute=false scopeEffect=true rawScopeSnipeRoute=false sequence=true damageBoundary=true unrelatedRejected=true");
     }
 
     private static void assertContains(
