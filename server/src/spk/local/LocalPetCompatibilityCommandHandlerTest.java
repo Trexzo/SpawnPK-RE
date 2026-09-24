@@ -1,6 +1,7 @@
 package spk.local;
 
 import java.io.ByteArrayOutputStream;
+import java.lang.reflect.Method;
 
 public final class LocalPetCompatibilityCommandHandlerTest {
     public static void main(String[] args)throws Exception{
@@ -72,59 +73,40 @@ public final class LocalPetCompatibilityCommandHandlerTest {
                 " active="+accessory.activeItem());
         }
 
-        LocalPetCompatibilityCommandHandler.Outcome
-            legacyAccessory=
-                handler.handle(
-                    new String[]{
-                        "petaccessory",
-                        "off"
-                    },
-                    writer
-                );
-
-        if(legacyAccessory!=null)
-            throw new AssertionError(
-                "legacy petaccessory parser remains"
-            );
-
-        LocalPetCompatibilityCommandHandler.Outcome color=
-            handler.handle(
-                new String[]{
-                    "petswitchcolor",
-                    "24016"
-                },
+        LocalPetInventoryDialogHandler.Result color=
+            handler.switchColor(
+                24016,
                 writer
             );
 
         if(color==null||
-           color.dialogResult==null||
-           !color.dialogResult.logText.contains(
+           !color.logText.contains(
                "V5128_SCOOBY_SWITCH_COLOR")||
-           !color.dialogResult.logText.contains(
+           !color.logText.contains(
                "REJECTED_NO_VARIANT_IN_INVENTORY")){
             throw new AssertionError(
                 "color="+
-                (color==null||
-                 color.dialogResult==null
+                (color==null
                     ?null
-                    :color.dialogResult.logText));
+                    :color.logText));
         }
 
-        if(handler.handle(
-                new String[]{"petstatus"},
-                writer)!=null){
-            throw new AssertionError(
-                "unrelated command consumed");
-        }
+        for(Method method:
+                LocalPetCompatibilityCommandHandler.class
+                    .getDeclaredMethods())
+            if("handle".equals(
+                    method.getName()))
+                throw new AssertionError(
+                    "raw pet compatibility command parser remains"
+                );
 
         System.out.println(
             "LOCAL_PET_COMPATIBILITY_COMMAND_HANDLER_PASS "+
             "accessoryStatusEffect=true "+
             "accessoryOffEffect=true "+
-            "accessoryLegacyParser=false "+
             "saveSignal=true "+
-            "colorCompatBoundary=true "+
-            "unrelatedRejected=true"
+            "colorCompatEffect=true "+
+            "parserAbsent=true"
         );
     }
 }
