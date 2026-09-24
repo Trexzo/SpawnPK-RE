@@ -76,23 +76,27 @@ final class LocalCommandDispatcher {
         this.compColorsCommands=Objects.requireNonNull(compColorsCommands,"compColorsCommands");
         this.petCompatibilityCommands=Objects.requireNonNull(petCompatibilityCommands,"petCompatibilityCommands");
         this.combatCommands=Objects.requireNonNull(combatCommands,"combatCommands");
+        this.devSessionCommands=Objects.requireNonNull(devSessionCommands,"devSessionCommands");
+        this.petRuntimeCommands=Objects.requireNonNull(petRuntimeCommands,"petRuntimeCommands");
         this.contentCommandActions=
             new LocalContentCommandActionExecutor(
                 this.cosmeticCommands,
                 this.compColorsCommands,
                 this.miniPetCommands,
                 this.petCompatibilityCommands,
-                this.combatCommands
+                this.combatCommands,
+                this.diagnosticCommands,
+                this.devSessionCommands,
+                this.prayerMagicCommands,
+                this.petRuntimeCommands
             );
         this.devWorldCommands=Objects.requireNonNull(devWorldCommands,"devWorldCommands");
         this.dev=Objects.requireNonNull(dev,"dev");
-        this.devSessionCommands=Objects.requireNonNull(devSessionCommands,"devSessionCommands");
         this.devPetCommands=Objects.requireNonNull(devPetCommands,"devPetCommands");
         this.devPlayerCommands=Objects.requireNonNull(devPlayerCommands,"devPlayerCommands");
         this.devNpcCommands=Objects.requireNonNull(devNpcCommands,"devNpcCommands");
         this.devToolCommands=Objects.requireNonNull(devToolCommands,"devToolCommands");
         this.voidglassCommands=Objects.requireNonNull(voidglassCommands,"voidglassCommands");
-        this.petRuntimeCommands=Objects.requireNonNull(petRuntimeCommands,"petRuntimeCommands");
         this.contentRegistry=Objects.requireNonNull(contentRegistry,"contentRegistry");
         this.worldPlayer=Objects.requireNonNull(worldPlayer,"worldPlayer");
         this.bridge=Objects.requireNonNull(bridge,"bridge");
@@ -139,6 +143,9 @@ final class LocalCommandDispatcher {
                                 content.actionKey(),
                                 command,
                                 username,
+                                loginAlias,
+                                persistentAccount,
+                                bridge.scenePublisher(),
                                 serverPackets
                             );
 
@@ -221,13 +228,6 @@ final class LocalCommandDispatcher {
             return true;
         }
 
-        if(prayerMagicCommands.handle(
-            p,
-            clean,
-            serverPackets,
-            tag
-        ))return true;
-
         if(devWorldCommands.handle(
             p,
             bridge.scenePublisher(),
@@ -244,18 +244,6 @@ final class LocalCommandDispatcher {
                 "C2S103 command=\""+clean+"\" -> router="+p[0],
                 "EXACT_C2S103_TRANSPORT/LOCAL_DEV_ROUTE"
             );
-        }
-
-        String devSessionCommand=
-            devSessionCommands.handle(
-                p,
-                username,
-                bridge.scenePublisher(),
-                serverPackets
-            );
-        if(devSessionCommand!=null){
-            System.out.println(tag+devSessionCommand);
-            return true;
         }
 
         List<String> devPetCommand=

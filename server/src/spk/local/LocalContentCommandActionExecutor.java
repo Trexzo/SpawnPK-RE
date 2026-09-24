@@ -76,6 +76,10 @@ final class LocalContentCommandActionExecutor {
     private final LocalMiniPetCommandHandler miniPets;
     private final LocalPetCompatibilityCommandHandler petCompatibility;
     private final LocalCombatCommandHandler combat;
+    private final LocalDiagnosticCommandHandler diagnostics;
+    private final LocalDevSessionCommandHandler devSession;
+    private final LocalPrayerMagicCommandHandler prayerMagic;
+    private final LocalPetRuntimeCommandHandler petRuntime;
 
     LocalContentCommandActionExecutor(
         LocalCosmeticCommandHandler cosmetics,
@@ -88,6 +92,7 @@ final class LocalContentCommandActionExecutor {
             compColors,
             miniPets,
             petCompatibility,
+            null,
             null
         );
     }
@@ -98,6 +103,90 @@ final class LocalContentCommandActionExecutor {
         LocalMiniPetCommandHandler miniPets,
         LocalPetCompatibilityCommandHandler petCompatibility,
         LocalCombatCommandHandler combat
+    ){
+        this(
+            cosmetics,
+            compColors,
+            miniPets,
+            petCompatibility,
+            combat,
+            null
+        );
+    }
+
+    LocalContentCommandActionExecutor(
+        LocalCosmeticCommandHandler cosmetics,
+        LocalCompColorsCommandHandler compColors,
+        LocalMiniPetCommandHandler miniPets,
+        LocalPetCompatibilityCommandHandler petCompatibility,
+        LocalCombatCommandHandler combat,
+        LocalDiagnosticCommandHandler diagnostics
+    ){
+        this(
+            cosmetics,
+            compColors,
+            miniPets,
+            petCompatibility,
+            combat,
+            diagnostics,
+            null
+        );
+    }
+
+    LocalContentCommandActionExecutor(
+        LocalCosmeticCommandHandler cosmetics,
+        LocalCompColorsCommandHandler compColors,
+        LocalMiniPetCommandHandler miniPets,
+        LocalPetCompatibilityCommandHandler petCompatibility,
+        LocalCombatCommandHandler combat,
+        LocalDiagnosticCommandHandler diagnostics,
+        LocalDevSessionCommandHandler devSession
+    ){
+        this(
+            cosmetics,
+            compColors,
+            miniPets,
+            petCompatibility,
+            combat,
+            diagnostics,
+            devSession,
+            null
+        );
+    }
+
+    LocalContentCommandActionExecutor(
+        LocalCosmeticCommandHandler cosmetics,
+        LocalCompColorsCommandHandler compColors,
+        LocalMiniPetCommandHandler miniPets,
+        LocalPetCompatibilityCommandHandler petCompatibility,
+        LocalCombatCommandHandler combat,
+        LocalDiagnosticCommandHandler diagnostics,
+        LocalDevSessionCommandHandler devSession,
+        LocalPrayerMagicCommandHandler prayerMagic
+    ){
+        this(
+            cosmetics,
+            compColors,
+            miniPets,
+            petCompatibility,
+            combat,
+            diagnostics,
+            devSession,
+            prayerMagic,
+            null
+        );
+    }
+
+    LocalContentCommandActionExecutor(
+        LocalCosmeticCommandHandler cosmetics,
+        LocalCompColorsCommandHandler compColors,
+        LocalMiniPetCommandHandler miniPets,
+        LocalPetCompatibilityCommandHandler petCompatibility,
+        LocalCombatCommandHandler combat,
+        LocalDiagnosticCommandHandler diagnostics,
+        LocalDevSessionCommandHandler devSession,
+        LocalPrayerMagicCommandHandler prayerMagic,
+        LocalPetRuntimeCommandHandler petRuntime
     ){
         this.cosmetics=
             java.util.Objects.requireNonNull(
@@ -120,6 +209,10 @@ final class LocalContentCommandActionExecutor {
                 "petCompatibility"
             );
         this.combat=combat;
+        this.diagnostics=diagnostics;
+        this.devSession=devSession;
+        this.prayerMagic=prayerMagic;
+        this.petRuntime=petRuntime;
     }
 
     Outcome executeOutcome(
@@ -128,6 +221,166 @@ final class LocalContentCommandActionExecutor {
         String username,
         ServerPacketWriter packets
     )throws IOException{
+        return executeOutcome(
+            actionKey,
+            rawCommand,
+            username,
+            null,
+            false,
+            null,
+            packets
+        );
+    }
+
+    Outcome executeOutcome(
+        String actionKey,
+        String rawCommand,
+        String username,
+        String loginAlias,
+        boolean persistentAccount,
+        SceneUpdatePublisher scenePublisher,
+        ServerPacketWriter packets
+    )throws IOException{
+        if(LocalLabCoreContentModule
+                .PET_STATUS_ACTION
+                .equals(actionKey)&&
+           petRuntime!=null)
+            return Outcome.lines(
+                petRuntime.status()
+            );
+
+        if(LocalLabCoreContentModule
+                .PET_BOOST_ACTION
+                .equals(actionKey)&&
+           petRuntime!=null)
+            return Outcome.lines(
+                petRuntime.boost(
+                    packets
+                )
+            );
+
+        if(LocalLabCoreContentModule
+                .PET_SCOPE_SNIPE_ACTION
+                .equals(actionKey)&&
+           petRuntime!=null)
+            return Outcome.lines(
+                petRuntime.scopeSnipe(
+                    packets
+                )
+            );
+
+        if(LocalLabCoreContentModule
+                .PET_PROC_ACTION
+                .equals(actionKey)&&
+           petRuntime!=null)
+            return Outcome.lines(
+                petRuntime.proc(
+                    packets
+                )
+            );
+
+        Integer prayerIcon=
+            diagnosticIntValue(
+                actionKey,
+                LocalLabCoreContentModule
+                    .PRAYER_ICON_ACTION_PREFIX
+            );
+
+        if(prayerIcon!=null&&
+           prayerIcon>=-1&&
+           prayerIcon<=20&&
+           prayerMagic!=null)
+            return Outcome.content(
+                ContentResult.handled(
+                    prayerMagic.prayerIcon(
+                        prayerIcon,
+                        packets
+                    ),
+                    null
+                )
+            );
+
+        if(LocalLabCoreContentModule
+                .DEV_SESSION_INFO_ACTION
+                .equals(actionKey)&&
+           devSession!=null)
+            return Outcome.content(
+                ContentResult.handled(
+                    devSession.info(),
+                    null
+                )
+            );
+
+        if(LocalLabCoreContentModule
+                .DEV_SESSION_RESET_ACTION
+                .equals(actionKey)&&
+           devSession!=null&&
+           scenePublisher!=null)
+            return Outcome.content(
+                ContentResult.handled(
+                    devSession.resetCommand(
+                        username,
+                        scenePublisher,
+                        packets
+                    ),
+                    null
+                )
+            );
+
+        Integer equipStrItem=
+            diagnosticIntValue(
+                actionKey,
+                LocalDiagnosticContentModule
+                    .EQUIPSTR_ACTION_PREFIX
+            );
+
+        if(equipStrItem!=null&&
+           diagnostics!=null)
+            return Outcome.content(
+                ContentResult.handled(
+                    diagnostics.equipStr(
+                        equipStrItem,
+                        packets
+                    ),
+                    null
+                )
+            );
+
+        Integer itemLibraryItem=
+            diagnosticIntValue(
+                actionKey,
+                LocalDiagnosticContentModule
+                    .ITEMLIB_OPEN_ACTION_PREFIX
+            );
+
+        if(itemLibraryItem!=null&&
+           diagnostics!=null)
+            return Outcome.content(
+                ContentResult.handled(
+                    diagnostics.itemLibraryOpen(
+                        itemLibraryItem,
+                        packets
+                    ),
+                    null
+                )
+            );
+
+        if(LocalDiagnosticContentModule
+                .ENGINE_INFO_ACTION
+                .equals(actionKey)&&
+           diagnostics!=null)
+            return Outcome.content(
+                ContentResult.handled(
+                    diagnostics.engineSummary(
+                        username,
+                        loginAlias,
+                        persistentAccount,
+                        scenePublisher
+                    ),
+                    null
+                )
+            );
+
         Integer requested=
             petSwitchColorRequested(
                 actionKey
@@ -263,6 +516,36 @@ final class LocalContentCommandActionExecutor {
             result.logText,
             result.saveReason
         );
+    }
+
+    private static Integer diagnosticIntValue(
+        String actionKey,
+        String actionPrefix
+    ){
+        String prefix=
+            actionPrefix+
+            ":";
+
+        if(actionKey==null||
+           !actionKey.startsWith(prefix))
+            return null;
+
+        String token=
+            actionKey.substring(
+                prefix.length()
+            );
+
+        if(token.isEmpty()||
+           token.indexOf(':')>=0)
+            return null;
+
+        try{
+            return Integer.valueOf(
+                token
+            );
+        }catch(NumberFormatException ignored){
+            return null;
+        }
     }
 
     private ContentResult devHitResult(

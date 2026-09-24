@@ -1816,6 +1816,345 @@ tasks.register('miniPetContentCommandActionOwnershipRegression') {
 }
 
 
+tasks.register('issue7CoreContentDecouplingAcceptance') {
+    group = 'verification'
+    description = 'Locks Issue #7 core acceptance: decoder purity and command selftest through the real JVM plugin/content dispatcher.'
+    dependsOn tasks.named('testClasses')
+
+    doLast {
+        [
+            'spk.local.Issue7CoreContentDecouplingAcceptanceTest',
+            'spk.local.Opcode103SemanticDecoderBoundaryTest',
+            'spk.local.PluginKernelLifecycleTest',
+            'spk.plugin.api.PluginPublicApiBoundaryTest',
+            'spk.local.ContentRegistryTest',
+            'spk.local.NurseContentRegistryParityTest',
+            'spk.local.MakeoverDialogueContentOwnershipTest',
+            'spk.local.AppFixtureContentOwnershipTest',
+            'spk.local.ItemSpawnContentOwnershipTest',
+            'spk.local.BankObjectContentOwnershipTest'
+        ].each { mainClassName ->
+            project.javaexec {
+                workingDir repoRoot
+                classpath = sourceSets.test.runtimeClasspath
+                mainClass.set(mainClassName)
+            }
+        }
+
+        logger.lifecycle(
+            'ISSUE7_CORE_CONTENT_DECOUPLING_ACCEPTANCE_PASS productionDecoders=2 hardcodedCommandStrings=false dialogueTrees=false devControlStateOnly=true pluginCommandRegistered=true pluginCommandDispatched=true customProvenance=true zeroWire=true disableClean=true scriptRuntimeDelegatedToIssue5=true'
+        )
+    }
+}
+
+
+tasks.register('petProcContentCommandActionOwnershipRegression') {
+    group = 'verification'
+    description = 'Validates content-owned petproc recognition while player GFX and conditional Scopesight native trigger remain runtime-owned.'
+    dependsOn tasks.named('testClasses')
+
+    doLast {
+        [
+            'spk.local.PetProcContentCommandActionOwnershipTest',
+            'spk.local.ScopeSnipeContentCommandActionOwnershipTest',
+            'spk.local.PetBoostContentCommandActionOwnershipTest',
+            'spk.local.PetStatusContentCommandActionOwnershipTest',
+            'spk.local.LocalPetRuntimeCommandHandlerTest',
+            'spk.local.ScopesightNativePresentationTest',
+            'spk.local.ContentPublicApiBoundaryTest',
+            'spk.local.ContentRegistryTest',
+            'spk.local.ContentHandlerSamCompatibilityTest',
+            'spk.local.ContentProvenanceAuthorityBoundaryTest',
+            'spk.local.LocalCommandDispatcherTest'
+        ].each { mainClassName ->
+            project.javaexec {
+                workingDir repoRoot
+                classpath = sourceSets.test.runtimeClasspath
+                mainClass.set(mainClassName)
+            }
+        }
+
+        logger.lifecycle(
+            'PET_PROC_CONTENT_COMMAND_ACTION_OWNERSHIP_PASS binding=true semanticAction=true extraArgsCompatibility=true policyWireBytes=0 playerGfxRuntimeOnly=true inactiveNoSnipe=true activeScopesightSnipe=true malformedFailClosed=true legacyRoute=false publicApiExpanded=false'
+        )
+    }
+}
+
+
+tasks.register('scopeSnipeContentCommandActionOwnershipRegression') {
+    group = 'verification'
+    description = 'Validates content-owned scopesnipe recognition while active-pet eligibility and native forced-text presentation remain runtime-owned.'
+    dependsOn tasks.named('testClasses')
+
+    doLast {
+        [
+            'spk.local.ScopeSnipeContentCommandActionOwnershipTest',
+            'spk.local.PetBoostContentCommandActionOwnershipTest',
+            'spk.local.PetStatusContentCommandActionOwnershipTest',
+            'spk.local.LocalPetRuntimeCommandHandlerTest',
+            'spk.local.ScopesightNativePresentationTest',
+            'spk.local.ContentPublicApiBoundaryTest',
+            'spk.local.ContentRegistryTest',
+            'spk.local.ContentHandlerSamCompatibilityTest',
+            'spk.local.ContentProvenanceAuthorityBoundaryTest',
+            'spk.local.LocalCommandDispatcherTest'
+        ].each { mainClassName ->
+            project.javaexec {
+                workingDir repoRoot
+                classpath = sourceSets.test.runtimeClasspath
+                mainClass.set(mainClassName)
+            }
+        }
+
+        logger.lifecycle(
+            'SCOPE_SNIPE_CONTENT_COMMAND_ACTION_OWNERSHIP_PASS binding=true semanticAction=true extraArgsCompatibility=true policyWireBytes=0 inactiveFailClosed=true activeScopesight=true nativeTriggerRuntimeOnly=true malformedFailClosed=true legacyRoute=false publicApiExpanded=false'
+        )
+    }
+}
+
+
+tasks.register('petBoostContentCommandActionOwnershipRegression') {
+    group = 'verification'
+    description = 'Validates content-owned petboost recognition while exact player-GFX presentation remains runtime-owned.'
+    dependsOn tasks.named('testClasses')
+
+    doLast {
+        [
+            'spk.local.PetBoostContentCommandActionOwnershipTest',
+            'spk.local.PetStatusContentCommandActionOwnershipTest',
+            'spk.local.LocalPetRuntimeCommandHandlerTest',
+            'spk.local.ContentPublicApiBoundaryTest',
+            'spk.local.ContentRegistryTest',
+            'spk.local.ContentHandlerSamCompatibilityTest',
+            'spk.local.ContentProvenanceAuthorityBoundaryTest',
+            'spk.local.LocalCommandDispatcherTest'
+        ].each { mainClassName ->
+            project.javaexec {
+                workingDir repoRoot
+                classpath = sourceSets.test.runtimeClasspath
+                mainClass.set(mainClassName)
+            }
+        }
+
+        logger.lifecycle(
+            'PET_BOOST_CONTENT_COMMAND_ACTION_OWNERSHIP_PASS binding=true semanticAction=true extraArgsCompatibility=true policyWireBytes=0 runtimePresentation=true runtimeWireBytes=true malformedFailClosed=true legacyRoute=false publicApiExpanded=false'
+        )
+    }
+}
+
+
+tasks.register('petStatusContentCommandActionOwnershipRegression') {
+    group = 'verification'
+    description = 'Validates content-owned petstatus routing while pet runtime status projection remains internal and zero-wire.'
+    dependsOn tasks.named('testClasses')
+
+    doLast {
+        [
+            'spk.local.PetStatusContentCommandActionOwnershipTest',
+            'spk.local.LocalPetRuntimeCommandHandlerTest',
+            'spk.local.ContentPublicApiBoundaryTest',
+            'spk.local.ContentRegistryTest',
+            'spk.local.ContentHandlerSamCompatibilityTest',
+            'spk.local.ContentProvenanceAuthorityBoundaryTest',
+            'spk.local.LocalCommandDispatcherTest'
+        ].each { mainClassName ->
+            project.javaexec {
+                workingDir repoRoot
+                classpath = sourceSets.test.runtimeClasspath
+                mainClass.set(mainClassName)
+            }
+        }
+
+        logger.lifecycle(
+            'PET_STATUS_CONTENT_COMMAND_ACTION_OWNERSHIP_PASS binding=true semanticAction=true extraArgsCompatibility=true policyWireBytes=0 runtimeProjection=true runtimeWireBytes=0 malformedFailClosed=true legacyRoute=false contentBeforeRuntimeFallback=true publicApiExpanded=false'
+        )
+    }
+}
+
+
+tasks.register('prayerIconContentCommandActionOwnershipRegression') {
+    group = 'verification'
+    description = 'Validates content-owned prayericon policy while manual head-icon packet publication remains runtime-owned.'
+    dependsOn tasks.named('testClasses')
+
+    doLast {
+        [
+            'spk.local.PrayerIconContentCommandActionOwnershipTest',
+            'spk.local.LocalPrayerMagicCommandHandlerTest',
+            'spk.local.ContentPublicApiBoundaryTest',
+            'spk.local.ContentRegistryTest',
+            'spk.local.ContentHandlerSamCompatibilityTest',
+            'spk.local.ContentProvenanceAuthorityBoundaryTest',
+            'spk.local.LocalCommandDispatcherTest'
+        ].each { mainClassName ->
+            project.javaexec {
+                workingDir repoRoot
+                classpath = sourceSets.test.runtimeClasspath
+                mainClass.set(mainClassName)
+            }
+        }
+
+        logger.lifecycle(
+            'PRAYER_ICON_CONTENT_COMMAND_ACTION_OWNERSHIP_PASS binding=true semanticAction=true missingFallthrough=true rangePolicy=true extraArgsCompatibility=true policyWireBytes=0 runtimeEffect=true malformedFailClosed=true outOfRangeFailClosed=true legacyParser=false dispatcherFallback=false magicDependencyTrim=true publicApiExpanded=false'
+        )
+    }
+}
+
+
+tasks.register('opcode103SemanticDecoderBoundaryRegression') {
+    group = 'verification'
+    description = 'Validates transport-only opcode103 decoding with dialogue-option semantic classification downstream of ClientPacketProbe.'
+    dependsOn tasks.named('testClasses')
+
+    doLast {
+        [
+            'spk.local.Opcode103SemanticDecoderBoundaryTest',
+            'spk.local.MakeoverClientPacketProbeTest',
+            'spk.local.ClientPacketProbeTest',
+            'spk.local.LocalPendingRequestDispatcherTest',
+            'spk.local.MakeoverSemanticDialogueSessionTest'
+        ].each { mainClassName ->
+            project.javaexec {
+                workingDir repoRoot
+                classpath = sourceSets.test.runtimeClasspath
+                mainClass.set(mainClassName)
+            }
+        }
+
+        logger.lifecycle(
+            'OPCODE103_SEMANTIC_DECODER_BOUNDARY_PASS transportCommandOnly=true dialogueAliasDownstream=true exactAliasCompatibility=true invalidAliasFallsThrough=true decoderLiteralAbsent=true decoderSemanticTypeAbsent=true pendingRouterPresent=true'
+        )
+    }
+}
+
+
+tasks.register('devSessionContentCommandActionOwnershipRegression') {
+    group = 'verification'
+    description = 'Validates content-owned dev info/reset policy while dev panel and session reset effects remain runtime-owned.'
+    dependsOn tasks.named('testClasses')
+
+    doLast {
+        [
+            'spk.local.DevSessionContentCommandActionOwnershipTest',
+            'spk.local.LocalDevSessionCommandHandlerTest',
+            'spk.local.ItemLibDiagnosticContentActionOwnershipTest',
+            'spk.local.EquipStrDiagnosticContentActionOwnershipTest',
+            'spk.local.EngineDiagnosticContentActionOwnershipTest',
+            'spk.local.ContentPublicApiBoundaryTest',
+            'spk.local.ContentRegistryTest',
+            'spk.local.ContentHandlerSamCompatibilityTest',
+            'spk.local.ContentProvenanceAuthorityBoundaryTest',
+            'spk.local.LocalCommandDispatcherTest'
+        ].each { mainClassName ->
+            project.javaexec {
+                workingDir repoRoot
+                classpath = sourceSets.test.runtimeClasspath
+                mainClass.set(mainClassName)
+            }
+        }
+
+        logger.lifecycle(
+            'DEV_SESSION_CONTENT_COMMAND_ACTION_OWNERSHIP_PASS binding=true infoAction=true resetAction=true unknownInfoCompatibility=true panelFallthrough=true policyWireBytes=0 runtimeInfo=true runtimeReset=true commandVisualOverrideParity=true legacyParser=false dispatcherFallback=false publicApiExpanded=false'
+        )
+    }
+}
+
+
+tasks.register('itemLibDiagnosticContentActionOwnershipRegression') {
+    group = 'verification'
+    description = 'Validates content-owned itemlib item resolution while exact native item-library UI transport remains runtime-owned.'
+    dependsOn tasks.named('testClasses')
+
+    doLast {
+        [
+            'spk.local.ItemLibDiagnosticContentActionOwnershipTest',
+            'spk.local.EquipStrDiagnosticContentActionOwnershipTest',
+            'spk.local.EngineDiagnosticContentActionOwnershipTest',
+            'spk.local.LocalDiagnosticCommandHandlerTest',
+            'spk.local.LocalDiagnosticContentOwnershipTest',
+            'spk.local.ContentPublicApiBoundaryTest',
+            'spk.local.ContentRegistryTest',
+            'spk.local.ContentHandlerSamCompatibilityTest',
+            'spk.local.ContentProvenanceAuthorityBoundaryTest',
+            'spk.local.LocalCommandDispatcherTest'
+        ].each { mainClassName ->
+            project.javaexec {
+                workingDir repoRoot
+                classpath = sourceSets.test.runtimeClasspath
+                mainClass.set(mainClassName)
+            }
+        }
+
+        logger.lifecycle(
+            'ITEMLIB_DIAGNOSTIC_CONTENT_ACTION_OWNERSHIP_PASS binding=true currentWeapon=true numericItem=true exactName=true unknownFailClosed=true policyWireBytes=0 nativeUiRuntimeOnly=true runtimeAuthorityRecheck=true malformedFailClosed=true legacyRoute=false equipmentDependencyTrim=true publicApiExpanded=false'
+        )
+    }
+}
+
+
+tasks.register('equipStrDiagnosticContentActionOwnershipRegression') {
+    group = 'verification'
+    description = 'Validates content-owned equipstr item policy while exact hover-reset packet handling remains runtime-owned and fail-closed.'
+    dependsOn tasks.named('testClasses')
+
+    doLast {
+        [
+            'spk.local.EquipStrDiagnosticContentActionOwnershipTest',
+            'spk.local.EngineDiagnosticContentActionOwnershipTest',
+            'spk.local.LocalDiagnosticCommandHandlerTest',
+            'spk.local.LocalDiagnosticContentOwnershipTest',
+            'spk.local.ContentPublicApiBoundaryTest',
+            'spk.local.ContentRegistryTest',
+            'spk.local.ContentHandlerSamCompatibilityTest',
+            'spk.local.ContentProvenanceAuthorityBoundaryTest',
+            'spk.local.LocalCommandDispatcherTest'
+        ].each { mainClassName ->
+            project.javaexec {
+                workingDir repoRoot
+                classpath = sourceSets.test.runtimeClasspath
+                mainClass.set(mainClassName)
+            }
+        }
+
+        logger.lifecycle(
+            'EQUIPSTR_DIAGNOSTIC_CONTENT_ACTION_OWNERSHIP_PASS binding=true semanticItem=true invalidCompatibility=true extraArgsCompatibility=true policyWireBytes=0 runtimeHoverReset=true numeric14FailClosed=true malformedFailClosed=true legacyRoute=false publicApiExpanded=false'
+        )
+    }
+}
+
+
+tasks.register('engineDiagnosticContentActionOwnershipRegression') {
+    group = 'verification'
+    description = 'Validates content-owned engine diagnostic routing while session metadata remains internal runtime state.'
+    dependsOn tasks.named('testClasses')
+
+    doLast {
+        [
+            'spk.local.EngineDiagnosticContentActionOwnershipTest',
+            'spk.local.LocalDiagnosticCommandHandlerTest',
+            'spk.local.LocalDiagnosticContentOwnershipTest',
+            'spk.local.PlayerStateDiagnosticContentOwnershipTest',
+            'spk.local.WorldDiagnosticContentOwnershipTest',
+            'spk.local.ContentPublicApiBoundaryTest',
+            'spk.local.ContentRegistryTest',
+            'spk.local.ContentHandlerSamCompatibilityTest',
+            'spk.local.ContentProvenanceAuthorityBoundaryTest',
+            'spk.local.LocalCommandDispatcherTest'
+        ].each { mainClassName ->
+            project.javaexec {
+                workingDir repoRoot
+                classpath = sourceSets.test.runtimeClasspath
+                mainClass.set(mainClassName)
+            }
+        }
+
+        logger.lifecycle(
+            'ENGINE_DIAGNOSTIC_CONTENT_ACTION_OWNERSHIP_PASS binding=true semanticAction=true policyWireBytes=0 sessionMetadataRuntimeOnly=true textParity=true runtimeWireBytes=0 legacyRoute=false dependencyTrim=true publicApiExpanded=false'
+        )
+    }
+}
+
+
 tasks.register('devHitContentCommandActionOwnershipRegression') {
     group = 'verification'
     description = 'Validates content-owned devhit subcommand policy with typed fail-closed runtime combat fixture effects.'

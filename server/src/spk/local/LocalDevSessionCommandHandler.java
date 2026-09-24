@@ -43,34 +43,23 @@ final class LocalDevSessionCommandHandler {
         this.movement=java.util.Objects.requireNonNull(movement,"movement");
     }
 
-    String handle(
-        String[] p,
+    String info(){
+        return "V592_DEV_INFO "+
+            dev.summary();
+    }
+
+    String resetCommand(
         String username,
         SceneUpdatePublisher scenePublisher,
         ServerPacketWriter writer
     )throws IOException{
-        if(p==null||
-           p.length<1||
-           !p[0].equalsIgnoreCase("dev")){
-            return null;
-        }
-
-        String sub=
-            p.length>=2
-                ?p[1].toLowerCase(java.util.Locale.ROOT)
-                :"info";
-
-        if(sub.equals("reset")){
-            return "V511_DEV_RESET "+
-                reset(
-                    username,
-                    scenePublisher,
-                    writer,
-                    false
-                );
-        }
-
-        return "V592_DEV_INFO "+dev.summary();
+        return "V511_DEV_RESET "+
+            reset(
+                username,
+                scenePublisher,
+                writer,
+                false
+            );
     }
 
     String resetForPanel(

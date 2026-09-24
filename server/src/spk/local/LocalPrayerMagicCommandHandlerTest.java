@@ -1,43 +1,113 @@
 package spk.local;
 
 import java.io.ByteArrayOutputStream;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Method;
 
 public final class LocalPrayerMagicCommandHandlerTest {
     public static void main(String[] args)throws Exception{
-        WorldPlayer player=new WorldPlayer();
-        LocalPrayerMagicCommandHandler h=
-            new LocalPrayerMagicCommandHandler(player.prayers(),player.magic());
+        WorldPlayer player=
+            new WorldPlayer();
 
-        ByteArrayOutputStream wire=new ByteArrayOutputStream();
-        ServerPacketWriter w=new ServerPacketWriter(wire,new IsaacCipher(new int[]{1,2,3,4}));
+        LocalPrayerMagicCommandHandler handler=
+            new LocalPrayerMagicCommandHandler(
+                player.prayers()
+            );
 
-        int before=wire.size();
-        if(!h.handle(new String[]{"prayerbook","curses"},"prayerbook curses",w,"[pm-test] "))
-            throw new AssertionError("prayerbook not handled");
-        if(player.prayers().book()!=PrayerDefinitionRepository.Book.CURSES)
-            throw new AssertionError("prayerbook state not delegated");
-        if(wire.size()<=before)throw new AssertionError("prayerbook emitted no packets");
+        ByteArrayOutputStream wire=
+            new ByteArrayOutputStream();
 
-        before=wire.size();
-        if(!h.handle(new String[]{"spellbook","ancient"},"spellbook ancient",w,"[pm-test] "))
-            throw new AssertionError("spellbook not handled");
-        if(player.magic().book()!=SpellDefinitionRepository.Book.ANCIENT)
-            throw new AssertionError("spellbook state not delegated");
-        if(wire.size()<=before)throw new AssertionError("spellbook emitted no packets");
+        ServerPacketWriter packets=
+            new ServerPacketWriter(
+                wire,
+                new IsaacCipher(
+                    new int[]{1,2,3,4}
+                )
+            );
 
-        before=wire.size();
-        if(!h.handle(new String[]{"prayericon","3"},"prayericon 3",w,"[pm-test] "))
-            throw new AssertionError("prayericon not handled");
-        if(player.prayers().manualHeadIcon()!=3)
-            throw new AssertionError("prayericon state not delegated");
-        if(wire.size()<=before)throw new AssertionError("prayericon emitted no packet");
+        int before=
+            wire.size();
 
-        if(!h.handle(new String[]{"prayeroff"},"prayeroff",w,"[pm-test] "))
-            throw new AssertionError("prayeroff not handled");
+        String applied=
+            handler.prayerIcon(
+                3,
+                packets
+            );
 
-        if(h.handle(new String[]{"regionload","12850"},"regionload 12850",w,"[pm-test] "))
-            throw new AssertionError("unrelated command must remain outside prayer/magic handler");
+        packets.flush();
 
-        System.out.println("LOCAL_PRAYER_MAGIC_COMMAND_HANDLER_PASS prayerBook=true spellBook=true prayerIcon=true unrelatedRejected=true");
+        if(!applied.equals(
+                "V510_PRAYER_ICON result=LOCAL_PRAYER_HEADICON_FIXTURE value=3 semanticMapping=UNASSIGNED_R25"))
+            throw new AssertionError(
+                "prayericon effect="+
+                applied
+            );
+
+        if(player.prayers()
+                .manualHeadIcon()!=3)
+            throw new AssertionError(
+                "prayericon state not delegated"
+            );
+
+        if(wire.size()<=before)
+            throw new AssertionError(
+                "prayericon emitted no packet"
+            );
+
+        int beforeRejected=
+            wire.size();
+
+        String rejected=
+            handler.prayerIcon(
+                21,
+                packets
+            );
+
+        packets.flush();
+
+        if(!rejected.equals(
+                "V510_PRAYER_ICON result=REJECTED_HEADICON_RANGE expected=-1..20"))
+            throw new AssertionError(
+                "prayericon reject="+
+                rejected
+            );
+
+        if(wire.size()!=beforeRejected)
+            throw new AssertionError(
+                "rejected prayericon emitted packet"
+            );
+
+        for(Method method:
+                LocalPrayerMagicCommandHandler.class
+                    .getDeclaredMethods())
+            if("handle".equals(
+                    method.getName()))
+                throw new AssertionError(
+                    "raw prayer/magic command parser remains"
+                );
+
+        Constructor<?>[] constructors=
+            LocalPrayerMagicCommandHandler.class
+                .getDeclaredConstructors();
+
+        if(constructors.length!=1||
+           constructors[0]
+               .getParameterCount()!=1||
+           constructors[0]
+               .getParameterTypes()[0]!=
+                PrayerState.class)
+            throw new AssertionError(
+                "prayer handler constructor boundary changed"
+            );
+
+        System.out.println(
+            "LOCAL_PRAYER_MAGIC_COMMAND_HANDLER_PASS "+
+            "prayerIconEffect=true "+
+            "rangeFailClosed=true "+
+            "rawParserAbsent=true "+
+            "magicDependencyTrim=true"
+        );
     }
+
+    private LocalPrayerMagicCommandHandlerTest(){}
 }

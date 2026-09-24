@@ -1111,9 +1111,6 @@ final class ClientPacketProbe {
                 int textLen = newline ? len - 1 : len;
                 String text = new String(body, 0, textLen, StandardCharsets.ISO_8859_1);
 
-                int dialogueOption=
-                    dialogueOptionIndex(text);
-
                 LoadoutEditorCompatibilityPairer.Outcome
                     loadout=
                         loadoutEditorPairer.accept(
@@ -1123,7 +1120,6 @@ final class ClientPacketProbe {
 
                 DailyChallengeClientRequest
                     dailyChallenge=
-                        dialogueOption>0||
                         loadout.recognized()
                         ?null
                         :dailyChallengeRequest(
@@ -1132,17 +1128,7 @@ final class ClientPacketProbe {
 
                 ClientRequest request=null;
 
-                if(dialogueOption>0)
-                    request=
-                        new DialogueOptionClientRequest(
-                            dialogueOption,
-                            ClientRequestMetadata.exactCurrent(
-                                103,
-                                "VAR_BYTE_DIALOGUEOPTION_INDEX_OPTIONAL_LF",
-                                "V308_CLIENT_DIALOGUE_OPTION_HOTKEY"
-                            )
-                        );
-                else if(loadout.kind==
+                if(loadout.kind==
                         LoadoutEditorCompatibilityPairer
                             .Kind.COMPLETE)
                     request=loadout.request;
@@ -1169,12 +1155,11 @@ final class ClientPacketProbe {
                     );
 
                 System.out.printf(
-                    "%sCLIENT_PACKET seq=%d opcode=103 len=%d command=%s dialogueOption=%d loadout=%s loadoutReason=%s dailyChallenge=%s newline=%s%n",
+                    "%sCLIENT_PACKET seq=%d opcode=103 len=%d command=%s loadout=%s loadoutReason=%s dailyChallenge=%s newline=%s%n",
                     tag,
                     decodedCount,
                     len,
                     quote(text),
-                    dialogueOption,
                     loadout.kind,
                     loadout.reason==null
                         ?"none"
@@ -1400,18 +1385,6 @@ final class ClientPacketProbe {
             default:
                 return -1;
         }
-    }
-
-    static int dialogueOptionIndex(String text){
-        if(text==null)return -1;
-        String prefix="dialogueoption ";
-        if(text.length()!=prefix.length()+1||
-           !text.startsWith(prefix))
-            return -1;
-        char value=text.charAt(prefix.length());
-        return value>='1'&&value<='5'
-            ? value-'0'
-            : -1;
     }
 
     static DailyChallengeClientRequest
