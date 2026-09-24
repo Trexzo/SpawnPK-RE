@@ -32,6 +32,23 @@ public final class LocalLabCoreContentModule
     public static final String COMP_COLORS_APPLY_ACTION_PREFIX=
         "locallab.compcolors.apply";
 
+    public static final String MINIPET_STATUS_ACTION=
+        "locallab.minipet.status";
+    public static final String MINIPET_OFF_ACTION=
+        "locallab.minipet.off";
+    public static final String MINIPET_SET_ACTION_PREFIX=
+        "locallab.minipet.set";
+    public static final String MINIPET_HELP_ACTION=
+        "locallab.minipet.help";
+
+    public static final String PET_ACCESSORY_STATUS_ACTION=
+        "locallab.petaccessory.status";
+    public static final String PET_ACCESSORY_OFF_ACTION=
+        "locallab.petaccessory.off";
+
+    public static final String PET_SWITCH_COLOR_ACTION_PREFIX=
+        "locallab.petswitchcolor.open";
+
     @Override public String id(){
         return "locallab-core";
     }
@@ -93,6 +110,24 @@ public final class LocalLabCoreContentModule
             this::compColors
         );
 
+        registrar.command(
+            "minipet",
+            100,
+            this::miniPet
+        );
+
+        registrar.command(
+            "petaccessory",
+            100,
+            this::petAccessory
+        );
+
+        registrar.command(
+            "petswitchcolor",
+            100,
+            this::petSwitchColor
+        );
+
         registrar.objectOption(
             BANK_OBJECT,
             1,
@@ -150,6 +185,90 @@ public final class LocalLabCoreContentModule
                 result+
                 " authority=LOCAL_DEV_FIXTURE clientProtocol=EXACT_CURRENT",
             null
+        );
+    }
+
+    private ContentResult petSwitchColor(
+        ContentCommandContext context
+    ){
+        int requested=
+            context.arguments().isEmpty()
+                ?-1
+                :parseInt(
+                    context.arguments().get(0),
+                    -1
+                );
+
+        return ContentResult.action(
+            PET_SWITCH_COLOR_ACTION_PREFIX+
+            ":"+
+            requested
+        );
+    }
+
+    private ContentResult petAccessory(
+        ContentCommandContext context
+    ){
+        String sub=
+            context.arguments().isEmpty()
+                ?"status"
+                :context.arguments().get(0)
+                    .toLowerCase(
+                        Locale.ROOT
+                    );
+
+        if("off".equals(sub)||
+           "none".equals(sub)||
+           "disable".equals(sub))
+            return ContentResult.action(
+                PET_ACCESSORY_OFF_ACTION
+            );
+
+        return ContentResult.action(
+            PET_ACCESSORY_STATUS_ACTION
+        );
+    }
+
+    private ContentResult miniPet(
+        ContentCommandContext context
+    ){
+        String sub=
+            context.arguments().isEmpty()
+                ?"status"
+                :context.arguments().get(0)
+                    .toLowerCase(
+                        Locale.ROOT
+                    );
+
+        if("status".equals(sub)||
+           "info".equals(sub))
+            return ContentResult.action(
+                MINIPET_STATUS_ACTION
+            );
+
+        if("off".equals(sub)||
+           "disable".equals(sub))
+            return ContentResult.action(
+                MINIPET_OFF_ACTION
+            );
+
+        if("set".equals(sub)&&
+           context.arguments().size()>=2){
+            int itemId=
+                parseInt(
+                    context.arguments().get(1),
+                    -1
+                );
+
+            return ContentResult.action(
+                MINIPET_SET_ACTION_PREFIX+
+                ":"+
+                itemId
+            );
+        }
+
+        return ContentResult.action(
+            MINIPET_HELP_ACTION
         );
     }
 

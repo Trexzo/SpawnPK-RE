@@ -2,12 +2,11 @@ package spk.local;
 
 import java.io.ByteArrayOutputStream;
 import java.lang.reflect.Method;
-import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicReference;
 import spk.content.api.*;
 import spk.content.builtin.LocalLabCoreContentModule;
 
-public final class CompColorsContentCommandActionOwnershipTest {
+public final class MiniPetContentCommandActionOwnershipTest {
     public static void main(String[] args)throws Exception{
         World world=
             World.isolatedForTest(
@@ -22,7 +21,7 @@ public final class CompColorsContentCommandActionOwnershipTest {
 
             ContentRegistry.BindingInfo binding=
                 registry.commandBinding(
-                    "compcolors"
+                    "minipet"
                 );
 
             require(
@@ -32,12 +31,12 @@ public final class CompColorsContentCommandActionOwnershipTest {
                 binding.priority==100&&
                 binding.provenance==
                     ContentProvenance.CUSTOM_LOCALLAB,
-                "compcolors binding="+binding
+                "minipet binding="+binding
             );
 
             world.registerPlayer(
                 player,
-                "compcolors-content-owner"
+                "minipet-content-owner"
             );
             world.start();
 
@@ -48,77 +47,124 @@ public final class CompColorsContentCommandActionOwnershipTest {
                     policyWire
                 );
 
-            ContentResult valid=
+            assertAction(
                 dispatch(
                     world,
                     player,
                     registry,
-                    "::compcolors 1 2 3 4 5 6",
+                    "::minipet",
                     policyPackets
-                );
-
-            require(
-                valid!=null&&
-                valid.hasAction()&&
-                (
-                    LocalLabCoreContentModule
-                        .COMP_COLORS_APPLY_ACTION_PREFIX+
-                    ":1:2:3:4:5:6"
-                ).equals(
-                    valid.actionKey())&&
-                valid.saveReason()==null,
-                "valid action="+valid
-            );
-
-            ContentResult invalid=
-                dispatch(
-                    world,
-                    player,
-                    registry,
-                    "::compcolors 1 2 3 4 5 99",
-                    policyPackets
-                );
-
-            require(
-                invalid!=null&&
-                !invalid.hasAction()&&
-                invalid.saveReason()==null&&
-                invalid.logText().equals(
-                    "V54_COMP_COLORS command="+
-                    "::compcolors 1 2 3 4 5 99 "+
-                    "result=REJECTED_SELECTOR_RANGE expected=0..19"
                 ),
-                "invalid result="+invalid
+                LocalLabCoreContentModule
+                    .MINIPET_STATUS_ACTION,
+                "default status"
             );
 
-            ContentResult wrongArity=
+            assertAction(
                 dispatch(
                     world,
                     player,
                     registry,
-                    "::compcolors 1 2",
+                    "::minipet info",
                     policyPackets
-                );
+                ),
+                LocalLabCoreContentModule
+                    .MINIPET_STATUS_ACTION,
+                "info alias"
+            );
 
-            require(
-                wrongArity!=null&&
-                !wrongArity.hasAction()&&
-                wrongArity.saveReason()==null&&
-                wrongArity.logText().contains(
-                    "REJECTED_SELECTOR_RANGE"),
-                "wrong arity="+wrongArity
+            assertAction(
+                dispatch(
+                    world,
+                    player,
+                    registry,
+                    "::minipet off",
+                    policyPackets
+                ),
+                LocalLabCoreContentModule
+                    .MINIPET_OFF_ACTION,
+                "off"
+            );
+
+            assertAction(
+                dispatch(
+                    world,
+                    player,
+                    registry,
+                    "::minipet disable",
+                    policyPackets
+                ),
+                LocalLabCoreContentModule
+                    .MINIPET_OFF_ACTION,
+                "disable alias"
+            );
+
+            assertAction(
+                dispatch(
+                    world,
+                    player,
+                    registry,
+                    "::minipet set 22088",
+                    policyPackets
+                ),
+                LocalLabCoreContentModule
+                    .MINIPET_SET_ACTION_PREFIX+
+                    ":22088",
+                "set"
+            );
+
+            assertAction(
+                dispatch(
+                    world,
+                    player,
+                    registry,
+                    "::minipet set nope",
+                    policyPackets
+                ),
+                LocalLabCoreContentModule
+                    .MINIPET_SET_ACTION_PREFIX+
+                    ":-1",
+                "invalid item parse"
+            );
+
+            assertAction(
+                dispatch(
+                    world,
+                    player,
+                    registry,
+                    "::minipet set",
+                    policyPackets
+                ),
+                LocalLabCoreContentModule
+                    .MINIPET_HELP_ACTION,
+                "missing set item help"
+            );
+
+            assertAction(
+                dispatch(
+                    world,
+                    player,
+                    registry,
+                    "::minipet unexpected",
+                    policyPackets
+                ),
+                LocalLabCoreContentModule
+                    .MINIPET_HELP_ACTION,
+                "help fallback"
             );
 
             policyPackets.flush();
 
             require(
                 policyWire.size()==0,
-                "content policy emitted wire bytes="+
+                "minipet content policy emitted wire bytes="+
                 policyWire.size()
             );
 
             DevAuthorityWorkbench dev=
                 new DevAuthorityWorkbench();
+            NpcRegistry npcs=
+                new NpcRegistry(dev);
 
             LocalContentCommandActionExecutor executor=
                 new LocalContentCommandActionExecutor(
@@ -140,24 +186,18 @@ public final class CompColorsContentCommandActionOwnershipTest {
                     new LocalMiniPetCommandHandler(
                         player.miniPets(),
                         player.petState(),
-                        new NpcRegistry(
-                            dev
-                        ),
+                        npcs,
                         player.movement()
                     ),
                     new LocalPetCompatibilityCommandHandler(
                         player.petAccessoryState(),
-                        new NpcRegistry(
-                            dev
-                        ),
+                        npcs,
                         player.movement(),
                         new LocalPetInventoryDialogHandler(
                             player.bank(),
                             player.miniPets(),
                             player.petState(),
-                            new NpcRegistry(
-                                dev
-                            ),
+                            npcs,
                             player.movement(),
                             player.petAccessoryState()
                         )
@@ -171,124 +211,140 @@ public final class CompColorsContentCommandActionOwnershipTest {
                     effectWire
                 );
 
-            ContentResult applied=
+            ContentResult status=
                 executor.execute(
-                    valid.actionKey(),
-                    "::compcolors 1 2 3 4 5 6",
-                    "compcolors-content-owner",
+                    LocalLabCoreContentModule
+                        .MINIPET_STATUS_ACTION,
+                    "::minipet status",
+                    "minipet-content-owner",
                     effectPackets
                 );
 
             require(
-                applied!=null&&
-                !applied.hasAction()&&
-                "COMP_COLORS".equals(
-                    applied.saveReason())&&
-                applied.logText().equals(
-                    "V55_COMP_COLORS command="+
-                    "::compcolors 1 2 3 4 5 6 "+
-                    "result=APPLIED selectors=[1, 2, 3, 4, 5, 6] "+
-                    "capeEquipped=false appearanceRefresh=false"
-                ),
-                "apply result="+applied
+                status!=null&&
+                status.saveReason()==null&&
+                status.logText().startsWith(
+                    "V511_MINIPET_STATUS"),
+                "status result="+status
             );
+
+            ContentResult configured=
+                executor.execute(
+                    LocalLabCoreContentModule
+                        .MINIPET_SET_ACTION_PREFIX+
+                    ":22088",
+                    "::minipet set 22088",
+                    "minipet-content-owner",
+                    effectPackets
+                );
 
             require(
-                Arrays.equals(
-                    new int[]{1,2,3,4,5,6},
-                    player.playerState()
-                        .compSelectors()
-                ),
-                "selectors not applied"
+                configured!=null&&
+                "MINIPET_SET_DEV".equals(
+                    configured.saveReason())&&
+                configured.logText().contains(
+                    "MINIPET_CONFIGURED item=22088")&&
+                player.petState()
+                    .miniItemId()==22088,
+                "configure result="+configured
             );
 
-            int beforeUnknown=
+            ContentResult rejected=
+                executor.execute(
+                    LocalLabCoreContentModule
+                        .MINIPET_SET_ACTION_PREFIX+
+                    ":999999",
+                    "::minipet set 999999",
+                    "minipet-content-owner",
+                    effectPackets
+                );
+
+            require(
+                rejected!=null&&
+                rejected.saveReason()==null&&
+                rejected.logText().contains(
+                    "REJECTED_NOT_MINI_PET"),
+                "rejected configure="+rejected
+            );
+
+            int beforeMalformed=
                 effectWire.size();
 
             ContentResult malformed=
                 executor.execute(
                     LocalLabCoreContentModule
-                        .COMP_COLORS_APPLY_ACTION_PREFIX+
-                    ":1:2:3:4:5:99",
-                    "::compcolors 1 2 3 4 5 99",
-                    "compcolors-content-owner",
+                        .MINIPET_SET_ACTION_PREFIX+
+                    ":22088:extra",
+                    "::minipet set 22088 extra",
+                    "minipet-content-owner",
                     effectPackets
                 );
 
             require(
                 malformed!=null&&
                 malformed.saveReason()==null&&
-                malformed.logText().equals(
-                    "CONTENT_COMMAND_ACTION key="+
-                    LocalLabCoreContentModule
-                        .COMP_COLORS_APPLY_ACTION_PREFIX+
-                    ":1:2:3:4:5:99 "+
-                    "result=REJECTED_UNSUPPORTED"
-                ),
-                "malformed executor action="+
-                malformed
+                malformed.logText().contains(
+                    "REJECTED_UNSUPPORTED"),
+                "malformed set action="+malformed
             );
 
             require(
-                effectWire.size()==beforeUnknown&&
-                Arrays.equals(
-                    new int[]{1,2,3,4,5,6},
-                    player.playerState()
-                        .compSelectors()
-                ),
-                "malformed action mutated runtime"
+                effectWire.size()==beforeMalformed,
+                "malformed minipet action emitted wire"
             );
 
-            player.equipment()
-                .set(
-                    EquipmentSlot.CAPE,
-                    23063
-                );
-
-            int beforeCape=
-                effectWire.size();
-
-            ContentResult capeApplied=
+            ContentResult disabled=
                 executor.execute(
                     LocalLabCoreContentModule
-                        .COMP_COLORS_APPLY_ACTION_PREFIX+
-                    ":6:5:4:3:2:1",
-                    "::compcolors 6 5 4 3 2 1",
-                    "compcolors-content-owner",
+                        .MINIPET_OFF_ACTION,
+                    "::minipet off",
+                    "minipet-content-owner",
                     effectPackets
                 );
 
-            effectPackets.flush();
-
             require(
-                capeApplied!=null&&
-                "COMP_COLORS".equals(
-                    capeApplied.saveReason())&&
-                capeApplied.logText().contains(
-                    "capeEquipped=true appearanceRefresh=true"),
-                "equipped cape result="+
-                capeApplied
+                disabled!=null&&
+                "MINIPET_OFF".equals(
+                    disabled.saveReason())&&
+                disabled.logText().contains(
+                    "MINIPET_DISABLED")&&
+                !player.petState()
+                    .miniConfigured(),
+                "off result="+disabled
             );
 
+            ContentResult help=
+                executor.execute(
+                    LocalLabCoreContentModule
+                        .MINIPET_HELP_ACTION,
+                    "::minipet help",
+                    "minipet-content-owner",
+                    effectPackets
+                );
+
             require(
-                effectWire.size()>beforeCape,
-                "equipped cape emitted no appearance wire"
+                help!=null&&
+                help.saveReason()==null&&
+                help.logText().contains(
+                    "nativeInventoryAction=Configure/C2S122"),
+                "help result="+help
             );
 
             runtimeBoundary();
 
             System.out.println(
-                "COMP_COLORS_CONTENT_COMMAND_ACTION_OWNERSHIP_PASS "+
+                "MINIPET_CONTENT_COMMAND_ACTION_OWNERSHIP_PASS "+
                 "binding=true "+
                 "semanticAction=true "+
-                "strictSelectors=true "+
-                "invalidHandled=true "+
+                "aliases=true "+
+                "setItemSemantic=true "+
                 "policyWireBytes=0 "+
                 "allowlist=true "+
                 "malformedFailClosed=true "+
-                "stateMutation=true "+
-                "saveReason=true "+
-                "appearanceRefresh=true "+
+                "configureState=true "+
+                "invalidNoSave=true "+
+                "offSave=true "+
+                "helpRuntimeOwned=true "+
                 "legacyParser=false "+
                 "dispatcherFallback=false"
             );
@@ -303,12 +359,12 @@ public final class CompColorsContentCommandActionOwnershipTest {
 
     private static void runtimeBoundary(){
         for(Method method:
-                LocalCompColorsCommandHandler.class
+                LocalMiniPetCommandHandler.class
                     .getDeclaredMethods())
             require(
                 !"handle".equals(
                     method.getName()),
-                "legacy compcolors parser remains"
+                "legacy minipet parser remains"
             );
 
         try{
@@ -324,8 +380,8 @@ public final class CompColorsContentCommandActionOwnershipTest {
 
             require(
                 !source.contains(
-                    "compColorsCommands.handle("),
-                "dispatcher direct compcolors fallback remains"
+                    "miniPetCommands.handle("),
+                "dispatcher direct minipet fallback remains"
             );
         }catch(java.io.IOException error){
             throw new AssertionError(
@@ -367,12 +423,29 @@ public final class CompColorsContentCommandActionOwnershipTest {
 
         if(failure.get()!=null)
             throw new AssertionError(
-                "compcolors content command failed "+
+                "minipet content command failed "+
                 command,
                 failure.get()
             );
 
         return result.get();
+    }
+
+    private static void assertAction(
+        ContentResult result,
+        String actionKey,
+        String label
+    ){
+        require(
+            result!=null&&
+            result.hasAction()&&
+            actionKey.equals(
+                result.actionKey())&&
+            result.saveReason()==null,
+            label+
+            " action result="+
+            result
+        );
     }
 
     private static ServerPacketWriter writer(
@@ -381,7 +454,7 @@ public final class CompColorsContentCommandActionOwnershipTest {
         return new ServerPacketWriter(
             wire,
             new IsaacCipher(
-                new int[]{211,212,213,214}
+                new int[]{221,222,223,224}
             )
         );
     }
@@ -396,5 +469,5 @@ public final class CompColorsContentCommandActionOwnershipTest {
             );
     }
 
-    private CompColorsContentCommandActionOwnershipTest(){}
+    private MiniPetContentCommandActionOwnershipTest(){}
 }

@@ -44,10 +44,11 @@ public final class LocalCombatCommandHandlerTest {
             "combatprobe",
             writer);
 
-        assertOneContains(
-            probe,
-            "formula=UNRESOLVED_NO_DAMAGE_GUESS",
-            "combatprobe");
+        if(probe!=null)
+            throw new AssertionError(
+                "legacy combatprobe runtime route remains "+
+                probe
+            );
 
         List<String> fixture=handler.handle(
             new String[]{"combatfixture","37"},
@@ -73,7 +74,7 @@ public final class LocalCombatCommandHandlerTest {
         }
 
         System.out.println(
-            "LOCAL_COMBAT_COMMAND_HANDLER_PASS devhit=true probe=true fixtureBoundary=true unrelatedRejected=true");
+            "LOCAL_COMBAT_COMMAND_HANDLER_PASS devhit=true probeLegacyRoute=false fixtureBoundary=true unrelatedRejected=true");
     }
 
     private static void assertOneContains(

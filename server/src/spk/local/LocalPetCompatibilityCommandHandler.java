@@ -56,70 +56,47 @@ final class LocalPetCompatibilityCommandHandler {
             petDialogs,"petDialogs");
     }
 
-    Outcome handle(
-        String[] p,
-        ServerPacketWriter serverPackets
-    )throws IOException{
-        if(p==null||p.length<1)return null;
-
-        if(p[0].equalsIgnoreCase("petaccessory")){
-            String sub=
-                p.length>=2
-                    ?p[1].toLowerCase(java.util.Locale.ROOT)
-                    :"status";
-
-            if(sub.equals("off")||
-               sub.equals("none")||
-               sub.equals("disable")){
-                petAccessoryState.clear();
-
-                String visual=npcs.devSetParticleSelector(
-                    null,
-                    movement,
-                    serverPackets);
-
-                return Outcome.log(
-                    "V5128_PET_ACCESSORY active=NONE visual={"+
-                    visual+
-                    "}",
-                    "PET_ACCESSORY_DEV_OFF"
-                );
-            }
-
-            return Outcome.log(
-                "V5128_PET_ACCESSORY active="+
-                (petAccessoryState.activeItem()==0
-                    ?"NONE"
-                    :petAccessoryState.activeItem()+
-                        "/"+
-                        PetAccessoryAuthority.name(
-                            petAccessoryState.activeItem()))+
-                " visualSelectorMapping=UNRESOLVED_FAIL_CLOSED",
-                null
-            );
-        }
-
-        if(p[0].equalsIgnoreCase("petswitchcolor")){
-            int requested=
-                p.length>=2
-                    ?parseInt(p[1],-1)
-                    :-1;
-
-            return Outcome.dialog(
-                petDialogs.openScoobyColorCompat(
-                    requested,
-                    serverPackets)
-            );
-        }
-
-        return null;
+    Outcome accessoryStatus(){
+        return Outcome.log(
+            "V5128_PET_ACCESSORY active="+
+            (petAccessoryState.activeItem()==0
+                ?"NONE"
+                :petAccessoryState.activeItem()+
+                    "/"+
+                    PetAccessoryAuthority.name(
+                        petAccessoryState.activeItem()))+
+            " visualSelectorMapping=UNRESOLVED_FAIL_CLOSED",
+            null
+        );
     }
 
-    private static int parseInt(String value,int fallback){
-        try{
-            return Integer.parseInt(value);
-        }catch(Exception e){
-            return fallback;
-        }
+    Outcome accessoryOff(
+        ServerPacketWriter serverPackets
+    )throws IOException{
+        petAccessoryState.clear();
+
+        String visual=
+            npcs.devSetParticleSelector(
+                null,
+                movement,
+                serverPackets
+            );
+
+        return Outcome.log(
+            "V5128_PET_ACCESSORY active=NONE visual={"+
+            visual+
+            "}",
+            "PET_ACCESSORY_DEV_OFF"
+        );
+    }
+
+    LocalPetInventoryDialogHandler.Result switchColor(
+        int requested,
+        ServerPacketWriter serverPackets
+    )throws IOException{
+        return petDialogs.openScoobyColorCompat(
+            requested,
+            serverPackets
+        );
     }
 }

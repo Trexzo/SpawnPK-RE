@@ -44,22 +44,6 @@ final class LocalCombatCommandHandler {
             return one("V5128_"+combat.devHitCommand(p));
         }
 
-        if(p[0].equalsIgnoreCase("combatprobe")){
-            CombatWeaponProfile profile=
-                CombatWeaponRepository.resolve(equipment.weapon());
-            int combatRoot=
-                CombatInterfaceRepository.forWeapon(equipment.weapon());
-
-            return one(
-                "V56_COMBAT_PROBE weapon="+equipment.weapon()+
-                " profile="+profile+
-                " style={"+combatStyles.summary(combatRoot)+"}"+
-                " targetScene="+combat.state().targetSceneIndex+
-                " targetDef="+combat.state().targetDefinitionId+
-                " context="+combat.state().context+
-                " formula=UNRESOLVED_NO_DAMAGE_GUESS");
-        }
-
         if(p[0].equalsIgnoreCase("combatfixture")){
             int damage=p.length>=2?parseInt(p[1],0):0;
             String fixture=combat.fixtureHit(
