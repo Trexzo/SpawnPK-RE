@@ -325,14 +325,6 @@ final class LocalCommandDispatcher {
             return true;
         }
 
-        List<String> combatCommand=
-            combatCommands.handle(p,command,serverPackets);
-        if(combatCommand!=null){
-            for(String line:combatCommand)
-                System.out.println(tag+line);
-            return true;
-        }
-
         return false;
     }
 
