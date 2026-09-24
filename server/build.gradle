@@ -862,6 +862,36 @@ tasks.register('appFixtureContentOwnershipRegression') {
     }
 }
 
+tasks.register('equipStrDiagnosticContentActionOwnershipRegression') {
+    group = 'verification'
+    description = 'Validates content-owned equipstr item policy while exact hover-reset packet handling remains runtime-owned and fail-closed.'
+    dependsOn tasks.named('testClasses')
+
+    doLast {
+        [
+            'spk.local.EquipStrDiagnosticContentActionOwnershipTest',
+            'spk.local.EngineDiagnosticContentActionOwnershipTest',
+            'spk.local.LocalDiagnosticCommandHandlerTest',
+            'spk.local.LocalDiagnosticContentOwnershipTest',
+            'spk.local.ContentPublicApiBoundaryTest',
+            'spk.local.ContentRegistryTest',
+            'spk.local.ContentHandlerSamCompatibilityTest',
+            'spk.local.ContentProvenanceAuthorityBoundaryTest',
+            'spk.local.LocalCommandDispatcherTest'
+        ].each { mainClassName ->
+            project.javaexec {
+                workingDir repoRoot
+                classpath = sourceSets.test.runtimeClasspath
+                mainClass.set(mainClassName)
+            }
+        }
+
+        logger.lifecycle(
+            'EQUIPSTR_DIAGNOSTIC_CONTENT_ACTION_OWNERSHIP_PASS binding=true semanticItem=true invalidCompatibility=true extraArgsCompatibility=true policyWireBytes=0 runtimeHoverReset=true numeric14FailClosed=true malformedFailClosed=true legacyRoute=false publicApiExpanded=false'
+        )
+    }
+}
+
 tasks.register('engineDiagnosticContentActionOwnershipRegression') {
     group = 'verification'
     description = 'Validates content-owned engine diagnostic routing while session metadata remains internal runtime state.'
