@@ -19,6 +19,8 @@ final class LocalDiagnosticContentModule
         "locallab.engine.info";
     static final String EQUIPSTR_ACTION_PREFIX=
         "locallab.equipstr.reset";
+    static final String ITEMLIB_OPEN_ACTION_PREFIX=
+        "locallab.itemlib.open";
 
     private final ContentRegistry registry;
 
@@ -126,6 +128,62 @@ final class LocalDiagnosticContentModule
                             )
                     )
                 )
+        );
+
+
+        registrar.command(
+            "itemlib",
+            100,
+            this::itemLibrary
+        );
+    }
+
+    private ContentResult itemLibrary(
+        ContentCommandContext context
+    ){
+        LocalDiagnosticContentPlayer player=
+            diagnosticPlayer(
+                context
+            );
+
+        int item=
+            player.weaponItemId();
+
+        if(!context.arguments().isEmpty()){
+            int parsed=
+                parseInt(
+                    context.arguments().get(0),
+                    Integer.MIN_VALUE
+                );
+
+            if(parsed!=Integer.MIN_VALUE){
+                item=parsed;
+            }else{
+                ItemAuthorityRepository.Entry entry=
+                    ItemAuthorityRepository.byExactName(
+                        joinArguments(
+                            context.arguments()
+                        )
+                    );
+
+                item=
+                    entry==null
+                        ?-1
+                        :entry.itemId;
+            }
+        }
+
+        if(item<0||
+           ItemAuthorityRepository.get(item)==null)
+            return ContentResult.handled(
+                "V5150_ITEM_LIBRARY_DEV_OPEN result=REJECTED_UNKNOWN_ITEM syntax=::itemlib <itemId|exact name>",
+                null
+            );
+
+        return ContentResult.action(
+            ITEMLIB_OPEN_ACTION_PREFIX+
+            ":"+
+            item
         );
     }
 
@@ -343,6 +401,24 @@ final class LocalDiagnosticContentModule
                 WorldCollisionAuthority.entryCount(),
             null
         );
+    }
+
+    private static String joinArguments(
+        java.util.List<String> arguments
+    ){
+        StringBuilder result=
+            new StringBuilder();
+
+        for(String argument:arguments){
+            if(result.length()>0)
+                result.append(' ');
+
+            result.append(
+                argument
+            );
+        }
+
+        return result.toString();
     }
 
     private static int regionId(
