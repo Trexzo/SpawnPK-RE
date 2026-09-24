@@ -77,11 +77,13 @@ final class LocalCommandDispatcher {
         this.miniPetCommands=Objects.requireNonNull(miniPetCommands,"miniPetCommands");
         this.cosmeticCommands=Objects.requireNonNull(cosmeticCommands,"cosmeticCommands");
         this.compColorsCommands=Objects.requireNonNull(compColorsCommands,"compColorsCommands");
+        this.petCompatibilityCommands=Objects.requireNonNull(petCompatibilityCommands,"petCompatibilityCommands");
         this.contentCommandActions=
             new LocalContentCommandActionExecutor(
                 this.cosmeticCommands,
                 this.compColorsCommands,
-                this.miniPetCommands
+                this.miniPetCommands,
+                this.petCompatibilityCommands
             );
         this.devWorldCommands=Objects.requireNonNull(devWorldCommands,"devWorldCommands");
         this.dev=Objects.requireNonNull(dev,"dev");
@@ -94,7 +96,6 @@ final class LocalCommandDispatcher {
         this.voidglassCommands=Objects.requireNonNull(voidglassCommands,"voidglassCommands");
         this.petRuntimeCommands=Objects.requireNonNull(petRuntimeCommands,"petRuntimeCommands");
         this.combatCommands=Objects.requireNonNull(combatCommands,"combatCommands");
-        this.petCompatibilityCommands=Objects.requireNonNull(petCompatibilityCommands,"petCompatibilityCommands");
         this.contentRegistry=Objects.requireNonNull(contentRegistry,"contentRegistry");
         this.worldPlayer=Objects.requireNonNull(worldPlayer,"worldPlayer");
         this.bridge=Objects.requireNonNull(bridge,"bridge");
