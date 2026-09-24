@@ -51,6 +51,8 @@ public final class LocalLabCoreContentModule
 
     public static final String PET_STATUS_ACTION=
         "locallab.petruntime.status";
+    public static final String PET_BOOST_ACTION=
+        "locallab.petruntime.boost";
 
     public static final String COMBAT_FIXTURE_ACTION_PREFIX=
         "locallab.combatfixture.hit";
@@ -181,6 +183,16 @@ public final class LocalLabCoreContentModule
             context->
                 ContentResult.action(
                     PET_STATUS_ACTION
+                )
+        );
+
+
+        registrar.command(
+            "petboost",
+            100,
+            context->
+                ContentResult.action(
+                    PET_BOOST_ACTION
                 )
         );
 
