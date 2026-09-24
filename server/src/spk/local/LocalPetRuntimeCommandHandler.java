@@ -37,6 +37,37 @@ final class LocalPetRuntimeCommandHandler {
             movement,"movement");
     }
 
+    List<String> status(){
+        NpcEntity pet=
+            npcs.pet();
+
+        return one(
+            "V59_PET_STATUS active="+
+            (pet!=null)+
+            " petState="+
+            (petState.active()
+                ?petState.itemId()+"->"+
+                    petState.npcId()
+                :"none")+
+            " visibleNpc="+
+            (pet==null
+                ?"none"
+                :pet.definitionId)+
+            " nativeFamily="+
+            (pet==null
+                ?"NONE"
+                :PetPresentationProfile
+                    .nativeStateFamily(
+                        pet.definitionId
+                    ))+
+            " effectState={"+
+            petEffects.summary()+
+            "}"+
+            " followOwnerRunning="+
+            npcs.recentOwnerRunning()
+        );
+    }
+
     List<String> handle(
         String[] p,
         ServerPacketWriter serverPackets
@@ -90,27 +121,6 @@ final class LocalPetRuntimeCommandHandler {
                 "V511_PET_PROC_FIXTURE playerAnim=NONE playerGfx=1310 scopesight="+
                 snipe+
                 " semantics=PRODUCTION_NORMAL_PET_BOOST_PRESENTATION");
-        }
-
-        if(p[0].equalsIgnoreCase("petstatus")){
-            NpcEntity pet=npcs.pet();
-
-            return one(
-                "V59_PET_STATUS active="+(pet!=null)+
-                " petState="+
-                (petState.active()
-                    ?petState.itemId()+"->"+petState.npcId()
-                    :"none")+
-                " visibleNpc="+
-                (pet==null?"none":pet.definitionId)+
-                " nativeFamily="+
-                (pet==null
-                    ?"NONE"
-                    :PetPresentationProfile.nativeStateFamily(
-                        pet.definitionId))+
-                " effectState={"+petEffects.summary()+"}"+
-                " followOwnerRunning="+
-                npcs.recentOwnerRunning());
         }
 
         if(p[0].equalsIgnoreCase("pettestall")){
