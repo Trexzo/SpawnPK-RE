@@ -259,6 +259,16 @@ final class LocalContentCommandActionExecutor {
                 )
             );
 
+        if(LocalLabCoreContentModule
+                .PET_SCOPE_SNIPE_ACTION
+                .equals(actionKey)&&
+           petRuntime!=null)
+            return Outcome.lines(
+                petRuntime.scopeSnipe(
+                    packets
+                )
+            );
+
         Integer prayerIcon=
             diagnosticIntValue(
                 actionKey,
