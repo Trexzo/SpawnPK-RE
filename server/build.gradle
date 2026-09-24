@@ -862,6 +862,35 @@ tasks.register('appFixtureContentOwnershipRegression') {
     }
 }
 
+tasks.register('compColorsContentCommandActionOwnershipRegression') {
+    group = 'verification'
+    description = 'Validates content-owned compcolors policy with strict semantic action selectors and runtime-owned appearance publication.'
+    dependsOn tasks.named('testClasses')
+
+    doLast {
+        [
+            'spk.local.CompColorsContentCommandActionOwnershipTest',
+            'spk.local.LocalCompColorsCommandHandlerTest',
+            'spk.local.CosmeticContentCommandActionOwnershipTest',
+            'spk.local.ContentPublicApiBoundaryTest',
+            'spk.local.ContentRegistryTest',
+            'spk.local.ContentHandlerSamCompatibilityTest',
+            'spk.local.ContentProvenanceAuthorityBoundaryTest',
+            'spk.local.LocalCommandDispatcherTest'
+        ].each { mainClassName ->
+            project.javaexec {
+                workingDir repoRoot
+                classpath = sourceSets.test.runtimeClasspath
+                mainClass.set(mainClassName)
+            }
+        }
+
+        logger.lifecycle(
+            'COMP_COLORS_CONTENT_COMMAND_ACTION_OWNERSHIP_PASS binding=true semanticAction=true strictSelectors=true invalidHandled=true policyWireBytes=0 allowlist=true malformedFailClosed=true stateMutation=true saveReason=true appearanceRefresh=true legacyParser=false dispatcherFallback=false'
+        )
+    }
+}
+
 tasks.register('cosmeticContentCommandActionOwnershipRegression') {
     group = 'verification'
     description = 'Validates content-owned cosmetic command policy through fail-closed semantic command actions while exact cosmetic effects remain runtime-owned.'
