@@ -110,12 +110,7 @@ final class LocalDevPanelAmountHandler {
                     if(value<0||value>255){
                         result="REJECTED damage 0..255";
                     }else{
-                        result=combat.devHitCommand(
-                            new String[]{
-                                "devhit",
-                                "damage",
-                                String.valueOf(value)
-                            });
+                        result=combat.devHitDamage(value);
                     }
                     break;
 
@@ -123,12 +118,7 @@ final class LocalDevPanelAmountHandler {
                     if(value<0||value>255){
                         result="REJECTED type 0..255";
                     }else{
-                        result=combat.devHitCommand(
-                            new String[]{
-                                "devhit",
-                                "type",
-                                String.valueOf(value)
-                            });
+                        result=combat.devHitType(value);
                     }
                     break;
 
