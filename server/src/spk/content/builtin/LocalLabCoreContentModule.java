@@ -29,6 +29,9 @@ public final class LocalLabCoreContentModule
     public static final String COSMETIC_HELP_ACTION=
         "locallab.cosmetic.help";
 
+    public static final String DEV_PANEL_OPEN_ACTION=
+        "locallab.dev-panel.open";
+
     @Override public String id(){
         return "locallab-core";
     }
@@ -82,6 +85,24 @@ public final class LocalLabCoreContentModule
             "cosmetic",
             100,
             this::cosmetic
+        );
+
+        registrar.command(
+            "devpanel",
+            100,
+            this::devPanel
+        );
+
+        registrar.command(
+            "devui",
+            100,
+            this::devPanel
+        );
+
+        registrar.command(
+            "lab",
+            100,
+            this::devPanel
         );
 
         registrar.objectOption(
@@ -141,6 +162,14 @@ public final class LocalLabCoreContentModule
                 result+
                 " authority=LOCAL_DEV_FIXTURE clientProtocol=EXACT_CURRENT",
             null
+        );
+    }
+
+    private ContentResult devPanel(
+        ContentCommandContext context
+    ){
+        return ContentResult.action(
+            DEV_PANEL_OPEN_ACTION
         );
     }
 
