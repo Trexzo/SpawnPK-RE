@@ -94,26 +94,6 @@ final class LocalDiagnosticCommandHandler {
             return true;
         }
 
-        if(command.equalsIgnoreCase("prayerinfo")){
-            System.out.println(tag+"V510_PRAYER_INFO "+prayers.summary()+
-                " definitions="+PrayerDefinitionRepository.count());
-            return true;
-        }
-
-        if(command.equalsIgnoreCase("magicinfo")){
-            System.out.println(tag+"V510_MAGIC_INFO "+magic.summary()+
-                " definitions="+SpellDefinitionRepository.count());
-            return true;
-        }
-
-        if(command.equalsIgnoreCase("styleinfo")){
-            int root=CombatInterfaceRepository.forWeapon(equipment.weapon());
-            System.out.println(tag+"V510_STYLE_INFO weapon="+equipment.weapon()+" "+
-                combatStyles.summary(root)+" roots="+CombatStyleRepository.rootCount()+
-                " styles="+CombatStyleRepository.countStyles());
-            return true;
-        }
-
         if(command.equalsIgnoreCase("engine")){
             System.out.println(tag+"V5123_ENGINE "+BuildInfo.summary()+" account="+username+
                 " loginAlias="+loginAlias+" persistent="+persistentAccount+" "+world.summary()+

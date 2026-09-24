@@ -22,6 +22,16 @@ public final class LocalLabCoreContentModule
     public static final String BANK_OBJECT_SERVICE=
         "locallab.bank";
 
+    public static final String COSMETIC_INFO_ACTION=
+        "locallab.cosmetic.info";
+    public static final String COSMETIC_REMOVE_ACTION=
+        "locallab.cosmetic.remove";
+    public static final String COSMETIC_HELP_ACTION=
+        "locallab.cosmetic.help";
+
+    public static final String COMP_COLORS_APPLY_ACTION_PREFIX=
+        "locallab.compcolors.apply";
+
     @Override public String id(){
         return "locallab-core";
     }
@@ -69,6 +79,18 @@ public final class LocalLabCoreContentModule
             "prayeroff",
             100,
             this::prayerOff
+        );
+
+        registrar.command(
+            "cosmetic",
+            100,
+            this::cosmetic
+        );
+
+        registrar.command(
+            "compcolors",
+            100,
+            this::compColors
         );
 
         registrar.objectOption(
@@ -128,6 +150,78 @@ public final class LocalLabCoreContentModule
                 result+
                 " authority=LOCAL_DEV_FIXTURE clientProtocol=EXACT_CURRENT",
             null
+        );
+    }
+
+    private ContentResult compColors(
+        ContentCommandContext context
+    ){
+        if(context.arguments().size()!=6)
+            return ContentResult.handled(
+                "V54_COMP_COLORS command="+
+                    context.rawCommand()+
+                    " result=REJECTED_SELECTOR_RANGE expected=0..19",
+                null
+            );
+
+        int[] selectors=new int[6];
+
+        for(int i=0;i<selectors.length;i++){
+            selectors[i]=
+                parseInt(
+                    context.arguments().get(i),
+                    -1
+                );
+
+            if(selectors[i]<0||
+               selectors[i]>19)
+                return ContentResult.handled(
+                    "V54_COMP_COLORS command="+
+                        context.rawCommand()+
+                        " result=REJECTED_SELECTOR_RANGE expected=0..19",
+                    null
+                );
+        }
+
+        StringBuilder action=
+            new StringBuilder(
+                COMP_COLORS_APPLY_ACTION_PREFIX
+            );
+
+        for(int selector:selectors)
+            action.append(':')
+                .append(selector);
+
+        return ContentResult.action(
+            action.toString()
+        );
+    }
+
+    private ContentResult cosmetic(
+        ContentCommandContext context
+    ){
+        String sub=
+            context.arguments().isEmpty()
+                ?"info"
+                :context.arguments().get(0)
+                    .toLowerCase(
+                        Locale.ROOT
+                    );
+
+        if("info".equals(sub)||
+           "status".equals(sub))
+            return ContentResult.action(
+                COSMETIC_INFO_ACTION
+            );
+
+        if("off".equals(sub)||
+           "remove".equals(sub))
+            return ContentResult.action(
+                COSMETIC_REMOVE_ACTION
+            );
+
+        return ContentResult.action(
+            COSMETIC_HELP_ACTION
         );
     }
 

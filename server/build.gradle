@@ -1605,6 +1605,94 @@ tasks.register('itemSpawnContentOwnershipRegression') {
 }
 
 
+tasks.register('compColorsContentCommandActionOwnershipRegression') {
+    group = 'verification'
+    description = 'Validates content-owned compcolors policy with strict semantic action selectors and runtime-owned appearance publication.'
+    dependsOn tasks.named('testClasses')
+
+    doLast {
+        [
+            'spk.local.CompColorsContentCommandActionOwnershipTest',
+            'spk.local.LocalCompColorsCommandHandlerTest',
+            'spk.local.CosmeticContentCommandActionOwnershipTest',
+            'spk.local.ContentPublicApiBoundaryTest',
+            'spk.local.ContentRegistryTest',
+            'spk.local.ContentHandlerSamCompatibilityTest',
+            'spk.local.ContentProvenanceAuthorityBoundaryTest',
+            'spk.local.LocalCommandDispatcherTest'
+        ].each { mainClassName ->
+            project.javaexec {
+                workingDir repoRoot
+                classpath = sourceSets.test.runtimeClasspath
+                mainClass.set(mainClassName)
+            }
+        }
+
+        logger.lifecycle(
+            'COMP_COLORS_CONTENT_COMMAND_ACTION_OWNERSHIP_PASS binding=true semanticAction=true strictSelectors=true invalidHandled=true policyWireBytes=0 allowlist=true malformedFailClosed=true stateMutation=true saveReason=true appearanceRefresh=true legacyParser=false dispatcherFallback=false'
+        )
+    }
+}
+
+tasks.register('cosmeticContentCommandActionOwnershipRegression') {
+    group = 'verification'
+    description = 'Validates content-owned cosmetic command policy through fail-closed semantic command actions while exact cosmetic effects remain runtime-owned.'
+    dependsOn tasks.named('testClasses')
+
+    doLast {
+        [
+            'spk.local.CosmeticContentCommandActionOwnershipTest',
+            'spk.local.LocalCosmeticCommandHandlerTest',
+            'spk.local.ContentPublicApiBoundaryTest',
+            'spk.local.ContentRegistryTest',
+            'spk.local.ContentRegistrationLifecycleTest',
+            'spk.local.ContentHandlerSamCompatibilityTest',
+            'spk.local.ContentProvenanceAuthorityBoundaryTest',
+            'spk.local.LocalCommandDispatcherTest'
+        ].each { mainClassName ->
+            project.javaexec {
+                workingDir repoRoot
+                classpath = sourceSets.test.runtimeClasspath
+                mainClass.set(mainClassName)
+            }
+        }
+
+        logger.lifecycle(
+            'COSMETIC_CONTENT_COMMAND_ACTION_OWNERSHIP_PASS binding=true semanticAction=true aliases=true policyWireBytes=0 allowlist=true unknownFailClosed=true removeState=true removeWire=true saveReason=true legacyParser=false dispatcherExecutor=true'
+        )
+    }
+}
+
+tasks.register('playerStateDiagnosticContentOwnershipRegression') {
+    group = 'verification'
+    description = 'Validates content ownership of prayerinfo/magicinfo/styleinfo through an internal diagnostic player projection with no public API expansion.'
+    dependsOn tasks.named('testClasses')
+
+    doLast {
+        [
+            'spk.local.PlayerStateDiagnosticContentOwnershipTest',
+            'spk.local.WorldDiagnosticContentOwnershipTest',
+            'spk.local.LocalDiagnosticContentOwnershipTest',
+            'spk.local.ContentPublicApiBoundaryTest',
+            'spk.local.ContentRegistryTest',
+            'spk.local.ContentRegistrationLifecycleTest',
+            'spk.local.ContentProvenanceAuthorityBoundaryTest',
+            'spk.local.LocalCommandDispatcherTest'
+        ].each { mainClassName ->
+            project.javaexec {
+                workingDir repoRoot
+                classpath = sourceSets.test.runtimeClasspath
+                mainClass.set(mainClassName)
+            }
+        }
+
+        logger.lifecycle(
+            'PLAYER_STATE_DIAGNOSTIC_CONTENT_OWNERSHIP_PASS prayerinfo=true magicinfo=true styleinfo=true internalProjection=true publicApiExpanded=false priorityOverride=true restore=true textParity=true legacyFallback=false wireBytes=0'
+        )
+    }
+}
+
+
 tasks.named('check') {
     dependsOn tasks.named('customAssetPipelineRegression')
     dependsOn tasks.named('customAssetPipelineHardeningRegression')
