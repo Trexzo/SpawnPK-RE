@@ -88,7 +88,8 @@ final class LocalCommandDispatcher {
                 this.petCompatibilityCommands,
                 this.combatCommands,
                 this.diagnosticCommands,
-                this.devSessionCommands
+                this.devSessionCommands,
+                this.prayerMagicCommands
             );
         this.devWorldCommands=Objects.requireNonNull(devWorldCommands,"devWorldCommands");
         this.dev=Objects.requireNonNull(dev,"dev");
@@ -229,13 +230,6 @@ final class LocalCommandDispatcher {
             System.out.println(tag+regionDevCommand.logText);
             return true;
         }
-
-        if(prayerMagicCommands.handle(
-            p,
-            clean,
-            serverPackets,
-            tag
-        ))return true;
 
         if(devWorldCommands.handle(
             p,
