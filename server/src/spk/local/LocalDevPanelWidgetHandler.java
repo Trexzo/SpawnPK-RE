@@ -302,12 +302,7 @@ final class LocalDevPanelWidgetHandler {
                     return Outcome.prompt(
                         choice,nextScenePublisher);
                 }else if(choice==2){
-                    result=combat.devHitCommand(
-                        new String[]{
-                            "devhit",
-                            "variant",
-                            "auto"
-                        });
+                    result=combat.devHitVariant(true);
                 }else{
                     panel.setPage(
                         DevControlCenter.Page.COMBAT);
