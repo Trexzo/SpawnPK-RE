@@ -76,6 +76,7 @@ final class LocalCommandDispatcher {
         this.prayerMagicCommands=Objects.requireNonNull(prayerMagicCommands,"prayerMagicCommands");
         this.miniPetCommands=Objects.requireNonNull(miniPetCommands,"miniPetCommands");
         this.cosmeticCommands=Objects.requireNonNull(cosmeticCommands,"cosmeticCommands");
+        this.compColorsCommands=Objects.requireNonNull(compColorsCommands,"compColorsCommands");
         this.contentCommandActions=
             new LocalContentCommandActionExecutor(
                 this.cosmeticCommands,
@@ -91,7 +92,6 @@ final class LocalCommandDispatcher {
         this.nurseCommands=Objects.requireNonNull(nurseCommands,"nurseCommands");
         this.voidglassCommands=Objects.requireNonNull(voidglassCommands,"voidglassCommands");
         this.petRuntimeCommands=Objects.requireNonNull(petRuntimeCommands,"petRuntimeCommands");
-        this.compColorsCommands=Objects.requireNonNull(compColorsCommands,"compColorsCommands");
         this.combatCommands=Objects.requireNonNull(combatCommands,"combatCommands");
         this.petCompatibilityCommands=Objects.requireNonNull(petCompatibilityCommands,"petCompatibilityCommands");
         this.contentRegistry=Objects.requireNonNull(contentRegistry,"contentRegistry");
