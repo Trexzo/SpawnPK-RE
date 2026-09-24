@@ -862,6 +862,34 @@ tasks.register('appFixtureContentOwnershipRegression') {
     }
 }
 
+tasks.register('petStatusContentCommandActionOwnershipRegression') {
+    group = 'verification'
+    description = 'Validates content-owned petstatus routing while pet runtime status projection remains internal and zero-wire.'
+    dependsOn tasks.named('testClasses')
+
+    doLast {
+        [
+            'spk.local.PetStatusContentCommandActionOwnershipTest',
+            'spk.local.LocalPetRuntimeCommandHandlerTest',
+            'spk.local.ContentPublicApiBoundaryTest',
+            'spk.local.ContentRegistryTest',
+            'spk.local.ContentHandlerSamCompatibilityTest',
+            'spk.local.ContentProvenanceAuthorityBoundaryTest',
+            'spk.local.LocalCommandDispatcherTest'
+        ].each { mainClassName ->
+            project.javaexec {
+                workingDir repoRoot
+                classpath = sourceSets.test.runtimeClasspath
+                mainClass.set(mainClassName)
+            }
+        }
+
+        logger.lifecycle(
+            'PET_STATUS_CONTENT_COMMAND_ACTION_OWNERSHIP_PASS binding=true semanticAction=true extraArgsCompatibility=true policyWireBytes=0 runtimeProjection=true runtimeWireBytes=0 malformedFailClosed=true legacyRoute=false contentBeforeRuntimeFallback=true publicApiExpanded=false'
+        )
+    }
+}
+
 tasks.register('prayerIconContentCommandActionOwnershipRegression') {
     group = 'verification'
     description = 'Validates content-owned prayericon policy while manual head-icon packet publication remains runtime-owned.'
