@@ -338,11 +338,13 @@ public final class CombatFixtureContentCommandActionOwnershipTest {
             );
 
             require(
-                combatSource.contains(
+                !combatSource.contains(
                     "equalsIgnoreCase(\"devhit\")")&&
                 combatSource.contains(
-                    "List<String> fixture("),
-                "combat runtime boundary changed unexpectedly"
+                    "List<String> fixture(")&&
+                combatSource.contains(
+                    "String devHitInfo("),
+                "combat runtime effect boundary changed unexpectedly"
             );
 
             String dispatcherSource=
@@ -358,9 +360,9 @@ public final class CombatFixtureContentCommandActionOwnershipTest {
             require(
                 dispatcherSource.contains(
                     "action.logLines")&&
-                dispatcherSource.contains(
+                !dispatcherSource.contains(
                     "combatCommands.handle("),
-                "dispatcher log-line/devhit boundary missing"
+                "dispatcher raw combat fallback remains"
             );
         }catch(java.io.IOException error){
             throw new AssertionError(
