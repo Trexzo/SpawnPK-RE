@@ -77,6 +77,7 @@ final class LocalContentCommandActionExecutor {
     private final LocalPetCompatibilityCommandHandler petCompatibility;
     private final LocalCombatCommandHandler combat;
     private final LocalDiagnosticCommandHandler diagnostics;
+    private final LocalDevSessionCommandHandler devSession;
 
     LocalContentCommandActionExecutor(
         LocalCosmeticCommandHandler cosmetics,
@@ -119,6 +120,26 @@ final class LocalContentCommandActionExecutor {
         LocalCombatCommandHandler combat,
         LocalDiagnosticCommandHandler diagnostics
     ){
+        this(
+            cosmetics,
+            compColors,
+            miniPets,
+            petCompatibility,
+            combat,
+            diagnostics,
+            null
+        );
+    }
+
+    LocalContentCommandActionExecutor(
+        LocalCosmeticCommandHandler cosmetics,
+        LocalCompColorsCommandHandler compColors,
+        LocalMiniPetCommandHandler miniPets,
+        LocalPetCompatibilityCommandHandler petCompatibility,
+        LocalCombatCommandHandler combat,
+        LocalDiagnosticCommandHandler diagnostics,
+        LocalDevSessionCommandHandler devSession
+    ){
         this.cosmetics=
             java.util.Objects.requireNonNull(
                 cosmetics,
@@ -141,6 +162,7 @@ final class LocalContentCommandActionExecutor {
             );
         this.combat=combat;
         this.diagnostics=diagnostics;
+        this.devSession=devSession;
     }
 
     Outcome executeOutcome(
@@ -169,6 +191,33 @@ final class LocalContentCommandActionExecutor {
         SceneUpdatePublisher scenePublisher,
         ServerPacketWriter packets
     )throws IOException{
+        if(LocalLabCoreContentModule
+                .DEV_SESSION_INFO_ACTION
+                .equals(actionKey)&&
+           devSession!=null)
+            return Outcome.content(
+                ContentResult.handled(
+                    devSession.info(),
+                    null
+                )
+            );
+
+        if(LocalLabCoreContentModule
+                .DEV_SESSION_RESET_ACTION
+                .equals(actionKey)&&
+           devSession!=null&&
+           scenePublisher!=null)
+            return Outcome.content(
+                ContentResult.handled(
+                    devSession.resetCommand(
+                        username,
+                        scenePublisher,
+                        packets
+                    ),
+                    null
+                )
+            );
+
         Integer equipStrItem=
             diagnosticIntValue(
                 actionKey,
