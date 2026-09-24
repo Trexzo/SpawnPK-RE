@@ -862,6 +862,37 @@ tasks.register('appFixtureContentOwnershipRegression') {
     }
 }
 
+tasks.register('devSessionContentCommandActionOwnershipRegression') {
+    group = 'verification'
+    description = 'Validates content-owned dev info/reset policy while dev panel and session reset effects remain runtime-owned.'
+    dependsOn tasks.named('testClasses')
+
+    doLast {
+        [
+            'spk.local.DevSessionContentCommandActionOwnershipTest',
+            'spk.local.LocalDevSessionCommandHandlerTest',
+            'spk.local.ItemLibDiagnosticContentActionOwnershipTest',
+            'spk.local.EquipStrDiagnosticContentActionOwnershipTest',
+            'spk.local.EngineDiagnosticContentActionOwnershipTest',
+            'spk.local.ContentPublicApiBoundaryTest',
+            'spk.local.ContentRegistryTest',
+            'spk.local.ContentHandlerSamCompatibilityTest',
+            'spk.local.ContentProvenanceAuthorityBoundaryTest',
+            'spk.local.LocalCommandDispatcherTest'
+        ].each { mainClassName ->
+            project.javaexec {
+                workingDir repoRoot
+                classpath = sourceSets.test.runtimeClasspath
+                mainClass.set(mainClassName)
+            }
+        }
+
+        logger.lifecycle(
+            'DEV_SESSION_CONTENT_COMMAND_ACTION_OWNERSHIP_PASS binding=true infoAction=true resetAction=true unknownInfoCompatibility=true panelFallthrough=true policyWireBytes=0 runtimeInfo=true runtimeReset=true commandVisualOverrideParity=true legacyParser=false dispatcherFallback=false publicApiExpanded=false'
+        )
+    }
+}
+
 tasks.register('itemLibDiagnosticContentActionOwnershipRegression') {
     group = 'verification'
     description = 'Validates content-owned itemlib item resolution while exact native item-library UI transport remains runtime-owned.'
