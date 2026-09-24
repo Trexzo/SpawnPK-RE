@@ -259,37 +259,18 @@ public final class PetAccessoryContentCommandActionOwnershipTest {
                 "unsupported accessory action mutated runtime"
             );
 
-            LocalPetCompatibilityCommandHandler.Outcome
-                legacyAccessory=
-                    compatibility.handle(
-                        new String[]{
-                            "petaccessory",
-                            "off"
-                        },
-                        effectPackets
-                    );
-
-            require(
-                legacyAccessory==null,
-                "legacy petaccessory parser remains"
-            );
-
-            LocalPetCompatibilityCommandHandler.Outcome
+            LocalPetInventoryDialogHandler.Result
                 color=
-                    compatibility.handle(
-                        new String[]{
-                            "petswitchcolor",
-                            "24016"
-                        },
+                    compatibility.switchColor(
+                        24016,
                         effectPackets
                     );
 
             require(
                 color!=null&&
-                color.dialogResult!=null&&
-                color.dialogResult.logText.contains(
+                color.logText.contains(
                     "V5128_SCOOBY_SWITCH_COLOR"),
-                "petswitchcolor runtime boundary lost"
+                "petswitchcolor runtime effect boundary lost"
             );
 
             runtimeBoundary();
@@ -336,9 +317,15 @@ public final class PetAccessoryContentCommandActionOwnershipTest {
             );
 
             require(
-                source.contains(
+                !source.contains(
                     "equalsIgnoreCase(\"petswitchcolor\")"),
-                "petswitchcolor runtime parser unexpectedly removed"
+                "petswitchcolor raw runtime parser remains"
+            );
+
+            require(
+                source.contains(
+                    "switchColor("),
+                "petswitchcolor runtime effect missing"
             );
         }catch(java.io.IOException error){
             throw new AssertionError(
