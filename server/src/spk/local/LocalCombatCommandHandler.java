@@ -44,41 +44,55 @@ final class LocalCombatCommandHandler {
             return one("V5128_"+combat.devHitCommand(p));
         }
 
-        if(p[0].equalsIgnoreCase("combatfixture")){
-            int damage=p.length>=2?parseInt(p[1],0):0;
-            String fixture=combat.fixtureHit(
-                damage,npcs,serverPackets);
-            int dealt=combat.consumeLastDamage();
+        return null;
+    }
 
-            ArrayList<String> lines=new ArrayList<>();
-            if(dealt>0){
-                String petDamage=petRuntime.applyDamage(
+    List<String> fixture(
+        int damage,
+        String rawCommand,
+        ServerPacketWriter serverPackets
+    )throws IOException{
+        String fixture=
+            combat.fixtureHit(
+                damage,
+                npcs,
+                serverPackets
+            );
+        int dealt=
+            combat.consumeLastDamage();
+
+        ArrayList<String> lines=
+            new ArrayList<>();
+
+        if(dealt>0){
+            String petDamage=
+                petRuntime.applyDamage(
                     dealt,
                     System.currentTimeMillis(),
                     serverPackets,
-                    "COMBAT_FIXTURE");
-                if(petDamage!=null)lines.add(petDamage);
-            }
+                    "COMBAT_FIXTURE"
+                );
 
-            lines.add(
-                "V59_COMBAT_FIXTURE command="+rawCommand+
-                " result="+fixture);
-
-            return Collections.unmodifiableList(lines);
+            if(petDamage!=null)
+                lines.add(
+                    petDamage
+                );
         }
 
-        return null;
+        lines.add(
+            "V59_COMBAT_FIXTURE command="+
+                rawCommand+
+                " result="+
+                fixture
+        );
+
+        return Collections.unmodifiableList(
+            lines
+        );
     }
 
     private static List<String> one(String line){
         return Collections.singletonList(line);
     }
 
-    private static int parseInt(String value,int fallback){
-        try{
-            return Integer.parseInt(value);
-        }catch(Exception e){
-            return fallback;
-        }
-    }
 }
