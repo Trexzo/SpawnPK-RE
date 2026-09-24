@@ -7,7 +7,8 @@ public final class LocalPetCompatibilityCommandHandlerTest {
         WorldPlayer player=new WorldPlayer();
         DevAuthorityWorkbench dev=new DevAuthorityWorkbench();
         NpcRegistry npcs=new NpcRegistry(dev);
-        PetAccessoryState accessory=new PetAccessoryState();
+        PetAccessoryState accessory=
+            player.petAccessoryState();
 
         LocalPetInventoryDialogHandler dialogs=
             new LocalPetInventoryDialogHandler(
@@ -36,9 +37,7 @@ public final class LocalPetCompatibilityCommandHandlerTest {
                     new int[]{1,2,3,4}));
 
         LocalPetCompatibilityCommandHandler.Outcome status=
-            handler.handle(
-                new String[]{"petaccessory"},
-                writer);
+            handler.accessoryStatus();
 
         if(status==null||
            !status.logText.contains(
@@ -47,15 +46,17 @@ public final class LocalPetCompatibilityCommandHandlerTest {
            status.dialogResult!=null){
             throw new AssertionError(
                 "status="+
-                (status==null?null:status.logText));
+                (status==null
+                    ?null
+                    :status.logText));
         }
 
         accessory.setActiveItem(20542);
 
         LocalPetCompatibilityCommandHandler.Outcome off=
-            handler.handle(
-                new String[]{"petaccessory","off"},
-                writer);
+            handler.accessoryOff(
+                writer
+            );
 
         if(off==null||
            !"PET_ACCESSORY_DEV_OFF".equals(
@@ -65,14 +66,35 @@ public final class LocalPetCompatibilityCommandHandlerTest {
            accessory.activeItem()!=0){
             throw new AssertionError(
                 "off="+
-                (off==null?null:off.logText)+
+                (off==null
+                    ?null
+                    :off.logText)+
                 " active="+accessory.activeItem());
         }
 
+        LocalPetCompatibilityCommandHandler.Outcome
+            legacyAccessory=
+                handler.handle(
+                    new String[]{
+                        "petaccessory",
+                        "off"
+                    },
+                    writer
+                );
+
+        if(legacyAccessory!=null)
+            throw new AssertionError(
+                "legacy petaccessory parser remains"
+            );
+
         LocalPetCompatibilityCommandHandler.Outcome color=
             handler.handle(
-                new String[]{"petswitchcolor","24016"},
-                writer);
+                new String[]{
+                    "petswitchcolor",
+                    "24016"
+                },
+                writer
+            );
 
         if(color==null||
            color.dialogResult==null||
@@ -82,19 +104,27 @@ public final class LocalPetCompatibilityCommandHandlerTest {
                "REJECTED_NO_VARIANT_IN_INVENTORY")){
             throw new AssertionError(
                 "color="+
-                (color==null||color.dialogResult==null
+                (color==null||
+                 color.dialogResult==null
                     ?null
                     :color.dialogResult.logText));
         }
 
         if(handler.handle(
-            new String[]{"petstatus"},
-            writer)!=null){
+                new String[]{"petstatus"},
+                writer)!=null){
             throw new AssertionError(
                 "unrelated command consumed");
         }
 
         System.out.println(
-            "LOCAL_PET_COMPATIBILITY_COMMAND_HANDLER_PASS accessoryStatus=true accessoryOff=true saveSignal=true colorCompatBoundary=true unrelatedRejected=true");
+            "LOCAL_PET_COMPATIBILITY_COMMAND_HANDLER_PASS "+
+            "accessoryStatusEffect=true "+
+            "accessoryOffEffect=true "+
+            "accessoryLegacyParser=false "+
+            "saveSignal=true "+
+            "colorCompatBoundary=true "+
+            "unrelatedRejected=true"
+        );
     }
 }
