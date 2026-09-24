@@ -96,11 +96,13 @@ public final class MakeoverClientPacketProbeTest {
         ClientRequest optionRequest=
             probe.takeTypedRequest();
         if(!(optionRequest instanceof
-                DialogueOptionClientRequest)||
-           ((DialogueOptionClientRequest)
-                optionRequest).optionIndex()!=1)
+                CommandClientRequest)||
+           !"dialogueoption 1".equals(
+               ((CommandClientRequest)
+                    optionRequest).command()))
             throw new AssertionError(
-                "option request="+optionRequest
+                "option transport request="+
+                optionRequest
             );
 
         if(probe.typedRequestCount()!=0||
@@ -116,7 +118,7 @@ public final class MakeoverClientPacketProbeTest {
             "MAKEOVER_CLIENT_PACKET_PROBE_PASS "+
             "c2s40=typed_continue "+
             "c2s101=typed_design "+
-            "c2s103_dialogueoption=typed_option "+
+            "c2s103_dialogueoption=transport_command "+
             "femaleJaw255ToMinus1=true aligned=true"
         );
     }
