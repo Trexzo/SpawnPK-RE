@@ -45,11 +45,13 @@ public final class ContentPublicApiBoundaryTest {
         ContentPlayer.class,
         ContentPresentation.class,
         ContentPresentationException.class,
+        ContentPrayerBook.class,
         ContentProvenance.class,
         ContentRegistrar.class,
         ContentRegistration.class,
         ContentResult.class,
-        ContentSkill.class
+        ContentSkill.class,
+        ContentSpellBook.class
     };
 
     private static final Set<String> FORBIDDEN_SIMPLE_NAMES=
