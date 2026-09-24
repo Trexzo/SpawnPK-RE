@@ -84,6 +84,9 @@ public final class LocalLabCoreContentModule
     public static final String DEV_SESSION_RESET_ACTION=
         "locallab.dev.reset";
 
+    public static final String PRAYER_ICON_ACTION_PREFIX=
+        "locallab.prayericon.set";
+
     @Override public String id(){
         return "locallab-core";
     }
@@ -131,6 +134,12 @@ public final class LocalLabCoreContentModule
             "prayeroff",
             100,
             this::prayerOff
+        );
+
+        registrar.command(
+            "prayericon",
+            100,
+            this::prayerIcon
         );
 
         registrar.command(
@@ -754,6 +763,32 @@ public final class LocalLabCoreContentModule
                         book
                     ),
             null
+        );
+    }
+
+    private ContentResult prayerIcon(
+        ContentCommandContext context
+    ){
+        if(context.arguments().isEmpty())
+            return null;
+
+        int icon=
+            parseInt(
+                context.arguments().get(0),
+                Integer.MIN_VALUE
+            );
+
+        if(icon<-1||
+           icon>20)
+            return ContentResult.handled(
+                "V510_PRAYER_ICON result=REJECTED_HEADICON_RANGE expected=-1..20",
+                null
+            );
+
+        return ContentResult.action(
+            PRAYER_ICON_ACTION_PREFIX+
+            ":"+
+            icon
         );
     }
 
