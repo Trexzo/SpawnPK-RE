@@ -95,8 +95,6 @@ public final class LocalPendingRequestDispatcherTest {
                     equipment,
                     presentation
                 );
-            LocalItemSpawnCommandHandler itemSpawnCommands=
-                new LocalItemSpawnCommandHandler(bank);
             LocalNurseCommandHandler nurseCommands=
                 new LocalNurseCommandHandler(
                     playerState,
@@ -283,7 +281,6 @@ public final class LocalPendingRequestDispatcherTest {
                     compColorsCommands,
                     combatCommands,
                     petCompatibilityCommands,
-                    itemSpawnCommands,
                     world.content(),
                     player,
                     new LocalCommandDispatcher.SessionBridge(){
