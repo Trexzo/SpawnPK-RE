@@ -49,6 +49,9 @@ public final class LocalLabCoreContentModule
     public static final String PET_SWITCH_COLOR_ACTION_PREFIX=
         "locallab.petswitchcolor.open";
 
+    public static final String COMBAT_FIXTURE_ACTION_PREFIX=
+        "locallab.combatfixture.hit";
+
     @Override public String id(){
         return "locallab-core";
     }
@@ -128,6 +131,12 @@ public final class LocalLabCoreContentModule
             this::petSwitchColor
         );
 
+        registrar.command(
+            "combatfixture",
+            100,
+            this::combatFixture
+        );
+
         registrar.objectOption(
             BANK_OBJECT,
             1,
@@ -185,6 +194,24 @@ public final class LocalLabCoreContentModule
                 result+
                 " authority=LOCAL_DEV_FIXTURE clientProtocol=EXACT_CURRENT",
             null
+        );
+    }
+
+    private ContentResult combatFixture(
+        ContentCommandContext context
+    ){
+        int damage=
+            context.arguments().isEmpty()
+                ?0
+                :parseInt(
+                    context.arguments().get(0),
+                    0
+                );
+
+        return ContentResult.action(
+            COMBAT_FIXTURE_ACTION_PREFIX+
+            ":"+
+            damage
         );
     }
 
