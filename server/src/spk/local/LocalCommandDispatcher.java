@@ -41,7 +41,6 @@ final class LocalCommandDispatcher {
     private final LocalCompColorsCommandHandler compColorsCommands;
     private final LocalCombatCommandHandler combatCommands;
     private final LocalPetCompatibilityCommandHandler petCompatibilityCommands;
-    private final LocalItemSpawnCommandHandler itemSpawnCommands;
     private final ContentRegistry contentRegistry;
     private final WorldPlayer worldPlayer;
     private final SessionBridge bridge;
@@ -66,7 +65,6 @@ final class LocalCommandDispatcher {
         LocalCompColorsCommandHandler compColorsCommands,
         LocalCombatCommandHandler combatCommands,
         LocalPetCompatibilityCommandHandler petCompatibilityCommands,
-        LocalItemSpawnCommandHandler itemSpawnCommands,
         ContentRegistry contentRegistry,
         WorldPlayer worldPlayer,
         SessionBridge bridge
@@ -90,7 +88,6 @@ final class LocalCommandDispatcher {
         this.compColorsCommands=Objects.requireNonNull(compColorsCommands,"compColorsCommands");
         this.combatCommands=Objects.requireNonNull(combatCommands,"combatCommands");
         this.petCompatibilityCommands=Objects.requireNonNull(petCompatibilityCommands,"petCompatibilityCommands");
-        this.itemSpawnCommands=Objects.requireNonNull(itemSpawnCommands,"itemSpawnCommands");
         this.contentRegistry=Objects.requireNonNull(contentRegistry,"contentRegistry");
         this.worldPlayer=Objects.requireNonNull(worldPlayer,"worldPlayer");
         this.bridge=Objects.requireNonNull(bridge,"bridge");
@@ -347,18 +344,6 @@ final class LocalCommandDispatcher {
                         tag+petCompatibilityCommand.logText
                     );
             }
-            return true;
-        }
-
-        LocalItemSpawnCommandHandler.Result itemSpawnCommand=
-            itemSpawnCommands.handle(p,command,serverPackets);
-        if(itemSpawnCommand!=null){
-            if(itemSpawnCommand.saveReason!=null)
-                bridge.saveAccount(tag,itemSpawnCommand.saveReason);
-            System.out.println(
-                tag+itemSpawnCommand.logText+
-                " decoderAligned="+decoderAligned
-            );
             return true;
         }
 
