@@ -49,6 +49,9 @@ public final class LocalLabCoreContentModule
     public static final String PET_SWITCH_COLOR_ACTION_PREFIX=
         "locallab.petswitchcolor.open";
 
+    public static final String PET_STATUS_ACTION=
+        "locallab.petruntime.status";
+
     public static final String COMBAT_FIXTURE_ACTION_PREFIX=
         "locallab.combatfixture.hit";
 
@@ -170,6 +173,15 @@ public final class LocalLabCoreContentModule
             "petswitchcolor",
             100,
             this::petSwitchColor
+        );
+
+        registrar.command(
+            "petstatus",
+            100,
+            context->
+                ContentResult.action(
+                    PET_STATUS_ACTION
+                )
         );
 
         registrar.command(
