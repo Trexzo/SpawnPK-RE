@@ -11,16 +11,13 @@ import java.io.IOException;
  */
 final class LocalDiagnosticCommandHandler {
     private final World world;
-    private final EquipmentState equipment;
     private final NativeItemLibraryService itemLibrary;
 
     LocalDiagnosticCommandHandler(
         World world,
-        EquipmentState equipment,
         NativeItemLibraryService itemLibrary
     ){
         this.world=java.util.Objects.requireNonNull(world,"world");
-        this.equipment=java.util.Objects.requireNonNull(equipment,"equipment");
         this.itemLibrary=java.util.Objects.requireNonNull(itemLibrary,"itemLibrary");
     }
 
@@ -44,27 +41,26 @@ final class LocalDiagnosticCommandHandler {
             return true;
         }
 
-        if(command.equalsIgnoreCase("itemlib")){
-            int item=equipment.weapon();
-            if(p.length>=2){
-                int parsed=parseInt(p[1],Integer.MIN_VALUE);
-                if(parsed!=Integer.MIN_VALUE)item=parsed;
-                else{
-                    ItemAuthorityRepository.Entry e=ItemAuthorityRepository.byExactName(joinTokens(p,1));
-                    item=e==null?-1:e.itemId;
-                }
-            }
-            if(item<0||ItemAuthorityRepository.get(item)==null){
-                System.out.println(tag+"V5150_ITEM_LIBRARY_DEV_OPEN result=REJECTED_UNKNOWN_ITEM syntax=::itemlib <itemId|exact name>");
-                return true;
-            }
-            String r=itemLibrary.open(serverPackets,item);
-            System.out.println(tag+"V5150_ITEM_LIBRARY_DEV_OPEN result="+r+
-                " opener=LOCAL_DEV_ONLY nativeRoot=47500 normalRequest=igsearch");
-            return true;
-        }
-
         return false;
+    }
+
+    String itemLibraryOpen(
+        int item,
+        ServerPacketWriter serverPackets
+    )throws IOException{
+        if(item<0||
+           ItemAuthorityRepository.get(item)==null)
+            return "V5150_ITEM_LIBRARY_DEV_OPEN result=REJECTED_UNKNOWN_ITEM syntax=::itemlib <itemId|exact name>";
+
+        String result=
+            itemLibrary.open(
+                serverPackets,
+                item
+            );
+
+        return "V5150_ITEM_LIBRARY_DEV_OPEN result="+
+            result+
+            " opener=LOCAL_DEV_ONLY nativeRoot=47500 normalRequest=igsearch";
     }
 
     String equipStr(
