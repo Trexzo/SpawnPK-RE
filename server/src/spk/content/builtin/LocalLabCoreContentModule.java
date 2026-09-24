@@ -18,6 +18,10 @@ public final class LocalLabCoreContentModule
     public static final String MAKEOVER_MAGE_ACTION=
         "locallab.makeover-mage";
 
+    public static final int BANK_OBJECT=26972;
+    public static final String BANK_OBJECT_SERVICE=
+        "locallab.bank";
+
     @Override public String id(){
         return "locallab-core";
     }
@@ -65,6 +69,16 @@ public final class LocalLabCoreContentModule
             "prayeroff",
             100,
             this::prayerOff
+        );
+
+        registrar.objectOption(
+            BANK_OBJECT,
+            1,
+            100,
+            context->
+                ContentInteractionResult.handled(
+                    BANK_OBJECT_SERVICE
+                )
         );
 
         registrar.npcOption(
