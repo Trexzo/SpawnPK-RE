@@ -221,6 +221,7 @@ public final class PetSwitchColorContentCommandActionOwnershipTest {
                     1,
                     effectPackets
                 );
+            effectPackets.flush();
 
             int beforeOpen=
                 effectWire.size();
