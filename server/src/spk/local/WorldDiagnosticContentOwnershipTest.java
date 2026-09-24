@@ -315,10 +315,6 @@ public final class WorldDiagnosticContentOwnershipTest {
             new LocalDiagnosticCommandHandler(
                 world,
                 new EquipmentState(),
-                new MovementState(),
-                new PrayerState(),
-                new MagicState(),
-                new CombatStyleState(),
                 new NativeItemLibraryService()
             );
 
