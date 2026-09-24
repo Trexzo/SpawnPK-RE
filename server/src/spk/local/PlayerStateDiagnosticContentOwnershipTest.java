@@ -267,7 +267,6 @@ public final class PlayerStateDiagnosticContentOwnershipTest {
         LocalDiagnosticCommandHandler legacy=
             new LocalDiagnosticCommandHandler(
                 world,
-                new EquipmentState(),
                 new NativeItemLibraryService()
             );
 
