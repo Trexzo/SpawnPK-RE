@@ -55,6 +55,8 @@ public final class LocalLabCoreContentModule
         "locallab.petruntime.boost";
     public static final String PET_SCOPE_SNIPE_ACTION=
         "locallab.petruntime.scopesnipe";
+    public static final String PET_PROC_ACTION=
+        "locallab.petruntime.proc";
 
     public static final String COMBAT_FIXTURE_ACTION_PREFIX=
         "locallab.combatfixture.hit";
@@ -205,6 +207,16 @@ public final class LocalLabCoreContentModule
             context->
                 ContentResult.action(
                     PET_SCOPE_SNIPE_ACTION
+                )
+        );
+
+
+        registrar.command(
+            "petproc",
+            100,
+            context->
+                ContentResult.action(
+                    PET_PROC_ACTION
                 )
         );
 
