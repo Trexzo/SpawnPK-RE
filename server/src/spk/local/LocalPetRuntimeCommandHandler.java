@@ -68,20 +68,28 @@ final class LocalPetRuntimeCommandHandler {
         );
     }
 
+    List<String> boost(
+        ServerPacketWriter serverPackets
+    )throws IOException{
+        serverPackets.varShort(
+            81,
+            CombatSync.player81GfxOnly(
+                1310,
+                0,
+                0
+            )
+        );
+
+        return one(
+            "V593_PET_BOOST_FIXTURE result=PLAYER_PRESENTATION anim=NONE gfx=1310 productionNormalPetEvidence=LIVE_COMPONENT_ISOLATION"
+        );
+    }
+
     List<String> handle(
         String[] p,
         ServerPacketWriter serverPackets
     )throws IOException{
         if(p==null||p.length<1)return null;
-
-        if(p[0].equalsIgnoreCase("petboost")){
-            serverPackets.varShort(
-                81,
-                CombatSync.player81GfxOnly(1310,0,0));
-
-            return one(
-                "V593_PET_BOOST_FIXTURE result=PLAYER_PRESENTATION anim=NONE gfx=1310 productionNormalPetEvidence=LIVE_COMPONENT_ISOLATION");
-        }
 
         if(p[0].equalsIgnoreCase("scopesnipe")){
             if(!scopesightActive()||
