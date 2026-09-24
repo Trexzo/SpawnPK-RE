@@ -34,6 +34,28 @@ public interface ContentPlayer {
         );
     }
 
+    default String switchPrayerBook(
+        ContentPrayerBook book
+    ){
+        throw new UnsupportedOperationException(
+            "prayer book mutation unavailable"
+        );
+    }
+
+    default String switchSpellBook(
+        ContentSpellBook book
+    ){
+        throw new UnsupportedOperationException(
+            "spell book mutation unavailable"
+        );
+    }
+
+    default String deactivatePrayers(){
+        throw new UnsupportedOperationException(
+            "prayer deactivation unavailable"
+        );
+    }
+
     int runEnergy();
     int specialEnergy();
     int poison();
