@@ -125,9 +125,18 @@ public final class CosmeticContentCommandActionOwnershipTest {
                         dev
                     )
                 );
+            LocalCompColorsCommandHandler compColors=
+                new LocalCompColorsCommandHandler(
+                    player.playerState(),
+                    player.equipment(),
+                    new PlayerPresentationService(
+                        dev
+                    )
+                );
             LocalContentCommandActionExecutor executor=
                 new LocalContentCommandActionExecutor(
-                    cosmetics
+                    cosmetics,
+                    compColors
                 );
 
             ByteArrayOutputStream effectWire=
@@ -141,6 +150,7 @@ public final class CosmeticContentCommandActionOwnershipTest {
                 executor.execute(
                     LocalLabCoreContentModule
                         .COSMETIC_INFO_ACTION,
+                    "::cosmetic",
                     "cosmetic-content-owner",
                     effectPackets
                 );
@@ -161,6 +171,7 @@ public final class CosmeticContentCommandActionOwnershipTest {
             ContentResult unknown=
                 executor.execute(
                     "locallab.cosmetic.unknown",
+                    "::cosmetic",
                     "cosmetic-content-owner",
                     effectPackets
                 );
@@ -186,6 +197,7 @@ public final class CosmeticContentCommandActionOwnershipTest {
                 executor.execute(
                     LocalLabCoreContentModule
                         .COSMETIC_REMOVE_ACTION,
+                    "::cosmetic",
                     "cosmetic-content-owner",
                     effectPackets
                 );
@@ -220,6 +232,7 @@ public final class CosmeticContentCommandActionOwnershipTest {
                 executor.execute(
                     LocalLabCoreContentModule
                         .COSMETIC_REMOVE_ACTION,
+                    "::cosmetic",
                     "cosmetic-content-owner",
                     effectPackets
                 );
@@ -256,6 +269,7 @@ public final class CosmeticContentCommandActionOwnershipTest {
                 executor.execute(
                     LocalLabCoreContentModule
                         .COSMETIC_HELP_ACTION,
+                    "::cosmetic",
                     "cosmetic-content-owner",
                     effectPackets
                 );
