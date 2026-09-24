@@ -249,6 +249,16 @@ final class LocalContentCommandActionExecutor {
                 petRuntime.status()
             );
 
+        if(LocalLabCoreContentModule
+                .PET_BOOST_ACTION
+                .equals(actionKey)&&
+           petRuntime!=null)
+            return Outcome.lines(
+                petRuntime.boost(
+                    packets
+                )
+            );
+
         Integer prayerIcon=
             diagnosticIntValue(
                 actionKey,
