@@ -862,6 +862,37 @@ tasks.register('appFixtureContentOwnershipRegression') {
     }
 }
 
+tasks.register('engineDiagnosticContentActionOwnershipRegression') {
+    group = 'verification'
+    description = 'Validates content-owned engine diagnostic routing while session metadata remains internal runtime state.'
+    dependsOn tasks.named('testClasses')
+
+    doLast {
+        [
+            'spk.local.EngineDiagnosticContentActionOwnershipTest',
+            'spk.local.LocalDiagnosticCommandHandlerTest',
+            'spk.local.LocalDiagnosticContentOwnershipTest',
+            'spk.local.PlayerStateDiagnosticContentOwnershipTest',
+            'spk.local.WorldDiagnosticContentOwnershipTest',
+            'spk.local.ContentPublicApiBoundaryTest',
+            'spk.local.ContentRegistryTest',
+            'spk.local.ContentHandlerSamCompatibilityTest',
+            'spk.local.ContentProvenanceAuthorityBoundaryTest',
+            'spk.local.LocalCommandDispatcherTest'
+        ].each { mainClassName ->
+            project.javaexec {
+                workingDir repoRoot
+                classpath = sourceSets.test.runtimeClasspath
+                mainClass.set(mainClassName)
+            }
+        }
+
+        logger.lifecycle(
+            'ENGINE_DIAGNOSTIC_CONTENT_ACTION_OWNERSHIP_PASS binding=true semanticAction=true policyWireBytes=0 sessionMetadataRuntimeOnly=true textParity=true runtimeWireBytes=0 legacyRoute=false dependencyTrim=true publicApiExpanded=false'
+        )
+    }
+}
+
 tasks.register('devHitContentCommandActionOwnershipRegression') {
     group = 'verification'
     description = 'Validates content-owned devhit subcommand policy with typed fail-closed runtime combat fixture effects.'
