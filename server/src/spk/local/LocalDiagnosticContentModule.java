@@ -17,6 +17,8 @@ final class LocalDiagnosticContentModule
         "locallab-diagnostics";
     static final String ENGINE_INFO_ACTION=
         "locallab.engine.info";
+    static final String EQUIPSTR_ACTION_PREFIX=
+        "locallab.equipstr.reset";
 
     private final ContentRegistry registry;
 
@@ -104,6 +106,25 @@ final class LocalDiagnosticContentModule
             context->
                 ContentResult.action(
                     ENGINE_INFO_ACTION
+                )
+        );
+
+
+        registrar.command(
+            "equipstr",
+            100,
+            context->
+                ContentResult.action(
+                    EQUIPSTR_ACTION_PREFIX+
+                    ":"+
+                    (
+                        context.arguments().isEmpty()
+                            ?-1
+                            :parseInt(
+                                context.arguments().get(0),
+                                -1
+                            )
+                    )
                 )
         );
     }
