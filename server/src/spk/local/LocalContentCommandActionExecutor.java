@@ -79,6 +79,7 @@ final class LocalContentCommandActionExecutor {
     private final LocalDiagnosticCommandHandler diagnostics;
     private final LocalDevSessionCommandHandler devSession;
     private final LocalPrayerMagicCommandHandler prayerMagic;
+    private final LocalPetRuntimeCommandHandler petRuntime;
 
     LocalContentCommandActionExecutor(
         LocalCosmeticCommandHandler cosmetics,
@@ -163,6 +164,30 @@ final class LocalContentCommandActionExecutor {
         LocalDevSessionCommandHandler devSession,
         LocalPrayerMagicCommandHandler prayerMagic
     ){
+        this(
+            cosmetics,
+            compColors,
+            miniPets,
+            petCompatibility,
+            combat,
+            diagnostics,
+            devSession,
+            prayerMagic,
+            null
+        );
+    }
+
+    LocalContentCommandActionExecutor(
+        LocalCosmeticCommandHandler cosmetics,
+        LocalCompColorsCommandHandler compColors,
+        LocalMiniPetCommandHandler miniPets,
+        LocalPetCompatibilityCommandHandler petCompatibility,
+        LocalCombatCommandHandler combat,
+        LocalDiagnosticCommandHandler diagnostics,
+        LocalDevSessionCommandHandler devSession,
+        LocalPrayerMagicCommandHandler prayerMagic,
+        LocalPetRuntimeCommandHandler petRuntime
+    ){
         this.cosmetics=
             java.util.Objects.requireNonNull(
                 cosmetics,
@@ -187,6 +212,7 @@ final class LocalContentCommandActionExecutor {
         this.diagnostics=diagnostics;
         this.devSession=devSession;
         this.prayerMagic=prayerMagic;
+        this.petRuntime=petRuntime;
     }
 
     Outcome executeOutcome(
@@ -215,6 +241,14 @@ final class LocalContentCommandActionExecutor {
         SceneUpdatePublisher scenePublisher,
         ServerPacketWriter packets
     )throws IOException{
+        if(LocalLabCoreContentModule
+                .PET_STATUS_ACTION
+                .equals(actionKey)&&
+           petRuntime!=null)
+            return Outcome.lines(
+                petRuntime.status()
+            );
+
         Integer prayerIcon=
             diagnosticIntValue(
                 actionKey,
