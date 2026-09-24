@@ -90,33 +90,13 @@ final class LocalPetCompatibilityCommandHandler {
         );
     }
 
-    Outcome handle(
-        String[] p,
+    LocalPetInventoryDialogHandler.Result switchColor(
+        int requested,
         ServerPacketWriter serverPackets
     )throws IOException{
-        if(p==null||p.length<1)return null;
-
-        if(p[0].equalsIgnoreCase("petswitchcolor")){
-            int requested=
-                p.length>=2
-                    ?parseInt(p[1],-1)
-                    :-1;
-
-            return Outcome.dialog(
-                petDialogs.openScoobyColorCompat(
-                    requested,
-                    serverPackets)
-            );
-        }
-
-        return null;
-    }
-
-    private static int parseInt(String value,int fallback){
-        try{
-            return Integer.parseInt(value);
-        }catch(Exception e){
-            return fallback;
-        }
+        return petDialogs.openScoobyColorCompat(
+            requested,
+            serverPackets
+        );
     }
 }
