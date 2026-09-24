@@ -2,7 +2,6 @@ package spk.local;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 
 /**
@@ -33,18 +32,84 @@ final class LocalCombatCommandHandler {
         this.petRuntime=java.util.Objects.requireNonNull(petRuntime,"petRuntime");
     }
 
-    List<String> handle(
-        String[] p,
-        String rawCommand,
-        ServerPacketWriter serverPackets
-    )throws IOException{
-        if(p==null||p.length<1)return null;
+    String devHitInfo(){
+        return "V5128_"+
+            combat.devHitInfo();
+    }
 
-        if(p[0].equalsIgnoreCase("devhit")){
-            return one("V5128_"+combat.devHitCommand(p));
-        }
+    String devHitReset(){
+        return "V5128_"+
+            combat.devHitReset();
+    }
 
-        return null;
+    String devHitDamageAuto(){
+        return "V5128_"+
+            combat.devHitDamageAuto();
+    }
+
+    String devHitDamage(
+        int damage
+    ){
+        return "V5128_"+
+            combat.devHitDamage(
+                damage
+            );
+    }
+
+    String devHitSequenceOff(){
+        return "V5128_"+
+            combat.devHitSequenceOff();
+    }
+
+    String devHitSequence(
+        int[] sequence
+    ){
+        return "V5128_"+
+            combat.devHitSequence(
+                sequence
+            );
+    }
+
+    String devHitVariant(
+        boolean auto
+    ){
+        return "V5128_"+
+            combat.devHitVariant(
+                auto
+            );
+    }
+
+    String devHitNextType(){
+        return "V5128_"+
+            combat.devHitNextType();
+    }
+
+    String devHitPreviousType(){
+        return "V5128_"+
+            combat.devHitPreviousType();
+    }
+
+    String devHitType(
+        int type
+    ){
+        return "V5128_"+
+            combat.devHitType(
+                type
+            );
+    }
+
+    String devHitStyleIcon(
+        int styleIcon
+    ){
+        return "V5128_"+
+            combat.devHitStyleIcon(
+                styleIcon
+            );
+    }
+
+    String devHitPlacementPrimary(){
+        return "V5128_"+
+            combat.devHitPlacementPrimary();
     }
 
     List<String> fixture(
@@ -91,8 +156,5 @@ final class LocalCombatCommandHandler {
         );
     }
 
-    private static List<String> one(String line){
-        return Collections.singletonList(line);
-    }
 
 }
