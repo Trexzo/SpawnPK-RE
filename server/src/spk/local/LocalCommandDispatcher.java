@@ -137,7 +137,9 @@ final class LocalCommandDispatcher {
                         contentCommandActions.execute(
                             content.actionKey(),
                             username,
-                            serverPackets
+                            p.length==0?"":p[0],
+                            serverPackets,
+                            bridge
                         );
 
                 if(content.saveReason()!=null)
@@ -367,16 +369,8 @@ final class LocalCommandDispatcher {
 
     static boolean isDevPanelRoute(String[] p){
         return p!=null&&
-            p.length>=1&&
-            (
-                p[0].equalsIgnoreCase("devpanel")||
-                p[0].equalsIgnoreCase("devui")||
-                p[0].equalsIgnoreCase("lab")||
-                (
-                    p[0].equalsIgnoreCase("dev")&&
-                    p.length>=2&&
-                    p[1].equalsIgnoreCase("panel")
-                )
-            );
+            p.length>=2&&
+            p[0].equalsIgnoreCase("dev")&&
+            p[1].equalsIgnoreCase("panel");
     }
 }
