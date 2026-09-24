@@ -223,8 +223,6 @@ public final class LocalPendingRequestDispatcherTest {
             LocalCombatCommandHandler combatCommands=
                 new LocalCombatCommandHandler(
                     combat,
-                    equipment,
-                    combatStyles,
                     npcs,
                     petRuntimeCommands
                 );
