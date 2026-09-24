@@ -6,8 +6,9 @@ import spk.content.api.*;
 /**
  * Internal LocalLab diagnostics exposed through the content-command lifecycle.
  *
- * This module intentionally stays in spk.local: it may read internal diagnostic
- * state, but no such capability is added to the public plugin/content API.
+ * This module intentionally stays in spk.local so authority/collision
+ * repositories remain internal. It consumes only the generic semantic player
+ * position exposed by the public content facade.
  */
 final class LocalDiagnosticContentModule
     implements ContentModule {
@@ -54,6 +55,140 @@ final class LocalDiagnosticContentModule
                     null
                 )
         );
+
+
+        registrar.command(
+            "worldauth",
+            100,
+            this::worldAuthority
+        );
+
+        registrar.command(
+            "collisionauth",
+            100,
+            this::collisionAuthority
+        );
+    }
+
+    private ContentResult worldAuthority(
+        ContentCommandContext context
+    ){
+        ContentPlayer player=
+            context.player();
+
+        int region=
+            context.arguments().isEmpty()
+                ?regionId(
+                    player.worldX(),
+                    player.worldY()
+                )
+                :parseInt(
+                    context.arguments().get(0),
+                    -1
+                );
+
+        WorldRegionAuthorityRepository.Region
+            authority=
+                WorldRegionAuthorityRepository.get(
+                    region
+                );
+
+        return ContentResult.handled(
+            "V5150_WORLD_AUTHORITY region="+
+                region+
+                " result="+
+                (authority==null
+                    ?"UNKNOWN"
+                    :authority.toString())+
+                " repositoryRegions="+
+                WorldRegionAuthorityRepository.count()+
+                " decoded="+
+                WorldRegionAuthorityRepository
+                    .fullyDecodedCount()+
+                " productionConfirmed="+
+                WorldRegionAuthorityRepository
+                    .productionConfirmedCount()+
+                " behavior=DATA_ONLY_NO_TELEPORT",
+            null
+        );
+    }
+
+    private ContentResult collisionAuthority(
+        ContentCommandContext context
+    ){
+        ContentPlayer player=
+            context.player();
+
+        int x=player.worldX();
+        int y=player.worldY();
+        int plane=player.plane();
+
+        if(context.arguments().size()>=2){
+            x=parseInt(
+                context.arguments().get(0),
+                x
+            );
+            y=parseInt(
+                context.arguments().get(1),
+                y
+            );
+        }
+
+        if(context.arguments().size()>=3)
+            plane=parseInt(
+                context.arguments().get(2),
+                plane
+            );
+
+        int region=
+            regionId(
+                x,
+                y
+            );
+
+        return ContentResult.handled(
+            "V5160_COLLISION_AUTH world="+
+                x+","+y+","+plane+
+                " region="+region+
+                " mask="+
+                WorldCollisionAuthority.maskAt(
+                    x,
+                    y,
+                    plane
+                )+
+                " blocked="+
+                WorldCollisionAuthority.blockedTile(
+                    x,
+                    y,
+                    plane
+                )+
+                " repositoryRegions="+
+                WorldCollisionAuthority.regionCount()+
+                " entries="+
+                WorldCollisionAuthority.entryCount(),
+            null
+        );
+    }
+
+    private static int regionId(
+        int x,
+        int y
+    ){
+        return ((x>>6)<<8)|
+            (y>>6);
+    }
+
+    private static int parseInt(
+        String value,
+        int fallback
+    ){
+        try{
+            return Integer.parseInt(
+                value
+            );
+        }catch(Exception ignored){
+            return fallback;
+        }
     }
 
     static String authoritySummary(){

@@ -22,24 +22,6 @@ final class LocalPrayerMagicCommandHandler {
         if(p==null||p.length==0)return false;
         String command=p[0];
 
-        if(p.length>=2 && command.equalsIgnoreCase("prayerbook")){
-            String r=prayers.switchBook(p[1],serverPackets);
-            System.out.println(tag+"V510_PRAYER_BOOK command="+clean+" result="+r);
-            return true;
-        }
-
-        if(p.length>=2 && command.equalsIgnoreCase("spellbook")){
-            String r=magic.switchBook(p[1],serverPackets);
-            System.out.println(tag+"V510_SPELL_BOOK command="+clean+" result="+r);
-            return true;
-        }
-
-        if(command.equalsIgnoreCase("prayeroff")){
-            String r=prayers.deactivateAll(serverPackets);
-            System.out.println(tag+"V510_PRAYER_OFF result="+r);
-            return true;
-        }
-
         if(p.length>=2 && command.equalsIgnoreCase("prayericon")){
             int icon=parseInt(p[1],-999);
             String r=prayers.publishManualHeadIcon(icon,serverPackets);

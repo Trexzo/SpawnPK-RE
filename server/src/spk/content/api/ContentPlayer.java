@@ -18,6 +18,62 @@ public interface ContentPlayer {
     Set<ContentSkill> syncMaintainedPetEffects();
     boolean maintainedPetEffectActive();
 
+    /**
+     * Grant an item by semantic item identity and amount.
+     *
+     * Exact inventory/container publication stays runtime-owned. Alternate
+     * content runtimes fail closed unless they explicitly support this
+     * capability.
+     */
+    default String grantItem(
+        int itemId,
+        int amount
+    ){
+        throw new UnsupportedOperationException(
+            "item grant unavailable"
+        );
+    }
+
+    default String switchPrayerBook(
+        ContentPrayerBook book
+    ){
+        throw new UnsupportedOperationException(
+            "prayer book mutation unavailable"
+        );
+    }
+
+    default String switchSpellBook(
+        ContentSpellBook book
+    ){
+        throw new UnsupportedOperationException(
+            "spell book mutation unavailable"
+        );
+    }
+
+    default String deactivatePrayers(){
+        throw new UnsupportedOperationException(
+            "prayer deactivation unavailable"
+        );
+    }
+
+    default int worldX(){
+        throw new UnsupportedOperationException(
+            "player position unavailable"
+        );
+    }
+
+    default int worldY(){
+        throw new UnsupportedOperationException(
+            "player position unavailable"
+        );
+    }
+
+    default int plane(){
+        throw new UnsupportedOperationException(
+            "player position unavailable"
+        );
+    }
+
     int runEnergy();
     int specialEnergy();
     int poison();

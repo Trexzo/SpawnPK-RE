@@ -35,7 +35,6 @@ final class LocalSession implements Runnable {
     private final LocalMiniPetCommandHandler miniPetCommands;
     private final LocalCosmeticCommandHandler cosmeticCommands;
     private final LocalCompColorsCommandHandler compColorsCommands;
-    private final LocalItemSpawnCommandHandler itemSpawnCommands;
     private final LocalBankRequestHandler bankRequests;
     private final LocalItemOnItemHandler itemOnItemHandler;
     private final LocalSpellTargetHandler spellTargetHandler;
@@ -137,7 +136,6 @@ final class LocalSession implements Runnable {
         this.miniPetCommands = new LocalMiniPetCommandHandler(miniPets,petState,npcs,movement);
         this.cosmeticCommands = new LocalCosmeticCommandHandler(bank,equipment,playerState,playerPresentation);
         this.compColorsCommands = new LocalCompColorsCommandHandler(playerState,equipment,playerPresentation);
-        this.itemSpawnCommands = new LocalItemSpawnCommandHandler(bank);
         this.bankRequests = new LocalBankRequestHandler(worldPlayer,bank);
         this.itemOnItemHandler = new LocalItemOnItemHandler(bank);
         this.spellTargetHandler = new LocalSpellTargetHandler(
@@ -148,7 +146,11 @@ final class LocalSession implements Runnable {
             bank,npcs,movement,petAccessoryState);
         this.gameplayWidgetHandler = new LocalGameplayWidgetHandler(
             prayers,playerState,equipment,combatStyles,magic,bank);
-        this.bankObjectHandler = new LocalBankObjectInteractionHandler(bank,movement);
+        this.bankObjectHandler = new LocalBankObjectInteractionHandler(
+            bank,
+            movement,
+            world.content()
+        );
         this.routedNpcHandler = new LocalRoutedNpcInteractionHandler(
             npcs,
             bank,
@@ -308,7 +310,6 @@ final class LocalSession implements Runnable {
             compColorsCommands,
             combatCommands,
             petCompatibilityCommands,
-            itemSpawnCommands,
             world.content(),
             worldPlayer,
             new LocalCommandDispatcher.SessionBridge(){

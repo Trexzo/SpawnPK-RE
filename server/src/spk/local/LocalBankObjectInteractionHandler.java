@@ -1,6 +1,8 @@
 package spk.local;
 
 import java.io.IOException;
+import spk.content.api.ContentInteractionResult;
+import spk.content.builtin.LocalLabCoreContentModule;
 
 /**
  * Typed object-interaction coordinator for the exact current bank-object path.
@@ -13,23 +15,54 @@ final class LocalBankObjectInteractionHandler {
     private final BankState bank;
     private final MovementState movement;
     private final InteractionApproachResolver approach;
+    private final ContentRegistry contentRegistry;
 
     private ObjectInteraction pending;
     private long pendingDeadlineMs;
 
-    LocalBankObjectInteractionHandler(BankState bank,MovementState movement){
+    LocalBankObjectInteractionHandler(
+        BankState bank,
+        MovementState movement
+    ){
+        this(
+            bank,
+            movement,
+            null
+        );
+    }
+
+    LocalBankObjectInteractionHandler(
+        BankState bank,
+        MovementState movement,
+        ContentRegistry contentRegistry
+    ){
         this.bank=java.util.Objects.requireNonNull(bank,"bank");
         this.movement=java.util.Objects.requireNonNull(movement,"movement");
         this.approach=new InteractionApproachResolver(this.movement);
+        this.contentRegistry=contentRegistry;
     }
 
     String handle(ObjectInteraction request,ServerPacketWriter serverPackets)throws IOException{
         if(request==null)return null;
 
-        if(request.objectId!=BankState.BANK_OBJECT_ID){
+        ContentInteractionResult content=
+            contentDecision(
+                request
+            );
+
+        if(content==null){
             pending=null;
             return "OBJECT_INTERACTION "+request+
                 " action=DECODED_NOT_IMPLEMENTED decoderAligned=true";
+        }
+
+        if(!LocalLabCoreContentModule
+                .BANK_OBJECT_SERVICE
+                .equals(content.outcome())){
+            pending=null;
+            return "OBJECT_INTERACTION "+request+
+                " action=CONTENT_HANDLED_FAIL_CLOSED"+
+                " outcome="+content.outcome();
         }
 
         if(adjacentTo(request.worldX,request.worldY)){
@@ -93,6 +126,23 @@ final class LocalBankObjectInteractionHandler {
 
     boolean hasPending(){
         return pending!=null;
+    }
+
+    private ContentInteractionResult contentDecision(
+        ObjectInteraction request
+    ){
+        if(contentRegistry==null||
+           request==null||
+           request.opcode!=132)
+            return null;
+
+        return contentRegistry
+            .dispatchObjectOption(
+                request.objectId,
+                1,
+                request.worldX,
+                request.worldY
+            );
     }
 
     private String openNow(

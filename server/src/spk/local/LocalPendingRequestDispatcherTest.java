@@ -95,8 +95,6 @@ public final class LocalPendingRequestDispatcherTest {
                     equipment,
                     presentation
                 );
-            LocalItemSpawnCommandHandler itemSpawnCommands=
-                new LocalItemSpawnCommandHandler(bank);
             LocalBankRequestHandler bankRequests=
                 new LocalBankRequestHandler(
                     player,
@@ -277,7 +275,6 @@ public final class LocalPendingRequestDispatcherTest {
                     compColorsCommands,
                     combatCommands,
                     petCompatibilityCommands,
-                    itemSpawnCommands,
                     world.content(),
                     player,
                     new LocalCommandDispatcher.SessionBridge(){
