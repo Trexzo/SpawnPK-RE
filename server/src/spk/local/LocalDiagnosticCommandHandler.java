@@ -12,27 +12,15 @@ import java.io.IOException;
 final class LocalDiagnosticCommandHandler {
     private final World world;
     private final EquipmentState equipment;
-    private final MovementState movement;
-    private final PrayerState prayers;
-    private final MagicState magic;
-    private final CombatStyleState combatStyles;
     private final NativeItemLibraryService itemLibrary;
 
     LocalDiagnosticCommandHandler(
         World world,
         EquipmentState equipment,
-        MovementState movement,
-        PrayerState prayers,
-        MagicState magic,
-        CombatStyleState combatStyles,
         NativeItemLibraryService itemLibrary
     ){
         this.world=java.util.Objects.requireNonNull(world,"world");
         this.equipment=java.util.Objects.requireNonNull(equipment,"equipment");
-        this.movement=java.util.Objects.requireNonNull(movement,"movement");
-        this.prayers=java.util.Objects.requireNonNull(prayers,"prayers");
-        this.magic=java.util.Objects.requireNonNull(magic,"magic");
-        this.combatStyles=java.util.Objects.requireNonNull(combatStyles,"combatStyles");
         this.itemLibrary=java.util.Objects.requireNonNull(itemLibrary,"itemLibrary");
     }
 
