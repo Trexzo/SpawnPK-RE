@@ -79,6 +79,7 @@ final class LocalCommandDispatcher {
         this.compColorsCommands=Objects.requireNonNull(compColorsCommands,"compColorsCommands");
         this.petCompatibilityCommands=Objects.requireNonNull(petCompatibilityCommands,"petCompatibilityCommands");
         this.combatCommands=Objects.requireNonNull(combatCommands,"combatCommands");
+        this.devSessionCommands=Objects.requireNonNull(devSessionCommands,"devSessionCommands");
         this.contentCommandActions=
             new LocalContentCommandActionExecutor(
                 this.cosmeticCommands,
@@ -86,11 +87,11 @@ final class LocalCommandDispatcher {
                 this.miniPetCommands,
                 this.petCompatibilityCommands,
                 this.combatCommands,
-                this.diagnosticCommands
+                this.diagnosticCommands,
+                this.devSessionCommands
             );
         this.devWorldCommands=Objects.requireNonNull(devWorldCommands,"devWorldCommands");
         this.dev=Objects.requireNonNull(dev,"dev");
-        this.devSessionCommands=Objects.requireNonNull(devSessionCommands,"devSessionCommands");
         this.devPetCommands=Objects.requireNonNull(devPetCommands,"devPetCommands");
         this.devPlayerCommands=Objects.requireNonNull(devPlayerCommands,"devPlayerCommands");
         this.devNpcCommands=Objects.requireNonNull(devNpcCommands,"devNpcCommands");
@@ -252,18 +253,6 @@ final class LocalCommandDispatcher {
                 "C2S103 command=\""+clean+"\" -> router="+p[0],
                 "EXACT_C2S103_TRANSPORT/LOCAL_DEV_ROUTE"
             );
-        }
-
-        String devSessionCommand=
-            devSessionCommands.handle(
-                p,
-                username,
-                bridge.scenePublisher(),
-                serverPackets
-            );
-        if(devSessionCommand!=null){
-            System.out.println(tag+devSessionCommand);
-            return true;
         }
 
         List<String> devPetCommand=
