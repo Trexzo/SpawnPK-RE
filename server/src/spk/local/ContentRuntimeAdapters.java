@@ -238,6 +238,18 @@ final class ContentRuntimeAdapters {
             }
         }
 
+        @Override public int worldX(){
+            return movement.x();
+        }
+
+        @Override public int worldY(){
+            return movement.y();
+        }
+
+        @Override public int plane(){
+            return movement.plane();
+        }
+
         @Override public int runEnergy(){
             return movement.runEnergy();
         }
