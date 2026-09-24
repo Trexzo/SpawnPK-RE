@@ -132,6 +132,288 @@ tasks.register('verifyJava11Bytecode') {
     }
 }
 
+def pluginApiTopLevelClasses = [
+    'spk.content.api.ContentActionContext',
+    'spk.content.api.ContentActionHandler',
+    'spk.content.api.ContentActionResult',
+    'spk.content.api.ContentCommandContext',
+    'spk.content.api.ContentCommandHandler',
+    'spk.content.api.ContentDialogueContext',
+    'spk.content.api.ContentDialogueDefinition',
+    'spk.content.api.ContentDialogueHandler',
+    'spk.content.api.ContentDialogueNode',
+    'spk.content.api.ContentDialogueIntent',
+    'spk.content.api.ContentDialoguePresentation',
+    'spk.content.api.ContentDialogueTransition',
+    'spk.content.api.ContentInteractionResult',
+    'spk.content.api.ContentItemOnGroundItemContext',
+    'spk.content.api.ContentItemOnGroundItemHandler',
+    'spk.content.api.ContentItemOnItemContext',
+    'spk.content.api.ContentItemOnItemHandler',
+    'spk.content.api.ContentItemOnNpcContext',
+    'spk.content.api.ContentItemOnNpcHandler',
+    'spk.content.api.ContentItemOnObjectContext',
+    'spk.content.api.ContentItemOnObjectHandler',
+    'spk.content.api.ContentItemOnPlayerContext',
+    'spk.content.api.ContentItemOnPlayerHandler',
+    'spk.content.api.ContentItemOptionContext',
+    'spk.content.api.ContentItemOptionHandler',
+    'spk.content.api.ContentModule',
+    'spk.content.api.ContentNpcOptionContext',
+    'spk.content.api.ContentNpcOptionHandler',
+    'spk.content.api.ContentNpcOptionResult',
+    'spk.content.api.ContentNpcService',
+    'spk.content.api.ContentObjectOptionContext',
+    'spk.content.api.ContentObjectOptionHandler',
+    'spk.content.api.ContentPlayer',
+    'spk.content.api.ContentPresentation',
+    'spk.content.api.ContentPresentationException',
+    'spk.content.api.ContentPrayerBook',
+    'spk.content.api.ContentProvenance',
+    'spk.content.api.ContentRegistrar',
+    'spk.content.api.ContentRegistration',
+    'spk.content.api.ContentResult',
+    'spk.content.api.ContentSkill',
+    'spk.content.api.ContentSpellBook',
+    'spk.plugin.api.Plugin',
+    'spk.plugin.api.PluginApiVersion',
+    'spk.plugin.api.PluginContext',
+    'spk.plugin.api.PluginEvents',
+    'spk.plugin.api.PluginHandle',
+    'spk.plugin.api.PluginManager',
+    'spk.plugin.api.PluginManifest',
+    'spk.plugin.api.PluginScheduler',
+    'spk.plugin.api.PluginTask'
+]
+
+def pluginApiClassPatterns =
+    pluginApiTopLevelClasses.collect { binaryName ->
+        binaryName.replace('.', '/') +
+        '.class'
+    } + [
+        'spk/content/api/ContentActionResult$Decision.class',
+        'spk/content/api/ContentDialogueNode$InputMode.class',
+        'spk/content/api/ContentDialogueIntent$Kind.class',
+        'spk/content/api/ContentDialogueTransition$Kind.class',
+        'spk/event/DomainEventBus.class',
+        'spk/event/DomainEventBus$Event.class',
+        'spk/event/DomainEventBus$Cancellable.class',
+        'spk/event/DomainEventBus$Priority.class',
+        'spk/event/DomainEventBus$Listener.class',
+        'spk/event/DomainEventBus$Subscription.class'
+    ]
+
+def pluginApiJar =
+    tasks.register('pluginApiJar', Jar) {
+        group = 'build'
+        description = 'Builds the allowlisted Java-11 plugin/content/event API artifact for external plugin developers.'
+        dependsOn tasks.named('classes')
+        archiveFileName = 'SpawnPKPluginApi.jar'
+        destinationDirectory = layout.buildDirectory
+        duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+
+        from(sourceSets.main.output.classesDirs) {
+            pluginApiClassPatterns.each { pattern ->
+                include pattern
+            }
+        }
+    }
+
+tasks.named('assemble') {
+    dependsOn pluginApiJar
+}
+
+def compileJavaPluginApiFixture =
+    tasks.register(
+        'compileJavaPluginApiFixture',
+        JavaCompile
+    ) {
+        group = 'verification'
+        description = 'Compiles an external Java plugin fixture against SpawnPKPluginApi.jar only.'
+        dependsOn pluginApiJar
+        source = fileTree('plugin-fixtures/java') {
+            include '**/*.java'
+        }
+        classpath = files(
+            pluginApiJar.flatMap {
+                it.archiveFile
+            }
+        )
+        destinationDirectory =
+            layout.buildDirectory.dir(
+                'plugin-fixtures/java-classes'
+            )
+        options.release = 11
+        options.encoding = 'UTF-8'
+    }
+
+tasks.register('pluginDeveloperApiArtifactRegression') {
+    group = 'verification'
+    description = 'Locks the standalone allowlisted plugin API JAR and Java/JVM consumer boundary.'
+    dependsOn(
+        pluginApiJar,
+        compileJavaPluginApiFixture,
+        tasks.named('testClasses')
+    )
+
+    doLast {
+        File apiJar =
+            pluginApiJar.get()
+                .archiveFile.get()
+                .asFile
+
+        if(!apiJar.isFile())
+            throw new GradleException(
+                "Missing plugin API artifact: " +
+                apiJar
+            )
+
+        Set<String> entries =
+            new TreeSet<>()
+
+        new java.util.jar.JarFile(apiJar)
+            .withCloseable { jar ->
+                def enumeration =
+                    jar.entries()
+
+                while(enumeration.hasMoreElements()) {
+                    def entry =
+                        enumeration.nextElement()
+
+                    if(!entry.isDirectory())
+                        entries.add(
+                            entry.getName()
+                        )
+                }
+            }
+
+        if(entries.any {
+                it.startsWith('spk/local/')
+            })
+            throw new GradleException(
+                'Plugin API artifact contains spk/local classes.'
+            )
+
+        Set<String> allowedClassEntries =
+            new TreeSet<String>(
+                pluginApiClassPatterns
+            )
+
+        Set<String> actualClassEntries =
+            new TreeSet<String>(
+                entries.findAll {
+                    it.endsWith('.class')
+                }
+            )
+
+        Set<String> unexpected =
+            new TreeSet<String>(
+                actualClassEntries
+            )
+        unexpected.removeAll(
+            allowedClassEntries
+        )
+
+        if(!unexpected.isEmpty())
+            throw new GradleException(
+                'Unexpected plugin API artifact classes: ' +
+                unexpected
+            )
+
+        pluginApiTopLevelClasses.each { binaryName ->
+            String entry =
+                binaryName.replace('.', '/') +
+                '.class'
+
+            if(!actualClassEntries.contains(entry))
+                throw new GradleException(
+                    'Missing API class from artifact: ' +
+                    binaryName
+                )
+        }
+
+        for(String eventEntry : [
+                'spk/event/DomainEventBus.class',
+                'spk/event/DomainEventBus$Event.class',
+                'spk/event/DomainEventBus$Cancellable.class',
+                'spk/event/DomainEventBus$Priority.class',
+                'spk/event/DomainEventBus$Listener.class',
+                'spk/event/DomainEventBus$Subscription.class'
+        ])
+            if(!actualClassEntries.contains(eventEntry))
+                throw new GradleException(
+                    'Missing event API class from artifact: ' +
+                    eventEntry
+                )
+
+        def apiClassFiles =
+            zipTree(apiJar)
+                .matching {
+                    include '**/*.class'
+                }
+                .files
+
+        if(apiClassFiles.empty)
+            throw new GradleException(
+                'Plugin API artifact contains no classes.'
+            )
+
+        apiClassFiles.each { classFile ->
+            int major =
+                readClassMajor(
+                    classFile
+                )
+
+            if(major != 55)
+                throw new GradleException(
+                    "Plugin API bytecode compatibility failure: " +
+                    classFile +
+                    " major=" +
+                    major +
+                    ", expected=55"
+                )
+        }
+
+        File javaFixture =
+            new File(
+                layout.buildDirectory
+                    .get()
+                    .asFile,
+                'plugin-fixtures/java-classes/spk/plugin/fixture/JavaPluginApiFixture.class'
+            )
+
+        if(!javaFixture.isFile())
+            throw new GradleException(
+                'Java plugin API fixture did not compile.'
+            )
+
+        int fixtureMajor =
+            readClassMajor(
+                javaFixture
+            )
+
+        if(fixtureMajor != 55)
+            throw new GradleException(
+                "Java plugin fixture major=" +
+                fixtureMajor +
+                ", expected=55"
+            )
+
+        logger.lifecycle(
+            'PLUGIN_DEVELOPER_API_ARTIFACT_PASS ' +
+            'artifact=SpawnPKPluginApi.jar ' +
+            'allowlistedClasses=' +
+            actualClassEntries.size() +
+            ' spkLocalLeak=false ' +
+            'javaConsumer=true ' +
+            'javaConsumerServerJar=false ' +
+            'bytecodeMajor=55 ' +
+            'kotlinConsumerDeferred=true ' +
+            'classloaderIsolationDeferred=true'
+        )
+    }
+}
+
 def sha256 = { File f ->
     def digest = java.security.MessageDigest.getInstance('SHA-256')
     f.withInputStream { input ->
