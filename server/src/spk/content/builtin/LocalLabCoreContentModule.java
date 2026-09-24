@@ -41,6 +41,11 @@ public final class LocalLabCoreContentModule
     public static final String MINIPET_HELP_ACTION=
         "locallab.minipet.help";
 
+    public static final String PET_ACCESSORY_STATUS_ACTION=
+        "locallab.petaccessory.status";
+    public static final String PET_ACCESSORY_OFF_ACTION=
+        "locallab.petaccessory.off";
+
     @Override public String id(){
         return "locallab-core";
     }
@@ -108,6 +113,12 @@ public final class LocalLabCoreContentModule
             this::miniPet
         );
 
+        registrar.command(
+            "petaccessory",
+            100,
+            this::petAccessory
+        );
+
         registrar.objectOption(
             BANK_OBJECT,
             1,
@@ -165,6 +176,29 @@ public final class LocalLabCoreContentModule
                 result+
                 " authority=LOCAL_DEV_FIXTURE clientProtocol=EXACT_CURRENT",
             null
+        );
+    }
+
+    private ContentResult petAccessory(
+        ContentCommandContext context
+    ){
+        String sub=
+            context.arguments().isEmpty()
+                ?"status"
+                :context.arguments().get(0)
+                    .toLowerCase(
+                        Locale.ROOT
+                    );
+
+        if("off".equals(sub)||
+           "none".equals(sub)||
+           "disable".equals(sub))
+            return ContentResult.action(
+                PET_ACCESSORY_OFF_ACTION
+            );
+
+        return ContentResult.action(
+            PET_ACCESSORY_STATUS_ACTION
         );
     }
 
