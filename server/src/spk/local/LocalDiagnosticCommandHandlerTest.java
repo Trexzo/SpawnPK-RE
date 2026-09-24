@@ -16,7 +16,6 @@ public final class LocalDiagnosticCommandHandlerTest {
             LocalDiagnosticCommandHandler h=
                 new LocalDiagnosticCommandHandler(
                     world,
-                    player.equipment(),
                     new NativeItemLibraryService()
                 );
 
