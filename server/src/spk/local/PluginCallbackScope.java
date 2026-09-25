@@ -57,6 +57,7 @@ final class PluginCallbackScope
     }
 
     private volatile BooleanSupplier worldExecution;
+    private volatile BooleanSupplier worldOpen;
     private volatile boolean active;
     private volatile boolean closing;
     private volatile boolean closed;
@@ -66,10 +67,25 @@ final class PluginCallbackScope
     PluginCallbackScope(
         BooleanSupplier worldExecution
     ){
+        this(
+            worldExecution,
+            ()->true
+        );
+    }
+
+    PluginCallbackScope(
+        BooleanSupplier worldExecution,
+        BooleanSupplier worldOpen
+    ){
         this.worldExecution=
             Objects.requireNonNull(
                 worldExecution,
                 "worldExecution"
+            );
+        this.worldOpen=
+            Objects.requireNonNull(
+                worldOpen,
+                "worldOpen"
             );
     }
 
@@ -149,6 +165,7 @@ final class PluginCallbackScope
         closing=true;
         closed=true;
         worldExecution=null;
+        worldOpen=null;
         quiescenceListener=null;
         notifyAll();
     }
@@ -262,6 +279,15 @@ final class PluginCallbackScope
         if(!active||closing||closed)
             throw new AdmissionException(
                 "plugin callback scope inactive"
+            );
+
+        BooleanSupplier open=
+            worldOpen;
+
+        if(open==null||
+           !open.getAsBoolean())
+            throw new AdmissionException(
+                "plugin callback requires open World"
             );
 
         BooleanSupplier execution=

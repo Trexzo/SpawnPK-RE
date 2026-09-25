@@ -377,7 +377,8 @@ final class WorldPluginManager
             CONTENT_PREFIX+id;
         PluginCallbackScope callbackScope=
             new PluginCallbackScope(
-                worldExecution
+                worldExecution,
+                worldOpen
             );
 
         EventTracker tracker=
