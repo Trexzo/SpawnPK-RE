@@ -18,6 +18,7 @@ public final class PluginRuntimeFailureCascadeTest {
         contentFailureNoFallback();
         enablePhaseEventSkip();
         batchCommitPublicationBarrier();
+        pendingTaskDefersBehindAdmission();
         explicitDisableInFlightFailure();
         cleanupFailureDetached();
 
@@ -37,6 +38,7 @@ public final class PluginRuntimeFailureCascadeTest {
             "batchTaskDeferredUntilCommit=true "+
             "failedBatchTaskHandleTerminal=true "+
             "batchCommitPublicationBarrier=true "+
+            "preCommitTaskDefers=true "+
             "admissionRejectionNotFailure=true "+
             "claimedFailureRecorded=true "+
             "cleanupFailureDetached=true "+
@@ -1099,6 +1101,97 @@ public final class PluginRuntimeFailureCascadeTest {
             }
 
             world.close();
+        }
+    }
+
+    private static void pendingTaskDefersBehindAdmission()
+        throws Exception{
+        GameClock clock=
+            new GameClock();
+        WorldEventQueue queue=
+            new WorldEventQueue();
+        AtomicBoolean worldOpen=
+            new AtomicBoolean(true);
+        AtomicBoolean runtimeEnabled=
+            new AtomicBoolean(false);
+        AtomicReference<Throwable> callbackFailure=
+            new AtomicReference<>();
+        AtomicInteger runs=
+            new AtomicInteger();
+        PluginCallbackScope callbacks=
+            new PluginCallbackScope(
+                ()->true,
+                worldOpen::get
+            );
+        PluginTaskTracker tracker=
+            new PluginTaskTracker(
+                clock,
+                queue,
+                worldOpen::get,
+                PluginRuntimeFailureCascadeTest.class
+                    .getClassLoader(),
+                callbacks,
+                runtimeEnabled::get,
+                (kind,failure)->
+                    callbackFailure.set(
+                        failure
+                    )
+            );
+
+        callbacks.activate();
+
+        PluginTask task=
+            tracker.schedule(
+                1L,
+                runs::incrementAndGet
+            );
+
+        tracker.activate();
+
+        try{
+            clock.advance();
+            queue.runDue(
+                clock.tick()
+            );
+
+            require(
+                runs.get()==0,
+                "pre-commit task executed plugin code"
+            );
+            require(
+                task.active(),
+                "pre-commit task was retired instead of deferred"
+            );
+            require(
+                callbackFailure.get()==null,
+                "pre-commit task deferral created callback failure"
+            );
+
+            runtimeEnabled.set(
+                true
+            );
+
+            clock.advance();
+            queue.runDue(
+                clock.tick()
+            );
+
+            require(
+                runs.get()==1,
+                "deferred task did not run exactly once after admission commit"
+            );
+            require(
+                !task.active(),
+                "one-shot deferred task remained active after execution"
+            );
+            require(
+                callbackFailure.get()==null,
+                "deferred task produced callback failure"
+            );
+        }finally{
+            tracker.close();
+            callbacks.close();
+            queue.close();
         }
     }
 
