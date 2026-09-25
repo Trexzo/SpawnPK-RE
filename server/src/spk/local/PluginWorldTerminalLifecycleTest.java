@@ -12,6 +12,7 @@ public final class PluginWorldTerminalLifecycleTest {
         inlineNeverStartedClose();
         pulseContextClose();
         blockingTerminalCompletion();
+        immediateWorldCloseCallbackFence();
         callbackQuiescence();
 
         System.out.println(
@@ -28,6 +29,7 @@ public final class PluginWorldTerminalLifecycleTest {
             "tasksDestroyedAfterDisable=true "+
             "disableExactlyOnce=true "+
             "terminalWakeInterruptConsumed=true "+
+            "worldCloseImmediateCallbackFence=true "+
             "postCloseTaskSuppressed=true"
         );
     }
@@ -292,6 +294,162 @@ public final class PluginWorldTerminalLifecycleTest {
             plugin.disableCalls.get()==1,
             "blocking terminal disable count"
         );
+    }
+
+    private static void immediateWorldCloseCallbackFence()
+        throws Exception{
+        World world=
+            World.isolatedForTest(
+                600L
+            );
+        AtomicInteger callbackRuns=
+            new AtomicInteger();
+        AtomicInteger disableCalls=
+            new AtomicInteger();
+        AtomicReference<Throwable> pulseFailure=
+            new AtomicReference<>();
+        AtomicReference<Throwable> closeFailure=
+            new AtomicReference<>();
+        AtomicReference<Thread> closeThread=
+            new AtomicReference<>();
+
+        Plugin plugin=
+            new Plugin(){
+                private final PluginManifest manifest=
+                    new PluginManifest(
+                        "terminal.close-fence",
+                        "1.0.0",
+                        PluginApiVersion.CURRENT,
+                        Collections.<String>emptyList()
+                    );
+
+                @Override public PluginManifest manifest(){
+                    return manifest;
+                }
+
+                @Override public void enable(
+                    PluginContext context
+                ){
+                    context.events().subscribe(
+                        CloseFenceEvent.class,
+                        DomainEventBus.Priority.NORMAL,
+                        event->
+                            callbackRuns.incrementAndGet()
+                    );
+                }
+
+                @Override public void disable(){
+                    disableCalls.incrementAndGet();
+                }
+            };
+
+        PluginHandle handle=
+            world.plugins()
+                .enable(plugin);
+
+        try{
+            world.events().schedule(
+                1L,
+                ()->{
+                    try{
+                        Thread closer=
+                            new Thread(
+                                ()->{
+                                    try{
+                                        world.close();
+                                    }catch(Throwable failure){
+                                        closeFailure.set(
+                                            failure
+                                        );
+                                    }
+                                },
+                                "plugin-world-close-admission-fence"
+                            );
+
+                        closeThread.set(
+                            closer
+                        );
+                        closer.start();
+
+                        long deadline=
+                            System.nanoTime()+
+                            TimeUnit.SECONDS
+                                .toNanos(5L);
+
+                        while(!world.closed()&&
+                              System.nanoTime()<deadline)
+                            Thread.yield();
+
+                        if(!world.closed())
+                            throw new AssertionError(
+                                "World close fence was not published"
+                            );
+
+                        world.domainEvents()
+                            .publish(
+                                new CloseFenceEvent()
+                            );
+                    }catch(Throwable failure){
+                        pulseFailure.set(
+                            failure
+                        );
+                    }
+                }
+            );
+
+            world.observePulse(
+                System.currentTimeMillis()
+            );
+
+            Thread closer=
+                closeThread.get();
+
+            require(
+                closer!=null,
+                "World close fence thread missing"
+            );
+
+            closer.join(
+                5_000L
+            );
+
+            require(
+                !closer.isAlive(),
+                "World close fence thread did not finish"
+            );
+            require(
+                pulseFailure.get()==null&&
+                closeFailure.get()==null,
+                "World close callback-fence path failed pulse="+
+                pulseFailure.get()+
+                " close="+
+                closeFailure.get()
+            );
+            require(
+                callbackRuns.get()==0,
+                "plugin callback entered after immediate World close fence"
+            );
+            require(
+                disableCalls.get()==1,
+                "World close callback-fence disable count"
+            );
+            require(
+                !handle.enabled(),
+                "World close callback-fence handle remained enabled"
+            );
+        }finally{
+            Thread closer=
+                closeThread.get();
+
+            if(closer!=null&&
+               closer.isAlive())
+                closer.join(
+                    1_000L
+                );
+
+            if(!world.closed())
+                world.close();
+        }
     }
 
     private static void callbackQuiescence()
@@ -687,6 +845,9 @@ public final class PluginWorldTerminalLifecycleTest {
             disableCalls.incrementAndGet();
         }
     }
+
+    private static final class CloseFenceEvent
+        implements DomainEventBus.Event {}
 
     private static final class BlockingEvent
         implements DomainEventBus.Event {}
