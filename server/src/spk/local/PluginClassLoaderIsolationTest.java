@@ -222,27 +222,6 @@ public final class PluginClassLoaderIsolationTest {
                             ?null
                             :b.logText();
 
-                    try{
-                        world.content()
-                            .dispatchCommand(
-                                player,
-                                "isolationthrowa",
-                                writer
-                            );
-                    }catch(IllegalStateException expected){
-                        throwObserved[0]=
-                            "fixture-throw-A"
-                                .equals(
-                                    expected
-                                        .getMessage()
-                                );
-                    }
-
-                    restoredAfterThrow[0]=
-                        Thread.currentThread()
-                            .getContextClassLoader()==
-                                baseline;
-
                     world.domainEvents()
                         .publish(
                             eventA
@@ -271,12 +250,6 @@ public final class PluginClassLoaderIsolationTest {
                 "plugin B private dependency"
             );
 
-            if(!throwObserved[0]||
-               !restoredAfterThrow[0])
-                throw new AssertionError(
-                    "throw-path TCCL restoration failed"
-                );
-
             world.observePulse(
                 System.currentTimeMillis()
             );
@@ -286,28 +259,87 @@ public final class PluginClassLoaderIsolationTest {
                 "scheduler callback"
             );
 
-            String reportA=
+            String healthyReportA=
                 report(
                     loadedA
                 );
-            String reportB=
+            String healthyReportB=
                 report(
                     loadedB
                 );
 
             assertReport(
-                reportA,
-                "A"
+                healthyReportA,
+                "A",
+                false
             );
             assertReport(
-                reportB,
-                "B"
+                healthyReportB,
+                "B",
+                false
             );
 
-            if(!manager.disable(
+            world.submitAndWait(
+                player,
+                generation,
+                ()->{
+                    try{
+                        world.content()
+                            .dispatchCommand(
+                                player,
+                                "isolationthrowa",
+                                writer
+                            );
+                    }catch(IllegalStateException expected){
+                        throwObserved[0]=
+                            "fixture-throw-A"
+                                .equals(
+                                    expected
+                                        .getMessage()
+                                );
+                    }
+
+                    restoredAfterThrow[0]=
+                        Thread.currentThread()
+                            .getContextClassLoader()==
+                                baseline;
+                },
+                5_000L
+            );
+
+            if(!throwObserved[0]||
+               !restoredAfterThrow[0])
+                throw new AssertionError(
+                    "throw-path TCCL restoration failed"
+                );
+
+            if(handleA.enabled()||
+               !loadedA.closed())
+                throw new AssertionError(
+                    "throwing callback did not terminalize plugin A"
+                );
+
+            String failedReportA=
+                report(
+                    loadedA
+                );
+
+            assertReport(
+                failedReportA,
+                "A",
+                true
+            );
+
+            if(manager.disable(
                     "isolation.a"))
                 throw new AssertionError(
-                    "disable A returned false"
+                    "terminal plugin A repeated explicit disable"
+                );
+
+            if(!handleB.enabled()||
+               loadedB.closed())
+                throw new AssertionError(
+                    "plugin A failure terminalized unrelated plugin B"
                 );
 
             if(!manager.disable(
@@ -397,6 +429,8 @@ public final class PluginClassLoaderIsolationTest {
             "eventTccl=true "+
             "schedulerTccl=true "+
             "throwTcclRestored=true "+
+            "throwFailureTerminalizedOwner=true "+
+            "unrelatedPluginSurvivesFailure=true "+
             "successTcclRestored=true "+
             "preEnableRejectClosesLoader=true "+
             "ownedDuplicateKeepsLoader=true "+
@@ -442,7 +476,8 @@ public final class PluginClassLoaderIsolationTest {
 
     private static void assertReport(
         String report,
-        String expectedVersion
+        String expectedVersion,
+        boolean expectedThrow
     ){
         if(report==null||
            !report.startsWith(
@@ -469,7 +504,8 @@ public final class PluginClassLoaderIsolationTest {
            !report.contains(
                 "command=true")||
            !report.contains(
-                "throw=true")||
+                "throw="+
+                expectedThrow)||
            !report.contains(
                 "event=true")||
            !report.contains(
@@ -477,6 +513,8 @@ public final class PluginClassLoaderIsolationTest {
             throw new AssertionError(
                 "plugin isolation report mismatch expected="+
                 expectedVersion+
+                " throw="+
+                expectedThrow+
                 " actual="+
                 report
             );
