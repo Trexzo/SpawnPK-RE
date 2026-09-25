@@ -11,9 +11,9 @@ import spk.plugin.api.PluginTask;
 final class PluginTaskTracker
     implements PluginScheduler,AutoCloseable {
 
-    private final GameClock clock;
-    private final WorldEventQueue queue;
-    private final BooleanSupplier worldOpen;
+    private volatile GameClock clock;
+    private volatile WorldEventQueue queue;
+    private volatile BooleanSupplier worldOpen;
     private volatile ClassLoader callbackLoader;
     private final LinkedHashSet<Task>
         tasks=new LinkedHashSet<>();
@@ -190,6 +190,7 @@ final class PluginTaskTracker
             return false;
 
         task.active=false;
+        task.action=null;
 
         WorldEventQueue.Handle queued=
             task.queued;
@@ -215,10 +216,18 @@ final class PluginTaskTracker
 
         task.queued=null;
 
+        Runnable action=
+            task.action;
+
+        if(action==null){
+            retire(task);
+            return;
+        }
+
         try{
             PluginThreadContext.runUnchecked(
                 callbackLoader,
-                task.action
+                action
             );
         }catch(RuntimeException|Error failure){
             retire(task);
@@ -260,6 +269,7 @@ final class PluginTaskTracker
 
         tasks.remove(task);
         task.active=false;
+        task.action=null;
 
         WorldEventQueue.Handle queued=
             task.queued;
@@ -285,6 +295,7 @@ final class PluginTaskTracker
 
         for(Task task:snapshot){
             task.active=false;
+            task.action=null;
 
             WorldEventQueue.Handle queued=
                 task.queued;
@@ -302,6 +313,9 @@ final class PluginTaskTracker
         }
 
         callbackLoader=null;
+        worldOpen=null;
+        queue=null;
+        clock=null;
     }
 
     private static final class Task
@@ -310,7 +324,7 @@ final class PluginTaskTracker
         final PluginTaskTracker owner;
         final long initialDelayTicks;
         final long periodTicks;
-        final Runnable action;
+        volatile Runnable action;
 
         boolean active=true;
         WorldEventQueue.Handle queued;

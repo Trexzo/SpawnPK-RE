@@ -138,6 +138,12 @@ public final class PluginSchedulerLifecycleTest {
                     "plugin disable retained queued task"
                 );
 
+            assertSchedulerRootsReleased(
+                plugin.scheduler,
+                queuedForDisable,
+                "post-disable"
+            );
+
             assertSchedulerClosed(
                 plugin.scheduler,
                 "post-disable"
@@ -315,6 +321,12 @@ public final class PluginSchedulerLifecycleTest {
                     "World close did not disable plugin exactly once"
                 );
 
+            assertSchedulerRootsReleased(
+                retained,
+                closeTask,
+                "world-close"
+            );
+
             assertSchedulerClosed(
                 retained,
                 "world-close"
@@ -330,7 +342,9 @@ public final class PluginSchedulerLifecycleTest {
                 "enableRollback=true "+
                 "disableSerializedWithCallback=true "+
                 "managerTaskLockOrderSafe=true "+
-                "worldCloseCancelled=true"
+                "worldCloseCancelled=true "+
+                "terminalSchedulerRootsReleased=true "+
+                "terminalTaskCallbackReleased=true"
             );
         }finally{
             if(!world.closed())
@@ -356,6 +370,49 @@ public final class PluginSchedulerLifecycleTest {
                 failure
             );
         }
+    }
+
+    private static void assertSchedulerRootsReleased(
+        PluginScheduler scheduler,
+        PluginTask task,
+        String phase
+    )throws Exception{
+        Class<?> trackerType=
+            scheduler.getClass();
+
+        for(String fieldName:
+                new String[]{
+                    "clock",
+                    "queue",
+                    "worldOpen",
+                    "callbackLoader"
+                }){
+            java.lang.reflect.Field field=
+                trackerType.getDeclaredField(
+                    fieldName
+                );
+            field.setAccessible(true);
+
+            if(field.get(scheduler)!=null)
+                throw new AssertionError(
+                    phase+
+                    " scheduler retained "+
+                    fieldName
+                );
+        }
+
+        java.lang.reflect.Field actionField=
+            task.getClass()
+                .getDeclaredField(
+                    "action"
+                );
+        actionField.setAccessible(true);
+
+        if(actionField.get(task)!=null)
+            throw new AssertionError(
+                phase+
+                " task retained callback action"
+            );
     }
 
     private static void assertSchedulerClosed(

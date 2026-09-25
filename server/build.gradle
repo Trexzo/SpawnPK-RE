@@ -637,6 +637,22 @@ tasks.register(
     classpath = sourceSets.test.runtimeClasspath
     mainClass =
         'spk.local.PluginCallbackLeaseIsolationTest'
+
+    finalizedBy tasks.named(
+        'pluginSchedulerTerminalReleaseRegression'
+    )
+}
+
+tasks.register(
+    'pluginSchedulerTerminalReleaseRegression',
+    JavaExec
+) {
+    group = 'verification'
+    description = 'Proves terminal plugin scheduler/task handles release World, queue, clock, classloader and callback roots.'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass =
+        'spk.local.PluginSchedulerLifecycleTest'
 }
 
 tasks.register(
