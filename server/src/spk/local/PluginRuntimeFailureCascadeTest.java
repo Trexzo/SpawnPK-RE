@@ -31,8 +31,9 @@ public final class PluginRuntimeFailureCascadeTest {
             "disableExactlyOnce=true "+
             "terminalDiagnosticsDetached=true "+
             "terminalHandlesReleaseFailureSink=true "+
-            "nestedCascadeDeferred=true "+
-            "enablePhaseEventSkip=true "+
+            "nestedTaskCascadeDeferred=true "+
+            "batchEnableAdmissionAtomic=true "+
+            "admissionRejectionNotFailure=true "+
             "claimedFailureRecorded=true "+
             "cleanupFailureDetached=true "+
             "stackDetached=true"
@@ -271,8 +272,10 @@ public final class PluginRuntimeFailureCascadeTest {
             Collections.synchronizedList(
                 new ArrayList<>()
             );
-        AtomicBoolean deferredInsideOuter=
+        AtomicBoolean deferredInsideTask=
             new AtomicBoolean();
+        AtomicInteger bCalls=
+            new AtomicInteger();
         AtomicInteger unrelatedCalls=
             new AtomicInteger();
 
@@ -301,7 +304,14 @@ public final class PluginRuntimeFailureCascadeTest {
                     "nested.a"
                 ),
                 disableOrder,
-                context->{}
+                context->
+                    context.events()
+                        .subscribe(
+                            NestedInnerEvent.class,
+                            DomainEventBus.Priority.NORMAL,
+                            event->
+                                bCalls.incrementAndGet()
+                        )
             );
 
         final CascadePlugin[] cRef=
@@ -315,23 +325,28 @@ public final class PluginRuntimeFailureCascadeTest {
                 ),
                 disableOrder,
                 context->
-                    context.events()
-                        .subscribe(
-                            NestedOuterEvent.class,
-                            DomainEventBus.Priority.NORMAL,
-                            event->{
-                                world.domainEvents()
-                                    .publish(
-                                        new NestedInnerEvent()
+                    context.scheduler()
+                        .schedule(
+                            1L,
+                            ()->{
+                                try{
+                                    world.domainEvents()
+                                        .publish(
+                                            new NestedInnerEvent()
+                                        );
+                                }catch(Exception failure){
+                                    throw new RuntimeException(
+                                        failure
                                     );
+                                }
 
                                 require(
                                     a.disableCalls.get()==0&&
                                     b.disableCalls.get()==0&&
                                     cRef[0].disableCalls.get()==0,
-                                    "cascade cleanup entered before outer callback unwound"
+                                    "cascade cleanup entered before outer task unwound"
                                 );
-                                deferredInsideOuter.set(
+                                deferredInsideTask.set(
                                     true
                                 );
                             }
@@ -348,7 +363,7 @@ public final class PluginRuntimeFailureCascadeTest {
                     context.events()
                         .subscribe(
                             NestedInnerEvent.class,
-                            DomainEventBus.Priority.NORMAL,
+                            DomainEventBus.Priority.LOW,
                             event->
                                 unrelatedCalls
                                     .incrementAndGet()
@@ -365,29 +380,17 @@ public final class PluginRuntimeFailureCascadeTest {
                 )
             );
 
-            world.events().schedule(
-                1L,
-                ()->{
-                    try{
-                        world.domainEvents()
-                            .publish(
-                                new NestedOuterEvent()
-                            );
-                    }catch(Exception failure){
-                        throw new RuntimeException(
-                            failure
-                        );
-                    }
-                }
-            );
-
             world.observePulse(
                 System.currentTimeMillis()
             );
 
             require(
-                deferredInsideOuter.get(),
-                "nested failure never returned to outer callback"
+                deferredInsideTask.get(),
+                "nested failure never returned to outer task"
+            );
+            require(
+                bCalls.get()==0,
+                "terminal dependant callback executed from snapshotted binding"
             );
             require(
                 unrelatedCalls.get()==1,
@@ -410,6 +413,28 @@ public final class PluginRuntimeFailureCascadeTest {
                 manager.plugin("nested.c")==null&&
                 manager.plugin("nested.u")!=null,
                 "nested cascade terminal ownership mismatch"
+            );
+
+            long realNestedFailures=
+                manager.terminalDiagnostics()
+                    .stream()
+                    .filter(
+                        line->
+                            line.contains(
+                                "phase=CALLBACK:EVENT:"
+                            )&&
+                            line.contains(
+                                "nested."
+                            )
+                    )
+                    .count();
+
+            require(
+                realNestedFailures==1L,
+                "admission rejection created synthetic callback failure diagnostics count="+
+                realNestedFailures+
+                " diagnostics="+
+                manager.terminalDiagnostics()
             );
 
             manager.disable(
@@ -649,11 +674,11 @@ public final class PluginRuntimeFailureCascadeTest {
         AtomicReference<Throwable> failure=
             new AtomicReference<>();
 
-        Plugin plugin=
+        Plugin first=
             new Plugin(){
                 private final PluginManifest manifest=
                     new PluginManifest(
-                        "enable.phase",
+                        "enable.phase.a",
                         "1.0.0",
                         PluginApiVersion.CURRENT,
                         Collections.<String>emptyList()
@@ -665,7 +690,7 @@ public final class PluginRuntimeFailureCascadeTest {
 
                 @Override public void enable(
                     PluginContext context
-                )throws Exception{
+                ){
                     context.events().subscribe(
                         EnablePhaseEvent.class,
                         DomainEventBus.Priority.NORMAL,
@@ -673,7 +698,28 @@ public final class PluginRuntimeFailureCascadeTest {
                             callbackRuns
                                 .incrementAndGet()
                     );
+                }
+            };
 
+        Plugin second=
+            new Plugin(){
+                private final PluginManifest manifest=
+                    new PluginManifest(
+                        "enable.phase.b",
+                        "1.0.0",
+                        PluginApiVersion.CURRENT,
+                        Collections.singletonList(
+                            "enable.phase.a"
+                        )
+                    );
+
+                @Override public PluginManifest manifest(){
+                    return manifest;
+                }
+
+                @Override public void enable(
+                    PluginContext context
+                )throws Exception{
                     world.domainEvents()
                         .publish(
                             new EnablePhaseEvent()
@@ -686,8 +732,11 @@ public final class PluginRuntimeFailureCascadeTest {
                 1L,
                 ()->{
                     try{
-                        manager.enable(
-                            plugin
+                        manager.enableAll(
+                            Arrays.<Plugin>asList(
+                                second,
+                                first
+                            )
                         );
 
                         world.domainEvents()
@@ -711,18 +760,38 @@ public final class PluginRuntimeFailureCascadeTest {
             );
             require(
                 callbackRuns.get()==1,
-                "ENABLING event was not skipped or ENABLED event was lost runs="+
+                "batch ENABLING event was not skipped or post-commit event was lost runs="+
                 callbackRuns.get()
             );
             require(
                 manager.plugin(
-                    "enable.phase"
+                    "enable.phase.a"
+                )!=null&&
+                manager.plugin(
+                    "enable.phase.b"
                 )!=null,
-                "enable-phase event misclassified plugin as failed"
+                "batch enable-phase event misclassified plugin as failed"
+            );
+            require(
+                manager.terminalDiagnostics()
+                    .stream()
+                    .noneMatch(
+                        line->
+                            line.contains(
+                                "plugin=enable.phase"
+                            )&&
+                            line.contains(
+                                "CALLBACK:"
+                            )
+                    ),
+                "ENABLING admission rejection created plugin failure diagnostic"
             );
 
             manager.disable(
-                "enable.phase"
+                "enable.phase.b"
+            );
+            manager.disable(
+                "enable.phase.a"
             );
         }finally{
             world.close();

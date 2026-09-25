@@ -131,6 +131,10 @@ final class WorldPluginManager
 
             for(Entry entry:added)
                 entry.tasks.activate();
+
+            for(Entry entry:added)
+                entry.runtimeState=
+                    RuntimeState.ENABLED;
         }catch(Throwable failure){
             for(int i=added.size()-1;i>=0;i--)
                 try{
@@ -418,11 +422,12 @@ final class WorldPluginManager
             enabled.put(id,entry);
             callbackScope.activate();
 
-            if(activateTasks)
+            if(activateTasks){
                 tasks.activate();
+                entry.runtimeState=
+                    RuntimeState.ENABLED;
+            }
 
-            entry.runtimeState=
-                RuntimeState.ENABLED;
             return entry;
         }catch(Throwable failure){
             enabled.remove(id);
@@ -751,12 +756,18 @@ final class WorldPluginManager
         final FailureBatch pending=batch;
 
         for(Entry entry:
-                pending.entries)
+                pending.entries){
             entry.callbacks.onQuiescent(
                 ()->tryCleanupFailureBatch(
                     pending
                 )
             );
+            entry.tasks.onQuiescent(
+                ()->tryCleanupFailureBatch(
+                    pending
+                )
+            );
+        }
 
         tryCleanupFailureBatch(
             pending
@@ -776,6 +787,8 @@ final class WorldPluginManager
             for(Entry entry:
                     batch.entries)
                 if(!entry.callbacks
+                        .quiescent()||
+                   !entry.tasks
                         .quiescent())
                     return;
 
@@ -1478,6 +1491,8 @@ final class WorldPluginManager
                                     return null;
                                 }
                             );
+                        }catch(PluginCallbackScope.AdmissionException admission){
+                            return;
                         }catch(Throwable failure){
                             callbackOwner.callbackFailure(
                                 "EVENT:"+
@@ -2029,7 +2044,7 @@ final class WorldPluginManager
                     action
             )throws Exception{
                 if(!owner.runtimeEnabled())
-                    throw new IllegalStateException(
+                    throw new PluginCallbackScope.AdmissionException(
                         "plugin runtime callback unavailable"
                     );
 
@@ -2038,6 +2053,8 @@ final class WorldPluginManager
                         loader,
                         action
                     );
+                }catch(PluginCallbackScope.AdmissionException admission){
+                    throw admission;
                 }catch(Exception|Error failure){
                     owner.callbackFailure(
                         kind,
@@ -2054,7 +2071,7 @@ final class WorldPluginManager
                 > action
             ){
                 if(!owner.runtimeEnabled())
-                    throw new IllegalStateException(
+                    throw new PluginCallbackScope.AdmissionException(
                         "plugin runtime callback unavailable"
                     );
 
@@ -2063,6 +2080,8 @@ final class WorldPluginManager
                         loader,
                         action
                     );
+                }catch(PluginCallbackScope.AdmissionException admission){
+                    throw admission;
                 }catch(RuntimeException|Error failure){
                     owner.callbackFailure(
                         kind,

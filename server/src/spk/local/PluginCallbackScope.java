@@ -10,6 +10,16 @@ import spk.content.api.*;
 final class PluginCallbackScope
     implements AutoCloseable {
 
+    static final class AdmissionException
+        extends IllegalStateException {
+
+        AdmissionException(
+            String message
+        ){
+            super(message);
+        }
+    }
+
     @FunctionalInterface
     interface CheckedLeaseFunction<T> {
         T apply(Lease lease)
@@ -250,7 +260,7 @@ final class PluginCallbackScope
 
     private synchronized Lease openLease(){
         if(!active||closing||closed)
-            throw new IllegalStateException(
+            throw new AdmissionException(
                 "plugin callback scope inactive"
             );
 
@@ -259,7 +269,7 @@ final class PluginCallbackScope
 
         if(execution==null||
            !execution.getAsBoolean())
-            throw new IllegalStateException(
+            throw new AdmissionException(
                 "plugin callback requires World execution context"
             );
 

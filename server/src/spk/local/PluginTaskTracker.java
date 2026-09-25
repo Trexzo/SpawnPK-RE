@@ -25,6 +25,8 @@ final class PluginTaskTracker
     private boolean activated;
     private volatile boolean closing;
     private boolean closed;
+    private int inFlightExecutions;
+    private Runnable quiescenceListener;
 
     PluginTaskTracker(
         GameClock clock,
@@ -235,6 +237,7 @@ final class PluginTaskTracker
         }
 
         task.queued=null;
+        inFlightExecutions++;
 
         Runnable action=
             task.action;
@@ -252,9 +255,14 @@ final class PluginTaskTracker
                     return null;
                 }
             );
+        }catch(PluginCallbackScope.AdmissionException admission){
+            retire(task);
+            return;
         }catch(RuntimeException|Error failure){
             retire(task);
             throw failure;
+        }finally{
+            inFlightExecutions--;
         }
 
         if(closing||
@@ -335,6 +343,55 @@ final class PluginTaskTracker
         closing=true;
     }
 
+    synchronized boolean quiescent(){
+        return inFlightExecutions==0;
+    }
+
+    void onQuiescent(
+        Runnable listener
+    ){
+        Objects.requireNonNull(
+            listener,
+            "listener"
+        );
+
+        boolean runNow=false;
+
+        synchronized(this){
+            if(closed)
+                runNow=true;
+            else if(quiescenceListener!=null&&
+                    quiescenceListener!=listener)
+                throw new IllegalStateException(
+                    "plugin task quiescence listener already assigned"
+                );
+            else if(closing&&
+                    inFlightExecutions==0)
+                runNow=true;
+            else
+                quiescenceListener=listener;
+        }
+
+        if(runNow)
+            listener.run();
+    }
+
+    void signalQuiescent(){
+        Runnable listener=null;
+
+        synchronized(this){
+            if(closing&&
+               inFlightExecutions==0&&
+               quiescenceListener!=null){
+                listener=quiescenceListener;
+                quiescenceListener=null;
+            }
+        }
+
+        if(listener!=null)
+            listener.run();
+    }
+
     void awaitQuiescent(){
         synchronized(this){
             // Lock barrier: admission is already closed by volatile closing.
@@ -376,6 +433,7 @@ final class PluginTaskTracker
         }
 
         failureHandler=null;
+        quiescenceListener=null;
         callbackLoader=null;
         worldOpen=null;
         queue=null;
@@ -422,6 +480,8 @@ final class PluginTaskTracker
                     failure
                 );
                 throw failure;
+            }finally{
+                owner.signalQuiescent();
             }
         }
     }
