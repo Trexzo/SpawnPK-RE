@@ -33,6 +33,7 @@ public final class PluginRuntimeFailureCascadeTest {
             "terminalHandlesReleaseFailureSink=true "+
             "nestedTaskCascadeDeferred=true "+
             "batchEnableAdmissionAtomic=true "+
+            "batchTaskDeferredUntilCommit=true "+
             "admissionRejectionNotFailure=true "+
             "claimedFailureRecorded=true "+
             "cleanupFailureDetached=true "+
@@ -671,6 +672,8 @@ public final class PluginRuntimeFailureCascadeTest {
                 world.plugins();
         AtomicInteger callbackRuns=
             new AtomicInteger();
+        AtomicInteger failedBatchTaskRuns=
+            new AtomicInteger();
         AtomicReference<Throwable> failure=
             new AtomicReference<>();
 
@@ -697,6 +700,10 @@ public final class PluginRuntimeFailureCascadeTest {
                         event->
                             callbackRuns
                                 .incrementAndGet()
+                    );
+                    context.scheduler().schedule(
+                        1L,
+                        failedBatchTaskRuns::incrementAndGet
                     );
                 }
             };
@@ -760,6 +767,10 @@ public final class PluginRuntimeFailureCascadeTest {
                 "earlier batch candidate became runtime-admissible before whole batch commit"
             );
             require(
+                failedBatchTaskRuns.get()==0,
+                "failed batch executed pending task before commit"
+            );
+            require(
                 manager.plugin(
                     "enable.phase.a"
                 )==null&&
@@ -785,6 +796,8 @@ public final class PluginRuntimeFailureCascadeTest {
 
             AtomicInteger committedRuns=
                 new AtomicInteger();
+            AtomicInteger committedTaskRuns=
+                new AtomicInteger();
 
             CascadePlugin committedA=
                 new CascadePlugin(
@@ -792,14 +805,20 @@ public final class PluginRuntimeFailureCascadeTest {
                     Collections.<String>emptyList(),
                     new ArrayList<>(),
                     context->
-                        context.events()
-                            .subscribe(
-                                EnablePhaseEvent.class,
-                                DomainEventBus.Priority.NORMAL,
-                                event->
-                                    committedRuns
-                                        .incrementAndGet()
-                            )
+                        {
+                            context.events()
+                                .subscribe(
+                                    EnablePhaseEvent.class,
+                                    DomainEventBus.Priority.NORMAL,
+                                    event->
+                                        committedRuns
+                                            .incrementAndGet()
+                                );
+                            context.scheduler().schedule(
+                                1L,
+                                committedTaskRuns::incrementAndGet
+                            );
+                        }
                 );
             CascadePlugin committedB=
                 new CascadePlugin(
@@ -818,14 +837,33 @@ public final class PluginRuntimeFailureCascadeTest {
                 )
             );
 
-            world.domainEvents()
-                .publish(
-                    new EnablePhaseEvent()
-                );
+            world.events().schedule(
+                world.clock().tick()+1L,
+                ()->{
+                    try{
+                        world.domainEvents()
+                            .publish(
+                                new EnablePhaseEvent()
+                            );
+                    }catch(Exception error){
+                        throw new RuntimeException(
+                            error
+                        );
+                    }
+                }
+            );
+
+            world.observePulse(
+                System.currentTimeMillis()
+            );
 
             require(
                 committedRuns.get()==1,
                 "successful batch did not publish runtime admission atomically"
+            );
+            require(
+                committedTaskRuns.get()==1,
+                "successful batch pending task did not execute exactly once after commit"
             );
 
             manager.disable(
