@@ -946,8 +946,16 @@ def readR85Selftests = {
     def matcher = block =~ /'([A-Za-z0-9_]+Test)'/
     def names = matcher.collect { it[1] }
 
-    if (names.size() != 179) {
-        throw new GradleException("R8.5 regression manifest drift: expected 179 tests, found ${names.size()}")
+    int uniqueNames = names.toSet().size()
+
+    if (names.size() != 179 ||
+        uniqueNames != 179) {
+        throw new GradleException(
+            "R8.5 regression manifest drift: expected 179 unique tests, found " +
+            names.size() +
+            " / " +
+            uniqueNames
+        )
     }
     names
 }
