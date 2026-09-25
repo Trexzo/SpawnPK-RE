@@ -264,9 +264,32 @@ final class PluginTaskTracker
         BooleanSupplier runtime=
             runtimeEnabled;
 
-        if(runtime==null||
-           !runtime.getAsBoolean()){
+        if(runtime==null){
             retire(task);
+            return;
+        }
+
+        if(!runtime.getAsBoolean()){
+            /*
+             * Runtime registration may be fully installed while the owning
+             * enable operation is still behind its shared commit gate. Do not
+             * execute plugin code and do not destroy valid pending work.
+             * Terminal paths publish closing separately and are retired by
+             * the checks above (or cancelled immediately afterwards).
+             */
+            try{
+                scheduleAt(
+                    task,
+                    Math.addExact(
+                        clock.tick(),
+                        1L
+                    )
+                );
+            }catch(RuntimeException|Error failure){
+                retire(task);
+                throw failure;
+            }
+
             return;
         }
 

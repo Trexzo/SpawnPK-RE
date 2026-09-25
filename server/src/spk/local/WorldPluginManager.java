@@ -509,17 +509,15 @@ final class WorldPluginManager
                 RuntimeState.ENABLED;
 
         /*
-         * Keep the queue monitor until every pending task is visible and the
-         * shared gate commits. A concurrent pulse cannot run a queued task
-         * before whole-operation admission, while event/content callbacks
-         * continue to observe admission=false until this publication point.
+         * Keep runtime admission closed until every pending task has been
+         * published. A task that becomes due during this short phase defers
+         * itself without entering plugin code; one volatile gate publication
+         * then makes the whole enable operation runtime-admissible.
          */
-        synchronized(worldEvents){
-            for(Entry entry:entries)
-                entry.tasks.activate();
+        for(Entry entry:entries)
+            entry.tasks.activate();
 
-            admission.commit();
-        }
+        admission.commit();
     }
 
     private void disableEntry(
