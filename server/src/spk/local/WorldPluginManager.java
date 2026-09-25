@@ -81,7 +81,9 @@ final class WorldPluginManager
 
         try{
             return enableOne(
-                plugin,
+                snapshotCandidate(
+                    plugin
+                ),
                 true,
                 new RuntimeAdmissionGate()
             );
@@ -106,7 +108,7 @@ final class WorldPluginManager
         )throws Exception{
         requireOpen();
 
-        ArrayList<Plugin> candidates=
+        ArrayList<Plugin> requested=
             new ArrayList<>(
                 Objects.requireNonNull(
                     plugins,
@@ -119,15 +121,17 @@ final class WorldPluginManager
             new RuntimeAdmissionGate();
 
         try{
-            List<Plugin> ordered=
+            List<Candidate> ordered=
                 dependencyOrder(
-                    candidates
+                    snapshotCandidates(
+                        requested
+                    )
                 );
 
-            for(Plugin plugin:ordered)
+            for(Candidate candidate:ordered)
                 added.add(
                     enableOne(
-                        plugin,
+                        candidate,
                         false,
                         admission
                     )
@@ -150,7 +154,7 @@ final class WorldPluginManager
                     );
                 }
 
-            for(Plugin plugin:candidates)
+            for(Plugin plugin:requested)
                 if(!ownsPluginInstance(
                         plugin))
                     PluginJarLoader
@@ -327,11 +331,9 @@ final class WorldPluginManager
         closeResources();
     }
 
-    private Entry enableOne(
-        Plugin plugin,
-        boolean activateRuntime,
-        RuntimeAdmissionGate admission
-    )throws Exception{
+    private Candidate snapshotCandidate(
+        Plugin plugin
+    ){
         Objects.requireNonNull(
             plugin,
             "plugin"
@@ -351,7 +353,53 @@ final class WorldPluginManager
                 "plugin manifest"
             );
 
-        validateCompatibility(manifest);
+        validateCompatibility(
+            manifest
+        );
+
+        return new Candidate(
+            plugin,
+            callbackLoader,
+            manifest
+        );
+    }
+
+    private List<Candidate> snapshotCandidates(
+        Collection<? extends Plugin> plugins
+    ){
+        ArrayList<Candidate> snapshots=
+            new ArrayList<>();
+
+        for(Plugin plugin:
+                Objects.requireNonNull(
+                    plugins,
+                    "plugins"
+                ))
+            snapshots.add(
+                snapshotCandidate(
+                    plugin
+                )
+            );
+
+        return snapshots;
+    }
+
+    private Entry enableOne(
+        Candidate candidate,
+        boolean activateRuntime,
+        RuntimeAdmissionGate admission
+    )throws Exception{
+        Objects.requireNonNull(
+            candidate,
+            "candidate"
+        );
+
+        Plugin plugin=
+            candidate.plugin;
+        ClassLoader callbackLoader=
+            candidate.callbackLoader;
+        PluginManifest manifest=
+            candidate.manifest;
 
         String id=manifest.id();
 
@@ -1058,38 +1106,25 @@ final class WorldPluginManager
                 .interrupt();
     }
 
-    private List<Plugin> dependencyOrder(
-        Collection<? extends Plugin> plugins
+    private List<Candidate> dependencyOrder(
+        Collection<? extends Candidate> candidates
     ){
         Objects.requireNonNull(
-            plugins,
-            "plugins"
+            candidates,
+            "candidates"
         );
 
-        TreeMap<String,Plugin> pending=
+        TreeMap<String,Candidate> pending=
             new TreeMap<>();
 
-        for(Plugin plugin:plugins){
+        for(Candidate candidate:candidates){
             Objects.requireNonNull(
-                plugin,
-                "plugin"
+                candidate,
+                "candidate"
             );
 
             PluginManifest manifest=
-                Objects.requireNonNull(
-                    PluginThreadContext.callUnchecked(
-                        PluginJarLoader
-                            .callbackClassLoader(
-                                plugin
-                            ),
-                        plugin::manifest
-                    ),
-                    "plugin manifest"
-                );
-
-            validateCompatibility(
-                manifest
-            );
+                candidate.manifest;
 
             if(enabled.containsKey(
                     manifest.id()))
@@ -1098,10 +1133,10 @@ final class WorldPluginManager
                     manifest.id()
                 );
 
-            Plugin duplicate=
+            Candidate duplicate=
                 pending.put(
                     manifest.id(),
-                    plugin
+                    candidate
                 );
 
             if(duplicate!=null)
@@ -1111,34 +1146,20 @@ final class WorldPluginManager
                 );
         }
 
-        for(Plugin plugin:pending.values())
+        for(Candidate candidate:
+                pending.values())
             for(String dependency:
-                    PluginThreadContext
-                        .callUnchecked(
-                            PluginJarLoader
-                                .callbackClassLoader(
-                                    plugin
-                                ),
-                            plugin::manifest
-                        )
+                    candidate.manifest
                         .dependencies())
                 if(!enabled.containsKey(dependency)&&
                    !pending.containsKey(dependency))
                     throw new IllegalStateException(
                         "plugin dependency missing: "+
-                        PluginThreadContext
-                            .callUnchecked(
-                                PluginJarLoader
-                                    .callbackClassLoader(
-                                        plugin
-                                    ),
-                                plugin::manifest
-                            )
-                            .id()+
+                        candidate.manifest.id()+
                         " -> "+dependency
                     );
 
-        ArrayList<Plugin> ordered=
+        ArrayList<Candidate> ordered=
             new ArrayList<>();
         HashSet<String> resolved=
             new HashSet<>(
@@ -1148,19 +1169,11 @@ final class WorldPluginManager
         while(!pending.isEmpty()){
             String ready=null;
 
-            for(Map.Entry<String,Plugin> candidate:
+            for(Map.Entry<String,Candidate> candidate:
                     pending.entrySet()){
                 if(resolved.containsAll(
-                        PluginThreadContext
-                            .callUnchecked(
-                                PluginJarLoader
-                                    .callbackClassLoader(
-                                        candidate
-                                            .getValue()
-                                    ),
-                                candidate
-                                    .getValue()::manifest
-                            )
+                        candidate.getValue()
+                            .manifest
                             .dependencies())){
                     ready=candidate.getKey();
                     break;
@@ -1173,11 +1186,17 @@ final class WorldPluginManager
                     pending.keySet()
                 );
 
-            Plugin plugin=
-                pending.remove(ready);
+            Candidate candidate=
+                pending.remove(
+                    ready
+                );
 
-            ordered.add(plugin);
-            resolved.add(ready);
+            ordered.add(
+                candidate
+            );
+            resolved.add(
+                ready
+            );
         }
 
         return ordered;
@@ -1701,6 +1720,31 @@ final class WorldPluginManager
         ENABLING,
         ENABLED,
         TERMINAL
+    }
+
+    private static final class Candidate {
+        final Plugin plugin;
+        final ClassLoader callbackLoader;
+        final PluginManifest manifest;
+
+        Candidate(
+            Plugin plugin,
+            ClassLoader callbackLoader,
+            PluginManifest manifest
+        ){
+            this.plugin=
+                Objects.requireNonNull(
+                    plugin,
+                    "plugin"
+                );
+            this.callbackLoader=
+                callbackLoader;
+            this.manifest=
+                Objects.requireNonNull(
+                    manifest,
+                    "manifest"
+                );
+        }
     }
 
     private static final class RuntimeAdmissionGate {

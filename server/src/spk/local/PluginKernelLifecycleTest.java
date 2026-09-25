@@ -341,6 +341,96 @@ public final class PluginKernelLifecycleTest {
         manager.disable("dep.b");
         manager.disable("dep.a");
 
+        ArrayList<String> manifestSnapshotOrder=
+            new ArrayList<>();
+
+        SnapshotManifestPlugin manifestA=
+            new SnapshotManifestPlugin(
+                new PluginManifest(
+                    "manifest.snapshot.a",
+                    "1.0.0",
+                    PluginApiVersion.CURRENT,
+                    Collections.<String>emptyList()
+                ),
+                new PluginManifest(
+                    "manifest.changed.a",
+                    "1.0.0",
+                    PluginApiVersion.CURRENT,
+                    Collections.singletonList(
+                        "manifest.never"
+                    )
+                ),
+                manifestSnapshotOrder
+            );
+        SnapshotManifestPlugin manifestB=
+            new SnapshotManifestPlugin(
+                new PluginManifest(
+                    "manifest.snapshot.b",
+                    "1.0.0",
+                    PluginApiVersion.CURRENT,
+                    Collections.singletonList(
+                        "manifest.snapshot.a"
+                    )
+                ),
+                new PluginManifest(
+                    "manifest.changed.b",
+                    "1.0.0",
+                    PluginApiVersion.CURRENT,
+                    Collections.singletonList(
+                        "manifest.never"
+                    )
+                ),
+                manifestSnapshotOrder
+            );
+
+        manager.enableAll(
+            Arrays.<Plugin>asList(
+                manifestB,
+                manifestA
+            )
+        );
+
+        if(manifestA.manifestCalls.get()!=1||
+           manifestB.manifestCalls.get()!=1)
+            throw new AssertionError(
+                "batch plugin manifest was not snapshotted exactly once a="+
+                manifestA.manifestCalls.get()+
+                " b="+
+                manifestB.manifestCalls.get()
+            );
+
+        equals(
+            Arrays.asList(
+                "manifest.snapshot.a",
+                "manifest.snapshot.b"
+            ),
+            manifestSnapshotOrder,
+            "manifest snapshot dependency order"
+        );
+
+        if(manager.plugin(
+                "manifest.snapshot.a"
+            )==null||
+           manager.plugin(
+                "manifest.snapshot.b"
+            )==null||
+           manager.plugin(
+                "manifest.changed.a"
+            )!=null||
+           manager.plugin(
+                "manifest.changed.b"
+            )!=null)
+            throw new AssertionError(
+                "batch enable did not retain snapshotted manifest identity"
+            );
+
+        manager.disable(
+            "manifest.snapshot.b"
+        );
+        manager.disable(
+            "manifest.snapshot.a"
+        );
+
         ArrayList<String> batchOrder=
             new ArrayList<>();
 
@@ -484,6 +574,7 @@ public final class PluginKernelLifecycleTest {
             "preEnableGuards=true "+
             "failureRollback=true "+
             "dependencyOrder=dep.a_dep.b_dep.c "+
+            "manifestSnapshotOnce=true "+
             "batchRollback=true "+
             "dependencyCycleRejected=true "+
             "worldCloseClean=true"
@@ -1010,6 +1101,43 @@ public final class PluginKernelLifecycleTest {
         ){
             order.add(
                 manifest.id()
+            );
+        }
+    }
+
+    private static final class SnapshotManifestPlugin
+        implements Plugin {
+
+        private final PluginManifest firstManifest;
+        private final PluginManifest laterManifest;
+        private final List<String> order;
+        final AtomicInteger manifestCalls=
+            new AtomicInteger();
+
+        SnapshotManifestPlugin(
+            PluginManifest firstManifest,
+            PluginManifest laterManifest,
+            List<String> order
+        ){
+            this.firstManifest=
+                firstManifest;
+            this.laterManifest=
+                laterManifest;
+            this.order=order;
+        }
+
+        @Override public PluginManifest manifest(){
+            return manifestCalls
+                .incrementAndGet()==1
+                    ?firstManifest
+                    :laterManifest;
+        }
+
+        @Override public void enable(
+            PluginContext context
+        ){
+            order.add(
+                firstManifest.id()
             );
         }
     }
