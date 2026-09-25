@@ -1381,10 +1381,10 @@ final class WorldPluginManager
 
                     @Override public ContentDialogueDefinition
                         definition(){
-                        return runtime.callbacks
+                        return PluginThreadContext
                             .callUnchecked(
                                 runtime.loader,
-                                lease->handler.definition()
+                                handler::definition
                             );
                     }
                 }

@@ -232,6 +232,9 @@ final class WorldPulse implements AutoCloseable,Runnable {
 
             synchronized(this){
                 while(!terminalComplete){
+                    if(!active.isAlive())
+                        break;
+
                     long remaining=
                         deadline-
                         System.nanoTime();
@@ -256,6 +259,10 @@ final class WorldPulse implements AutoCloseable,Runnable {
                     }
                 }
             }
+
+            if(!terminalComplete&&
+               !active.isAlive())
+                runTerminalOnce();
 
             if(interrupted)
                 Thread.currentThread()
