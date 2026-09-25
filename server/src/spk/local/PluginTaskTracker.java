@@ -270,8 +270,6 @@ final class PluginTaskTracker
             return;
         }
 
-        inFlightExecutions++;
-
         Runnable action=
             task.action;
 
@@ -279,6 +277,8 @@ final class PluginTaskTracker
             retire(task);
             return;
         }
+
+        inFlightExecutions++;
 
         try{
             callbackScope.callUnchecked(

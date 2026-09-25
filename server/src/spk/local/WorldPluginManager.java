@@ -136,6 +136,9 @@ final class WorldPluginManager
             for(Entry entry:added)
                 entry.callbacks.activate();
 
+            // Activation was fully preflighted while the manager monitor is
+            // still held. World close cannot advance through plugin beginClose
+            // to event-queue destruction until this monitor is released.
             for(Entry entry:added)
                 entry.runtimeState=
                     RuntimeState.ENABLED;
