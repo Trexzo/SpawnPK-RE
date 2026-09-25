@@ -118,7 +118,8 @@ final class World implements AutoCloseable {
                 domainEvents,
                 clock,
                 events,
-                ()->!closed.get()
+                ()->!closed.get(),
+                ()->pulse.inExecutionContext()
             );
     }
 

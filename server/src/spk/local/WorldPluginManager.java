@@ -22,6 +22,7 @@ final class WorldPluginManager
     private final GameClock clock;
     private final WorldEventQueue worldEvents;
     private final BooleanSupplier worldOpen;
+    private final BooleanSupplier worldExecution;
     private final LinkedHashMap<String,Entry>
         enabled=new LinkedHashMap<>();
     private final HashSet<String>
@@ -37,7 +38,8 @@ final class WorldPluginManager
         DomainEventBus events,
         GameClock clock,
         WorldEventQueue worldEvents,
-        BooleanSupplier worldOpen
+        BooleanSupplier worldOpen,
+        BooleanSupplier worldExecution
     ){
         this.content=Objects.requireNonNull(
             content,
@@ -59,6 +61,11 @@ final class WorldPluginManager
             worldOpen,
             "worldOpen"
         );
+        this.worldExecution=
+            Objects.requireNonNull(
+                worldExecution,
+                "worldExecution"
+            );
     }
 
     @Override public synchronized PluginHandle enable(
@@ -310,6 +317,10 @@ final class WorldPluginManager
 
         String moduleId=
             CONTENT_PREFIX+id;
+        PluginCallbackScope callbackScope=
+            new PluginCallbackScope(
+                worldExecution
+            );
 
         EventTracker tracker=
             new EventTracker();
@@ -327,11 +338,13 @@ final class WorldPluginManager
                 plugin,
                 tracker,
                 tasks,
-                callbackLoader
+                callbackLoader,
+                callbackScope
             );
 
         try{
             content.installCustom(module);
+            callbackScope.activate();
 
             Entry entry=
                 new Entry(
@@ -339,7 +352,8 @@ final class WorldPluginManager
                     manifest,
                     moduleId,
                     tracker,
-                    tasks
+                    tasks,
+                    callbackScope
                 );
 
             enabled.put(id,entry);
@@ -350,6 +364,7 @@ final class WorldPluginManager
             return entry;
         }catch(Throwable failure){
             enabled.remove(id);
+            callbackScope.close();
             module.seal();
             tasks.close();
 
@@ -406,6 +421,7 @@ final class WorldPluginManager
             return;
 
         entry.enabled=false;
+        entry.callbacks.close();
         enabled.remove(
             entry.manifest.id()
         );
@@ -703,6 +719,7 @@ final class WorldPluginManager
         private final EventTracker tracker;
         private final PluginTaskTracker tasks;
         private final ClassLoader callbackLoader;
+        private final PluginCallbackScope callbackScope;
         private volatile ScopedPluginContext context;
         private volatile boolean enableAttempted;
 
@@ -711,7 +728,8 @@ final class WorldPluginManager
             Plugin plugin,
             EventTracker tracker,
             PluginTaskTracker tasks,
-            ClassLoader callbackLoader
+            ClassLoader callbackLoader,
+            PluginCallbackScope callbackScope
         ){
             this.moduleId=moduleId;
             this.plugin=plugin;
@@ -719,6 +737,8 @@ final class WorldPluginManager
             this.tasks=tasks;
             this.callbackLoader=
                 callbackLoader;
+            this.callbackScope=
+                callbackScope;
         }
 
         @Override public String id(){
@@ -733,7 +753,8 @@ final class WorldPluginManager
                     registrar,
                     tracker,
                     tasks,
-                    callbackLoader
+                    callbackLoader,
+                    callbackScope
                 );
 
             context=local;
@@ -771,21 +792,26 @@ final class WorldPluginManager
         private final ScopedPluginEvents events;
         private final PluginScheduler scheduler;
         private final ClassLoader callbackLoader;
+        private final PluginCallbackScope callbackScope;
         private boolean open=true;
 
         ScopedPluginContext(
             ContentRegistrar registrar,
             EventTracker tracker,
             PluginTaskTracker tasks,
-            ClassLoader callbackLoader
+            ClassLoader callbackLoader,
+            PluginCallbackScope callbackScope
         ){
             this.callbackLoader=
                 callbackLoader;
+            this.callbackScope=
+                callbackScope;
             content=
                 new ScopedContentRegistrar(
                     registrar,
                     this,
-                    callbackLoader
+                    callbackLoader,
+                    callbackScope
                 );
             events=
                 new ScopedPluginEvents(
@@ -945,6 +971,7 @@ final class WorldPluginManager
         final String moduleId;
         final EventTracker events;
         final PluginTaskTracker tasks;
+        final PluginCallbackScope callbacks;
         volatile boolean enabled=true;
 
         Entry(
@@ -952,13 +979,15 @@ final class WorldPluginManager
             PluginManifest manifest,
             String moduleId,
             EventTracker events,
-            PluginTaskTracker tasks
+            PluginTaskTracker tasks,
+            PluginCallbackScope callbacks
         ){
             this.plugin=plugin;
             this.manifest=manifest;
             this.moduleId=moduleId;
             this.events=events;
             this.tasks=tasks;
+            this.callbacks=callbacks;
         }
 
         @Override public PluginManifest manifest(){
@@ -986,16 +1015,20 @@ final class WorldPluginManager
         private final ContentRegistrar delegate;
         private final ScopedPluginContext context;
         private final ClassLoader callbackLoader;
+        private final PluginCallbackScope callbackScope;
 
         ScopedContentRegistrar(
             ContentRegistrar delegate,
             ScopedPluginContext context,
-            ClassLoader callbackLoader
+            ClassLoader callbackLoader,
+            PluginCallbackScope callbackScope
         ){
             this.delegate=delegate;
             this.context=context;
             this.callbackLoader=
                 callbackLoader;
+            this.callbackScope=
+                callbackScope;
         }
 
         private void requireOpen(){
@@ -1012,11 +1045,16 @@ final class WorldPluginManager
                 name,
                 priority,
                 command->
-                    PluginThreadContext.call(
+                    callbackScope.call(
                         callbackLoader,
-                        ()->handler.handle(
-                            command
-                        )
+                        lease->
+                            handler.handle(
+                                callbackScope
+                                    .commandContext(
+                                        command,
+                                        lease
+                                    )
+                            )
                     )
             );
         }
@@ -1145,9 +1183,16 @@ final class WorldPluginManager
                 itemId,
                 priority,
                 interaction->
-                    PluginThreadContext.callUnchecked(
+                    callbackScope.callUnchecked(
                         callbackLoader,
-                        ()->handler.handle(interaction)
+                        lease->
+                            handler.handle(
+                                callbackScope
+                                    .itemOnPlayerContext(
+                                        interaction,
+                                        lease
+                                    )
+                            )
                     )
             );
         }
@@ -1185,12 +1230,17 @@ final class WorldPluginManager
                         handle(
                             ContentDialogueContext dialogue
                         ){
-                        return PluginThreadContext
+                        return callbackScope
                             .callUnchecked(
                                 callbackLoader,
-                                ()->handler.handle(
-                                    dialogue
-                                )
+                                lease->
+                                    handler.handle(
+                                        callbackScope
+                                            .dialogueContext(
+                                                dialogue,
+                                                lease
+                                            )
+                                    )
                             );
                     }
 
@@ -1216,9 +1266,16 @@ final class WorldPluginManager
                 actionKey,
                 priority,
                 action->
-                    PluginThreadContext.callUnchecked(
+                    callbackScope.callUnchecked(
                         callbackLoader,
-                        ()->handler.handle(action)
+                        lease->
+                            handler.handle(
+                                callbackScope
+                                    .actionContext(
+                                        action,
+                                        lease
+                                    )
+                            )
                     )
             );
         }

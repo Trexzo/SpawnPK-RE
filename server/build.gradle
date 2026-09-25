@@ -628,6 +628,18 @@ def pluginIsolationBJar =
     }
 
 tasks.register(
+    'pluginCallbackLeaseIsolationRegression',
+    JavaExec
+) {
+    group = 'verification'
+    description = 'Proves per-callback live-facade leases reject stale/off-thread reuse while preserving nested World-thread callbacks.'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass =
+        'spk.local.PluginCallbackLeaseIsolationTest'
+}
+
+tasks.register(
     'pluginClassloaderIsolationRegression',
     JavaExec
 ) {
