@@ -55,10 +55,12 @@ def kotlinFixtureStdlib =
     }
 
 dependencies {
-    kotlinFixtureCompiler(
+    add(
+        kotlinFixtureCompiler.name,
         'org.jetbrains.kotlin:kotlin-compiler-embeddable:2.4.20'
     )
-    kotlinFixtureStdlib(
+    add(
+        kotlinFixtureStdlib.name,
         'org.jetbrains.kotlin:kotlin-stdlib:2.4.20'
     )
 }
