@@ -17,6 +17,8 @@ public final class PluginRuntimeFailureCascadeTest {
         taskFailure();
         contentFailureNoFallback();
         enablePhaseEventSkip();
+        batchCommitPublicationBarrier();
+        pendingTaskDefersBehindAdmission();
         explicitDisableInFlightFailure();
         cleanupFailureDetached();
 
@@ -34,6 +36,9 @@ public final class PluginRuntimeFailureCascadeTest {
             "nestedTaskCascadeDeferred=true "+
             "batchEnableAdmissionAtomic=true "+
             "batchTaskDeferredUntilCommit=true "+
+            "failedBatchTaskHandleTerminal=true "+
+            "batchCommitPublicationBarrier=true "+
+            "preCommitTaskDefers=true "+
             "admissionRejectionNotFailure=true "+
             "claimedFailureRecorded=true "+
             "cleanupFailureDetached=true "+
@@ -674,6 +679,9 @@ public final class PluginRuntimeFailureCascadeTest {
             new AtomicInteger();
         AtomicInteger failedBatchTaskRuns=
             new AtomicInteger();
+        AtomicReference<PluginTask>
+            failedBatchTask=
+                new AtomicReference<>();
         AtomicReference<Throwable> failure=
             new AtomicReference<>();
 
@@ -701,9 +709,11 @@ public final class PluginRuntimeFailureCascadeTest {
                             callbackRuns
                                 .incrementAndGet()
                     );
-                    context.scheduler().schedule(
-                        1L,
-                        failedBatchTaskRuns::incrementAndGet
+                    failedBatchTask.set(
+                        context.scheduler().schedule(
+                            1L,
+                            failedBatchTaskRuns::incrementAndGet
+                        )
                     );
                 }
             };
@@ -769,6 +779,11 @@ public final class PluginRuntimeFailureCascadeTest {
             require(
                 failedBatchTaskRuns.get()==0,
                 "failed batch executed pending task before commit"
+            );
+            require(
+                failedBatchTask.get()!=null&&
+                !failedBatchTask.get().active(),
+                "failed batch retained active pending task handle"
             );
             require(
                 manager.plugin(
@@ -874,6 +889,309 @@ public final class PluginRuntimeFailureCascadeTest {
             );
         }finally{
             world.close();
+        }
+    }
+
+    private static void batchCommitPublicationBarrier()
+        throws Exception{
+        World world=
+            World.isolatedForTest(
+                600L
+            );
+        WorldPluginManager manager=
+            (WorldPluginManager)
+                world.plugins();
+        AtomicInteger eventRuns=
+            new AtomicInteger();
+        AtomicInteger taskRuns=
+            new AtomicInteger();
+        CountDownLatch registrationsComplete=
+            new CountDownLatch(1);
+        AtomicReference<Thread> enableThread=
+            new AtomicReference<>();
+        AtomicReference<Throwable> enableFailure=
+            new AtomicReference<>();
+        AtomicReference<Throwable> orchestratorFailure=
+            new AtomicReference<>();
+        List<String> disableOrder=
+            Collections.synchronizedList(
+                new ArrayList<>()
+            );
+
+        CascadePlugin first=
+            new CascadePlugin(
+                "enable.barrier.a",
+                Collections.<String>emptyList(),
+                disableOrder,
+                context->{
+                    context.events().subscribe(
+                        EnablePhaseEvent.class,
+                        DomainEventBus.Priority.NORMAL,
+                        event->
+                            eventRuns.incrementAndGet()
+                    );
+                    context.scheduler().schedule(
+                        1L,
+                        taskRuns::incrementAndGet
+                    );
+                }
+            );
+        CascadePlugin second=
+            new CascadePlugin(
+                "enable.barrier.b",
+                Collections.singletonList(
+                    "enable.barrier.a"
+                ),
+                disableOrder,
+                context->
+                    registrationsComplete.countDown()
+            );
+
+        try{
+            world.events().schedule(
+                1L,
+                ()->{
+                    try{
+                        synchronized(world.events()){
+                        Thread worker=
+                            new Thread(
+                                ()->{
+                                    try{
+                                        manager.enableAll(
+                                            Arrays.<Plugin>asList(
+                                                second,
+                                                first
+                                            )
+                                        );
+                                    }catch(Throwable failure){
+                                        enableFailure.set(
+                                            failure
+                                        );
+                                    }
+                                },
+                                "plugin-batch-commit-barrier"
+                            );
+
+                        enableThread.set(worker);
+                        worker.start();
+
+                        try{
+                            if(!registrationsComplete.await(
+                                    5L,
+                                    TimeUnit.SECONDS))
+                                throw new AssertionError(
+                                    "batch registration did not reach commit phase"
+                                );
+
+                            long deadline=
+                                System.nanoTime()+
+                                TimeUnit.SECONDS
+                                    .toNanos(5L);
+
+                            while(worker.isAlive()&&
+                                  worker.getState()!=
+                                    Thread.State.BLOCKED&&
+                                  System.nanoTime()<deadline)
+                                Thread.yield();
+
+                            if(worker.getState()!=
+                                    Thread.State.BLOCKED)
+                                throw new AssertionError(
+                                    "batch enable did not block at queue commit barrier state="+
+                                    worker.getState()
+                                );
+
+                            world.domainEvents()
+                                .publish(
+                                    new EnablePhaseEvent()
+                                );
+                        }catch(Exception failure){
+                            throw new RuntimeException(
+                                failure
+                            );
+                        }
+                        }
+                    }catch(Throwable failure){
+                        orchestratorFailure.set(
+                            failure
+                        );
+                    }
+                }
+            );
+
+            world.observePulse(
+                System.currentTimeMillis()
+            );
+
+            require(
+                orchestratorFailure.get()==null,
+                "batch commit orchestrator failed: "+
+                orchestratorFailure.get()
+            );
+
+            Thread worker=enableThread.get();
+
+            require(
+                worker!=null,
+                "batch commit worker was not created"
+            );
+
+            worker.join(5_000L);
+
+            require(
+                !worker.isAlive(),
+                "batch commit worker did not complete"
+            );
+            require(
+                enableFailure.get()==null,
+                "batch commit worker failed: "+
+                enableFailure.get()
+            );
+            require(
+                eventRuns.get()==0,
+                "batch event callback became visible before shared commit publication"
+            );
+            require(
+                taskRuns.get()==0,
+                "batch task ran before shared commit publication"
+            );
+
+            world.events().schedule(
+                world.clock().tick()+1L,
+                ()->{
+                    try{
+                        world.domainEvents()
+                            .publish(
+                                new EnablePhaseEvent()
+                            );
+                    }catch(Exception failure){
+                        throw new RuntimeException(
+                            failure
+                        );
+                    }
+                }
+            );
+
+            world.observePulse(
+                System.currentTimeMillis()+
+                1_000L
+            );
+
+            require(
+                eventRuns.get()==1,
+                "committed batch event callback did not run exactly once"
+            );
+            require(
+                taskRuns.get()==1,
+                "committed batch task did not run exactly once"
+            );
+
+            manager.disable(
+                "enable.barrier.b"
+            );
+            manager.disable(
+                "enable.barrier.a"
+            );
+        }finally{
+            Thread worker=enableThread.get();
+
+            if(worker!=null&&worker.isAlive()){
+                worker.interrupt();
+                worker.join(1_000L);
+            }
+
+            world.close();
+        }
+    }
+
+    private static void pendingTaskDefersBehindAdmission()
+        throws Exception{
+        GameClock clock=
+            new GameClock();
+        WorldEventQueue queue=
+            new WorldEventQueue();
+        AtomicBoolean worldOpen=
+            new AtomicBoolean(true);
+        AtomicBoolean runtimeEnabled=
+            new AtomicBoolean(false);
+        AtomicReference<Throwable> callbackFailure=
+            new AtomicReference<>();
+        AtomicInteger runs=
+            new AtomicInteger();
+        PluginCallbackScope callbacks=
+            new PluginCallbackScope(
+                ()->true,
+                worldOpen::get
+            );
+        PluginTaskTracker tracker=
+            new PluginTaskTracker(
+                clock,
+                queue,
+                worldOpen::get,
+                PluginRuntimeFailureCascadeTest.class
+                    .getClassLoader(),
+                callbacks,
+                runtimeEnabled::get,
+                (kind,failure)->
+                    callbackFailure.set(
+                        failure
+                    )
+            );
+
+        callbacks.activate();
+
+        PluginTask task=
+            tracker.schedule(
+                1L,
+                runs::incrementAndGet
+            );
+
+        tracker.activate();
+
+        try{
+            clock.advance();
+            queue.runDue(
+                clock.tick()
+            );
+
+            require(
+                runs.get()==0,
+                "pre-commit task executed plugin code"
+            );
+            require(
+                task.active(),
+                "pre-commit task was retired instead of deferred"
+            );
+            require(
+                callbackFailure.get()==null,
+                "pre-commit task deferral created callback failure"
+            );
+
+            runtimeEnabled.set(
+                true
+            );
+
+            clock.advance();
+            queue.runDue(
+                clock.tick()
+            );
+
+            require(
+                runs.get()==1,
+                "deferred task did not run exactly once after admission commit"
+            );
+            require(
+                !task.active(),
+                "one-shot deferred task remained active after execution"
+            );
+            require(
+                callbackFailure.get()==null,
+                "deferred task produced callback failure"
+            );
+        }finally{
+            tracker.close();
+            callbacks.close();
+            queue.close();
         }
     }
 
