@@ -14,6 +14,7 @@ final class PluginTaskTracker
     private final GameClock clock;
     private final WorldEventQueue queue;
     private final BooleanSupplier worldOpen;
+    private volatile ClassLoader callbackLoader;
     private final LinkedHashSet<Task>
         tasks=new LinkedHashSet<>();
 
@@ -23,7 +24,8 @@ final class PluginTaskTracker
     PluginTaskTracker(
         GameClock clock,
         WorldEventQueue queue,
-        BooleanSupplier worldOpen
+        BooleanSupplier worldOpen,
+        ClassLoader callbackLoader
     ){
         this.clock=Objects.requireNonNull(
             clock,
@@ -37,6 +39,8 @@ final class PluginTaskTracker
             worldOpen,
             "worldOpen"
         );
+        this.callbackLoader=
+            callbackLoader;
     }
 
     @Override public synchronized PluginTask schedule(
@@ -212,7 +216,10 @@ final class PluginTaskTracker
         task.queued=null;
 
         try{
-            task.action.run();
+            PluginThreadContext.runUnchecked(
+                callbackLoader,
+                task.action
+            );
         }catch(RuntimeException|Error failure){
             retire(task);
             throw failure;
@@ -293,6 +300,8 @@ final class PluginTaskTracker
                     );
                 }
         }
+
+        callbackLoader=null;
     }
 
     private static final class Task

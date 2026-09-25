@@ -65,10 +65,25 @@ final class WorldPluginManager
         Plugin plugin
     )throws Exception{
         requireOpen();
-        return enableOne(
-            plugin,
-            true
-        );
+
+        try{
+            return enableOne(
+                plugin,
+                true
+            );
+        }catch(Throwable failure){
+            if(!ownsPluginInstance(
+                    plugin))
+                PluginJarLoader
+                    .closePluginRuntime(
+                        plugin,
+                        failure
+                    );
+            rethrow(failure);
+            throw new AssertionError(
+                "unreachable"
+            );
+        }
     }
 
     @Override public synchronized List<PluginHandle>
@@ -77,13 +92,22 @@ final class WorldPluginManager
         )throws Exception{
         requireOpen();
 
-        List<Plugin> ordered=
-            dependencyOrder(plugins);
-
+        ArrayList<Plugin> candidates=
+            new ArrayList<>(
+                Objects.requireNonNull(
+                    plugins,
+                    "plugins"
+                )
+            );
         ArrayList<Entry> added=
             new ArrayList<>();
 
         try{
+            List<Plugin> ordered=
+                dependencyOrder(
+                    candidates
+                );
+
             for(Plugin plugin:ordered)
                 added.add(
                     enableOne(
@@ -100,6 +124,15 @@ final class WorldPluginManager
                     added.get(i),
                     "BATCH_ROLLBACK"
                 );
+
+            for(Plugin plugin:candidates)
+                if(!ownsPluginInstance(
+                        plugin))
+                    PluginJarLoader
+                        .closePluginRuntime(
+                            plugin,
+                            failure
+                        );
 
             rethrow(failure);
         }
@@ -239,9 +272,17 @@ final class WorldPluginManager
             "plugin"
         );
 
+        ClassLoader callbackLoader=
+            PluginJarLoader.callbackClassLoader(
+                plugin
+            );
+
         PluginManifest manifest=
             Objects.requireNonNull(
-                plugin.manifest(),
+                PluginThreadContext.callUnchecked(
+                    callbackLoader,
+                    plugin::manifest
+                ),
                 "plugin manifest"
             );
 
@@ -276,7 +317,8 @@ final class WorldPluginManager
             new PluginTaskTracker(
                 clock,
                 worldEvents,
-                worldOpen
+                worldOpen,
+                callbackLoader
             );
 
         PluginContentModule module=
@@ -284,7 +326,8 @@ final class WorldPluginManager
                 moduleId,
                 plugin,
                 tracker,
-                tasks
+                tasks,
+                callbackLoader
             );
 
         try{
@@ -312,7 +355,10 @@ final class WorldPluginManager
 
             if(module.enableAttempted())
                 try{
-                    plugin.disable();
+                    PluginThreadContext.run(
+                        callbackLoader,
+                        plugin::disable
+                    );
                 }catch(Throwable cleanup){
                     failure.addSuppressed(cleanup);
                 }
@@ -326,6 +372,11 @@ final class WorldPluginManager
             }catch(Throwable cleanup){
                 failure.addSuppressed(cleanup);
             }
+
+            PluginJarLoader.closePluginRuntime(
+                plugin,
+                failure
+            );
 
             rethrow(failure);
             throw new AssertionError(
@@ -367,10 +418,21 @@ final class WorldPluginManager
         if(entry==null)
             return;
 
+        Plugin plugin=
+            entry.plugin;
+        ClassLoader callbackLoader=
+            PluginJarLoader.callbackClassLoader(
+                plugin
+            );
+
         entry.tasks.close();
 
         try{
-            entry.plugin.disable();
+            if(plugin!=null)
+                PluginThreadContext.run(
+                    callbackLoader,
+                    plugin::disable
+                );
         }catch(Throwable failure){
             System.err.println(
                 "[plugins] disable callback failed id="+
@@ -393,7 +455,28 @@ final class WorldPluginManager
                 " reason="+reason+
                 " error="+failure
             );
+        }finally{
+            PluginJarLoader.closePluginRuntime(
+                plugin,
+                null
+            );
+            entry.plugin=null;
         }
+    }
+
+    private synchronized boolean ownsPluginInstance(
+        Plugin plugin
+    ){
+        if(plugin==null)
+            return false;
+
+        for(Entry entry:
+                enabled.values())
+            if(entry.enabled&&
+               entry.plugin==plugin)
+                return true;
+
+        return false;
     }
 
     private synchronized void awaitExplicitCleanups(){
@@ -445,7 +528,13 @@ final class WorldPluginManager
 
             PluginManifest manifest=
                 Objects.requireNonNull(
-                    plugin.manifest(),
+                    PluginThreadContext.callUnchecked(
+                        PluginJarLoader
+                            .callbackClassLoader(
+                                plugin
+                            ),
+                        plugin::manifest
+                    ),
                     "plugin manifest"
                 );
 
@@ -475,13 +564,28 @@ final class WorldPluginManager
 
         for(Plugin plugin:pending.values())
             for(String dependency:
-                    plugin.manifest()
+                    PluginThreadContext
+                        .callUnchecked(
+                            PluginJarLoader
+                                .callbackClassLoader(
+                                    plugin
+                                ),
+                            plugin::manifest
+                        )
                         .dependencies())
                 if(!enabled.containsKey(dependency)&&
                    !pending.containsKey(dependency))
                     throw new IllegalStateException(
                         "plugin dependency missing: "+
-                        plugin.manifest().id()+
+                        PluginThreadContext
+                            .callUnchecked(
+                                PluginJarLoader
+                                    .callbackClassLoader(
+                                        plugin
+                                    ),
+                                plugin::manifest
+                            )
+                            .id()+
                         " -> "+dependency
                     );
 
@@ -498,8 +602,16 @@ final class WorldPluginManager
             for(Map.Entry<String,Plugin> candidate:
                     pending.entrySet()){
                 if(resolved.containsAll(
-                        candidate.getValue()
-                            .manifest()
+                        PluginThreadContext
+                            .callUnchecked(
+                                PluginJarLoader
+                                    .callbackClassLoader(
+                                        candidate
+                                            .getValue()
+                                    ),
+                                candidate
+                                    .getValue()::manifest
+                            )
                             .dependencies())){
                     ready=candidate.getKey();
                     break;
@@ -590,6 +702,7 @@ final class WorldPluginManager
         private final Plugin plugin;
         private final EventTracker tracker;
         private final PluginTaskTracker tasks;
+        private final ClassLoader callbackLoader;
         private volatile ScopedPluginContext context;
         private volatile boolean enableAttempted;
 
@@ -597,12 +710,15 @@ final class WorldPluginManager
             String moduleId,
             Plugin plugin,
             EventTracker tracker,
-            PluginTaskTracker tasks
+            PluginTaskTracker tasks,
+            ClassLoader callbackLoader
         ){
             this.moduleId=moduleId;
             this.plugin=plugin;
             this.tracker=tracker;
             this.tasks=tasks;
+            this.callbackLoader=
+                callbackLoader;
         }
 
         @Override public String id(){
@@ -616,14 +732,18 @@ final class WorldPluginManager
                 new ScopedPluginContext(
                     registrar,
                     tracker,
-                    tasks
+                    tasks,
+                    callbackLoader
                 );
 
             context=local;
             enableAttempted=true;
 
             try{
-                plugin.enable(local);
+                PluginThreadContext.run(
+                    callbackLoader,
+                    ()->plugin.enable(local)
+                );
             }catch(Throwable failure){
                 throw new PluginEnableFailure(
                     failure
@@ -650,22 +770,28 @@ final class WorldPluginManager
         private final ScopedContentRegistrar content;
         private final ScopedPluginEvents events;
         private final PluginScheduler scheduler;
+        private final ClassLoader callbackLoader;
         private boolean open=true;
 
         ScopedPluginContext(
             ContentRegistrar registrar,
             EventTracker tracker,
-            PluginTaskTracker tasks
+            PluginTaskTracker tasks,
+            ClassLoader callbackLoader
         ){
+            this.callbackLoader=
+                callbackLoader;
             content=
                 new ScopedContentRegistrar(
                     registrar,
-                    this
+                    this,
+                    callbackLoader
                 );
             events=
                 new ScopedPluginEvents(
                     tracker,
-                    this
+                    this,
+                    callbackLoader
                 );
             scheduler=tasks;
         }
@@ -706,13 +832,17 @@ final class WorldPluginManager
 
         private final EventTracker tracker;
         private final ScopedPluginContext context;
+        private final ClassLoader callbackLoader;
 
         ScopedPluginEvents(
             EventTracker tracker,
-            ScopedPluginContext context
+            ScopedPluginContext context,
+            ClassLoader callbackLoader
         ){
             this.tracker=tracker;
             this.context=context;
+            this.callbackLoader=
+                callbackLoader;
         }
 
         @Override public <E extends DomainEventBus.Event>
@@ -745,7 +875,11 @@ final class WorldPluginManager
                     receiveCancelled,
                     event->{
                         try{
-                            listener.onEvent(event);
+                            PluginThreadContext.run(
+                                callbackLoader,
+                                ()->listener
+                                    .onEvent(event)
+                            );
                         }catch(Throwable failure){
                             System.err.println(
                                 "[plugins] event callback failed type="+
@@ -806,7 +940,7 @@ final class WorldPluginManager
     private static final class Entry
         implements PluginHandle {
 
-        final Plugin plugin;
+        Plugin plugin;
         final PluginManifest manifest;
         final String moduleId;
         final EventTracker events;
@@ -851,13 +985,17 @@ final class WorldPluginManager
 
         private final ContentRegistrar delegate;
         private final ScopedPluginContext context;
+        private final ClassLoader callbackLoader;
 
         ScopedContentRegistrar(
             ContentRegistrar delegate,
-            ScopedPluginContext context
+            ScopedPluginContext context,
+            ClassLoader callbackLoader
         ){
             this.delegate=delegate;
             this.context=context;
+            this.callbackLoader=
+                callbackLoader;
         }
 
         private void requireOpen(){
@@ -873,7 +1011,13 @@ final class WorldPluginManager
             return delegate.command(
                 name,
                 priority,
-                handler
+                command->
+                    PluginThreadContext.call(
+                        callbackLoader,
+                        ()->handler.handle(
+                            command
+                        )
+                    )
             );
         }
 
@@ -888,7 +1032,11 @@ final class WorldPluginManager
                 objectId,
                 option,
                 priority,
-                handler
+                object->
+                    PluginThreadContext.callUnchecked(
+                        callbackLoader,
+                        ()->handler.handle(object)
+                    )
             );
         }
 
@@ -903,7 +1051,11 @@ final class WorldPluginManager
                 itemId,
                 option,
                 priority,
-                handler
+                item->
+                    PluginThreadContext.callUnchecked(
+                        callbackLoader,
+                        ()->handler.handle(item)
+                    )
             );
         }
 
@@ -918,7 +1070,11 @@ final class WorldPluginManager
                 itemId,
                 npcDefinitionId,
                 priority,
-                handler
+                interaction->
+                    PluginThreadContext.callUnchecked(
+                        callbackLoader,
+                        ()->handler.handle(interaction)
+                    )
             );
         }
 
@@ -933,7 +1089,11 @@ final class WorldPluginManager
                 itemId,
                 groundItemId,
                 priority,
-                handler
+                interaction->
+                    PluginThreadContext.callUnchecked(
+                        callbackLoader,
+                        ()->handler.handle(interaction)
+                    )
             );
         }
 
@@ -948,7 +1108,11 @@ final class WorldPluginManager
                 selectedItemId,
                 targetItemId,
                 priority,
-                handler
+                interaction->
+                    PluginThreadContext.callUnchecked(
+                        callbackLoader,
+                        ()->handler.handle(interaction)
+                    )
             );
         }
 
@@ -963,7 +1127,11 @@ final class WorldPluginManager
                 itemId,
                 objectId,
                 priority,
-                handler
+                interaction->
+                    PluginThreadContext.callUnchecked(
+                        callbackLoader,
+                        ()->handler.handle(interaction)
+                    )
             );
         }
 
@@ -976,7 +1144,11 @@ final class WorldPluginManager
             return delegate.itemOnPlayer(
                 itemId,
                 priority,
-                handler
+                interaction->
+                    PluginThreadContext.callUnchecked(
+                        callbackLoader,
+                        ()->handler.handle(interaction)
+                    )
             );
         }
 
@@ -991,7 +1163,11 @@ final class WorldPluginManager
                 npcDefinitionId,
                 option,
                 priority,
-                handler
+                npc->
+                    PluginThreadContext.callUnchecked(
+                        callbackLoader,
+                        ()->handler.handle(npc)
+                    )
             );
         }
 
@@ -1004,7 +1180,29 @@ final class WorldPluginManager
             return delegate.dialogue(
                 dialogueKey,
                 priority,
-                handler
+                new ContentDialogueHandler(){
+                    @Override public ContentDialogueTransition
+                        handle(
+                            ContentDialogueContext dialogue
+                        ){
+                        return PluginThreadContext
+                            .callUnchecked(
+                                callbackLoader,
+                                ()->handler.handle(
+                                    dialogue
+                                )
+                            );
+                    }
+
+                    @Override public ContentDialogueDefinition
+                        definition(){
+                        return PluginThreadContext
+                            .callUnchecked(
+                                callbackLoader,
+                                handler::definition
+                            );
+                    }
+                }
             );
         }
 
@@ -1017,7 +1215,11 @@ final class WorldPluginManager
             return delegate.action(
                 actionKey,
                 priority,
-                handler
+                action->
+                    PluginThreadContext.callUnchecked(
+                        callbackLoader,
+                        ()->handler.handle(action)
+                    )
             );
         }
     }

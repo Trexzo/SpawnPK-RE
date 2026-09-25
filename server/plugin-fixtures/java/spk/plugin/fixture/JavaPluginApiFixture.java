@@ -1,4 +1,4 @@
-package spk.plugin.fixture;
+package example.spawnpk.fixture;
 
 import java.util.Collections;
 import spk.content.api.ContentInteractionResult;

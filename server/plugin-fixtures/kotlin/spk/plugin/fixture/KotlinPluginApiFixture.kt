@@ -1,4 +1,4 @@
-package spk.plugin.fixture
+package example.spawnpk.fixture
 
 import spk.content.api.ContentInteractionResult
 import spk.content.api.ContentNpcOptionResult

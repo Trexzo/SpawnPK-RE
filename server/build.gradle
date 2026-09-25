@@ -412,7 +412,7 @@ tasks.register('pluginKotlinJvmConsumerRegression') {
         File fixtureClass =
             new File(
                 output,
-                'spk/plugin/fixture/KotlinPluginApiFixture.class'
+                'example/spawnpk/fixture/KotlinPluginApiFixture.class'
             )
 
         if(!fixtureClass.isFile())
@@ -530,6 +530,126 @@ tasks.register('pluginKotlinJvmConsumerRegression') {
     }
 }
 
+
+def pluginIsolationAClasses =
+    layout.buildDirectory.dir(
+        'plugin-fixtures/isolation-a-classes'
+    )
+
+def pluginIsolationBClasses =
+    layout.buildDirectory.dir(
+        'plugin-fixtures/isolation-b-classes'
+    )
+
+def compilePluginIsolationA =
+    tasks.register(
+        'compilePluginIsolationA',
+        JavaCompile
+    ) {
+        group = 'verification'
+        dependsOn pluginApiJar
+        source = fileTree(
+            'plugin-fixtures/isolation/a'
+        ) {
+            include '**/*.java'
+        }
+        classpath = files(
+            pluginApiJar.flatMap {
+                it.archiveFile
+            }
+        )
+        destinationDirectory =
+            pluginIsolationAClasses
+        options.release = 11
+        options.encoding = 'UTF-8'
+    }
+
+def compilePluginIsolationB =
+    tasks.register(
+        'compilePluginIsolationB',
+        JavaCompile
+    ) {
+        group = 'verification'
+        dependsOn pluginApiJar
+        source = fileTree(
+            'plugin-fixtures/isolation/b'
+        ) {
+            include '**/*.java'
+        }
+        classpath = files(
+            pluginApiJar.flatMap {
+                it.archiveFile
+            }
+        )
+        destinationDirectory =
+            pluginIsolationBClasses
+        options.release = 11
+        options.encoding = 'UTF-8'
+    }
+
+def pluginIsolationAJar =
+    tasks.register(
+        'pluginIsolationAJar',
+        Jar
+    ) {
+        dependsOn compilePluginIsolationA
+        archiveFileName =
+            'plugin-isolation-a.jar'
+        destinationDirectory =
+            layout.buildDirectory.dir(
+                'plugin-fixtures'
+            )
+        from(pluginIsolationAClasses)
+        from(
+            'plugin-fixtures/isolation/a'
+        ) {
+            exclude '**/*.java'
+        }
+    }
+
+def pluginIsolationBJar =
+    tasks.register(
+        'pluginIsolationBJar',
+        Jar
+    ) {
+        dependsOn compilePluginIsolationB
+        archiveFileName =
+            'plugin-isolation-b.jar'
+        destinationDirectory =
+            layout.buildDirectory.dir(
+                'plugin-fixtures'
+            )
+        from(pluginIsolationBClasses)
+        from(
+            'plugin-fixtures/isolation/b'
+        ) {
+            exclude '**/*.java'
+        }
+    }
+
+tasks.register(
+    'pluginClassloaderIsolationRegression',
+    JavaExec
+) {
+    group = 'verification'
+    description = 'Proves selective child-first plugin JAR isolation, reserved namespace rejection, TCCL fencing and loader teardown.'
+    dependsOn(
+        tasks.named('testClasses'),
+        pluginIsolationAJar,
+        pluginIsolationBJar
+    )
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass =
+        'spk.local.PluginClassLoaderIsolationTest'
+    args(
+        pluginIsolationAJar.flatMap {
+            it.archiveFile
+        }.get().asFile.absolutePath,
+        pluginIsolationBJar.flatMap {
+            it.archiveFile
+        }.get().asFile.absolutePath
+    )
+}
 
 tasks.register('pluginDeveloperApiArtifactRegression') {
     group = 'verification'
@@ -663,7 +783,7 @@ tasks.register('pluginDeveloperApiArtifactRegression') {
                 layout.buildDirectory
                     .get()
                     .asFile,
-                'plugin-fixtures/java-classes/spk/plugin/fixture/JavaPluginApiFixture.class'
+                'plugin-fixtures/java-classes/example/spawnpk/fixture/JavaPluginApiFixture.class'
             )
 
         if(!javaFixture.isFile())
