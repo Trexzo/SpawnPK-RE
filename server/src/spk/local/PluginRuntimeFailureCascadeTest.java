@@ -909,6 +909,8 @@ public final class PluginRuntimeFailureCascadeTest {
             new AtomicReference<>();
         AtomicReference<Throwable> enableFailure=
             new AtomicReference<>();
+        AtomicReference<Throwable> orchestratorFailure=
+            new AtomicReference<>();
         List<String> disableOrder=
             Collections.synchronizedList(
                 new ArrayList<>()
@@ -947,7 +949,8 @@ public final class PluginRuntimeFailureCascadeTest {
             world.events().schedule(
                 1L,
                 ()->{
-                    synchronized(world.events()){
+                    try{
+                        synchronized(world.events()){
                         Thread worker=
                             new Thread(
                                 ()->{
@@ -1005,12 +1008,23 @@ public final class PluginRuntimeFailureCascadeTest {
                                 failure
                             );
                         }
+                        }
+                    }catch(Throwable failure){
+                        orchestratorFailure.set(
+                            failure
+                        );
                     }
                 }
             );
 
             world.observePulse(
                 System.currentTimeMillis()
+            );
+
+            require(
+                orchestratorFailure.get()==null,
+                "batch commit orchestrator failed: "+
+                orchestratorFailure.get()
             );
 
             Thread worker=enableThread.get();
