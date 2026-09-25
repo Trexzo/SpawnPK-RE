@@ -3,6 +3,7 @@ package example.spawnpk.fixture;
 import java.util.Collections;
 import spk.content.api.ContentInteractionResult;
 import spk.content.api.ContentNpcOptionResult;
+import spk.content.api.ContentRegistration;
 import spk.content.api.ContentResult;
 import spk.event.DomainEventBus;
 import spk.plugin.api.Plugin;
@@ -15,6 +16,9 @@ public final class JavaPluginApiFixture
 
     private static final class FixtureEvent
         implements DomainEventBus.Event {}
+
+    private ContentRegistration commandRegistration;
+    private ContentRegistration objectRegistration;
 
     @Override
     public PluginManifest manifest(){
@@ -30,7 +34,8 @@ public final class JavaPluginApiFixture
     public void enable(
         PluginContext context
     ){
-        context.content().command(
+        commandRegistration=
+            context.content().command(
             "fixturejava",
             100,
             command->
@@ -40,7 +45,8 @@ public final class JavaPluginApiFixture
                 )
         );
 
-        context.content().objectOption(
+        objectRegistration=
+            context.content().objectOption(
             100,
             1,
             100,
@@ -80,5 +86,22 @@ public final class JavaPluginApiFixture
             1L,
             ()->{}
         );
+    }
+
+    @Override
+    public void disable(){
+        ContentRegistration command=
+            commandRegistration;
+        ContentRegistration object=
+            objectRegistration;
+
+        commandRegistration=null;
+        objectRegistration=null;
+
+        if(command!=null)
+            command.unregister();
+
+        if(object!=null)
+            object.close();
     }
 }
