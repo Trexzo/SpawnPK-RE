@@ -250,23 +250,45 @@ public final class PluginClassLoaderIsolationTest {
                 "plugin B private dependency"
             );
 
-            world.observePulse(
-                System.currentTimeMillis()
-            );
+            long schedulerDeadline=
+                System.nanoTime()+
+                java.util.concurrent.TimeUnit
+                    .SECONDS.toNanos(5L);
+            String healthyReportA;
+            String healthyReportB;
+
+            for(;;){
+                healthyReportA=
+                    report(
+                        loadedA
+                    );
+                healthyReportB=
+                    report(
+                        loadedB
+                    );
+
+                if(healthyReportA.contains(
+                        "task=true")&&
+                   healthyReportB.contains(
+                        "task=true"))
+                    break;
+
+                if(System.nanoTime()>=
+                        schedulerDeadline)
+                    throw new AssertionError(
+                        "scheduler callbacks did not complete A="+
+                        healthyReportA+
+                        " B="+
+                        healthyReportB
+                    );
+
+                Thread.sleep(1L);
+            }
 
             assertTcclRestored(
                 baseline,
                 "scheduler callback"
             );
-
-            String healthyReportA=
-                report(
-                    loadedA
-                );
-            String healthyReportB=
-                report(
-                    loadedB
-                );
 
             assertReport(
                 healthyReportA,
