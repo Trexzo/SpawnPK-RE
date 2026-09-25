@@ -20,7 +20,7 @@ final class PluginTaskTracker
         tasks=new LinkedHashSet<>();
 
     private boolean activated;
-    private boolean closing;
+    private volatile boolean closing;
     private boolean closed;
 
     PluginTaskTracker(
@@ -298,8 +298,15 @@ final class PluginTaskTracker
         return tasks.size();
     }
 
-    synchronized void beginClose(){
+    void beginClose(){
         closing=true;
+    }
+
+    void awaitQuiescent(){
+        synchronized(this){
+            // Acquiring this monitor waits for an already-entered task
+            // callback while closing was published lock-free above.
+        }
     }
 
     @Override public synchronized void close(){

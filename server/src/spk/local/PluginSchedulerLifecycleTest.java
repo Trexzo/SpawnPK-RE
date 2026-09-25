@@ -273,6 +273,11 @@ public final class PluginSchedulerLifecycleTest {
                     "plugin.disable ran before callback ownership section completed"
                 );
 
+            if(!blocking.scheduleRejectedAfterFence.get())
+                throw new AssertionError(
+                    "running task admitted new schedule after disable admission fence"
+                );
+
             blocking.release.countDown();
 
             pulseThread.join(5_000L);
@@ -341,6 +346,7 @@ public final class PluginSchedulerLifecycleTest {
                 "disableCancelled=true "+
                 "enableRollback=true "+
                 "disableSerializedWithCallback=true "+
+                "taskAdmissionFenceImmediate=true "+
                 "managerTaskLockOrderSafe=true "+
                 "worldCloseCancelled=true "+
                 "terminalSchedulerRootsReleased=true "+
@@ -525,6 +531,8 @@ public final class PluginSchedulerLifecycleTest {
             new CountDownLatch(1);
         final AtomicBoolean disableCalled=
             new AtomicBoolean();
+        final AtomicBoolean scheduleRejectedAfterFence=
+            new AtomicBoolean();
 
         BlockingPlugin(
             PluginManager manager
@@ -547,6 +555,17 @@ public final class PluginSchedulerLifecycleTest {
                 }catch(InterruptedException ignored){
                     interrupted=true;
                 }
+            }
+
+            try{
+                scheduler.schedule(
+                    1L,
+                    ()->{}
+                );
+            }catch(IllegalStateException expected){
+                scheduleRejectedAfterFence.set(
+                    true
+                );
             }
 
             manager.enabled();

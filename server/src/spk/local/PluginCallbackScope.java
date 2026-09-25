@@ -33,13 +33,24 @@ final class PluginCallbackScope
         }
 
         @Override public void close(){
-            open=false;
+            synchronized(this){
+                if(!open)
+                    return;
+
+                open=false;
+            }
+
+            owner.releaseLease(
+                this
+            );
         }
     }
 
     private volatile BooleanSupplier worldExecution;
     private volatile boolean active;
+    private volatile boolean closing;
     private volatile boolean closed;
+    private int inFlight;
 
     PluginCallbackScope(
         BooleanSupplier worldExecution
@@ -52,7 +63,7 @@ final class PluginCallbackScope
     }
 
     synchronized void activate(){
-        if(closed)
+        if(closing||closed)
             throw new IllegalStateException(
                 "plugin callback scope closed"
             );
@@ -60,10 +71,48 @@ final class PluginCallbackScope
         active=true;
     }
 
-    @Override public synchronized void close(){
+    synchronized void beginClose(){
         active=false;
+        closing=true;
+    }
+
+    void awaitQuiescent(){
+        boolean interrupted=false;
+
+        synchronized(this){
+            while(inFlight>0)
+                try{
+                    wait();
+                }catch(InterruptedException ignored){
+                    interrupted=true;
+                }
+        }
+
+        if(interrupted)
+            Thread.currentThread()
+                .interrupt();
+    }
+
+    synchronized void finishClose(){
+        if(closed)
+            return;
+
+        if(inFlight!=0)
+            throw new IllegalStateException(
+                "plugin callback scope still in flight"
+            );
+
+        active=false;
+        closing=true;
         closed=true;
         worldExecution=null;
+        notifyAll();
+    }
+
+    @Override public void close(){
+        beginClose();
+        awaitQuiescent();
+        finishClose();
     }
 
     <T> T call(
@@ -165,8 +214,8 @@ final class PluginCallbackScope
         );
     }
 
-    private Lease openLease(){
-        if(!active||closed)
+    private synchronized Lease openLease(){
+        if(!active||closing||closed)
             throw new IllegalStateException(
                 "plugin callback scope inactive"
             );
@@ -180,7 +229,24 @@ final class PluginCallbackScope
                 "plugin callback requires World execution context"
             );
 
+        inFlight++;
         return new Lease(this);
+    }
+
+    private synchronized void releaseLease(
+        Lease lease
+    ){
+        if(lease==null||
+           lease.owner!=this)
+            return;
+
+        if(inFlight<=0)
+            throw new IllegalStateException(
+                "plugin callback scope in-flight underflow"
+            );
+
+        inFlight--;
+        notifyAll();
     }
 
     private Lease requireLease(
@@ -199,7 +265,7 @@ final class PluginCallbackScope
     private void requireUsable(
         Lease lease
     ){
-        if(closed||!active)
+        if(closed)
             throw new IllegalStateException(
                 "plugin callback scope inactive"
             );

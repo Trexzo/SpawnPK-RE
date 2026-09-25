@@ -422,7 +422,7 @@ final class WorldPluginManager
             return;
 
         entry.enabled=false;
-        entry.callbacks.close();
+        entry.callbacks.beginClose();
         entry.tasks.beginClose();
         enabled.remove(
             entry.manifest.id()
@@ -442,6 +442,10 @@ final class WorldPluginManager
             PluginJarLoader.callbackClassLoader(
                 plugin
             );
+
+        entry.callbacks.awaitQuiescent();
+        entry.tasks.awaitQuiescent();
+        entry.callbacks.finishClose();
 
         try{
             if(plugin!=null)

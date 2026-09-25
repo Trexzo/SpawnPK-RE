@@ -684,7 +684,7 @@ tasks.register(
     JavaExec
 ) {
     group = 'verification'
-    description = 'Proves World-close plugin teardown executes on the terminal pulse lane with admission fenced before disable and resource destruction afterward.'
+    description = 'Proves terminal pulse ownership, unbounded completion wait, callback quiescence and admission-before-disable teardown ordering.'
     dependsOn tasks.named('testClasses')
     classpath = sourceSets.test.runtimeClasspath
     mainClass =

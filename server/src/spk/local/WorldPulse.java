@@ -20,6 +20,7 @@ final class WorldPulse implements AutoCloseable,Runnable {
     private Thread thread;
     private volatile Thread compatibilityExecutionThread;
     private Runnable terminalAction;
+    private boolean terminalClaimed;
     private boolean terminalComplete;
     private Throwable terminalFailure;
     private long nextTickAt;
@@ -52,8 +53,10 @@ final class WorldPulse implements AutoCloseable,Runnable {
     @Override public void run(){
         try{
             while(running.get()){
-                if(world.closed())
+                if(world.closed()){
+                    awaitTerminalAssignment();
                     break;
+                }
 
                 long now=System.currentTimeMillis();
             try{world.realtime().runDue(now);}catch(Throwable t){System.err.println("[world] realtime queue error: "+t);}
@@ -206,6 +209,7 @@ final class WorldPulse implements AutoCloseable,Runnable {
 
         synchronized(this){
             if(terminalAction!=null||
+               terminalClaimed||
                terminalComplete)
                 throw new IllegalStateException(
                     "pulse terminal callback already assigned"
@@ -217,64 +221,58 @@ final class WorldPulse implements AutoCloseable,Runnable {
             inline=
                 active==null||
                 Thread.currentThread()==active;
-
-            if(active!=null&&!inline)
-                active.interrupt();
+            notifyAll();
         }
 
         if(inline)
             runTerminalOnce();
         else{
+            active.interrupt();
+
             boolean interrupted=false;
-            long deadline=
-                System.nanoTime()+
-                2_000_000_000L;
 
-            synchronized(this){
-                while(!terminalComplete){
-                    if(!active.isAlive())
+            for(;;){
+                boolean recover=false;
+
+                synchronized(this){
+                    if(terminalComplete)
                         break;
 
-                    long remaining=
-                        deadline-
-                        System.nanoTime();
-
-                    if(remaining<=0L)
-                        break;
-
-                    long millis=
-                        Math.max(
-                            1L,
-                            Math.min(
-                                100L,
-                                remaining/
-                                    1_000_000L
-                            )
-                        );
-
-                    try{
-                        wait(millis);
-                    }catch(InterruptedException ignored){
-                        interrupted=true;
-                    }
+                    if(!terminalClaimed&&
+                       !active.isAlive())
+                        recover=true;
+                    else
+                        try{
+                            wait();
+                        }catch(InterruptedException ignored){
+                            interrupted=true;
+                        }
                 }
-            }
 
-            if(!terminalComplete&&
-               !active.isAlive())
-                runTerminalOnce();
+                if(recover)
+                    runTerminalOnce();
+            }
 
             if(interrupted)
                 Thread.currentThread()
                     .interrupt();
-
-            if(!terminalComplete)
-                throw new IllegalStateException(
-                    "pulse terminal callback timeout"
-                );
         }
 
         rethrowTerminalFailure();
+    }
+
+    private void awaitTerminalAssignment(){
+        synchronized(this){
+            while(running.get()&&
+                  terminalAction==null&&
+                  !terminalComplete)
+                try{
+                    wait();
+                }catch(InterruptedException ignored){
+                    // Lifecycle interrupts wake the pulse; terminal ownership
+                    // is still resolved by terminalAction/running state.
+                }
+        }
     }
 
     private void runTerminalOnce(){
@@ -282,9 +280,11 @@ final class WorldPulse implements AutoCloseable,Runnable {
 
         synchronized(this){
             if(terminalComplete||
+               terminalClaimed||
                terminalAction==null)
                 return;
 
+            terminalClaimed=true;
             action=terminalAction;
             terminalAction=null;
         }
@@ -332,6 +332,7 @@ final class WorldPulse implements AutoCloseable,Runnable {
 
     @Override public synchronized void close(){
         running.set(false);
+        notifyAll();
 
         Thread active=thread;
         if(active==null)return;
