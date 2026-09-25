@@ -15,17 +15,20 @@ final class PluginTaskTracker
     private volatile WorldEventQueue queue;
     private volatile BooleanSupplier worldOpen;
     private volatile ClassLoader callbackLoader;
+    private final PluginCallbackScope callbackScope;
     private final LinkedHashSet<Task>
         tasks=new LinkedHashSet<>();
 
     private boolean activated;
+    private boolean closing;
     private boolean closed;
 
     PluginTaskTracker(
         GameClock clock,
         WorldEventQueue queue,
         BooleanSupplier worldOpen,
-        ClassLoader callbackLoader
+        ClassLoader callbackLoader,
+        PluginCallbackScope callbackScope
     ){
         this.clock=Objects.requireNonNull(
             clock,
@@ -41,6 +44,11 @@ final class PluginTaskTracker
         );
         this.callbackLoader=
             callbackLoader;
+        this.callbackScope=
+            Objects.requireNonNull(
+                callbackScope,
+                "callbackScope"
+            );
     }
 
     @Override public synchronized PluginTask schedule(
@@ -125,7 +133,9 @@ final class PluginTaskTracker
     }
 
     private void requireOpen(){
-        if(closed||
+        if(closing||
+           closed||
+           worldOpen==null||
            !worldOpen.getAsBoolean())
             throw new IllegalStateException(
                 "plugin scheduler closed"
@@ -205,7 +215,8 @@ final class PluginTaskTracker
     synchronized void execute(
         Task task
     ){
-        if(closed||
+        if(closing||
+           closed||
            task==null||
            !task.active||
            !tasks.contains(task)||
@@ -225,16 +236,20 @@ final class PluginTaskTracker
         }
 
         try{
-            PluginThreadContext.runUnchecked(
+            callbackScope.callUnchecked(
                 callbackLoader,
-                action
+                lease->{
+                    action.run();
+                    return null;
+                }
             );
         }catch(RuntimeException|Error failure){
             retire(task);
             throw failure;
         }
 
-        if(closed||
+        if(closing||
+           closed||
            !task.active||
            !tasks.contains(task)||
            !worldOpen.getAsBoolean()){
@@ -283,10 +298,15 @@ final class PluginTaskTracker
         return tasks.size();
     }
 
+    synchronized void beginClose(){
+        closing=true;
+    }
+
     @Override public synchronized void close(){
         if(closed)
             return;
 
+        closing=true;
         closed=true;
 
         ArrayList<Task> snapshot=

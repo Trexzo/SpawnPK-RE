@@ -680,6 +680,18 @@ tasks.register(
 }
 
 tasks.register(
+    'pluginWorldTerminalLifecycleRegression',
+    JavaExec
+) {
+    group = 'verification'
+    description = 'Proves World-close plugin teardown executes on the terminal pulse lane with admission fenced before disable and resource destruction afterward.'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass =
+        'spk.local.PluginWorldTerminalLifecycleTest'
+}
+
+tasks.register(
     'pluginClassloaderIsolationRegression',
     JavaExec
 ) {

@@ -19,6 +19,9 @@ final class WorldPulse implements AutoCloseable,Runnable {
     private final AtomicBoolean running=new AtomicBoolean();
     private Thread thread;
     private volatile Thread compatibilityExecutionThread;
+    private Runnable terminalAction;
+    private boolean terminalComplete;
+    private Throwable terminalFailure;
     private long nextTickAt;
     private long overdueTicks;
     private long lastDurationNanos;
@@ -47,11 +50,12 @@ final class WorldPulse implements AutoCloseable,Runnable {
     }
 
     @Override public void run(){
-        while(running.get()){
-            if(world.closed())
-                return;
+        try{
+            while(running.get()){
+                if(world.closed())
+                    break;
 
-            long now=System.currentTimeMillis();
+                long now=System.currentTimeMillis();
             try{world.realtime().runDue(now);}catch(Throwable t){System.err.println("[world] realtime queue error: "+t);}
             // Low-latency command phase. Commands still execute exclusively on this
             // World thread; only the logical simulation step remains 600 ms.
@@ -73,7 +77,10 @@ final class WorldPulse implements AutoCloseable,Runnable {
             long realtimeDue=world.realtime().nextDueMillis();
             long wake=Math.min(nextTickAt,realtimeDue);
             long sleep=Math.max(1L,Math.min(20L,wake-now));
-            try{Thread.sleep(sleep);}catch(InterruptedException ignored){Thread.currentThread().interrupt();}
+                try{Thread.sleep(sleep);}catch(InterruptedException ignored){Thread.currentThread().interrupt();}
+            }
+        }finally{
+            runTerminalOnce();
         }
     }
 
@@ -185,6 +192,136 @@ final class WorldPulse implements AutoCloseable,Runnable {
     }
 
     String metrics(){return "WorldPulse{tick="+world.clock().tick()+",running="+running()+",players="+world.players().size()+",commandsQueued="+world.commands().size()+",commandsProcessed="+commandsProcessed+",fastCommandsProcessed="+fastCommandsProcessed+",scheduled="+world.events().size()+",tasksProcessed="+tasksProcessed+",realtime="+world.realtime().size()+",lastTickMs="+(lastDurationNanos/1_000_000.0)+",maxTickMs="+(maxDurationNanos/1_000_000.0)+",overdue="+overdueTicks+"}";}
+
+    void closeWithTerminal(
+        Runnable terminal
+    ){
+        Objects.requireNonNull(
+            terminal,
+            "terminal"
+        );
+
+        Thread active;
+        boolean inline;
+
+        synchronized(this){
+            if(terminalAction!=null||
+               terminalComplete)
+                throw new IllegalStateException(
+                    "pulse terminal callback already assigned"
+                );
+
+            terminalAction=terminal;
+            running.set(false);
+            active=thread;
+            inline=
+                active==null||
+                Thread.currentThread()==active;
+
+            if(active!=null&&!inline)
+                active.interrupt();
+        }
+
+        if(inline)
+            runTerminalOnce();
+        else{
+            boolean interrupted=false;
+            long deadline=
+                System.nanoTime()+
+                2_000_000_000L;
+
+            synchronized(this){
+                while(!terminalComplete){
+                    long remaining=
+                        deadline-
+                        System.nanoTime();
+
+                    if(remaining<=0L)
+                        break;
+
+                    long millis=
+                        Math.max(
+                            1L,
+                            Math.min(
+                                100L,
+                                remaining/
+                                    1_000_000L
+                            )
+                        );
+
+                    try{
+                        wait(millis);
+                    }catch(InterruptedException ignored){
+                        interrupted=true;
+                    }
+                }
+            }
+
+            if(interrupted)
+                Thread.currentThread()
+                    .interrupt();
+
+            if(!terminalComplete)
+                throw new IllegalStateException(
+                    "pulse terminal callback timeout"
+                );
+        }
+
+        rethrowTerminalFailure();
+    }
+
+    private void runTerminalOnce(){
+        Runnable action;
+
+        synchronized(this){
+            if(terminalComplete||
+               terminalAction==null)
+                return;
+
+            action=terminalAction;
+            terminalAction=null;
+        }
+
+        Thread prior=
+            compatibilityExecutionThread;
+        compatibilityExecutionThread=
+            Thread.currentThread();
+
+        Throwable failure=null;
+
+        try{
+            action.run();
+        }catch(Throwable error){
+            failure=error;
+        }finally{
+            compatibilityExecutionThread=prior;
+
+            synchronized(this){
+                terminalFailure=failure;
+                terminalComplete=true;
+                notifyAll();
+            }
+        }
+    }
+
+    private void rethrowTerminalFailure(){
+        Throwable failure;
+
+        synchronized(this){
+            failure=terminalFailure;
+        }
+
+        if(failure==null)
+            return;
+
+        if(failure instanceof RuntimeException)
+            throw (RuntimeException)failure;
+
+        if(failure instanceof Error)
+            throw (Error)failure;
+
+        throw new RuntimeException(failure);
+    }
 
     @Override public synchronized void close(){
         running.set(false);

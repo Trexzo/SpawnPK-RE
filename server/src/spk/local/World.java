@@ -654,9 +654,10 @@ final class World implements AutoCloseable {
             failure=
                 WorldCloseSequence.run(
                     plugins::beginClose,
-                    pulse::close,
+                    ()->pulse.closeWithTerminal(
+                        plugins::closeResources
+                    ),
                     npcPresentationEvents::close,
-                    plugins::closeResources,
                     domainEvents::close,
                     commands::close,
                     realtime::close,

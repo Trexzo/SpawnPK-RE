@@ -329,7 +329,8 @@ final class WorldPluginManager
                 clock,
                 worldEvents,
                 worldOpen,
-                callbackLoader
+                callbackLoader,
+                callbackScope
             );
 
         PluginContentModule module=
@@ -422,6 +423,7 @@ final class WorldPluginManager
 
         entry.enabled=false;
         entry.callbacks.close();
+        entry.tasks.beginClose();
         enabled.remove(
             entry.manifest.id()
         );
@@ -441,8 +443,6 @@ final class WorldPluginManager
                 plugin
             );
 
-        entry.tasks.close();
-
         try{
             if(plugin!=null)
                 PluginThreadContext.run(
@@ -458,6 +458,7 @@ final class WorldPluginManager
             );
         }
 
+        entry.tasks.close();
         entry.events.close();
 
         try{
@@ -817,7 +818,8 @@ final class WorldPluginManager
                     eventBus,
                     tracker,
                     this,
-                    callbackLoader
+                    callbackLoader,
+                    callbackScope
                 );
             scheduler=tasks;
         }
@@ -883,13 +885,15 @@ final class WorldPluginManager
         private EventTracker tracker;
         private ScopedPluginContext context;
         private ClassLoader callbackLoader;
+        private PluginCallbackScope callbackScope;
         private boolean sealed;
 
         ScopedPluginEvents(
             DomainEventBus eventBus,
             EventTracker tracker,
             ScopedPluginContext context,
-            ClassLoader callbackLoader
+            ClassLoader callbackLoader,
+            PluginCallbackScope callbackScope
         ){
             this.eventBus=
                 Objects.requireNonNull(
@@ -908,6 +912,11 @@ final class WorldPluginManager
                 );
             this.callbackLoader=
                 callbackLoader;
+            this.callbackScope=
+                Objects.requireNonNull(
+                    callbackScope,
+                    "callbackScope"
+                );
         }
 
         @Override public synchronized
@@ -938,6 +947,8 @@ final class WorldPluginManager
             DomainEventBus bus=eventBus;
             EventTracker owner=tracker;
             ClassLoader loader=callbackLoader;
+            PluginCallbackScope callbacks=
+                callbackScope;
 
             DomainEventBus.Subscription subscription=
                 bus.subscribe(
@@ -946,10 +957,14 @@ final class WorldPluginManager
                     receiveCancelled,
                     event->{
                         try{
-                            PluginThreadContext.run(
+                            callbacks.call(
                                 loader,
-                                ()->listener
-                                    .onEvent(event)
+                                lease->{
+                                    listener.onEvent(
+                                        event
+                                    );
+                                    return null;
+                                }
                             );
                         }catch(Throwable failure){
                             System.err.println(
@@ -971,6 +986,7 @@ final class WorldPluginManager
             tracker=null;
             context=null;
             callbackLoader=null;
+            callbackScope=null;
         }
 
         private void requireOpen(){
@@ -1174,9 +1190,9 @@ final class WorldPluginManager
                 option,
                 priority,
                 object->
-                    PluginThreadContext.callUnchecked(
+                    runtime.callbacks.callUnchecked(
                         runtime.loader,
-                        ()->handler.handle(object)
+                        lease->handler.handle(object)
                     )
             );
         }
@@ -1195,9 +1211,9 @@ final class WorldPluginManager
                 option,
                 priority,
                 item->
-                    PluginThreadContext.callUnchecked(
+                    runtime.callbacks.callUnchecked(
                         runtime.loader,
-                        ()->handler.handle(item)
+                        lease->handler.handle(item)
                     )
             );
         }
@@ -1216,9 +1232,9 @@ final class WorldPluginManager
                 npcDefinitionId,
                 priority,
                 interaction->
-                    PluginThreadContext.callUnchecked(
+                    runtime.callbacks.callUnchecked(
                         runtime.loader,
-                        ()->handler.handle(interaction)
+                        lease->handler.handle(interaction)
                     )
             );
         }
@@ -1237,9 +1253,9 @@ final class WorldPluginManager
                 groundItemId,
                 priority,
                 interaction->
-                    PluginThreadContext.callUnchecked(
+                    runtime.callbacks.callUnchecked(
                         runtime.loader,
-                        ()->handler.handle(interaction)
+                        lease->handler.handle(interaction)
                     )
             );
         }
@@ -1258,9 +1274,9 @@ final class WorldPluginManager
                 targetItemId,
                 priority,
                 interaction->
-                    PluginThreadContext.callUnchecked(
+                    runtime.callbacks.callUnchecked(
                         runtime.loader,
-                        ()->handler.handle(interaction)
+                        lease->handler.handle(interaction)
                     )
             );
         }
@@ -1279,9 +1295,9 @@ final class WorldPluginManager
                 objectId,
                 priority,
                 interaction->
-                    PluginThreadContext.callUnchecked(
+                    runtime.callbacks.callUnchecked(
                         runtime.loader,
-                        ()->handler.handle(interaction)
+                        lease->handler.handle(interaction)
                     )
             );
         }
@@ -1326,9 +1342,9 @@ final class WorldPluginManager
                 option,
                 priority,
                 npc->
-                    PluginThreadContext.callUnchecked(
+                    runtime.callbacks.callUnchecked(
                         runtime.loader,
-                        ()->handler.handle(npc)
+                        lease->handler.handle(npc)
                     )
             );
         }
@@ -1365,10 +1381,10 @@ final class WorldPluginManager
 
                     @Override public ContentDialogueDefinition
                         definition(){
-                        return PluginThreadContext
+                        return runtime.callbacks
                             .callUnchecked(
                                 runtime.loader,
-                                handler::definition
+                                lease->handler.definition()
                             );
                     }
                 }
