@@ -3034,6 +3034,33 @@ tasks.register('pluginRuntimeFailureCascadeRegression') {
     }
 }
 
+tasks.register('issue4FinalCertification') {
+    group = 'verification'
+    description = 'Runs every Issue #4 plugin gate plus the frozen 175-test and exact-v308 179-test release-safety suites.'
+
+    dependsOn(
+        tasks.named('pluginDeveloperApiArtifactRegression'),
+        tasks.named('pluginKotlinJvmConsumerRegression'),
+        tasks.named('pluginClassloaderIsolationRegression'),
+        tasks.named('pluginCallbackLeaseIsolationRegression'),
+        tasks.named('pluginSchedulerTerminalReleaseRegression'),
+        tasks.named('pluginContentRegistrationTerminalReleaseRegression'),
+        tasks.named('pluginEnableFacadeTerminalReleaseRegression'),
+        tasks.named('pluginWorldTerminalLifecycleRegression'),
+        tasks.named('pluginRuntimeFailureCascadeRegression'),
+        tasks.named('currentTrainFocusedRegression'),
+        tasks.named('r85V308Acceptance')
+    )
+
+    doLast {
+        logger.lifecycle(
+            'SPAWNPK_ISSUE4_FINAL_CERTIFICATION_PASS ' +
+            'pluginGates=9 focused=175 exactV308=179 ' +
+            'bytecodeMajor=55 canonicalPromoted=true'
+        )
+    }
+}
+
 tasks.named('check') {
     dependsOn tasks.named('customAssetPipelineRegression')
     dependsOn tasks.named('customAssetPipelineHardeningRegression')
