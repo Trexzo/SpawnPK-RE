@@ -34,6 +34,7 @@ public final class PluginRuntimeFailureCascadeTest {
             "nestedTaskCascadeDeferred=true "+
             "batchEnableAdmissionAtomic=true "+
             "batchTaskDeferredUntilCommit=true "+
+            "failedBatchTaskHandleTerminal=true "+
             "admissionRejectionNotFailure=true "+
             "claimedFailureRecorded=true "+
             "cleanupFailureDetached=true "+
@@ -674,6 +675,9 @@ public final class PluginRuntimeFailureCascadeTest {
             new AtomicInteger();
         AtomicInteger failedBatchTaskRuns=
             new AtomicInteger();
+        AtomicReference<PluginTask>
+            failedBatchTask=
+                new AtomicReference<>();
         AtomicReference<Throwable> failure=
             new AtomicReference<>();
 
@@ -701,9 +705,11 @@ public final class PluginRuntimeFailureCascadeTest {
                             callbackRuns
                                 .incrementAndGet()
                     );
-                    context.scheduler().schedule(
-                        1L,
-                        failedBatchTaskRuns::incrementAndGet
+                    failedBatchTask.set(
+                        context.scheduler().schedule(
+                            1L,
+                            failedBatchTaskRuns::incrementAndGet
+                        )
                     );
                 }
             };
@@ -769,6 +775,11 @@ public final class PluginRuntimeFailureCascadeTest {
             require(
                 failedBatchTaskRuns.get()==0,
                 "failed batch executed pending task before commit"
+            );
+            require(
+                failedBatchTask.get()!=null&&
+                !failedBatchTask.get().active(),
+                "failed batch retained active pending task handle"
             );
             require(
                 manager.plugin(
