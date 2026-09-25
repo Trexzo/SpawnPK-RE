@@ -248,6 +248,7 @@ public final class PluginCallbackLeaseIsolationTest {
                 "freshLaterLease=true "+
                 "scopeDisableFence=true "+
                 "terminalScopeReleasesWorld=true "+
+                "terminalScopeReleasesWorldOpen=true "+
                 "facadeCoverageComplete=true "+
                 "publicApiExpanded=false"
             );
@@ -287,6 +288,18 @@ public final class PluginCallbackLeaseIsolationTest {
         if(executionField.get(callbacks)!=null)
             throw new AssertionError(
                 "terminal callback scope retained World execution supplier"
+            );
+
+        java.lang.reflect.Field openField=
+            callbacks.getClass()
+                .getDeclaredField(
+                    "worldOpen"
+                );
+        openField.setAccessible(true);
+
+        if(openField.get(callbacks)!=null)
+            throw new AssertionError(
+                "terminal callback scope retained World open supplier"
             );
     }
 
