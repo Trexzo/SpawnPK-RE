@@ -656,6 +656,18 @@ tasks.register(
 }
 
 tasks.register(
+    'pluginContentRegistrationTerminalReleaseRegression',
+    JavaExec
+) {
+    group = 'verification'
+    description = 'Proves retained terminal ContentRegistration handles release ContentRegistry/World ownership.'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass =
+        'spk.local.ContentRegistrationLifecycleTest'
+}
+
+tasks.register(
     'pluginClassloaderIsolationRegression',
     JavaExec
 ) {

@@ -194,6 +194,11 @@ public final class ContentRegistrationLifecycleTest {
                     "command handle idempotence"
                 );
 
+            assertOwnerReleased(
+                high.command,
+                "explicit unregister"
+            );
+
             if(!high.action.unregister()||
                high.action.active())
                 throw new AssertionError(
@@ -343,6 +348,11 @@ public final class ContentRegistrationLifecycleTest {
                     "failed install leaked active handle"
                 );
 
+            assertOwnerReleased(
+                failedHandle.get(),
+                "failed install rollback"
+            );
+
             assertWinner(
                 registry.commandBinding(
                     "lifecyclecmd"
@@ -388,6 +398,51 @@ public final class ContentRegistrationLifecycleTest {
                     "pending cancellation committed binding"
                 );
 
+            assertOwnerReleased(
+                cancelled.get(),
+                "pending cancellation"
+            );
+
+            AtomicReference<ContentRegistration>
+                moduleRemoved=
+                    new AtomicReference<>();
+
+            registry.installCustom(
+                module(
+                    "lifecycle-module-remove",
+                    registrar->
+                        moduleRemoved.set(
+                            registrar.command(
+                                "moduleremoved",
+                                1,
+                                context->
+                                    ContentResult.handled(
+                                        "MODULE_REMOVED",
+                                        null
+                                    )
+                            )
+                        )
+                )
+            );
+
+            ContentRegistration removedHandle=
+                moduleRemoved.get();
+
+            if(removedHandle==null||
+               !removedHandle.active()||
+               !registry.uninstallModule(
+                    "lifecycle-module-remove")||
+               removedHandle.active()||
+               removedHandle.unregister())
+                throw new AssertionError(
+                    "module uninstall handle lifecycle"
+                );
+
+            assertOwnerReleased(
+                removedHandle,
+                "module uninstall"
+            );
+
             low.npc.close();
 
             if(low.npc.active()||
@@ -407,7 +462,9 @@ public final class ContentRegistrationLifecycleTest {
                 "actionFallback=true "+
                 "idempotent=true "+
                 "failedInstallLeak=false "+
-                "pendingCancellation=true"
+                "pendingCancellation=true "+
+                "terminalOwnerReleased=true "+
+                "moduleUninstallOwnerReleased=true"
             );
         }finally{
             if(player.registered())
@@ -473,6 +530,24 @@ public final class ContentRegistrationLifecycleTest {
             npc.get(),
             action.get()
         );
+    }
+
+    private static void assertOwnerReleased(
+        ContentRegistration registration,
+        String phase
+    )throws Exception{
+        java.lang.reflect.Field owner=
+            registration.getClass()
+                .getDeclaredField(
+                    "owner"
+                );
+        owner.setAccessible(true);
+
+        if(owner.get(registration)!=null)
+            throw new AssertionError(
+                phase+
+                " retained ContentRegistry owner"
+            );
     }
 
     private static void assertPending(

@@ -985,8 +985,10 @@ final class ContentRegistry {
             if(!moduleId.equals(info.moduleId))
                 continue;
 
-            registrationHandle(registration).state=
-                REGISTRATION_REMOVED;
+            registrationHandle(registration)
+                .removeFrom(
+                    this
+                );
             iterator.remove();
         }
     }
@@ -2129,11 +2131,13 @@ final class ContentRegistry {
     private synchronized boolean unregister(
         RegistrationHandle handle
     ){
-        if(handle.state==REGISTRATION_REMOVED)
+        if(handle.state==REGISTRATION_REMOVED){
+            handle.removeFrom(this);
             return false;
+        }
 
         if(handle.state==REGISTRATION_PENDING){
-            handle.state=REGISTRATION_REMOVED;
+            handle.removeFrom(this);
             return true;
         }
 
@@ -2208,7 +2212,7 @@ final class ContentRegistry {
                 "active content registration missing"
             );
 
-        handle.state=REGISTRATION_REMOVED;
+        handle.removeFrom(this);
         rebuildEffectiveBindings();
         return true;
     }
@@ -3066,41 +3070,92 @@ final class ContentRegistry {
         }
     }
 
-    private final class RegistrationHandle
+    private static final class RegistrationHandle
         implements ContentRegistration {
 
+        private volatile ContentRegistry owner;
         private int state=REGISTRATION_PENDING;
 
+        RegistrationHandle(
+            ContentRegistry owner
+        ){
+            this.owner=
+                Objects.requireNonNull(
+                    owner,
+                    "owner"
+                );
+        }
+
         @Override public boolean active(){
-            synchronized(ContentRegistry.this){
-                return state==
-                    REGISTRATION_ACTIVE;
+            ContentRegistry registry=
+                owner;
+
+            if(registry==null)
+                return false;
+
+            synchronized(registry){
+                return owner==registry&&
+                    state==
+                        REGISTRATION_ACTIVE;
             }
         }
 
         @Override public boolean unregister(){
-            return ContentRegistry.this
-                .unregister(this);
+            ContentRegistry registry=
+                owner;
+
+            return registry!=null&&
+                registry.unregister(this);
         }
 
         boolean pending(){
-            synchronized(ContentRegistry.this){
-                return state==
-                    REGISTRATION_PENDING;
+            ContentRegistry registry=
+                owner;
+
+            if(registry==null)
+                return false;
+
+            synchronized(registry){
+                return owner==registry&&
+                    state==
+                        REGISTRATION_PENDING;
             }
         }
 
-        synchronized void activatePending(){
-            synchronized(ContentRegistry.this){
-                if(state==REGISTRATION_PENDING)
+        void activatePending(){
+            ContentRegistry registry=
+                owner;
+
+            if(registry==null)
+                return;
+
+            synchronized(registry){
+                if(owner==registry&&
+                   state==REGISTRATION_PENDING)
                     state=REGISTRATION_ACTIVE;
             }
         }
 
-        synchronized void invalidatePending(){
-            synchronized(ContentRegistry.this){
-                if(state==REGISTRATION_PENDING)
-                    state=REGISTRATION_REMOVED;
+        void invalidatePending(){
+            ContentRegistry registry=
+                owner;
+
+            if(registry==null)
+                return;
+
+            synchronized(registry){
+                if(owner==registry&&
+                   state==REGISTRATION_PENDING)
+                    removeFrom(registry);
+            }
+        }
+
+        void removeFrom(
+            ContentRegistry registry
+        ){
+            if(owner==registry){
+                state=REGISTRATION_REMOVED;
+                owner=null;
             }
         }
     }
@@ -3183,7 +3238,9 @@ final class ContentRegistry {
             );
 
             RegistrationHandle handle=
-                new RegistrationHandle();
+                new RegistrationHandle(
+                    ContentRegistry.this
+                );
 
             pendingCommands.add(
                 new CommandRegistration(
@@ -3231,7 +3288,9 @@ final class ContentRegistry {
                 );
 
             RegistrationHandle handle=
-                new RegistrationHandle();
+                new RegistrationHandle(
+                    ContentRegistry.this
+                );
 
             pendingObjectOptions.add(
                 new ObjectOptionRegistration(
@@ -3280,7 +3339,9 @@ final class ContentRegistry {
                 );
 
             RegistrationHandle handle=
-                new RegistrationHandle();
+                new RegistrationHandle(
+                    ContentRegistry.this
+                );
 
             pendingItemOptions.add(
                 new ItemOptionRegistration(
@@ -3329,7 +3390,9 @@ final class ContentRegistry {
                 );
 
             RegistrationHandle handle=
-                new RegistrationHandle();
+                new RegistrationHandle(
+                    ContentRegistry.this
+                );
 
             pendingItemOnNpc.add(
                 new ItemOnNpcRegistration(
@@ -3378,7 +3441,9 @@ final class ContentRegistry {
                 );
 
             RegistrationHandle handle=
-                new RegistrationHandle();
+                new RegistrationHandle(
+                    ContentRegistry.this
+                );
 
             pendingItemOnGroundItem.add(
                 new ItemOnGroundItemRegistration(
@@ -3427,7 +3492,9 @@ final class ContentRegistry {
                 );
 
             RegistrationHandle handle=
-                new RegistrationHandle();
+                new RegistrationHandle(
+                    ContentRegistry.this
+                );
 
             pendingItemOnItem.add(
                 new ItemOnItemRegistration(
@@ -3476,7 +3543,9 @@ final class ContentRegistry {
                 );
 
             RegistrationHandle handle=
-                new RegistrationHandle();
+                new RegistrationHandle(
+                    ContentRegistry.this
+                );
 
             pendingItemOnObject.add(
                 new ItemOnObjectRegistration(
@@ -3518,7 +3587,9 @@ final class ContentRegistry {
                 );
 
             RegistrationHandle handle=
-                new RegistrationHandle();
+                new RegistrationHandle(
+                    ContentRegistry.this
+                );
 
             pendingItemOnPlayer.add(
                 new ItemOnPlayerRegistration(
@@ -3567,7 +3638,9 @@ final class ContentRegistry {
                 );
 
             RegistrationHandle handle=
-                new RegistrationHandle();
+                new RegistrationHandle(
+                    ContentRegistry.this
+                );
 
             pendingNpcOptions.add(
                 new NpcOptionRegistration(
@@ -3601,7 +3674,9 @@ final class ContentRegistry {
             );
 
             RegistrationHandle handle=
-                new RegistrationHandle();
+                new RegistrationHandle(
+                    ContentRegistry.this
+                );
 
             pendingActions.add(
                 new ActionRegistration(
@@ -3649,7 +3724,9 @@ final class ContentRegistry {
                 );
 
             RegistrationHandle handle=
-                new RegistrationHandle();
+                new RegistrationHandle(
+                    ContentRegistry.this
+                );
 
             pendingDialogues.add(
                 new DialogueRegistration(
