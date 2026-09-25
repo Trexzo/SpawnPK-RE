@@ -668,6 +668,18 @@ tasks.register(
 }
 
 tasks.register(
+    'pluginEnableFacadeTerminalReleaseRegression',
+    JavaExec
+) {
+    group = 'verification'
+    description = 'Proves sealed PluginContext, ContentRegistrar and PluginEvents facades release registration/runtime ownership roots.'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass =
+        'spk.local.PluginKernelLifecycleTest'
+}
+
+tasks.register(
     'pluginClassloaderIsolationRegression',
     JavaExec
 ) {

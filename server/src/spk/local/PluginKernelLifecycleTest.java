@@ -62,6 +62,7 @@ public final class PluginKernelLifecycleTest {
         );
 
         assertScopedRegistrarClosed(plugin);
+        assertScopedEnableFacadesReleased(plugin);
 
         AtomicReference<String> command=
             new AtomicReference<>();
@@ -478,6 +479,7 @@ public final class PluginKernelLifecycleTest {
             "contentShadowRestore=true "+
             "eventWorldThread=true "+
             "disableClean=true "+
+            "enableFacadeRootsReleased=true "+
             "reenable=true "+
             "preEnableGuards=true "+
             "failureRollback=true "+
@@ -660,6 +662,102 @@ public final class PluginKernelLifecycleTest {
             );
     }
 
+    private static void assertScopedEnableFacadesReleased(
+        ProbePlugin plugin
+    )throws Exception{
+        expectRuntimeFailure(
+            ()->plugin.retainedContext.content(),
+            "retained plugin context content"
+        );
+        expectRuntimeFailure(
+            ()->plugin.retainedContext.events(),
+            "retained plugin context events"
+        );
+        expectRuntimeFailure(
+            ()->plugin.retainedContext.scheduler(),
+            "retained plugin context scheduler"
+        );
+        expectRuntimeFailure(
+            ()->plugin.retainedEvents.subscribe(
+                ProbeEvent.class,
+                DomainEventBus.Priority.NORMAL,
+                event->{}
+            ),
+            "retained plugin events"
+        );
+
+        assertStaticClass(
+            plugin.retainedContext.getClass(),
+            "PluginContext"
+        );
+        assertStaticClass(
+            plugin.retainedEvents.getClass(),
+            "PluginEvents"
+        );
+
+        assertNullFields(
+            plugin.retainedContext,
+            new String[]{
+                "content",
+                "events",
+                "scheduler"
+            },
+            "PluginContext"
+        );
+        assertNullFields(
+            plugin.retainedRegistrar,
+            new String[]{
+                "delegate",
+                "context",
+                "callbackLoader",
+                "callbackScope"
+            },
+            "ContentRegistrar"
+        );
+        assertNullFields(
+            plugin.retainedEvents,
+            new String[]{
+                "eventBus",
+                "tracker",
+                "context",
+                "callbackLoader"
+            },
+            "PluginEvents"
+        );
+    }
+
+    private static void assertStaticClass(
+        Class<?> type,
+        String phase
+    ){
+        if(!java.lang.reflect.Modifier.isStatic(
+                type.getModifiers()))
+            throw new AssertionError(
+                phase+
+                " retained implicit outer instance"
+            );
+    }
+
+    private static void assertNullFields(
+        Object target,
+        String[] fields,
+        String phase
+    )throws Exception{
+        for(String name:fields){
+            java.lang.reflect.Field field=
+                target.getClass()
+                    .getDeclaredField(name);
+            field.setAccessible(true);
+
+            if(field.get(target)!=null)
+                throw new AssertionError(
+                    phase+
+                    " retained field "+
+                    name
+                );
+        }
+    }
+
     private static void expectFailure(
         ThrowingAction action,
         String phase
@@ -732,6 +830,8 @@ public final class PluginKernelLifecycleTest {
         final AtomicBoolean eventOnWorldThread=
             new AtomicBoolean();
 
+        volatile PluginContext retainedContext;
+        volatile PluginEvents retainedEvents;
         volatile ContentRegistrar retainedRegistrar;
         volatile ContentRegistration commandRegistration;
         volatile java.util.function.BooleanSupplier
@@ -765,8 +865,11 @@ public final class PluginKernelLifecycleTest {
             PluginContext context
         )throws Exception{
             enableCount.incrementAndGet();
+            retainedContext=context;
             retainedRegistrar=
                 context.content();
+            retainedEvents=
+                context.events();
 
             commandRegistration=
                 retainedRegistrar.command(
@@ -807,7 +910,7 @@ public final class PluginKernelLifecycleTest {
             );
 
             DomainEventBus.Subscription subscription=
-                context.events().subscribe(
+                retainedEvents.subscribe(
                     ProbeEvent.class,
                     DomainEventBus.Priority.NORMAL,
                     event->{

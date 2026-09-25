@@ -754,7 +754,8 @@ final class WorldPluginManager
                     tracker,
                     tasks,
                     callbackLoader,
-                    callbackScope
+                    callbackScope,
+                    WorldPluginManager.this.events
                 );
 
             context=local;
@@ -771,13 +772,16 @@ final class WorldPluginManager
                 );
             }finally{
                 local.seal();
+                context=null;
             }
         }
 
         void seal(){
             ScopedPluginContext current=context;
-            if(current!=null)
+            if(current!=null){
                 current.seal();
+                context=null;
+            }
         }
 
         boolean enableAttempted(){
@@ -785,14 +789,12 @@ final class WorldPluginManager
         }
     }
 
-    private final class ScopedPluginContext
+    private static final class ScopedPluginContext
         implements PluginContext {
 
-        private final ScopedContentRegistrar content;
-        private final ScopedPluginEvents events;
-        private final PluginScheduler scheduler;
-        private final ClassLoader callbackLoader;
-        private final PluginCallbackScope callbackScope;
+        private ScopedContentRegistrar content;
+        private ScopedPluginEvents events;
+        private PluginScheduler scheduler;
         private boolean open=true;
 
         ScopedPluginContext(
@@ -800,12 +802,9 @@ final class WorldPluginManager
             EventTracker tracker,
             PluginTaskTracker tasks,
             ClassLoader callbackLoader,
-            PluginCallbackScope callbackScope
+            PluginCallbackScope callbackScope,
+            DomainEventBus eventBus
         ){
-            this.callbackLoader=
-                callbackLoader;
-            this.callbackScope=
-                callbackScope;
             content=
                 new ScopedContentRegistrar(
                     registrar,
@@ -815,6 +814,7 @@ final class WorldPluginManager
                 );
             events=
                 new ScopedPluginEvents(
+                    eventBus,
                     tracker,
                     this,
                     callbackLoader
@@ -822,18 +822,18 @@ final class WorldPluginManager
             scheduler=tasks;
         }
 
-        @Override public ContentRegistrar content(){
-            requireOpen();
+        @Override public synchronized ContentRegistrar content(){
+            requireOpenLocked();
             return content;
         }
 
-        @Override public PluginEvents events(){
-            requireOpen();
+        @Override public synchronized PluginEvents events(){
+            requireOpenLocked();
             return events;
         }
 
-        @Override public PluginScheduler scheduler(){
-            requireOpen();
+        @Override public synchronized PluginScheduler scheduler(){
+            requireOpenLocked();
             return scheduler;
         }
 
@@ -841,37 +841,77 @@ final class WorldPluginManager
             return open;
         }
 
-        synchronized void seal(){
-            open=false;
+        void seal(){
+            ScopedContentRegistrar oldContent;
+            ScopedPluginEvents oldEvents;
+
+            synchronized(this){
+                if(!open)
+                    return;
+
+                open=false;
+                oldContent=content;
+                oldEvents=events;
+                content=null;
+                events=null;
+                scheduler=null;
+            }
+
+            if(oldContent!=null)
+                oldContent.seal();
+
+            if(oldEvents!=null)
+                oldEvents.seal();
         }
 
-        void requireOpen(){
-            if(!open())
+        synchronized void requireOpen(){
+            requireOpenLocked();
+        }
+
+        private void requireOpenLocked(){
+            if(!open)
                 throw new IllegalStateException(
                     "plugin registration context closed"
                 );
         }
     }
 
-    private final class ScopedPluginEvents
+    private static final class ScopedPluginEvents
         implements PluginEvents {
 
-        private final EventTracker tracker;
-        private final ScopedPluginContext context;
-        private final ClassLoader callbackLoader;
+        private DomainEventBus eventBus;
+        private EventTracker tracker;
+        private ScopedPluginContext context;
+        private ClassLoader callbackLoader;
+        private boolean sealed;
 
         ScopedPluginEvents(
+            DomainEventBus eventBus,
             EventTracker tracker,
             ScopedPluginContext context,
             ClassLoader callbackLoader
         ){
-            this.tracker=tracker;
-            this.context=context;
+            this.eventBus=
+                Objects.requireNonNull(
+                    eventBus,
+                    "eventBus"
+                );
+            this.tracker=
+                Objects.requireNonNull(
+                    tracker,
+                    "tracker"
+                );
+            this.context=
+                Objects.requireNonNull(
+                    context,
+                    "context"
+                );
             this.callbackLoader=
                 callbackLoader;
         }
 
-        @Override public <E extends DomainEventBus.Event>
+        @Override public synchronized
+            <E extends DomainEventBus.Event>
             DomainEventBus.Subscription subscribe(
                 Class<E> type,
                 DomainEventBus.Priority priority,
@@ -885,24 +925,29 @@ final class WorldPluginManager
             );
         }
 
-        @Override public <E extends DomainEventBus.Event>
+        @Override public synchronized
+            <E extends DomainEventBus.Event>
             DomainEventBus.Subscription subscribe(
                 Class<E> type,
                 DomainEventBus.Priority priority,
                 boolean receiveCancelled,
                 DomainEventBus.Listener<? super E> listener
             ){
-            context.requireOpen();
+            requireOpen();
+
+            DomainEventBus bus=eventBus;
+            EventTracker owner=tracker;
+            ClassLoader loader=callbackLoader;
 
             DomainEventBus.Subscription subscription=
-                events.subscribe(
+                bus.subscribe(
                     type,
                     priority,
                     receiveCancelled,
                     event->{
                         try{
                             PluginThreadContext.run(
-                                callbackLoader,
+                                loader,
                                 ()->listener
                                     .onEvent(event)
                             );
@@ -916,8 +961,25 @@ final class WorldPluginManager
                     }
                 );
 
-            tracker.add(subscription);
+            owner.add(subscription);
             return subscription;
+        }
+
+        synchronized void seal(){
+            sealed=true;
+            eventBus=null;
+            tracker=null;
+            context=null;
+            callbackLoader=null;
+        }
+
+        private void requireOpen(){
+            if(sealed||context==null)
+                throw new IllegalStateException(
+                    "plugin registration context closed"
+                );
+
+            context.requireOpen();
         }
     }
 
@@ -1012,10 +1074,11 @@ final class WorldPluginManager
     private static final class ScopedContentRegistrar
         implements ContentRegistrar {
 
-        private final ContentRegistrar delegate;
-        private final ScopedPluginContext context;
-        private final ClassLoader callbackLoader;
-        private final PluginCallbackScope callbackScope;
+        private ContentRegistrar delegate;
+        private ScopedPluginContext context;
+        private ClassLoader callbackLoader;
+        private PluginCallbackScope callbackScope;
+        private boolean sealed;
 
         ScopedContentRegistrar(
             ContentRegistrar delegate,
@@ -1023,33 +1086,71 @@ final class WorldPluginManager
             ClassLoader callbackLoader,
             PluginCallbackScope callbackScope
         ){
-            this.delegate=delegate;
-            this.context=context;
+            this.delegate=
+                Objects.requireNonNull(
+                    delegate,
+                    "delegate"
+                );
+            this.context=
+                Objects.requireNonNull(
+                    context,
+                    "context"
+                );
             this.callbackLoader=
                 callbackLoader;
             this.callbackScope=
-                callbackScope;
+                Objects.requireNonNull(
+                    callbackScope,
+                    "callbackScope"
+                );
         }
 
         private void requireOpen(){
+            if(sealed||
+               delegate==null||
+               context==null||
+               callbackScope==null)
+                throw new IllegalStateException(
+                    "plugin registration context closed"
+                );
+
             context.requireOpen();
         }
 
-        @Override public ContentRegistration command(
+        private RegistrationRuntime runtime(){
+            requireOpen();
+
+            return new RegistrationRuntime(
+                delegate,
+                callbackLoader,
+                callbackScope
+            );
+        }
+
+        synchronized void seal(){
+            sealed=true;
+            delegate=null;
+            context=null;
+            callbackLoader=null;
+            callbackScope=null;
+        }
+
+        @Override public synchronized ContentRegistration command(
             String name,
             int priority,
             ContentCommandHandler handler
         ){
-            requireOpen();
-            return delegate.command(
+            RegistrationRuntime runtime=runtime();
+
+            return runtime.delegate.command(
                 name,
                 priority,
                 command->
-                    callbackScope.call(
-                        callbackLoader,
+                    runtime.callbacks.call(
+                        runtime.loader,
                         lease->
                             handler.handle(
-                                callbackScope
+                                runtime.callbacks
                                     .commandContext(
                                         command,
                                         lease
@@ -1059,135 +1160,142 @@ final class WorldPluginManager
             );
         }
 
-        @Override public ContentRegistration objectOption(
+        @Override public synchronized ContentRegistration objectOption(
             int objectId,
             int option,
             int priority,
             ContentObjectOptionHandler handler
         ){
-            requireOpen();
-            return delegate.objectOption(
+            RegistrationRuntime runtime=runtime();
+
+            return runtime.delegate.objectOption(
                 objectId,
                 option,
                 priority,
                 object->
                     PluginThreadContext.callUnchecked(
-                        callbackLoader,
+                        runtime.loader,
                         ()->handler.handle(object)
                     )
             );
         }
 
-        @Override public ContentRegistration itemOption(
+        @Override public synchronized ContentRegistration itemOption(
             int itemId,
             int option,
             int priority,
             ContentItemOptionHandler handler
         ){
-            requireOpen();
-            return delegate.itemOption(
+            RegistrationRuntime runtime=runtime();
+
+            return runtime.delegate.itemOption(
                 itemId,
                 option,
                 priority,
                 item->
                     PluginThreadContext.callUnchecked(
-                        callbackLoader,
+                        runtime.loader,
                         ()->handler.handle(item)
                     )
             );
         }
 
-        @Override public ContentRegistration itemOnNpc(
+        @Override public synchronized ContentRegistration itemOnNpc(
             int itemId,
             int npcDefinitionId,
             int priority,
             ContentItemOnNpcHandler handler
         ){
-            requireOpen();
-            return delegate.itemOnNpc(
+            RegistrationRuntime runtime=runtime();
+
+            return runtime.delegate.itemOnNpc(
                 itemId,
                 npcDefinitionId,
                 priority,
                 interaction->
                     PluginThreadContext.callUnchecked(
-                        callbackLoader,
+                        runtime.loader,
                         ()->handler.handle(interaction)
                     )
             );
         }
 
-        @Override public ContentRegistration itemOnGroundItem(
+        @Override public synchronized ContentRegistration itemOnGroundItem(
             int itemId,
             int groundItemId,
             int priority,
             ContentItemOnGroundItemHandler handler
         ){
-            requireOpen();
-            return delegate.itemOnGroundItem(
+            RegistrationRuntime runtime=runtime();
+
+            return runtime.delegate.itemOnGroundItem(
                 itemId,
                 groundItemId,
                 priority,
                 interaction->
                     PluginThreadContext.callUnchecked(
-                        callbackLoader,
+                        runtime.loader,
                         ()->handler.handle(interaction)
                     )
             );
         }
 
-        @Override public ContentRegistration itemOnItem(
+        @Override public synchronized ContentRegistration itemOnItem(
             int selectedItemId,
             int targetItemId,
             int priority,
             ContentItemOnItemHandler handler
         ){
-            requireOpen();
-            return delegate.itemOnItem(
+            RegistrationRuntime runtime=runtime();
+
+            return runtime.delegate.itemOnItem(
                 selectedItemId,
                 targetItemId,
                 priority,
                 interaction->
                     PluginThreadContext.callUnchecked(
-                        callbackLoader,
+                        runtime.loader,
                         ()->handler.handle(interaction)
                     )
             );
         }
 
-        @Override public ContentRegistration itemOnObject(
+        @Override public synchronized ContentRegistration itemOnObject(
             int itemId,
             int objectId,
             int priority,
             ContentItemOnObjectHandler handler
         ){
-            requireOpen();
-            return delegate.itemOnObject(
+            RegistrationRuntime runtime=runtime();
+
+            return runtime.delegate.itemOnObject(
                 itemId,
                 objectId,
                 priority,
                 interaction->
                     PluginThreadContext.callUnchecked(
-                        callbackLoader,
+                        runtime.loader,
                         ()->handler.handle(interaction)
                     )
             );
         }
 
-        @Override public ContentRegistration itemOnPlayer(
+        @Override public synchronized ContentRegistration itemOnPlayer(
             int itemId,
             int priority,
             ContentItemOnPlayerHandler handler
         ){
-            requireOpen();
-            return delegate.itemOnPlayer(
+            RegistrationRuntime runtime=runtime();
+
+            return runtime.delegate.itemOnPlayer(
                 itemId,
                 priority,
                 interaction->
-                    callbackScope.callUnchecked(
-                        callbackLoader,
+                    runtime.callbacks.callUnchecked(
+                        runtime.loader,
                         lease->
                             handler.handle(
-                                callbackScope
+                                runtime.callbacks
                                     .itemOnPlayerContext(
                                         interaction,
                                         lease
@@ -1197,32 +1305,34 @@ final class WorldPluginManager
             );
         }
 
-        @Override public ContentRegistration npcOption(
+        @Override public synchronized ContentRegistration npcOption(
             int npcDefinitionId,
             int option,
             int priority,
             ContentNpcOptionHandler handler
         ){
-            requireOpen();
-            return delegate.npcOption(
+            RegistrationRuntime runtime=runtime();
+
+            return runtime.delegate.npcOption(
                 npcDefinitionId,
                 option,
                 priority,
                 npc->
                     PluginThreadContext.callUnchecked(
-                        callbackLoader,
+                        runtime.loader,
                         ()->handler.handle(npc)
                     )
             );
         }
 
-        @Override public ContentRegistration dialogue(
+        @Override public synchronized ContentRegistration dialogue(
             String dialogueKey,
             int priority,
             ContentDialogueHandler handler
         ){
-            requireOpen();
-            return delegate.dialogue(
+            RegistrationRuntime runtime=runtime();
+
+            return runtime.delegate.dialogue(
                 dialogueKey,
                 priority,
                 new ContentDialogueHandler(){
@@ -1230,12 +1340,12 @@ final class WorldPluginManager
                         handle(
                             ContentDialogueContext dialogue
                         ){
-                        return callbackScope
+                        return runtime.callbacks
                             .callUnchecked(
-                                callbackLoader,
+                                runtime.loader,
                                 lease->
                                     handler.handle(
-                                        callbackScope
+                                        runtime.callbacks
                                             .dialogueContext(
                                                 dialogue,
                                                 lease
@@ -1248,7 +1358,7 @@ final class WorldPluginManager
                         definition(){
                         return PluginThreadContext
                             .callUnchecked(
-                                callbackLoader,
+                                runtime.loader,
                                 handler::definition
                             );
                     }
@@ -1256,21 +1366,22 @@ final class WorldPluginManager
             );
         }
 
-        @Override public ContentRegistration action(
+        @Override public synchronized ContentRegistration action(
             String actionKey,
             int priority,
             ContentActionHandler handler
         ){
-            requireOpen();
-            return delegate.action(
+            RegistrationRuntime runtime=runtime();
+
+            return runtime.delegate.action(
                 actionKey,
                 priority,
                 action->
-                    callbackScope.callUnchecked(
-                        callbackLoader,
+                    runtime.callbacks.callUnchecked(
+                        runtime.loader,
                         lease->
                             handler.handle(
-                                callbackScope
+                                runtime.callbacks
                                     .actionContext(
                                         action,
                                         lease
@@ -1278,6 +1389,22 @@ final class WorldPluginManager
                             )
                     )
             );
+        }
+
+        private static final class RegistrationRuntime {
+            final ContentRegistrar delegate;
+            final ClassLoader loader;
+            final PluginCallbackScope callbacks;
+
+            RegistrationRuntime(
+                ContentRegistrar delegate,
+                ClassLoader loader,
+                PluginCallbackScope callbacks
+            ){
+                this.delegate=delegate;
+                this.loader=loader;
+                this.callbacks=callbacks;
+            }
         }
     }
 }
