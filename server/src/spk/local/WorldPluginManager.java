@@ -82,7 +82,8 @@ final class WorldPluginManager
         try{
             return enableOne(
                 plugin,
-                true
+                true,
+                new RuntimeAdmissionGate()
             );
         }catch(Throwable failure){
             if(!ownsPluginInstance(
@@ -114,6 +115,8 @@ final class WorldPluginManager
             );
         ArrayList<Entry> added=
             new ArrayList<>();
+        RuntimeAdmissionGate admission=
+            new RuntimeAdmissionGate();
 
         try{
             List<Plugin> ordered=
@@ -125,26 +128,15 @@ final class WorldPluginManager
                 added.add(
                     enableOne(
                         plugin,
-                        false
+                        false,
+                        admission
                     )
                 );
 
-            for(Entry entry:added)
-                entry.tasks
-                    .validateActivation();
-
-            for(Entry entry:added)
-                entry.callbacks.activate();
-
-            // Activation was fully preflighted while the manager monitor is
-            // still held. World close cannot advance through plugin beginClose
-            // to event-queue destruction until this monitor is released.
-            for(Entry entry:added)
-                entry.runtimeState=
-                    RuntimeState.ENABLED;
-
-            for(Entry entry:added)
-                entry.tasks.activate();
+            commitRuntime(
+                added,
+                admission
+            );
         }catch(Throwable failure){
             for(int i=added.size()-1;i>=0;i--)
                 try{
@@ -337,7 +329,8 @@ final class WorldPluginManager
 
     private Entry enableOne(
         Plugin plugin,
-        boolean activateTasks
+        boolean activateRuntime,
+        RuntimeAdmissionGate admission
     )throws Exception{
         Objects.requireNonNull(
             plugin,
@@ -395,7 +388,8 @@ final class WorldPluginManager
                 manifest,
                 moduleId,
                 tracker,
-                callbackScope
+                callbackScope,
+                admission
             );
         entry.failureSink=
             (kind,failure)->
@@ -432,13 +426,13 @@ final class WorldPluginManager
             content.installCustom(module);
             enabled.put(id,entry);
 
-            if(activateTasks){
-                tasks.validateActivation();
-                callbackScope.activate();
-                entry.runtimeState=
-                    RuntimeState.ENABLED;
-                tasks.activate();
-            }
+            if(activateRuntime)
+                commitRuntime(
+                    Collections.singletonList(
+                        entry
+                    ),
+                    admission
+                );
 
             return entry;
         }catch(Throwable failure){
@@ -482,6 +476,49 @@ final class WorldPluginManager
             throw new AssertionError(
                 "unreachable"
             );
+        }
+    }
+
+    private void commitRuntime(
+        List<Entry> entries,
+        RuntimeAdmissionGate admission
+    ){
+        Objects.requireNonNull(
+            entries,
+            "entries"
+        );
+        Objects.requireNonNull(
+            admission,
+            "admission"
+        );
+
+        for(Entry entry:entries){
+            if(entry.admission!=admission)
+                throw new IllegalStateException(
+                    "plugin runtime admission gate mismatch"
+                );
+
+            entry.tasks.validateActivation();
+        }
+
+        for(Entry entry:entries)
+            entry.callbacks.activate();
+
+        for(Entry entry:entries)
+            entry.runtimeState=
+                RuntimeState.ENABLED;
+
+        /*
+         * Keep the queue monitor until every pending task is visible and the
+         * shared gate commits. A concurrent pulse cannot run a queued task
+         * before whole-operation admission, while event/content callbacks
+         * continue to observe admission=false until this publication point.
+         */
+        synchronized(worldEvents){
+            for(Entry entry:entries)
+                entry.tasks.activate();
+
+            admission.commit();
         }
     }
 
@@ -1604,6 +1641,7 @@ final class WorldPluginManager
         final EventTracker events;
         PluginTaskTracker tasks;
         final PluginCallbackScope callbacks;
+        final RuntimeAdmissionGate admission;
         volatile RuntimeFailureSink failureSink;
         volatile RuntimeState runtimeState=
             RuntimeState.ENABLING;
@@ -1616,18 +1654,25 @@ final class WorldPluginManager
             PluginManifest manifest,
             String moduleId,
             EventTracker events,
-            PluginCallbackScope callbacks
+            PluginCallbackScope callbacks,
+            RuntimeAdmissionGate admission
         ){
             this.plugin=plugin;
             this.manifest=manifest;
             this.moduleId=moduleId;
             this.events=events;
             this.callbacks=callbacks;
+            this.admission=
+                Objects.requireNonNull(
+                    admission,
+                    "admission"
+                );
         }
 
         boolean runtimeEnabled(){
-            return runtimeState==
-                RuntimeState.ENABLED;
+            return admission.committed()&&
+                runtimeState==
+                    RuntimeState.ENABLED;
         }
 
         void callbackFailure(
@@ -1657,6 +1702,18 @@ final class WorldPluginManager
         ENABLING,
         ENABLED,
         TERMINAL
+    }
+
+    private static final class RuntimeAdmissionGate {
+        private volatile boolean committed;
+
+        boolean committed(){
+            return committed;
+        }
+
+        void commit(){
+            committed=true;
+        }
     }
 
     private static final class FailureBatch {

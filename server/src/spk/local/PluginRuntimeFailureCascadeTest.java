@@ -17,6 +17,7 @@ public final class PluginRuntimeFailureCascadeTest {
         taskFailure();
         contentFailureNoFallback();
         enablePhaseEventSkip();
+        batchCommitPublicationBarrier();
         explicitDisableInFlightFailure();
         cleanupFailureDetached();
 
@@ -35,6 +36,7 @@ public final class PluginRuntimeFailureCascadeTest {
             "batchEnableAdmissionAtomic=true "+
             "batchTaskDeferredUntilCommit=true "+
             "failedBatchTaskHandleTerminal=true "+
+            "batchCommitPublicationBarrier=true "+
             "admissionRejectionNotFailure=true "+
             "claimedFailureRecorded=true "+
             "cleanupFailureDetached=true "+
@@ -884,6 +886,204 @@ public final class PluginRuntimeFailureCascadeTest {
                 "enable.commit.a"
             );
         }finally{
+            world.close();
+        }
+    }
+
+    private static void batchCommitPublicationBarrier()
+        throws Exception{
+        World world=
+            World.isolatedForTest(
+                600L
+            );
+        WorldPluginManager manager=
+            (WorldPluginManager)
+                world.plugins();
+        AtomicInteger eventRuns=
+            new AtomicInteger();
+        AtomicInteger taskRuns=
+            new AtomicInteger();
+        CountDownLatch registrationsComplete=
+            new CountDownLatch(1);
+        AtomicReference<Thread> enableThread=
+            new AtomicReference<>();
+        AtomicReference<Throwable> enableFailure=
+            new AtomicReference<>();
+        List<String> disableOrder=
+            Collections.synchronizedList(
+                new ArrayList<>()
+            );
+
+        CascadePlugin first=
+            new CascadePlugin(
+                "enable.barrier.a",
+                Collections.<String>emptyList(),
+                disableOrder,
+                context->{
+                    context.events().subscribe(
+                        EnablePhaseEvent.class,
+                        DomainEventBus.Priority.NORMAL,
+                        event->
+                            eventRuns.incrementAndGet()
+                    );
+                    context.scheduler().schedule(
+                        1L,
+                        taskRuns::incrementAndGet
+                    );
+                }
+            );
+        CascadePlugin second=
+            new CascadePlugin(
+                "enable.barrier.b",
+                Collections.singletonList(
+                    "enable.barrier.a"
+                ),
+                disableOrder,
+                context->
+                    registrationsComplete.countDown()
+            );
+
+        try{
+            world.events().schedule(
+                1L,
+                ()->{
+                    synchronized(world.events()){
+                        Thread worker=
+                            new Thread(
+                                ()->{
+                                    try{
+                                        manager.enableAll(
+                                            Arrays.<Plugin>asList(
+                                                second,
+                                                first
+                                            )
+                                        );
+                                    }catch(Throwable failure){
+                                        enableFailure.set(
+                                            failure
+                                        );
+                                    }
+                                },
+                                "plugin-batch-commit-barrier"
+                            );
+
+                        enableThread.set(worker);
+                        worker.start();
+
+                        try{
+                            if(!registrationsComplete.await(
+                                    5L,
+                                    TimeUnit.SECONDS))
+                                throw new AssertionError(
+                                    "batch registration did not reach commit phase"
+                                );
+
+                            long deadline=
+                                System.nanoTime()+
+                                TimeUnit.SECONDS
+                                    .toNanos(5L);
+
+                            while(worker.isAlive()&&
+                                  worker.getState()!=
+                                    Thread.State.BLOCKED&&
+                                  System.nanoTime()<deadline)
+                                Thread.yield();
+
+                            if(worker.getState()!=
+                                    Thread.State.BLOCKED)
+                                throw new AssertionError(
+                                    "batch enable did not block at queue commit barrier state="+
+                                    worker.getState()
+                                );
+
+                            world.domainEvents()
+                                .publish(
+                                    new EnablePhaseEvent()
+                                );
+                        }catch(Exception failure){
+                            throw new RuntimeException(
+                                failure
+                            );
+                        }
+                    }
+                }
+            );
+
+            world.observePulse(
+                System.currentTimeMillis()
+            );
+
+            Thread worker=enableThread.get();
+
+            require(
+                worker!=null,
+                "batch commit worker was not created"
+            );
+
+            worker.join(5_000L);
+
+            require(
+                !worker.isAlive(),
+                "batch commit worker did not complete"
+            );
+            require(
+                enableFailure.get()==null,
+                "batch commit worker failed: "+
+                enableFailure.get()
+            );
+            require(
+                eventRuns.get()==0,
+                "batch event callback became visible before shared commit publication"
+            );
+            require(
+                taskRuns.get()==0,
+                "batch task ran before shared commit publication"
+            );
+
+            world.events().schedule(
+                world.clock().tick()+1L,
+                ()->{
+                    try{
+                        world.domainEvents()
+                            .publish(
+                                new EnablePhaseEvent()
+                            );
+                    }catch(Exception failure){
+                        throw new RuntimeException(
+                            failure
+                        );
+                    }
+                }
+            );
+
+            world.observePulse(
+                System.currentTimeMillis()+
+                1_000L
+            );
+
+            require(
+                eventRuns.get()==1,
+                "committed batch event callback did not run exactly once"
+            );
+            require(
+                taskRuns.get()==1,
+                "committed batch task did not run exactly once"
+            );
+
+            manager.disable(
+                "enable.barrier.b"
+            );
+            manager.disable(
+                "enable.barrier.a"
+            );
+        }finally{
+            Thread worker=enableThread.get();
+
+            if(worker!=null&&worker.isAlive()){
+                worker.interrupt();
+                worker.join(1_000L);
+            }
+
             world.close();
         }
     }
