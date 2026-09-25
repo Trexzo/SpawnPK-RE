@@ -701,7 +701,7 @@ public final class PluginRuntimeFailureCascadeTest {
                 }
             };
 
-        Plugin second=
+        Plugin failingSecond=
             new Plugin(){
                 private final PluginManifest manifest=
                     new PluginManifest(
@@ -724,6 +724,9 @@ public final class PluginRuntimeFailureCascadeTest {
                         .publish(
                             new EnablePhaseEvent()
                         );
+                    throw new IllegalStateException(
+                        "intentional-batch-enable-failure"
+                    );
                 }
             };
 
@@ -734,15 +737,10 @@ public final class PluginRuntimeFailureCascadeTest {
                     try{
                         manager.enableAll(
                             Arrays.<Plugin>asList(
-                                second,
+                                failingSecond,
                                 first
                             )
                         );
-
-                        world.domainEvents()
-                            .publish(
-                                new EnablePhaseEvent()
-                            );
                     }catch(Throwable error){
                         failure.set(error);
                     }
@@ -754,23 +752,21 @@ public final class PluginRuntimeFailureCascadeTest {
             );
 
             require(
-                failure.get()==null,
-                "enable-phase event path failed "+
-                failure.get()
+                failure.get()!=null,
+                "failing batch unexpectedly committed"
             );
             require(
-                callbackRuns.get()==1,
-                "batch ENABLING event was not skipped or post-commit event was lost runs="+
-                callbackRuns.get()
+                callbackRuns.get()==0,
+                "earlier batch candidate became runtime-admissible before whole batch commit"
             );
             require(
                 manager.plugin(
                     "enable.phase.a"
-                )!=null&&
+                )==null&&
                 manager.plugin(
                     "enable.phase.b"
-                )!=null,
-                "batch enable-phase event misclassified plugin as failed"
+                )==null,
+                "failed batch retained candidate"
             );
             require(
                 manager.terminalDiagnostics()
@@ -787,11 +783,56 @@ public final class PluginRuntimeFailureCascadeTest {
                 "ENABLING admission rejection created plugin failure diagnostic"
             );
 
+            AtomicInteger committedRuns=
+                new AtomicInteger();
+
+            CascadePlugin committedA=
+                new CascadePlugin(
+                    "enable.commit.a",
+                    Collections.<String>emptyList(),
+                    new ArrayList<>(),
+                    context->
+                        context.events()
+                            .subscribe(
+                                EnablePhaseEvent.class,
+                                DomainEventBus.Priority.NORMAL,
+                                event->
+                                    committedRuns
+                                        .incrementAndGet()
+                            )
+                );
+            CascadePlugin committedB=
+                new CascadePlugin(
+                    "enable.commit.b",
+                    Collections.singletonList(
+                        "enable.commit.a"
+                    ),
+                    new ArrayList<>(),
+                    context->{}
+                );
+
+            manager.enableAll(
+                Arrays.<Plugin>asList(
+                    committedB,
+                    committedA
+                )
+            );
+
+            world.domainEvents()
+                .publish(
+                    new EnablePhaseEvent()
+                );
+
+            require(
+                committedRuns.get()==1,
+                "successful batch did not publish runtime admission atomically"
+            );
+
             manager.disable(
-                "enable.phase.b"
+                "enable.commit.b"
             );
             manager.disable(
-                "enable.phase.a"
+                "enable.commit.a"
             );
         }finally{
             world.close();

@@ -17,6 +17,7 @@ final class PluginTaskTracker
     private volatile BooleanSupplier worldOpen;
     private volatile ClassLoader callbackLoader;
     private final PluginCallbackScope callbackScope;
+    private volatile BooleanSupplier runtimeEnabled;
     private volatile BiConsumer<String,Throwable>
         failureHandler;
     private final LinkedHashSet<Task>
@@ -34,6 +35,7 @@ final class PluginTaskTracker
         BooleanSupplier worldOpen,
         ClassLoader callbackLoader,
         PluginCallbackScope callbackScope,
+        BooleanSupplier runtimeEnabled,
         BiConsumer<String,Throwable> failureHandler
     ){
         this.clock=Objects.requireNonNull(
@@ -54,6 +56,11 @@ final class PluginTaskTracker
             Objects.requireNonNull(
                 callbackScope,
                 "callbackScope"
+            );
+        this.runtimeEnabled=
+            Objects.requireNonNull(
+                runtimeEnabled,
+                "runtimeEnabled"
             );
         this.failureHandler=
             Objects.requireNonNull(
@@ -164,8 +171,24 @@ final class PluginTaskTracker
             );
     }
 
-    synchronized void activate(){
+    synchronized void validateActivation(){
         requireOpen();
+
+        long baseTick=
+            clock.tick();
+
+        for(Task task:
+                new ArrayList<>(tasks))
+            if(task.active&&
+               task.queued==null)
+                Math.addExact(
+                    baseTick,
+                    task.initialDelayTicks
+                );
+    }
+
+    synchronized void activate(){
+        validateActivation();
 
         if(activated)
             return;
@@ -237,6 +260,16 @@ final class PluginTaskTracker
         }
 
         task.queued=null;
+
+        BooleanSupplier runtime=
+            runtimeEnabled;
+
+        if(runtime==null||
+           !runtime.getAsBoolean()){
+            retire(task);
+            return;
+        }
+
         inFlightExecutions++;
 
         Runnable action=
@@ -434,6 +467,7 @@ final class PluginTaskTracker
 
         failureHandler=null;
         quiescenceListener=null;
+        runtimeEnabled=null;
         callbackLoader=null;
         worldOpen=null;
         queue=null;

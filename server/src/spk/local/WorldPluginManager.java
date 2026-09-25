@@ -130,11 +130,18 @@ final class WorldPluginManager
                 );
 
             for(Entry entry:added)
-                entry.tasks.activate();
+                entry.tasks
+                    .validateActivation();
+
+            for(Entry entry:added)
+                entry.callbacks.activate();
 
             for(Entry entry:added)
                 entry.runtimeState=
                     RuntimeState.ENABLED;
+
+            for(Entry entry:added)
+                entry.tasks.activate();
         }catch(Throwable failure){
             for(int i=added.size()-1;i>=0;i--)
                 try{
@@ -402,6 +409,7 @@ final class WorldPluginManager
                 worldOpen,
                 callbackLoader,
                 callbackScope,
+                entry::runtimeEnabled,
                 entry::callbackFailure
             );
         entry.tasks=tasks;
@@ -420,12 +428,13 @@ final class WorldPluginManager
         try{
             content.installCustom(module);
             enabled.put(id,entry);
-            callbackScope.activate();
 
             if(activateTasks){
-                tasks.activate();
+                tasks.validateActivation();
+                callbackScope.activate();
                 entry.runtimeState=
                     RuntimeState.ENABLED;
+                tasks.activate();
             }
 
             return entry;
