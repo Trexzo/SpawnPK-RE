@@ -22,7 +22,8 @@ public final class PluginWorldAdmissionFenceTest {
                 world.domainEvents(),
                 world.clock(),
                 world.events(),
-                worldOpen::get
+                worldOpen::get,
+                ()->true
             );
 
         AtomicInteger acceptedCalls=
