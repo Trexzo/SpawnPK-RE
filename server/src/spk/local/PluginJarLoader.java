@@ -136,16 +136,17 @@ final class PluginJarLoader {
             .getClassLoader();
     }
 
-    static void closePluginRuntime(
+    static Throwable closePluginRuntime(
         Plugin plugin,
         Throwable primary
     ){
         if(!(plugin instanceof LoadedPlugin))
-            return;
+            return null;
 
         try{
             ((LoadedPlugin)plugin)
                 .close();
+            return null;
         }catch(Throwable cleanup){
             if(primary!=null)
                 primary.addSuppressed(
@@ -156,6 +157,7 @@ final class PluginJarLoader {
                     "[plugins] classloader close failed error="+
                     cleanup
                 );
+            return cleanup;
         }
     }
 

@@ -306,13 +306,23 @@ final class PluginTaskTracker
     void reportFailure(
         Throwable failure
     ){
+        reportFailure(
+            "TASK",
+            failure
+        );
+    }
+
+    private void reportFailure(
+        String kind,
+        Throwable failure
+    ){
         BiConsumer<String,Throwable> handler=
             failureHandler;
 
         if(handler!=null&&
            failure!=null)
             handler.accept(
-                "TASK",
+                kind,
                 failure
             );
     }
@@ -354,6 +364,10 @@ final class PluginTaskTracker
                 try{
                     queued.cancel();
                 }catch(Throwable failure){
+                    reportFailure(
+                        "CLEANUP:TASK_CANCEL",
+                        failure
+                    );
                     System.err.println(
                         "[plugins] task cancel failed error="+
                         failure

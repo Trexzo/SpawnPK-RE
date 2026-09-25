@@ -29,6 +29,8 @@ final class WorldPluginManager
         enabled=new LinkedHashMap<>();
     private final HashSet<String>
         disabling=new HashSet<>();
+    private final LinkedHashMap<String,Entry>
+        terminalizing=new LinkedHashMap<>();
     private final ArrayList<String>
         terminalDiagnostics=new ArrayList<>();
 
@@ -169,8 +171,17 @@ final class WorldPluginManager
         synchronized(this){
             entry=enabled.get(id);
 
-            if(entry==null)
+            if(entry==null){
+                Entry terminal=
+                    terminalizing.get(id);
+
+                if(terminal!=null)
+                    awaitEntryCleanupLocked(
+                        terminal
+                    );
+
                 return false;
+            }
 
             for(Entry candidate:
                     enabled.values())
@@ -372,6 +383,14 @@ final class WorldPluginManager
                 tracker,
                 callbackScope
             );
+        entry.failureSink=
+            (kind,failure)->
+                failRuntimeCallback(
+                    entry,
+                    kind,
+                    failure
+                );
+
         PluginTaskTracker tasks=
             new PluginTaskTracker(
                 clock,
@@ -396,20 +415,14 @@ final class WorldPluginManager
 
         try{
             content.installCustom(module);
-            callbackScope.activate();
-            entry.failureSink=
-                (kind,failure)->
-                    failRuntimeCallback(
-                        entry,
-                        kind,
-                        failure
-                    );
-
             enabled.put(id,entry);
+            callbackScope.activate();
 
             if(activateTasks)
                 tasks.activate();
 
+            entry.runtimeState=
+                RuntimeState.ENABLED;
             return entry;
         }catch(Throwable failure){
             enabled.remove(id);
@@ -427,7 +440,9 @@ final class WorldPluginManager
                     failure.addSuppressed(cleanup);
                 }
 
-            tracker.close();
+            tracker.close(
+                entry::callbackFailure
+            );
 
             try{
                 content.uninstallModule(
@@ -534,7 +549,9 @@ final class WorldPluginManager
         }
 
         entry.tasks.close();
-        entry.events.close();
+        entry.events.close(
+            entry::callbackFailure
+        );
 
         try{
             content.uninstallModule(
@@ -553,10 +570,20 @@ final class WorldPluginManager
                 " error="+failure
             );
         }finally{
-            PluginJarLoader.closePluginRuntime(
-                plugin,
-                null
-            );
+            Throwable loaderFailure=
+                PluginJarLoader.closePluginRuntime(
+                    plugin,
+                    null
+                );
+
+            if(loaderFailure!=null)
+                recordTerminalDiagnostic(
+                    entry,
+                    reason+
+                    ":CLASSLOADER_CLOSE",
+                    loaderFailure
+                );
+
             entry.failureSink=null;
             entry.plugin=null;
         }
@@ -570,9 +597,15 @@ final class WorldPluginManager
             return false;
 
         entry.cleanupClaimed=true;
+        entry.runtimeState=
+            RuntimeState.TERMINAL;
         detachEntry(entry);
         disabling.add(
             entry.manifest.id()
+        );
+        terminalizing.put(
+            entry.manifest.id(),
+            entry
         );
         activeCleanups++;
         return true;
@@ -591,8 +624,29 @@ final class WorldPluginManager
             disabling.remove(
                 entry.manifest.id()
             );
+            terminalizing.remove(
+                entry.manifest.id()
+            );
             notifyAll();
         }
+    }
+
+    private void awaitEntryCleanupLocked(
+        Entry entry
+    ){
+        boolean interrupted=false;
+
+        while(entry!=null&&
+              !entry.cleanupComplete)
+            try{
+                wait();
+            }catch(InterruptedException ignored){
+                interrupted=true;
+            }
+
+        if(interrupted)
+            Thread.currentThread()
+                .interrupt();
     }
 
     private void failRuntimeCallback(
@@ -600,21 +654,32 @@ final class WorldPluginManager
         String callbackKind,
         Throwable failure
     ){
-        ArrayList<Entry> cleanup=
-            new ArrayList<>();
+        FailureBatch batch=null;
 
         synchronized(this){
             if(failed==null||
-               failure==null||
-               failed.cleanupClaimed||
-               !failed.enabled)
+               failure==null)
                 return;
+
+            String phase=
+                callbackKind!=null&&
+                callbackKind.startsWith(
+                    "CLEANUP:")
+                    ?callbackKind
+                    :"CALLBACK:"+
+                        callbackKind;
 
             recordTerminalDiagnosticLocked(
                 failed,
-                "CALLBACK:"+callbackKind,
+                phase,
                 failure
             );
+
+            if(failed.runtimeState==
+                    RuntimeState.ENABLING||
+               failed.cleanupClaimed||
+               !failed.enabled)
+                return;
 
             LinkedHashSet<String> affected=
                 new LinkedHashSet<>();
@@ -656,6 +721,9 @@ final class WorldPluginManager
                         candidate.manifest.id()))
                     ordered.add(candidate);
 
+            ArrayList<Entry> cleanup=
+                new ArrayList<>();
+
             for(int i=ordered.size()-1;
                 i>=0;
                 i--){
@@ -668,14 +736,58 @@ final class WorldPluginManager
                         candidate
                     );
             }
+
+            if(!cleanup.isEmpty())
+                batch=
+                    new FailureBatch(
+                        cleanup,
+                        failed.manifest.id()
+                    );
         }
 
-        for(Entry entry:cleanup)
+        if(batch==null)
+            return;
+
+        final FailureBatch pending=batch;
+
+        for(Entry entry:
+                pending.entries)
+            entry.callbacks.onQuiescent(
+                ()->tryCleanupFailureBatch(
+                    pending
+                )
+            );
+
+        tryCleanupFailureBatch(
+            pending
+        );
+    }
+
+    private void tryCleanupFailureBatch(
+        FailureBatch batch
+    ){
+        if(batch==null)
+            return;
+
+        synchronized(this){
+            if(batch.started)
+                return;
+
+            for(Entry entry:
+                    batch.entries)
+                if(!entry.callbacks
+                        .quiescent())
+                    return;
+
+            batch.started=true;
+        }
+
+        for(Entry entry:batch.entries)
             try{
                 cleanupEntry(
                     entry,
                     "CALLBACK_FAILURE:"+
-                    failed.manifest.id()
+                    batch.failedPluginId
                 );
             }catch(Throwable cleanupFailure){
                 recordTerminalDiagnostic(
@@ -747,8 +859,71 @@ final class WorldPluginManager
             " message="+
             boundedDiagnostic(
                 failure.getMessage()
+            )+
+            " stack="+
+            boundedStack(
+                failure
             )
         );
+    }
+
+    private static String boundedStack(
+        Throwable failure
+    ){
+        if(failure==null)
+            return "<null>";
+
+        StringBuilder out=
+            new StringBuilder();
+
+        Throwable current=failure;
+        int causes=0;
+
+        while(current!=null&&
+              causes<3&&
+              out.length()<960){
+            if(causes>0)
+                out.append(" causedBy=")
+                    .append(
+                        current.getClass()
+                            .getName()
+                    );
+
+            StackTraceElement[] trace=
+                current.getStackTrace();
+            int frames=
+                Math.min(
+                    trace.length,
+                    8
+                );
+
+            for(int i=0;
+                i<frames&&
+                out.length()<960;
+                i++)
+                out.append(" at ")
+                    .append(
+                        trace[i].toString()
+                    );
+
+            current=
+                current.getCause();
+            causes++;
+        }
+
+        String clean=
+            out.toString()
+                .replace('\n',' ')
+                .replace('\r',' ')
+                .replace('\t',' ');
+
+        if(clean.length()>960)
+            clean=clean.substring(
+                0,
+                960
+            );
+
+        return clean;
     }
 
     private static String boundedDiagnostic(
@@ -1289,6 +1464,10 @@ final class WorldPluginManager
                     priority,
                     receiveCancelled,
                     event->{
+                        if(!callbackOwner
+                                .runtimeEnabled())
+                            return;
+
                         try{
                             callbacks.call(
                                 loader,
@@ -1356,7 +1535,11 @@ final class WorldPluginManager
             subscriptions.add(subscription);
         }
 
-        synchronized void close(){
+        synchronized void close(
+            java.util.function.BiConsumer<
+                String,Throwable
+            > failureHandler
+        ){
             if(closed)
                 return;
 
@@ -1369,6 +1552,11 @@ final class WorldPluginManager
                     subscriptions.get(i)
                         .unsubscribe();
                 }catch(Throwable failure){
+                    if(failureHandler!=null)
+                        failureHandler.accept(
+                            "CLEANUP:EVENT_UNSUBSCRIBE",
+                            failure
+                        );
                     System.err.println(
                         "[plugins] event unsubscribe failed error="+
                         failure
@@ -1390,6 +1578,8 @@ final class WorldPluginManager
         PluginTaskTracker tasks;
         final PluginCallbackScope callbacks;
         volatile RuntimeFailureSink failureSink;
+        volatile RuntimeState runtimeState=
+            RuntimeState.ENABLING;
         volatile boolean enabled=true;
         boolean cleanupClaimed;
         boolean cleanupComplete;
@@ -1406,6 +1596,11 @@ final class WorldPluginManager
             this.moduleId=moduleId;
             this.events=events;
             this.callbacks=callbacks;
+        }
+
+        boolean runtimeEnabled(){
+            return runtimeState==
+                RuntimeState.ENABLED;
         }
 
         void callbackFailure(
@@ -1428,6 +1623,32 @@ final class WorldPluginManager
 
         @Override public boolean enabled(){
             return enabled;
+        }
+    }
+
+    private enum RuntimeState {
+        ENABLING,
+        ENABLED,
+        TERMINAL
+    }
+
+    private static final class FailureBatch {
+        final List<Entry> entries;
+        final String failedPluginId;
+        boolean started;
+
+        FailureBatch(
+            List<Entry> entries,
+            String failedPluginId
+        ){
+            this.entries=
+                Collections.unmodifiableList(
+                    new ArrayList<>(
+                        entries
+                    )
+                );
+            this.failedPluginId=
+                failedPluginId;
         }
     }
 
@@ -1807,6 +2028,11 @@ final class WorldPluginManager
                 PluginCallbackScope.CheckedLeaseFunction<T>
                     action
             )throws Exception{
+                if(!owner.runtimeEnabled())
+                    throw new IllegalStateException(
+                        "plugin runtime callback unavailable"
+                    );
+
                 try{
                     return callbacks.call(
                         loader,
@@ -1827,6 +2053,11 @@ final class WorldPluginManager
                     PluginCallbackScope.Lease,T
                 > action
             ){
+                if(!owner.runtimeEnabled())
+                    throw new IllegalStateException(
+                        "plugin runtime callback unavailable"
+                    );
+
                 try{
                     return callbacks.callUnchecked(
                         loader,

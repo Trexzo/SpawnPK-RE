@@ -51,6 +51,7 @@ final class PluginCallbackScope
     private volatile boolean closing;
     private volatile boolean closed;
     private int inFlight;
+    private Runnable quiescenceListener;
 
     PluginCallbackScope(
         BooleanSupplier worldExecution
@@ -74,6 +75,38 @@ final class PluginCallbackScope
     synchronized void beginClose(){
         active=false;
         closing=true;
+    }
+
+    synchronized boolean quiescent(){
+        return inFlight==0;
+    }
+
+    void onQuiescent(
+        Runnable listener
+    ){
+        Objects.requireNonNull(
+            listener,
+            "listener"
+        );
+
+        boolean runNow=false;
+
+        synchronized(this){
+            if(closed)
+                runNow=true;
+            else if(quiescenceListener!=null&&
+                    quiescenceListener!=listener)
+                throw new IllegalStateException(
+                    "plugin callback quiescence listener already assigned"
+                );
+            else if(closing&&inFlight==0)
+                runNow=true;
+            else
+                quiescenceListener=listener;
+        }
+
+        if(runNow)
+            listener.run();
     }
 
     void awaitQuiescent(){
@@ -106,6 +139,7 @@ final class PluginCallbackScope
         closing=true;
         closed=true;
         worldExecution=null;
+        quiescenceListener=null;
         notifyAll();
     }
 
@@ -233,20 +267,35 @@ final class PluginCallbackScope
         return new Lease(this);
     }
 
-    private synchronized void releaseLease(
+    private void releaseLease(
         Lease lease
     ){
-        if(lease==null||
-           lease.owner!=this)
-            return;
+        Runnable listener=null;
 
-        if(inFlight<=0)
-            throw new IllegalStateException(
-                "plugin callback scope in-flight underflow"
-            );
+        synchronized(this){
+            if(lease==null||
+               lease.owner!=this)
+                return;
 
-        inFlight--;
-        notifyAll();
+            if(inFlight<=0)
+                throw new IllegalStateException(
+                    "plugin callback scope in-flight underflow"
+                );
+
+            inFlight--;
+
+            if(closing&&
+               inFlight==0&&
+               quiescenceListener!=null){
+                listener=quiescenceListener;
+                quiescenceListener=null;
+            }
+
+            notifyAll();
+        }
+
+        if(listener!=null)
+            listener.run();
     }
 
     private Lease requireLease(
