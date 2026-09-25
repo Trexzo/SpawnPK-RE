@@ -3,6 +3,7 @@ package spk.local;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.Objects;
+import java.util.function.BiConsumer;
 import java.util.function.BooleanSupplier;
 import spk.plugin.api.PluginScheduler;
 import spk.plugin.api.PluginTask;
@@ -16,6 +17,8 @@ final class PluginTaskTracker
     private volatile BooleanSupplier worldOpen;
     private volatile ClassLoader callbackLoader;
     private final PluginCallbackScope callbackScope;
+    private volatile BiConsumer<String,Throwable>
+        failureHandler;
     private final LinkedHashSet<Task>
         tasks=new LinkedHashSet<>();
 
@@ -28,7 +31,8 @@ final class PluginTaskTracker
         WorldEventQueue queue,
         BooleanSupplier worldOpen,
         ClassLoader callbackLoader,
-        PluginCallbackScope callbackScope
+        PluginCallbackScope callbackScope,
+        BiConsumer<String,Throwable> failureHandler
     ){
         this.clock=Objects.requireNonNull(
             clock,
@@ -48,6 +52,11 @@ final class PluginTaskTracker
             Objects.requireNonNull(
                 callbackScope,
                 "callbackScope"
+            );
+        this.failureHandler=
+            Objects.requireNonNull(
+                failureHandler,
+                "failureHandler"
             );
     }
 
@@ -294,6 +303,20 @@ final class PluginTaskTracker
             queued.cancel();
     }
 
+    void reportFailure(
+        Throwable failure
+    ){
+        BiConsumer<String,Throwable> handler=
+            failureHandler;
+
+        if(handler!=null&&
+           failure!=null)
+            handler.accept(
+                "TASK",
+                failure
+            );
+    }
+
     synchronized int size(){
         return tasks.size();
     }
@@ -304,8 +327,7 @@ final class PluginTaskTracker
 
     void awaitQuiescent(){
         synchronized(this){
-            // Acquiring this monitor waits for an already-entered task
-            // callback while closing was published lock-free above.
+            // Lock barrier: admission is already closed by volatile closing.
         }
     }
 
@@ -339,6 +361,7 @@ final class PluginTaskTracker
                 }
         }
 
+        failureHandler=null;
         callbackLoader=null;
         worldOpen=null;
         queue=null;
@@ -378,7 +401,14 @@ final class PluginTaskTracker
         }
 
         @Override public void run(){
-            owner.execute(this);
+            try{
+                owner.execute(this);
+            }catch(RuntimeException|Error failure){
+                owner.reportFailure(
+                    failure
+                );
+                throw failure;
+            }
         }
     }
 }

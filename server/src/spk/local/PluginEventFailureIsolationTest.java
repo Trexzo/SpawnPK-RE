@@ -86,9 +86,14 @@ public final class PluginEventFailureIsolationTest {
                     "healthy plugin was suppressed by prior failure"
                 );
 
-            if(!manager.disable("events.throwing"))
+            if(manager.plugin(
+                    "events.throwing"
+                )!=null||
+               manager.disable(
+                    "events.throwing"
+                ))
                 throw new AssertionError(
-                    "throwing plugin did not disable"
+                    "throwing plugin was not terminal after callback failure"
                 );
 
             if(world.domainEvents().listenerCount()!=1)
@@ -196,7 +201,16 @@ public final class PluginEventFailureIsolationTest {
                     "receiveCancelled listener did not observe cancelled event"
                 );
 
-            manager.disable("events.cancelling");
+            if(manager.plugin(
+                    "events.cancelling"
+                )!=null||
+               manager.disable(
+                    "events.cancelling"
+                ))
+                throw new AssertionError(
+                    "cancelling plugin was not terminal after callback failure"
+                );
+
             manager.disable("events.cancel-skipped");
             manager.disable("events.cancel-aware");
 
@@ -239,6 +253,8 @@ public final class PluginEventFailureIsolationTest {
             System.out.println(
                 "PLUGIN_EVENT_FAILURE_ISOLATION_PASS "+
                 "pluginErrorContained=true "+
+                "throwingOwnerTerminalized=true "+
+                "cancellingOwnerTerminalized=true "+
                 "healthyListenerContinued=true "+
                 "cancellationPreserved=true "+
                 "receiveCancelledPreserved=true "+

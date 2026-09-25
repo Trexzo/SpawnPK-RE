@@ -16,6 +16,8 @@ final class WorldPluginManager
 
     private static final String CONTENT_PREFIX=
         "plugin:";
+    private static final int MAX_TERMINAL_DIAGNOSTICS=
+        128;
 
     private final ContentRegistry content;
     private final DomainEventBus events;
@@ -27,6 +29,8 @@ final class WorldPluginManager
         enabled=new LinkedHashMap<>();
     private final HashSet<String>
         disabling=new HashSet<>();
+    private final ArrayList<String>
+        terminalDiagnostics=new ArrayList<>();
 
     private int activeCleanups;
     private boolean closed;
@@ -127,10 +131,16 @@ final class WorldPluginManager
                 entry.tasks.activate();
         }catch(Throwable failure){
             for(int i=added.size()-1;i>=0;i--)
-                disableEntry(
-                    added.get(i),
-                    "BATCH_ROLLBACK"
-                );
+                try{
+                    disableEntry(
+                        added.get(i),
+                        "BATCH_ROLLBACK"
+                    );
+                }catch(Throwable cleanup){
+                    failure.addSuppressed(
+                        cleanup
+                    );
+                }
 
             for(Plugin plugin:candidates)
                 if(!ownsPluginInstance(
@@ -175,9 +185,9 @@ final class WorldPluginManager
                         " -> "+id
                     );
 
-            detachEntry(entry);
-            disabling.add(id);
-            activeCleanups++;
+            if(!claimCleanupLocked(
+                    entry))
+                return false;
         }
 
         try{
@@ -186,11 +196,9 @@ final class WorldPluginManager
                 "EXPLICIT_DISABLE"
             );
         }finally{
-            synchronized(this){
-                activeCleanups--;
-                disabling.remove(id);
-                notifyAll();
-            }
+            completeCleanup(
+                entry
+            );
         }
 
         return true;
@@ -239,23 +247,51 @@ final class WorldPluginManager
 
             awaitExplicitCleanups();
 
-            entries=
+            ArrayList<Entry> snapshot=
                 new ArrayList<>(
                     enabled.values()
                 );
+            entries=
+                new ArrayList<>();
 
-            for(Entry entry:entries)
-                detachEntry(entry);
+            for(Entry entry:snapshot)
+                if(claimCleanupLocked(
+                        entry))
+                    entries.add(entry);
         }
+
+        Throwable failure=null;
 
         try{
             for(int i=entries.size()-1;
                 i>=0;
-                i--)
-                cleanupEntry(
-                    entries.get(i),
-                    "WORLD_CLOSE"
-                );
+                i--){
+                Entry entry=entries.get(i);
+
+                try{
+                    cleanupEntry(
+                        entry,
+                        "WORLD_CLOSE"
+                    );
+                }catch(Throwable cleanup){
+                    recordTerminalDiagnostic(
+                        entry,
+                        "WORLD_CLOSE:CLEANUP",
+                        cleanup
+                    );
+
+                    if(failure==null)
+                        failure=cleanup;
+                    else
+                        failure.addSuppressed(
+                            cleanup
+                        );
+                }finally{
+                    completeCleanup(
+                        entry
+                    );
+                }
+            }
         }finally{
             synchronized(this){
                 resourcesClosed=true;
@@ -263,6 +299,10 @@ final class WorldPluginManager
                 notifyAll();
             }
         }
+
+        rethrowUnchecked(
+            failure
+        );
     }
 
     @Override public void close(){
@@ -324,14 +364,24 @@ final class WorldPluginManager
 
         EventTracker tracker=
             new EventTracker();
+        Entry entry=
+            new Entry(
+                plugin,
+                manifest,
+                moduleId,
+                tracker,
+                callbackScope
+            );
         PluginTaskTracker tasks=
             new PluginTaskTracker(
                 clock,
                 worldEvents,
                 worldOpen,
                 callbackLoader,
-                callbackScope
+                callbackScope,
+                entry::callbackFailure
             );
+        entry.tasks=tasks;
 
         PluginContentModule module=
             new PluginContentModule(
@@ -340,22 +390,20 @@ final class WorldPluginManager
                 tracker,
                 tasks,
                 callbackLoader,
-                callbackScope
+                callbackScope,
+                entry
             );
 
         try{
             content.installCustom(module);
             callbackScope.activate();
-
-            Entry entry=
-                new Entry(
-                    plugin,
-                    manifest,
-                    moduleId,
-                    tracker,
-                    tasks,
-                    callbackScope
-                );
+            entry.failureSink=
+                (kind,failure)->
+                    failRuntimeCallback(
+                        entry,
+                        kind,
+                        failure
+                    );
 
             enabled.put(id,entry);
 
@@ -393,6 +441,10 @@ final class WorldPluginManager
                 plugin,
                 failure
             );
+            entry.failureSink=null;
+            entry.plugin=null;
+            entry.cleanupClaimed=true;
+            entry.cleanupComplete=true;
 
             rethrow(failure);
             throw new AssertionError(
@@ -405,14 +457,28 @@ final class WorldPluginManager
         Entry entry,
         String reason
     ){
-        if(entry==null||!entry.enabled)
+        boolean claimed;
+
+        synchronized(this){
+            claimed=
+                claimCleanupLocked(
+                    entry
+                );
+        }
+
+        if(!claimed)
             return;
 
-        detachEntry(entry);
-        cleanupEntry(
-            entry,
-            reason
-        );
+        try{
+            cleanupEntry(
+                entry,
+                reason
+            );
+        }finally{
+            completeCleanup(
+                entry
+            );
+        }
     }
 
     private void detachEntry(
@@ -454,6 +520,11 @@ final class WorldPluginManager
                     plugin::disable
                 );
         }catch(Throwable failure){
+            recordTerminalDiagnostic(
+                entry,
+                reason+":DISABLE",
+                failure
+            );
             System.err.println(
                 "[plugins] disable callback failed id="+
                 entry.manifest.id()+
@@ -470,6 +541,11 @@ final class WorldPluginManager
                 entry.moduleId
             );
         }catch(Throwable failure){
+            recordTerminalDiagnostic(
+                entry,
+                reason+":CONTENT_UNINSTALL",
+                failure
+            );
             System.err.println(
                 "[plugins] content uninstall failed id="+
                 entry.manifest.id()+
@@ -481,8 +557,224 @@ final class WorldPluginManager
                 plugin,
                 null
             );
+            entry.failureSink=null;
             entry.plugin=null;
         }
+    }
+
+    private boolean claimCleanupLocked(
+        Entry entry
+    ){
+        if(entry==null||
+           entry.cleanupClaimed)
+            return false;
+
+        entry.cleanupClaimed=true;
+        detachEntry(entry);
+        disabling.add(
+            entry.manifest.id()
+        );
+        activeCleanups++;
+        return true;
+    }
+
+    private void completeCleanup(
+        Entry entry
+    ){
+        synchronized(this){
+            if(entry==null||
+               entry.cleanupComplete)
+                return;
+
+            entry.cleanupComplete=true;
+            activeCleanups--;
+            disabling.remove(
+                entry.manifest.id()
+            );
+            notifyAll();
+        }
+    }
+
+    private void failRuntimeCallback(
+        Entry failed,
+        String callbackKind,
+        Throwable failure
+    ){
+        ArrayList<Entry> cleanup=
+            new ArrayList<>();
+
+        synchronized(this){
+            if(failed==null||
+               failure==null||
+               failed.cleanupClaimed||
+               !failed.enabled)
+                return;
+
+            recordTerminalDiagnosticLocked(
+                failed,
+                "CALLBACK:"+callbackKind,
+                failure
+            );
+
+            LinkedHashSet<String> affected=
+                new LinkedHashSet<>();
+            affected.add(
+                failed.manifest.id()
+            );
+
+            boolean changed=true;
+
+            while(changed){
+                changed=false;
+
+                for(Entry candidate:
+                        enabled.values()){
+                    if(affected.contains(
+                            candidate.manifest.id()))
+                        continue;
+
+                    for(String dependency:
+                            candidate.manifest
+                                .dependencies())
+                        if(affected.contains(
+                                dependency)){
+                            affected.add(
+                                candidate.manifest.id()
+                            );
+                            changed=true;
+                            break;
+                        }
+                }
+            }
+
+            ArrayList<Entry> ordered=
+                new ArrayList<>();
+
+            for(Entry candidate:
+                    enabled.values())
+                if(affected.contains(
+                        candidate.manifest.id()))
+                    ordered.add(candidate);
+
+            for(int i=ordered.size()-1;
+                i>=0;
+                i--){
+                Entry candidate=
+                    ordered.get(i);
+
+                if(claimCleanupLocked(
+                        candidate))
+                    cleanup.add(
+                        candidate
+                    );
+            }
+        }
+
+        for(Entry entry:cleanup)
+            try{
+                cleanupEntry(
+                    entry,
+                    "CALLBACK_FAILURE:"+
+                    failed.manifest.id()
+                );
+            }catch(Throwable cleanupFailure){
+                recordTerminalDiagnostic(
+                    entry,
+                    "CALLBACK_FAILURE:CLEANUP",
+                    cleanupFailure
+                );
+                System.err.println(
+                    "[plugins] callback-failure cleanup failed id="+
+                    entry.manifest.id()+
+                    " error="+
+                    cleanupFailure
+                );
+            }finally{
+                completeCleanup(
+                    entry
+                );
+            }
+    }
+
+    synchronized List<String>
+        terminalDiagnostics(){
+        return Collections.unmodifiableList(
+            new ArrayList<>(
+                terminalDiagnostics
+            )
+        );
+    }
+
+    private void recordTerminalDiagnostic(
+        Entry entry,
+        String phase,
+        Throwable failure
+    ){
+        synchronized(this){
+            recordTerminalDiagnosticLocked(
+                entry,
+                phase,
+                failure
+            );
+        }
+    }
+
+    private void recordTerminalDiagnosticLocked(
+        Entry entry,
+        String phase,
+        Throwable failure
+    ){
+        if(entry==null||
+           failure==null)
+            return;
+
+        if(terminalDiagnostics.size()>=
+                MAX_TERMINAL_DIAGNOSTICS)
+            terminalDiagnostics.remove(0);
+
+        terminalDiagnostics.add(
+            "plugin="+
+            entry.manifest.id()+
+            " phase="+
+            boundedDiagnostic(
+                phase
+            )+
+            " errorClass="+
+            boundedDiagnostic(
+                failure.getClass()
+                    .getName()
+            )+
+            " message="+
+            boundedDiagnostic(
+                failure.getMessage()
+            )
+        );
+    }
+
+    private static String boundedDiagnostic(
+        String value
+    ){
+        String clean=
+            value==null
+                ?"<null>"
+                :value.replace(
+                    '\n',
+                    ' '
+                ).replace(
+                    '\r',
+                    ' '
+                ).replace(
+                    '\t',
+                    ' '
+                );
+
+        if(clean.length()>320)
+            clean=clean.substring(
+                0,
+                320
+            );
+
+        return clean;
     }
 
     private synchronized boolean ownsPluginInstance(
@@ -696,6 +988,23 @@ final class WorldPluginManager
         return clean;
     }
 
+    private static void rethrowUnchecked(
+        Throwable failure
+    ){
+        if(failure==null)
+            return;
+
+        if(failure instanceof RuntimeException)
+            throw (RuntimeException)failure;
+
+        if(failure instanceof Error)
+            throw (Error)failure;
+
+        throw new RuntimeException(
+            failure
+        );
+    }
+
     private static void rethrow(
         Throwable failure
     )throws Exception{
@@ -725,6 +1034,7 @@ final class WorldPluginManager
         private final PluginTaskTracker tasks;
         private final ClassLoader callbackLoader;
         private final PluginCallbackScope callbackScope;
+        private final Entry owner;
         private volatile ScopedPluginContext context;
         private volatile boolean enableAttempted;
 
@@ -734,7 +1044,8 @@ final class WorldPluginManager
             EventTracker tracker,
             PluginTaskTracker tasks,
             ClassLoader callbackLoader,
-            PluginCallbackScope callbackScope
+            PluginCallbackScope callbackScope,
+            Entry owner
         ){
             this.moduleId=moduleId;
             this.plugin=plugin;
@@ -744,6 +1055,11 @@ final class WorldPluginManager
                 callbackLoader;
             this.callbackScope=
                 callbackScope;
+            this.owner=
+                Objects.requireNonNull(
+                    owner,
+                    "owner"
+                );
         }
 
         @Override public String id(){
@@ -760,7 +1076,8 @@ final class WorldPluginManager
                     tasks,
                     callbackLoader,
                     callbackScope,
-                    WorldPluginManager.this.events
+                    WorldPluginManager.this.events,
+                    owner
                 );
 
             context=local;
@@ -808,14 +1125,16 @@ final class WorldPluginManager
             PluginTaskTracker tasks,
             ClassLoader callbackLoader,
             PluginCallbackScope callbackScope,
-            DomainEventBus eventBus
+            DomainEventBus eventBus,
+            Entry owner
         ){
             content=
                 new ScopedContentRegistrar(
                     registrar,
                     this,
                     callbackLoader,
-                    callbackScope
+                    callbackScope,
+                    owner
                 );
             events=
                 new ScopedPluginEvents(
@@ -823,7 +1142,8 @@ final class WorldPluginManager
                     tracker,
                     this,
                     callbackLoader,
-                    callbackScope
+                    callbackScope,
+                    owner
                 );
             scheduler=tasks;
         }
@@ -890,6 +1210,7 @@ final class WorldPluginManager
         private ScopedPluginContext context;
         private ClassLoader callbackLoader;
         private PluginCallbackScope callbackScope;
+        private Entry owner;
         private boolean sealed;
 
         ScopedPluginEvents(
@@ -897,7 +1218,8 @@ final class WorldPluginManager
             EventTracker tracker,
             ScopedPluginContext context,
             ClassLoader callbackLoader,
-            PluginCallbackScope callbackScope
+            PluginCallbackScope callbackScope,
+            Entry owner
         ){
             this.eventBus=
                 Objects.requireNonNull(
@@ -920,6 +1242,11 @@ final class WorldPluginManager
                 Objects.requireNonNull(
                     callbackScope,
                     "callbackScope"
+                );
+            this.owner=
+                Objects.requireNonNull(
+                    owner,
+                    "owner"
                 );
         }
 
@@ -949,10 +1276,12 @@ final class WorldPluginManager
             requireOpen();
 
             DomainEventBus bus=eventBus;
-            EventTracker owner=tracker;
+            EventTracker eventOwner=tracker;
             ClassLoader loader=callbackLoader;
             PluginCallbackScope callbacks=
                 callbackScope;
+            Entry callbackOwner=
+                owner;
 
             DomainEventBus.Subscription subscription=
                 bus.subscribe(
@@ -971,6 +1300,11 @@ final class WorldPluginManager
                                 }
                             );
                         }catch(Throwable failure){
+                            callbackOwner.callbackFailure(
+                                "EVENT:"+
+                                type.getName(),
+                                failure
+                            );
                             System.err.println(
                                 "[plugins] event callback failed type="+
                                 type.getName()+
@@ -980,7 +1314,7 @@ final class WorldPluginManager
                     }
                 );
 
-            owner.add(subscription);
+            eventOwner.add(subscription);
             return subscription;
         }
 
@@ -991,6 +1325,7 @@ final class WorldPluginManager
             context=null;
             callbackLoader=null;
             callbackScope=null;
+            owner=null;
         }
 
         private void requireOpen(){
@@ -1052,24 +1387,39 @@ final class WorldPluginManager
         final PluginManifest manifest;
         final String moduleId;
         final EventTracker events;
-        final PluginTaskTracker tasks;
+        PluginTaskTracker tasks;
         final PluginCallbackScope callbacks;
+        volatile RuntimeFailureSink failureSink;
         volatile boolean enabled=true;
+        boolean cleanupClaimed;
+        boolean cleanupComplete;
 
         Entry(
             Plugin plugin,
             PluginManifest manifest,
             String moduleId,
             EventTracker events,
-            PluginTaskTracker tasks,
             PluginCallbackScope callbacks
         ){
             this.plugin=plugin;
             this.manifest=manifest;
             this.moduleId=moduleId;
             this.events=events;
-            this.tasks=tasks;
             this.callbacks=callbacks;
+        }
+
+        void callbackFailure(
+            String callbackKind,
+            Throwable failure
+        ){
+            RuntimeFailureSink sink=
+                failureSink;
+
+            if(sink!=null)
+                sink.failed(
+                    callbackKind,
+                    failure
+                );
         }
 
         @Override public PluginManifest manifest(){
@@ -1079,6 +1429,14 @@ final class WorldPluginManager
         @Override public boolean enabled(){
             return enabled;
         }
+    }
+
+    @FunctionalInterface
+    private interface RuntimeFailureSink {
+        void failed(
+            String callbackKind,
+            Throwable failure
+        );
     }
 
     private static final class PluginEnableFailure
@@ -1098,13 +1456,15 @@ final class WorldPluginManager
         private ScopedPluginContext context;
         private ClassLoader callbackLoader;
         private PluginCallbackScope callbackScope;
+        private Entry owner;
         private boolean sealed;
 
         ScopedContentRegistrar(
             ContentRegistrar delegate,
             ScopedPluginContext context,
             ClassLoader callbackLoader,
-            PluginCallbackScope callbackScope
+            PluginCallbackScope callbackScope,
+            Entry owner
         ){
             this.delegate=
                 Objects.requireNonNull(
@@ -1122,6 +1482,11 @@ final class WorldPluginManager
                 Objects.requireNonNull(
                     callbackScope,
                     "callbackScope"
+                );
+            this.owner=
+                Objects.requireNonNull(
+                    owner,
+                    "owner"
                 );
         }
 
@@ -1142,7 +1507,8 @@ final class WorldPluginManager
 
             return new CallbackRuntime(
                 callbackLoader,
-                callbackScope
+                callbackScope,
+                owner
             );
         }
 
@@ -1152,6 +1518,7 @@ final class WorldPluginManager
             context=null;
             callbackLoader=null;
             callbackScope=null;
+            owner=null;
         }
 
         @Override public synchronized ContentRegistration command(
@@ -1166,8 +1533,8 @@ final class WorldPluginManager
                 name,
                 priority,
                 command->
-                    runtime.callbacks.call(
-                        runtime.loader,
+                    runtime.call(
+                        "CONTENT_COMMAND",
                         lease->
                             handler.handle(
                                 runtime.callbacks
@@ -1194,8 +1561,8 @@ final class WorldPluginManager
                 option,
                 priority,
                 object->
-                    runtime.callbacks.callUnchecked(
-                        runtime.loader,
+                    runtime.callUnchecked(
+                        "CONTENT",
                         lease->handler.handle(object)
                     )
             );
@@ -1215,8 +1582,8 @@ final class WorldPluginManager
                 option,
                 priority,
                 item->
-                    runtime.callbacks.callUnchecked(
-                        runtime.loader,
+                    runtime.callUnchecked(
+                        "CONTENT",
                         lease->handler.handle(item)
                     )
             );
@@ -1236,8 +1603,8 @@ final class WorldPluginManager
                 npcDefinitionId,
                 priority,
                 interaction->
-                    runtime.callbacks.callUnchecked(
-                        runtime.loader,
+                    runtime.callUnchecked(
+                        "CONTENT",
                         lease->handler.handle(interaction)
                     )
             );
@@ -1257,8 +1624,8 @@ final class WorldPluginManager
                 groundItemId,
                 priority,
                 interaction->
-                    runtime.callbacks.callUnchecked(
-                        runtime.loader,
+                    runtime.callUnchecked(
+                        "CONTENT",
                         lease->handler.handle(interaction)
                     )
             );
@@ -1278,8 +1645,8 @@ final class WorldPluginManager
                 targetItemId,
                 priority,
                 interaction->
-                    runtime.callbacks.callUnchecked(
-                        runtime.loader,
+                    runtime.callUnchecked(
+                        "CONTENT",
                         lease->handler.handle(interaction)
                     )
             );
@@ -1299,8 +1666,8 @@ final class WorldPluginManager
                 objectId,
                 priority,
                 interaction->
-                    runtime.callbacks.callUnchecked(
-                        runtime.loader,
+                    runtime.callUnchecked(
+                        "CONTENT",
                         lease->handler.handle(interaction)
                     )
             );
@@ -1318,8 +1685,8 @@ final class WorldPluginManager
                 itemId,
                 priority,
                 interaction->
-                    runtime.callbacks.callUnchecked(
-                        runtime.loader,
+                    runtime.callUnchecked(
+                        "CONTENT",
                         lease->
                             handler.handle(
                                 runtime.callbacks
@@ -1346,8 +1713,8 @@ final class WorldPluginManager
                 option,
                 priority,
                 npc->
-                    runtime.callbacks.callUnchecked(
-                        runtime.loader,
+                    runtime.callUnchecked(
+                        "CONTENT",
                         lease->handler.handle(npc)
                     )
             );
@@ -1369,9 +1736,8 @@ final class WorldPluginManager
                         handle(
                             ContentDialogueContext dialogue
                         ){
-                        return runtime.callbacks
-                            .callUnchecked(
-                                runtime.loader,
+                        return runtime.callUnchecked(
+                            "CONTENT_DIALOGUE",
                                 lease->
                                     handler.handle(
                                         runtime.callbacks
@@ -1407,8 +1773,8 @@ final class WorldPluginManager
                 actionKey,
                 priority,
                 action->
-                    runtime.callbacks.callUnchecked(
-                        runtime.loader,
+                    runtime.callUnchecked(
+                        "CONTENT",
                         lease->
                             handler.handle(
                                 runtime.callbacks
@@ -1424,13 +1790,55 @@ final class WorldPluginManager
         private static final class CallbackRuntime {
             final ClassLoader loader;
             final PluginCallbackScope callbacks;
+            final Entry owner;
 
             CallbackRuntime(
                 ClassLoader loader,
-                PluginCallbackScope callbacks
+                PluginCallbackScope callbacks,
+                Entry owner
             ){
                 this.loader=loader;
                 this.callbacks=callbacks;
+                this.owner=owner;
+            }
+
+            <T> T call(
+                String kind,
+                PluginCallbackScope.CheckedLeaseFunction<T>
+                    action
+            )throws Exception{
+                try{
+                    return callbacks.call(
+                        loader,
+                        action
+                    );
+                }catch(Exception|Error failure){
+                    owner.callbackFailure(
+                        kind,
+                        failure
+                    );
+                    throw failure;
+                }
+            }
+
+            <T> T callUnchecked(
+                String kind,
+                java.util.function.Function<
+                    PluginCallbackScope.Lease,T
+                > action
+            ){
+                try{
+                    return callbacks.callUnchecked(
+                        loader,
+                        action
+                    );
+                }catch(RuntimeException|Error failure){
+                    owner.callbackFailure(
+                        kind,
+                        failure
+                    );
+                    throw failure;
+                }
             }
         }
     }

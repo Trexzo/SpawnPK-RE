@@ -3008,6 +3008,30 @@ tasks.register('combatFixtureContentCommandActionOwnershipRegression') {
 }
 
 
+tasks.register('pluginRuntimeFailureCascadeRegression') {
+    group = 'verification'
+    description = 'Proves callback-failure owner/dependant terminalization while preserving unrelated event/task progress and no content fallback.'
+    dependsOn tasks.named('testClasses')
+
+    doLast {
+        [
+            'spk.local.PluginRuntimeFailureCascadeTest',
+            'spk.local.PluginSchedulerLifecycleTest',
+            'spk.local.PluginEventFailureIsolationTest'
+        ].each { mainClassName ->
+            project.javaexec {
+                workingDir repoRoot
+                classpath = sourceSets.test.runtimeClasspath
+                mainClass.set(mainClassName)
+            }
+        }
+
+        logger.lifecycle(
+            'PLUGIN_RUNTIME_FAILURE_CASCADE_PASS transitiveCascade=true reverseDependencyCleanup=true unrelatedEventContinues=true taskFailureTerminal=true contentFailureTerminal=true sameDispatchFallback=false disableExactlyOnce=true terminalDiagnosticsDetached=true terminalHandlesReleaseFailureSink=true'
+        )
+    }
+}
+
 tasks.named('check') {
     dependsOn tasks.named('customAssetPipelineRegression')
     dependsOn tasks.named('customAssetPipelineHardeningRegression')

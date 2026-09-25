@@ -89,9 +89,17 @@ public final class PluginSchedulerLifecycleTest {
 
             AtomicInteger failureRuns=
                 new AtomicInteger();
+            SchedulerPlugin runtimeFailure=
+                new SchedulerPlugin(
+                    "scheduler.runtime-failure"
+                );
+
+            manager.enable(
+                runtimeFailure
+            );
 
             PluginTask failing=
-                plugin.scheduler
+                runtimeFailure.scheduler
                     .scheduleRepeating(
                         1L,
                         1L,
@@ -108,13 +116,24 @@ public final class PluginSchedulerLifecycleTest {
             pulse(world);
 
             if(failureRuns.get()!=1||
-               failing.active())
+               failing.active()||
+               manager.plugin(
+                   "scheduler.runtime-failure"
+               )!=null||
+               runtimeFailure.disableCalls.get()!=1)
                 throw new AssertionError(
-                    "failed repeating task was not retired runs="+
+                    "failed task did not terminalize owner runs="+
                     failureRuns.get()+
                     " active="+
-                    failing.active()
+                    failing.active()+
+                    " disableCalls="+
+                    runtimeFailure.disableCalls.get()
                 );
+
+            assertSchedulerClosed(
+                runtimeFailure.scheduler,
+                "runtime-failure"
+            );
 
             PluginTask queuedForDisable=
                 plugin.scheduler.schedule(
@@ -342,7 +361,7 @@ public final class PluginSchedulerLifecycleTest {
                 "oneShot=true "+
                 "repeating=true "+
                 "cancel=true "+
-                "failureRetired=true "+
+                "failureTerminalizedOwner=true "+
                 "disableCancelled=true "+
                 "enableRollback=true "+
                 "disableSerializedWithCallback=true "+
