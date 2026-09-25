@@ -22,6 +22,7 @@ final class WorldPulse implements AutoCloseable,Runnable {
     private Runnable terminalAction;
     private boolean terminalClaimed;
     private boolean terminalComplete;
+    private boolean terminalWakeInterruptPending;
     private Throwable terminalFailure;
     private long nextTickAt;
     private long overdueTicks;
@@ -221,14 +222,19 @@ final class WorldPulse implements AutoCloseable,Runnable {
             inline=
                 active==null||
                 Thread.currentThread()==active;
+
+            if(!inline&&
+               !active.isInterrupted()){
+                terminalWakeInterruptPending=true;
+                active.interrupt();
+            }
+
             notifyAll();
         }
 
         if(inline)
             runTerminalOnce();
         else{
-            active.interrupt();
-
             boolean interrupted=false;
 
             for(;;){
@@ -289,10 +295,16 @@ final class WorldPulse implements AutoCloseable,Runnable {
             terminalAction=null;
         }
 
+        Thread current=
+            Thread.currentThread();
+
+        if(current==thread)
+            consumeTerminalWakeInterrupt();
+
         Thread prior=
             compatibilityExecutionThread;
         compatibilityExecutionThread=
-            Thread.currentThread();
+            current;
 
         Throwable failure=null;
 
@@ -309,6 +321,19 @@ final class WorldPulse implements AutoCloseable,Runnable {
                 notifyAll();
             }
         }
+    }
+
+    private void consumeTerminalWakeInterrupt(){
+        boolean consume;
+
+        synchronized(this){
+            consume=
+                terminalWakeInterruptPending;
+            terminalWakeInterruptPending=false;
+        }
+
+        if(consume)
+            Thread.interrupted();
     }
 
     private void rethrowTerminalFailure(){

@@ -27,6 +27,7 @@ public final class PluginWorldTerminalLifecycleTest {
             "nestedAdmissionRejected=true "+
             "tasksDestroyedAfterDisable=true "+
             "disableExactlyOnce=true "+
+            "terminalWakeInterruptConsumed=true "+
             "postCloseTaskSuppressed=true"
         );
     }
@@ -76,6 +77,10 @@ public final class PluginWorldTerminalLifecycleTest {
             plugin.disableThread==
                 startedPulse,
             "started World disable did not execute on actual pulse thread"
+        );
+        require(
+            !plugin.disableInterrupted.get(),
+            "lifecycle wake interrupt leaked into plugin disable"
         );
         require(
             plugin.scheduleRejectedDuringDisable.get(),
@@ -492,6 +497,8 @@ public final class PluginWorldTerminalLifecycleTest {
             new AtomicInteger();
         final AtomicBoolean disableOnWorld=
             new AtomicBoolean();
+        final AtomicBoolean disableInterrupted=
+            new AtomicBoolean();
         final AtomicBoolean scheduleRejectedDuringDisable=
             new AtomicBoolean();
         final AtomicBoolean queuedActiveDuringDisable=
@@ -525,6 +532,10 @@ public final class PluginWorldTerminalLifecycleTest {
             disableOnWorld.set(
                 world.pulse()
                     .inExecutionContext()
+            );
+            disableInterrupted.set(
+                Thread.currentThread()
+                    .isInterrupted()
             );
 
             PluginTask current=
