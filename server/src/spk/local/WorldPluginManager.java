@@ -1117,11 +1117,10 @@ final class WorldPluginManager
             context.requireOpen();
         }
 
-        private RegistrationRuntime runtime(){
+        private CallbackRuntime runtime(){
             requireOpen();
 
-            return new RegistrationRuntime(
-                delegate,
+            return new CallbackRuntime(
                 callbackLoader,
                 callbackScope
             );
@@ -1140,9 +1139,10 @@ final class WorldPluginManager
             int priority,
             ContentCommandHandler handler
         ){
-            RegistrationRuntime runtime=runtime();
+            ContentRegistrar registrar=delegate;
+            CallbackRuntime runtime=runtime();
 
-            return runtime.delegate.command(
+            return registrar.command(
                 name,
                 priority,
                 command->
@@ -1166,9 +1166,10 @@ final class WorldPluginManager
             int priority,
             ContentObjectOptionHandler handler
         ){
-            RegistrationRuntime runtime=runtime();
+            ContentRegistrar registrar=delegate;
+            CallbackRuntime runtime=runtime();
 
-            return runtime.delegate.objectOption(
+            return registrar.objectOption(
                 objectId,
                 option,
                 priority,
@@ -1186,9 +1187,10 @@ final class WorldPluginManager
             int priority,
             ContentItemOptionHandler handler
         ){
-            RegistrationRuntime runtime=runtime();
+            ContentRegistrar registrar=delegate;
+            CallbackRuntime runtime=runtime();
 
-            return runtime.delegate.itemOption(
+            return registrar.itemOption(
                 itemId,
                 option,
                 priority,
@@ -1206,9 +1208,10 @@ final class WorldPluginManager
             int priority,
             ContentItemOnNpcHandler handler
         ){
-            RegistrationRuntime runtime=runtime();
+            ContentRegistrar registrar=delegate;
+            CallbackRuntime runtime=runtime();
 
-            return runtime.delegate.itemOnNpc(
+            return registrar.itemOnNpc(
                 itemId,
                 npcDefinitionId,
                 priority,
@@ -1226,9 +1229,10 @@ final class WorldPluginManager
             int priority,
             ContentItemOnGroundItemHandler handler
         ){
-            RegistrationRuntime runtime=runtime();
+            ContentRegistrar registrar=delegate;
+            CallbackRuntime runtime=runtime();
 
-            return runtime.delegate.itemOnGroundItem(
+            return registrar.itemOnGroundItem(
                 itemId,
                 groundItemId,
                 priority,
@@ -1246,9 +1250,10 @@ final class WorldPluginManager
             int priority,
             ContentItemOnItemHandler handler
         ){
-            RegistrationRuntime runtime=runtime();
+            ContentRegistrar registrar=delegate;
+            CallbackRuntime runtime=runtime();
 
-            return runtime.delegate.itemOnItem(
+            return registrar.itemOnItem(
                 selectedItemId,
                 targetItemId,
                 priority,
@@ -1266,9 +1271,10 @@ final class WorldPluginManager
             int priority,
             ContentItemOnObjectHandler handler
         ){
-            RegistrationRuntime runtime=runtime();
+            ContentRegistrar registrar=delegate;
+            CallbackRuntime runtime=runtime();
 
-            return runtime.delegate.itemOnObject(
+            return registrar.itemOnObject(
                 itemId,
                 objectId,
                 priority,
@@ -1285,9 +1291,10 @@ final class WorldPluginManager
             int priority,
             ContentItemOnPlayerHandler handler
         ){
-            RegistrationRuntime runtime=runtime();
+            ContentRegistrar registrar=delegate;
+            CallbackRuntime runtime=runtime();
 
-            return runtime.delegate.itemOnPlayer(
+            return registrar.itemOnPlayer(
                 itemId,
                 priority,
                 interaction->
@@ -1311,9 +1318,10 @@ final class WorldPluginManager
             int priority,
             ContentNpcOptionHandler handler
         ){
-            RegistrationRuntime runtime=runtime();
+            ContentRegistrar registrar=delegate;
+            CallbackRuntime runtime=runtime();
 
-            return runtime.delegate.npcOption(
+            return registrar.npcOption(
                 npcDefinitionId,
                 option,
                 priority,
@@ -1330,9 +1338,10 @@ final class WorldPluginManager
             int priority,
             ContentDialogueHandler handler
         ){
-            RegistrationRuntime runtime=runtime();
+            ContentRegistrar registrar=delegate;
+            CallbackRuntime runtime=runtime();
 
-            return runtime.delegate.dialogue(
+            return registrar.dialogue(
                 dialogueKey,
                 priority,
                 new ContentDialogueHandler(){
@@ -1371,9 +1380,10 @@ final class WorldPluginManager
             int priority,
             ContentActionHandler handler
         ){
-            RegistrationRuntime runtime=runtime();
+            ContentRegistrar registrar=delegate;
+            CallbackRuntime runtime=runtime();
 
-            return runtime.delegate.action(
+            return registrar.action(
                 actionKey,
                 priority,
                 action->
@@ -1391,17 +1401,14 @@ final class WorldPluginManager
             );
         }
 
-        private static final class RegistrationRuntime {
-            final ContentRegistrar delegate;
+        private static final class CallbackRuntime {
             final ClassLoader loader;
             final PluginCallbackScope callbacks;
 
-            RegistrationRuntime(
-                ContentRegistrar delegate,
+            CallbackRuntime(
                 ClassLoader loader,
                 PluginCallbackScope callbacks
             ){
-                this.delegate=delegate;
                 this.loader=loader;
                 this.callbacks=callbacks;
             }
