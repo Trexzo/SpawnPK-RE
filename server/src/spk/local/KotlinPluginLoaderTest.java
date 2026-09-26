@@ -22,7 +22,17 @@ import spk.plugin.api.PluginHandle;
 
 public final class KotlinPluginLoaderTest {
     public static final class ProbeEvent
-        implements DomainEventBus.Event {}
+        implements DomainEventBus.Cancellable {
+        private boolean cancelled;
+
+        @Override public boolean isCancelled(){
+            return cancelled;
+        }
+
+        @Override public void cancel(){
+            cancelled=true;
+        }
+    }
 
     public static void main(
         String[] args
@@ -72,6 +82,11 @@ public final class KotlinPluginLoaderTest {
                 );
 
         assertDisguisedServerDependencyRejected(
+            constructor,
+            apiJar,
+            compileClasspath
+        );
+        assertUnexpectedDslDependencyRejected(
             constructor,
             apiJar,
             compileClasspath
@@ -281,9 +296,13 @@ public final class KotlinPluginLoaderTest {
                 player,
                 generation,
                 ()->{
+                    ProbeEvent event=
+                        new ProbeEvent();
+                    event.cancel();
+
                     world.domainEvents()
                         .publish(
-                            new ProbeEvent()
+                            event
                         );
 
                     ContentResult command=
@@ -696,6 +715,37 @@ public final class KotlinPluginLoaderTest {
             throw new AssertionError(
                 "Kotlin script callback loader exposed spk.local.World resource enumeration"
             );
+
+        boolean widgetDenied=false;
+
+        try{
+            Class.forName(
+                "spk.local.WidgetActionClientRequest",
+                false,
+                loader
+            );
+        }catch(ClassNotFoundException expected){
+            widgetDenied=true;
+        }
+
+        if(!widgetDenied)
+            throw new AssertionError(
+                "Kotlin script callback loader exposed raw widget transport"
+            );
+
+        if(loader.getResource(
+                "spk/local/WidgetActionClientRequest.class"
+            )!=null)
+            throw new AssertionError(
+                "Kotlin script callback loader exposed raw widget resource"
+            );
+
+        if(loader.getResources(
+                "spk/local/WidgetActionClientRequest.class"
+            ).hasMoreElements())
+            throw new AssertionError(
+                "Kotlin script callback loader exposed raw widget resource enumeration"
+            );
     }
 
     private static void
@@ -762,6 +812,80 @@ public final class KotlinPluginLoaderTest {
         }finally{
             Files.deleteIfExists(
                 fake
+            );
+        }
+    }
+
+    private static void
+        assertUnexpectedDslDependencyRejected(
+            Constructor<?> constructor,
+            Path apiJar,
+            List<Path> healthyClasspath
+        )throws Exception{
+        Path directory=
+            Files.createTempDirectory(
+                "kotlin-script-dsl-fence-"
+            );
+        Path fake=
+            directory.resolve(
+                "SpawnPKKotlinScriptRuntime.jar"
+            );
+
+        try{
+            try(JarOutputStream out=
+                    new JarOutputStream(
+                        Files.newOutputStream(
+                            fake
+                        )
+                    )){
+                out.putNextEntry(
+                    new JarEntry(
+                        "spk/plugin/kotlin/Unexpected.class"
+                    )
+                );
+                out.write(
+                    new byte[]{0}
+                );
+                out.closeEntry();
+            }
+
+            ArrayList<Path> poisoned=
+                new ArrayList<>(
+                    healthyClasspath
+                );
+            poisoned.add(fake);
+
+            boolean rejected=false;
+
+            try{
+                constructor.newInstance(
+                    apiJar,
+                    poisoned
+                );
+            }catch(InvocationTargetException expected){
+                Throwable cause=
+                    expected.getCause();
+
+                rejected=
+                    cause instanceof
+                        IllegalArgumentException&&
+                    cause.getMessage()!=null&&
+                    cause.getMessage()
+                        .contains(
+                            "outside the DSL allowlist"
+                        );
+            }
+
+            if(!rejected)
+                throw new AssertionError(
+                    "Kotlin loader accepted unexpected class in DSL namespace"
+                );
+        }finally{
+            Files.deleteIfExists(
+                fake
+            );
+            Files.deleteIfExists(
+                directory
             );
         }
     }
