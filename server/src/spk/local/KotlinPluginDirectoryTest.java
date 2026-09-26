@@ -9,8 +9,12 @@ import java.util.Comparator;
 import java.util.stream.Stream;
 import spk.content.api.ContentResult;
 import spk.event.DomainEventBus;
+import spk.plugin.api.Plugin;
+import spk.plugin.api.PluginApiVersion;
+import spk.plugin.api.PluginContext;
 import spk.plugin.api.PluginHandle;
 import spk.plugin.api.PluginManager;
+import spk.plugin.api.PluginManifest;
 
 public final class KotlinPluginDirectoryTest {
     public static final class ProbeEvent
@@ -91,6 +95,13 @@ public final class KotlinPluginDirectoryTest {
                     "empty Kotlin directory loaded plugins: "+
                     empty
                 );
+
+            assertPreloadFailureCleanup(
+                world,
+                temp.resolve(
+                    "failure-root"
+                )
+            );
 
             System.setProperty(
                 KotlinPluginDirectory
@@ -281,11 +292,173 @@ public final class KotlinPluginDirectoryTest {
             "startupDiscovery=true "+
             "deterministicTopLevel=true "+
             "productionArtifactLocator=true "+
+            "deterministicPreloadOrder=true "+
+            "preloadFailureCleanup=true "+
             "onDemand=true "+
             "rootConfinement=true "+
             "eventCallback=true "+
             "commandCallback=true"
         );
+    }
+
+    private static void assertPreloadFailureCleanup(
+        World world,
+        Path root
+    )throws Exception{
+        Files.createDirectories(
+            root
+        );
+
+        Files.write(
+            root.resolve(
+                "b.kts"
+            ),
+            java.util.Collections.singletonList(
+                "// b"
+            ),
+            StandardCharsets.UTF_8
+        );
+        Files.write(
+            root.resolve(
+                "A.kts"
+            ),
+            java.util.Collections.singletonList(
+                "// A"
+            ),
+            StandardCharsets.UTF_8
+        );
+
+        Path nested=
+            root.resolve(
+                "nested"
+            );
+        Files.createDirectories(
+            nested
+        );
+        Files.write(
+            nested.resolve(
+                "ignored.kts"
+            ),
+            java.util.Collections.singletonList(
+                "// ignored"
+            ),
+            StandardCharsets.UTF_8
+        );
+
+        TrackingLoader loader=
+            new TrackingLoader();
+
+        boolean failed=false;
+
+        try{
+            KotlinPluginDirectory
+                .loadStartup(
+                    world,
+                    root,
+                    loader
+                );
+        }catch(IOException expected){
+            failed=
+                "fixture-preload-failure"
+                    .equals(
+                        expected.getMessage()
+                    );
+        }
+
+        if(!failed)
+            throw new AssertionError(
+                "startup preload failure was not propagated"
+            );
+
+        if(loader.paths.size()!=2||
+           !"A.kts".equals(
+                loader.paths.get(0)
+            )||
+           !"b.kts".equals(
+                loader.paths.get(1)
+            ))
+            throw new AssertionError(
+                "Kotlin startup discovery order mismatch: "+
+                loader.paths
+            );
+
+        if(loader.first==null||
+           !loader.first.closed)
+            throw new AssertionError(
+                "startup preload failure retained first unowned runtime"
+            );
+    }
+
+    private static final class TrackingLoader
+        implements PluginLoader {
+
+        final java.util.ArrayList<String> paths=
+            new java.util.ArrayList<>();
+        TrackingRuntime first;
+
+        @Override public boolean supports(
+            PluginSource source
+        ){
+            return source!=null&&
+                !source.hasEntrypoint();
+        }
+
+        @Override public PluginRuntime load(
+            PluginSource source
+        )throws Exception{
+            paths.add(
+                source.path()
+                    .getFileName()
+                    .toString()
+            );
+
+            if(paths.size()==1){
+                first=
+                    new TrackingRuntime();
+                return first;
+            }
+
+            throw new IOException(
+                "fixture-preload-failure"
+            );
+        }
+    }
+
+    private static final class TrackingRuntime
+        implements PluginRuntime {
+
+        boolean closed;
+
+        @Override public PluginManifest manifest(){
+            return new PluginManifest(
+                "fixture.kotlin.preload",
+                "1.0",
+                PluginApiVersion.CURRENT,
+                java.util.Collections.emptyList()
+            );
+        }
+
+        @Override public void enable(
+            PluginContext context
+        ){
+        }
+
+        @Override public void disable(){
+        }
+
+        @Override public ClassLoader callbackClassLoader(){
+            if(closed)
+                throw new IllegalStateException(
+                    "tracking runtime closed"
+                );
+
+            return getClass()
+                .getClassLoader();
+        }
+
+        @Override public void close(){
+            closed=true;
+        }
     }
 
     private static void assertCommandAfterEvent(
