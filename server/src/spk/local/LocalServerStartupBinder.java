@@ -248,22 +248,30 @@ final class LocalServerStartupBinder {
         Runnable installer
     ){
         Objects.requireNonNull(
+            shutdown,
+            "shutdown"
+        );
+        Objects.requireNonNull(
             installer,
             "installer"
         );
 
-        installShutdownHook(
-            shutdown,
-            ()->{},
-            "spk-local-shutdown-compat",
-            (target,name)->
-                new Thread(
-                    target,
-                    name
-                ),
-            hook->
-                installer.run()
-        );
+        try{
+            installer.run();
+        }catch(Throwable failure){
+            try{
+                shutdown.close();
+            }catch(Throwable cleanup){
+                if(cleanup!=failure)
+                    failure.addSuppressed(
+                        cleanup
+                    );
+            }
+
+            rethrowUnchecked(
+                failure
+            );
+        }
     }
 
     private static void cleanupBeforeCoordinator(
