@@ -779,6 +779,7 @@ pluginApiJar.configure {
 
     from(kotlinScriptingHostOutput) {
         include 'spk/plugin/api/KotlinContentDslKt*.class'
+        include 'META-INF/*.kotlin_module'
     }
 }
 
@@ -1418,6 +1419,14 @@ tasks.register('pluginDeveloperApiArtifactRegression') {
             ))
             throw new GradleException(
                 'Kotlin content DSL missing from plugin API artifact.'
+            )
+
+        if(!entries.any {
+                it.startsWith('META-INF/') &&
+                it.endsWith('.kotlin_module')
+            })
+            throw new GradleException(
+                'Kotlin content DSL module metadata missing from plugin API artifact.'
             )
 
         if(!unexpected.isEmpty())
