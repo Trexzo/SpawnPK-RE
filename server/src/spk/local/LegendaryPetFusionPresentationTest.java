@@ -33,6 +33,7 @@ public final class LegendaryPetFusionPresentationTest {
             "callerDefinedProjection=true "+
             "stateProjection=true "+
             "stateWireOwned=false "+
+            "iso88591Fence=true "+
             "legacyDefaultsEvidenceOnly=true "+
             "rawProtocolInService=false "+
             "policyOwned=false"
