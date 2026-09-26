@@ -67,7 +67,20 @@ Assert-True ($all -match [regex]::Escape('scripts\Run-Server.ps1')) 'Multi-clien
 Assert-True ($all -match [regex]::Escape('scripts\Run-Client-Airgap.ps1')) 'Multi-client launcher does not target scripts/Run-Client-Airgap.ps1.'
 Assert-True ($all -match [regex]::Escape('WATCH_CLIENT_NETWORK.ps1')) 'Multi-client launcher does not target WATCH_CLIENT_NETWORK.ps1.'
 Assert-True ($all -match [regex]::Escape('scripts\Check-ExternalRuntime.ps1')) 'Multi-client launcher does not use current external-runtime preflight.'
-Assert-True ($all -notmatch 'VERIFY_OFFLINE_READY\.ps1') 'Multi-client launcher still invokes the sealed historical R8.5 verifier.'
+$allTokens = $null
+$allParseErrors = $null
+[void][System.Management.Automation.Language.Parser]::ParseInput(
+    $all,
+    [ref]$allTokens,
+    [ref]$allParseErrors
+)
+$sealedVerifierTokens = @(
+    $allTokens | Where-Object {
+        ([string]$_.Kind) -ne 'Comment' -and
+        $_.Text -match 'VERIFY_OFFLINE_READY\.ps1'
+    }
+)
+Assert-True ($sealedVerifierTokens.Count -eq 0) 'Multi-client launcher still invokes the sealed historical R8.5 verifier.'
 Assert-True ($all -match [regex]::Escape('server\build\SpawnPKLocalServer.jar')) 'Multi-client launcher does not preflight the current built server JAR.'
 Assert-True ($all -match 'existingAirgapPids') 'Multi-client launcher does not distinguish a newly started airgap client from pre-existing clients.'
 Assert-True ($all -match 'AIRGAP_CLIENT_PROCESS_READY') 'Multi-client launcher does not prove a new airgap Java process started before reporting success.'
