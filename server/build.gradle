@@ -1693,6 +1693,28 @@ tasks.register('monsterSpawnerPresentationRegression') {
     }
 }
 
+tasks.register(
+    'itemEnchantmentServiceRegression',
+    JavaExec
+) {
+    group = 'verification'
+    description = 'Validates the recovered protocol-independent Item Enchantment application lifecycle over ConversionService.'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.ItemEnchantmentServiceTest'
+}
+
+tasks.register(
+    'legendaryPetFusionServiceRegression',
+    JavaExec
+) {
+    group = 'verification'
+    description = 'Validates the recovered protocol-independent Legendary Pet Fusion lifecycle over ConversionService.'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.LegendaryPetFusionServiceTest'
+}
+
 tasks.register('bossTeleportPresentationRegression') {
     group = 'verification'
     description = 'Validates exact-v308 Boss Teleport rows/actions and 12-slot preview projection without owning destination or drop policy.'
