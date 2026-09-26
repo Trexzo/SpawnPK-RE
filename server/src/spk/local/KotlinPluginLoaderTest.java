@@ -116,6 +116,27 @@ public final class KotlinPluginLoaderTest {
                 "Kotlin script lost parent plugin API identity"
             );
 
+        Class<?> sdkClass=
+            Class.forName(
+                "spk.plugin.kotlin.KotlinPluginDslKt"
+            );
+
+        if(Class.forName(
+                "spk.plugin.kotlin.KotlinPluginDslKt",
+                false,
+                callbackLoader
+            )!=sdkClass)
+            throw new AssertionError(
+                "Kotlin script lost parent DSL SDK identity"
+            );
+
+        if(callbackLoader.getResource(
+                "spk/plugin/kotlin/KotlinPluginDslKt.class"
+            )==null)
+            throw new AssertionError(
+                "Kotlin script DSL SDK resource missing"
+            );
+
         assertServerInternalDenied(
             callbackLoader
         );
@@ -297,6 +318,7 @@ public final class KotlinPluginLoaderTest {
             "dependencyNamespaceFence=true "+
             "serverInternalDenied=true "+
             "pluginApiIdentity=true "+
+            "scriptSdkIdentity=true "+
             "eventCallback=true "+
             "commandDsl=true "+
             "npcDsl=true "+
