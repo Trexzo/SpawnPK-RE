@@ -3018,6 +3018,25 @@ tasks.register('combatFixtureContentCommandActionOwnershipRegression') {
 }
 
 
+
+tasks.register('staffPartyhatAppearanceGateRegression') {
+    group = 'verification'
+    description = 'Locks exact-client staff-partyhat HEAD-vs-Override publication for all eight recovered item ids without inventing named rank mappings.'
+    dependsOn tasks.named('testClasses')
+
+    doLast {
+        project.javaexec {
+            workingDir repoRoot
+            classpath = sourceSets.test.runtimeClasspath
+            mainClass.set('spk.local.StaffPartyhatAppearanceGateTest')
+        }
+
+        logger.lifecycle(
+            'STAFF_PARTYHAT_APPEARANCE_GATE_PASS items=8 wornHead=true overrideBs=true semanticAcPreserved=true namedSpawnPkMappingInvented=false'
+        )
+    }
+}
+
 tasks.register('pluginRuntimeFailureCascadeRegression') {
     group = 'verification'
     description = 'Proves callback-failure owner/dependant terminalization while preserving unrelated event/task progress and no content fallback.'
