@@ -33,6 +33,36 @@ public final class Main {
         World world = World.shared();
         world.start();
 
+        int kotlinPluginCount;
+
+        try {
+            kotlinPluginCount =
+                KotlinPluginDirectory.loadStartup(
+                    world,
+                    Paths.get(
+                        "plugins",
+                        "kotlin"
+                    )
+                );
+        } catch (Throwable failure) {
+            try {
+                world.close();
+            } catch (Throwable cleanup) {
+                failure.addSuppressed(
+                    cleanup
+                );
+            }
+
+            if (failure instanceof Exception)
+                throw (Exception)failure;
+            if (failure instanceof Error)
+                throw (Error)failure;
+
+            throw new RuntimeException(
+                failure
+            );
+        }
+
         ExecutorService pool = Executors.newCachedThreadPool(r -> {
             Thread t = new Thread(r, "spk-local-session"); t.setDaemon(true); return t;
         });
@@ -52,6 +82,10 @@ public final class Main {
         System.out.println("PULSE : " + world.metrics());
         System.out.println("ITEMS : "+ItemDefinitionRepository.count()+" current client-known ids; ::item / ::tabitem <id> [amount]");
         System.out.println("SPAWN : packet71 shortcut 0 -> native root 67027 on sidebar tab "+BootstrapPackets.SPAWN_TAB_INDEX);
+        System.out.println(
+            "KOTLIN: startup plugins=" +
+            kotlinPluginCount
+        );
 
         LocalServerShutdownCoordinator shutdown =
             new LocalServerShutdownCoordinator(
@@ -75,20 +109,6 @@ public final class Main {
         );
 
         try {
-            int kotlinPluginCount =
-                KotlinPluginDirectory.loadStartup(
-                    world,
-                    Paths.get(
-                        "plugins",
-                        "kotlin"
-                    )
-                );
-
-            System.out.println(
-                "KOTLIN: startup plugins=" +
-                kotlinPluginCount
-            );
-
             if (!shutdown.submitAuxiliary(
                     () -> localAux(aux)))
                 return;
