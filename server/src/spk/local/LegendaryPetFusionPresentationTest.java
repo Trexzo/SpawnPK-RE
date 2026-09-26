@@ -31,6 +31,7 @@ public final class LegendaryPetFusionPresentationTest {
             "oneOffering=true "+
             "callerDefinedProjection=true "+
             "stateProjection=true "+
+            "stateWireOwned=false "+
             "legacyDefaultsEvidenceOnly=true "+
             "rawProtocolInService=false "+
             "policyOwned=false"
@@ -65,8 +66,10 @@ public final class LegendaryPetFusionPresentationTest {
             LegendaryPetFusionPresentation
                 .CLOSE_WIDGET==65418&&
             LegendaryPetFusionPresentation
-                .WIDGET_ACTION_OPCODE==185,
-            "close/C2S185"
+                .WIDGET_ACTION_OPCODE==185&&
+            !LegendaryPetFusionPresentation
+                .STATE_WIRE_OWNED,
+            "close/C2S185/state authority"
         );
     }
 
@@ -454,8 +457,20 @@ public final class LegendaryPetFusionPresentationTest {
                 .RESULT_ITEM==12113&&
             LegendaryPetFusionPresentation
                 .LegacyEvidence
-                .RESULT_AMOUNT==1,
-            "legacy static item evidence"
+                .RESULT_AMOUNT==1&&
+            "@gre@Limited time pet fusion!"
+                .equals(
+                    LegendaryPetFusionPresentation
+                        .LegacyEvidence
+                        .STATUS_TEXT
+                )&&
+            "New pet ETA: @whi@10/26/2016"
+                .equals(
+                    LegendaryPetFusionPresentation
+                        .LegacyEvidence
+                        .AVAILABILITY_TEXT
+                ),
+            "legacy static evidence"
         );
 
         Fixture fixture=
