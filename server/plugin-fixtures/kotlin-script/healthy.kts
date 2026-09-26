@@ -7,11 +7,11 @@ import spk.plugin.api.Plugin
 import spk.plugin.api.PluginApiVersion
 import spk.plugin.api.PluginContext
 import spk.plugin.api.PluginManifest
-import spk.plugin.kotlin.onButton
+import spk.plugin.kotlin.onButtonClick
 import spk.plugin.kotlin.onCommand
 import spk.plugin.kotlin.onEvent
-import spk.plugin.kotlin.onItem
-import spk.plugin.kotlin.onNpc
+import spk.plugin.kotlin.onItemOption
+import spk.plugin.kotlin.onNpcClick
 
 object : Plugin {
     private var events = 0
@@ -38,8 +38,8 @@ object : Plugin {
             )
         }
 
-        context.onNpc(
-            npcDefinitionId = 301,
+        context.onNpcClick(
+            npcId = 301,
             option = 1
         ) {
             ContentNpcOptionResult.action(
@@ -47,7 +47,7 @@ object : Plugin {
             )
         }
 
-        context.onItem(
+        context.onItemOption(
             itemId = 201,
             option = 1
         ) {
@@ -56,8 +56,8 @@ object : Plugin {
             )
         }
 
-        context.onButton(
-            "fixture.kotlin.button"
+        context.onButtonClick(
+            actionKey = "fixture.kotlin.button"
         ) {
             ContentActionResult.allow()
         }
