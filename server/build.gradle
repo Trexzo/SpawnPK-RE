@@ -1731,7 +1731,7 @@ tasks.register('legendaryPetFusionPresentationRegression') {
         }
 
         logger.lifecycle(
-            'LEGENDARY_PET_FUSION_PRESENTATION_PASS root18547=true fuseInternal65559=true fuseWire23=true close65418=true oneOffering=true callerDefinedProjection=true stateProjection=true legacyDefaultsEvidenceOnly=true rawProtocolInService=false policyOwned=false'
+            'LEGENDARY_PET_FUSION_PRESENTATION_PASS root18547=true fuseInternal65559=true fuseWire23=true close65418=true oneOffering=true callerDefinedProjection=true stateProjection=true stateWireOwned=false legacyDefaultsEvidenceOnly=true rawProtocolInService=false policyOwned=false'
         )
     }
 }
