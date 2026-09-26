@@ -78,24 +78,104 @@ Start-Process powershell.exe -WorkingDirectory $root -ArgumentList @(
 )
 
 $ready = $false
+$serverOwnerPid = $null
 $readyDeadline = (Get-Date).AddSeconds(30)
 $readyPortNumbers = @()
+$readyOwnerPids = @()
 while ((Get-Date) -lt $readyDeadline) {
     Start-Sleep -Milliseconds 250
-    $readyPortNumbers = @(
+    $readyConnections = @(
         Get-NetTCPConnection -State Listen -ErrorAction SilentlyContinue |
-            Where-Object { $_.LocalPort -in $ports } |
-            Select-Object -ExpandProperty LocalPort -Unique
+            Where-Object { $_.LocalPort -in $ports }
     )
+    $readyPortNumbers = @($readyConnections | Select-Object -ExpandProperty LocalPort -Unique)
+    $readyOwnerPids = @($readyConnections | Select-Object -ExpandProperty OwningProcess -Unique)
 
-    if (($readyPortNumbers -contains 43594) -and ($readyPortNumbers -contains 43595)) {
-        $ready = $true
+    if (($readyPortNumbers -contains 43594) -and
+        ($readyPortNumbers -contains 43595) -and
+        $readyOwnerPids.Count -eq 1) {
+        $candidateServerPid = [int]$readyOwnerPids[0]
+        $candidateServer = Get-CimInstance Win32_Process -Filter "ProcessId=$candidateServerPid" -ErrorAction SilentlyContinue
+        if ($candidateServer -and
+            $candidateServer.Name -match '^javaw?\.exe
+
+Write-Host 'Starting loopback network watcher...' -ForegroundColor Green
+Start-Process powershell.exe -WorkingDirectory $root -ArgumentList @(
+    '-NoExit','-ExecutionPolicy','Bypass','-File',"`"$watcherScript`""
+)
+
+$existingAirgapPids = @(
+    Get-CimInstance Win32_Process -ErrorAction SilentlyContinue |
+        Where-Object {
+            $_.Name -match '^javaw?\.exe$' -and
+            $_.CommandLine -match '(?i)client-airgap\.jar'
+        } |
+        Select-Object -ExpandProperty ProcessId
+)
+
+Write-Host 'Starting airgap client...' -ForegroundColor Green
+Start-Process powershell.exe -WorkingDirectory $root -ArgumentList @(
+    '-NoExit','-ExecutionPolicy','Bypass','-File',"`"$clientScript`""
+)
+
+$airgapClient = $null
+$clientDeadline = (Get-Date).AddSeconds(30)
+while ((Get-Date) -lt $clientDeadline) {
+    Start-Sleep -Milliseconds 250
+    $airgapClient = Get-CimInstance Win32_Process -ErrorAction SilentlyContinue |
+        Where-Object {
+            $_.Name -match '^javaw?\.exe$' -and
+            $_.CommandLine -match '(?i)client-airgap\.jar' -and
+            $_.ProcessId -notin $existingAirgapPids
+        } |
+        Select-Object -First 1
+
+    if ($airgapClient) {
         break
     }
 }
-if (-not $ready) {
-    throw "Local server did not begin listening on both 43594 and 43595 within 30 seconds. Ready ports: $($readyPortNumbers -join ',')"
+
+if (-not $airgapClient) {
+    throw 'Airgap client did not start a new client-airgap.jar Java process within 30 seconds.'
 }
+
+Write-Host "AIRGAP_CLIENT_PROCESS_READY pid=$($airgapClient.ProcessId)" -ForegroundColor Green
+
+Start-Sleep -Seconds 2
+$stableAirgapClient = Get-CimInstance Win32_Process -Filter "ProcessId=$($airgapClient.ProcessId)" -ErrorAction SilentlyContinue
+if (-not $stableAirgapClient -or
+    $stableAirgapClient.Name -notmatch '^javaw?\.exe$' -or
+    $stableAirgapClient.CommandLine -notmatch '(?i)client-airgap\.jar') {
+    throw "Airgap client PID $($airgapClient.ProcessId) exited or changed before the stabilization check."
+}
+
+$stableServerConnections = @(
+    Get-NetTCPConnection -State Listen -ErrorAction SilentlyContinue |
+        Where-Object { $_.LocalPort -in $ports }
+)
+$stablePorts = @($stableServerConnections | Select-Object -ExpandProperty LocalPort -Unique)
+$stableOwnerPids = @($stableServerConnections | Select-Object -ExpandProperty OwningProcess -Unique)
+if (($stablePorts -notcontains 43594) -or
+    ($stablePorts -notcontains 43595) -or
+    $stableOwnerPids.Count -ne 1 -or
+    [int]$stableOwnerPids[0] -ne $serverOwnerPid) {
+    throw "Local server listener ownership changed after client startup. Ports: $($stablePorts -join ',') owners: $($stableOwnerPids -join ',') expectedOwner=$serverOwnerPid"
+}
+
+Write-Host "AIRGAP_CLIENT_PROCESS_STABLE pid=$($stableAirgapClient.ProcessId) dwellSeconds=2" -ForegroundColor Green
+Write-Host 'LOCAL_LAB_WINDOWS_STARTED_V521' -ForegroundColor Cyan
+ -and
+            $candidateServer.CommandLine -match 'SpawnPKLocalServer|spk\.local\.Main|SpawnPK-LocalLab') {
+            $serverOwnerPid = $candidateServerPid
+            $ready = $true
+            break
+        }
+    }
+}
+if (-not $ready) {
+    throw "Local server did not establish both 43594/43595 on one expected LocalLab Java process within 30 seconds. Ready ports: $($readyPortNumbers -join ',') owners: $($readyOwnerPids -join ',')"
+}
+Write-Host "SERVER_PROCESS_READY pid=$serverOwnerPid game=43594 aux=43595" -ForegroundColor Green
 Write-Host 'SERVER_PORTS_READY game=43594 aux=43595' -ForegroundColor Green
 
 Write-Host 'Starting loopback network watcher...' -ForegroundColor Green
