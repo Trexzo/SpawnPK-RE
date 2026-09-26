@@ -31,9 +31,11 @@ object : Plugin {
 
         context.onCommand(
             "kscript"
-        ) {
+        ) { _, args ->
             ContentResult.handled(
-                "KOTLIN_SCRIPT_EVENTS=$events;tccl=" +
+                "KOTLIN_SCRIPT_EVENTS=$events;args=" +
+                    args.joinToString(",") +
+                    ";tccl=" +
                     (Thread.currentThread().contextClassLoader ===
                         this.javaClass.classLoader),
                 null
@@ -60,7 +62,7 @@ object : Plugin {
 
         context.onButtonClick(
             actionKey = "fixture.kotlin.button"
-        ) {
+        ) { _ ->
             ContentActionResult.allow()
         }
     }
