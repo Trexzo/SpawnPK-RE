@@ -1462,6 +1462,7 @@ tasks.register('pluginKotlinDslRegression') {
         logger.lifecycle(
             'PLUGIN_KOTLIN_DSL_PASS ' +
             'command=true ' +
+            'commandPlayerArgs=true ' +
             'npc=true ' +
             'item=true ' +
             'semanticButton=true ' +
@@ -3871,6 +3872,7 @@ tasks.register('issue5KotlinScriptingCertification') {
             'rootConfinement=true ' +
             'dsl=true ' +
             'issue5DslNames=true ' +
+            'commandPlayerArgs=true ' +
             'customProvenance=true ' +
             'callbackTccl=true ' +
             'rawWidgetIds=false ' +
