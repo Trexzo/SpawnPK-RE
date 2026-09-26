@@ -522,6 +522,10 @@ tasks.register('pluginKotlinJvmConsumerRegression') {
                 .archiveFile.get()
                 .asFile
 
+        boolean scriptingHostPresent = false
+        boolean kotlinStdlibPresent = false
+        boolean scriptingCompilerPresent = false
+
         new java.util.jar.JarFile(
             serverJar
         ).withCloseable { jar ->
@@ -534,18 +538,33 @@ tasks.register('pluginKotlinJvmConsumerRegression') {
                         .nextElement()
                         .getName()
 
-                if(name.startsWith(
-                        'kotlin/') ||
-                   name.startsWith(
-                        'org/jetbrains/kotlin/') ||
-                   name.endsWith(
-                        '.kotlin_module'))
-                    throw new GradleException(
-                        'Kotlin validation tooling leaked into server artifact: ' +
-                        name
-                    )
+                if(name ==
+                        'spk/local/KotlinPluginLoader.class')
+                    scriptingHostPresent = true
+
+                if(name ==
+                        'kotlin/Unit.class')
+                    kotlinStdlibPresent = true
+
+                if(name ==
+                        'org/jetbrains/kotlin/scripting/compiler/plugin/ScriptingCompilerConfigurationComponentRegistrar.class' ||
+                   name ==
+                        'org/jetbrains/kotlin/cli/jvm/K2JVMCompiler.class')
+                    scriptingCompilerPresent = true
             }
         }
+
+        if(!scriptingHostPresent ||
+           !kotlinStdlibPresent ||
+           !scriptingCompilerPresent)
+            throw new GradleException(
+                'Kotlin scripting runtime packaging incomplete: host=' +
+                scriptingHostPresent +
+                ' stdlib=' +
+                kotlinStdlibPresent +
+                ' compiler=' +
+                scriptingCompilerPresent
+            )
 
         File apiJar =
             pluginApiJar.get()
@@ -573,9 +592,9 @@ tasks.register('pluginKotlinJvmConsumerRegression') {
             'jvmTarget=11 ' +
             'jdkRelease=11 ' +
             'bytecodeMajor=55 ' +
-            'serverRuntimeUnchanged=true ' +
-            'serverJarKotlinFree=true ' +
-            'scriptingRuntimeIntegrated=false'
+            'serverRuntimeScriptingOnly=true ' +
+            'serverJarKotlinScripting=true ' +
+            'scriptingRuntimeIntegrated=true'
         )
     }
 }
@@ -929,6 +948,71 @@ tasks.register(
         }.get().asFile.absolutePath
     )
 }
+tasks.register(
+    'pluginKotlinScriptHostRegression',
+    JavaExec
+) {
+    group = 'verification'
+    description = 'Loads an API-only .kts Plugin through KotlinPluginLoader, proves event/command callbacks, denies spk.local, and verifies runtime teardown.'
+    dependsOn(
+        pluginApiJar,
+        compileKotlinScriptingHost,
+        tasks.named('verifyKotlinScriptingHostBytecode'),
+        tasks.named('testClasses')
+    )
+
+    classpath = files(
+        sourceSets.test.runtimeClasspath,
+        kotlinScriptingHostOutput,
+        kotlinScriptingRuntime
+    )
+    mainClass =
+        'spk.local.KotlinPluginLoaderTest'
+
+    def healthyScript =
+        file(
+            'plugin-fixtures/kotlin-script/healthy.kts'
+        )
+    def deniedScript =
+        file(
+            'plugin-fixtures/kotlin-script/internal-access-denied.kts'
+        )
+
+    inputs.files(
+        healthyScript,
+        deniedScript,
+        kotlinScriptPluginClasspath
+    )
+
+    doFirst {
+        File apiJar =
+            pluginApiJar.get()
+                .archiveFile.get()
+                .asFile
+
+        def scriptDependencies =
+            kotlinScriptPluginClasspath
+                .files
+                .sort {
+                    left,
+                    right ->
+                        left.absolutePath <=>
+                        right.absolutePath
+                }
+
+        setArgs(
+            [
+                healthyScript.absolutePath,
+                deniedScript.absolutePath,
+                apiJar.absolutePath
+            ] +
+            scriptDependencies.collect {
+                it.absolutePath
+            }
+        )
+    }
+}
+
 tasks.register('pluginDeveloperApiArtifactRegression') {
     group = 'verification'
     description = 'Locks the standalone allowlisted plugin API JAR and Java/JVM consumer boundary.'
