@@ -212,14 +212,20 @@ class KotlinPluginLoader(
             while (entries.hasMoreElements()) {
                 val entry = entries.nextElement()
 
-                if (!entry.isDirectory &&
-                    entry.name
-                        .replace('\\', '/')
-                        .startsWith("spk/")) {
-                    throw IllegalArgumentException(
-                        "Kotlin script dependency contains SpawnPK server/API classes: " +
-                            path + " entry=" + entry.name
-                    )
+                if (!entry.isDirectory) {
+                    val name =
+                        entry.name.replace('\\', '/')
+
+                    if (name.startsWith("spk/") &&
+                        !exportedDslResource(
+                            path,
+                            name
+                        )) {
+                        throw IllegalArgumentException(
+                            "Kotlin script dependency contains non-DSL SpawnPK classes: " +
+                                path + " entry=" + entry.name
+                        )
+                    }
                 }
             }
         }
@@ -232,6 +238,28 @@ class KotlinPluginLoader(
             name == "spk/event/DomainEventBus\$Priority.class" ||
             name == "spk/event/DomainEventBus\$Listener.class" ||
             name == "spk/event/DomainEventBus\$Subscription.class"
+
+    private fun exportedDslResource(
+        path: Path,
+        name: String
+    ): Boolean {
+        val artifact =
+            path.fileName?.toString()
+                ?.lowercase(Locale.ROOT)
+                ?: return false
+
+        if (artifact !=
+            "spawnpkkotlinscriptruntime.jar") {
+            return false
+        }
+
+        return name ==
+            "spk/plugin/kotlin/ContentDslKt.class" ||
+            name.startsWith(
+                "spk/plugin/kotlin/ContentDslKt\$"
+            )
+    }
+
 
     private fun diagnosticMessage(
         script: Path,
@@ -354,7 +382,8 @@ class KotlinPluginLoader(
                 name.startsWith("org.jetbrains.annotations.") ||
                 name.startsWith("spk.plugin.api.") ||
                 name.startsWith("spk.content.api.") ||
-                exportedEventClass(name)
+                exportedEventClass(name) ||
+                exportedDslClass(name)
 
         private fun exportedEventClass(name: String): Boolean =
             name == "spk.event.DomainEventBus" ||
@@ -364,6 +393,14 @@ class KotlinPluginLoader(
                 name == "spk.event.DomainEventBus\$Listener" ||
                 name == "spk.event.DomainEventBus\$Subscription"
 
+        private fun exportedDslClass(name: String): Boolean =
+            name ==
+                "spk.plugin.kotlin.ContentDslKt" ||
+                name.startsWith(
+                    "spk.plugin.kotlin.ContentDslKt\$"
+                )
+
+
         private fun exportedServerResource(name: String): Boolean =
             name.startsWith("spk/plugin/api/") ||
                 name.startsWith("spk/content/api/") ||
@@ -372,6 +409,10 @@ class KotlinPluginLoader(
                 name == "spk/event/DomainEventBus\$Cancellable.class" ||
                 name == "spk/event/DomainEventBus\$Priority.class" ||
                 name == "spk/event/DomainEventBus\$Listener.class" ||
-                name == "spk/event/DomainEventBus\$Subscription.class"
+                name == "spk/event/DomainEventBus\$Subscription.class" ||
+                name == "spk/plugin/kotlin/ContentDslKt.class" ||
+                name.startsWith(
+                    "spk/plugin/kotlin/ContentDslKt\$"
+                )
     }
 }
