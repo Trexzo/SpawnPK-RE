@@ -1473,6 +1473,42 @@ tasks.register('pluginKotlinDslRegression') {
     }
 }
 
+tasks.register('issue5KotlinScriptingCertification') {
+    group = 'verification'
+    description = 'Runs the complete Issue #5 Kotlin scripting acceptance surface over the existing public plugin lifecycle.'
+
+    dependsOn(
+        tasks.named('pluginDeveloperApiArtifactRegression'),
+        tasks.named('pluginKotlinJvmConsumerRegression'),
+        tasks.named('pluginClassloaderIsolationRegression'),
+        tasks.named('pluginLoaderAbstractionRegression'),
+        tasks.named('pluginKotlinScriptHostRegression'),
+        tasks.named('pluginKotlinDirectoryRegression'),
+        tasks.named('pluginKotlinDslRegression'),
+        tasks.named('pluginWorldTerminalLifecycleRegression'),
+        tasks.named('pluginRuntimeFailureCascadeRegression'),
+        tasks.named('verifyJava11Bytecode')
+    )
+
+    doLast {
+        logger.lifecycle(
+            'SPAWNPK_ISSUE5_KOTLIN_SCRIPTING_CERTIFICATION_PASS ' +
+            'loaderNeutral=true ' +
+            'kotlin=2.4.20 ' +
+            'jvmTarget=11 ' +
+            'apiIsolated=true ' +
+            'runtimeIsolated=true ' +
+            'lifecycleOwned=true ' +
+            'startupDiscovery=true ' +
+            'onDemand=true ' +
+            'rootConfinement=true ' +
+            'dsl=true ' +
+            'rawWidgetIds=false ' +
+            'bytecodeMajor=55'
+        )
+    }
+}
+
 tasks.register('pluginDeveloperApiArtifactRegression') {
     group = 'verification'
     description = 'Locks the standalone allowlisted plugin API JAR and Java/JVM consumer boundary.'
