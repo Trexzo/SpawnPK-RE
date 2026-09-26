@@ -72,5 +72,49 @@ final class LocalServerStartupBinder {
         }
     }
 
+    static void installShutdownHook(
+        LocalServerShutdownCoordinator shutdown,
+        Runnable installer
+    ){
+        Objects.requireNonNull(
+            shutdown,
+            "shutdown"
+        );
+        Objects.requireNonNull(
+            installer,
+            "installer"
+        );
+
+        try{
+            installer.run();
+        }catch(Throwable failure){
+            try{
+                shutdown.close();
+            }catch(Throwable cleanup){
+                if(cleanup!=failure)
+                    failure.addSuppressed(
+                        cleanup
+                    );
+            }
+
+            rethrowUnchecked(
+                failure
+            );
+        }
+    }
+
+    private static void rethrowUnchecked(
+        Throwable failure
+    ){
+        if(failure instanceof RuntimeException)
+            throw (RuntimeException)failure;
+        if(failure instanceof Error)
+            throw (Error)failure;
+
+        throw new RuntimeException(
+            failure
+        );
+    }
+
     private LocalServerStartupBinder(){}
 }
