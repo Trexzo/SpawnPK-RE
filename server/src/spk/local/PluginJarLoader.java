@@ -154,8 +154,9 @@ final class PluginJarLoader {
                 );
             else
                 System.err.println(
-                    "[plugins] classloader close failed error="+
-                    cleanup
+                    "[plugins] classloader close failed errorClass="+
+                    cleanup.getClass()
+                        .getName()
                 );
             return cleanup;
         }
@@ -501,8 +502,26 @@ final class PluginJarLoader {
                     "spk/plugin/api/")||
                 name.startsWith(
                     "spk/content/api/")||
-                name.startsWith(
-                    "spk/event/");
+                exportedEventResource(
+                    name
+                );
+        }
+
+        private static boolean exportedEventResource(
+            String name
+        ){
+            return "spk/event/DomainEventBus.class"
+                    .equals(name)||
+                "spk/event/DomainEventBus$Event.class"
+                    .equals(name)||
+                "spk/event/DomainEventBus$Cancellable.class"
+                    .equals(name)||
+                "spk/event/DomainEventBus$Priority.class"
+                    .equals(name)||
+                "spk/event/DomainEventBus$Listener.class"
+                    .equals(name)||
+                "spk/event/DomainEventBus$Subscription.class"
+                    .equals(name);
         }
 
         private static boolean serverResource(
@@ -531,6 +550,23 @@ final class PluginJarLoader {
             );
         }
 
+        private static boolean exportedEventClass(
+            String name
+        ){
+            return "spk.event.DomainEventBus"
+                    .equals(name)||
+                "spk.event.DomainEventBus$Event"
+                    .equals(name)||
+                "spk.event.DomainEventBus$Cancellable"
+                    .equals(name)||
+                "spk.event.DomainEventBus$Priority"
+                    .equals(name)||
+                "spk.event.DomainEventBus$Listener"
+                    .equals(name)||
+                "spk.event.DomainEventBus$Subscription"
+                    .equals(name);
+        }
+
         private static boolean parentOnly(
             String name
         ){
@@ -554,8 +590,9 @@ final class PluginJarLoader {
                     "spk.plugin.api.")||
                 name.startsWith(
                     "spk.content.api.")||
-                name.startsWith(
-                    "spk.event.");
+                exportedEventClass(
+                    name
+                );
         }
     }
 

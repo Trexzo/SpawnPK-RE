@@ -645,7 +645,10 @@ final class WorldPluginManager
                 "[plugins] disable callback failed id="+
                 entry.manifest.id()+
                 " reason="+reason+
-                " error="+failure
+                " errorClass="+
+                safeFailureClassName(
+                    failure
+                )
             );
         }
 
@@ -668,7 +671,10 @@ final class WorldPluginManager
                 "[plugins] content uninstall failed id="+
                 entry.manifest.id()+
                 " reason="+reason+
-                " error="+failure
+                " errorClass="+
+                safeFailureClassName(
+                    failure
+                )
             );
         }finally{
             Throwable loaderFailure=
@@ -907,8 +913,10 @@ final class WorldPluginManager
                 System.err.println(
                     "[plugins] callback-failure cleanup failed id="+
                     entry.manifest.id()+
-                    " error="+
-                    cleanupFailure
+                    " errorClass="+
+                    safeFailureClassName(
+                        cleanupFailure
+                    )
                 );
             }finally{
                 completeCleanup(
@@ -961,19 +969,44 @@ final class WorldPluginManager
                 phase
             )+
             " errorClass="+
-            boundedDiagnostic(
-                failure.getClass()
-                    .getName()
+            safeFailureClassName(
+                failure
             )+
             " message="+
-            boundedDiagnostic(
-                failure.getMessage()
+            safeFailureMessage(
+                failure
             )+
             " stack="+
             boundedStack(
                 failure
             )
         );
+    }
+
+    private static String safeFailureClassName(
+        Throwable failure
+    ){
+        return failure==null
+            ?"<null>"
+            :boundedDiagnostic(
+                failure.getClass()
+                    .getName()
+            );
+    }
+
+    private static String safeFailureMessage(
+        Throwable failure
+    ){
+        if(failure==null)
+            return "<null>";
+
+        try{
+            return boundedDiagnostic(
+                failure.getMessage()
+            );
+        }catch(Throwable ignored){
+            return "<message-unavailable>";
+        }
     }
 
     private static String boundedStack(
@@ -984,6 +1017,8 @@ final class WorldPluginManager
 
         StringBuilder out=
             new StringBuilder();
+        IdentityHashMap<Throwable,Boolean> seen=
+            new IdentityHashMap<>();
 
         Throwable current=failure;
         int causes=0;
@@ -991,32 +1026,69 @@ final class WorldPluginManager
         while(current!=null&&
               causes<3&&
               out.length()<960){
+            if(seen.put(
+                    current,
+                    Boolean.TRUE
+                )!=null){
+                out.append(
+                    " <cause-cycle>"
+                );
+                break;
+            }
+
             if(causes>0)
                 out.append(" causedBy=")
                     .append(
-                        current.getClass()
-                            .getName()
+                        safeFailureClassName(
+                            current
+                        )
                     );
 
-            StackTraceElement[] trace=
-                current.getStackTrace();
-            int frames=
-                Math.min(
-                    trace.length,
-                    8
+            StackTraceElement[] trace=null;
+
+            try{
+                trace=current.getStackTrace();
+            }catch(Throwable ignored){
+                out.append(
+                    " <stack-unavailable>"
                 );
+            }
 
-            for(int i=0;
-                i<frames&&
-                out.length()<960;
-                i++)
-                out.append(" at ")
-                    .append(
-                        trace[i].toString()
+            if(trace!=null){
+                int frames=
+                    Math.min(
+                        trace.length,
+                        8
                     );
 
-            current=
-                current.getCause();
+                for(int i=0;
+                    i<frames&&
+                    out.length()<960;
+                    i++){
+                    StackTraceElement frame=
+                        trace[i];
+
+                    out.append(" at ")
+                        .append(
+                            frame==null
+                                ?"<null-frame>"
+                                :frame.toString()
+                        );
+                }
+            }
+
+            Throwable next;
+
+            try{
+                next=current.getCause();
+            }catch(Throwable ignored){
+                out.append(
+                    " <cause-unavailable>"
+                );
+                break;
+            }
+
+            current=next;
             causes++;
         }
 
@@ -1569,7 +1641,10 @@ final class WorldPluginManager
                             System.err.println(
                                 "[plugins] event callback failed type="+
                                 type.getName()+
-                                " error="+failure
+                                " errorClass="+
+                                safeFailureClassName(
+                                    failure
+                                )
                             );
                         }
                     }
@@ -1640,8 +1715,10 @@ final class WorldPluginManager
                             failure
                         );
                     System.err.println(
-                        "[plugins] event unsubscribe failed error="+
-                        failure
+                        "[plugins] event unsubscribe failed errorClass="+
+                        safeFailureClassName(
+                            failure
+                        )
                     );
                 }
             }

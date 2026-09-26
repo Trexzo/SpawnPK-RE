@@ -21,6 +21,7 @@ public final class PluginRuntimeFailureCascadeTest {
         pendingTaskDefersBehindAdmission();
         explicitDisableInFlightFailure();
         cleanupFailureDetached();
+        hostileThrowableContained();
 
         System.out.println(
             "PLUGIN_RUNTIME_FAILURE_CASCADE_PASS "+
@@ -42,7 +43,9 @@ public final class PluginRuntimeFailureCascadeTest {
             "admissionRejectionNotFailure=true "+
             "claimedFailureRecorded=true "+
             "cleanupFailureDetached=true "+
-            "stackDetached=true"
+            "stackDetached=true "+
+            "hostileThrowableContained=true "+
+            "hostileTaskQueueContinues=true"
         );
     }
 
@@ -1473,6 +1476,267 @@ public final class PluginRuntimeFailureCascadeTest {
         }
     }
 
+    private static void hostileThrowableContained()
+        throws Exception{
+        World world=
+            World.isolatedForTest(
+                600L
+            );
+        WorldPluginManager manager=
+            (WorldPluginManager)
+                world.plugins();
+        int baselineListeners=
+            world.domainEvents()
+                .listenerCount();
+        AtomicInteger healthyCalls=
+            new AtomicInteger();
+        AtomicInteger eventDisableCalls=
+            new AtomicInteger();
+
+        Plugin hostileEvent=
+            new Plugin(){
+                private final PluginManifest manifest=
+                    new PluginManifest(
+                        "hostile.failure",
+                        "1.0.0",
+                        PluginApiVersion.CURRENT,
+                        Collections.<String>emptyList()
+                    );
+
+                @Override public PluginManifest manifest(){
+                    return manifest;
+                }
+
+                @Override public void enable(
+                    PluginContext context
+                ){
+                    context.events().subscribe(
+                        HostileFailureEvent.class,
+                        DomainEventBus.Priority.HIGH,
+                        event->{
+                            throw new HostileFailure();
+                        }
+                    );
+                }
+
+                @Override public void disable(){
+                    eventDisableCalls
+                        .incrementAndGet();
+                    throw new HostileFailure();
+                }
+            };
+
+        CascadePlugin healthy=
+            new CascadePlugin(
+                "hostile.healthy",
+                Collections.<String>emptyList(),
+                new ArrayList<>(),
+                context->
+                    context.events().subscribe(
+                        HostileFailureEvent.class,
+                        DomainEventBus.Priority.NORMAL,
+                        event->
+                            healthyCalls
+                                .incrementAndGet()
+                    )
+            );
+
+        AtomicInteger taskDisableCalls=
+            new AtomicInteger();
+        AtomicInteger sameTickWorldTaskRuns=
+            new AtomicInteger();
+
+        Plugin hostileTask=
+            new Plugin(){
+                private final PluginManifest manifest=
+                    new PluginManifest(
+                        "hostile.task",
+                        "1.0.0",
+                        PluginApiVersion.CURRENT,
+                        Collections.<String>emptyList()
+                    );
+
+                @Override public PluginManifest manifest(){
+                    return manifest;
+                }
+
+                @Override public void enable(
+                    PluginContext context
+                ){
+                    context.scheduler().schedule(
+                        2L,
+                        ()->{
+                            throw new HostileFailure();
+                        }
+                    );
+                }
+
+                @Override public void disable(){
+                    taskDisableCalls
+                        .incrementAndGet();
+                    throw new HostileFailure();
+                }
+            };
+
+        try{
+            manager.enable(
+                hostileEvent
+            );
+            manager.enable(
+                healthy
+            );
+            manager.enable(
+                hostileTask
+            );
+
+            world.events().schedule(
+                1L,
+                ()->{
+                    try{
+                        world.domainEvents()
+                            .publish(
+                                new HostileFailureEvent()
+                            );
+                    }catch(Exception failure){
+                        throw new RuntimeException(
+                            failure
+                        );
+                    }
+                }
+            );
+
+            /*
+             * hostileTask was queued for tick 2 before this task. If its raw
+             * hostile Throwable reaches generic WorldEventQueue logging,
+             * hostile toString() throws and runDue exits before this sibling.
+             */
+            world.events().schedule(
+                2L,
+                sameTickWorldTaskRuns::incrementAndGet
+            );
+
+            world.observePulse(
+                System.currentTimeMillis()
+            );
+
+            require(
+                manager.plugin(
+                    "hostile.failure"
+                )==null,
+                "hostile Throwable did not terminalize event owner"
+            );
+            require(
+                eventDisableCalls.get()==1,
+                "hostile event disable count"
+            );
+            require(
+                healthyCalls.get()==1,
+                "hostile Throwable blocked unrelated listener"
+            );
+            require(
+                manager.plugin(
+                    "hostile.healthy"
+                )!=null,
+                "hostile Throwable terminalized unrelated plugin"
+            );
+            require(
+                world.domainEvents()
+                    .listenerCount()==
+                    baselineListeners+1,
+                "hostile Throwable aborted event-subscription cleanup"
+            );
+
+            world.observePulse(
+                System.currentTimeMillis()+
+                1_000L
+            );
+
+            require(
+                manager.plugin(
+                    "hostile.task"
+                )==null,
+                "hostile task Throwable did not terminalize owner"
+            );
+            require(
+                taskDisableCalls.get()==1,
+                "hostile task disable count"
+            );
+            require(
+                sameTickWorldTaskRuns.get()==1,
+                "hostile plugin task failure escaped scheduler boundary and blocked later same-tick World work"
+            );
+
+            List<String> diagnostics=
+                manager.terminalDiagnostics();
+
+            require(
+                diagnostics.stream()
+                    .anyMatch(
+                        line->
+                            line.contains(
+                                "plugin=hostile.failure"
+                            )&&
+                            line.contains(
+                                "phase=CALLBACK:EVENT:"
+                            )&&
+                            line.contains(
+                                "errorClass="+
+                                HostileFailure.class
+                                    .getName()
+                            )&&
+                            line.contains(
+                                "message=<message-unavailable>"
+                            )&&
+                            line.contains(
+                                "<stack-unavailable>"
+                            )&&
+                            line.contains(
+                                "<cause-unavailable>"
+                            )
+                    ),
+                "hostile event diagnostic was not safely detached"
+            );
+            require(
+                diagnostics.stream()
+                    .anyMatch(
+                        line->
+                            line.contains(
+                                "plugin=hostile.failure"
+                            )&&
+                            line.contains(
+                                ":DISABLE"
+                            )&&
+                            line.contains(
+                                "message=<message-unavailable>"
+                            )
+                    ),
+                "hostile event-disable diagnostic was not safely detached"
+            );
+            require(
+                diagnostics.stream()
+                    .anyMatch(
+                        line->
+                            line.contains(
+                                "plugin=hostile.task"
+                            )&&
+                            line.contains(
+                                "phase=CALLBACK:TASK"
+                            )&&
+                            line.contains(
+                                "message=<message-unavailable>"
+                            )
+                    ),
+                "hostile task diagnostic was not safely detached"
+            );
+
+            manager.disable(
+                "hostile.healthy"
+            );
+        }finally{
+            world.close();
+        }
+    }
+
     private static void assertFailureSinkReleased(
         PluginHandle handle
     )throws Exception{
@@ -1564,6 +1828,37 @@ public final class PluginRuntimeFailureCascadeTest {
 
     private static final class ClaimedFailureEvent
         implements DomainEventBus.Event {}
+
+    private static final class HostileFailureEvent
+        implements DomainEventBus.Event {}
+
+    private static final class HostileFailure
+        extends RuntimeException {
+
+        @Override public String getMessage(){
+            throw new AssertionError(
+                "hostile-getMessage"
+            );
+        }
+
+        @Override public synchronized Throwable getCause(){
+            throw new AssertionError(
+                "hostile-getCause"
+            );
+        }
+
+        @Override public StackTraceElement[] getStackTrace(){
+            throw new AssertionError(
+                "hostile-getStackTrace"
+            );
+        }
+
+        @Override public String toString(){
+            throw new AssertionError(
+                "hostile-toString"
+            );
+        }
+    }
 
     private PluginRuntimeFailureCascadeTest(){}
 }

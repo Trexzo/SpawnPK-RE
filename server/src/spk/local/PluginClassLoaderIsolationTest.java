@@ -62,6 +62,10 @@ public final class PluginClassLoaderIsolationTest {
                 ENTRYPOINT
             );
 
+        assertEventNamespaceNarrow(
+            loadedA.classLoader()
+        );
+
         URLClassLoader collisionParent=
             new URLClassLoader(
                 new URL[]{
@@ -442,6 +446,7 @@ public final class PluginClassLoaderIsolationTest {
             "childFirstResource=true "+
             "childFirstResourceEnumeration=true "+
             "apiParentIdentity=true "+
+            "eventNamespaceNarrow=true "+
             "serverInternalDenied=true "+
             "reservedNamespaceRejected=true "+
             "constructorTccl=true "+
@@ -477,6 +482,77 @@ public final class PluginClassLoaderIsolationTest {
         return (DomainEventBus.Event)
             type.getDeclaredConstructor()
                 .newInstance();
+    }
+
+    private static void assertEventNamespaceNarrow(
+        ClassLoader loader
+    )throws Exception{
+        Class<?> exported=
+            Class.forName(
+                "spk.event.DomainEventBus",
+                false,
+                loader
+            );
+
+        if(exported!=DomainEventBus.class)
+            throw new AssertionError(
+                "DomainEventBus lost parent API identity"
+            );
+
+        boolean denied=false;
+
+        try{
+            Class.forName(
+                "spk.event.DomainEventBusTest",
+                false,
+                loader
+            );
+        }catch(ClassNotFoundException expected){
+            denied=true;
+        }
+
+        if(!denied)
+            throw new AssertionError(
+                "non-API spk.event test class leaked through plugin parent boundary"
+            );
+
+        if(loader.getResource(
+                "spk/event/DomainEventBusTest.class"
+            )!=null)
+            throw new AssertionError(
+                "non-API spk.event test resource leaked through plugin parent boundary"
+            );
+
+        boolean privateNestedDenied=false;
+
+        try{
+            Class.forName(
+                "spk.event.DomainEventBus$Binding",
+                false,
+                loader
+            );
+        }catch(ClassNotFoundException expected){
+            privateNestedDenied=true;
+        }
+
+        if(!privateNestedDenied)
+            throw new AssertionError(
+                "private DomainEventBus nested class leaked through plugin parent boundary"
+            );
+
+        if(loader.getResource(
+                "spk/event/DomainEventBus$Binding.class"
+            )!=null)
+            throw new AssertionError(
+                "private DomainEventBus nested resource leaked through plugin parent boundary"
+            );
+
+        if(loader.getResource(
+                "spk/event/DomainEventBus.class"
+            )==null)
+            throw new AssertionError(
+                "DomainEventBus API resource missing from plugin parent boundary"
+            );
     }
 
     private static String report(

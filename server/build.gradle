@@ -3037,7 +3037,7 @@ tasks.register('pluginRuntimeFailureCascadeRegression') {
         }
 
         logger.lifecycle(
-            'PLUGIN_RUNTIME_FAILURE_CASCADE_PASS transitiveCascade=true reverseDependencyCleanup=true unrelatedEventContinues=true taskFailureTerminal=true contentFailureTerminal=true sameDispatchFallback=false disableExactlyOnce=true terminalDiagnosticsDetached=true terminalHandlesReleaseFailureSink=true'
+            'PLUGIN_RUNTIME_FAILURE_CASCADE_PASS transitiveCascade=true reverseDependencyCleanup=true unrelatedEventContinues=true taskFailureTerminal=true contentFailureTerminal=true sameDispatchFallback=false disableExactlyOnce=true terminalDiagnosticsDetached=true terminalHandlesReleaseFailureSink=true nestedTaskCascadeDeferred=true batchEnableAdmissionAtomic=true batchTaskDeferredUntilCommit=true failedBatchTaskHandleTerminal=true batchCommitPublicationBarrier=true preCommitTaskDefers=true admissionRejectionNotFailure=true claimedFailureRecorded=true cleanupFailureDetached=true stackDetached=true hostileThrowableContained=true hostileTaskQueueContinues=true'
         )
     }
 }
