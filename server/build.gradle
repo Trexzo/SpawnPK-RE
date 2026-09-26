@@ -297,6 +297,109 @@ def pluginApiJar =
         }
     }
 
+def kotlinPluginDslOutput =
+    layout.buildDirectory.dir(
+        'classes/kotlin-plugin-dsl/main'
+    )
+
+def compileKotlinPluginDsl =
+    tasks.register(
+        'compileKotlinPluginDsl',
+        JavaExec
+    ) {
+        group = 'build'
+        description = 'Compiles the thin Kotlin plugin DSL against SpawnPKPluginApi.jar and the script-visible Kotlin runtime only.'
+        dependsOn pluginApiJar
+
+        classpath = kotlinFixtureCompiler
+        mainClass =
+            'org.jetbrains.kotlin.cli.jvm.K2JVMCompiler'
+        javaLauncher =
+            javaToolchains.launcherFor {
+                languageVersion =
+                    JavaLanguageVersion.of(21)
+            }
+
+        def kotlinSources =
+            fileTree(
+                'kotlin-dsl-src'
+            ) {
+                include '**/*.kt'
+            }
+
+        inputs.files(kotlinSources)
+        inputs.files(kotlinScriptPluginClasspath)
+        outputs.dir(kotlinPluginDslOutput)
+
+        doFirst {
+            File output =
+                kotlinPluginDslOutput
+                    .get()
+                    .asFile
+
+            project.delete(output)
+
+            if(!output.mkdirs()&&
+               !output.isDirectory())
+                throw new GradleException(
+                    'Could not create Kotlin plugin DSL output: ' +
+                    output
+                )
+
+            File apiJar =
+                pluginApiJar.get()
+                    .archiveFile.get()
+                    .asFile
+
+            def sources =
+                kotlinSources.files
+                    .sort {
+                        left,
+                        right ->
+                            left.absolutePath <=>
+                            right.absolutePath
+                    }
+
+            if(sources.empty)
+                throw new GradleException(
+                    'No Kotlin plugin DSL sources found.'
+                )
+
+            String compileClasspath =
+                files(
+                    apiJar,
+                    kotlinScriptPluginClasspath
+                ).asPath
+
+            if(files(
+                    compileClasspath
+                ).files.any {
+                    it.name ==
+                        'SpawnPKLocalServer.jar'
+                })
+                throw new GradleException(
+                    'Kotlin plugin DSL compile classpath contains server JAR.'
+                )
+
+            setArgs(
+                [
+                    '-jvm-target',
+                    '11',
+                    '-Xjdk-release=11',
+                    '-no-reflect',
+                    '-no-stdlib',
+                    '-classpath',
+                    compileClasspath,
+                    '-d',
+                    output.absolutePath
+                ] +
+                sources.collect {
+                    it.absolutePath
+                }
+            )
+        }
+    }
+
 def kotlinScriptRuntimeJar =
     tasks.register(
         'kotlinScriptRuntimeJar',
@@ -310,6 +413,9 @@ def kotlinScriptRuntimeJar =
             layout.buildDirectory
         duplicatesStrategy =
             DuplicatesStrategy.EXCLUDE
+        dependsOn compileKotlinPluginDsl
+
+        from(kotlinPluginDslOutput)
 
         from {
             kotlinScriptPluginClasspath.collect {
@@ -617,6 +723,7 @@ tasks.register('pluginKotlinJvmConsumerRegression') {
 
         boolean scriptStdlibPresent = false
         boolean scriptTemplatePresent = false
+        boolean scriptDslPresent = false
 
         new java.util.jar.JarFile(
             scriptRuntimeJar
@@ -630,11 +737,22 @@ tasks.register('pluginKotlinJvmConsumerRegression') {
                         .nextElement()
                         .getName()
 
-                if(name.startsWith('spk/'))
-                    throw new GradleException(
-                        'Kotlin script runtime artifact contains SpawnPK classes: ' +
-                        name
-                    )
+                if(name.startsWith('spk/')) {
+                    boolean dsl =
+                        name ==
+                            'spk/plugin/kotlin/ContentDslKt.class' ||
+                        name.startsWith(
+                            'spk/plugin/kotlin/ContentDslKt$'
+                        )
+
+                    if(!dsl)
+                        throw new GradleException(
+                            'Kotlin script runtime artifact contains non-DSL SpawnPK class: ' +
+                            name
+                        )
+
+                    scriptDslPresent = true
+                }
 
                 if(name ==
                         'kotlin/Unit.class')
@@ -647,13 +765,44 @@ tasks.register('pluginKotlinJvmConsumerRegression') {
         }
 
         if(!scriptStdlibPresent ||
-           !scriptTemplatePresent)
+           !scriptTemplatePresent ||
+           !scriptDslPresent)
             throw new GradleException(
                 'Kotlin script runtime artifact incomplete: stdlib=' +
                 scriptStdlibPresent +
                 ' template=' +
-                scriptTemplatePresent
+                scriptTemplatePresent +
+                ' dsl=' +
+                scriptDslPresent
             )
+
+        def dslClassFiles =
+            zipTree(
+                scriptRuntimeJar
+            ).matching {
+                include 'spk/plugin/kotlin/ContentDslKt*.class'
+            }.files
+
+        if(dslClassFiles.empty)
+            throw new GradleException(
+                'Kotlin script runtime artifact contains no DSL classes.'
+            )
+
+        dslClassFiles.each { classFile ->
+            int major =
+                readClassMajor(
+                    classFile
+                )
+
+            if(major != 55)
+                throw new GradleException(
+                    'Kotlin DSL bytecode compatibility failure: ' +
+                    classFile +
+                    ' major=' +
+                    major +
+                    ', expected=55'
+                )
+        }
 
         def fixtureClasspath =
             files(
@@ -679,6 +828,7 @@ tasks.register('pluginKotlinJvmConsumerRegression') {
             'serverRuntimeScriptingOnly=true ' +
             'serverJarKotlinScripting=true ' +
             'scriptRuntimeArtifact=SpawnPKKotlinScriptRuntime.jar ' +
+            'scriptRuntimeDsl=true ' +
             'scriptRuntimeSpkLeak=false ' +
             'scriptingRuntimeIntegrated=true'
         )
@@ -1281,6 +1431,64 @@ tasks.register(
         setArgs(
             [
                 healthyScript.absolutePath,
+                apiJar.absolutePath,
+                scriptRuntimeJar.absolutePath
+            ]
+        )
+    }
+}
+
+tasks.register(
+    'pluginKotlinDslRegression',
+    JavaExec
+) {
+    group = 'verification'
+    description = 'Proves the thin Kotlin DSL delegates command/NPC/item/event/semantic-action registration to the existing public API with TCCL, provenance and cleanup intact.'
+    dependsOn(
+        tasks.named('pluginKotlinScriptHostRegression'),
+        kotlinScriptRuntimeJar,
+        pluginApiJar,
+        compileKotlinScriptingHost,
+        tasks.named('testClasses')
+    )
+
+    classpath = files(
+        sourceSets.test.runtimeClasspath,
+        kotlinScriptingHostOutput,
+        kotlinScriptingRuntime
+    )
+    mainClass =
+        'spk.local.KotlinPluginDslTest'
+
+    def dslScript =
+        file(
+            'plugin-fixtures/kotlin-script/dsl.kts'
+        )
+    def deniedRawWidgetScript =
+        file(
+            'plugin-fixtures/kotlin-script/dsl-raw-widget-denied.kts'
+        )
+
+    inputs.files(
+        dslScript,
+        deniedRawWidgetScript,
+        kotlinScriptRuntimeJar
+    )
+
+    doFirst {
+        File apiJar =
+            pluginApiJar.get()
+                .archiveFile.get()
+                .asFile
+        File scriptRuntimeJar =
+            kotlinScriptRuntimeJar.get()
+                .archiveFile.get()
+                .asFile
+
+        setArgs(
+            [
+                dslScript.absolutePath,
+                deniedRawWidgetScript.absolutePath,
                 apiJar.absolutePath,
                 scriptRuntimeJar.absolutePath
             ]
