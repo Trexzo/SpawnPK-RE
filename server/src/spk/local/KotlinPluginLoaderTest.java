@@ -290,7 +290,7 @@ public final class KotlinPluginLoaderTest {
                         world.content()
                             .dispatchCommand(
                                 player,
-                                "kscript",
+                                "kscript alpha beta",
                                 writer
                             );
                     ContentNpcOptionResult npc=
@@ -333,7 +333,7 @@ public final class KotlinPluginLoaderTest {
                 5_000L
             );
 
-            if(!"KOTLIN_SCRIPT_EVENTS=1;args=;tccl=true"
+            if(!"KOTLIN_SCRIPT_EVENTS=1;args=alpha,beta;tccl=true"
                     .equals(
                         commandResult[0]
                     ))
