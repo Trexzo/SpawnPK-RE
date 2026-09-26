@@ -9,6 +9,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.jar.JarEntry;
 import java.util.jar.JarOutputStream;
+import spk.content.api.ContentActionResult;
+import spk.content.api.ContentInteractionResult;
+import spk.content.api.ContentNpcOptionResult;
 import spk.content.api.ContentResult;
 import spk.event.DomainEventBus;
 import spk.plugin.api.Plugin;
@@ -143,8 +146,14 @@ public final class KotlinPluginLoaderTest {
                 runtime
             );
 
-            final String[] result=
+            final String[] commandResult=
                 new String[1];
+            final String[] npcAction=
+                new String[1];
+            final String[] itemOutcome=
+                new String[1];
+            final boolean[] buttonAllowed=
+                new boolean[1];
 
             world.submitAndWait(
                 player,
@@ -162,22 +171,76 @@ public final class KotlinPluginLoaderTest {
                                 "kscript",
                                 writer
                             );
+                    ContentNpcOptionResult npc=
+                        world.content()
+                            .dispatchNpcOption(
+                                301,
+                                1,
+                                3200,
+                                3200
+                            );
+                    ContentInteractionResult item=
+                        world.content()
+                            .dispatchItemOption(
+                                201,
+                                1
+                            );
+                    ContentActionResult button=
+                        world.content()
+                            .dispatchAction(
+                                player,
+                                "fixture.kotlin.button"
+                            );
 
-                    result[0]=
+                    commandResult[0]=
                         command==null
                             ?null
                             :command.logText();
+                    npcAction[0]=
+                        npc==null
+                            ?null
+                            :npc.actionKey();
+                    itemOutcome[0]=
+                        item==null
+                            ?null
+                            :item.outcome();
+                    buttonAllowed[0]=
+                        button!=null&&
+                        button.allowed();
                 },
                 5_000L
             );
 
             if(!"KOTLIN_SCRIPT_EVENTS=1"
                     .equals(
-                        result[0]
+                        commandResult[0]
                     ))
                 throw new AssertionError(
-                    "Kotlin script event/command result mismatch: "+
-                    result[0]
+                    "Kotlin script DSL command result mismatch: "+
+                    commandResult[0]
+                );
+
+            if(!"fixture.kotlin.npc"
+                    .equals(
+                        npcAction[0]
+                    ))
+                throw new AssertionError(
+                    "Kotlin script DSL NPC result mismatch: "+
+                    npcAction[0]
+                );
+
+            if(!"FIXTURE_KOTLIN_ITEM_OK"
+                    .equals(
+                        itemOutcome[0]
+                    ))
+                throw new AssertionError(
+                    "Kotlin script DSL item result mismatch: "+
+                    itemOutcome[0]
+                );
+
+            if(!buttonAllowed[0])
+                throw new AssertionError(
+                    "Kotlin script DSL semantic button did not allow"
                 );
 
             if(!manager.disable(
@@ -235,7 +298,10 @@ public final class KotlinPluginLoaderTest {
             "serverInternalDenied=true "+
             "pluginApiIdentity=true "+
             "eventCallback=true "+
-            "commandCallback=true "+
+            "commandDsl=true "+
+            "npcDsl=true "+
+            "itemDsl=true "+
+            "semanticButtonDsl=true "+
             "worldThreadLifecycle=true "+
             "terminalRuntime=true"
         );
