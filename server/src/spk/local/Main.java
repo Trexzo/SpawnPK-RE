@@ -68,9 +68,29 @@ public final class Main {
         });
 
         ServerSocket game = new ServerSocket();
-        game.bind(new InetSocketAddress(bind, GAME_PORT));
         ServerSocket aux = new ServerSocket();
-        aux.bind(new InetSocketAddress(bind, AUX_PORT));
+
+        LocalServerShutdownCoordinator shutdown =
+            new LocalServerShutdownCoordinator(
+                world,
+                pool,
+                game,
+                aux
+            );
+
+        LocalServerStartupBinder.bind(
+            shutdown,
+            game,
+            new InetSocketAddress(
+                bind,
+                GAME_PORT
+            ),
+            aux,
+            new InetSocketAddress(
+                bind,
+                AUX_PORT
+            )
+        );
 
         System.out.println("SpawnPK Local Lab "+BuildInfo.summary());
         System.out.println("GAME  : " + game.getLocalSocketAddress());
@@ -86,14 +106,6 @@ public final class Main {
             "KOTLIN: startup plugins=" +
             kotlinPluginCount
         );
-
-        LocalServerShutdownCoordinator shutdown =
-            new LocalServerShutdownCoordinator(
-                world,
-                pool,
-                game,
-                aux
-            );
 
         Thread shutdownHook =
             new Thread(
