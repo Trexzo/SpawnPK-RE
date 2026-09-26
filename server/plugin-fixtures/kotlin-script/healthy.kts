@@ -25,7 +25,9 @@ object : Plugin {
         )
 
     override fun enable(context: PluginContext) {
-        context.onEvent<DomainEventBus.Event> {
+        context.onEvent<DomainEventBus.Cancellable>(
+            receiveCancelled = true
+        ) {
             events++
         }
 
