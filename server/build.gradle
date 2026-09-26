@@ -946,8 +946,16 @@ def readR85Selftests = {
     def matcher = block =~ /'([A-Za-z0-9_]+Test)'/
     def names = matcher.collect { it[1] }
 
-    if (names.size() != 179) {
-        throw new GradleException("R8.5 regression manifest drift: expected 179 tests, found ${names.size()}")
+    int uniqueNames = names.toSet().size()
+
+    if (names.size() != 179 ||
+        uniqueNames != 179) {
+        throw new GradleException(
+            "R8.5 regression manifest drift: expected 179 unique tests, found " +
+            names.size() +
+            " / " +
+            uniqueNames
+        )
     }
     names
 }
@@ -3030,6 +3038,33 @@ tasks.register('pluginRuntimeFailureCascadeRegression') {
 
         logger.lifecycle(
             'PLUGIN_RUNTIME_FAILURE_CASCADE_PASS transitiveCascade=true reverseDependencyCleanup=true unrelatedEventContinues=true taskFailureTerminal=true contentFailureTerminal=true sameDispatchFallback=false disableExactlyOnce=true terminalDiagnosticsDetached=true terminalHandlesReleaseFailureSink=true'
+        )
+    }
+}
+
+tasks.register('issue4FinalCertification') {
+    group = 'verification'
+    description = 'Runs every Issue #4 plugin gate plus the frozen 175-test and exact-v308 179-test release-safety suites.'
+
+    dependsOn(
+        tasks.named('pluginDeveloperApiArtifactRegression'),
+        tasks.named('pluginKotlinJvmConsumerRegression'),
+        tasks.named('pluginClassloaderIsolationRegression'),
+        tasks.named('pluginCallbackLeaseIsolationRegression'),
+        tasks.named('pluginSchedulerTerminalReleaseRegression'),
+        tasks.named('pluginContentRegistrationTerminalReleaseRegression'),
+        tasks.named('pluginEnableFacadeTerminalReleaseRegression'),
+        tasks.named('pluginWorldTerminalLifecycleRegression'),
+        tasks.named('pluginRuntimeFailureCascadeRegression'),
+        tasks.named('currentTrainFocusedRegression'),
+        tasks.named('r85V308Acceptance')
+    )
+
+    doLast {
+        logger.lifecycle(
+            'SPAWNPK_ISSUE4_FINAL_CERTIFICATION_PASS ' +
+            'pluginGates=9 focused=175 exactV308=179 ' +
+            'bytecodeMajor=55 canonicalPromoted=true'
         )
     }
 }
