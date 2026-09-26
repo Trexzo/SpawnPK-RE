@@ -604,6 +604,57 @@ tasks.register('pluginKotlinJvmConsumerRegression') {
                 .archiveFile.get()
                 .asFile
 
+        File scriptRuntimeJar =
+            kotlinScriptRuntimeJar.get()
+                .archiveFile.get()
+                .asFile
+
+        if(!scriptRuntimeJar.isFile())
+            throw new GradleException(
+                'Missing Kotlin script runtime artifact: ' +
+                scriptRuntimeJar
+            )
+
+        boolean scriptStdlibPresent = false
+        boolean scriptTemplatePresent = false
+
+        new java.util.jar.JarFile(
+            scriptRuntimeJar
+        ).withCloseable { jar ->
+            def enumeration =
+                jar.entries()
+
+            while(enumeration.hasMoreElements()) {
+                String name =
+                    enumeration
+                        .nextElement()
+                        .getName()
+
+                if(name.startsWith('spk/'))
+                    throw new GradleException(
+                        'Kotlin script runtime artifact contains SpawnPK classes: ' +
+                        name
+                    )
+
+                if(name ==
+                        'kotlin/Unit.class')
+                    scriptStdlibPresent = true
+
+                if(name ==
+                        'kotlin/script/templates/standard/SimpleScriptTemplate.class')
+                    scriptTemplatePresent = true
+            }
+        }
+
+        if(!scriptStdlibPresent ||
+           !scriptTemplatePresent)
+            throw new GradleException(
+                'Kotlin script runtime artifact incomplete: stdlib=' +
+                scriptStdlibPresent +
+                ' template=' +
+                scriptTemplatePresent
+            )
+
         def fixtureClasspath =
             files(
                 apiJar,
@@ -627,6 +678,8 @@ tasks.register('pluginKotlinJvmConsumerRegression') {
             'bytecodeMajor=55 ' +
             'serverRuntimeScriptingOnly=true ' +
             'serverJarKotlinScripting=true ' +
+            'scriptRuntimeArtifact=SpawnPKKotlinScriptRuntime.jar ' +
+            'scriptRuntimeSpkLeak=false ' +
             'scriptingRuntimeIntegrated=true'
         )
     }
