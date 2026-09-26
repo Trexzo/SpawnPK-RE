@@ -44,7 +44,8 @@ public final class PluginRuntimeFailureCascadeTest {
             "claimedFailureRecorded=true "+
             "cleanupFailureDetached=true "+
             "stackDetached=true "+
-            "hostileThrowableContained=true"
+            "hostileThrowableContained=true "+
+            "hostileTaskQueueContinues=true"
         );
     }
 
@@ -1542,6 +1543,8 @@ public final class PluginRuntimeFailureCascadeTest {
 
         AtomicInteger taskDisableCalls=
             new AtomicInteger();
+        AtomicInteger sameTickWorldTaskRuns=
+            new AtomicInteger();
 
         Plugin hostileTask=
             new Plugin(){
@@ -1602,6 +1605,16 @@ public final class PluginRuntimeFailureCascadeTest {
                 }
             );
 
+            /*
+             * hostileTask was queued for tick 2 before this task. If its raw
+             * hostile Throwable reaches generic WorldEventQueue logging,
+             * hostile toString() throws and runDue exits before this sibling.
+             */
+            world.events().schedule(
+                2L,
+                sameTickWorldTaskRuns::incrementAndGet
+            );
+
             world.observePulse(
                 System.currentTimeMillis()
             );
@@ -1647,6 +1660,10 @@ public final class PluginRuntimeFailureCascadeTest {
             require(
                 taskDisableCalls.get()==1,
                 "hostile task disable count"
+            );
+            require(
+                sameTickWorldTaskRuns.get()==1,
+                "hostile plugin task failure escaped scheduler boundary and blocked later same-tick World work"
             );
 
             List<String> diagnostics=
