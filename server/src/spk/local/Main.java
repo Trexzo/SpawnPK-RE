@@ -75,6 +75,20 @@ public final class Main {
         );
 
         try {
+            int kotlinPluginCount =
+                KotlinPluginDirectory.loadStartup(
+                    world,
+                    Paths.get(
+                        "plugins",
+                        "kotlin"
+                    )
+                );
+
+            System.out.println(
+                "KOTLIN: startup plugins=" +
+                kotlinPluginCount
+            );
+
             if (!shutdown.submitAuxiliary(
                     () -> localAux(aux)))
                 return;
