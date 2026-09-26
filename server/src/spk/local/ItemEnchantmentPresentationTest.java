@@ -36,6 +36,7 @@ public final class ItemEnchantmentPresentationTest {
             "back50319=true "+
             "resultTarget38=true "+
             "state0123=true "+
+            "iso88591Fence=true "+
             "searchPromptWireOwned=false "+
             "selectionIsolation=true "+
             "rawProtocolInService=false "+
