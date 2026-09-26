@@ -67,16 +67,15 @@ public final class Main {
             Thread t = new Thread(r, "spk-local-session"); t.setDaemon(true); return t;
         });
 
-        ServerSocket game = new ServerSocket();
-        ServerSocket aux = new ServerSocket();
-
-        LocalServerShutdownCoordinator shutdown =
-            new LocalServerShutdownCoordinator(
+        LocalServerStartupBinder.Resources startup =
+            LocalServerStartupBinder.prepare(
                 world,
-                pool,
-                game,
-                aux
+                pool
             );
+        ServerSocket game = startup.game;
+        ServerSocket aux = startup.aux;
+        LocalServerShutdownCoordinator shutdown =
+            startup.shutdown;
 
         LocalServerStartupBinder.bind(
             shutdown,
@@ -116,8 +115,11 @@ public final class Main {
         Runtime runtime =
             Runtime.getRuntime();
 
-        runtime.addShutdownHook(
-            shutdownHook
+        LocalServerStartupBinder.installShutdownHook(
+            shutdown,
+            ()->runtime.addShutdownHook(
+                shutdownHook
+            )
         );
 
         try {
