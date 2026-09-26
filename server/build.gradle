@@ -1704,6 +1704,27 @@ tasks.register(
     mainClass = 'spk.local.ItemEnchantmentServiceTest'
 }
 
+tasks.register('itemEnchantmentPresentationRegression') {
+    group = 'verification'
+    description = 'Validates exact-v308 Item Enchantment roots, category/row/item intents and result-state projection over the recovered semantic service without owning recipes, search transport, economy or RNG.'
+    dependsOn(
+        tasks.named('itemEnchantmentServiceRegression'),
+        tasks.named('testClasses')
+    )
+
+    doLast {
+        project.javaexec {
+            workingDir repoRoot
+            classpath = sourceSets.test.runtimeClasspath
+            mainClass.set('spk.local.ItemEnchantmentPresentationTest')
+        }
+
+        logger.lifecycle(
+            'ITEM_ENCHANTMENT_PRESENTATION_PASS main31244=true categories31243=true categories7=true rows16=true itemWidget50253=true attempt49991=true search50314=true back50319=true resultTarget38=true state0123=true searchPromptWireOwned=false selectionIsolation=true rawProtocolInService=false policyOwned=false'
+        )
+    }
+}
+
 tasks.register(
     'legendaryPetFusionServiceRegression',
     JavaExec
