@@ -18,7 +18,17 @@ import spk.plugin.api.PluginManifest;
 
 public final class KotlinPluginDirectoryTest {
     public static final class ProbeEvent
-        implements DomainEventBus.Event {}
+        implements DomainEventBus.Cancellable {
+        private boolean cancelled;
+
+        @Override public boolean isCancelled(){
+            return cancelled;
+        }
+
+        @Override public void cancel(){
+            cancelled=true;
+        }
+    }
 
     public static void main(
         String[] args
@@ -577,9 +587,13 @@ public final class KotlinPluginDirectoryTest {
             player,
             generation,
             ()->{
+                ProbeEvent event=
+                    new ProbeEvent();
+                event.cancel();
+
                 world.domainEvents()
                     .publish(
-                        new ProbeEvent()
+                        event
                     );
 
                 ContentResult commandResult=
