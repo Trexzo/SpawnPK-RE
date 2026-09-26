@@ -222,7 +222,7 @@ class KotlinPluginLoader(
                             name
                         )) {
                         throw IllegalArgumentException(
-                            "Kotlin script dependency contains non-DSL SpawnPK classes: " +
+                            "Kotlin script dependency contains SpawnPK classes outside the DSL allowlist: " +
                                 path + " entry=" + entry.name
                         )
                     }
