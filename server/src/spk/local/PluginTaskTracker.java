@@ -482,8 +482,9 @@ final class PluginTaskTracker
                         failure
                     );
                     System.err.println(
-                        "[plugins] task cancel failed error="+
-                        failure
+                        "[plugins] task cancel failed errorClass="+
+                        failure.getClass()
+                            .getName()
                     );
                 }
         }

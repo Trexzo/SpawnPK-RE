@@ -154,8 +154,9 @@ final class PluginJarLoader {
                 );
             else
                 System.err.println(
-                    "[plugins] classloader close failed error="+
-                    cleanup
+                    "[plugins] classloader close failed errorClass="+
+                    cleanup.getClass()
+                        .getName()
                 );
             return cleanup;
         }

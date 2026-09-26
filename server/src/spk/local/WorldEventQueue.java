@@ -168,7 +168,9 @@ final class WorldEventQueue implements AutoCloseable {
                     "[world-events] task failed id="+
                     event.handle.id()+
                     " tick="+tick+
-                    " error="+error
+                    " errorClass="+
+                    error.getClass()
+                        .getName()
                 );
             }
 
