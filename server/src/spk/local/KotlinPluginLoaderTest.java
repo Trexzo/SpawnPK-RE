@@ -1,10 +1,14 @@
 package spk.local;
 
 import java.lang.reflect.Constructor;
+import java.lang.reflect.InvocationTargetException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.jar.JarEntry;
+import java.util.jar.JarOutputStream;
 import spk.content.api.ContentResult;
 import spk.event.DomainEventBus;
 import spk.plugin.api.Plugin;
@@ -60,6 +64,12 @@ public final class KotlinPluginLoaderTest {
                     apiJar,
                     compileClasspath
                 );
+
+        assertDisguisedServerDependencyRejected(
+            constructor,
+            apiJar,
+            compileClasspath
+        );
 
         PluginSource healthySource=
             PluginSource.script(
@@ -221,6 +231,7 @@ public final class KotlinPluginLoaderTest {
             "KOTLIN_PLUGIN_LOADER_PASS "+
             "kts=true "+
             "apiOnlyCompile=true "+
+            "dependencyNamespaceFence=true "+
             "serverInternalDenied=true "+
             "pluginApiIdentity=true "+
             "eventCallback=true "+
@@ -256,6 +267,81 @@ public final class KotlinPluginLoaderTest {
             throw new AssertionError(
                 "Kotlin script callback loader exposed spk.local.World resource"
             );
+
+        if(loader.getResources(
+                "spk/local/World.class"
+            ).hasMoreElements())
+            throw new AssertionError(
+                "Kotlin script callback loader exposed spk.local.World resource enumeration"
+            );
+    }
+
+    private static void
+        assertDisguisedServerDependencyRejected(
+            Constructor<?> constructor,
+            Path apiJar,
+            List<Path> healthyClasspath
+        )throws Exception{
+        Path fake=
+            Files.createTempFile(
+                "kotlin-script-server-leak-",
+                ".jar"
+            );
+
+        try{
+            try(JarOutputStream out=
+                    new JarOutputStream(
+                        Files.newOutputStream(
+                            fake
+                        )
+                    )){
+                out.putNextEntry(
+                    new JarEntry(
+                        "spk/local/Fake.class"
+                    )
+                );
+                out.write(
+                    new byte[]{0}
+                );
+                out.closeEntry();
+            }
+
+            ArrayList<Path> poisoned=
+                new ArrayList<>(
+                    healthyClasspath
+                );
+            poisoned.add(fake);
+
+            boolean rejected=false;
+
+            try{
+                constructor.newInstance(
+                    apiJar,
+                    poisoned
+                );
+            }catch(InvocationTargetException expected){
+                Throwable cause=
+                    expected.getCause();
+
+                rejected=
+                    cause instanceof
+                        IllegalArgumentException&&
+                    cause.getMessage()!=null&&
+                    cause.getMessage()
+                        .contains(
+                            "contains SpawnPK"
+                        );
+            }
+
+            if(!rejected)
+                throw new AssertionError(
+                    "Kotlin loader accepted disguised server dependency"
+                );
+        }finally{
+            Files.deleteIfExists(
+                fake
+            );
+        }
     }
 
     private KotlinPluginLoaderTest(){}
