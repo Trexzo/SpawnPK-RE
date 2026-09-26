@@ -45,7 +45,7 @@ final class PluginJarLoader implements PluginLoader {
                 );
     }
 
-    @Override public Plugin load(
+    @Override public PluginRuntime load(
         PluginSource source
     )throws Exception{
         Objects.requireNonNull(
@@ -169,42 +169,21 @@ final class PluginJarLoader implements PluginLoader {
     static ClassLoader callbackClassLoader(
         Plugin plugin
     ){
-        if(plugin==null)
-            return PluginJarLoader.class
-                .getClassLoader();
-
-        if(plugin instanceof LoadedPlugin)
-            return ((LoadedPlugin)plugin)
-                .classLoader();
-
-        return plugin.getClass()
-            .getClassLoader();
+        return PluginRuntimeSupport
+            .callbackClassLoader(
+                plugin
+            );
     }
 
     static Throwable closePluginRuntime(
         Plugin plugin,
         Throwable primary
     ){
-        if(!(plugin instanceof LoadedPlugin))
-            return null;
-
-        try{
-            ((LoadedPlugin)plugin)
-                .close();
-            return null;
-        }catch(Throwable cleanup){
-            if(primary!=null)
-                primary.addSuppressed(
-                    cleanup
-                );
-            else
-                System.err.println(
-                    "[plugins] classloader close failed errorClass="+
-                    cleanup.getClass()
-                        .getName()
-                );
-            return cleanup;
-        }
+        return PluginRuntimeSupport
+            .closePluginRuntime(
+                plugin,
+                primary
+            );
     }
 
     private static void validateArchive(
@@ -313,7 +292,7 @@ final class PluginJarLoader implements PluginLoader {
     }
 
     static final class LoadedPlugin
-        implements Plugin,AutoCloseable {
+        implements PluginRuntime {
 
         private final Plugin delegate;
         private final IsolatedPluginClassLoader loader;
@@ -378,6 +357,11 @@ final class PluginJarLoader implements PluginLoader {
 
         Plugin delegate(){
             return delegate;
+        }
+
+        @Override public ClassLoader
+            callbackClassLoader(){
+            return loader;
         }
 
         ClassLoader classLoader(){
