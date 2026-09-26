@@ -1,6 +1,5 @@
 package spk.local;
 
-import java.io.IOException;
 import java.lang.reflect.Method;
 import java.util.Locale;
 
@@ -9,8 +8,7 @@ public final class TournamentPresentationTest {
         throws Exception{
         exactRootsAndRanges();
         exactWidgetRouting();
-        exactOpenPackets();
-        exactTextPublication();
+        exactPacketCompatibility();
         policyStillUnowned();
 
         System.out.println(
@@ -149,85 +147,117 @@ public final class TournamentPresentationTest {
         );
     }
 
-    private static void exactOpenPackets()
-        throws IOException{
-        RecordingPacketWriter packets=
-            new RecordingPacketWriter();
-
-        TournamentPresentation
-            .openTournament(packets);
+    private static void exactPacketCompatibility()
+        throws Exception{
+        byte[] tournamentRoot=
+            BootstrapPackets.interface97(
+                TournamentPresentation
+                    .TOURNAMENT_ROOT
+            );
+        byte[] leaderboardRoot=
+            BootstrapPackets.interface97(
+                TournamentPresentation
+                    .LEADERBOARD_ROOT
+            );
 
         require(
-            packets.lastOpcode==97&&
-            packets.lastBody.length==2&&
-            readU16(packets.lastBody)==27400,
+            tournamentRoot.length==2&&
+            readU16(tournamentRoot)==27400,
             "tournament S2C97"
         );
-
-        TournamentPresentation
-            .openLeaderboard(packets);
-
         require(
-            packets.lastOpcode==97&&
-            packets.lastBody.length==2&&
-            readU16(packets.lastBody)==61011,
+            leaderboardRoot.length==2&&
+            readU16(leaderboardRoot)==61011,
             "leaderboard S2C97"
         );
-    }
 
-    private static void exactTextPublication()
-        throws IOException{
-        RecordingPacketWriter packets=
-            new RecordingPacketWriter();
-
-        TournamentPresentation.publishHistoryRow(
-            packets,
-            0,
+        assertTextBody(
+            TournamentPresentation
+                .historyRowWidget(0),
             "history"
         );
-        require(
-            packets.lastOpcode==126&&
-            packets.lastTarget==56009,
-            "history S2C126"
-        );
-
-        TournamentPresentation.publishPlayerRow(
-            packets,
-            25,
+        assertTextBody(
+            TournamentPresentation
+                .playerRowWidget(25),
             "player"
         );
-        require(
-            packets.lastOpcode==126&&
-            packets.lastTarget==61050,
-            "player S2C126"
-        );
-
-        TournamentPresentation.publishClanRow(
-            packets,
-            25,
+        assertTextBody(
+            TournamentPresentation
+                .clanRowWidget(25),
             "clan"
-        );
-        require(
-            packets.lastOpcode==126&&
-            packets.lastTarget==61077,
-            "clan S2C126"
         );
 
         expect(
             IllegalArgumentException.class,
             ()->{
                 try{
-                    TournamentPresentation
-                        .publishPlayerRow(
-                            packets,
-                            0,
-                            "bad\nrow"
-                        );
-                }catch(IOException failure){
+                    BootstrapPackets.widgetText126(
+                        TournamentPresentation
+                            .playerRowWidget(0),
+                        "bad\nrow"
+                    );
+                    /*
+                     * The low-level packet helper deliberately accepts
+                     * arbitrary ISO-8859-1 text. The Tournament adapter
+                     * owns the stronger line-terminator rejection.
+                     */
+                    Method publish=
+                        TournamentPresentation.class
+                            .getDeclaredMethod(
+                                "requireText",
+                                String.class
+                            );
+                    publish.setAccessible(true);
+                    publish.invoke(
+                        null,
+                        "bad\nrow"
+                    );
+                }catch(
+                    java.lang.reflect
+                        .InvocationTargetException failure
+                ){
+                    Throwable cause=failure.getCause();
+                    if(cause instanceof RuntimeException)
+                        throw (RuntimeException)cause;
+                    throw new RuntimeException(cause);
+                }catch(ReflectiveOperationException|
+                       java.io.IOException failure){
                     throw new RuntimeException(failure);
                 }
             },
             "line terminator"
+        );
+    }
+
+    private static void assertTextBody(
+        int widgetId,
+        String text
+    )throws Exception{
+        byte[] body=
+            BootstrapPackets.widgetText126(
+                widgetId,
+                text
+            );
+
+        int n=body.length;
+
+        require(
+            n==text.length()+3,
+            "S2C126 length widget="+widgetId
+        );
+        require(
+            (body[text.length()]&255)==10,
+            "S2C126 newline widget="+widgetId
+        );
+
+        int target=
+            ((body[n-2]&255)<<8)|
+            (((body[n-1]&255)-128)&255);
+
+        require(
+            target==widgetId,
+            "S2C126 target widget="+widgetId+
+            " decoded="+target
         );
     }
 
@@ -323,40 +353,6 @@ public final class TournamentPresentationTest {
     ){
         if(!condition)
             throw new AssertionError(label);
-    }
-
-    private static final class RecordingPacketWriter
-        extends ServerPacketWriter{
-        int lastOpcode=-1;
-        byte[] lastBody;
-        int lastTarget=-1;
-
-        RecordingPacketWriter(){
-            super(null);
-        }
-
-        @Override
-        void fixed(
-            int opcode,
-            byte[] body
-        )throws IOException{
-            lastOpcode=opcode;
-            lastBody=body.clone();
-        }
-
-        @Override
-        void varShort(
-            int opcode,
-            byte[] body
-        )throws IOException{
-            lastOpcode=opcode;
-            lastBody=body.clone();
-
-            if(opcode==126&&body.length>=2)
-                lastTarget=
-                    ((body[body.length-2]&255)<<8)|
-                    (body[body.length-1]&255);
-        }
     }
 
     private TournamentPresentationTest(){}
