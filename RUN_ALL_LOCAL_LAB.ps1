@@ -79,14 +79,24 @@ Start-Process powershell.exe -WorkingDirectory $root -ArgumentList @(
 
 $ready = $false
 $readyDeadline = (Get-Date).AddSeconds(30)
+$readyPortNumbers = @()
 while ((Get-Date) -lt $readyDeadline) {
     Start-Sleep -Milliseconds 250
-    if (Get-NetTCPConnection -LocalPort 43594 -State Listen -ErrorAction SilentlyContinue) {
+    $readyPortNumbers = @(
+        Get-NetTCPConnection -State Listen -ErrorAction SilentlyContinue |
+            Where-Object { $_.LocalPort -in $ports } |
+            Select-Object -ExpandProperty LocalPort -Unique
+    )
+
+    if (($readyPortNumbers -contains 43594) -and ($readyPortNumbers -contains 43595)) {
         $ready = $true
         break
     }
 }
-if (-not $ready) { throw 'Local server did not begin listening on 43594 within 30 seconds.' }
+if (-not $ready) {
+    throw "Local server did not begin listening on both 43594 and 43595 within 30 seconds. Ready ports: $($readyPortNumbers -join ',')"
+}
+Write-Host 'SERVER_PORTS_READY game=43594 aux=43595' -ForegroundColor Green
 
 Write-Host 'Starting loopback network watcher...' -ForegroundColor Green
 Start-Process powershell.exe -WorkingDirectory $root -ArgumentList @(
@@ -129,4 +139,24 @@ if (-not $airgapClient) {
 }
 
 Write-Host "AIRGAP_CLIENT_PROCESS_READY pid=$($airgapClient.ProcessId)" -ForegroundColor Green
+
+Start-Sleep -Seconds 2
+$stableAirgapClient = Get-CimInstance Win32_Process -Filter "ProcessId=$($airgapClient.ProcessId)" -ErrorAction SilentlyContinue
+if (-not $stableAirgapClient -or
+    $stableAirgapClient.Name -notmatch '^javaw?\.exe
+ -or
+    $stableAirgapClient.CommandLine -notmatch '(?i)client-airgap\.jar') {
+    throw "Airgap client PID $($airgapClient.ProcessId) exited or changed before the stabilization check."
+}
+
+$stablePorts = @(
+    Get-NetTCPConnection -State Listen -ErrorAction SilentlyContinue |
+        Where-Object { $_.LocalPort -in $ports } |
+        Select-Object -ExpandProperty LocalPort -Unique
+)
+if (($stablePorts -notcontains 43594) -or ($stablePorts -notcontains 43595)) {
+    throw "Local server listeners were lost after client startup. Listening ports: $($stablePorts -join ',')"
+}
+
+Write-Host "AIRGAP_CLIENT_PROCESS_STABLE pid=$($stableAirgapClient.ProcessId) dwellSeconds=2" -ForegroundColor Green
 Write-Host 'LOCAL_LAB_WINDOWS_STARTED_V521' -ForegroundColor Cyan
