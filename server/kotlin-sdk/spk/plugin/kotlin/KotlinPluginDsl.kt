@@ -11,6 +11,8 @@ import spk.content.api.ContentItemOptionHandler
 import spk.content.api.ContentNpcOptionContext
 import spk.content.api.ContentNpcOptionHandler
 import spk.content.api.ContentNpcOptionResult
+import spk.content.api.ContentPlayer
+import spk.content.api.ContentResult
 import spk.content.api.ContentRegistration
 import spk.event.DomainEventBus
 import spk.plugin.api.PluginContext
@@ -18,13 +20,29 @@ import spk.plugin.api.PluginContext
 fun PluginContext.onCommand(
     name: String,
     priority: Int = 100,
-    handler: (ContentCommandContext) -> spk.content.api.ContentResult
+    handler: (ContentCommandContext) -> ContentResult
 ): ContentRegistration =
     content().command(
         name,
         priority,
         ContentCommandHandler { context ->
             handler(context)
+        }
+    )
+
+fun PluginContext.onCommand(
+    name: String,
+    priority: Int = 100,
+    handler: (ContentPlayer, List<String>) -> ContentResult
+): ContentRegistration =
+    content().command(
+        name,
+        priority,
+        ContentCommandHandler { context ->
+            handler(
+                context.player(),
+                context.arguments()
+            )
         }
     )
 
@@ -111,13 +129,16 @@ fun PluginContext.onButton(
 fun PluginContext.onButtonClick(
     actionKey: String,
     priority: Int = 100,
-    handler: (ContentActionContext) -> ContentActionResult
+    handler: (ContentPlayer) -> ContentActionResult
 ): ContentRegistration =
     onButton(
         actionKey = actionKey,
-        priority = priority,
-        handler = handler
-    )
+        priority = priority
+    ) { context ->
+        handler(
+            context.player()
+        )
+    }
 
 inline fun <reified E : DomainEventBus.Event>
     PluginContext.onEvent(
