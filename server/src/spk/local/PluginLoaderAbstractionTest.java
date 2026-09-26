@@ -35,8 +35,9 @@ public final class PluginLoaderAbstractionTest {
                 "JAR loader rejected JAR source"
             );
 
-        Plugin plugin=
+        PluginRuntime runtime=
             loader.load(source);
+        Plugin plugin=runtime;
 
         if(!(plugin instanceof
                 PluginJarLoader.LoadedPlugin))
@@ -62,6 +63,20 @@ public final class PluginLoaderAbstractionTest {
                 throw new AssertionError(
                     "JAR loader lost isolated classloader"
                 );
+            if(runtime.callbackClassLoader()!=
+                    loaded.classLoader())
+                throw new AssertionError(
+                    "generic runtime lost callback classloader identity"
+                );
+
+            if(PluginRuntimeSupport
+                    .callbackClassLoader(
+                        plugin
+                    )!=
+                    loaded.classLoader())
+                throw new AssertionError(
+                    "runtime support lost callback classloader identity"
+                );
 
             if(!loaded.source().equals(jar))
                 throw new AssertionError(
@@ -72,8 +87,8 @@ public final class PluginLoaderAbstractionTest {
                 );
         }finally{
             Throwable closeFailure=
-                PluginJarLoader.closePluginRuntime(
-                    loaded,
+                PluginRuntimeSupport.closePluginRuntime(
+                    runtime,
                     null
                 );
 
@@ -131,6 +146,7 @@ public final class PluginLoaderAbstractionTest {
             "jarAdapter=true "+
             "staticCompatibility=true "+
             "isolatedWrapper=true "+
+            "genericRuntimeOwnership=true "+
             "closeOwnership=true "+
             "scriptReservedForKotlinLoader=true"
         );
