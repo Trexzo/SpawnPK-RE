@@ -43,6 +43,19 @@ fun PluginContext.onNpc(
         }
     )
 
+fun PluginContext.onNpcClick(
+    npcId: Int,
+    option: Int = 1,
+    priority: Int = 100,
+    handler: (ContentNpcOptionContext) -> ContentNpcOptionResult
+): ContentRegistration =
+    onNpc(
+        npcDefinitionId = npcId,
+        option = option,
+        priority = priority,
+        handler = handler
+    )
+
 fun PluginContext.onItem(
     itemId: Int,
     option: Int = 1,
@@ -56,6 +69,19 @@ fun PluginContext.onItem(
         ContentItemOptionHandler { context ->
             handler(context)
         }
+    )
+
+fun PluginContext.onItemOption(
+    itemId: Int,
+    option: Int = 1,
+    priority: Int = 100,
+    handler: (ContentItemOptionContext) -> ContentInteractionResult
+): ContentRegistration =
+    onItem(
+        itemId = itemId,
+        option = option,
+        priority = priority,
+        handler = handler
     )
 
 /**
@@ -75,6 +101,22 @@ fun PluginContext.onButton(
         ContentActionHandler { context ->
             handler(context)
         }
+    )
+
+/**
+ * Issue #5 naming alias for semantic button/action registration.
+ *
+ * The argument remains a core-owned semantic action key, never a raw widget ID.
+ */
+fun PluginContext.onButtonClick(
+    actionKey: String,
+    priority: Int = 100,
+    handler: (ContentActionContext) -> ContentActionResult
+): ContentRegistration =
+    onButton(
+        actionKey = actionKey,
+        priority = priority,
+        handler = handler
     )
 
 inline fun <reified E : DomainEventBus.Event>
