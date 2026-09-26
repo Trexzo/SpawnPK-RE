@@ -413,6 +413,14 @@ final class LegendaryPetFusionPresentation {
                 field+" contains line terminator"
             );
 
+        for(int i=0;i<clean.length();i++)
+            if(clean.charAt(i)>0xff)
+                throw new IllegalArgumentException(
+                    field+
+                    " not ISO-8859-1 at index="+
+                    i
+                );
+
         return clean;
     }
 
