@@ -688,18 +688,163 @@ def compileKotlinScriptingHost =
         }
     }
 
+def kotlinScriptingServicesOutput =
+    layout.buildDirectory.dir(
+        'generated/kotlin-scripting-services'
+    )
+
+def mergeKotlinScriptingServices =
+    tasks.register(
+        'mergeKotlinScriptingServices'
+    ) {
+        group = 'build'
+        description = 'Deterministically merges META-INF/services providers from the embedded Kotlin scripting runtime.'
+        inputs.files(kotlinScriptingRuntime)
+        outputs.dir(kotlinScriptingServicesOutput)
+
+        doLast {
+            File output =
+                kotlinScriptingServicesOutput
+                    .get()
+                    .asFile
+
+            project.delete(output)
+
+            Map<String,LinkedHashSet<String>>
+                providers =
+                    new TreeMap<>()
+
+            def dependencies =
+                kotlinScriptingRuntime
+                    .files
+                    .sort {
+                        left,
+                        right ->
+                            left.absolutePath <=>
+                            right.absolutePath
+                    }
+
+            dependencies.each { dependency ->
+                def tree =
+                    dependency.isDirectory()
+                        ? fileTree(dependency)
+                        : zipTree(dependency)
+
+                tree.matching {
+                    include 'META-INF/services/**'
+                }.files
+                    .sort {
+                        left,
+                        right ->
+                            left.absolutePath <=>
+                            right.absolutePath
+                    }
+                    .each { serviceFile ->
+                        String relative
+
+                        if(dependency.isDirectory())
+                            relative =
+                                dependency.toPath()
+                                    .relativize(
+                                        serviceFile.toPath()
+                                    )
+                                    .toString()
+                                    .replace(
+                                        File.separatorChar,
+                                        '/' as char
+                                    )
+                        else {
+                            String absolute =
+                                serviceFile.absolutePath
+                                    .replace('\\','/')
+                            int markerIndex =
+                                absolute.lastIndexOf(
+                                    '/META-INF/services/'
+                                )
+
+                            if(markerIndex<0)
+                                throw new GradleException(
+                                    'Could not derive service path for ' +
+                                    serviceFile
+                                )
+
+                            relative =
+                                absolute.substring(
+                                    markerIndex + 1
+                                )
+                        }
+
+                        LinkedHashSet<String> lines =
+                            providers.computeIfAbsent(
+                                relative
+                            ) {
+                                new LinkedHashSet<String>()
+                            }
+
+                        serviceFile.eachLine(
+                            'UTF-8'
+                        ) { line ->
+                            String clean =
+                                line.trim()
+
+                            if(!clean.isEmpty() &&
+                               !clean.startsWith('#'))
+                                lines.add(clean)
+                        }
+                    }
+            }
+
+            providers.each {
+                relative,
+                lines ->
+                    File target =
+                        new File(
+                            output,
+                            relative
+                        )
+
+                    if(!target.parentFile.mkdirs() &&
+                       !target.parentFile.isDirectory())
+                        throw new GradleException(
+                            'Could not create service output directory: ' +
+                            target.parentFile
+                        )
+
+                    target.setText(
+                        lines.join(
+                            System.lineSeparator()
+                        ) +
+                        System.lineSeparator(),
+                        'UTF-8'
+                    )
+            }
+
+            logger.lifecycle(
+                'KOTLIN_SCRIPTING_SERVICES_MERGED files=' +
+                providers.size()
+            )
+        }
+    }
+
 tasks.named('jar', Jar) {
-    dependsOn compileKotlinScriptingHost
+    dependsOn(
+        compileKotlinScriptingHost,
+        mergeKotlinScriptingServices
+    )
 
     from(kotlinScriptingHostOutput)
 
-    from {
+    from({
         kotlinScriptingRuntime.collect { file ->
             file.isDirectory()
                 ? file
                 : zipTree(file)
         }
+    }) {
+        exclude 'META-INF/services/**'
     }
+
+    from(kotlinScriptingServicesOutput)
 }
 
 tasks.register('verifyKotlinScriptingHostBytecode') {
