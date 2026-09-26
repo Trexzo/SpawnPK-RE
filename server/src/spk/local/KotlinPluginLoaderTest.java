@@ -2,6 +2,7 @@ package spk.local;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Field;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.Files;
@@ -16,6 +17,7 @@ import spk.content.api.ContentResult;
 import spk.event.DomainEventBus;
 import spk.plugin.api.Plugin;
 import spk.plugin.api.PluginManager;
+import spk.plugin.api.PluginHandle;
 
 public final class KotlinPluginLoaderTest {
     public static final class ProbeEvent
@@ -162,10 +164,77 @@ public final class KotlinPluginLoaderTest {
         PluginManager manager=
             world.plugins();
 
+        Path failingScript=
+            createEnableFailureScript();
+
         try{
-            manager.enable(
-                runtime
+            PluginHandle handle=
+                manager.enable(
+                    runtime
+                );
+
+            boolean ownedDuplicateRejected=
+                false;
+
+            try{
+                manager.enable(
+                    runtime
+                );
+            }catch(IllegalStateException expected){
+                ownedDuplicateRejected=
+                    expected.getMessage()!=null&&
+                    expected.getMessage()
+                        .contains(
+                            "already enabled"
+                        );
+            }
+
+            if(!ownedDuplicateRejected||
+               !handle.enabled()||
+               runtime.callbackClassLoader()!=
+                    callbackLoader)
+                throw new AssertionError(
+                    "owned duplicate attempt terminalized live Kotlin runtime"
+                );
+
+            PluginRuntime duplicateRuntime=
+                loader.load(
+                    healthySource
+                );
+
+            boolean freshDuplicateRejected=
+                false;
+
+            try{
+                manager.enable(
+                    duplicateRuntime
+                );
+            }catch(IllegalStateException expected){
+                freshDuplicateRejected=
+                    expected.getMessage()!=null&&
+                    expected.getMessage()
+                        .contains(
+                            "already enabled"
+                        );
+            }
+
+            if(!freshDuplicateRejected)
+                throw new AssertionError(
+                    "fresh duplicate Kotlin runtime was accepted"
+                );
+
+            assertRuntimeReleased(
+                duplicateRuntime,
+                "fresh duplicate rejection"
             );
+
+            if(manager.plugin(
+                    "fixture.kotlin.script")!=
+                        handle||
+               !handle.enabled())
+                throw new AssertionError(
+                    "fresh duplicate rejection disturbed live Kotlin runtime"
+                );
 
             final String[] commandResult=
                 new String[1];
@@ -270,18 +339,51 @@ public final class KotlinPluginLoaderTest {
                     "Kotlin script plugin disable failed"
                 );
 
-            boolean terminal=true;
+            assertHandleReleasedLoader(
+                handle
+            );
+            assertRuntimeReleased(
+                runtime,
+                "explicit disable"
+            );
+
+            PluginRuntime failingRuntime=
+                loader.load(
+                    PluginSource.script(
+                        failingScript
+                    )
+                );
+            boolean enableFailureObserved=
+                false;
 
             try{
-                runtime.callbackClassLoader();
-                terminal=false;
-            }catch(IllegalStateException expected){
+                manager.enable(
+                    failingRuntime
+                );
+            }catch(Exception expected){
+                enableFailureObserved=
+                    containsMessage(
+                        expected,
+                        "fixture-enable-failure"
+                    );
             }
 
-            if(!terminal)
+            if(!enableFailureObserved)
                 throw new AssertionError(
-                    "terminal Kotlin runtime retained callback loader"
+                    "Kotlin enable failure was not propagated"
                 );
+
+            if(manager.plugin(
+                    "fixture.kotlin.enablefail")!=
+                        null)
+                throw new AssertionError(
+                    "failed Kotlin enable published plugin handle"
+                );
+
+            assertRuntimeReleased(
+                failingRuntime,
+                "enable failure"
+            );
 
             boolean deniedCompilation=false;
 
@@ -307,8 +409,16 @@ public final class KotlinPluginLoaderTest {
                 throw new AssertionError(
                     "Kotlin script compile boundary exposed spk.local"
                 );
-        }finally{
+
             world.close();
+            world.close();
+        }finally{
+            if(!world.closed())
+                world.close();
+
+            Files.deleteIfExists(
+                failingScript
+            );
         }
 
         System.out.println(
@@ -325,8 +435,155 @@ public final class KotlinPluginLoaderTest {
             "itemDsl=true "+
             "semanticButtonDsl=true "+
             "worldThreadLifecycle=true "+
+            "ownedDuplicateKeepsRuntime=true "+
+            "freshDuplicateClosesRuntime=true "+
+            "terminalHandleReleasesLoader=true "+
+            "runtimeReferencesReleased=true "+
+            "enableFailureClosesRuntime=true "+
+            "worldCloseIdempotent=true "+
             "terminalRuntime=true"
         );
+    }
+
+    private static Path createEnableFailureScript()
+        throws Exception{
+        Path script=
+            Files.createTempFile(
+                "kotlin-plugin-enable-failure-",
+                ".kts"
+            );
+
+        Files.write(
+            script,
+            java.util.Arrays.asList(
+                "import spk.plugin.api.Plugin",
+                "import spk.plugin.api.PluginApiVersion",
+                "import spk.plugin.api.PluginContext",
+                "import spk.plugin.api.PluginManifest",
+                "",
+                "object : Plugin {",
+                "    override fun manifest(): PluginManifest =",
+                "        PluginManifest(",
+                "            \"fixture.kotlin.enablefail\",",
+                "            \"1.0\",",
+                "            PluginApiVersion.CURRENT,",
+                "            emptyList<String>()",
+                "        )",
+                "",
+                "    override fun enable(context: PluginContext) {",
+                "        throw IllegalStateException(\"fixture-enable-failure\")",
+                "    }",
+                "}"
+            ),
+            java.nio.charset.StandardCharsets.UTF_8
+        );
+
+        return script;
+    }
+
+    private static boolean containsMessage(
+        Throwable failure,
+        String expected
+    ){
+        for(Throwable current=failure;
+            current!=null;
+            current=current.getCause()){
+            String message=
+                current.getMessage();
+
+            if(message!=null&&
+               message.contains(
+                    expected
+               ))
+                return true;
+        }
+
+        return false;
+    }
+
+    private static void assertRuntimeReleased(
+        PluginRuntime runtime,
+        String phase
+    )throws Exception{
+        boolean terminal=true;
+
+        try{
+            runtime.callbackClassLoader();
+            terminal=false;
+        }catch(IllegalStateException expected){
+        }
+
+        if(!terminal)
+            throw new AssertionError(
+                phase+
+                " retained public callback loader"
+            );
+
+        for(String fieldName:
+                new String[]{
+                    "delegate",
+                    "callbackLoader",
+                    "baseLoader"
+                }){
+            Field field=
+                runtime.getClass()
+                    .getDeclaredField(
+                        fieldName
+                    );
+            field.setAccessible(
+                true
+            );
+
+            if(field.get(runtime)!=null)
+                throw new AssertionError(
+                    phase+
+                    " retained runtime field "+
+                    fieldName
+                );
+        }
+    }
+
+    private static void assertHandleReleasedLoader(
+        PluginHandle handle
+    )throws Exception{
+        Field pluginField=
+            handle.getClass()
+                .getDeclaredField(
+                    "plugin"
+                );
+        pluginField.setAccessible(
+            true
+        );
+
+        if(pluginField.get(handle)!=null)
+            throw new AssertionError(
+                "disabled Kotlin PluginHandle retained plugin instance"
+            );
+
+        Field tasksField=
+            handle.getClass()
+                .getDeclaredField(
+                    "tasks"
+                );
+        tasksField.setAccessible(
+            true
+        );
+        Object tasks=
+            tasksField.get(handle);
+
+        Field loaderField=
+            tasks.getClass()
+                .getDeclaredField(
+                    "callbackLoader"
+                );
+        loaderField.setAccessible(
+            true
+        );
+
+        if(loaderField.get(tasks)!=null)
+            throw new AssertionError(
+                "disabled Kotlin PluginHandle retained callback classloader"
+            );
     }
 
     private static void assertServerInternalDenied(
