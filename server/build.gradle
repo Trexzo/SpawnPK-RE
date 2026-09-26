@@ -1466,6 +1466,7 @@ tasks.register('pluginKotlinDslRegression') {
             'item=true ' +
             'semanticButton=true ' +
             'event=true ' +
+            'issue5Names=true ' +
             'rawWidgetIds=false ' +
             'provenanceCoreOwned=true ' +
             'publicApiExpanded=false'
@@ -1503,6 +1504,7 @@ tasks.register('issue5KotlinScriptingCertification') {
             'onDemand=true ' +
             'rootConfinement=true ' +
             'dsl=true ' +
+            'issue5DslNames=true ' +
             'rawWidgetIds=false ' +
             'bytecodeMajor=55'
         )
