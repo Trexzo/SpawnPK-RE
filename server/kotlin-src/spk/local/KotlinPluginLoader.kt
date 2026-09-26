@@ -262,6 +262,18 @@ class KotlinPluginLoader(
             return delegate.getResource(name)
         }
 
+        override fun getResources(
+            name: String
+        ): java.util.Enumeration<java.net.URL> {
+            if (name.startsWith("spk/") &&
+                !exportedServerResource(name)) {
+                return java.util.Collections
+                    .emptyEnumeration()
+            }
+
+            return delegate.getResources(name)
+        }
+
         private fun allowed(name: String): Boolean =
             name.startsWith("java.") ||
                 name.startsWith("javax.") ||
