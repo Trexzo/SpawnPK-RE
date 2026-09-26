@@ -1071,6 +1071,7 @@ tasks.named('jar', Jar) {
     )
 
     from(kotlinScriptingHostOutput)
+    from(kotlinScriptSdkOutput)
 
     from({
         kotlinScriptingRuntime.collect { file ->
