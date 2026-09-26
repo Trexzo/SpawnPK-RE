@@ -47,74 +47,79 @@ public final class LocalServerStartupFailureCleanupTest {
                     aux
                 );
 
-            IOException bindFailure=null;
-
             try{
-                LocalServerStartupBinder.bind(
-                    shutdown,
-                    game,
-                    new InetSocketAddress(
-                        loopback,
-                        0
-                    ),
-                    aux,
-                    new InetSocketAddress(
-                        loopback,
-                        blocker.getLocalPort()
-                    )
+                IOException bindFailure=null;
+
+                try{
+                    LocalServerStartupBinder.bind(
+                        shutdown,
+                        game,
+                        new InetSocketAddress(
+                            loopback,
+                            0
+                        ),
+                        aux,
+                        new InetSocketAddress(
+                            loopback,
+                            blocker.getLocalPort()
+                        )
+                    );
+                }catch(IOException expected){
+                    bindFailure=expected;
+                }
+
+                if(bindFailure==null)
+                    throw new AssertionError(
+                        "forced auxiliary bind failure was not propagated"
+                    );
+
+                if(!game.isClosed()||
+                   !aux.isClosed())
+                    throw new AssertionError(
+                        "partial listener acquisition survived bind failure gameClosed="+
+                        game.isClosed()+
+                        " auxClosed="+
+                        aux.isClosed()
+                    );
+
+                if(!pool.isTerminated())
+                    throw new AssertionError(
+                        "session pool survived startup bind failure"
+                    );
+
+                if(!world.closed())
+                    throw new AssertionError(
+                        "World survived startup bind failure"
+                    );
+
+                if(blocker.isClosed())
+                    throw new AssertionError(
+                        "startup cleanup closed unrelated blocker socket"
+                    );
+
+                shutdown.close();
+
+                if(!pool.isTerminated()||
+                   !world.closed())
+                    throw new AssertionError(
+                        "repeated startup cleanup changed terminal state"
+                    );
+
+                System.out.println(
+                    "LOCAL_SERVER_STARTUP_FAILURE_CLEANUP_PASS "+
+                    "gameBoundBeforeAuxFailure=true "+
+                    "bindFailurePrimary=true "+
+                    "gameClosed=true "+
+                    "auxClosed=true "+
+                    "poolTerminated=true "+
+                    "worldClosed=true "+
+                    "unrelatedBlockerOpen=true "+
+                    "repeatedCloseSafe=true"
                 );
-            }catch(IOException expected){
-                bindFailure=expected;
+            }finally{
+                if(!world.closed())
+                    shutdown.close();
             }
-
-            if(bindFailure==null)
-                throw new AssertionError(
-                    "forced auxiliary bind failure was not propagated"
-                );
-
-            if(!game.isClosed()||
-               !aux.isClosed())
-                throw new AssertionError(
-                    "partial listener acquisition survived bind failure gameClosed="+
-                    game.isClosed()+
-                    " auxClosed="+
-                    aux.isClosed()
-                );
-
-            if(!pool.isTerminated())
-                throw new AssertionError(
-                    "session pool survived startup bind failure"
-                );
-
-            if(!world.closed())
-                throw new AssertionError(
-                    "World survived startup bind failure"
-                );
-
-            if(blocker.isClosed())
-                throw new AssertionError(
-                    "startup cleanup closed unrelated blocker socket"
-                );
-
-            shutdown.close();
-
-            if(!pool.isTerminated()||
-               !world.closed())
-                throw new AssertionError(
-                    "repeated startup cleanup changed terminal state"
-                );
-
-            System.out.println(
-                "LOCAL_SERVER_STARTUP_FAILURE_CLEANUP_PASS "+
-                "gameBoundBeforeAuxFailure=true "+
-                "bindFailurePrimary=true "+
-                "gameClosed=true "+
-                "auxClosed=true "+
-                "poolTerminated=true "+
-                "worldClosed=true "+
-                "unrelatedBlockerOpen=true "+
-                "repeatedCloseSafe=true"
-            );
         }
     }
 
