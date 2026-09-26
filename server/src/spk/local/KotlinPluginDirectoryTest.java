@@ -159,8 +159,8 @@ public final class KotlinPluginDirectoryTest {
                 player,
                 generation,
                 writer,
-                "kscript",
-                "KOTLIN_SCRIPT_EVENTS=1;args=;tccl=true"
+                "kscript alpha beta",
+                "KOTLIN_SCRIPT_EVENTS=1;args=alpha,beta;tccl=true"
             );
 
             String source=
@@ -214,8 +214,8 @@ public final class KotlinPluginDirectoryTest {
                 player,
                 generation,
                 writer,
-                "kscript2",
-                "KOTLIN_SCRIPT_EVENTS=1;args=;tccl=true"
+                "kscript2 alpha beta",
+                "KOTLIN_SCRIPT_EVENTS=1;args=alpha,beta;tccl=true"
             );
 
             boolean outsideDenied=false;
