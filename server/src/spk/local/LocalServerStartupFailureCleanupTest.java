@@ -13,6 +13,7 @@ public final class LocalServerStartupFailureCleanupTest {
     )throws Exception{
         assertListenerConstructionFailureCleanup();
         assertBindFailureCleanup();
+        assertHookConstructionFailureCleanup();
         assertHookRegistrationFailureCleanup();
 
         System.out.println(
@@ -26,6 +27,8 @@ public final class LocalServerStartupFailureCleanupTest {
             "poolTerminated=true "+
             "worldClosed=true "+
             "unrelatedBlockerOpen=true "+
+            "hookConstructionFailure=true "+
+            "hookConstructionFailurePrimary=true "+
             "hookRegistrationFailure=true "+
             "hookFailurePrimary=true "+
             "repeatedCloseSafe=true"
@@ -182,6 +185,100 @@ public final class LocalServerStartupFailureCleanupTest {
     }
 
     private static void
+        assertHookConstructionFailureCleanup()
+        throws Exception{
+        InetAddress loopback=
+            InetAddress.getByName(
+                "127.0.0.1"
+            );
+
+        World world=
+            World.isolatedForTest(
+                25L
+            );
+        world.start();
+
+        ExecutorService pool=
+            Executors.newCachedThreadPool();
+        ServerSocket game=
+            new ServerSocket();
+        ServerSocket aux=
+            new ServerSocket();
+
+        LocalServerShutdownCoordinator shutdown=
+            new LocalServerShutdownCoordinator(
+                world,
+                pool,
+                game,
+                aux
+            );
+
+        try{
+            LocalServerStartupBinder.bind(
+                shutdown,
+                game,
+                new InetSocketAddress(
+                    loopback,
+                    0
+                ),
+                aux,
+                new InetSocketAddress(
+                    loopback,
+                    0
+                )
+            );
+
+            SecurityException expectedFailure=
+                new SecurityException(
+                    "fixture-hook-construction-denied"
+                );
+            Throwable observed=null;
+            final boolean[] installerReached=
+                new boolean[1];
+
+            try{
+                LocalServerStartupBinder
+                    .installShutdownHook(
+                        shutdown,
+                        shutdown::close,
+                        "fixture-shutdown-hook",
+                        (target,name)->{
+                            throw expectedFailure;
+                        },
+                        hook->{
+                            installerReached[0]=true;
+                        }
+                    );
+            }catch(Throwable failure){
+                observed=failure;
+            }
+
+            if(observed!=expectedFailure)
+                throw new AssertionError(
+                    "hook construction failure did not remain primary"
+                );
+
+            if(installerReached[0])
+                throw new AssertionError(
+                    "hook installer ran after construction failure"
+                );
+
+            assertTerminal(
+                world,
+                pool,
+                game,
+                aux,
+                "hook construction failure"
+            );
+
+            shutdown.close();
+        }finally{
+            if(!world.closed())
+                shutdown.close();
+        }
+    }
+
+    private static void
         assertHookRegistrationFailureCleanup()
         throws Exception{
         InetAddress loopback=
@@ -235,7 +332,14 @@ public final class LocalServerStartupFailureCleanupTest {
                 LocalServerStartupBinder
                     .installShutdownHook(
                         shutdown,
-                        ()->{
+                        shutdown::close,
+                        "fixture-shutdown-hook",
+                        (target,name)->
+                            new Thread(
+                                target,
+                                name
+                            ),
+                        hook->{
                             throw expectedFailure;
                         }
                     );

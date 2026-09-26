@@ -19,6 +19,19 @@ final class LocalServerStartupBinder {
             throws IOException;
     }
 
+    interface ShutdownHookFactory {
+        Thread create(
+            Runnable target,
+            String name
+        );
+    }
+
+    interface ShutdownHookInstaller {
+        void install(
+            Thread hook
+        );
+    }
+
     static final class Resources {
         final ServerSocket game;
         final ServerSocket aux;
@@ -164,6 +177,68 @@ final class LocalServerStartupBinder {
             throw new IOException(
                 "LocalLab listener startup failed",
                 failure
+            );
+        }
+    }
+
+    static Thread installShutdownHook(
+        LocalServerShutdownCoordinator shutdown,
+        Runnable target,
+        String name,
+        ShutdownHookFactory factory,
+        ShutdownHookInstaller installer
+    ){
+        Objects.requireNonNull(
+            shutdown,
+            "shutdown"
+        );
+        Objects.requireNonNull(
+            target,
+            "target"
+        );
+        Objects.requireNonNull(
+            name,
+            "name"
+        );
+        Objects.requireNonNull(
+            factory,
+            "factory"
+        );
+        Objects.requireNonNull(
+            installer,
+            "installer"
+        );
+
+        try{
+            Thread hook=
+                Objects.requireNonNull(
+                    factory.create(
+                        target,
+                        name
+                    ),
+                    "shutdown hook"
+                );
+
+            installer.install(
+                hook
+            );
+
+            return hook;
+        }catch(Throwable failure){
+            try{
+                shutdown.close();
+            }catch(Throwable cleanup){
+                if(cleanup!=failure)
+                    failure.addSuppressed(
+                        cleanup
+                    );
+            }
+
+            rethrowUnchecked(
+                failure
+            );
+            throw new AssertionError(
+                "unreachable"
             );
         }
     }

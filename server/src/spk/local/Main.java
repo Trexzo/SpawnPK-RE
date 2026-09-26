@@ -106,21 +106,21 @@ public final class Main {
             kotlinPluginCount
         );
 
-        Thread shutdownHook =
-            new Thread(
-                shutdown::close,
-                "spk-local-shutdown"
-            );
-
         Runtime runtime =
             Runtime.getRuntime();
 
-        LocalServerStartupBinder.installShutdownHook(
-            shutdown,
-            ()->runtime.addShutdownHook(
-                shutdownHook
-            )
-        );
+        Thread shutdownHook =
+            LocalServerStartupBinder.installShutdownHook(
+                shutdown,
+                shutdown::close,
+                "spk-local-shutdown",
+                (target,name)->
+                    new Thread(
+                        target,
+                        name
+                    ),
+                runtime::addShutdownHook
+            );
 
         try {
             if (!shutdown.submitAuxiliary(
