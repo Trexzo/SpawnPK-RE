@@ -143,8 +143,7 @@ Write-Host "AIRGAP_CLIENT_PROCESS_READY pid=$($airgapClient.ProcessId)" -Foregro
 Start-Sleep -Seconds 2
 $stableAirgapClient = Get-CimInstance Win32_Process -Filter "ProcessId=$($airgapClient.ProcessId)" -ErrorAction SilentlyContinue
 if (-not $stableAirgapClient -or
-    $stableAirgapClient.Name -notmatch '^javaw?\.exe
- -or
+    $stableAirgapClient.Name -notmatch '^javaw?\.exe$' -or
     $stableAirgapClient.CommandLine -notmatch '(?i)client-airgap\.jar') {
     throw "Airgap client PID $($airgapClient.ProcessId) exited or changed before the stabilization check."
 }
