@@ -3687,6 +3687,32 @@ tasks.register('pluginRuntimeFailureCascadeRegression') {
     }
 }
 
+tasks.register('issue5FinalCertification') {
+    group = 'verification'
+    description = 'Runs the complete Issue #5 Kotlin scripting train plus inherited focused and exact-v308 release-safety gates.'
+
+    dependsOn(
+        tasks.named('pluginLoaderAbstractionRegression'),
+        tasks.named('pluginKotlinScriptHostRegression'),
+        tasks.named('pluginKotlinDirectoryRegression'),
+        tasks.named('pluginKotlinDslRegression'),
+        tasks.named('pluginDeveloperApiArtifactRegression'),
+        tasks.named('pluginKotlinJvmConsumerRegression'),
+        tasks.named('verifyKotlinScriptingHostBytecode'),
+        tasks.named('currentTrainFocusedRegression'),
+        tasks.named('r85V308Acceptance')
+    )
+
+    doLast {
+        logger.lifecycle(
+            'SPAWNPK_ISSUE5_FINAL_CERTIFICATION_PASS ' +
+            'loader=true host=true directory=true dsl=true ' +
+            'apiIsolation=true kotlinJvmTarget=11 ' +
+            'focused=175 exactV308=179 bytecodeMajor=55 canonicalPromoted=true'
+        )
+    }
+}
+
 tasks.register('issue4FinalCertification') {
     group = 'verification'
     description = 'Runs every Issue #4 plugin gate plus the frozen 175-test and exact-v308 179-test release-safety suites.'
