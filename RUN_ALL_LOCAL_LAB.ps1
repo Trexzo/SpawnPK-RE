@@ -93,9 +93,42 @@ Start-Process powershell.exe -WorkingDirectory $root -ArgumentList @(
     '-NoExit','-ExecutionPolicy','Bypass','-File',"`"$watcherScript`""
 )
 
+$existingAirgapPids = @(
+    Get-CimInstance Win32_Process -ErrorAction SilentlyContinue |
+        Where-Object {
+            $_.Name -match '^javaw?\.exe
+ -and
+            $_.CommandLine -match '(?i)client-airgap\.jar'
+        } |
+        Select-Object -ExpandProperty ProcessId
+)
+
 Write-Host 'Starting airgap client...' -ForegroundColor Green
 Start-Process powershell.exe -WorkingDirectory $root -ArgumentList @(
     '-NoExit','-ExecutionPolicy','Bypass','-File',"`"$clientScript`""
 )
 
+$airgapClient = $null
+$clientDeadline = (Get-Date).AddSeconds(30)
+while ((Get-Date) -lt $clientDeadline) {
+    Start-Sleep -Milliseconds 250
+    $airgapClient = Get-CimInstance Win32_Process -ErrorAction SilentlyContinue |
+        Where-Object {
+            $_.Name -match '^javaw?\.exe
+ -and
+            $_.CommandLine -match '(?i)client-airgap\.jar' -and
+            $_.ProcessId -notin $existingAirgapPids
+        } |
+        Select-Object -First 1
+
+    if ($airgapClient) {
+        break
+    }
+}
+
+if (-not $airgapClient) {
+    throw 'Airgap client did not start a new client-airgap.jar Java process within 30 seconds.'
+}
+
+Write-Host "AIRGAP_CLIENT_PROCESS_READY pid=$($airgapClient.ProcessId)" -ForegroundColor Green
 Write-Host 'LOCAL_LAB_WINDOWS_STARTED_V521' -ForegroundColor Cyan
