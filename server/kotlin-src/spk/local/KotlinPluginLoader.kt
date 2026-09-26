@@ -28,7 +28,7 @@ import spk.plugin.api.PluginManifest
  * Scripts compile against an explicit allowlist classpath supplied by the
  * server. They do not inherit the server implementation classpath.
  */
-class KotlinPluginLoader(
+internal class KotlinPluginLoader(
     apiJar: Path,
     compileClasspath: List<Path>
 ) : PluginLoader {
@@ -45,7 +45,7 @@ class KotlinPluginLoader(
         validateApiJar(this.apiJar)
 
         val normalized = LinkedHashSet<Path>()
-        normalized += this.apiJar
+        normalized.add(this.apiJar)
 
         for (entry in compileClasspath) {
             val path = entry.toAbsolutePath().normalize()
@@ -64,7 +64,7 @@ class KotlinPluginLoader(
 
             validateDependencyJar(path)
 
-            normalized += path
+            normalized.add(path)
         }
 
         this.compileClasspath =
