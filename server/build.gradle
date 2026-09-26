@@ -1239,6 +1239,55 @@ tasks.register(
     }
 }
 
+tasks.register(
+    'pluginKotlinDirectoryRegression',
+    JavaExec
+) {
+    group = 'verification'
+    description = 'Proves plugins/kotlin startup discovery, production sibling artifact lookup, on-demand load, event/command callbacks, and root confinement.'
+    dependsOn(
+        tasks.named('pluginKotlinScriptHostRegression'),
+        kotlinScriptRuntimeJar,
+        pluginApiJar,
+        compileKotlinScriptingHost,
+        tasks.named('testClasses')
+    )
+
+    classpath = files(
+        sourceSets.test.runtimeClasspath,
+        kotlinScriptingHostOutput,
+        kotlinScriptingRuntime
+    )
+    mainClass =
+        'spk.local.KotlinPluginDirectoryTest'
+
+    def healthyScript =
+        file(
+            'plugin-fixtures/kotlin-script/healthy.kts'
+        )
+
+    inputs.file(healthyScript)
+
+    doFirst {
+        File apiJar =
+            pluginApiJar.get()
+                .archiveFile.get()
+                .asFile
+        File scriptRuntimeJar =
+            kotlinScriptRuntimeJar.get()
+                .archiveFile.get()
+                .asFile
+
+        setArgs(
+            [
+                healthyScript.absolutePath,
+                apiJar.absolutePath,
+                scriptRuntimeJar.absolutePath
+            ]
+        )
+    }
+}
+
 tasks.register('pluginDeveloperApiArtifactRegression') {
     group = 'verification'
     description = 'Locks the standalone allowlisted plugin API JAR and Java/JVM consumer boundary.'
