@@ -523,6 +523,30 @@ public final class PluginClassLoaderIsolationTest {
                 "non-API spk.event test resource leaked through plugin parent boundary"
             );
 
+        boolean privateNestedDenied=false;
+
+        try{
+            Class.forName(
+                "spk.event.DomainEventBus$Binding",
+                false,
+                loader
+            );
+        }catch(ClassNotFoundException expected){
+            privateNestedDenied=true;
+        }
+
+        if(!privateNestedDenied)
+            throw new AssertionError(
+                "private DomainEventBus nested class leaked through plugin parent boundary"
+            );
+
+        if(loader.getResource(
+                "spk/event/DomainEventBus$Binding.class"
+            )!=null)
+            throw new AssertionError(
+                "private DomainEventBus nested resource leaked through plugin parent boundary"
+            );
+
         if(loader.getResource(
                 "spk/event/DomainEventBus.class"
             )==null)

@@ -512,12 +512,16 @@ final class PluginJarLoader {
         ){
             return "spk/event/DomainEventBus.class"
                     .equals(name)||
-                name.startsWith(
-                    "spk/event/DomainEventBus$"
-                )&&
-                name.endsWith(
-                    ".class"
-                );
+                "spk/event/DomainEventBus$Event.class"
+                    .equals(name)||
+                "spk/event/DomainEventBus$Cancellable.class"
+                    .equals(name)||
+                "spk/event/DomainEventBus$Priority.class"
+                    .equals(name)||
+                "spk/event/DomainEventBus$Listener.class"
+                    .equals(name)||
+                "spk/event/DomainEventBus$Subscription.class"
+                    .equals(name);
         }
 
         private static boolean serverResource(
@@ -551,9 +555,16 @@ final class PluginJarLoader {
         ){
             return "spk.event.DomainEventBus"
                     .equals(name)||
-                name.startsWith(
-                    "spk.event.DomainEventBus$"
-                );
+                "spk.event.DomainEventBus$Event"
+                    .equals(name)||
+                "spk.event.DomainEventBus$Cancellable"
+                    .equals(name)||
+                "spk.event.DomainEventBus$Priority"
+                    .equals(name)||
+                "spk.event.DomainEventBus$Listener"
+                    .equals(name)||
+                "spk.event.DomainEventBus$Subscription"
+                    .equals(name);
         }
 
         private static boolean parentOnly(
