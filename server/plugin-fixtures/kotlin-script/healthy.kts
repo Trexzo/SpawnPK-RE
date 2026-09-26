@@ -33,7 +33,9 @@ object : Plugin {
             "kscript"
         ) {
             ContentResult.handled(
-                "KOTLIN_SCRIPT_EVENTS=$events",
+                "KOTLIN_SCRIPT_EVENTS=$events;tccl=" +
+                    (Thread.currentThread().contextClassLoader ===
+                        this.javaClass.classLoader),
                 null
             )
         }
