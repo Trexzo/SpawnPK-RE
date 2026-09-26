@@ -25,6 +25,7 @@ final class LegendaryPetFusionPresentation {
     static final int CLOSE_WIDGET=65418;
 
     static final int WIDGET_ACTION_OPCODE=185;
+    static final boolean STATE_WIRE_OWNED=false;
     static final String PRESENTATION_AUTHORITY=
         "EXACT_CURRENT_CLIENT";
 
@@ -42,9 +43,9 @@ final class LegendaryPetFusionPresentation {
         static final int RESULT_ITEM=12113;
         static final int RESULT_AMOUNT=1;
         static final String STATUS_TEXT=
-            "Limited time pet fusion!";
+            "@gre@Limited time pet fusion!";
         static final String AVAILABILITY_TEXT=
-            "New pet ETA: 10/26/2016";
+            "New pet ETA: @whi@10/26/2016";
 
         private LegacyEvidence(){}
     }
