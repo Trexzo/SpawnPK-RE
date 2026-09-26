@@ -11,6 +11,26 @@ public final class LocalServerStartupFailureCleanupTest {
     public static void main(
         String[] args
     )throws Exception{
+        assertBindFailureCleanup();
+        assertHookRegistrationFailureCleanup();
+
+        System.out.println(
+            "LOCAL_SERVER_STARTUP_FAILURE_CLEANUP_PASS "+
+            "gameBoundBeforeAuxFailure=true "+
+            "bindFailurePrimary=true "+
+            "gameClosed=true "+
+            "auxClosed=true "+
+            "poolTerminated=true "+
+            "worldClosed=true "+
+            "unrelatedBlockerOpen=true "+
+            "hookRegistrationFailure=true "+
+            "hookFailurePrimary=true "+
+            "repeatedCloseSafe=true"
+        );
+    }
+
+    private static void assertBindFailureCleanup()
+        throws Exception{
         InetAddress loopback=
             InetAddress.getByName(
                 "127.0.0.1"
@@ -73,24 +93,13 @@ public final class LocalServerStartupFailureCleanupTest {
                         "forced auxiliary bind failure was not propagated"
                     );
 
-                if(!game.isClosed()||
-                   !aux.isClosed())
-                    throw new AssertionError(
-                        "partial listener acquisition survived bind failure gameClosed="+
-                        game.isClosed()+
-                        " auxClosed="+
-                        aux.isClosed()
-                    );
-
-                if(!pool.isTerminated())
-                    throw new AssertionError(
-                        "session pool survived startup bind failure"
-                    );
-
-                if(!world.closed())
-                    throw new AssertionError(
-                        "World survived startup bind failure"
-                    );
+                assertTerminal(
+                    world,
+                    pool,
+                    game,
+                    aux,
+                    "bind failure"
+                );
 
                 if(blocker.isClosed())
                     throw new AssertionError(
@@ -98,29 +107,123 @@ public final class LocalServerStartupFailureCleanupTest {
                     );
 
                 shutdown.close();
-
-                if(!pool.isTerminated()||
-                   !world.closed())
-                    throw new AssertionError(
-                        "repeated startup cleanup changed terminal state"
-                    );
-
-                System.out.println(
-                    "LOCAL_SERVER_STARTUP_FAILURE_CLEANUP_PASS "+
-                    "gameBoundBeforeAuxFailure=true "+
-                    "bindFailurePrimary=true "+
-                    "gameClosed=true "+
-                    "auxClosed=true "+
-                    "poolTerminated=true "+
-                    "worldClosed=true "+
-                    "unrelatedBlockerOpen=true "+
-                    "repeatedCloseSafe=true"
-                );
             }finally{
                 if(!world.closed())
                     shutdown.close();
             }
         }
+    }
+
+    private static void
+        assertHookRegistrationFailureCleanup()
+        throws Exception{
+        InetAddress loopback=
+            InetAddress.getByName(
+                "127.0.0.1"
+            );
+
+        World world=
+            World.isolatedForTest(
+                25L
+            );
+        world.start();
+
+        ExecutorService pool=
+            Executors.newCachedThreadPool();
+        ServerSocket game=
+            new ServerSocket();
+        ServerSocket aux=
+            new ServerSocket();
+
+        LocalServerShutdownCoordinator shutdown=
+            new LocalServerShutdownCoordinator(
+                world,
+                pool,
+                game,
+                aux
+            );
+
+        try{
+            LocalServerStartupBinder.bind(
+                shutdown,
+                game,
+                new InetSocketAddress(
+                    loopback,
+                    0
+                ),
+                aux,
+                new InetSocketAddress(
+                    loopback,
+                    0
+                )
+            );
+
+            SecurityException expectedFailure=
+                new SecurityException(
+                    "fixture-hook-registration-denied"
+                );
+            Throwable observed=null;
+
+            try{
+                LocalServerStartupBinder
+                    .installShutdownHook(
+                        shutdown,
+                        ()->{
+                            throw expectedFailure;
+                        }
+                    );
+            }catch(Throwable failure){
+                observed=failure;
+            }
+
+            if(observed!=expectedFailure)
+                throw new AssertionError(
+                    "hook registration failure did not remain primary"
+                );
+
+            assertTerminal(
+                world,
+                pool,
+                game,
+                aux,
+                "hook registration failure"
+            );
+
+            shutdown.close();
+        }finally{
+            if(!world.closed())
+                shutdown.close();
+        }
+    }
+
+    private static void assertTerminal(
+        World world,
+        ExecutorService pool,
+        ServerSocket game,
+        ServerSocket aux,
+        String phase
+    ){
+        if(!game.isClosed()||
+           !aux.isClosed())
+            throw new AssertionError(
+                phase+
+                " left listener open gameClosed="+
+                game.isClosed()+
+                " auxClosed="+
+                aux.isClosed()
+            );
+
+        if(!pool.isTerminated())
+            throw new AssertionError(
+                phase+
+                " left session pool live"
+            );
+
+        if(!world.closed())
+            throw new AssertionError(
+                phase+
+                " left World live"
+            );
     }
 
     private LocalServerStartupFailureCleanupTest(){}
