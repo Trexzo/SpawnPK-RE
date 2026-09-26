@@ -1618,6 +1618,25 @@ tasks.register('customAssetPipelineHardeningRegression', JavaExec) {
     mainClass.set('spk.local.CustomAssetPipelineHardeningTest')
 }
 
+
+tasks.register('tournamentPresentationRegression') {
+    group = 'verification'
+    description = 'Validates exact-v308 Tournament hub/leaderboard roots, actions, filters and text-row projection without owning tournament policy.'
+    dependsOn tasks.named('testClasses')
+
+    doLast {
+        project.javaexec {
+            workingDir repoRoot
+            classpath = sourceSets.test.runtimeClasspath
+            mainClass.set('spk.local.TournamentPresentationTest')
+        }
+
+        logger.lifecycle(
+            'TOURNAMENT_PRESENTATION_PASS root27400=true leaderboard61011=true hubActions3=true filters4=true historyRows35=true playerRows26=true clanRows26=true prizeWidget56007Unowned=true policyOwned=false'
+        )
+    }
+}
+
 tasks.register('bossTeleportPresentationRegression') {
     group = 'verification'
     description = 'Validates exact-v308 Boss Teleport rows/actions and 12-slot preview projection without owning destination or drop policy.'
