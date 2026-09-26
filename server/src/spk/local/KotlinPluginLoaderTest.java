@@ -91,6 +91,11 @@ public final class KotlinPluginLoaderTest {
             apiJar,
             compileClasspath
         );
+        assertForgedDslDependencyRejected(
+            constructor,
+            apiJar,
+            compileClasspath
+        );
 
         PluginSource healthySource=
             PluginSource.script(
@@ -879,6 +884,80 @@ public final class KotlinPluginLoaderTest {
             if(!rejected)
                 throw new AssertionError(
                     "Kotlin loader accepted unexpected class in DSL namespace"
+                );
+        }finally{
+            Files.deleteIfExists(
+                fake
+            );
+            Files.deleteIfExists(
+                directory
+            );
+        }
+    }
+
+    private static void
+        assertForgedDslDependencyRejected(
+            Constructor<?> constructor,
+            Path apiJar,
+            List<Path> healthyClasspath
+        )throws Exception{
+        Path directory=
+            Files.createTempDirectory(
+                "kotlin-script-forged-dsl-"
+            );
+        Path fake=
+            directory.resolve(
+                "renamed-runtime.jar"
+            );
+
+        try{
+            try(JarOutputStream out=
+                    new JarOutputStream(
+                        Files.newOutputStream(
+                            fake
+                        )
+                    )){
+                out.putNextEntry(
+                    new JarEntry(
+                        "spk/plugin/kotlin/KotlinPluginDslKt.class"
+                    )
+                );
+                out.write(
+                    new byte[]{0}
+                );
+                out.closeEntry();
+            }
+
+            ArrayList<Path> poisoned=
+                new ArrayList<>(
+                    healthyClasspath
+                );
+            poisoned.add(fake);
+
+            boolean rejected=false;
+
+            try{
+                constructor.newInstance(
+                    apiJar,
+                    poisoned
+                );
+            }catch(InvocationTargetException expected){
+                Throwable cause=
+                    expected.getCause();
+
+                rejected=
+                    cause instanceof
+                        IllegalArgumentException&&
+                    cause.getMessage()!=null&&
+                    cause.getMessage()
+                        .contains(
+                            "does not match server SDK"
+                        );
+            }
+
+            if(!rejected)
+                throw new AssertionError(
+                    "Kotlin loader accepted forged DSL SDK class"
                 );
         }finally{
             Files.deleteIfExists(
