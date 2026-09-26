@@ -1618,6 +1618,25 @@ tasks.register('customAssetPipelineHardeningRegression', JavaExec) {
     mainClass.set('spk.local.CustomAssetPipelineHardeningTest')
 }
 
+
+tasks.register('monsterSpawnerPresentationRegression') {
+    group = 'verification'
+    description = 'Validates exact-v308 Monster Spawner root, toggle, 22 row actions, text projection and unattached-control boundary without owning spawn policy.'
+    dependsOn tasks.named('testClasses')
+
+    doLast {
+        project.javaexec {
+            workingDir repoRoot
+            classpath = sourceSets.test.runtimeClasspath
+            mainClass.set('spk.local.MonsterSpawnerPresentationTest')
+        }
+
+        logger.lifecycle(
+            'MONSTER_SPAWNER_PRESENTATION_PASS root41000=true toggle41007=true rows22=true selectedNpc41019=true scroll41020=true distanced41017Unattached=true x3_41018Unattached=true catalogOwned=false spawnPolicyOwned=false'
+        )
+    }
+}
+
 tasks.register('bossTeleportPresentationRegression') {
     group = 'verification'
     description = 'Validates exact-v308 Boss Teleport rows/actions and 12-slot preview projection without owning destination or drop policy.'
