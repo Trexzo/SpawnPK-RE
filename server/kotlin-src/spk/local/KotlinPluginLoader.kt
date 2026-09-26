@@ -4,6 +4,7 @@ import java.io.File
 import java.nio.file.Files
 import java.nio.file.Path
 import java.util.Locale
+import java.util.jar.JarFile
 import kotlin.script.experimental.api.ResultValue
 import kotlin.script.experimental.api.ResultWithDiagnostics
 import kotlin.script.experimental.api.ScriptDiagnostic
@@ -41,6 +42,8 @@ class KotlinPluginLoader(
             "plugin API JAR missing: ${this.apiJar}"
         }
 
+        validateApiJar(this.apiJar)
+
         val normalized = LinkedHashSet<Path>()
         normalized += this.apiJar
 
@@ -58,6 +61,8 @@ class KotlinPluginLoader(
             require(name != "spawnpklocalserver.jar") {
                 "server implementation JAR is forbidden on Kotlin script compile classpath: $path"
             }
+
+            validateDependencyJar(path)
 
             normalized += path
         }
@@ -165,6 +170,68 @@ class KotlinPluginLoader(
             parent
         )
     }
+
+    private fun validateApiJar(path: Path) {
+        JarFile(path.toFile()).use { jar ->
+            val entries = jar.entries()
+
+            while (entries.hasMoreElements()) {
+                val entry = entries.nextElement()
+
+                if (entry.isDirectory) {
+                    continue
+                }
+
+                val name = entry.name.replace('\\', '/')
+
+                if (!name.startsWith("spk/")) {
+                    continue
+                }
+
+                require(
+                    name.startsWith("spk/plugin/api/") ||
+                        name.startsWith("spk/content/api/") ||
+                        exportedEventResource(name)
+                ) {
+                    "plugin API JAR exposes non-public SpawnPK namespace: $name"
+                }
+            }
+        }
+    }
+
+    private fun validateDependencyJar(path: Path) {
+        if (!path.fileName.toString()
+                .lowercase(Locale.ROOT)
+                .endsWith(".jar")) {
+            return
+        }
+
+        JarFile(path.toFile()).use { jar ->
+            val entries = jar.entries()
+
+            while (entries.hasMoreElements()) {
+                val entry = entries.nextElement()
+
+                if (!entry.isDirectory &&
+                    entry.name
+                        .replace('\\', '/')
+                        .startsWith("spk/")) {
+                    throw IllegalArgumentException(
+                        "Kotlin script dependency contains SpawnPK server/API classes: " +
+                            path + " entry=" + entry.name
+                    )
+                }
+            }
+        }
+    }
+
+    private fun exportedEventResource(name: String): Boolean =
+        name == "spk/event/DomainEventBus.class" ||
+            name == "spk/event/DomainEventBus\$Event.class" ||
+            name == "spk/event/DomainEventBus\$Cancellable.class" ||
+            name == "spk/event/DomainEventBus\$Priority.class" ||
+            name == "spk/event/DomainEventBus\$Listener.class" ||
+            name == "spk/event/DomainEventBus\$Subscription.class"
 
     private fun diagnosticMessage(
         script: Path,
