@@ -43,6 +43,24 @@ public final class TournamentPresentationTest {
         );
 
         require(
+            TournamentPresentation.ENTER_WIDGET==0xdaec&&
+            TournamentPresentation.SPECTATE_WIDGET==0xdaf1&&
+            TournamentPresentation.SHOP_WIDGET==0xdaf5,
+            "hub C2S185 wire bodies"
+        );
+        require(
+            TournamentPresentation.PLAYER_WEEK_WIDGET==0xee58&&
+            TournamentPresentation.PLAYER_ALL_TIME_WIDGET==0xee59&&
+            TournamentPresentation.CLAN_WEEK_WIDGET==0xee5c&&
+            TournamentPresentation.CLAN_ALL_TIME_WIDGET==0xee5d,
+            "leaderboard C2S185 wire bodies"
+        );
+        require(
+            TournamentPresentation.WIDGET_ACTION_OPCODE==185,
+            "widget action opcode"
+        );
+
+        require(
             TournamentPresentation.HISTORY_ROWS==35&&
             TournamentPresentation
                 .historyRowWidget(0)==56009&&
