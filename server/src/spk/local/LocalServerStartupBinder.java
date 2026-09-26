@@ -19,6 +19,19 @@ final class LocalServerStartupBinder {
             throws IOException;
     }
 
+    interface ShutdownHookFactory {
+        Thread create(
+            Runnable target,
+            String name
+        );
+    }
+
+    interface ShutdownHookInstaller {
+        void install(
+            Thread hook
+        );
+    }
+
     static final class Resources {
         final ServerSocket game;
         final ServerSocket aux;
@@ -168,13 +181,28 @@ final class LocalServerStartupBinder {
         }
     }
 
-    static void installShutdownHook(
+    static Thread installShutdownHook(
         LocalServerShutdownCoordinator shutdown,
-        Runnable installer
+        Runnable target,
+        String name,
+        ShutdownHookFactory factory,
+        ShutdownHookInstaller installer
     ){
         Objects.requireNonNull(
             shutdown,
             "shutdown"
+        );
+        Objects.requireNonNull(
+            target,
+            "target"
+        );
+        Objects.requireNonNull(
+            name,
+            "name"
+        );
+        Objects.requireNonNull(
+            factory,
+            "factory"
         );
         Objects.requireNonNull(
             installer,
@@ -182,7 +210,20 @@ final class LocalServerStartupBinder {
         );
 
         try{
-            installer.run();
+            Thread hook=
+                Objects.requireNonNull(
+                    factory.create(
+                        target,
+                        name
+                    ),
+                    "shutdown hook"
+                );
+
+            installer.install(
+                hook
+            );
+
+            return hook;
         }catch(Throwable failure){
             try{
                 shutdown.close();
@@ -196,7 +237,33 @@ final class LocalServerStartupBinder {
             rethrowUnchecked(
                 failure
             );
+            throw new AssertionError(
+                "unreachable"
+            );
         }
+    }
+
+    static void installShutdownHook(
+        LocalServerShutdownCoordinator shutdown,
+        Runnable installer
+    ){
+        Objects.requireNonNull(
+            installer,
+            "installer"
+        );
+
+        installShutdownHook(
+            shutdown,
+            ()->{},
+            "spk-local-shutdown-compat",
+            (target,name)->
+                new Thread(
+                    target,
+                    name
+                ),
+            hook->
+                installer.run()
+        );
     }
 
     private static void cleanupBeforeCoordinator(
