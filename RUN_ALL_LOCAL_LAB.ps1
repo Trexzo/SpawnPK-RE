@@ -96,8 +96,7 @@ Start-Process powershell.exe -WorkingDirectory $root -ArgumentList @(
 $existingAirgapPids = @(
     Get-CimInstance Win32_Process -ErrorAction SilentlyContinue |
         Where-Object {
-            $_.Name -match '^javaw?\.exe
- -and
+            $_.Name -match '^javaw?\.exe$' -and
             $_.CommandLine -match '(?i)client-airgap\.jar'
         } |
         Select-Object -ExpandProperty ProcessId
@@ -114,8 +113,7 @@ while ((Get-Date) -lt $clientDeadline) {
     Start-Sleep -Milliseconds 250
     $airgapClient = Get-CimInstance Win32_Process -ErrorAction SilentlyContinue |
         Where-Object {
-            $_.Name -match '^javaw?\.exe
- -and
+            $_.Name -match '^javaw?\.exe$' -and
             $_.CommandLine -match '(?i)client-airgap\.jar' -and
             $_.ProcessId -notin $existingAirgapPids
         } |
