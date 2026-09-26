@@ -13,6 +13,7 @@ import java.util.jar.JarOutputStream;
 import spk.content.api.ContentActionResult;
 import spk.content.api.ContentInteractionResult;
 import spk.content.api.ContentNpcOptionResult;
+import spk.content.api.ContentProvenance;
 import spk.content.api.ContentResult;
 import spk.event.DomainEventBus;
 import spk.plugin.api.Plugin;
@@ -173,6 +174,37 @@ public final class KotlinPluginLoaderTest {
                     runtime
                 );
 
+            assertBinding(
+                world.content()
+                    .commandBinding(
+                        "kscript"
+                    ),
+                "command"
+            );
+            assertBinding(
+                world.content()
+                    .npcOptionBinding(
+                        301,
+                        1
+                    ),
+                "npc"
+            );
+            assertBinding(
+                world.content()
+                    .itemOptionBinding(
+                        201,
+                        1
+                    ),
+                "item"
+            );
+            assertBinding(
+                world.content()
+                    .actionBinding(
+                        "fixture.kotlin.button"
+                    ),
+                "action"
+            );
+
             boolean ownedDuplicateRejected=
                 false;
 
@@ -301,7 +333,7 @@ public final class KotlinPluginLoaderTest {
                 5_000L
             );
 
-            if(!"KOTLIN_SCRIPT_EVENTS=1"
+            if(!"KOTLIN_SCRIPT_EVENTS=1;tccl=true"
                     .equals(
                         commandResult[0]
                     ))
@@ -337,6 +369,28 @@ public final class KotlinPluginLoaderTest {
                     "fixture.kotlin.script"))
                 throw new AssertionError(
                     "Kotlin script plugin disable failed"
+                );
+
+            if(world.content()
+                    .commandBinding(
+                        "kscript"
+                    )!=null||
+               world.content()
+                    .npcOptionBinding(
+                        301,
+                        1
+                    )!=null||
+               world.content()
+                    .itemOptionBinding(
+                        201,
+                        1
+                    )!=null||
+               world.content()
+                    .actionBinding(
+                        "fixture.kotlin.button"
+                    )!=null)
+                throw new AssertionError(
+                    "Kotlin DSL registrations survived disable"
                 );
 
             assertHandleReleasedLoader(
@@ -434,6 +488,9 @@ public final class KotlinPluginLoaderTest {
             "npcDsl=true "+
             "itemDsl=true "+
             "semanticButtonDsl=true "+
+            "customProvenance=true "+
+            "callbackTccl=true "+
+            "disableRegistrationCleanup=true "+
             "worldThreadLifecycle=true "+
             "ownedDuplicateKeepsRuntime=true "+
             "freshDuplicateClosesRuntime=true "+
@@ -443,6 +500,25 @@ public final class KotlinPluginLoaderTest {
             "worldCloseIdempotent=true "+
             "terminalRuntime=true"
         );
+    }
+
+    private static void assertBinding(
+        ContentRegistry.BindingInfo binding,
+        String label
+    ){
+        if(binding==null||
+           !"plugin:fixture.kotlin.script"
+                .equals(
+                    binding.moduleId
+                )||
+           binding.provenance!=
+                ContentProvenance.CUSTOM_LOCALLAB)
+            throw new AssertionError(
+                "Kotlin DSL "+
+                label+
+                " binding mismatch: "+
+                binding
+            );
     }
 
     private static Path createEnableFailureScript()
