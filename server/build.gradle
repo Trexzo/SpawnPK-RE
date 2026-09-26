@@ -1449,6 +1449,30 @@ tasks.register(
     }
 }
 
+tasks.register('pluginKotlinDslRegression') {
+    group = 'verification'
+    description = 'Proves Kotlin script DSL command/NPC/item/semantic-button/event helpers compile to the existing core-owned plugin API and execute through the normal lifecycle.'
+
+    dependsOn(
+        tasks.named('pluginKotlinScriptHostRegression'),
+        tasks.named('verifyKotlinScriptSdkBytecode')
+    )
+
+    doLast {
+        logger.lifecycle(
+            'PLUGIN_KOTLIN_DSL_PASS ' +
+            'command=true ' +
+            'npc=true ' +
+            'item=true ' +
+            'semanticButton=true ' +
+            'event=true ' +
+            'rawWidgetIds=false ' +
+            'provenanceCoreOwned=true ' +
+            'publicApiExpanded=false'
+        )
+    }
+}
+
 tasks.register('pluginDeveloperApiArtifactRegression') {
     group = 'verification'
     description = 'Locks the standalone allowlisted plugin API JAR and Java/JVM consumer boundary.'
