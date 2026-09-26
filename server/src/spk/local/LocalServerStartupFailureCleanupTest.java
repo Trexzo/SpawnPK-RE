@@ -11,11 +11,14 @@ public final class LocalServerStartupFailureCleanupTest {
     public static void main(
         String[] args
     )throws Exception{
+        assertListenerConstructionFailureCleanup();
         assertBindFailureCleanup();
         assertHookRegistrationFailureCleanup();
 
         System.out.println(
             "LOCAL_SERVER_STARTUP_FAILURE_CLEANUP_PASS "+
+            "listenerConstructionFailure=true "+
+            "partialConstructedSocketClosed=true "+
             "gameBoundBeforeAuxFailure=true "+
             "bindFailurePrimary=true "+
             "gameClosed=true "+
@@ -27,6 +30,70 @@ public final class LocalServerStartupFailureCleanupTest {
             "hookFailurePrimary=true "+
             "repeatedCloseSafe=true"
         );
+    }
+
+    private static void
+        assertListenerConstructionFailureCleanup()
+        throws Exception{
+        World world=
+            World.isolatedForTest(
+                25L
+            );
+        world.start();
+
+        ExecutorService pool=
+            Executors.newCachedThreadPool();
+
+        final ServerSocket[] first=
+            new ServerSocket[1];
+        final int[] calls=
+            new int[1];
+        IOException expectedFailure=
+            new IOException(
+                "fixture-second-listener-create-failure"
+            );
+        Throwable observed=null;
+
+        try{
+            LocalServerStartupBinder.prepare(
+                world,
+                pool,
+                ()->{
+                    calls[0]++;
+
+                    if(calls[0]==1){
+                        first[0]=
+                            new ServerSocket();
+                        return first[0];
+                    }
+
+                    throw expectedFailure;
+                }
+            );
+        }catch(Throwable failure){
+            observed=failure;
+        }
+
+        if(observed!=expectedFailure)
+            throw new AssertionError(
+                "listener construction failure did not remain primary"
+            );
+
+        if(first[0]==null||
+           !first[0].isClosed())
+            throw new AssertionError(
+                "partially constructed listener survived startup failure"
+            );
+
+        if(!pool.isTerminated())
+            throw new AssertionError(
+                "listener construction failure left pool live"
+            );
+
+        if(!world.closed())
+            throw new AssertionError(
+                "listener construction failure left World live"
+            );
     }
 
     private static void assertBindFailureCleanup()
