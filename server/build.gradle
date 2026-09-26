@@ -365,21 +365,22 @@ def compileKotlinPluginDsl =
                     'No Kotlin plugin DSL sources found.'
                 )
 
-            String compileClasspath =
+            def compileEntries =
                 files(
                     apiJar,
                     kotlinScriptPluginClasspath
-                ).asPath
+                )
 
-            if(files(
-                    compileClasspath
-                ).files.any {
+            if(compileEntries.files.any {
                     it.name ==
                         'SpawnPKLocalServer.jar'
                 })
                 throw new GradleException(
                     'Kotlin plugin DSL compile classpath contains server JAR.'
                 )
+
+            String compileClasspath =
+                compileEntries.asPath
 
             setArgs(
                 [
