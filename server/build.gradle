@@ -297,8 +297,41 @@ def pluginApiJar =
         }
     }
 
+def kotlinScriptRuntimeJar =
+    tasks.register(
+        'kotlinScriptRuntimeJar',
+        Jar
+    ) {
+        group = 'build'
+        description = 'Builds the script-visible Kotlin runtime artifact without SpawnPK server implementation classes.'
+        archiveFileName =
+            'SpawnPKKotlinScriptRuntime.jar'
+        destinationDirectory =
+            layout.buildDirectory
+        duplicatesStrategy =
+            DuplicatesStrategy.EXCLUDE
+
+        from {
+            kotlinScriptPluginClasspath.collect {
+                file ->
+                    file.isDirectory()
+                        ? file
+                        : zipTree(file)
+            }
+        }
+
+        exclude(
+            'META-INF/*.SF',
+            'META-INF/*.DSA',
+            'META-INF/*.RSA'
+        )
+    }
+
 tasks.named('assemble') {
-    dependsOn pluginApiJar
+    dependsOn(
+        pluginApiJar,
+        kotlinScriptRuntimeJar
+    )
 }
 
 def compileJavaPluginApiFixture =
@@ -829,7 +862,8 @@ def mergeKotlinScriptingServices =
 tasks.named('jar', Jar) {
     dependsOn(
         compileKotlinScriptingHost,
-        mergeKotlinScriptingServices
+        mergeKotlinScriptingServices,
+        kotlinScriptRuntimeJar
     )
 
     from(kotlinScriptingHostOutput)
@@ -1126,7 +1160,7 @@ tasks.register(
     inputs.files(
         healthyScript,
         deniedScript,
-        kotlinScriptPluginClasspath
+        kotlinScriptRuntimeJar
     )
 
     doFirst {
@@ -1135,25 +1169,18 @@ tasks.register(
                 .archiveFile.get()
                 .asFile
 
-        def scriptDependencies =
-            kotlinScriptPluginClasspath
-                .files
-                .sort {
-                    left,
-                    right ->
-                        left.absolutePath <=>
-                        right.absolutePath
-                }
+        File scriptRuntimeJar =
+            kotlinScriptRuntimeJar.get()
+                .archiveFile.get()
+                .asFile
 
         setArgs(
             [
                 healthyScript.absolutePath,
                 deniedScript.absolutePath,
-                apiJar.absolutePath
-            ] +
-            scriptDependencies.collect {
-                it.absolutePath
-            }
+                apiJar.absolutePath,
+                scriptRuntimeJar.absolutePath
+            ]
         )
     }
 }
