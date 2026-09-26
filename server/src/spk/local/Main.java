@@ -116,8 +116,11 @@ public final class Main {
         Runtime runtime =
             Runtime.getRuntime();
 
-        runtime.addShutdownHook(
-            shutdownHook
+        LocalServerStartupBinder.installShutdownHook(
+            shutdown,
+            ()->runtime.addShutdownHook(
+                shutdownHook
+            )
         );
 
         try {
