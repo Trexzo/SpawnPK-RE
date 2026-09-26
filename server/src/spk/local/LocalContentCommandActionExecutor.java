@@ -295,6 +295,22 @@ final class LocalContentCommandActionExecutor {
                 )
             );
 
+        Integer petDamage=
+            diagnosticIntValue(
+                actionKey,
+                LocalLabCoreContentModule
+                    .PET_DAMAGE_ACTION_PREFIX
+            );
+
+        if(petDamage!=null&&
+           petRuntime!=null)
+            return Outcome.lines(
+                petRuntime.damage(
+                    petDamage,
+                    packets
+                )
+            );
+
         Integer prayerIcon=
             diagnosticIntValue(
                 actionKey,
