@@ -15,10 +15,55 @@ import spk.plugin.api.Plugin;
 import spk.plugin.api.PluginContext;
 import spk.plugin.api.PluginManifest;
 
-final class PluginJarLoader {
+final class PluginJarLoader implements PluginLoader {
+    private static final PluginJarLoader INSTANCE=
+        new PluginJarLoader();
     private static final String RESERVED_SERVER_ENTRY_PREFIX=
         "spk/";
 
+    static PluginJarLoader instance(){
+        return INSTANCE;
+    }
+
+    @Override public boolean supports(
+        PluginSource source
+    ){
+        if(source==null||
+           !source.hasEntrypoint())
+            return false;
+
+        Path fileName=
+            source.path()
+                .getFileName();
+
+        return fileName!=null&&
+            fileName.toString()
+                .toLowerCase(
+                    java.util.Locale.ROOT
+                ).endsWith(
+                    ".jar"
+                );
+    }
+
+    @Override public Plugin load(
+        PluginSource source
+    )throws Exception{
+        Objects.requireNonNull(
+            source,
+            "source"
+        );
+
+        if(!supports(source))
+            throw new IllegalArgumentException(
+                "unsupported JAR plugin source: "+
+                source.path()
+            );
+
+        return load(
+            source.path(),
+            source.requireEntrypoint()
+        );
+    }
     static LoadedPlugin load(
         Path jar,
         String entrypoint
