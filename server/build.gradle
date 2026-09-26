@@ -4122,6 +4122,17 @@ tasks.register('petDamageContentCommandActionOwnershipRegression') {
     }
 }
 
+tasks.register('localServerStartupFailureCleanupRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves partial LocalLab listener bind failure closes listeners, pool and World through the ordinary shutdown coordinator.'
+    dependsOn tasks.named('testClasses')
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.LocalServerStartupFailureCleanupTest'
+}
+
+
 tasks.register('chat1CurrentCumulativeCertification') {
     group = 'verification'
     description = 'Runs the complete current Chat 1 release candidate: Issue #5 Kotlin scripting, #271/#427 presentation/application gates, Issue #7 pet-damage ownership, focused 175 and canonical exact-v308 179.'
@@ -4138,7 +4149,8 @@ tasks.register('chat1CurrentCumulativeCertification') {
         tasks.named('legendaryPetFusionPresentationRegression'),
         tasks.named('bloodcoreLotteryPresentationRegression'),
         tasks.named('petDamageContentCommandActionOwnershipRegression'),
-        tasks.named('petSpecializedProcContentCommandActionOwnershipRegression')
+        tasks.named('petSpecializedProcContentCommandActionOwnershipRegression'),
+        tasks.named('localServerStartupFailureCleanupRegression')
     )
 
     doLast {
@@ -4154,6 +4166,7 @@ tasks.register('chat1CurrentCumulativeCertification') {
             'bloodcoreLottery=true ' +
             'petDamage=true ' +
             'specializedPetProc=true ' +
+            'startupFailureAtomic=true ' +
             'focused=175 ' +
             'exactV308=179 ' +
             'clientSha256=' + v308AcceptanceClientSha256 + ' ' +
