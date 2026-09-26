@@ -717,6 +717,25 @@ tasks.register(
     )
 }
 
+tasks.register(
+    'pluginLoaderAbstractionRegression',
+    JavaExec
+) {
+    group = 'verification'
+    description = 'Proves the internal PluginLoader boundary preserves the existing isolated JAR runtime while reserving .kts for Kotlin scripting.'
+    dependsOn(
+        tasks.named('testClasses'),
+        pluginIsolationAJar
+    )
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass =
+        'spk.local.PluginLoaderAbstractionTest'
+    args(
+        pluginIsolationAJar.flatMap {
+            it.archiveFile
+        }.get().asFile.absolutePath
+    )
+}
 tasks.register('pluginDeveloperApiArtifactRegression') {
     group = 'verification'
     description = 'Locks the standalone allowlisted plugin API JAR and Java/JVM consumer boundary.'
