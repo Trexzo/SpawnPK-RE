@@ -279,6 +279,40 @@ final class LocalContentCommandActionExecutor {
                 )
             );
 
+        Integer evilWolperState=
+            diagnosticIntValue(
+                actionKey,
+                LocalLabCoreContentModule
+                    .PET_EVIL_WOLPER_PROC_ACTION_PREFIX
+            );
+
+        if(evilWolperState!=null&&
+           evilWolperState>=1&&
+           evilWolperState<=3&&
+           petRuntime!=null)
+            return Outcome.lines(
+                petRuntime.evilWolperProc(
+                    evilWolperState,
+                    packets
+                )
+            );
+
+        Integer temporossState=
+            diagnosticIntValue(
+                actionKey,
+                LocalLabCoreContentModule
+                    .PET_TEMPOROSS_PROC_ACTION_PREFIX
+            );
+
+        if(temporossState!=null&&
+           petRuntime!=null)
+            return Outcome.lines(
+                petRuntime.temporossProc(
+                    temporossState,
+                    packets
+                )
+            );
+
         Integer petCharge=
             diagnosticIntValue(
                 actionKey,
