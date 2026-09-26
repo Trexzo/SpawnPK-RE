@@ -333,7 +333,7 @@ public final class KotlinPluginLoaderTest {
                 5_000L
             );
 
-            if(!"KOTLIN_SCRIPT_EVENTS=1;tccl=true"
+            if(!"KOTLIN_SCRIPT_EVENTS=1;args=;tccl=true"
                     .equals(
                         commandResult[0]
                     ))
@@ -485,6 +485,7 @@ public final class KotlinPluginLoaderTest {
             "scriptSdkIdentity=true "+
             "eventCallback=true "+
             "commandDsl=true "+
+            "commandPlayerArgsDsl=true "+
             "npcDsl=true "+
             "itemDsl=true "+
             "semanticButtonDsl=true "+
