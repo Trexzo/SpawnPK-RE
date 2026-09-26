@@ -59,6 +59,8 @@ public final class LocalLabCoreContentModule
         "locallab.petruntime.proc";
     public static final String PET_CHARGE_ACTION_PREFIX=
         "locallab.petruntime.charge";
+    public static final String PET_DAMAGE_ACTION_PREFIX=
+        "locallab.petruntime.damage";
 
     public static final String COMBAT_FIXTURE_ACTION_PREFIX=
         "locallab.combatfixture.hit";
@@ -232,6 +234,18 @@ public final class LocalLabCoreContentModule
             "petcharge",
             100,
             this::petCharge
+        );
+
+        registrar.command(
+            "behemothhit",
+            100,
+            this::petDamage
+        );
+
+        registrar.command(
+            "petdamage",
+            100,
+            this::petDamage
         );
 
         registrar.command(
@@ -582,6 +596,24 @@ public final class LocalLabCoreContentModule
             PET_CHARGE_ACTION_PREFIX+
             ":"+
             charge
+        );
+    }
+
+    private ContentResult petDamage(
+        ContentCommandContext context
+    ){
+        int damage=
+            context.arguments().isEmpty()
+                ?0
+                :parseInt(
+                    context.arguments().get(0),
+                    0
+                );
+
+        return ContentResult.action(
+            PET_DAMAGE_ACTION_PREFIX+
+            ":"+
+            damage
         );
     }
 

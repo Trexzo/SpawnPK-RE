@@ -179,6 +179,20 @@ final class LocalPetRuntimeCommandHandler {
             " effectState={"+petEffects.summary()+"}");
     }
 
+    List<String> damage(
+        int damage,
+        ServerPacketWriter serverPackets
+    )throws IOException{
+        return one(
+            applyDamage(
+                damage,
+                System.currentTimeMillis(),
+                serverPackets,
+                "MANUAL_BEHEMOTH_HIT"
+            )
+        );
+    }
+
     List<String> handle(
         String[] p,
         ServerPacketWriter serverPackets
@@ -427,18 +441,6 @@ final class LocalPetRuntimeCommandHandler {
                 "V59_PET_TEST result=UNKNOWN_SUBCOMMAND sub="+
                 sub+
                 " use=::pettest_help");
-        }
-
-        if(p[0].equalsIgnoreCase("behemothhit")||
-           p[0].equalsIgnoreCase("petdamage")){
-            int damage=p.length>=2?parseInt(p[1],0):0;
-
-            return one(
-                applyDamage(
-                    damage,
-                    System.currentTimeMillis(),
-                    serverPackets,
-                    "MANUAL_BEHEMOTH_HIT"));
         }
 
         if(p[0].equalsIgnoreCase("evilwolperproc")){
