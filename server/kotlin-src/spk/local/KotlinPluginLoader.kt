@@ -212,14 +212,20 @@ class KotlinPluginLoader(
             while (entries.hasMoreElements()) {
                 val entry = entries.nextElement()
 
-                if (!entry.isDirectory &&
-                    entry.name
-                        .replace('\\', '/')
-                        .startsWith("spk/")) {
-                    throw IllegalArgumentException(
-                        "Kotlin script dependency contains SpawnPK server/API classes: " +
-                            path + " entry=" + entry.name
-                    )
+                if (!entry.isDirectory) {
+                    val name =
+                        entry.name
+                            .replace('\\', '/')
+
+                    if (name.startsWith("spk/") &&
+                        !name.startsWith(
+                            "spk/plugin/kotlin/"
+                        )) {
+                        throw IllegalArgumentException(
+                            "Kotlin script dependency contains forbidden SpawnPK classes: " +
+                                path + " entry=" + entry.name
+                        )
+                    }
                 }
             }
         }
@@ -354,6 +360,7 @@ class KotlinPluginLoader(
                 name.startsWith("org.jetbrains.annotations.") ||
                 name.startsWith("spk.plugin.api.") ||
                 name.startsWith("spk.content.api.") ||
+                name.startsWith("spk.plugin.kotlin.") ||
                 exportedEventClass(name)
 
         private fun exportedEventClass(name: String): Boolean =
@@ -367,6 +374,7 @@ class KotlinPluginLoader(
         private fun exportedServerResource(name: String): Boolean =
             name.startsWith("spk/plugin/api/") ||
                 name.startsWith("spk/content/api/") ||
+                name.startsWith("spk/plugin/kotlin/") ||
                 name == "spk/event/DomainEventBus.class" ||
                 name == "spk/event/DomainEventBus\$Event.class" ||
                 name == "spk/event/DomainEventBus\$Cancellable.class" ||
