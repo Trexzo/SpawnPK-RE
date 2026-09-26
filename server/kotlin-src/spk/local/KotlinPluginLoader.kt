@@ -217,15 +217,36 @@ class KotlinPluginLoader(
                         entry.name
                             .replace('\\', '/')
 
-                    if (name.startsWith("spk/") &&
-                        !exportedDslResource(
-                            path,
-                            name
-                        )) {
-                        throw IllegalArgumentException(
+                    if (name.startsWith("spk/")) {
+                        require(
+                            exportedDslResource(
+                                name
+                            )
+                        ) {
                             "Kotlin script dependency contains SpawnPK classes outside the DSL allowlist: " +
                                 path + " entry=" + entry.name
-                        )
+                        }
+
+                        val expected =
+                            Plugin::class.java.classLoader
+                                .getResourceAsStream(name)
+                                ?.use { it.readBytes() }
+                                ?: throw IllegalArgumentException(
+                                    "Kotlin DSL server resource missing: $name"
+                                )
+
+                        val actual =
+                            jar.getInputStream(entry)
+                                .use { it.readBytes() }
+
+                        require(
+                            actual.contentEquals(
+                                expected
+                            )
+                        ) {
+                            "Kotlin DSL dependency class does not match server SDK: " +
+                                path + " entry=" + entry.name
+                        }
                     }
                 }
             }
@@ -241,25 +262,13 @@ class KotlinPluginLoader(
             name == "spk/event/DomainEventBus\$Subscription.class"
 
     private fun exportedDslResource(
-        path: Path,
         name: String
-    ): Boolean {
-        val artifact =
-            path.fileName?.toString()
-                ?.lowercase(Locale.ROOT)
-                ?: return false
-
-        if (artifact !=
-            "spawnpkkotlinscriptruntime.jar") {
-            return false
-        }
-
-        return name ==
+    ): Boolean =
+        name ==
             "spk/plugin/kotlin/KotlinPluginDslKt.class" ||
             name.startsWith(
                 "spk/plugin/kotlin/KotlinPluginDslKt\$"
             )
-    }
 
 
     private fun diagnosticMessage(
