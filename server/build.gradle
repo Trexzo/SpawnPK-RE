@@ -297,19 +297,158 @@ def pluginApiJar =
         }
     }
 
+def kotlinScriptSdkOutput =
+    layout.buildDirectory.dir(
+        'classes/kotlin-script-sdk/main'
+    )
+
+def compileKotlinScriptSdk =
+    tasks.register(
+        'compileKotlinScriptSdk',
+        JavaExec
+    ) {
+        group = 'build'
+        description = 'Compiles Kotlin script DSL helpers against the standalone plugin API and script-visible Kotlin runtime only.'
+        dependsOn pluginApiJar
+
+        classpath = kotlinFixtureCompiler
+        mainClass =
+            'org.jetbrains.kotlin.cli.jvm.K2JVMCompiler'
+        javaLauncher =
+            javaToolchains.launcherFor {
+                languageVersion =
+                    JavaLanguageVersion.of(21)
+            }
+
+        def kotlinSources =
+            fileTree(
+                'kotlin-sdk'
+            ) {
+                include '**/*.kt'
+            }
+
+        inputs.files(kotlinSources)
+        inputs.files(kotlinScriptPluginClasspath)
+        outputs.dir(kotlinScriptSdkOutput)
+
+        doFirst {
+            File output =
+                kotlinScriptSdkOutput
+                    .get()
+                    .asFile
+
+            project.delete(output)
+
+            if(!output.mkdirs()&&
+               !output.isDirectory())
+                throw new GradleException(
+                    'Could not create Kotlin script SDK output: ' +
+                    output
+                )
+
+            File apiJar =
+                pluginApiJar.get()
+                    .archiveFile.get()
+                    .asFile
+
+            def sources =
+                kotlinSources.files
+                    .sort {
+                        left,
+                        right ->
+                            left.absolutePath <=>
+                            right.absolutePath
+                    }
+
+            if(sources.empty)
+                throw new GradleException(
+                    'No Kotlin script SDK sources found.'
+                )
+
+            String compileClasspath =
+                files(
+                    apiJar,
+                    kotlinScriptPluginClasspath
+                ).asPath
+
+            setArgs(
+                [
+                    '-jvm-target',
+                    '11',
+                    '-Xjdk-release=11',
+                    '-no-reflect',
+                    '-no-stdlib',
+                    '-classpath',
+                    compileClasspath,
+                    '-d',
+                    output.absolutePath
+                ] +
+                sources.collect {
+                    it.absolutePath
+                }
+            )
+        }
+    }
+
+tasks.register('verifyKotlinScriptSdkBytecode') {
+    group = 'verification'
+    description = 'Verifies Kotlin script SDK classes remain Java 11 bytecode compatible.'
+    dependsOn compileKotlinScriptSdk
+
+    doLast {
+        def classFiles =
+            fileTree(
+                kotlinScriptSdkOutput
+                    .get()
+                    .asFile
+            ) {
+                include '**/*.class'
+            }.files
+
+        if(classFiles.empty)
+            throw new GradleException(
+                'Kotlin script SDK produced no class files.'
+            )
+
+        classFiles.each { classFile ->
+            int major =
+                readClassMajor(
+                    classFile
+                )
+
+            if(major != 55)
+                throw new GradleException(
+                    'Kotlin script SDK bytecode major=' +
+                    major +
+                    ', expected=55 file=' +
+                    classFile
+                )
+        }
+
+        logger.lifecycle(
+            'KOTLIN_SCRIPT_SDK_BYTECODE_PASS major=55 classes=' +
+            classFiles.size()
+        )
+    }
+}
+
+
 def kotlinScriptRuntimeJar =
     tasks.register(
         'kotlinScriptRuntimeJar',
         Jar
     ) {
         group = 'build'
-        description = 'Builds the script-visible Kotlin runtime artifact without SpawnPK server implementation classes.'
+        description = 'Builds the script-visible Kotlin runtime + DSL artifact without SpawnPK server implementation classes.'
+        dependsOn compileKotlinScriptSdk
         archiveFileName =
             'SpawnPKKotlinScriptRuntime.jar'
         destinationDirectory =
             layout.buildDirectory
         duplicatesStrategy =
             DuplicatesStrategy.EXCLUDE
+
+        from(kotlinScriptSdkOutput)
 
         from {
             kotlinScriptPluginClasspath.collect {
@@ -617,6 +756,7 @@ tasks.register('pluginKotlinJvmConsumerRegression') {
 
         boolean scriptStdlibPresent = false
         boolean scriptTemplatePresent = false
+        boolean scriptDslPresent = false
 
         new java.util.jar.JarFile(
             scriptRuntimeJar
@@ -630,11 +770,18 @@ tasks.register('pluginKotlinJvmConsumerRegression') {
                         .nextElement()
                         .getName()
 
-                if(name.startsWith('spk/'))
+                if(name.startsWith('spk/') &&
+                   !name.startsWith(
+                        'spk/plugin/kotlin/'
+                    ))
                     throw new GradleException(
-                        'Kotlin script runtime artifact contains SpawnPK classes: ' +
+                        'Kotlin script runtime artifact contains forbidden SpawnPK classes: ' +
                         name
                     )
+
+                if(name ==
+                        'spk/plugin/kotlin/KotlinPluginDslKt.class')
+                    scriptDslPresent = true
 
                 if(name ==
                         'kotlin/Unit.class')
@@ -647,12 +794,15 @@ tasks.register('pluginKotlinJvmConsumerRegression') {
         }
 
         if(!scriptStdlibPresent ||
-           !scriptTemplatePresent)
+           !scriptTemplatePresent ||
+           !scriptDslPresent)
             throw new GradleException(
                 'Kotlin script runtime artifact incomplete: stdlib=' +
                 scriptStdlibPresent +
                 ' template=' +
-                scriptTemplatePresent
+                scriptTemplatePresent +
+                ' dsl=' +
+                scriptDslPresent
             )
 
         def fixtureClasspath =
@@ -679,7 +829,7 @@ tasks.register('pluginKotlinJvmConsumerRegression') {
             'serverRuntimeScriptingOnly=true ' +
             'serverJarKotlinScripting=true ' +
             'scriptRuntimeArtifact=SpawnPKKotlinScriptRuntime.jar ' +
-            'scriptRuntimeSpkLeak=false ' +
+            'scriptRuntimeSdkOnly=true ' +
             'scriptingRuntimeIntegrated=true'
         )
     }
@@ -1191,6 +1341,7 @@ tasks.register(
         pluginApiJar,
         compileKotlinScriptingHost,
         tasks.named('verifyKotlinScriptingHostBytecode'),
+        tasks.named('verifyKotlinScriptSdkBytecode'),
         tasks.named('testClasses')
     )
 
