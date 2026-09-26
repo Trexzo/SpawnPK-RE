@@ -502,8 +502,22 @@ final class PluginJarLoader {
                     "spk/plugin/api/")||
                 name.startsWith(
                     "spk/content/api/")||
+                exportedEventResource(
+                    name
+                );
+        }
+
+        private static boolean exportedEventResource(
+            String name
+        ){
+            return "spk/event/DomainEventBus.class"
+                    .equals(name)||
                 name.startsWith(
-                    "spk/event/");
+                    "spk/event/DomainEventBus$"
+                )&&
+                name.endsWith(
+                    ".class"
+                );
         }
 
         private static boolean serverResource(
@@ -532,6 +546,16 @@ final class PluginJarLoader {
             );
         }
 
+        private static boolean exportedEventClass(
+            String name
+        ){
+            return "spk.event.DomainEventBus"
+                    .equals(name)||
+                name.startsWith(
+                    "spk.event.DomainEventBus$"
+                );
+        }
+
         private static boolean parentOnly(
             String name
         ){
@@ -555,8 +579,9 @@ final class PluginJarLoader {
                     "spk.plugin.api.")||
                 name.startsWith(
                     "spk.content.api.")||
-                name.startsWith(
-                    "spk.event.");
+                exportedEventClass(
+                    name
+                );
         }
     }
 
