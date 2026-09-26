@@ -1,10 +1,14 @@
 package spk.local;
 
 import java.lang.reflect.Constructor;
+import java.lang.reflect.InvocationTargetException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.jar.JarEntry;
+import java.util.jar.JarOutputStream;
 import spk.content.api.ContentActionResult;
 import spk.content.api.ContentInteractionResult;
 import spk.content.api.ContentNpcOptionResult;
@@ -74,6 +78,12 @@ public final class KotlinPluginDslTest {
                     apiJar,
                     compileClasspath
                 );
+
+        assertDslDependencyNamespaceFence(
+            constructor,
+            apiJar,
+            compileClasspath
+        );
 
         PluginRuntime runtime=
             loader.load(
@@ -185,9 +195,13 @@ public final class KotlinPluginDslTest {
                 player,
                 generation,
                 ()->{
+                    ProbeEvent event=
+                        new ProbeEvent();
+                    event.cancel();
+
                     world.domainEvents()
                         .publish(
-                            new ProbeEvent()
+                            event
                         );
 
                     command[0]=
@@ -401,6 +415,87 @@ public final class KotlinPluginDslTest {
             throw new AssertionError(
                 "DSL callback loader exposed raw widget resource"
             );
+
+        if(loader.getResources(
+                "spk/local/WidgetActionClientRequest.class"
+            ).hasMoreElements())
+            throw new AssertionError(
+                "DSL callback loader exposed raw widget resource enumeration"
+            );
+    }
+
+    private static void
+        assertDslDependencyNamespaceFence(
+            Constructor<?> constructor,
+            Path apiJar,
+            List<Path> healthyClasspath
+        )throws Exception{
+        Path directory=
+            Files.createTempDirectory(
+                "kotlin-dsl-namespace-fence-"
+            );
+        Path fake=
+            directory.resolve(
+                "SpawnPKKotlinScriptRuntime.jar"
+            );
+
+        try{
+            try(JarOutputStream out=
+                    new JarOutputStream(
+                        Files.newOutputStream(
+                            fake
+                        )
+                    )){
+                out.putNextEntry(
+                    new JarEntry(
+                        "spk/plugin/kotlin/Unexpected.class"
+                    )
+                );
+                out.write(
+                    new byte[]{0}
+                );
+                out.closeEntry();
+            }
+
+            ArrayList<Path> poisoned=
+                new ArrayList<>(
+                    healthyClasspath
+                );
+            poisoned.add(fake);
+
+            boolean rejected=false;
+
+            try{
+                constructor.newInstance(
+                    apiJar,
+                    poisoned
+                );
+            }catch(InvocationTargetException expected){
+                Throwable cause=
+                    expected.getCause();
+
+                rejected=
+                    cause instanceof
+                        IllegalArgumentException&&
+                    cause.getMessage()!=null&&
+                    cause.getMessage()
+                        .contains(
+                            "outside the DSL allowlist"
+                        );
+            }
+
+            if(!rejected)
+                throw new AssertionError(
+                    "Kotlin DSL dependency namespace fence accepted an unexpected SpawnPK class"
+                );
+        }finally{
+            Files.deleteIfExists(
+                fake
+            );
+            Files.deleteIfExists(
+                directory
+            );
+        }
     }
 
     private KotlinPluginDslTest(){}
