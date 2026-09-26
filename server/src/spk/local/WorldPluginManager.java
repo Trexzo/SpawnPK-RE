@@ -90,8 +90,7 @@ final class WorldPluginManager
         }catch(Throwable failure){
             if(!ownsPluginInstance(
                     plugin))
-                PluginJarLoader
-                    .closePluginRuntime(
+                PluginRuntimeSupport.closePluginRuntime(
                         plugin,
                         failure
                     );
@@ -157,8 +156,7 @@ final class WorldPluginManager
             for(Plugin plugin:requested)
                 if(!ownsPluginInstance(
                         plugin))
-                    PluginJarLoader
-                        .closePluginRuntime(
+                    PluginRuntimeSupport.closePluginRuntime(
                             plugin,
                             failure
                         );
@@ -340,7 +338,7 @@ final class WorldPluginManager
         );
 
         ClassLoader callbackLoader=
-            PluginJarLoader.callbackClassLoader(
+            PluginRuntimeSupport.callbackClassLoader(
                 plugin
             );
 
@@ -512,7 +510,7 @@ final class WorldPluginManager
                 failure.addSuppressed(cleanup);
             }
 
-            PluginJarLoader.closePluginRuntime(
+            PluginRuntimeSupport.closePluginRuntime(
                 plugin,
                 failure
             );
@@ -621,7 +619,7 @@ final class WorldPluginManager
         Plugin plugin=
             entry.plugin;
         ClassLoader callbackLoader=
-            PluginJarLoader.callbackClassLoader(
+            PluginRuntimeSupport.callbackClassLoader(
                 plugin
             );
 
@@ -678,7 +676,7 @@ final class WorldPluginManager
             );
         }finally{
             Throwable loaderFailure=
-                PluginJarLoader.closePluginRuntime(
+                PluginRuntimeSupport.closePluginRuntime(
                     plugin,
                     null
                 );
