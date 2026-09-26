@@ -103,6 +103,12 @@ public final class KotlinPluginDirectoryTest {
                 )
             );
 
+            boolean rootSymlinkChecked=
+                assertRootSymlinkRejected(
+                    world,
+                    temp
+                );
+
             System.setProperty(
                 KotlinPluginDirectory
                     .API_JAR_PROPERTY,
@@ -294,11 +300,104 @@ public final class KotlinPluginDirectoryTest {
             "productionArtifactLocator=true "+
             "deterministicPreloadOrder=true "+
             "preloadFailureCleanup=true "+
+            "rootSymlinkChecked="+rootSymlinkChecked+" "+
             "onDemand=true "+
             "rootConfinement=true "+
             "eventCallback=true "+
             "commandCallback=true"
         );
+    }
+
+    private static boolean assertRootSymlinkRejected(
+        World world,
+        Path temp
+    )throws Exception{
+        Path realRoot=
+            temp.resolve(
+                "real-kotlin-root"
+            );
+        Files.createDirectories(
+            realRoot
+        );
+
+        Path linkRoot=
+            temp.resolve(
+                "linked-kotlin-root"
+            );
+
+        try{
+            Files.createSymbolicLink(
+                linkRoot,
+                realRoot
+            );
+        }catch(UnsupportedOperationException|
+               java.nio.file.FileSystemException|
+               SecurityException unavailable){
+            return false;
+        }
+
+        boolean startupRejected=false;
+
+        try{
+            KotlinPluginDirectory
+                .loadStartup(
+                    world,
+                    linkRoot,
+                    new TrackingLoader()
+                );
+        }catch(IOException expected){
+            startupRejected=
+                expected.getMessage()!=null&&
+                expected.getMessage()
+                    .contains(
+                        "root symlink"
+                    );
+        }
+
+        if(!startupRejected)
+            throw new AssertionError(
+                "Kotlin startup accepted symlinked plugin root"
+            );
+
+        Path realScript=
+            realRoot.resolve(
+                "ondemand.kts"
+            );
+        Files.write(
+            realScript,
+            java.util.Collections.singletonList(
+                "// symlink root probe"
+            ),
+            StandardCharsets.UTF_8
+        );
+
+        boolean onDemandRejected=false;
+
+        try{
+            KotlinPluginDirectory
+                .loadOnDemand(
+                    world,
+                    linkRoot,
+                    linkRoot.resolve(
+                        "ondemand.kts"
+                    ),
+                    new TrackingLoader()
+                );
+        }catch(IOException expected){
+            onDemandRejected=
+                expected.getMessage()!=null&&
+                expected.getMessage()
+                    .contains(
+                        "root symlink"
+                    );
+        }
+
+        if(!onDemandRejected)
+            throw new AssertionError(
+                "Kotlin on-demand loader accepted symlinked plugin root"
+            );
+
+        return true;
     }
 
     private static void assertPreloadFailureCleanup(
