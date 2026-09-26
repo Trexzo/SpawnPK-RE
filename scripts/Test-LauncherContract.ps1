@@ -43,7 +43,8 @@ $launcherFiles = @(
     'WATCH_CLIENT_NETWORK.ps1',
     'scripts\Run-Server.ps1',
     'scripts\Run-Client-Airgap.ps1',
-    'scripts\Select-LocalLabJava.ps1'
+    'scripts\Select-LocalLabJava.ps1',
+    'scripts\Check-ExternalRuntime.ps1'
 )
 
 foreach ($file in $launcherFiles) {
@@ -65,6 +66,9 @@ Assert-True ($all -match [regex]::Escape('scripts\Select-LocalLabJava.ps1')) 'Mu
 Assert-True ($all -match [regex]::Escape('scripts\Run-Server.ps1')) 'Multi-client launcher does not target scripts/Run-Server.ps1.'
 Assert-True ($all -match [regex]::Escape('scripts\Run-Client-Airgap.ps1')) 'Multi-client launcher does not target scripts/Run-Client-Airgap.ps1.'
 Assert-True ($all -match [regex]::Escape('WATCH_CLIENT_NETWORK.ps1')) 'Multi-client launcher does not target WATCH_CLIENT_NETWORK.ps1.'
+Assert-True ($all -match [regex]::Escape('scripts\Check-ExternalRuntime.ps1')) 'Multi-client launcher does not use current external-runtime preflight.'
+Assert-True ($all -notmatch 'VERIFY_OFFLINE_READY\.ps1') 'Multi-client launcher still invokes the sealed historical R8.5 verifier.'
+Assert-True ($all -match [regex]::Escape('server\build\SpawnPKLocalServer.jar')) 'Multi-client launcher does not preflight the current built server JAR.'
 Assert-True ($all -notmatch 'RUN_SERVER_LOCAL_WORLD\.ps1') 'Stale RUN_SERVER_LOCAL_WORLD.ps1 target remains.'
 Assert-True ($all -match "'-File'") 'Child launchers are not using explicit PowerShell -File execution.'
 Assert-True ($all -match 'AddSeconds\(30\)') 'Server-ready deadline is not the required 30-second window.'
