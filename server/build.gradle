@@ -1618,6 +1618,25 @@ tasks.register('customAssetPipelineHardeningRegression', JavaExec) {
     mainClass.set('spk.local.CustomAssetPipelineHardeningTest')
 }
 
+
+tasks.register('normalDuelPresentationRegression') {
+    group = 'verification'
+    description = 'Validates exact-v308 normal Duel selector/rules roots, C2S185 actions, contextual load-last reconstruction and challenge suffixes without owning duel policy.'
+    dependsOn tasks.named('testClasses')
+
+    doLast {
+        project.javaexec {
+            workingDir repoRoot
+            classpath = sourceSets.test.runtimeClasspath
+            mainClass.set('spk.local.NormalDuelPresentationTest')
+        }
+
+        logger.lifecycle(
+            'NORMAL_DUEL_PRESENTATION_PASS selector25754=true rules6575=true modes3=true invite25763=true close65418=true loadLast68440Wire2904=true challengeSuffixes3=true policyOwned=false'
+        )
+    }
+}
+
 tasks.register('bossTeleportPresentationRegression') {
     group = 'verification'
     description = 'Validates exact-v308 Boss Teleport rows/actions and 12-slot preview projection without owning destination or drop policy.'
