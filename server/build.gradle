@@ -3379,6 +3379,36 @@ tasks.register('petChargeContentCommandActionOwnershipRegression') {
 }
 
 
+tasks.register('petSpecializedProcContentCommandActionOwnershipRegression') {
+    group = 'verification'
+    description = 'Validates content-owned evilwolperproc/temporossproc aliases while specialized pet eligibility, animation/native-state and owner-GFX effects remain runtime-owned.'
+    dependsOn tasks.named('testClasses')
+
+    doLast {
+        [
+            'spk.local.PetSpecializedProcContentCommandActionOwnershipTest',
+            'spk.local.LocalPetRuntimeCommandHandlerTest',
+            'spk.local.PetProcContentCommandActionOwnershipTest',
+            'spk.local.ContentPublicApiBoundaryTest',
+            'spk.local.ContentRegistryTest',
+            'spk.local.ContentHandlerSamCompatibilityTest',
+            'spk.local.ContentProvenanceAuthorityBoundaryTest',
+            'spk.local.LocalCommandDispatcherTest'
+        ].each { mainClassName ->
+            project.javaexec {
+                workingDir repoRoot
+                classpath = sourceSets.test.runtimeClasspath
+                mainClass.set(mainClassName)
+            }
+        }
+
+        logger.lifecycle(
+            'PET_SPECIALIZED_PROC_CONTENT_COMMAND_ACTION_OWNERSHIP_PASS aliases=true customProvenance=true evilDefault=true evilRangeFallback=true evilTrailingArgs=true temporossDefault=true temporossUnclamped=true policyWireBytes=0 runtimeEligibility=true evilNativeState=true evilOwnerGfx=true temporossAnimation=true temporossNativeState=true malformedFailClosed=true legacyRoutes=false workbenchRoutesRetained=true publicApiExpanded=false'
+        )
+    }
+}
+
+
 tasks.register('issue7CoreContentDecouplingAcceptance') {
     group = 'verification'
     description = 'Locks Issue #7 core acceptance: decoder purity and command selftest through the real JVM plugin/content dispatcher.'
@@ -4107,7 +4137,8 @@ tasks.register('chat1CurrentCumulativeCertification') {
         tasks.named('legendaryPetFusionServiceRegression'),
         tasks.named('legendaryPetFusionPresentationRegression'),
         tasks.named('bloodcoreLotteryPresentationRegression'),
-        tasks.named('petDamageContentCommandActionOwnershipRegression')
+        tasks.named('petDamageContentCommandActionOwnershipRegression'),
+        tasks.named('petSpecializedProcContentCommandActionOwnershipRegression')
     )
 
     doLast {
@@ -4122,6 +4153,7 @@ tasks.register('chat1CurrentCumulativeCertification') {
             'legendaryPetFusion=true ' +
             'bloodcoreLottery=true ' +
             'petDamage=true ' +
+            'specializedPetProc=true ' +
             'focused=175 ' +
             'exactV308=179 ' +
             'clientSha256=' + v308AcceptanceClientSha256 + ' ' +

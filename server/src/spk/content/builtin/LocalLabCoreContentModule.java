@@ -57,6 +57,10 @@ public final class LocalLabCoreContentModule
         "locallab.petruntime.scopesnipe";
     public static final String PET_PROC_ACTION=
         "locallab.petruntime.proc";
+    public static final String PET_EVIL_WOLPER_PROC_ACTION_PREFIX=
+        "locallab.petruntime.evil-wolper-proc";
+    public static final String PET_TEMPOROSS_PROC_ACTION_PREFIX=
+        "locallab.petruntime.tempoross-proc";
     public static final String PET_CHARGE_ACTION_PREFIX=
         "locallab.petruntime.charge";
     public static final String PET_DAMAGE_ACTION_PREFIX=
@@ -222,6 +226,18 @@ public final class LocalLabCoreContentModule
                 ContentResult.action(
                     PET_PROC_ACTION
                 )
+        );
+
+        registrar.command(
+            "evilwolperproc",
+            100,
+            this::evilWolperProc
+        );
+
+        registrar.command(
+            "temporossproc",
+            100,
+            this::temporossProc
         );
 
         registrar.command(
@@ -596,6 +612,45 @@ public final class LocalLabCoreContentModule
             PET_CHARGE_ACTION_PREFIX+
             ":"+
             charge
+        );
+    }
+
+    private ContentResult evilWolperProc(
+        ContentCommandContext context
+    ){
+        int state=
+            context.arguments().isEmpty()
+                ?1
+                :parseInt(
+                    context.arguments().get(0),
+                    1
+                );
+
+        if(state<1||state>3)
+            state=1;
+
+        return ContentResult.action(
+            PET_EVIL_WOLPER_PROC_ACTION_PREFIX+
+            ":"+
+            state
+        );
+    }
+
+    private ContentResult temporossProc(
+        ContentCommandContext context
+    ){
+        int state=
+            context.arguments().isEmpty()
+                ?1
+                :parseInt(
+                    context.arguments().get(0),
+                    1
+                );
+
+        return ContentResult.action(
+            PET_TEMPOROSS_PROC_ACTION_PREFIX+
+            ":"+
+            state
         );
     }
 
