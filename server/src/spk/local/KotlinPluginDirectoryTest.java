@@ -82,6 +82,8 @@ public final class KotlinPluginDirectoryTest {
                 )
             );
 
+        boolean rootSymlinkChecked=false;
+
         try{
             int empty=
                 KotlinPluginDirectory
@@ -103,7 +105,7 @@ public final class KotlinPluginDirectoryTest {
                 )
             );
 
-            boolean rootSymlinkChecked=
+            rootSymlinkChecked=
                 assertRootSymlinkRejected(
                     world,
                     temp
