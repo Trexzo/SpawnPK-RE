@@ -1,0 +1,56 @@
+name: Issue 5 GitHub diagnostics
+
+on:
+  push:
+    branches:
+      - ci/issue5-github-diagnostics-chat1
+  workflow_dispatch:
+
+jobs:
+  issue5-diagnostics:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Kotlin host compile preflight
+        run: bash server/gradlew --no-daemon --console=plain --stacktrace compileKotlinScriptingHost
+
+      - name: Plugin developer API artifact
+        run: bash server/gradlew --no-daemon --console=plain --stacktrace pluginDeveloperApiArtifactRegression
+
+      - name: Kotlin JVM consumer
+        run: bash server/gradlew --no-daemon --console=plain --stacktrace pluginKotlinJvmConsumerRegression
+
+      - name: Classloader isolation
+        run: bash server/gradlew --no-daemon --console=plain --stacktrace pluginClassloaderIsolationRegression
+
+      - name: Loader abstraction
+        run: bash server/gradlew --no-daemon --console=plain --stacktrace pluginLoaderAbstractionRegression
+
+      - name: Kotlin script host
+        run: bash server/gradlew --no-daemon --console=plain --stacktrace pluginKotlinScriptHostRegression
+
+      - name: Kotlin directory
+        run: bash server/gradlew --no-daemon --console=plain --stacktrace pluginKotlinDirectoryRegression
+
+      - name: Kotlin DSL
+        run: bash server/gradlew --no-daemon --console=plain --stacktrace pluginKotlinDslRegression
+
+      - name: Plugin world terminal lifecycle
+        run: bash server/gradlew --no-daemon --console=plain --stacktrace pluginWorldTerminalLifecycleRegression
+
+      - name: Plugin runtime failure cascade
+        run: bash server/gradlew --no-daemon --console=plain --stacktrace pluginRuntimeFailureCascadeRegression
+
+      - name: Java 11 bytecode
+        run: bash server/gradlew --no-daemon --console=plain --stacktrace verifyJava11Bytecode
+
+      - name: Focused release regression 175
+        run: bash server/gradlew --no-daemon --console=plain --stacktrace currentTrainFocusedRegression
