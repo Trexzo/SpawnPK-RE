@@ -6,6 +6,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Comparator;
+import java.util.stream.Stream;
 import spk.content.api.ContentResult;
 import spk.event.DomainEventBus;
 import spk.plugin.api.PluginHandle;
@@ -253,23 +254,25 @@ public final class KotlinPluginDirectoryTest {
             world.close();
 
             if(Files.exists(temp))
-                Files.walk(temp)
-                    .sorted(
-                        Comparator.reverseOrder()
-                    )
-                    .forEach(
-                        path->{
-                            try{
-                                Files.deleteIfExists(
-                                    path
-                                );
-                            }catch(IOException error){
-                                throw new RuntimeException(
-                                    error
-                                );
+                try(Stream<Path> paths=
+                        Files.walk(temp)){
+                    paths.sorted(
+                            Comparator.reverseOrder()
+                        )
+                        .forEach(
+                            path->{
+                                try{
+                                    Files.deleteIfExists(
+                                        path
+                                    );
+                                }catch(IOException error){
+                                    throw new RuntimeException(
+                                        error
+                                    );
+                                }
                             }
-                        }
-                    );
+                        );
+                }
         }
 
         System.out.println(
