@@ -1823,6 +1823,27 @@ tasks.register('lotteryPresentationRegression') {
     }
 }
 
+tasks.register('bloodcoreLotteryPresentationRegression') {
+    group = 'verification'
+    description = 'Bridges exact-v308 Bloodcore Lottery presentation to LotteryService history/entry intent without owning economics, RNG, prize or static token-value semantics.'
+    dependsOn(
+        tasks.named('lotteryPresentationRegression'),
+        tasks.named('testClasses')
+    )
+
+    doLast {
+        project.javaexec {
+            workingDir repoRoot
+            classpath = sourceSets.test.runtimeClasspath
+            mainClass.set('spk.local.BloodcoreLotteryAdapterTest')
+        }
+
+        logger.lifecycle(
+            'BLOODCORE_LOTTERY_ADAPTER_PASS root61150=true enter61196=true history35=true channelBloodcore=true existingPresentationReused=true callerFormattedHistory=true opaqueItem22844=true opaque250=true opaque10000=true opaqueSemantics=false entrySettlementExternal=true rngExternal=true rawProtocolInService=false'
+        )
+    }
+}
+
 tasks.register('votingPresentationRegression') {
     group = 'verification'
     description = 'Validates exact-v308 Voting root and visible provider catalog while leaving click transport and reward policy unowned.'
