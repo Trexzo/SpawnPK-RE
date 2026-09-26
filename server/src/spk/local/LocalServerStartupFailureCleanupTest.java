@@ -332,7 +332,14 @@ public final class LocalServerStartupFailureCleanupTest {
                 LocalServerStartupBinder
                     .installShutdownHook(
                         shutdown,
-                        ()->{
+                        shutdown::close,
+                        "fixture-shutdown-hook",
+                        (target,name)->
+                            new Thread(
+                                target,
+                                name
+                            ),
+                        hook->{
                             throw expectedFailure;
                         }
                     );
