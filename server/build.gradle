@@ -1715,6 +1715,27 @@ tasks.register(
     mainClass = 'spk.local.LegendaryPetFusionServiceTest'
 }
 
+tasks.register('legendaryPetFusionPresentationRegression') {
+    group = 'verification'
+    description = 'Validates the exact-v308 Legendary Pet Fusing root, contextual Fuse alias and caller-defined presentation over the recovered semantic service without owning recipe/economy/RNG policy.'
+    dependsOn(
+        tasks.named('legendaryPetFusionServiceRegression'),
+        tasks.named('testClasses')
+    )
+
+    doLast {
+        project.javaexec {
+            workingDir repoRoot
+            classpath = sourceSets.test.runtimeClasspath
+            mainClass.set('spk.local.LegendaryPetFusionPresentationTest')
+        }
+
+        logger.lifecycle(
+            'LEGENDARY_PET_FUSION_PRESENTATION_PASS root18547=true fuseInternal65559=true fuseWire23=true close65418=true oneOffering=true callerDefinedProjection=true stateProjection=true legacyDefaultsEvidenceOnly=true rawProtocolInService=false policyOwned=false'
+        )
+    }
+}
+
 tasks.register('bossTeleportPresentationRegression') {
     group = 'verification'
     description = 'Validates exact-v308 Boss Teleport rows/actions and 12-slot preview projection without owning destination or drop policy.'
