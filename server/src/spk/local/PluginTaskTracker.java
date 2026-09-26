@@ -537,7 +537,18 @@ final class PluginTaskTracker
                 owner.reportFailure(
                     failure
                 );
-                throw failure;
+
+                /*
+                 * Do not let a plugin-defined Throwable object escape into
+                 * generic World queue logging: hostile toString/diagnostic
+                 * overrides must not become a second failure boundary.
+                 * Manager diagnostics already detached the original failure.
+                 */
+                throw new RuntimeException(
+                    "plugin task failed errorClass="+
+                    failure.getClass()
+                        .getName()
+                );
             }finally{
                 owner.signalQuiescent();
             }
