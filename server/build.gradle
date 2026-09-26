@@ -3852,7 +3852,9 @@ tasks.register('issue5KotlinScriptingCertification') {
         tasks.named('pluginKotlinDslRegression'),
         tasks.named('pluginWorldTerminalLifecycleRegression'),
         tasks.named('pluginRuntimeFailureCascadeRegression'),
-        tasks.named('verifyJava11Bytecode')
+        tasks.named('verifyJava11Bytecode'),
+        tasks.named('currentTrainFocusedRegression'),
+        tasks.named('r85V308Acceptance')
     )
 
     doLast {
@@ -3869,7 +3871,12 @@ tasks.register('issue5KotlinScriptingCertification') {
             'rootConfinement=true ' +
             'dsl=true ' +
             'issue5DslNames=true ' +
+            'customProvenance=true ' +
+            'callbackTccl=true ' +
             'rawWidgetIds=false ' +
+            'focused=175 ' +
+            'exactV308=179 ' +
+            'canonicalPromoted=true ' +
             'bytecodeMajor=55'
         )
     }
