@@ -2610,6 +2610,41 @@ tasks.register('petChargeContentCommandActionOwnershipRegression') {
 }
 
 
+tasks.register('petDamageContentCommandActionOwnershipRegression') {
+    group = 'verification'
+    description = 'Validates content-owned behemothhit/petdamage aliases while nonpositive ordering, charge-family eligibility, accumulation and native-state publication remain runtime-owned.'
+    dependsOn tasks.named('testClasses')
+
+    doLast {
+        [
+            'spk.local.PetDamageContentCommandActionOwnershipTest',
+            'spk.local.PetChargeContentCommandActionOwnershipTest',
+            'spk.local.BehemothChargeStateTest',
+            'spk.local.LocalPetRuntimeCommandHandlerTest',
+            'spk.local.PetProcContentCommandActionOwnershipTest',
+            'spk.local.ScopeSnipeContentCommandActionOwnershipTest',
+            'spk.local.PetBoostContentCommandActionOwnershipTest',
+            'spk.local.PetStatusContentCommandActionOwnershipTest',
+            'spk.local.ContentPublicApiBoundaryTest',
+            'spk.local.ContentRegistryTest',
+            'spk.local.ContentHandlerSamCompatibilityTest',
+            'spk.local.ContentProvenanceAuthorityBoundaryTest',
+            'spk.local.LocalCommandDispatcherTest'
+        ].each { mainClassName ->
+            project.javaexec {
+                workingDir repoRoot
+                classpath = sourceSets.test.runtimeClasspath
+                mainClass.set(mainClassName)
+            }
+        }
+
+        logger.lifecycle(
+            'PET_DAMAGE_CONTENT_COMMAND_ACTION_OWNERSHIP_PASS aliases=true semanticAction=true invalidCompatibility=true missingCompatibility=true extraArgsCompatibility=true policyWireBytes=0 nonpositiveBeforeEligibility=true noActivePositive=true nonThresholdNoWire=true thresholdNativeState=true sourceLabel=true modifiersRecordedOnly=true malformedFailClosed=true legacyRoutes=false pettestDamageRuntimeOwned=true publicApiExpanded=false'
+        )
+    }
+}
+
+
 tasks.register('issue7CoreContentDecouplingAcceptance') {
     group = 'verification'
     description = 'Locks Issue #7 core acceptance: decoder purity and command selftest through the real JVM plugin/content dispatcher.'
