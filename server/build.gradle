@@ -695,6 +695,7 @@ tasks.register('pluginKotlinJvmConsumerRegression') {
                 .asFile
 
         boolean scriptingHostPresent = false
+        boolean scriptingSdkPresent = false
         boolean kotlinStdlibPresent = false
         boolean scriptingCompilerPresent = false
 
@@ -715,6 +716,10 @@ tasks.register('pluginKotlinJvmConsumerRegression') {
                     scriptingHostPresent = true
 
                 if(name ==
+                        'spk/plugin/kotlin/KotlinPluginDslKt.class')
+                    scriptingSdkPresent = true
+
+                if(name ==
                         'kotlin/Unit.class')
                     kotlinStdlibPresent = true
 
@@ -727,11 +732,14 @@ tasks.register('pluginKotlinJvmConsumerRegression') {
         }
 
         if(!scriptingHostPresent ||
+           !scriptingSdkPresent ||
            !kotlinStdlibPresent ||
            !scriptingCompilerPresent)
             throw new GradleException(
                 'Kotlin scripting runtime packaging incomplete: host=' +
                 scriptingHostPresent +
+                ' sdk=' +
+                scriptingSdkPresent +
                 ' stdlib=' +
                 kotlinStdlibPresent +
                 ' compiler=' +
@@ -1349,6 +1357,7 @@ tasks.register(
     classpath = files(
         sourceSets.test.runtimeClasspath,
         kotlinScriptingHostOutput,
+        kotlinScriptSdkOutput,
         kotlinScriptingRuntime
     )
     mainClass =
