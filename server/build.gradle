@@ -778,18 +778,22 @@ tasks.register('pluginKotlinJvmConsumerRegression') {
                         .nextElement()
                         .getName()
 
-                if(name.startsWith('spk/') &&
-                   !name.startsWith(
-                        'spk/plugin/kotlin/'
-                    ))
-                    throw new GradleException(
-                        'Kotlin script runtime artifact contains forbidden SpawnPK classes: ' +
-                        name
-                    )
+                if(name.startsWith('spk/')) {
+                    boolean dsl =
+                        name ==
+                            'spk/plugin/kotlin/KotlinPluginDslKt.class' ||
+                        name.startsWith(
+                            'spk/plugin/kotlin/KotlinPluginDslKt$'
+                        )
 
-                if(name ==
-                        'spk/plugin/kotlin/KotlinPluginDslKt.class')
+                    if(!dsl)
+                        throw new GradleException(
+                            'Kotlin script runtime artifact contains non-DSL SpawnPK class: ' +
+                            name
+                        )
+
                     scriptDslPresent = true
+                }
 
                 if(name ==
                         'kotlin/Unit.class')
