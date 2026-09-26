@@ -160,7 +160,7 @@ public final class KotlinPluginDirectoryTest {
                 generation,
                 writer,
                 "kscript",
-                "KOTLIN_SCRIPT_EVENTS=1;tccl=true"
+                "KOTLIN_SCRIPT_EVENTS=1;args=;tccl=true"
             );
 
             String source=
@@ -215,7 +215,7 @@ public final class KotlinPluginDirectoryTest {
                 generation,
                 writer,
                 "kscript2",
-                "KOTLIN_SCRIPT_EVENTS=1;tccl=true"
+                "KOTLIN_SCRIPT_EVENTS=1;args=;tccl=true"
             );
 
             boolean outsideDenied=false;
