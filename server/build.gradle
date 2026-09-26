@@ -792,7 +792,9 @@ tasks.register('pluginKotlinJvmConsumerRegression') {
                             name
                         )
 
-                    scriptDslPresent = true
+                    if(name ==
+                            'spk/plugin/kotlin/KotlinPluginDslKt.class')
+                        scriptDslPresent = true
                 }
 
                 if(name ==
