@@ -20,6 +20,7 @@ public final class ItemEnchantmentPresentationTest {
         rowCeilingAndSelectionIsolation();
         resultStateProjection();
         exactPacketCompatibility();
+        exactWireTextFence();
         semanticServiceHasNoProtocolIdentity();
         policyStillUnowned();
 
@@ -534,6 +535,40 @@ public final class ItemEnchantmentPresentationTest {
         require(
             rowTarget==49970,
             "row text target"
+        );
+    }
+
+    private static void exactWireTextFence()
+        throws Exception{
+        Method method=
+            ItemEnchantmentPresentation.class
+                .getDeclaredMethod(
+                    "requireSingleLine",
+                    String.class,
+                    String.class
+                );
+        method.setAccessible(true);
+
+        boolean rejected=false;
+
+        try{
+            method.invoke(
+                null,
+                "bad\u20ac",
+                "wireText"
+            );
+        }catch(
+            java.lang.reflect.InvocationTargetException
+                expected
+        ){
+            rejected=
+                expected.getCause() instanceof
+                    IllegalArgumentException;
+        }
+
+        require(
+            rejected,
+            "non-ISO-8859-1 wire text accepted"
         );
     }
 
