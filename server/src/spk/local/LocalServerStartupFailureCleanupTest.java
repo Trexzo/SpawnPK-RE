@@ -13,6 +13,7 @@ public final class LocalServerStartupFailureCleanupTest {
     )throws Exception{
         assertListenerConstructionFailureCleanup();
         assertBindFailureCleanup();
+        assertPostBindSetupFailureCleanup();
         assertHookConstructionFailureCleanup();
         assertHookRegistrationFailureCleanup();
 
@@ -27,6 +28,8 @@ public final class LocalServerStartupFailureCleanupTest {
             "poolTerminated=true "+
             "worldClosed=true "+
             "unrelatedBlockerOpen=true "+
+            "postBindSetupFailure=true "+
+            "postBindSetupFailurePrimary=true "+
             "hookConstructionFailure=true "+
             "hookConstructionFailurePrimary=true "+
             "hookRegistrationFailure=true "+
@@ -181,6 +184,88 @@ public final class LocalServerStartupFailureCleanupTest {
                 if(!world.closed())
                     shutdown.close();
             }
+        }
+    }
+
+    private static void
+        assertPostBindSetupFailureCleanup()
+        throws Exception{
+        InetAddress loopback=
+            InetAddress.getByName(
+                "127.0.0.1"
+            );
+
+        World world=
+            World.isolatedForTest(
+                25L
+            );
+        world.start();
+
+        ExecutorService pool=
+            Executors.newCachedThreadPool();
+        ServerSocket game=
+            new ServerSocket();
+        ServerSocket aux=
+            new ServerSocket();
+
+        LocalServerShutdownCoordinator shutdown=
+            new LocalServerShutdownCoordinator(
+                world,
+                pool,
+                game,
+                aux
+            );
+
+        try{
+            LocalServerStartupBinder.bind(
+                shutdown,
+                game,
+                new InetSocketAddress(
+                    loopback,
+                    0
+                ),
+                aux,
+                new InetSocketAddress(
+                    loopback,
+                    0
+                )
+            );
+
+            ExceptionInInitializerError expectedFailure=
+                new ExceptionInInitializerError(
+                    "fixture-post-bind-catalog-init-failure"
+                );
+            Throwable observed=null;
+
+            try{
+                LocalServerStartupBinder
+                    .runBoundSetup(
+                        shutdown,
+                        ()->{
+                            throw expectedFailure;
+                        }
+                    );
+            }catch(Throwable failure){
+                observed=failure;
+            }
+
+            if(observed!=expectedFailure)
+                throw new AssertionError(
+                    "post-bind setup failure did not remain primary"
+                );
+
+            assertTerminal(
+                world,
+                pool,
+                game,
+                aux,
+                "post-bind setup failure"
+            );
+
+            shutdown.close();
+        }finally{
+            if(!world.closed())
+                shutdown.close();
         }
     }
 
