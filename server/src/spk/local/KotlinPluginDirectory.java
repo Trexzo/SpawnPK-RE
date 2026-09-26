@@ -165,12 +165,18 @@ final class KotlinPluginDirectory {
         }
 
         scripts.sort(
-            Comparator.comparing(
-                path->
-                    path.getFileName()
-                        .toString(),
-                String.CASE_INSENSITIVE_ORDER
-            )
+            Comparator
+                .comparing(
+                    (Path path)->
+                        path.getFileName()
+                            .toString(),
+                    String.CASE_INSENSITIVE_ORDER
+                )
+                .thenComparing(
+                    path->
+                        path.getFileName()
+                            .toString()
+                )
         );
 
         return java.util.Collections
@@ -242,13 +248,23 @@ final class KotlinPluginDirectory {
             );
 
         if(handles.size()!=
-                runtimes.size())
+                runtimes.size()){
+            for(int i=handles.size()-1;
+                i>=0;
+                i--)
+                manager.disable(
+                    handles.get(i)
+                        .manifest()
+                        .id()
+                );
+
             throw new IllegalStateException(
                 "Kotlin plugin startup handle count mismatch expected="+
                 runtimes.size()+
                 " actual="+
                 handles.size()
             );
+        }
 
         System.out.println(
             "KOTLIN_PLUGIN_STARTUP_PASS count="+
