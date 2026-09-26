@@ -54,6 +54,20 @@ def kotlinFixtureStdlib =
         transitive = false
     }
 
+def kotlinScriptingRuntime =
+    configurations.create('kotlinScriptingRuntime') {
+        canBeConsumed = false
+        canBeResolved = true
+        visible = false
+    }
+
+def kotlinScriptPluginClasspath =
+    configurations.create('kotlinScriptPluginClasspath') {
+        canBeConsumed = false
+        canBeResolved = true
+        visible = false
+    }
+
 dependencies {
     add(
         kotlinFixtureCompiler.name,
@@ -62,6 +76,40 @@ dependencies {
     add(
         kotlinFixtureStdlib.name,
         'org.jetbrains.kotlin:kotlin-stdlib:2.4.20'
+    )
+
+    add(
+        kotlinScriptingRuntime.name,
+        'org.jetbrains.kotlin:kotlin-stdlib:2.4.20'
+    )
+    add(
+        kotlinScriptingRuntime.name,
+        'org.jetbrains.kotlin:kotlin-script-runtime:2.4.20'
+    )
+    add(
+        kotlinScriptingRuntime.name,
+        'org.jetbrains.kotlin:kotlin-scripting-common:2.4.20'
+    )
+    add(
+        kotlinScriptingRuntime.name,
+        'org.jetbrains.kotlin:kotlin-scripting-jvm:2.4.20'
+    )
+    add(
+        kotlinScriptingRuntime.name,
+        'org.jetbrains.kotlin:kotlin-scripting-jvm-host:2.4.20'
+    )
+    add(
+        kotlinScriptingRuntime.name,
+        'org.jetbrains.kotlin:kotlin-scripting-compiler-embeddable:2.4.20'
+    )
+
+    add(
+        kotlinScriptPluginClasspath.name,
+        'org.jetbrains.kotlin:kotlin-stdlib:2.4.20'
+    )
+    add(
+        kotlinScriptPluginClasspath.name,
+        'org.jetbrains.kotlin:kotlin-script-runtime:2.4.20'
     )
 }
 
@@ -528,6 +576,151 @@ tasks.register('pluginKotlinJvmConsumerRegression') {
             'serverRuntimeUnchanged=true ' +
             'serverJarKotlinFree=true ' +
             'scriptingRuntimeIntegrated=false'
+        )
+    }
+}
+
+
+def kotlinScriptingHostOutput =
+    layout.buildDirectory.dir(
+        'classes/kotlin-scripting/main'
+    )
+
+def compileKotlinScriptingHost =
+    tasks.register(
+        'compileKotlinScriptingHost',
+        JavaExec
+    ) {
+        group = 'build'
+        description = 'Compiles the Kotlin 2.4.20 scripting host/loader against server internals while scripts themselves remain API-only.'
+        dependsOn tasks.named('classes')
+
+        classpath = kotlinFixtureCompiler
+        mainClass =
+            'org.jetbrains.kotlin.cli.jvm.K2JVMCompiler'
+        javaLauncher =
+            javaToolchains.launcherFor {
+                languageVersion =
+                    JavaLanguageVersion.of(21)
+            }
+
+        def kotlinSources =
+            fileTree(
+                'kotlin-src'
+            ) {
+                include '**/*.kt'
+            }
+
+        inputs.files(kotlinSources)
+        inputs.files(kotlinScriptingRuntime)
+        outputs.dir(kotlinScriptingHostOutput)
+
+        doFirst {
+            File output =
+                kotlinScriptingHostOutput
+                    .get()
+                    .asFile
+
+            project.delete(output)
+
+            if(!output.mkdirs()&&
+               !output.isDirectory())
+                throw new GradleException(
+                    'Could not create Kotlin scripting host output: ' +
+                    output
+                )
+
+            def sources =
+                kotlinSources.files
+                    .sort {
+                        left,
+                        right ->
+                            left.absolutePath <=>
+                            right.absolutePath
+                    }
+
+            if(sources.empty)
+                throw new GradleException(
+                    'No Kotlin scripting host sources found.'
+                )
+
+            String compileClasspath =
+                files(
+                    sourceSets.main.output.classesDirs,
+                    kotlinScriptingRuntime
+                ).asPath
+
+            setArgs(
+                [
+                    '-jvm-target',
+                    '11',
+                    '-Xjdk-release=11',
+                    '-no-reflect',
+                    '-no-stdlib',
+                    '-classpath',
+                    compileClasspath,
+                    '-d',
+                    output.absolutePath
+                ] +
+                sources.collect {
+                    it.absolutePath
+                }
+            )
+        }
+    }
+
+tasks.named('jar', Jar) {
+    dependsOn compileKotlinScriptingHost
+
+    from(kotlinScriptingHostOutput)
+
+    from {
+        kotlinScriptingRuntime.collect { file ->
+            file.isDirectory()
+                ? file
+                : zipTree(file)
+        }
+    }
+}
+
+tasks.register('verifyKotlinScriptingHostBytecode') {
+    group = 'verification'
+    description = 'Verifies Kotlin scripting host classes retain Java 11 bytecode compatibility.'
+    dependsOn compileKotlinScriptingHost
+
+    doLast {
+        def classFiles =
+            fileTree(
+                kotlinScriptingHostOutput
+                    .get()
+                    .asFile
+            ) {
+                include '**/*.class'
+            }.files
+
+        if(classFiles.empty)
+            throw new GradleException(
+                'Kotlin scripting host produced no class files.'
+            )
+
+        classFiles.each { classFile ->
+            int major =
+                readClassMajor(
+                    classFile
+                )
+
+            if(major != 55)
+                throw new GradleException(
+                    'Kotlin scripting host bytecode major=' +
+                    major +
+                    ', expected=55 file=' +
+                    classFile
+                )
+        }
+
+        logger.lifecycle(
+            'KOTLIN_SCRIPTING_HOST_BYTECODE_PASS major=55 classes=' +
+            classFiles.size()
         )
     }
 }
