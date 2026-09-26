@@ -93,6 +93,7 @@ public final class KotlinPluginDirectoryTest {
             );
 
         boolean rootSymlinkChecked=false;
+        boolean ancestorSymlinkChecked=false;
 
         try{
             int empty=
@@ -117,6 +118,12 @@ public final class KotlinPluginDirectoryTest {
 
             rootSymlinkChecked=
                 assertRootSymlinkRejected(
+                    world,
+                    temp
+                );
+
+            ancestorSymlinkChecked=
+                assertAncestorSymlinkRejected(
                     world,
                     temp
                 );
@@ -313,6 +320,7 @@ public final class KotlinPluginDirectoryTest {
             "deterministicPreloadOrder=true "+
             "preloadFailureCleanup=true "+
             "rootSymlinkChecked="+rootSymlinkChecked+" "+
+            "ancestorSymlinkChecked="+ancestorSymlinkChecked+" "+
             "onDemand=true "+
             "rootConfinement=true "+
             "eventCallback=true "+
@@ -362,7 +370,7 @@ public final class KotlinPluginDirectoryTest {
                 expected.getMessage()!=null&&
                 expected.getMessage()
                     .contains(
-                        "root symlink"
+                        "symlink component"
                     );
         }
 
@@ -400,13 +408,130 @@ public final class KotlinPluginDirectoryTest {
                 expected.getMessage()!=null&&
                 expected.getMessage()
                     .contains(
-                        "root symlink"
+                        "symlink component"
                     );
         }
 
         if(!onDemandRejected)
             throw new AssertionError(
                 "Kotlin on-demand loader accepted symlinked plugin root"
+            );
+
+        return true;
+    }
+
+    private static boolean assertAncestorSymlinkRejected(
+        World world,
+        Path temp
+    )throws Exception{
+        Path realParent=
+            temp.resolve(
+                "ancestor-real"
+            );
+        Path realRoot=
+            realParent.resolve(
+                "kotlin"
+            );
+        Files.createDirectories(
+            realRoot
+        );
+
+        Path linkedParent=
+            temp.resolve(
+                "ancestor-link"
+            );
+
+        try{
+            Files.createSymbolicLink(
+                linkedParent,
+                realParent
+            );
+        }catch(UnsupportedOperationException|
+               java.nio.file.FileSystemException|
+               SecurityException unavailable){
+            return false;
+        }
+
+        Path realScript=
+            realRoot.resolve(
+                "ancestor.kts"
+            );
+        Files.write(
+            realScript,
+            java.util.Collections.singletonList(
+                "// ancestor symlink probe"
+            ),
+            StandardCharsets.UTF_8
+        );
+
+        Path lexicalRoot=
+            linkedParent.resolve(
+                "kotlin"
+            );
+        Path lexicalScript=
+            lexicalRoot.resolve(
+                "ancestor.kts"
+            );
+
+        TrackingLoader startupLoader=
+            new TrackingLoader();
+        boolean startupRejected=false;
+
+        try{
+            KotlinPluginDirectory
+                .loadStartup(
+                    world,
+                    lexicalRoot,
+                    startupLoader
+                );
+        }catch(IOException expected){
+            startupRejected=
+                expected.getMessage()!=null&&
+                expected.getMessage()
+                    .contains(
+                        "symlink component"
+                    );
+        }
+
+        if(!startupRejected)
+            throw new AssertionError(
+                "Kotlin startup accepted symlinked root ancestor"
+            );
+
+        if(!startupLoader.paths.isEmpty())
+            throw new AssertionError(
+                "Kotlin startup reached loader through symlinked root ancestor"
+            );
+
+        TrackingLoader onDemandLoader=
+            new TrackingLoader();
+        boolean onDemandRejected=false;
+
+        try{
+            KotlinPluginDirectory
+                .loadOnDemand(
+                    world,
+                    lexicalRoot,
+                    lexicalScript,
+                    onDemandLoader
+                );
+        }catch(IOException expected){
+            onDemandRejected=
+                expected.getMessage()!=null&&
+                expected.getMessage()
+                    .contains(
+                        "symlink component"
+                    );
+        }
+
+        if(!onDemandRejected)
+            throw new AssertionError(
+                "Kotlin on-demand loader accepted symlinked root ancestor"
+            );
+
+        if(!onDemandLoader.paths.isEmpty())
+            throw new AssertionError(
+                "Kotlin on-demand reached loader through symlinked root ancestor"
             );
 
         return true;
