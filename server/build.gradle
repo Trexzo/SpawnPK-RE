@@ -1472,8 +1472,12 @@ tasks.register('pluginKotlinDslRegression') {
             'item=true ' +
             'semanticButton=true ' +
             'event=true ' +
+            'typedCancelledEvent=true ' +
             'issue5Names=true ' +
             'rawWidgetIds=false ' +
+            'rawWidgetTransportDenied=true ' +
+            'dslNamespaceExact=true ' +
+            'dslClassIdentity=true ' +
             'provenanceCoreOwned=true ' +
             'publicApiExpanded=false'
         )
@@ -3878,8 +3882,11 @@ tasks.register('issue5KotlinScriptingCertification') {
             'dsl=true ' +
             'issue5DslNames=true ' +
             'commandPlayerArgs=true ' +
+            'typedCancelledEvent=true ' +
             'customProvenance=true ' +
             'callbackTccl=true ' +
+            'dslNamespaceExact=true ' +
+            'dslClassIdentity=true ' +
             'rawWidgetIds=false ' +
             'focused=175 ' +
             'exactV308=179 ' +
