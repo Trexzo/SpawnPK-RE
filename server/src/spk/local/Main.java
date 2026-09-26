@@ -91,19 +91,24 @@ public final class Main {
             )
         );
 
-        System.out.println("SpawnPK Local Lab "+BuildInfo.summary());
-        System.out.println("GAME  : " + game.getLocalSocketAddress());
-        System.out.println("AUX   : " + aux.getLocalSocketAddress() + " (loopback HTTP/cache guard)");
-        System.out.println("GUARD : loopback-only; no code path dials a remote host");
-        System.out.println("M4    : certified bootstrap=" + bootstrapFinal + " (default false)");
-        System.out.println("M5    : authoritative movement=" + movementFinal + " (600 ms server tick)");
-        System.out.println("ENGINE: one shared World + one authoritative WorldPulse; command migration staged by subsystem");
-        System.out.println("PULSE : " + world.metrics());
-        System.out.println("ITEMS : "+ItemDefinitionRepository.count()+" current client-known ids; ::item / ::tabitem <id> [amount]");
-        System.out.println("SPAWN : packet71 shortcut 0 -> native root 67027 on sidebar tab "+BootstrapPackets.SPAWN_TAB_INDEX);
-        System.out.println(
-            "KOTLIN: startup plugins=" +
-            kotlinPluginCount
+        LocalServerStartupBinder.runBoundSetup(
+            shutdown,
+            ()->{
+                System.out.println("SpawnPK Local Lab "+BuildInfo.summary());
+                System.out.println("GAME  : " + game.getLocalSocketAddress());
+                System.out.println("AUX   : " + aux.getLocalSocketAddress() + " (loopback HTTP/cache guard)");
+                System.out.println("GUARD : loopback-only; no code path dials a remote host");
+                System.out.println("M4    : certified bootstrap=" + bootstrapFinal + " (default false)");
+                System.out.println("M5    : authoritative movement=" + movementFinal + " (600 ms server tick)");
+                System.out.println("ENGINE: one shared World + one authoritative WorldPulse; command migration staged by subsystem");
+                System.out.println("PULSE : " + world.metrics());
+                System.out.println("ITEMS : "+ItemDefinitionRepository.count()+" current client-known ids; ::item / ::tabitem <id> [amount]");
+                System.out.println("SPAWN : packet71 shortcut 0 -> native root 67027 on sidebar tab "+BootstrapPackets.SPAWN_TAB_INDEX);
+                System.out.println(
+                    "KOTLIN: startup plugins=" +
+                    kotlinPluginCount
+                );
+            }
         );
 
         Runtime runtime =
