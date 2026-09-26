@@ -370,7 +370,7 @@ public final class KotlinPluginDirectoryTest {
                 expected.getMessage()!=null&&
                 expected.getMessage()
                     .contains(
-                        "root symlink"
+                        "symlink component"
                     );
         }
 
@@ -408,7 +408,7 @@ public final class KotlinPluginDirectoryTest {
                 expected.getMessage()!=null&&
                 expected.getMessage()
                     .contains(
-                        "root symlink"
+                        "symlink component"
                     );
         }
 
