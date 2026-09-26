@@ -7,11 +7,11 @@ import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 
 /**
- * Failure-atomic acquisition of the two LocalLab listener sockets.
+ * Failure-atomic acquisition of the LocalLab listener/socket startup boundary.
  *
- * The shutdown coordinator must already own the World, pool and both unbound
- * sockets before this helper is called, so a partial bind can use the exact
- * ordinary terminal path.
+ * Listener construction is guarded before a coordinator can exist; once both
+ * sockets exist, the ordinary shutdown coordinator owns World, pool and sockets
+ * for bind and shutdown-hook registration failure cleanup.
  */
 final class LocalServerStartupBinder {
     interface ListenerFactory {
