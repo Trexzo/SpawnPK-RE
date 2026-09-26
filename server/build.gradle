@@ -1417,6 +1417,7 @@ tasks.register(
     classpath = files(
         sourceSets.test.runtimeClasspath,
         kotlinScriptingHostOutput,
+        kotlinScriptSdkOutput,
         kotlinScriptingRuntime
     )
     mainClass =
