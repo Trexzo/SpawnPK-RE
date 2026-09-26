@@ -15,7 +15,12 @@ $__r85JavaInfo = Set-LocalLabJava
 Write-Host ("R85_LAUNCH_JAVA_OK major={0} path={1}" -f $__r85JavaInfo.Major,$__r85JavaInfo.Path) -ForegroundColor Green
 # R85 JAVA11+ AUTOSELECT END
 
-& .\VERIFY_OFFLINE_READY.ps1
+$runtimeCheck = Join-Path $PSScriptRoot 'scripts\Check-ExternalRuntime.ps1'
+if (-not (Test-Path -LiteralPath $runtimeCheck -PathType Leaf)) {
+    throw "Missing LocalLab external-runtime preflight: $runtimeCheck"
+}
+& $runtimeCheck
+Write-Host 'CURRENT_LOCALLAB_RUNTIME_PRECHECK_PASS' -ForegroundColor Green
 
 $ports = 43594,43595
 $listeners = Get-NetTCPConnection -State Listen -ErrorAction SilentlyContinue |
@@ -55,6 +60,11 @@ $root = $PSScriptRoot
 $serverScript = Join-Path $root 'scripts\Run-Server.ps1'
 $watcherScript = Join-Path $root 'WATCH_CLIENT_NETWORK.ps1'
 $clientScript = Join-Path $root 'scripts\Run-Client-Airgap.ps1'
+$serverJar = Join-Path $root 'server\build\SpawnPKLocalServer.jar'
+
+if (-not (Test-Path -LiteralPath $serverJar -PathType Leaf)) {
+    throw "Missing current LocalLab server JAR: $serverJar. Run .\BOOTSTRAP.ps1 or .\scripts\Build-Server.ps1 first."
+}
 
 foreach ($required in @($serverScript,$watcherScript,$clientScript)) {
     if (-not (Test-Path -LiteralPath $required -PathType Leaf)) {
