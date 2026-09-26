@@ -122,16 +122,17 @@ final class KotlinPluginDirectory {
         Path directory=
             normalizeRoot(root);
 
+        rejectSymlinkComponents(
+            directory
+        );
+
         Files.createDirectories(
             directory
         );
 
-        if(Files.isSymbolicLink(
-                directory))
-            throw new IOException(
-                "Kotlin plugin root symlink is not allowed: "+
-                directory
-            );
+        rejectSymlinkComponents(
+            directory
+        );
 
         ArrayList<Path> scripts=
             new ArrayList<>();
@@ -291,12 +292,9 @@ final class KotlinPluginDirectory {
         Path directory=
             normalizeRoot(root);
 
-        if(Files.isSymbolicLink(
-                directory))
-            throw new IOException(
-                "Kotlin plugin root symlink is not allowed: "+
-                directory
-            );
+        rejectSymlinkComponents(
+            directory
+        );
 
         Path source=
             script.toAbsolutePath()
@@ -313,12 +311,9 @@ final class KotlinPluginDirectory {
                 source
             );
 
-        if(Files.isSymbolicLink(
-                source))
-            throw new IOException(
-                "Kotlin plugin symlink is not allowed: "+
-                source
-            );
+        rejectSymlinkComponents(
+            source
+        );
 
         if(!Files.isRegularFile(
                 source,
@@ -343,6 +338,35 @@ final class KotlinPluginDirectory {
             );
 
         return source;
+    }
+
+    private static void rejectSymlinkComponents(
+        Path path
+    )throws IOException{
+        Path absolute=
+            path.toAbsolutePath()
+                .normalize();
+        Path current=
+            absolute.getRoot();
+
+        for(Path component:absolute){
+            current=
+                current==null
+                    ?component
+                    :current.resolve(
+                        component
+                    );
+
+            if(Files.exists(
+                    current,
+                    LinkOption.NOFOLLOW_LINKS)&&
+               Files.isSymbolicLink(
+                    current))
+                throw new IOException(
+                    "Kotlin plugin path symlink component is not allowed: "+
+                    current
+                );
+        }
     }
 
     private static Path normalizeRoot(
