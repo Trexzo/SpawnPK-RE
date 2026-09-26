@@ -126,6 +126,13 @@ final class KotlinPluginDirectory {
             directory
         );
 
+        if(Files.isSymbolicLink(
+                directory))
+            throw new IOException(
+                "Kotlin plugin root symlink is not allowed: "+
+                directory
+            );
+
         ArrayList<Path> scripts=
             new ArrayList<>();
 
@@ -283,6 +290,14 @@ final class KotlinPluginDirectory {
         )throws IOException{
         Path directory=
             normalizeRoot(root);
+
+        if(Files.isSymbolicLink(
+                directory))
+            throw new IOException(
+                "Kotlin plugin root symlink is not allowed: "+
+                directory
+            );
+
         Path source=
             script.toAbsolutePath()
                 .normalize();
