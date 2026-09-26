@@ -1704,6 +1704,27 @@ tasks.register(
     mainClass = 'spk.local.ItemEnchantmentServiceTest'
 }
 
+tasks.register('itemEnchantmentPresentationRegression') {
+    group = 'verification'
+    description = 'Validates exact-v308 Item Enchantment roots, category/row/item intents and result-state projection over the recovered semantic service without owning recipes, search transport, economy or RNG.'
+    dependsOn(
+        tasks.named('itemEnchantmentServiceRegression'),
+        tasks.named('testClasses')
+    )
+
+    doLast {
+        project.javaexec {
+            workingDir repoRoot
+            classpath = sourceSets.test.runtimeClasspath
+            mainClass.set('spk.local.ItemEnchantmentPresentationTest')
+        }
+
+        logger.lifecycle(
+            'ITEM_ENCHANTMENT_PRESENTATION_PASS main31244=true categories31243=true categories7=true rows16=true itemWidget50253=true attempt49991=true search50314=true back50319=true resultTarget38=true state0123=true iso88591Fence=true searchPromptWireOwned=false selectionIsolation=true rawProtocolInService=false policyOwned=false'
+        )
+    }
+}
+
 tasks.register(
     'legendaryPetFusionServiceRegression',
     JavaExec
@@ -1713,6 +1734,27 @@ tasks.register(
     dependsOn tasks.named('testClasses')
     classpath = sourceSets.test.runtimeClasspath
     mainClass = 'spk.local.LegendaryPetFusionServiceTest'
+}
+
+tasks.register('legendaryPetFusionPresentationRegression') {
+    group = 'verification'
+    description = 'Validates the exact-v308 Legendary Pet Fusing root, contextual Fuse alias and caller-defined presentation over the recovered semantic service without owning recipe/economy/RNG policy.'
+    dependsOn(
+        tasks.named('legendaryPetFusionServiceRegression'),
+        tasks.named('testClasses')
+    )
+
+    doLast {
+        project.javaexec {
+            workingDir repoRoot
+            classpath = sourceSets.test.runtimeClasspath
+            mainClass.set('spk.local.LegendaryPetFusionPresentationTest')
+        }
+
+        logger.lifecycle(
+            'LEGENDARY_PET_FUSION_PRESENTATION_PASS root18547=true fuseInternal65559=true fuseWire23=true close65418=true oneOffering=true callerDefinedProjection=true stateProjection=true stateWireOwned=false iso88591Fence=true legacyDefaultsEvidenceOnly=true rawProtocolInService=false policyOwned=false'
+        )
+    }
 }
 
 tasks.register('bossTeleportPresentationRegression') {
@@ -1819,6 +1861,27 @@ tasks.register('lotteryPresentationRegression') {
 
         logger.lifecycle(
             'LOTTERY_PRESENTATION_REGRESSION_PASS ordinaryHistory6=true bloodcoreHistory35=true policyOwned=false'
+        )
+    }
+}
+
+tasks.register('bloodcoreLotteryPresentationRegression') {
+    group = 'verification'
+    description = 'Bridges exact-v308 Bloodcore Lottery presentation to LotteryService history/entry intent without owning economics, RNG, prize or static token-value semantics.'
+    dependsOn(
+        tasks.named('lotteryPresentationRegression'),
+        tasks.named('testClasses')
+    )
+
+    doLast {
+        project.javaexec {
+            workingDir repoRoot
+            classpath = sourceSets.test.runtimeClasspath
+            mainClass.set('spk.local.BloodcoreLotteryAdapterTest')
+        }
+
+        logger.lifecycle(
+            'BLOODCORE_LOTTERY_ADAPTER_PASS root61150=true enter61196=true history35=true channelBloodcore=true existingPresentationReused=true callerFormattedHistory=true opaqueItem22844=true opaque250=true opaque10000=true opaqueSemantics=false entrySettlementExternal=true rngExternal=true rawProtocolInService=false'
         )
     }
 }
