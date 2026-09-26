@@ -181,6 +181,37 @@ final class LocalServerStartupBinder {
         }
     }
 
+    static void runBoundSetup(
+        LocalServerShutdownCoordinator shutdown,
+        Runnable action
+    ){
+        Objects.requireNonNull(
+            shutdown,
+            "shutdown"
+        );
+        Objects.requireNonNull(
+            action,
+            "action"
+        );
+
+        try{
+            action.run();
+        }catch(Throwable failure){
+            try{
+                shutdown.close();
+            }catch(Throwable cleanup){
+                if(cleanup!=failure)
+                    failure.addSuppressed(
+                        cleanup
+                    );
+            }
+
+            rethrowUnchecked(
+                failure
+            );
+        }
+    }
+
     static Thread installShutdownHook(
         LocalServerShutdownCoordinator shutdown,
         Runnable target,
