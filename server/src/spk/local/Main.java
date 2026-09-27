@@ -258,27 +258,28 @@ public final class Main {
                 classification = "tradingpost-placeholder";
             } else if (target.endsWith("/cache.zip") || target.endsWith("/sprites.zip") || target.endsWith("/configs.zip")) {
                 Path local = localArchiveFor(target);
-                if (local != null && Files.isRegularFile(local)) {
-                    long length =
-                        LocalAuxHttpResponse.writeFile(
-                            out,
-                            200,
-                            "OK",
-                            "application/zip",
-                            local,
-                            head
-                        );
+                Long length =
+                    local==null
+                        ?null
+                        :LocalAuxArchiveAccess
+                            .writeIfAvailable(
+                                out,
+                                local,
+                                head
+                            );
+
+                if(length!=null) {
                     System.out.println(
                         "[local-aux] HTTP local-archive target=" + target +
-                        " status=200 bytes=" + length
+                        " status=200 bytes=" + length.longValue()
                     );
                     return;
-                } else {
-                    body = "LOCAL_ARCHIVE_NOT_PRESENT\n".getBytes(StandardCharsets.US_ASCII);
-                    status = 404;
-                    reason = "Not Found";
-                    classification = "unexpected-archive-request";
                 }
+
+                body = "LOCAL_ARCHIVE_NOT_PRESENT\n".getBytes(StandardCharsets.US_ASCII);
+                status = 404;
+                reason = "Not Found";
+                classification = "unexpected-archive-request";
             } else {
                 body = new byte[0];
                 classification = "blocked-placeholder";
