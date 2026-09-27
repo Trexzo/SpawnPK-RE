@@ -20,6 +20,7 @@ public final class LocalSessionConstructionOwnershipTest {
         String[] args
     )throws Exception{
         assertShutdownWinsAcceptedHandoff();
+        assertRejectedSocketRetainsOwnershipUntilClosed();
         assertConstructionFailure();
         assertConcurrentShutdown();
         assertSuccessPath();
@@ -34,6 +35,7 @@ public final class LocalSessionConstructionOwnershipTest {
             "concurrentShutdownOwnsSocket=true "+
             "postFenceSubmit=false "+
             "handoffRejectCloses=true "+
+            "retireOwnershipUntilClosed=true "+
             "successPath=true"
         );
     }
@@ -204,6 +206,159 @@ public final class LocalSessionConstructionOwnershipTest {
             );
 
         pair.close();
+    }
+
+    private static void
+        assertRejectedSocketRetainsOwnershipUntilClosed()
+        throws Exception{
+        World world=
+            World.isolatedForTest(
+                25L
+            );
+        world.start();
+
+        TrackingExecutor pool=
+            new TrackingExecutor();
+        ServerSocket game=
+            new ServerSocket();
+        ServerSocket aux=
+            new ServerSocket();
+        BlockingCloseSocket socket=
+            new BlockingCloseSocket();
+
+        LocalServerShutdownCoordinator shutdown=
+            new LocalServerShutdownCoordinator(
+                world,
+                pool,
+                game,
+                aux
+            );
+
+        boolean claimed=
+            shutdown.submitSession(
+                socket,
+                (LocalServerShutdownCoordinator.SessionFactory)
+                    ()->()->{}
+            );
+
+        if(!claimed)
+            throw new AssertionError(
+                "fixture socket was not claimed"
+            );
+
+        // The tracking executor deliberately throws from execute(), so use a
+        // fresh coordinator claim through accept handoff instead.
+        shutdown.close();
+        world=
+            World.isolatedForTest(
+                25L
+            );
+        world.start();
+        pool=
+            new TrackingExecutor();
+        game=
+            new ServerSocket();
+        aux=
+            new ServerSocket();
+        shutdown=
+            new LocalServerShutdownCoordinator(
+                world,
+                pool,
+                game,
+                aux
+            );
+
+        final LocalServerShutdownCoordinator finalShutdown=
+            shutdown;
+        final BlockingCloseSocket finalSocket=
+            socket;
+
+        // Seed ownership through the same accepted-socket handoff used by Main.
+        Socket accepted=
+            finalShutdown.acceptGameSocket(
+                ()->finalSocket
+            );
+
+        if(accepted!=finalSocket||
+           finalShutdown.activeSessionCount()!=1)
+            throw new AssertionError(
+                "fixture rejected socket was not coordinator-owned"
+            );
+
+        Thread rejecter=
+            new Thread(
+                ()->finalShutdown.rejectSessionSocket(
+                    finalSocket
+                ),
+                "rejected-socket-retire-fixture"
+            );
+        rejecter.start();
+
+        if(!finalSocket.closeEntered.await(
+                5,
+                TimeUnit.SECONDS))
+            throw new AssertionError(
+                "rejected socket close did not enter"
+            );
+
+        if(finalShutdown.activeSessionCount()!=1)
+            throw new AssertionError(
+                "socket ownership retired before close completed"
+            );
+
+        CountDownLatch terminalReturned=
+            new CountDownLatch(1);
+        Thread closer=
+            new Thread(
+                ()->{
+                    try{
+                        finalShutdown.close();
+                    }finally{
+                        terminalReturned.countDown();
+                    }
+                },
+                "rejected-socket-terminal-fixture"
+            );
+        closer.start();
+
+        long deadline=
+            System.nanoTime()+
+                TimeUnit.SECONDS.toNanos(
+                    5
+                );
+        while(!finalShutdown.closing()&&
+              System.nanoTime()<deadline)
+            Thread.yield();
+
+        if(!finalShutdown.closing())
+            throw new AssertionError(
+                "terminal fence did not publish for rejected socket"
+            );
+
+        if(terminalReturned.getCount()==0)
+            throw new AssertionError(
+                "terminal close returned while rejected socket close was blocked"
+            );
+
+        finalSocket.releaseClose.countDown();
+
+        rejecter.join(
+            5_000L
+        );
+        closer.join(
+            5_000L
+        );
+
+        if(rejecter.isAlive()||
+           closer.isAlive())
+            throw new AssertionError(
+                "rejected socket retirement race did not terminate"
+            );
+
+        if(finalShutdown.activeSessionCount()!=0)
+            throw new AssertionError(
+                "rejected socket ownership survived completed close"
+            );
     }
 
     private static void assertConstructionFailure()
@@ -509,6 +664,38 @@ public final class LocalSessionConstructionOwnershipTest {
 
         shutdown.close();
         pair.close();
+    }
+
+    private static final class BlockingCloseSocket
+        extends Socket {
+
+        final CountDownLatch closeEntered=
+            new CountDownLatch(1);
+        final CountDownLatch releaseClose=
+            new CountDownLatch(1);
+
+        @Override public void close()
+            throws IOException{
+            closeEntered.countDown();
+
+            boolean interrupted=false;
+
+            for(;;)
+                try{
+                    releaseClose.await();
+                    break;
+                }catch(InterruptedException error){
+                    interrupted=true;
+                }
+
+            try{
+                super.close();
+            }finally{
+                if(interrupted)
+                    Thread.currentThread()
+                        .interrupt();
+            }
+        }
     }
 
     private static final class SocketPair
