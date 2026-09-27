@@ -8,6 +8,22 @@ import java.util.concurrent.TimeUnit;
 
 public final class LocalServerShutdownPoolFailureIsolationTest {
     public static void main(String[] args)throws Exception{
+        assertThrownPoolFailureIsolation();
+        assertResidualPoolNonterminationPublished();
+
+        System.out.println(
+            "SERVER_SHUTDOWN_POOL_FAILURE_WORLD_CLOSE_PASS "+
+            "worldCloseAttempted=true "+
+            "primaryPoolFailurePreserved=true "+
+            "repeatedCallerSameFailure=true "+
+            "forcedShutdownAttempted=true "+
+            "forcedAwaitObserved=true "+
+            "residualNonterminationPublished=true"
+        );
+    }
+
+    private static void assertThrownPoolFailureIsolation()
+        throws Exception{
         World world=
             World.isolatedForTest(
                 GameClock.TICK_MILLIS
@@ -69,13 +85,122 @@ public final class LocalServerShutdownPoolFailureIsolationTest {
             if(!world.closed())
                 world.close();
         }
+    }
 
-        System.out.println(
-            "SERVER_SHUTDOWN_POOL_FAILURE_WORLD_CLOSE_PASS "+
-            "worldCloseAttempted=true "+
-            "primaryPoolFailurePreserved=true "+
-            "repeatedCallerSameFailure=true"
-        );
+    private static void assertResidualPoolNonterminationPublished()
+        throws Exception{
+        World world=
+            World.isolatedForTest(
+                GameClock.TICK_MILLIS
+            );
+        NeverTerminatesExecutor pool=
+            new NeverTerminatesExecutor();
+
+        try(
+            ServerSocket game=new ServerSocket();
+            ServerSocket aux=new ServerSocket()
+        ){
+            LocalServerShutdownCoordinator shutdown=
+                new LocalServerShutdownCoordinator(
+                    world,
+                    pool,
+                    game,
+                    aux
+                );
+
+            Throwable first=null;
+
+            try{
+                shutdown.close();
+            }catch(Throwable failure){
+                first=failure;
+            }
+
+            if(!(first instanceof
+                    IllegalStateException)||
+               first.getMessage()==null||
+               !first.getMessage()
+                    .contains(
+                        "did not terminate"
+                    ))
+                throw new AssertionError(
+                    "residual pool nontermination was not terminally published",
+                    first
+                );
+
+            if(pool.shutdownCalls!=1||
+               pool.shutdownNowCalls!=1||
+               pool.awaitCalls!=2)
+                throw new AssertionError(
+                    "pool shutdown sequence mismatch shutdown="+
+                    pool.shutdownCalls+
+                    " shutdownNow="+
+                    pool.shutdownNowCalls+
+                    " awaits="+
+                    pool.awaitCalls
+                );
+
+            if(!world.closed())
+                throw new AssertionError(
+                    "World close was skipped after residual pool nontermination"
+                );
+
+            Throwable repeated=null;
+
+            try{
+                shutdown.close();
+            }catch(Throwable failure){
+                repeated=failure;
+            }
+
+            if(repeated!=first)
+                throw new AssertionError(
+                    "repeated shutdown did not observe same residual pool failure"
+                );
+        }finally{
+            if(!world.closed())
+                world.close();
+        }
+    }
+
+    private static final class NeverTerminatesExecutor
+        extends AbstractExecutorService {
+
+        private int shutdownCalls;
+        private int shutdownNowCalls;
+        private int awaitCalls;
+
+        @Override public void shutdown(){
+            shutdownCalls++;
+        }
+
+        @Override public List<Runnable> shutdownNow(){
+            shutdownNowCalls++;
+            return Collections.emptyList();
+        }
+
+        @Override public boolean isShutdown(){
+            return shutdownCalls>0||
+                shutdownNowCalls>0;
+        }
+
+        @Override public boolean isTerminated(){
+            return false;
+        }
+
+        @Override public boolean awaitTermination(
+            long timeout,
+            TimeUnit unit
+        ){
+            awaitCalls++;
+            return false;
+        }
+
+        @Override public void execute(
+            Runnable command
+        ){
+            throw new UnsupportedOperationException();
+        }
     }
 
     private static final class FailingShutdownExecutor
