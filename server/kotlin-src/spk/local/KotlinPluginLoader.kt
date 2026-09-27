@@ -253,12 +253,6 @@ internal class KotlinPluginLoader @JvmOverloads constructor(
     }
 
     private fun validateDependencyJar(path: Path) {
-        if (!path.fileName.toString()
-                .lowercase(Locale.ROOT)
-                .endsWith(".jar")) {
-            return
-        }
-
         JarFile(path.toFile()).use { jar ->
             val entries = jar.entries()
 
