@@ -77,14 +77,14 @@ final class WorldPluginManager
     @Override public synchronized PluginHandle enable(
         Plugin plugin
     )throws Exception{
-        requireOpen();
-
         RuntimeCloseOwnership runtimeClose=
             new RuntimeCloseOwnership(
                 plugin
             );
 
         try{
+            requireOpen();
+
             return enableOne(
                 snapshotCandidate(
                     plugin,
@@ -110,15 +110,13 @@ final class WorldPluginManager
         enableAll(
             Collection<? extends Plugin> plugins
         )throws Exception{
-        requireOpen();
+        Objects.requireNonNull(
+            plugins,
+            "plugins"
+        );
 
         ArrayList<Plugin> requested=
-            new ArrayList<>(
-                Objects.requireNonNull(
-                    plugins,
-                    "plugins"
-                )
-            );
+            new ArrayList<>();
         ArrayList<Entry> added=
             new ArrayList<>();
         RuntimeAdmissionGate admission=
@@ -127,17 +125,24 @@ final class WorldPluginManager
             runtimeCloses=
                 new IdentityHashMap<>();
 
-        for(Plugin plugin:requested)
-            if(!runtimeCloses.containsKey(
-                    plugin))
-                runtimeCloses.put(
-                    plugin,
-                    new RuntimeCloseOwnership(
-                        plugin
-                    )
-                );
-
         try{
+            for(Plugin plugin:plugins){
+                if(!runtimeCloses.containsKey(
+                        plugin))
+                    runtimeCloses.put(
+                        plugin,
+                        new RuntimeCloseOwnership(
+                            plugin
+                        )
+                    );
+
+                requested.add(
+                    plugin
+                );
+            }
+
+            requireOpen();
+
             List<Candidate> ordered=
                 dependencyOrder(
                     snapshotCandidates(
@@ -1186,8 +1191,14 @@ final class WorldPluginManager
 
         for(Entry entry:
                 enabled.values())
-            if(entry.enabled&&
-               entry.plugin==plugin)
+            if(entry.runtimeClose.owns(
+                    plugin))
+                return true;
+
+        for(Entry entry:
+                terminalizing.values())
+            if(entry.runtimeClose.owns(
+                    plugin))
                 return true;
 
         return false;
@@ -1901,6 +1912,12 @@ final class WorldPluginManager
             Plugin plugin
         ){
             this.plugin=plugin;
+        }
+
+        boolean owns(
+            Plugin candidate
+        ){
+            return plugin==candidate;
         }
 
         synchronized Throwable close(
