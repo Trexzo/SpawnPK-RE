@@ -4,8 +4,11 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
+import java.nio.channels.Channels;
+import java.nio.channels.SeekableByteChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.util.Objects;
 
 final class LocalAuxHttpResponse {
@@ -54,16 +57,47 @@ final class LocalAuxHttpResponse {
             "file"
         );
 
-        long length=
-            Files.size(
-                file
+        try(SeekableByteChannel channel=
+                Files.newByteChannel(
+                    file,
+                    StandardOpenOption.READ
+                )){
+            return writeOpenedFile(
+                out,
+                status,
+                reason,
+                type,
+                channel,
+                head
             );
+        }
+    }
+
+    static long writeOpenedFile(
+        OutputStream out,
+        int status,
+        String reason,
+        String type,
+        SeekableByteChannel channel,
+        boolean head
+    )throws IOException{
+        Objects.requireNonNull(
+            channel,
+            "channel"
+        );
+
+        long length=
+            channel.size();
 
         if(length<0)
             throw new IOException(
                 "negative auxiliary file length: "+
                 length
             );
+
+        channel.position(
+            0L
+        );
 
         writeHeaders(
             out,
@@ -74,16 +108,13 @@ final class LocalAuxHttpResponse {
         );
 
         if(!head)
-            try(InputStream in=
-                    Files.newInputStream(
-                        file
-                    )){
-                copyExactly(
-                    in,
-                    out,
-                    length
-                );
-            }
+            copyExactly(
+                Channels.newInputStream(
+                    channel
+                ),
+                out,
+                length
+            );
 
         out.flush();
         return length;
