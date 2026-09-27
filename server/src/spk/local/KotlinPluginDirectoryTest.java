@@ -3,6 +3,7 @@ package spk.local;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Comparator;
@@ -94,6 +95,10 @@ public final class KotlinPluginDirectoryTest {
 
         boolean rootSymlinkChecked=false;
         boolean ancestorSymlinkChecked=false;
+        boolean onDemandSwapChecked=false;
+        boolean startupSwapChecked=false;
+        boolean onDemandNonRegularSwapChecked=false;
+        boolean startupNonRegularSwapChecked=false;
 
         try{
             int empty=
@@ -148,6 +153,49 @@ public final class KotlinPluginDirectoryTest {
                     world,
                     temp
                 );
+
+            onDemandSwapChecked=
+                assertFinalChildSwapRejected(
+                    world,
+                    temp.resolve(
+                        "swap-ondemand"
+                    ),
+                    false
+                );
+
+            startupSwapChecked=
+                assertFinalChildSwapRejected(
+                    world,
+                    temp.resolve(
+                        "swap-startup"
+                    ),
+                    true
+                );
+
+            onDemandNonRegularSwapChecked=
+                assertFinalChildNonRegularSwapRejected(
+                    world,
+                    temp.resolve(
+                        "nonregular-ondemand"
+                    ),
+                    false
+                );
+
+            startupNonRegularSwapChecked=
+                assertFinalChildNonRegularSwapRejected(
+                    world,
+                    temp.resolve(
+                        "nonregular-startup"
+                    ),
+                    true
+                );
+
+            assertSnapshotDetachedFromPath(
+                world,
+                temp.resolve(
+                    "snapshot-detached"
+                )
+            );
 
             System.setProperty(
                 KotlinPluginDirectory
@@ -343,11 +391,412 @@ public final class KotlinPluginDirectoryTest {
             "preloadRuntimeCloseIdentityOnce=true "+
             "rootSymlinkChecked="+rootSymlinkChecked+" "+
             "ancestorSymlinkChecked="+ancestorSymlinkChecked+" "+
+            "onDemandSwapChecked="+onDemandSwapChecked+" "+
+            "startupSwapChecked="+startupSwapChecked+" "+
+            "onDemandNonRegularSwapChecked="+onDemandNonRegularSwapChecked+" "+
+            "startupNonRegularSwapChecked="+startupNonRegularSwapChecked+" "+
+            "captureRegularIdentityPinned=true "+
+            "kotlinScriptSourceSnapshot=true "+
             "onDemand=true "+
             "rootConfinement=true "+
             "eventCallback=true "+
             "commandCallback=true"
         );
+    }
+
+    private static boolean assertFinalChildSwapRejected(
+        World world,
+        Path temp,
+        boolean startup
+    )throws Exception{
+        Path root=
+            temp.resolve(
+                "plugins"
+            ).resolve(
+                "kotlin"
+            );
+        Files.createDirectories(
+            root
+        );
+
+        Path outside=
+            temp.resolve(
+                "outside.kts"
+            );
+        Files.createDirectories(
+            outside.getParent()
+        );
+        Files.write(
+            outside,
+            java.util.Collections.singletonList(
+                "// outside snapshot must never be admitted"
+            ),
+            StandardCharsets.UTF_8
+        );
+
+        Path replacement=
+            temp.resolve(
+                "replacement-link.kts"
+            );
+
+        try{
+            Files.createSymbolicLink(
+                replacement,
+                outside
+            );
+        }catch(UnsupportedOperationException|
+               java.nio.file.FileSystemException|
+               SecurityException unavailable){
+            return false;
+        }
+
+        Path probe=
+            root.resolve(
+                "probe.kts"
+            );
+        Files.write(
+            probe,
+            java.util.Collections.singletonList(
+                "// admitted A"
+            ),
+            StandardCharsets.UTF_8
+        );
+
+        SnapshotLoader loader=
+            new SnapshotLoader(
+                "// admitted A\n",
+                "fixture.kotlin.snapshot.swap."+
+                    (startup?"startup":"ondemand")
+            );
+
+        final boolean[] hookRan=
+            new boolean[1];
+        final boolean[] swapInstalled=
+            new boolean[1];
+
+        KotlinPluginDirectory.SourceCaptureHook hook=
+            new KotlinPluginDirectory.SourceCaptureHook(){
+                @Override public void beforeOpen(
+                    Path source
+                )throws IOException{
+                    hookRan[0]=true;
+                    Files.delete(
+                        source
+                    );
+                    Files.move(
+                        replacement,
+                        source
+                    );
+                    swapInstalled[0]=true;
+                }
+
+                @Override public void afterCapture(
+                    PluginSource source
+                ){
+                }
+            };
+
+        try{
+            if(startup)
+                KotlinPluginDirectory
+                    .loadStartup(
+                        world,
+                        root,
+                        loader,
+                        hook
+                    );
+            else
+                KotlinPluginDirectory
+                    .loadOnDemand(
+                        world,
+                        root,
+                        probe,
+                        loader,
+                        hook
+                    );
+        }catch(IOException expected){
+            if(!hookRan[0])
+                throw new AssertionError(
+                    "final-child swap rejected before capture boundary",
+                    expected
+                );
+
+            if(!swapInstalled[0])
+                throw new AssertionError(
+                    "final-child symlink swap fixture failed before capture",
+                    expected
+                );
+
+            if(loader.loads!=0)
+                throw new AssertionError(
+                    "loader observed source after final-child symlink swap"
+                );
+
+            if(world.plugins().plugin(
+                    loader.id)!=null)
+                throw new AssertionError(
+                    "plugin published after final-child symlink swap"
+                );
+
+            assertNoCapturePins(
+                root,
+                "symlink swap"
+            );
+
+            return true;
+        }
+
+        throw new AssertionError(
+            "final-child symlink swap reached Kotlin loader"
+        );
+    }
+
+    private static boolean
+        assertFinalChildNonRegularSwapRejected(
+            World world,
+            Path temp,
+            boolean startup
+        )throws Exception{
+        Path root=
+            temp.resolve(
+                "plugins"
+            ).resolve(
+                "kotlin"
+            );
+        Files.createDirectories(
+            root
+        );
+
+        Path probe=
+            root.resolve(
+                "probe.kts"
+            );
+        Files.write(
+            probe,
+            java.util.Collections.singletonList(
+                "// admitted regular A"
+            ),
+            StandardCharsets.UTF_8
+        );
+
+        SnapshotLoader loader=
+            new SnapshotLoader(
+                "// admitted regular A\n",
+                "fixture.kotlin.snapshot.nonregular."+
+                    (startup?"startup":"ondemand")
+            );
+
+        final boolean[] hookRan=
+            new boolean[1];
+        final boolean[] swapInstalled=
+            new boolean[1];
+
+        KotlinPluginDirectory.SourceCaptureHook hook=
+            new KotlinPluginDirectory.SourceCaptureHook(){
+                @Override public void beforeOpen(
+                    Path source
+                )throws IOException{
+                    hookRan[0]=true;
+                    Files.delete(
+                        source
+                    );
+                    Files.createDirectory(
+                        source
+                    );
+                    swapInstalled[0]=true;
+                }
+
+                @Override public void afterCapture(
+                    PluginSource source
+                ){
+                }
+            };
+
+        try{
+            if(startup)
+                KotlinPluginDirectory
+                    .loadStartup(
+                        world,
+                        root,
+                        loader,
+                        hook
+                    );
+            else
+                KotlinPluginDirectory
+                    .loadOnDemand(
+                        world,
+                        root,
+                        probe,
+                        loader,
+                        hook
+                    );
+        }catch(IOException expected){
+            if(!hookRan[0])
+                throw new AssertionError(
+                    "non-regular swap rejected before capture boundary",
+                    expected
+                );
+
+            if(!swapInstalled[0]||
+               !Files.isDirectory(
+                    probe,
+                    LinkOption.NOFOLLOW_LINKS))
+                throw new AssertionError(
+                    "non-regular swap fixture was not installed",
+                    expected
+                );
+
+            if(loader.loads!=0)
+                throw new AssertionError(
+                    "loader observed source after final-child non-regular swap"
+                );
+
+            if(world.plugins().plugin(
+                    loader.id)!=null)
+                throw new AssertionError(
+                    "plugin published after final-child non-regular swap"
+                );
+
+            assertNoCapturePins(
+                root,
+                "non-regular swap"
+            );
+
+            return true;
+        }finally{
+            if(Files.isDirectory(
+                    probe,
+                    LinkOption.NOFOLLOW_LINKS))
+                Files.deleteIfExists(
+                    probe
+                );
+        }
+
+        throw new AssertionError(
+            "final-child non-regular swap reached Kotlin loader"
+        );
+    }
+
+    private static void assertSnapshotDetachedFromPath(
+        World world,
+        Path temp
+    )throws Exception{
+        Path root=
+            temp.resolve(
+                "plugins"
+            ).resolve(
+                "kotlin"
+            );
+        Files.createDirectories(
+            root
+        );
+
+        Path probe=
+            root.resolve(
+                "probe.kts"
+            );
+        String admitted=
+            "// immutable snapshot A\n";
+        Files.write(
+            probe,
+            admitted.getBytes(
+                StandardCharsets.UTF_8
+            )
+        );
+
+        SnapshotLoader loader=
+            new SnapshotLoader(
+                admitted,
+                "fixture.kotlin.snapshot.detached"
+            );
+
+        PluginHandle handle=
+            KotlinPluginDirectory
+                .loadOnDemand(
+                    world,
+                    root,
+                    probe,
+                    loader,
+                    new KotlinPluginDirectory.SourceCaptureHook(){
+                        @Override public void beforeOpen(
+                            Path source
+                        ){
+                        }
+
+                        @Override public void afterCapture(
+                            PluginSource source
+                        )throws IOException{
+                            Files.write(
+                                source.path(),
+                                "// mutated path B\n"
+                                    .getBytes(
+                                        StandardCharsets.UTF_8
+                                    )
+                            );
+                        }
+                    }
+                );
+
+        if(loader.loads!=1||
+           !handle.enabled()||
+           !loader.id.equals(
+                handle.manifest().id()
+            )||
+           !probe.toAbsolutePath()
+                .normalize()
+                .equals(
+                    loader.observedPath
+                ))
+            throw new AssertionError(
+                "captured snapshot/origin was not delivered to loader"
+            );
+
+        if(!world.plugins().disable(
+                loader.id))
+            throw new AssertionError(
+                "snapshot-detached fixture did not disable"
+            );
+
+        assertNoCapturePins(
+            root,
+            "healthy snapshot capture"
+        );
+    }
+
+    private static void assertNoCapturePins(
+        Path root,
+        String phase
+    )throws Exception{
+        if(!Files.isDirectory(
+                root,
+                LinkOption.NOFOLLOW_LINKS))
+            return;
+
+        try(Stream<Path> entries=
+                Files.list(
+                    root
+                )){
+            Path leaked=
+                entries.filter(
+                    path->
+                        path.getFileName()
+                            .toString()
+                            .startsWith(
+                                ".spawnpk-kts-capture-"
+                            )
+                )
+                .findFirst()
+                .orElse(
+                    null
+                );
+
+            if(leaked!=null)
+                throw new AssertionError(
+                    phase+
+                    " retained capture identity pin: "+
+                    leaked
+                );
+        }
     }
 
     private static boolean assertRootSymlinkRejected(
@@ -1127,6 +1576,96 @@ public final class KotlinPluginDirectoryTest {
 
             if(closeFailure!=null)
                 throw closeFailure;
+        }
+    }
+
+    private static final class SnapshotLoader
+        implements PluginLoader {
+        private final String expectedText;
+        final String id;
+        int loads;
+        Path observedPath;
+
+        SnapshotLoader(
+            String expectedText,
+            String id
+        ){
+            this.expectedText=expectedText;
+            this.id=id;
+        }
+
+        @Override public boolean supports(
+            PluginSource source
+        ){
+            return source!=null&&
+                source.hasScriptSnapshot()&&
+                !source.hasEntrypoint();
+        }
+
+        @Override public PluginRuntime load(
+            PluginSource source
+        ){
+            loads++;
+            observedPath=
+                source.path();
+
+            if(!source.hasScriptSnapshot())
+                throw new AssertionError(
+                    "directory handed loader a path-only script source"
+                );
+
+            if(!expectedText.equals(
+                    source.requireScriptText()))
+                throw new AssertionError(
+                    "loader observed mutated script bytes instead of admitted snapshot"
+                );
+
+            return new SnapshotRuntime(
+                id
+            );
+        }
+    }
+
+    private static final class SnapshotRuntime
+        implements PluginRuntime {
+        private final String id;
+        private boolean closed;
+
+        SnapshotRuntime(
+            String id
+        ){
+            this.id=id;
+        }
+
+        @Override public PluginManifest manifest(){
+            return new PluginManifest(
+                id,
+                "1.0",
+                PluginApiVersion.CURRENT,
+                java.util.Collections.emptyList()
+            );
+        }
+
+        @Override public void enable(
+            PluginContext context
+        ){
+        }
+
+        @Override public void disable(){
+        }
+
+        @Override public ClassLoader callbackClassLoader(){
+            if(closed)
+                throw new IllegalStateException(
+                    "snapshot runtime closed"
+                );
+
+            return getClass()
+                .getClassLoader();
+        }
+
+        @Override public void close(){
+            closed=true;
         }
     }
 
