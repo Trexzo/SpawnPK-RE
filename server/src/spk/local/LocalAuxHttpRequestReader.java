@@ -154,6 +154,7 @@ final class LocalAuxHttpRequestReader {
                 )
             );
         boolean sawAny=false;
+        int physicalBytes=0;
 
         for(;;){
             int value=
@@ -177,16 +178,18 @@ final class LocalAuxHttpRequestReader {
                         .name()
                 );
 
-            if(value=='\r')
-                continue;
-
-            if(buffer.size()>=
+            if(physicalBytes>=
                     MAX_LINE_BYTES)
                 throw new IOException(
-                    "auxiliary HTTP line exceeds "+
+                    "auxiliary HTTP physical line exceeds "+
                     MAX_LINE_BYTES+
                     " bytes"
                 );
+
+            physicalBytes++;
+
+            if(value=='\r')
+                continue;
 
             buffer.write(
                 value
