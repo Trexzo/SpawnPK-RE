@@ -127,10 +127,6 @@ final class WorldPluginManager
 
         try{
             for(Plugin plugin:plugins){
-                requested.add(
-                    plugin
-                );
-
                 if(!runtimeCloses.containsKey(
                         plugin))
                     runtimeCloses.put(
@@ -139,6 +135,10 @@ final class WorldPluginManager
                             plugin
                         )
                     );
+
+                requested.add(
+                    plugin
+                );
             }
 
             requireOpen();
