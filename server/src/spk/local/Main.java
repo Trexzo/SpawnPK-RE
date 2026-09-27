@@ -186,49 +186,33 @@ public final class Main {
         ServerSocket server,
         LocalServerShutdownCoordinator shutdown
     ) {
-        while (!server.isClosed()) {
-            Socket socket=null;
+        LocalAuxHttpWorker.run(
+            server::isClosed,
+            shutdown::acceptAuxiliarySocket,
+            socket->{
+                if(!socket.getInetAddress()
+                        .isLoopbackAddress())
+                    return;
 
-            try {
-                socket=
-                    shutdown.acceptAuxiliarySocket();
-
-                if(socket==null)
-                    break;
-
-                try{
-                    if (!socket.getInetAddress().isLoopbackAddress())
-                        continue;
-
-                    handleAuxConnection(
-                        socket
-                    );
-                }finally{
-                    shutdown.releaseAuxiliarySocket(
-                        socket
-                    );
-                    socket=null;
-                }
-            } catch (IOException e) {
-                if (!server.isClosed())
-                    System.err.println("[local-aux] " + e);
-            } finally {
-                if(socket!=null)
-                    try{
-                        shutdown.releaseAuxiliarySocket(
-                            socket
-                        );
-                    }catch(IOException e){
-                        if(!server.isClosed())
-                            System.err.println(
-                                "[local-aux] socket retirement failed " + e
-                            );
-                    }
-            }
-        }
+                handleAuxConnection(
+                    socket
+                );
+            },
+            shutdown::releaseAuxiliarySocket,
+            failure->
+                System.err.println(
+                    "[local-aux] "+
+                    failure
+                ),
+            failure->
+                System.err.println(
+                    "[local-aux] socket retirement failed "+
+                    failure
+                )
+        );
     }
 
-    private static void handleAuxConnection(Socket s) throws IOException {
+    static void handleAuxConnection(Socket s) throws IOException {
         InputStream in = s.getInputStream();
         OutputStream out = s.getOutputStream();
         LocalAuxHttpRequestReader request =
