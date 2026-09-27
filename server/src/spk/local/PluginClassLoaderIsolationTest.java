@@ -75,6 +75,12 @@ public final class PluginClassLoaderIsolationTest {
         assertPostLoaderFailureRetiresSnapshot(
             jarA
         );
+        assertExceptionalCloseReleasesRoots(
+            jarA
+        );
+        assertLiveCloseRace(
+            jarA
+        );
 
         PluginJarLoader.LoadedPlugin loadedA=
             PluginJarLoader.load(
@@ -510,6 +516,8 @@ public final class PluginClassLoaderIsolationTest {
             "disableClosesLoader=true "+
             "terminalHandleReleasesLoader=true "+
             "javaPluginRuntimeReferencesReleased=true "+
+            "javaPluginExceptionalCloseReleased=true "+
+            "javaPluginCloseRaceSafe=true "+
             "publicApiExpanded=false"
         );
     }
@@ -1261,6 +1269,172 @@ public final class PluginClassLoaderIsolationTest {
         }
     }
 
+    private static void assertExceptionalCloseReleasesRoots(
+        Path jarA
+    )throws Exception{
+        RuntimeException marker=
+            new RuntimeException(
+                "fixture-close-cleanup-failure"
+            );
+        PluginJarLoader.LoadedPlugin loaded=
+            PluginJarLoader.load(
+                jarA,
+                ENTRYPOINT,
+                Plugin.class.getClassLoader(),
+                (source,snapshot)->{},
+                (source,snapshot)->{},
+                snapshot->{
+                    throw marker;
+                }
+            );
+        Path snapshot=
+            loaded.snapshotPath();
+        Path root=
+            snapshot.getParent();
+        Throwable observed=null;
+
+        try{
+            loaded.close();
+        }catch(Throwable failure){
+            observed=failure;
+        }
+
+        if(observed!=marker)
+            throw new AssertionError(
+                "exceptional close lost exact cleanup failure identity",
+                observed
+            );
+
+        if(Files.exists(snapshot)||
+           (root!=null&&
+            Files.exists(root)))
+            throw new AssertionError(
+                "exceptional close retained private archive"
+            );
+
+        assertRuntimeReferencesReleased(
+            loaded,
+            "exceptional close"
+        );
+    }
+
+    private static void assertLiveCloseRace(
+        Path jarA
+    )throws Exception{
+        java.util.concurrent.CountDownLatch
+            closeEntered=
+                new java.util.concurrent
+                    .CountDownLatch(1);
+        java.util.concurrent.CountDownLatch
+            releaseClose=
+                new java.util.concurrent
+                    .CountDownLatch(1);
+
+        PluginJarLoader.LoadedPlugin loaded=
+            PluginJarLoader.load(
+                jarA,
+                ENTRYPOINT,
+                Plugin.class.getClassLoader(),
+                (source,snapshot)->{},
+                (source,snapshot)->{},
+                snapshot->{
+                    closeEntered.countDown();
+
+                    if(!releaseClose.await(
+                            5L,
+                            java.util.concurrent
+                                .TimeUnit.SECONDS))
+                        throw new AssertionError(
+                            "close race release timed out"
+                        );
+                }
+            );
+
+        java.util.concurrent.atomic.AtomicReference<Throwable>
+            closeFailure=
+                new java.util.concurrent.atomic
+                    .AtomicReference<>();
+        java.util.concurrent.atomic.AtomicReference<Throwable>
+            callFailure=
+                new java.util.concurrent.atomic
+                    .AtomicReference<>();
+
+        Thread closer=
+            new Thread(
+                ()->{
+                    try{
+                        loaded.close();
+                    }catch(Throwable failure){
+                        closeFailure.set(
+                            failure
+                        );
+                    }
+                },
+                "java-plugin-close-race-closer"
+            );
+
+        closer.start();
+
+        if(!closeEntered.await(
+                5L,
+                java.util.concurrent
+                    .TimeUnit.SECONDS))
+            throw new AssertionError(
+                "close race did not publish terminal state"
+            );
+
+        Thread caller=
+            new Thread(
+                ()->{
+                    try{
+                        loaded.manifest();
+                    }catch(Throwable failure){
+                        callFailure.set(
+                            failure
+                        );
+                    }
+                },
+                "java-plugin-close-race-caller"
+            );
+
+        caller.start();
+        releaseClose.countDown();
+
+        closer.join(
+            5_000L
+        );
+        caller.join(
+            5_000L
+        );
+
+        if(closer.isAlive()||
+           caller.isAlive())
+            throw new AssertionError(
+                "close race thread did not terminate"
+            );
+
+        if(closeFailure.get()!=null)
+            throw new AssertionError(
+                "healthy close race failed",
+                closeFailure.get()
+            );
+
+        Throwable failure=
+            callFailure.get();
+
+        if(!(failure instanceof
+                IllegalStateException))
+            throw new AssertionError(
+                "post-terminal racing call did not fail with intentional terminal exception",
+                failure
+            );
+
+        assertRuntimeReferencesReleased(
+            loaded,
+            "live-close race"
+        );
+    }
+
     private static void assertRuntimeReferencesReleased(
         PluginJarLoader.LoadedPlugin loaded,
         String phase
@@ -1269,7 +1443,8 @@ public final class PluginClassLoaderIsolationTest {
                 new String[]{
                     "delegate",
                     "loader",
-                    "snapshot"
+                    "snapshot",
+                    "closeHook"
                 }){
             java.lang.reflect.Field field=
                 loaded.getClass()
