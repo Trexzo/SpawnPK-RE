@@ -19,6 +19,18 @@ final class PluginRuntimeSupport {
             .getClassLoader();
     }
 
+    static void suppressIfDistinct(
+        Throwable primary,
+        Throwable cleanup
+    ){
+        if(primary!=null&&
+           cleanup!=null&&
+           primary!=cleanup)
+            primary.addSuppressed(
+                cleanup
+            );
+    }
+
     static Throwable closePluginRuntime(
         Plugin plugin,
         Throwable primary
@@ -31,7 +43,8 @@ final class PluginRuntimeSupport {
             return null;
         }catch(Throwable cleanup){
             if(primary!=null)
-                primary.addSuppressed(
+                suppressIfDistinct(
+                    primary,
                     cleanup
                 );
             else
