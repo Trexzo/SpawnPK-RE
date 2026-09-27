@@ -1,5 +1,7 @@
 package spk.local;
 
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.Collections;
@@ -50,8 +52,10 @@ public final class LocalSessionConstructionOwnershipTest {
             new ServerSocket();
         ServerSocket aux=
             new ServerSocket();
+        SocketPair pair=
+            SocketPair.open();
         Socket accepted=
-            new Socket();
+            pair.accepted;
 
         LocalServerShutdownCoordinator shutdown=
             new LocalServerShutdownCoordinator(
@@ -197,6 +201,8 @@ public final class LocalSessionConstructionOwnershipTest {
             throw new AssertionError(
                 "terminal close did not finish after handoff retirement"
             );
+
+        pair.close();
     }
 
     private static void assertConstructionFailure()
@@ -213,8 +219,10 @@ public final class LocalSessionConstructionOwnershipTest {
             new ServerSocket();
         ServerSocket aux=
             new ServerSocket();
+        SocketPair pair=
+            SocketPair.open();
         Socket socket=
-            new Socket();
+            pair.accepted;
 
         LocalServerShutdownCoordinator shutdown=
             new LocalServerShutdownCoordinator(
@@ -273,6 +281,7 @@ public final class LocalSessionConstructionOwnershipTest {
             );
 
         shutdown.close();
+        pair.close();
     }
 
     private static void assertConcurrentShutdown()
@@ -289,8 +298,10 @@ public final class LocalSessionConstructionOwnershipTest {
             new ServerSocket();
         ServerSocket aux=
             new ServerSocket();
+        SocketPair pair=
+            SocketPair.open();
         Socket socket=
-            new Socket();
+            pair.accepted;
 
         LocalServerShutdownCoordinator shutdown=
             new LocalServerShutdownCoordinator(
@@ -414,6 +425,8 @@ public final class LocalSessionConstructionOwnershipTest {
             throw new AssertionError(
                 "post-fence factory completion retained active socket"
             );
+
+        pair.close();
     }
 
     private static void assertSuccessPath()
@@ -430,8 +443,10 @@ public final class LocalSessionConstructionOwnershipTest {
             new ServerSocket();
         ServerSocket aux=
             new ServerSocket();
+        SocketPair pair=
+            SocketPair.open();
         Socket socket=
-            new Socket();
+            pair.accepted;
 
         LocalServerShutdownCoordinator shutdown=
             new LocalServerShutdownCoordinator(
@@ -492,6 +507,62 @@ public final class LocalSessionConstructionOwnershipTest {
             );
 
         shutdown.close();
+        pair.close();
+    }
+
+    private static final class SocketPair
+        implements AutoCloseable {
+
+        final Socket client;
+        final Socket accepted;
+
+        private SocketPair(
+            Socket client,
+            Socket accepted
+        ){
+            this.client=client;
+            this.accepted=accepted;
+        }
+
+        static SocketPair open()
+            throws Exception{
+            InetAddress loopback=
+                InetAddress.getByName(
+                    "127.0.0.1"
+                );
+
+            try(ServerSocket listener=
+                    new ServerSocket()){
+                listener.bind(
+                    new InetSocketAddress(
+                        loopback,
+                        0
+                    )
+                );
+
+                Socket client=
+                    new Socket(
+                        loopback,
+                        listener.getLocalPort()
+                    );
+                Socket accepted=
+                    listener.accept();
+
+                return new SocketPair(
+                    client,
+                    accepted
+                );
+            }
+        }
+
+        @Override public void close()
+            throws Exception{
+            try{
+                accepted.close();
+            }finally{
+                client.close();
+            }
+        }
     }
 
     private static final class TrackingExecutor
