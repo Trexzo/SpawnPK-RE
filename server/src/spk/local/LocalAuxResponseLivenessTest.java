@@ -478,7 +478,7 @@ public final class LocalAuxResponseLivenessTest {
             LocalAuxResponseLiveness.arm(
                 socket,
                 scheduler,
-                ()->true,
+                commit->false,
                 failure->{
                     throw new AssertionError(
                         "terminal-fenced watchdog published failure",
