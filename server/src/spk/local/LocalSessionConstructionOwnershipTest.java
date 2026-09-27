@@ -2058,6 +2058,8 @@ public final class LocalSessionConstructionOwnershipTest {
             new ServerSocket();
         ServerSocket aux=
             new ServerSocket();
+        Socket healthy=
+            new Socket();
         FailOnceCloseSocket socket=
             new FailOnceCloseSocket();
 
@@ -2070,9 +2072,30 @@ public final class LocalSessionConstructionOwnershipTest {
             );
 
         if(!shutdown.claimAuxiliarySocket(
-                socket))
+                healthy))
             throw new AssertionError(
                 "healthy auxiliary socket claim was rejected"
+            );
+
+        if(shutdown.activeAuxiliarySocketCount()!=1)
+            throw new AssertionError(
+                "healthy auxiliary socket was not coordinator-owned"
+            );
+
+        shutdown.releaseAuxiliarySocket(
+            healthy
+        );
+
+        if(!healthy.isClosed()||
+           shutdown.activeAuxiliarySocketCount()!=0)
+            throw new AssertionError(
+                "healthy auxiliary socket ownership did not retire"
+            );
+
+        if(!shutdown.claimAuxiliarySocket(
+                socket))
+            throw new AssertionError(
+                "terminal auxiliary socket claim was rejected before close"
             );
 
         if(shutdown.activeAuxiliarySocketCount()!=1)
