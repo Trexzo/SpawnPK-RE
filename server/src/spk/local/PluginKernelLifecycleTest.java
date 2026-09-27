@@ -1105,6 +1105,7 @@ public final class PluginKernelLifecycleTest {
         throws Exception{
         singleFailedRuntimeClosesOnce();
         batchRuntimeRollbackClosesOnce();
+        commitRuntimeFailureClosesOnce();
         snapshotFailureRuntimeClosesOnce();
         duplicateRequestedRuntimeClosesOnce();
         successfulRuntimeLifecycleClosesOnce();
@@ -1312,6 +1313,129 @@ public final class PluginKernelLifecycleTest {
         }
     }
 
+    private static void commitRuntimeFailureClosesOnce()
+        throws Exception{
+        World world=
+            World.isolatedForTest(
+                25L
+            );
+        WorldPluginManager manager=
+            (WorldPluginManager)
+                world.plugins();
+        ArrayList<String> disableOrder=
+            new ArrayList<>();
+        RuntimeException closeFailure=
+            new IllegalStateException(
+                "commit-close-cleanup"
+            );
+
+        CommitFailureRuntime a=
+            new CommitFailureRuntime(
+                "close.commit.a",
+                Collections.<String>emptyList(),
+                world,
+                true,
+                false,
+                closeFailure,
+                disableOrder
+            );
+        CommitFailureRuntime b=
+            new CommitFailureRuntime(
+                "close.commit.b",
+                Collections.singletonList(
+                    "close.commit.a"
+                ),
+                world,
+                false,
+                true,
+                null,
+                disableOrder
+            );
+
+        try{
+            Throwable observed=
+                captureFailure(
+                    ()->manager.enableAll(
+                        Arrays.<Plugin>asList(
+                            b,
+                            a
+                        )
+                    )
+                );
+
+            if(!(observed instanceof
+                    ArithmeticException)||
+               observed.getMessage()==null||
+               !observed.getMessage()
+                   .contains(
+                       "overflow"
+                   ))
+                throw new AssertionError(
+                    "commitRuntime overflow did not remain primary",
+                    observed
+                );
+
+            if(a.enableCount.get()!=1||
+               b.enableCount.get()!=1)
+                throw new AssertionError(
+                    "commitRuntime failure occurred before both enables completed"
+                );
+
+            equals(
+                Arrays.asList(
+                    "close.commit.b",
+                    "close.commit.a"
+                ),
+                disableOrder,
+                "commitRuntime rollback order"
+            );
+
+            if(a.disableCount.get()!=1||
+               b.disableCount.get()!=1||
+               a.closeCount.get()!=1||
+               b.closeCount.get()!=1)
+                throw new AssertionError(
+                    "commitRuntime rollback runtime cleanup count mismatch "+
+                    "aDisable="+a.disableCount.get()+
+                    " bDisable="+b.disableCount.get()+
+                    " aClose="+a.closeCount.get()+
+                    " bClose="+b.closeCount.get()
+                );
+
+            if(!manager.enabled().isEmpty())
+                throw new AssertionError(
+                    "commitRuntime failure retained enabled plugins"
+                );
+
+            if(manager.terminalDiagnostics()
+                    .stream()
+                    .noneMatch(
+                        line->
+                            line.contains(
+                                "plugin=close.commit.a"
+                            )&&
+                            line.contains(
+                                "CLASSLOADER_CLOSE"
+                            )&&
+                            line.contains(
+                                closeFailure
+                                    .getClass()
+                                    .getName()
+                            )
+                    ))
+                throw new AssertionError(
+                    "commitRuntime runtime-close failure was not retained diagnostically"
+                );
+
+            assertManagerCleanupIdle(
+                manager,
+                "commitRuntime failure"
+            );
+        }finally{
+            world.close();
+        }
+    }
+
     private static void snapshotFailureRuntimeClosesOnce()
         throws Exception{
         World world=
@@ -1402,6 +1526,55 @@ public final class PluginKernelLifecycleTest {
         }finally{
             world.close();
         }
+
+        World distinctWorld=
+            World.isolatedForTest(
+                25L
+            );
+        WorldPluginManager distinctManager=
+            (WorldPluginManager)
+                distinctWorld.plugins();
+        CountingPluginRuntime first=
+            new CountingPluginRuntime(
+                "close.duplicate.distinct",
+                Collections.<String>emptyList(),
+                null,
+                null,
+                null,
+                false
+            );
+        CountingPluginRuntime second=
+            new CountingPluginRuntime(
+                "close.duplicate.distinct",
+                Collections.<String>emptyList(),
+                null,
+                null,
+                null,
+                false
+            );
+
+        try{
+            Throwable observed=
+                captureFailure(
+                    ()->distinctManager.enableAll(
+                        Arrays.<Plugin>asList(
+                            first,
+                            second
+                        )
+                    )
+                );
+
+            if(!(observed instanceof
+                    IllegalStateException)||
+               first.closeCount.get()!=1||
+               second.closeCount.get()!=1)
+                throw new AssertionError(
+                    "distinct duplicate-id runtimes did not receive separate close ownership",
+                    observed
+                );
+        }finally{
+            distinctWorld.close();
+        }
     }
 
     private static void successfulRuntimeLifecycleClosesOnce()
@@ -1485,6 +1658,43 @@ public final class PluginKernelLifecycleTest {
            terminal.disableCount.get()!=1)
             throw new AssertionError(
                 "successful World-close runtime cleanup count mismatch"
+            );
+    }
+
+    private static void assertManagerCleanupIdle(
+        WorldPluginManager manager,
+        String phase
+    )throws Exception{
+        java.lang.reflect.Field terminalizing=
+            WorldPluginManager.class
+                .getDeclaredField(
+                    "terminalizing"
+                );
+        terminalizing.setAccessible(
+            true
+        );
+        java.util.Map<?,?> terminal=
+            (java.util.Map<?,?>)
+                terminalizing.get(
+                    manager
+                );
+
+        java.lang.reflect.Field active=
+            WorldPluginManager.class
+                .getDeclaredField(
+                    "activeCleanups"
+                );
+        active.setAccessible(
+            true
+        );
+
+        if(!terminal.isEmpty()||
+           active.getInt(
+               manager
+           )!=0)
+            throw new AssertionError(
+                phase+
+                " left terminal cleanup ownership live"
             );
     }
 
@@ -2330,6 +2540,97 @@ public final class PluginKernelLifecycleTest {
                 throw (Exception)failure;
 
             throw (Error)failure;
+        }
+    }
+
+    private static final class CommitFailureRuntime
+        implements PluginRuntime {
+        private final PluginManifest manifest;
+        private final World world;
+        private final boolean scheduleOverflow;
+        private final boolean advanceClock;
+        private final RuntimeException closeFailure;
+        private final List<String> disableOrder;
+        final AtomicInteger enableCount=
+            new AtomicInteger();
+        final AtomicInteger disableCount=
+            new AtomicInteger();
+        final AtomicInteger closeCount=
+            new AtomicInteger();
+
+        CommitFailureRuntime(
+            String id,
+            List<String> dependencies,
+            World world,
+            boolean scheduleOverflow,
+            boolean advanceClock,
+            RuntimeException closeFailure,
+            List<String> disableOrder
+        ){
+            manifest=
+                new PluginManifest(
+                    id,
+                    "1.0.0",
+                    PluginApiVersion.CURRENT,
+                    dependencies
+                );
+            this.world=world;
+            this.scheduleOverflow=
+                scheduleOverflow;
+            this.advanceClock=
+                advanceClock;
+            this.closeFailure=
+                closeFailure;
+            this.disableOrder=
+                disableOrder;
+        }
+
+        @Override public PluginManifest manifest(){
+            return manifest;
+        }
+
+        @Override public void enable(
+            PluginContext context
+        ){
+            enableCount.incrementAndGet();
+
+            if(scheduleOverflow){
+                long delay=
+                    Math.subtractExact(
+                        Long.MAX_VALUE,
+                        world.clock()
+                            .tick()
+                    );
+
+                context.scheduler()
+                    .schedule(
+                        delay,
+                        ()->{}
+                    );
+            }
+
+            if(advanceClock)
+                world.clock()
+                    .advance();
+        }
+
+        @Override public void disable(){
+            disableCount.incrementAndGet();
+            disableOrder.add(
+                manifest.id()
+            );
+        }
+
+        @Override public ClassLoader callbackClassLoader(){
+            return getClass()
+                .getClassLoader();
+        }
+
+        @Override public void close(){
+            closeCount.incrementAndGet();
+
+            if(closeFailure!=null)
+                throw closeFailure;
         }
     }
 
