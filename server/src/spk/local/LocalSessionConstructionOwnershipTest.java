@@ -33,6 +33,7 @@ public final class LocalSessionConstructionOwnershipTest {
         assertFailOnceGameListenerRetriedBeforeHandoffBarrier();
         assertFailOnceAuxListenerRetiredByOwnerRetry();
         assertResidualListenerRetriedByRepeatedClose();
+        assertRecoveredListenerRejoinsAcceptHandoffBarrier();
         assertGameListenerCloseFailurePublishesWithoutHandoffHang();
         assertLateTerminalAcceptCloseFailureRetainsOwnership();
         assertAuxListenerCloseFailurePublished();
@@ -63,6 +64,8 @@ public final class LocalSessionConstructionOwnershipTest {
             "listenerOwnerRetry=true "+
             "listenerRetryPreservesFailure=true "+
             "listenerRepeatedCloseRetry=true "+
+            "recoveredListenerHandoffBarrier=true "+
+            "recoveredListenerLateFailureDrained=true "+
             "gameListenerFailurePublished=true "+
             "gameListenerFailureNoHandoffHang=true "+
             "lateAcceptHandoffRetired=true "+
@@ -1372,6 +1375,196 @@ public final class LocalSessionConstructionOwnershipTest {
            game.closeCalls.get()<3)
             throw new AssertionError(
                 "repeated close did not retire residual listener"
+            );
+    }
+
+    private static void
+        assertRecoveredListenerRejoinsAcceptHandoffBarrier()
+        throws Exception{
+        World world=
+            World.isolatedForTest(
+                25L
+            );
+        world.start();
+
+        TrackingExecutor pool=
+            new TrackingExecutor();
+        FailCountCloseServerSocket game=
+            new FailCountCloseServerSocket(
+                2,
+                "fixture-recovered-listener-handoff"
+            );
+        ServerSocket aux=
+            new ServerSocket();
+        FailOnceCloseSocket accepted=
+            new FailOnceCloseSocket();
+
+        LocalServerShutdownCoordinator shutdown=
+            new LocalServerShutdownCoordinator(
+                world,
+                pool,
+                game,
+                aux
+            );
+
+        CountDownLatch acceptEntered=
+            new CountDownLatch(1);
+        CountDownLatch releaseAccept=
+            new CountDownLatch(1);
+        AtomicReference<Throwable> acceptFailure=
+            new AtomicReference<>();
+
+        Thread accepter=
+            new Thread(
+                ()->{
+                    try{
+                        shutdown.acceptGameSocket(
+                            ()->{
+                                acceptEntered.countDown();
+
+                                try{
+                                    releaseAccept.await();
+                                }catch(InterruptedException error){
+                                    Thread.currentThread()
+                                        .interrupt();
+                                    throw new IOException(
+                                        "fixture accept interrupted",
+                                        error
+                                    );
+                                }
+
+                                return accepted;
+                            }
+                        );
+                    }catch(Throwable failure){
+                        acceptFailure.set(
+                            failure
+                        );
+                    }
+                },
+                "recovered-listener-handoff-accept"
+            );
+        accepter.start();
+
+        if(!acceptEntered.await(
+                5,
+                TimeUnit.SECONDS))
+            throw new AssertionError(
+                "recovered-listener fixture did not publish accept handoff"
+            );
+
+        Throwable first=null;
+
+        try{
+            shutdown.close();
+        }catch(Throwable failure){
+            first=failure;
+        }
+
+        if(!(first instanceof
+                IllegalStateException)||
+           first.getCause()!=
+                game.failure)
+            throw new AssertionError(
+                "owner did not publish fail-twice listener failure",
+                first
+            );
+
+        if(game.isClosed()||
+           game.closeCalls.get()!=2||
+           shutdown.pendingGameAcceptHandoffs()!=1)
+            throw new AssertionError(
+                "owner did not leave expected recoverable listener/handoff state"
+            );
+
+        AtomicReference<Throwable> repeatedFailure=
+            new AtomicReference<>();
+        Thread repeated=
+            new Thread(
+                ()->{
+                    try{
+                        shutdown.close();
+                    }catch(Throwable failure){
+                        repeatedFailure.set(
+                            failure
+                        );
+                    }
+                },
+                "recovered-listener-handoff-repeat"
+            );
+        repeated.start();
+
+        long deadline=
+            System.nanoTime()+
+                TimeUnit.SECONDS.toNanos(
+                    5
+                );
+
+        while(!game.isClosed()&&
+              System.nanoTime()<deadline)
+            Thread.yield();
+
+        if(!game.isClosed()||
+           game.closeCalls.get()<3)
+            throw new AssertionError(
+                "repeated close did not recover game listener"
+            );
+
+        if(!repeated.isAlive())
+            throw new AssertionError(
+                "repeated close returned before recovered accept handoff retired"
+            );
+
+        releaseAccept.countDown();
+        accepter.join(
+            5_000L
+        );
+        repeated.join(
+            5_000L
+        );
+
+        if(accepter.isAlive()||
+           repeated.isAlive())
+            throw new AssertionError(
+                "recovered listener handoff reconciliation did not finish"
+            );
+
+        if(acceptFailure.get()!=
+                accepted.failure)
+            throw new AssertionError(
+                "late accepted socket close failure was not observed",
+                acceptFailure.get()
+            );
+
+        if(repeatedFailure.get()!=first)
+            throw new AssertionError(
+                "recovered listener reconciliation changed terminal failure identity",
+                repeatedFailure.get()
+            );
+
+        boolean lateFailureRetained=false;
+
+        for(Throwable suppressed:
+                first.getSuppressed())
+            if(suppressed==
+                    accepted.failure)
+                lateFailureRetained=true;
+
+        if(!lateFailureRetained)
+            throw new AssertionError(
+                "recovered listener did not drain late handoff failure in same close"
+            );
+
+        if(!accepted.isClosed()||
+           accepted.closeCalls.get()<2)
+            throw new AssertionError(
+                "recovered listener did not retry late accepted socket"
+            );
+
+        if(shutdown.pendingGameAcceptHandoffs()!=0||
+           shutdown.activeSessionCount()!=0)
+            throw new AssertionError(
+                "recovered listener handoff/socket ownership did not retire"
             );
     }
 
