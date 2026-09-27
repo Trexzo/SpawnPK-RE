@@ -1,6 +1,7 @@
 package spk.local
 
 import java.io.File
+import java.io.InputStream
 import java.net.URLClassLoader
 import java.nio.file.Files
 import java.nio.file.Path
@@ -280,24 +281,63 @@ internal class KotlinPluginLoader(
                         val expected =
                             Plugin::class.java.classLoader
                                 .getResourceAsStream(name)
-                                ?.use { it.readBytes() }
                                 ?: throw IllegalArgumentException(
                                     "Kotlin DSL server resource missing: $name"
                                 )
 
-                        val actual =
+                        expected.use { trusted ->
                             jar.getInputStream(entry)
-                                .use { it.readBytes() }
-
-                        require(
-                            actual.contentEquals(
-                                expected
-                            )
-                        ) {
-                            "Kotlin DSL dependency class does not match server SDK: " +
-                                path + " entry=" + entry.name
+                                .use { candidate ->
+                                    require(
+                                        streamsEqual(
+                                            trusted,
+                                            candidate
+                                        )
+                                    ) {
+                                        "Kotlin DSL dependency class does not match server SDK: " +
+                                            path + " entry=" + entry.name
+                                    }
+                                }
                         }
                     }
+                }
+            }
+        }
+    }
+
+    private fun streamsEqual(
+        trusted: InputStream,
+        candidate: InputStream
+    ): Boolean {
+        val trustedBuffer = ByteArray(8192)
+        val candidateBuffer = ByteArray(8192)
+
+        while (true) {
+            val trustedRead =
+                trusted.readNBytes(
+                    trustedBuffer,
+                    0,
+                    trustedBuffer.size
+                )
+            val candidateRead =
+                candidate.readNBytes(
+                    candidateBuffer,
+                    0,
+                    candidateBuffer.size
+                )
+
+            if (trustedRead != candidateRead) {
+                return false
+            }
+
+            if (trustedRead == 0) {
+                return true
+            }
+
+            for (index in 0 until trustedRead) {
+                if (trustedBuffer[index] !=
+                    candidateBuffer[index]) {
+                    return false
                 }
             }
         }
@@ -495,10 +535,12 @@ internal class KotlinPluginLoader(
                         index,
                         original ->
 
-                        val originalName =
-                            original.fileName
-                                ?.toString()
-                                ?: "artifact"
+                        val role =
+                            if (index == 0) {
+                                "api"
+                            } else {
+                                "dependency"
+                            }
                         val target =
                             root.resolve(
                                 index.toString()
@@ -507,7 +549,8 @@ internal class KotlinPluginLoader(
                                         '0'
                                     ) +
                                     "-" +
-                                    originalName
+                                    role +
+                                    ".jar"
                             )
 
                         files.add(
