@@ -245,6 +245,10 @@ internal class KotlinPluginLoader @JvmOverloads constructor(
                     path,
                     name
                 )
+                validateJarIndexEntry(
+                    path,
+                    name
+                )
 
                 if (!name.startsWith("spk/")) {
                     continue
@@ -277,6 +281,10 @@ internal class KotlinPluginLoader @JvmOverloads constructor(
                         entry.name
                             .replace('\\', '/')
                     validateVersionedClassEntry(
+                        path,
+                        name
+                    )
+                    validateJarIndexEntry(
                         path,
                         name
                     )
@@ -315,6 +323,18 @@ internal class KotlinPluginLoader @JvmOverloads constructor(
                     }
                 }
             }
+        }
+    }
+
+    private fun validateJarIndexEntry(
+        path: Path,
+        name: String
+    ) {
+        require(
+            name != "META-INF/INDEX.LIST"
+        ) {
+            "Kotlin classpath archive JAR Index is forbidden: " +
+                path + " entry=" + name
         }
     }
 
