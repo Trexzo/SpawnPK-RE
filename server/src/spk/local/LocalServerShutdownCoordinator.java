@@ -51,6 +51,7 @@ final class LocalServerShutdownCoordinator
     private Throwable auxiliaryWorkerFailure;
     private Throwable terminalAuxiliaryWorkerFailure;
     private boolean auxiliaryWorkerFailureSurfaced;
+    private boolean terminalCompletionPublished;
 
     LocalServerShutdownCoordinator(
         World world,
@@ -147,7 +148,7 @@ final class LocalServerShutdownCoordinator
 
             if(failure==null&&
                !terminal&&
-               workerFailure==null)
+               accepted!=null)
                 activeGameSockets.add(
                     accepted
                 );
@@ -165,7 +166,7 @@ final class LocalServerShutdownCoordinator
 
             if(accepted!=null)
                 closeFailure=
-                    closeUnownedSocket(
+                    retireOwnedSocket(
                         accepted
                     );
 
@@ -878,11 +879,25 @@ final class LocalServerShutdownCoordinator
         boolean wakeGame=false;
 
         synchronized(lifecycleLock){
-            if(closing)
-                recordTerminalAuxiliaryWorkerFailureLocked(
-                    failure
-                );
-            else if(auxiliaryWorkerFailure==null){
+            if(closing){
+                if(terminalCompletionPublished){
+                    Throwable published=
+                        terminal.failure();
+
+                    if(published!=null&&
+                       published!=failure)
+                        published.addSuppressed(
+                            failure
+                        );
+                    else
+                        recordTerminalAuxiliaryWorkerFailureLocked(
+                            failure
+                        );
+                }else
+                    recordTerminalAuxiliaryWorkerFailureLocked(
+                        failure
+                    );
+            }else if(auxiliaryWorkerFailure==null){
                 auxiliaryWorkerFailure=failure;
                 wakeGame=true;
             }else if(auxiliaryWorkerFailure!=failure)
@@ -1196,9 +1211,22 @@ final class LocalServerShutdownCoordinator
                     world::close
                 );
         }finally{
-            terminal.complete(
-                failure
-            );
+            synchronized(lifecycleLock){
+                Throwable lateWorkerFailure=
+                    terminalAuxiliaryWorkerFailure;
+                terminalAuxiliaryWorkerFailure=null;
+
+                failure=
+                    combineFailure(
+                        failure,
+                        lateWorkerFailure
+                    );
+
+                terminal.complete(
+                    failure
+                );
+                terminalCompletionPublished=true;
+            }
         }
 
         WorldCloseSequence.rethrow(
