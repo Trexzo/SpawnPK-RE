@@ -1272,25 +1272,25 @@ public final class PluginClassLoaderIsolationTest {
     private static void assertExceptionalCloseReleasesRoots(
         Path jarA
     )throws Exception{
-        RuntimeException marker=
-            new RuntimeException(
-                "fixture-close-cleanup-failure"
-            );
         PluginJarLoader.LoadedPlugin loaded=
             PluginJarLoader.load(
                 jarA,
-                ENTRYPOINT,
-                Plugin.class.getClassLoader(),
-                (source,snapshot)->{},
-                (source,snapshot)->{},
-                snapshot->{
-                    throw marker;
-                }
+                ENTRYPOINT
             );
         Path snapshot=
             loaded.snapshotPath();
         Path root=
             snapshot.getParent();
+        Path sentinel=
+            root.resolve(
+                "retirement-sentinel"
+            );
+
+        Files.write(
+            sentinel,
+            new byte[]{1}
+        );
+
         Throwable observed=null;
 
         try{
@@ -1299,22 +1299,28 @@ public final class PluginClassLoaderIsolationTest {
             observed=failure;
         }
 
-        if(observed!=marker)
+        if(!(observed instanceof
+                java.nio.file.DirectoryNotEmptyException))
             throw new AssertionError(
-                "exceptional close lost exact cleanup failure identity",
+                "exceptional close did not surface snapshot-root retirement failure",
                 observed
             );
 
-        if(Files.exists(snapshot)||
-           (root!=null&&
-            Files.exists(root)))
+        if(Files.exists(snapshot))
             throw new AssertionError(
-                "exceptional close retained private archive"
+                "exceptional close did not retire private archive JAR"
             );
 
         assertRuntimeReferencesReleased(
             loaded,
             "exceptional close"
+        );
+
+        Files.deleteIfExists(
+            sentinel
+        );
+        Files.deleteIfExists(
+            root
         );
     }
 
@@ -1322,66 +1328,37 @@ public final class PluginClassLoaderIsolationTest {
         Path jarA
     )throws Exception{
         java.util.concurrent.CountDownLatch
-            closeEntered=
+            manifestEntered=
                 new java.util.concurrent
                     .CountDownLatch(1);
         java.util.concurrent.CountDownLatch
-            releaseClose=
+            releaseManifest=
                 new java.util.concurrent
                     .CountDownLatch(1);
+
+        System.getProperties().put(
+            "spawnpk.fixture.isolation.a.manifestEnteredLatch",
+            manifestEntered
+        );
+        System.getProperties().put(
+            "spawnpk.fixture.isolation.a.manifestReleaseLatch",
+            releaseManifest
+        );
 
         PluginJarLoader.LoadedPlugin loaded=
             PluginJarLoader.load(
                 jarA,
-                ENTRYPOINT,
-                Plugin.class.getClassLoader(),
-                (source,snapshot)->{},
-                (source,snapshot)->{},
-                snapshot->{
-                    closeEntered.countDown();
-
-                    if(!releaseClose.await(
-                            5L,
-                            java.util.concurrent
-                                .TimeUnit.SECONDS))
-                        throw new AssertionError(
-                            "close race release timed out"
-                        );
-                }
+                ENTRYPOINT
             );
 
-        java.util.concurrent.atomic.AtomicReference<Throwable>
-            closeFailure=
-                new java.util.concurrent.atomic
-                    .AtomicReference<>();
         java.util.concurrent.atomic.AtomicReference<Throwable>
             callFailure=
                 new java.util.concurrent.atomic
                     .AtomicReference<>();
-
-        Thread closer=
-            new Thread(
-                ()->{
-                    try{
-                        loaded.close();
-                    }catch(Throwable failure){
-                        closeFailure.set(
-                            failure
-                        );
-                    }
-                },
-                "java-plugin-close-race-closer"
-            );
-
-        closer.start();
-
-        if(!closeEntered.await(
-                5L,
-                java.util.concurrent
-                    .TimeUnit.SECONDS))
-            throw new AssertionError(
-                "close race did not publish terminal state"
-            );
+        java.util.concurrent.atomic.AtomicReference<Throwable>
+            closeFailure=
+                new java.util.concurrent.atomic
+                    .AtomicReference<>();
 
         Thread caller=
             new Thread(
@@ -1394,45 +1371,121 @@ public final class PluginClassLoaderIsolationTest {
                         );
                     }
                 },
-                "java-plugin-close-race-caller"
+                "java-plugin-live-call"
+            );
+        Thread closer=
+            new Thread(
+                ()->{
+                    try{
+                        loaded.close();
+                    }catch(Throwable failure){
+                        closeFailure.set(
+                            failure
+                        );
+                    }
+                },
+                "java-plugin-close-race"
             );
 
-        caller.start();
-        releaseClose.countDown();
+        try{
+            caller.start();
 
-        closer.join(
-            5_000L
-        );
-        caller.join(
-            5_000L
-        );
+            if(!manifestEntered.await(
+                    5L,
+                    java.util.concurrent
+                        .TimeUnit.SECONDS))
+                throw new AssertionError(
+                    "live manifest call did not enter fixture"
+                );
 
-        if(closer.isAlive()||
-           caller.isAlive())
-            throw new AssertionError(
-                "close race thread did not terminate"
+            closer.start();
+
+            long blockedDeadline=
+                System.nanoTime()+
+                java.util.concurrent.TimeUnit
+                    .SECONDS.toNanos(
+                        5L
+                    );
+
+            while(closer.getState()!=
+                    Thread.State.BLOCKED){
+                if(!closer.isAlive())
+                    throw new AssertionError(
+                        "close completed while live synchronized call still owned runtime"
+                    );
+
+                if(System.nanoTime()>=
+                        blockedDeadline)
+                    throw new AssertionError(
+                        "close did not block behind live synchronized call"
+                    );
+
+                Thread.yield();
+            }
+
+            releaseManifest.countDown();
+
+            caller.join(
+                5_000L
+            );
+            closer.join(
+                5_000L
             );
 
-        if(closeFailure.get()!=null)
-            throw new AssertionError(
-                "healthy close race failed",
-                closeFailure.get()
+            if(caller.isAlive()||
+               closer.isAlive())
+                throw new AssertionError(
+                    "serialized close race thread did not terminate"
+                );
+
+            if(callFailure.get()!=null)
+                throw new AssertionError(
+                    "pre-terminal live call failed",
+                    callFailure.get()
+                );
+
+            if(closeFailure.get()!=null)
+                throw new AssertionError(
+                    "serialized close failed",
+                    closeFailure.get()
+                );
+
+            boolean terminalDenied=false;
+
+            try{
+                loaded.manifest();
+            }catch(IllegalStateException expected){
+                terminalDenied=true;
+            }
+
+            if(!terminalDenied)
+                throw new AssertionError(
+                    "post-close call did not fail through terminal boundary"
+                );
+
+            assertRuntimeReferencesReleased(
+                loaded,
+                "live-close serialization"
+            );
+        }finally{
+            releaseManifest.countDown();
+            System.getProperties().remove(
+                "spawnpk.fixture.isolation.a.manifestEnteredLatch"
+            );
+            System.getProperties().remove(
+                "spawnpk.fixture.isolation.a.manifestReleaseLatch"
             );
 
-        Throwable failure=
-            callFailure.get();
-
-        if(!(failure instanceof
-                IllegalStateException))
-            throw new AssertionError(
-                "post-terminal racing call did not fail with intentional terminal exception",
-                failure
+            caller.join(
+                5_000L
+            );
+            closer.join(
+                5_000L
             );
 
-        assertRuntimeReferencesReleased(
-            loaded,
-            "live-close race"
-        );
+            if(!loaded.closed())
+                loaded.close();
+        }
     }
 
     private static void assertRuntimeReferencesReleased(
@@ -1443,8 +1496,7 @@ public final class PluginClassLoaderIsolationTest {
                 new String[]{
                     "delegate",
                     "loader",
-                    "snapshot",
-                    "closeHook"
+                    "snapshot"
                 }){
             java.lang.reflect.Field field=
                 loaded.getClass()
