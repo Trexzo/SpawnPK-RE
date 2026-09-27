@@ -458,7 +458,7 @@ final class PluginJarLoader implements PluginLoader {
                 );
         }
 
-        @Override public PluginManifest manifest(){
+        @Override public synchronized PluginManifest manifest(){
             Plugin current=
                 requireDelegate();
             IsolatedPluginClassLoader
@@ -472,7 +472,7 @@ final class PluginJarLoader implements PluginLoader {
                 );
         }
 
-        @Override public void enable(
+        @Override public synchronized void enable(
             PluginContext context
         )throws Exception{
             Plugin current=
@@ -489,7 +489,7 @@ final class PluginJarLoader implements PluginLoader {
             );
         }
 
-        @Override public void disable()
+        @Override public synchronized void disable()
             throws Exception{
             Plugin current=
                 requireDelegate();
@@ -503,16 +503,16 @@ final class PluginJarLoader implements PluginLoader {
             );
         }
 
-        Plugin delegate(){
+        synchronized Plugin delegate(){
             return requireDelegate();
         }
 
-        @Override public ClassLoader
+        @Override public synchronized ClassLoader
             callbackClassLoader(){
             return requireLoader();
         }
 
-        ClassLoader classLoader(){
+        synchronized ClassLoader classLoader(){
             return requireLoader();
         }
 
@@ -528,7 +528,7 @@ final class PluginJarLoader implements PluginLoader {
             return closed;
         }
 
-        Path snapshotPath(){
+        synchronized Path snapshotPath(){
             ArchiveSnapshot current=
                 snapshot;
 
