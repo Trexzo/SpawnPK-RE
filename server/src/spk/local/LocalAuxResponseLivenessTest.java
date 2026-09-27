@@ -26,6 +26,8 @@ public final class LocalAuxResponseLivenessTest {
         assertUncheckedPrimaryKeepsIdentityAcrossTimeout();
         assertFinalWriteTimeoutRaceCannotReturnClean();
         assertTerminalFenceWinsBeforePhysicalClose();
+        assertTerminalWinsBetweenValidationAndTimeoutClaim();
+        assertTimeoutClaimWinsBeforeTerminalFence();
         assertTerminalCloseWinsWithoutSyntheticTimeout();
         assertSuccessfulTimeoutKeepsOwnershipUntilWorkerRelease();
         assertAbortFailurePreservesCoordinatorOwnership();
@@ -48,6 +50,8 @@ public final class LocalAuxResponseLivenessTest {
             "finalWriteRaceBounded=true "+
             "sameWorkerContinues=true "+
             "terminalFenceWins=true "+
+            "terminalClaimSerialized=true "+
+            "timeoutClaimSerialized=true "+
             "terminalWins=true "+
             "watchdogRetired=true "+
             "successfulTimeoutOwnershipHeld=true "+
@@ -498,6 +502,307 @@ public final class LocalAuxResponseLivenessTest {
                 "published terminal fence did not neutralize response timeout before physical close",
                 failure
             );
+    }
+
+    private static void
+        assertTerminalWinsBetweenValidationAndTimeoutClaim()
+        throws Exception{
+        World world=
+            World.isolatedForTest(
+                25L
+            );
+        java.util.concurrent.ExecutorService pool=
+            java.util.concurrent.Executors
+                .newSingleThreadExecutor();
+        java.net.ServerSocket game=
+            new java.net.ServerSocket();
+        java.net.ServerSocket aux=
+            new java.net.ServerSocket();
+        LocalServerShutdownCoordinator coordinator=
+            new LocalServerShutdownCoordinator(
+                world,
+                pool,
+                game,
+                aux
+            );
+        FakeSocket socket=
+            new FakeSocket();
+        ManualScheduler scheduler=
+            new ManualScheduler();
+        CountDownLatch claimReached=
+            new CountDownLatch(1);
+        CountDownLatch releaseClaim=
+            new CountDownLatch(1);
+        AtomicInteger publications=
+            new AtomicInteger();
+        AtomicReference<Throwable> triggerFailure=
+            new AtomicReference<>();
+        AtomicReference<Throwable> terminalFailure=
+            new AtomicReference<>();
+
+        LocalAuxResponseLiveness liveness=
+            LocalAuxResponseLiveness.arm(
+                socket,
+                scheduler,
+                commit->{
+                    claimReached.countDown();
+
+                    try{
+                        releaseClaim.await();
+                    }catch(InterruptedException error){
+                        Thread.currentThread()
+                            .interrupt();
+                        throw new IllegalStateException(
+                            "fixture timeout claim interrupted",
+                            error
+                        );
+                    }
+
+                    return coordinator
+                        .claimAuxiliaryResponseTimeout(
+                            commit
+                        );
+                },
+                failure->
+                    publications.incrementAndGet()
+            );
+
+        Thread trigger=
+            new Thread(
+                ()->{
+                    try{
+                        scheduler.trigger();
+                    }catch(Throwable failure){
+                        triggerFailure.set(
+                            failure
+                        );
+                    }
+                },
+                "fixture-terminal-before-timeout-claim"
+            );
+        Thread terminal=
+            new Thread(
+                ()->{
+                    try{
+                        coordinator.close();
+                    }catch(Throwable failure){
+                        terminalFailure.set(
+                            failure
+                        );
+                    }
+                },
+                "fixture-terminal-claim-owner"
+            );
+
+        try{
+            trigger.start();
+
+            if(!claimReached.await(
+                    5,
+                    TimeUnit.SECONDS))
+                throw new AssertionError(
+                    "watchdog did not reach pre-claim pause"
+                );
+
+            if(coordinator.closing())
+                throw new AssertionError(
+                    "terminal fence published before fixture requested it"
+                );
+
+            terminal.start();
+
+            long deadline=
+                System.nanoTime()+
+                TimeUnit.SECONDS.toNanos(
+                    5
+                );
+
+            while(!coordinator.closing()&&
+                  System.nanoTime()<deadline)
+                Thread.yield();
+
+            if(!coordinator.closing())
+                throw new AssertionError(
+                    "terminal fence did not publish while timeout claim was paused"
+                );
+
+            releaseClaim.countDown();
+
+            trigger.join(
+                5_000L
+            );
+            terminal.join(
+                5_000L
+            );
+
+            if(trigger.isAlive()||
+               terminal.isAlive())
+                throw new AssertionError(
+                    "terminal-before-timeout-claim fixture did not converge"
+                );
+
+            Throwable finishFailure=
+                liveness.finish(
+                    null
+                );
+
+            if(triggerFailure.get()!=null||
+               terminalFailure.get()!=null||
+               finishFailure!=null||
+               liveness.timedOut()||
+               socket.closeCalls!=0||
+               publications.get()!=0)
+                throw new AssertionError(
+                    "terminal-first ordering fabricated timeout authority",
+                    triggerFailure.get()!=null
+                        ?triggerFailure.get()
+                        :finishFailure
+                );
+        }finally{
+            releaseClaim.countDown();
+            trigger.join(
+                1_000L
+            );
+            terminal.join(
+                1_000L
+            );
+
+            if(!coordinator.closing())
+                try{
+                    coordinator.close();
+                }catch(Throwable ignored){
+                }
+        }
+    }
+
+    private static void
+        assertTimeoutClaimWinsBeforeTerminalFence()
+        throws Exception{
+        World world=
+            World.isolatedForTest(
+                25L
+            );
+        java.util.concurrent.ExecutorService pool=
+            java.util.concurrent.Executors
+                .newSingleThreadExecutor();
+        java.net.ServerSocket game=
+            new java.net.ServerSocket();
+        java.net.ServerSocket aux=
+            new java.net.ServerSocket();
+        LocalServerShutdownCoordinator coordinator=
+            new LocalServerShutdownCoordinator(
+                world,
+                pool,
+                game,
+                aux
+            );
+        FakeSocket socket=
+            new FakeSocket();
+        ManualScheduler scheduler=
+            new ManualScheduler();
+        CountDownLatch timeoutCommitted=
+            new CountDownLatch(1);
+
+        try{
+            Socket accepted=
+                coordinator
+                    .acceptAuxiliarySocket(
+                        ()->socket
+                    );
+
+            if(accepted!=socket||
+               coordinator.activeAuxiliarySocketCount()!=1)
+                throw new AssertionError(
+                    "timeout-first fixture did not establish AUX socket ownership"
+                );
+
+            LocalAuxResponseLiveness liveness=
+                LocalAuxResponseLiveness.arm(
+                    socket,
+                    scheduler,
+                    commit->
+                        coordinator
+                            .claimAuxiliaryResponseTimeout(
+                                ()->{
+                                    boolean claimed=
+                                        commit.getAsBoolean();
+
+                                    if(claimed)
+                                        timeoutCommitted
+                                            .countDown();
+
+                                    return claimed;
+                                }
+                            ),
+                    failure->{
+                        throw new AssertionError(
+                            "successful timeout abort unexpectedly published worker-fatal failure",
+                            failure
+                        );
+                    }
+                );
+
+            Thread trigger=
+                new Thread(
+                    scheduler::trigger,
+                    "fixture-timeout-before-terminal"
+                );
+            trigger.start();
+
+            if(!timeoutCommitted.await(
+                    5,
+                    TimeUnit.SECONDS))
+                throw new AssertionError(
+                    "timeout claim did not commit before terminal fence"
+                );
+
+            trigger.join(
+                5_000L
+            );
+
+            if(trigger.isAlive())
+                throw new AssertionError(
+                    "timeout-first watchdog did not finish bounded abort"
+                );
+
+            if(!liveness.timedOut()||
+               !socket.isClosed()||
+               socket.closeCalls!=1||
+               coordinator.activeAuxiliarySocketCount()!=1)
+                throw new AssertionError(
+                    "timeout-first claim did not retain timeout evidence and coordinator ownership"
+                );
+
+            Throwable terminalFailure=null;
+
+            try{
+                coordinator.close();
+            }catch(Throwable failure){
+                terminalFailure=failure;
+            }
+
+            Throwable responseFailure=
+                liveness.finish(
+                    null
+                );
+
+            if(terminalFailure!=null||
+               !(responseFailure instanceof SocketTimeoutException)||
+               !liveness.timedOut()||
+               coordinator.activeAuxiliarySocketCount()!=0)
+                throw new AssertionError(
+                    "later terminal cleanup erased timeout truth or retained AUX ownership",
+                    terminalFailure!=null
+                        ?terminalFailure
+                        :responseFailure
+                );
+        }finally{
+            if(!coordinator.closing())
+                try{
+                    coordinator.close();
+                }catch(Throwable ignored){
+                }
+        }
     }
 
     private static void
