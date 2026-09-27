@@ -91,10 +91,7 @@ internal class KotlinPluginLoader(
         }
 
         val script = source.path()
-
-        require(Files.isRegularFile(script)) {
-            "Kotlin plugin script missing: $script"
-        }
+        val scriptText = source.requireScriptText()
 
         val compilation =
             createJvmCompilationConfigurationFromTemplate<SimpleScriptTemplate> {
@@ -120,7 +117,7 @@ internal class KotlinPluginLoader(
 
         val evaluated =
             host.eval(
-                script.toFile().toScriptSource(),
+                scriptText.toScriptSource(script.toString()),
                 compilation,
                 evaluation
             )
