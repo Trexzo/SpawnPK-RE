@@ -7,10 +7,12 @@ import java.util.Objects;
 final class PluginSource {
     private final Path path;
     private final String entrypoint;
+    private final String scriptText;
 
     private PluginSource(
         Path path,
-        String entrypoint
+        String entrypoint,
+        String scriptText
     ){
         this.path=
             Objects.requireNonNull(
@@ -28,6 +30,7 @@ final class PluginSource {
             clean==null||clean.isEmpty()
                 ?null
                 :clean;
+        this.scriptText=scriptText;
     }
 
     static PluginSource of(
@@ -36,16 +39,36 @@ final class PluginSource {
     ){
         return new PluginSource(
             path,
-            entrypoint
+            entrypoint,
+            null
         );
     }
 
+    /**
+     * Path-only script source used for loader capability/routing checks.
+     * Executing loaders may require an admitted immutable snapshot.
+     */
     static PluginSource script(
         Path path
     ){
         return new PluginSource(
             path,
+            null,
             null
+        );
+    }
+
+    static PluginSource scriptSnapshot(
+        Path path,
+        String scriptText
+    ){
+        return new PluginSource(
+            path,
+            null,
+            Objects.requireNonNull(
+                scriptText,
+                "scriptText"
+            )
         );
     }
 
@@ -59,6 +82,20 @@ final class PluginSource {
 
     boolean hasEntrypoint(){
         return entrypoint!=null;
+    }
+
+    boolean hasScriptSnapshot(){
+        return scriptText!=null;
+    }
+
+    String requireScriptText(){
+        if(scriptText==null)
+            throw new IllegalArgumentException(
+                "plugin script source snapshot is required: "+
+                path
+            );
+
+        return scriptText;
     }
 
     String requireEntrypoint(){
