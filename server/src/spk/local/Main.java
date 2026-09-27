@@ -318,12 +318,13 @@ public final class Main {
     private static byte[] localVersions() {
         try {
             Path p = Paths.get(System.getProperty("user.home"), ".spawnpk", "versions.dat");
-            if (Files.isRegularFile(p)) {
-                byte[] data = Files.readAllBytes(p);
-                if (data.length > 0 && data.length < 16_384) return data;
-            }
-        } catch (Throwable ignored) {}
-        return FALLBACK_VERSIONS.clone();
+            return LocalAuxVersions.read(
+                p,
+                FALLBACK_VERSIONS
+            );
+        } catch (java.nio.file.InvalidPathException | SecurityException ignored) {
+            return FALLBACK_VERSIONS.clone();
+        }
     }
 
     private static Path localArchiveFor(String target) {
