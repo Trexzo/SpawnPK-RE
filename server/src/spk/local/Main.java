@@ -15,6 +15,9 @@ public final class Main {
         "sprite_version = 72.0\r\n" +
         "config_version = 110.0\r\n"
     ).getBytes(StandardCharsets.US_ASCII);
+    private static final LocalAuxResponseDeadline.Factory AUX_RESPONSE_DEADLINES =
+        LocalAuxResponseDeadline.production();
+
 
     public static void main(String[] args) throws Exception {
         boolean bootstrap = false;
@@ -213,6 +216,21 @@ public final class Main {
     }
 
     static void handleAuxConnection(Socket s) throws IOException {
+        handleAuxConnection(
+            s,
+            AUX_RESPONSE_DEADLINES
+        );
+    }
+
+    static void handleAuxConnection(
+        Socket s,
+        LocalAuxResponseDeadline.Factory responseDeadlines
+    ) throws IOException {
+        if(responseDeadlines==null)
+            throw new IllegalArgumentException(
+                "responseDeadlines"
+            );
+
         InputStream in = s.getInputStream();
         OutputStream out = s.getOutputStream();
         LocalAuxHttpRequestReader request =
@@ -237,6 +255,10 @@ public final class Main {
             // receive the same harmless local response behavior as before.
             request.consumeHeaders();
 
+            try(LocalAuxResponseDeadline responseDeadline =
+                    responseDeadlines.start(
+                        s::close
+                    )) {
             byte[] body;
             String contentType = "text/plain; charset=us-ascii";
             int status = 200;
@@ -269,6 +291,7 @@ public final class Main {
                             );
 
                 if(length!=null) {
+                    responseDeadline.complete();
                     System.out.println(
                         "[local-aux] HTTP local-archive target=" + target +
                         " status=200 bytes=" + length.longValue()
@@ -293,9 +316,11 @@ public final class Main {
                 body,
                 head
             );
+            responseDeadline.complete();
             System.out.println("[local-aux] HTTP " + classification + " target=" + target
                              + " status=" + status + " bytes=" + body.length);
             return;
+            }
         }
 
         // Legacy/JAGGRAB or unknown traffic remains local.  Do not invent a protocol
