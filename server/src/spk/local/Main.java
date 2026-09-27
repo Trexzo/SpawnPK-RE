@@ -271,9 +271,20 @@ public final class Main {
             } else if (target.endsWith("/cache.zip") || target.endsWith("/sprites.zip") || target.endsWith("/configs.zip")) {
                 Path local = localArchiveFor(target);
                 if (local != null && Files.isRegularFile(local)) {
-                    body = Files.readAllBytes(local);
-                    contentType = "application/zip";
-                    classification = "local-archive";
+                    long length =
+                        LocalAuxHttpResponse.writeFile(
+                            out,
+                            200,
+                            "OK",
+                            "application/zip",
+                            local,
+                            head
+                        );
+                    System.out.println(
+                        "[local-aux] HTTP local-archive target=" + target +
+                        " status=200 bytes=" + length
+                    );
+                    return;
                 } else {
                     body = "LOCAL_ARCHIVE_NOT_PRESENT\n".getBytes(StandardCharsets.US_ASCII);
                     status = 404;
@@ -285,7 +296,14 @@ public final class Main {
                 classification = "blocked-placeholder";
             }
 
-            writeHttp(out, status, reason, contentType, body, head);
+            LocalAuxHttpResponse.writeBytes(
+                out,
+                status,
+                reason,
+                contentType,
+                body,
+                head
+            );
             System.out.println("[local-aux] HTTP " + classification + " target=" + target
                              + " status=" + status + " bytes=" + body.length);
             return;
@@ -326,18 +344,6 @@ public final class Main {
             if (x != '\r') b.write(x);
         }
         return b.toString(StandardCharsets.ISO_8859_1.name());
-    }
-
-    private static void writeHttp(OutputStream out, int status, String reason, String type, byte[] body, boolean head)
-            throws IOException {
-        String h = "HTTP/1.1 " + status + " " + reason + "\r\n"
-                 + "Content-Type: " + type + "\r\n"
-                 + "Content-Length: " + body.length + "\r\n"
-                 + "Connection: close\r\n"
-                 + "Cache-Control: no-store\r\n\r\n";
-        out.write(h.getBytes(StandardCharsets.US_ASCII));
-        if (!head) out.write(body);
-        out.flush();
     }
 
     private static String printable(String s) {
