@@ -7,6 +7,7 @@ import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.StandardOpenOption
 import java.util.Locale
+import java.util.jar.Attributes
 import java.util.jar.JarFile
 import kotlin.script.experimental.api.ResultValue
 import kotlin.script.experimental.api.ResultWithDiagnostics
@@ -226,6 +227,10 @@ internal class KotlinPluginLoader @JvmOverloads constructor(
 
     private fun validateApiJar(path: Path) {
         JarFile(path.toFile()).use { jar ->
+            validateManifestClasspath(
+                path,
+                jar
+            )
             val entries = jar.entries()
 
             while (entries.hasMoreElements()) {
@@ -254,6 +259,10 @@ internal class KotlinPluginLoader @JvmOverloads constructor(
 
     private fun validateDependencyJar(path: Path) {
         JarFile(path.toFile()).use { jar ->
+            validateManifestClasspath(
+                path,
+                jar
+            )
             val entries = jar.entries()
 
             while (entries.hasMoreElements()) {
@@ -298,6 +307,26 @@ internal class KotlinPluginLoader @JvmOverloads constructor(
                     }
                 }
             }
+        }
+    }
+
+    private fun validateManifestClasspath(
+        path: Path,
+        jar: JarFile
+    ) {
+        val classPath =
+            jar.manifest
+                ?.mainAttributes
+                ?.getValue(
+                    Attributes.Name.CLASS_PATH
+                )
+                ?.trim()
+
+        require(
+            classPath.isNullOrEmpty()
+        ) {
+            "Kotlin classpath archive manifest Class-Path is forbidden: " +
+                path + " value=" + classPath
         }
     }
 
