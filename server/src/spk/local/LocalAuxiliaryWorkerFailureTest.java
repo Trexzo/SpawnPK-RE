@@ -3,6 +3,7 @@ package spk.local;
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.net.SocketTimeoutException;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.AbstractExecutorService;
@@ -11,6 +12,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 public final class LocalAuxiliaryWorkerFailureTest {
@@ -22,6 +24,8 @@ public final class LocalAuxiliaryWorkerFailureTest {
         assertAcceptedHandoffOwnershipWhileCloseBlocked();
         assertWakeFailureSuppressedAndRetried();
         assertFailedOpenWakeStillBlocksServing();
+        assertIdlePollKeepsOneAcceptHandoff();
+        assertFailedOpenWakePollsInFlightAccept();
         assertDuplicateFailureKeepsFirstPrimary();
         assertExactErrorTaskBoundaryIdentity();
         assertPrePublicationLateFailureJoinsFirstTerminalResult();
@@ -40,6 +44,8 @@ public final class LocalAuxiliaryWorkerFailureTest {
             "wakeCloseRetry=true "+
             "wakeFailureSuppressed=true "+
             "failedOpenStillAuthoritative=true "+
+            "idlePollHandoffContinuous=true "+
+            "failedOpenInFlightAcceptBounded=true "+
             "duplicateKeepsFirst=true "+
             "exactErrorIdentity=true "+
             "prePublicationLateFailureIncluded=true "+
@@ -598,6 +604,200 @@ public final class LocalAuxiliaryWorkerFailureTest {
                     "failed-open listener allowed a new game accept after AUX death"
                 );
         }finally{
+            // Make the fixture physically closable for ordinary teardown.
+            game.failUntil=game.closeCalls;
+            fixture.close();
+        }
+    }
+
+    private static void assertIdlePollKeepsOneAcceptHandoff()
+        throws Exception{
+        Fixture fixture=
+            new Fixture(
+                new TrackingServerSocket(0)
+            );
+        AtomicInteger polls=
+            new AtomicInteger();
+        TrackingSocket accepted=
+            new TrackingSocket();
+
+        try{
+            Socket observed=
+                fixture.shutdown.acceptGameSocket(
+                    ()->{
+                        int call=
+                            polls.incrementAndGet();
+
+                        if(fixture.shutdown
+                                .pendingGameAcceptHandoffs()!=1)
+                            throw new AssertionError(
+                                "idle poll released/reacquired game accept handoff"
+                            );
+
+                        if(call<=2)
+                            throw new SocketTimeoutException(
+                                "fixture-idle-poll-"+call
+                            );
+
+                        return accepted;
+                    }
+                );
+
+            if(observed!=accepted||
+               polls.get()!=3)
+                throw new AssertionError(
+                    "ordinary idle polls did not continue accepting"
+                );
+
+            if(fixture.shutdown
+                    .pendingGameAcceptHandoffs()!=0)
+                throw new AssertionError(
+                    "completed game accept retained handoff"
+                );
+
+            fixture.shutdown.rejectSessionSocket(
+                accepted
+            );
+        }finally{
+            fixture.close();
+        }
+    }
+
+    private static void assertFailedOpenWakePollsInFlightAccept()
+        throws Exception{
+        TrackingServerSocket game=
+            new TrackingServerSocket(
+                Integer.MAX_VALUE
+            );
+        Fixture fixture=
+            new Fixture(game);
+        RuntimeException expected=
+            new RuntimeException(
+                "fixture-aux-worker-inflight-failed-open"
+            );
+        CountDownLatch acceptEntered=
+            new CountDownLatch(1);
+        CountDownLatch emitPoll=
+            new CountDownLatch(1);
+        AtomicInteger acceptCalls=
+            new AtomicInteger();
+        AtomicReference<Throwable> observed=
+            new AtomicReference<>();
+
+        Thread acceptThread=
+            new Thread(
+                ()->{
+                    try{
+                        fixture.shutdown.acceptGameSocket(
+                            ()->{
+                                acceptCalls.incrementAndGet();
+                                acceptEntered.countDown();
+
+                                try{
+                                    emitPoll.await();
+                                }catch(InterruptedException error){
+                                    Thread.currentThread()
+                                        .interrupt();
+                                    throw new IOException(
+                                        error
+                                    );
+                                }
+
+                                throw new SocketTimeoutException(
+                                    "fixture-scripted-accept-poll"
+                                );
+                            }
+                        );
+                    }catch(Throwable failure){
+                        observed.set(
+                            failure
+                        );
+                    }
+                },
+                "aux-worker-inflight-failed-open"
+            );
+
+        try{
+            acceptThread.start();
+
+            if(!acceptEntered.await(
+                    5,
+                    TimeUnit.SECONDS))
+                throw new AssertionError(
+                    "in-flight game accept did not start"
+                );
+
+            if(fixture.shutdown
+                    .pendingGameAcceptHandoffs()!=1)
+                throw new AssertionError(
+                    "in-flight game accept did not publish one handoff"
+                );
+
+            fixture.shutdown.submitAuxiliary(
+                ()->{ throw expected; }
+            );
+
+            await(
+                ()->game.closeCalls>=2,
+                "failed-open listener did not receive both bounded wake attempts"
+            );
+
+            if(game.isClosed())
+                throw new AssertionError(
+                    "failed-open listener unexpectedly closed"
+                );
+
+            if(fixture.shutdown
+                    .pendingGameAcceptHandoffs()!=1)
+                throw new AssertionError(
+                    "failed-open wake lost in-flight accept handoff before poll"
+                );
+
+            emitPoll.countDown();
+
+            acceptThread.join(
+                5_000L
+            );
+
+            if(acceptThread.isAlive())
+                throw new AssertionError(
+                    "bounded accept poll did not release in-flight serving boundary"
+                );
+
+            if(observed.get()!=expected)
+                throw new AssertionError(
+                    "in-flight failed-open accept lost exact AUX worker primary",
+                    observed.get()
+                );
+
+            if(acceptCalls.get()!=1)
+                throw new AssertionError(
+                    "worker failure caused unexpected extra accept polls: "+
+                    acceptCalls.get()
+                );
+
+            if(fixture.shutdown
+                    .pendingGameAcceptHandoffs()!=0)
+                throw new AssertionError(
+                    "worker-failure poll retained game accept handoff"
+                );
+
+            if(fixture.shutdown
+                    .activeSessionCount()!=0)
+                throw new AssertionError(
+                    "worker-failure poll committed a game socket"
+                );
+
+            if(expected.getSuppressed().length==0)
+                throw new AssertionError(
+                    "failed-open listener wake failures were not retained diagnostically"
+                );
+        }finally{
+            emitPoll.countDown();
+            acceptThread.join(
+                1_000L
+            );
+
             // Make the fixture physically closable for ordinary teardown.
             game.failUntil=game.closeCalls;
             fixture.close();
