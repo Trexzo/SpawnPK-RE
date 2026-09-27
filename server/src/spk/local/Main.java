@@ -196,6 +196,7 @@ public final class Main {
 
                 handleAuxConnection(
                     socket,
+                    shutdown::closing,
                     shutdown::publishAuxiliaryWorkerFailure
                 );
             },
@@ -216,12 +217,14 @@ public final class Main {
     static void handleAuxConnection(Socket s) throws IOException {
         handleAuxConnection(
             s,
+            ()->false,
             failure->{}
         );
     }
 
     static void handleAuxConnection(
         Socket s,
+        java.util.function.BooleanSupplier terminalClosing,
         java.util.function.Consumer<Throwable> livenessFailure
     ) throws IOException {
         InputStream in = s.getInputStream();
@@ -251,6 +254,7 @@ public final class Main {
             LocalAuxResponseLiveness liveness=
                 LocalAuxResponseLiveness.arm(
                     s,
+                    terminalClosing,
                     livenessFailure
                 );
             OutputStream responseOut=
