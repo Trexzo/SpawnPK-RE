@@ -8,6 +8,8 @@ import java.net.Socket;
 import java.net.SocketTimeoutException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -698,6 +700,8 @@ public final class LocalAuxResponseLivenessTest {
         socket.failCloseAttempts=2;
         ManualScheduler scheduler=
             new ManualScheduler();
+        AtomicReference<Throwable> workerFailure=
+            new AtomicReference<>();
 
         try{
             Socket accepted=
@@ -717,6 +721,45 @@ public final class LocalAuxResponseLivenessTest {
                     scheduler,
                     coordinator::publishAuxiliaryWorkerFailure
                 );
+            BlockingUntilSocketClosedOutput blocked=
+                new BlockingUntilSocketClosedOutput(
+                    socket
+                );
+
+            Thread responseThread=
+                new Thread(
+                    ()->{
+                        Throwable primary=null;
+
+                        try{
+                            liveness.output(
+                                blocked
+                            ).write(
+                                1
+                            );
+                        }catch(Throwable failure){
+                            primary=failure;
+                        }
+
+                        workerFailure.set(
+                            liveness.finish(
+                                primary
+                            )
+                        );
+                    },
+                    "fixture-aux-blocked-response"
+                );
+            responseThread.setDaemon(
+                true
+            );
+            responseThread.start();
+
+            if(!blocked.entered.await(
+                    1,
+                    TimeUnit.SECONDS))
+                throw new AssertionError(
+                    "fixture response write did not block"
+                );
 
             scheduler.trigger();
 
@@ -724,18 +767,40 @@ public final class LocalAuxResponseLivenessTest {
                socket.closeCalls!=2||
                !game.isClosed()||
                coordinator.activeAuxiliarySocketCount()!=1||
-               !liveness.timedOut())
+               !liveness.timedOut()||
+               !responseThread.isAlive())
                 throw new AssertionError(
-                    "failed-open timeout did not publish durable AUX unhealthy state"
+                    "failed-open timeout did not leave blocked write owned while publishing durable AUX unhealthy state"
                 );
 
             socket.closeFailure=null;
             socket.failCloseAttempts=0;
+            coordinator.releaseAuxiliarySocket(
+                socket
+            );
+
+            responseThread.join(
+                1_000L
+            );
+
+            Throwable observed=
+                workerFailure.get();
+
+            if(responseThread.isAlive()||
+               coordinator.activeAuxiliarySocketCount()!=0||
+               !(observed instanceof IOException)||
+               !containsSuppressedTimeout(
+                    observed
+                ))
+                throw new AssertionError(
+                    "coordinator retry did not release blocked response with preserved timeout evidence",
+                    observed
+                );
         }finally{
             try{
                 coordinator.close();
             }catch(Throwable expected){
-                // The published AUX timeout is terminal evidence by design.
+                // The published AUX timeout remains terminal evidence by design.
             }
         }
     }
@@ -802,6 +867,48 @@ public final class LocalAuxResponseLivenessTest {
                 return true;
 
         return false;
+    }
+
+    private static final class
+        BlockingUntilSocketClosedOutput
+        extends OutputStream {
+        private final FakeSocket socket;
+        final CountDownLatch entered=
+            new CountDownLatch(
+                1
+            );
+
+        BlockingUntilSocketClosedOutput(
+            FakeSocket socket
+        ){
+            this.socket=socket;
+        }
+
+        @Override public void write(
+            int value
+        )throws IOException{
+            entered.countDown();
+
+            try{
+                if(!socket.closedLatch.await(
+                        2,
+                        TimeUnit.SECONDS))
+                    throw new AssertionError(
+                        "fixture socket was never physically closed"
+                    );
+            }catch(InterruptedException interrupted){
+                Thread.currentThread()
+                    .interrupt();
+                throw new IOException(
+                    "fixture blocked write interrupted",
+                    interrupted
+                );
+            }
+
+            throw new IOException(
+                "fixture-write-released-by-close"
+            );
+        }
     }
 
     private static final class
@@ -919,6 +1026,10 @@ public final class LocalAuxResponseLivenessTest {
         int closeCalls;
         int failCloseAttempts;
         IOException closeFailure;
+        final CountDownLatch closedLatch=
+            new CountDownLatch(
+                1
+            );
 
         @Override public synchronized void close()
             throws IOException{
@@ -929,6 +1040,7 @@ public final class LocalAuxResponseLivenessTest {
                 throw closeFailure;
 
             closed=true;
+            closedLatch.countDown();
         }
 
         @Override public synchronized boolean isClosed(){
