@@ -2,6 +2,8 @@ package spk.local;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.nio.ByteBuffer;
+import java.nio.channels.SeekableByteChannel;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -76,6 +78,87 @@ public final class LocalAuxHttpResponseTest {
                 ))
                 throw new AssertionError(
                     "streamed archive GET mismatch"
+                );
+
+            byte[] oneHandleBytes=
+                new byte[]{
+                    11,22,33,44,55,66,77
+                };
+            ProbeSeekableByteChannel oneHandle=
+                new ProbeSeekableByteChannel(
+                    oneHandleBytes
+                );
+            oneHandle.position(
+                4L
+            );
+            ByteArrayOutputStream oneHandleWire=
+                new ByteArrayOutputStream();
+
+            long oneHandleLength=
+                LocalAuxHttpResponse.writeOpenedFile(
+                    oneHandleWire,
+                    200,
+                    "OK",
+                    "application/zip",
+                    oneHandle,
+                    false
+                );
+
+            byte[] oneHandleResponse=
+                oneHandleWire.toByteArray();
+            int oneHandleHeaderEnd=
+                headerEnd(
+                    oneHandleResponse
+                );
+
+            if(oneHandleLength!=
+                    oneHandleBytes.length||
+               oneHandle.sizeCalls!=1||
+               oneHandle.positionZeroCalls!=1||
+               oneHandle.readCalls==0||
+               !oneHandle.isOpen()||
+               !Arrays.equals(
+                    oneHandleBytes,
+                    Arrays.copyOfRange(
+                        oneHandleResponse,
+                        oneHandleHeaderEnd,
+                        oneHandleResponse.length
+                    )
+                ))
+                throw new AssertionError(
+                    "opened archive handle did not own both length and body"
+                );
+
+            ProbeSeekableByteChannel openedHead=
+                new ProbeSeekableByteChannel(
+                    oneHandleBytes
+                );
+            ByteArrayOutputStream openedHeadWire=
+                new ByteArrayOutputStream();
+
+            long openedHeadLength=
+                LocalAuxHttpResponse.writeOpenedFile(
+                    openedHeadWire,
+                    200,
+                    "OK",
+                    "application/zip",
+                    openedHead,
+                    true
+                );
+            byte[] openedHeadResponse=
+                openedHeadWire.toByteArray();
+
+            if(openedHeadLength!=
+                    oneHandleBytes.length||
+               openedHead.sizeCalls!=1||
+               openedHead.readCalls!=0||
+               !openedHead.isOpen()||
+               openedHeadResponse.length!=
+                    headerEnd(
+                        openedHeadResponse
+                    ))
+                throw new AssertionError(
+                    "opened archive HEAD read body bytes or changed handle ownership"
                 );
 
             ByteArrayOutputStream head=
@@ -221,6 +304,9 @@ public final class LocalAuxHttpResponseTest {
             "streaming=true "+
             "boundedBuffer=true "+
             "exactSnapshotLength=true "+
+            "singleOpenedHandle=true "+
+            "openedHandleCallerOwned=true "+
+            "openedHeadNoRead=true "+
             "shortSourceRejected=true "+
             "contentLength=true "+
             "getExact=true "+
@@ -242,6 +328,105 @@ public final class LocalAuxHttpResponseTest {
         throw new AssertionError(
             "HTTP header terminator missing"
         );
+    }
+
+    private static final class ProbeSeekableByteChannel
+        implements SeekableByteChannel {
+        private final byte[] data;
+        private int position;
+        private boolean open=true;
+        int sizeCalls;
+        int readCalls;
+        int positionZeroCalls;
+
+        ProbeSeekableByteChannel(
+            byte[] data
+        ){
+            this.data=
+                data.clone();
+        }
+
+        @Override public int read(
+            ByteBuffer destination
+        ){
+            requireOpen();
+            readCalls++;
+
+            if(position>=data.length)
+                return -1;
+
+            int count=
+                Math.min(
+                    destination.remaining(),
+                    data.length-position
+                );
+
+            destination.put(
+                data,
+                position,
+                count
+            );
+            position+=count;
+            return count;
+        }
+
+        @Override public int write(
+            ByteBuffer source
+        ){
+            throw new java.nio.channels.NonWritableChannelException();
+        }
+
+        @Override public long position(){
+            requireOpen();
+            return position;
+        }
+
+        @Override public SeekableByteChannel position(
+            long newPosition
+        ){
+            requireOpen();
+
+            if(newPosition<0||
+               newPosition>Integer.MAX_VALUE)
+                throw new IllegalArgumentException(
+                    "position"
+                );
+
+            position=
+                (int)newPosition;
+
+            if(newPosition==0)
+                positionZeroCalls++;
+
+            return this;
+        }
+
+        @Override public long size(){
+            requireOpen();
+            sizeCalls++;
+            return data.length;
+        }
+
+        @Override public SeekableByteChannel truncate(
+            long size
+        ){
+            throw new java.nio.channels.NonWritableChannelException();
+        }
+
+        @Override public boolean isOpen(){
+            return open;
+        }
+
+        @Override public void close(){
+            open=false;
+        }
+
+        private void requireOpen(){
+            if(!open)
+                throw new IllegalStateException(
+                    "channel closed"
+                );
+        }
     }
 
     private static final class GuardedInputStream
