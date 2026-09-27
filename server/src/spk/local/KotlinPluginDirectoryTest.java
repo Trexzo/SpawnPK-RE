@@ -116,6 +116,27 @@ public final class KotlinPluginDirectoryTest {
                 )
             );
 
+            assertPreloadRuntimeCloseIdentityOnce(
+                world,
+                temp.resolve(
+                    "identity-once-root"
+                )
+            );
+
+            assertPreloadThrowingDuplicateCloseOnce(
+                world,
+                temp.resolve(
+                    "identity-throw-root"
+                )
+            );
+
+            assertPreloadDistinctReverseCleanup(
+                world,
+                temp.resolve(
+                    "identity-reverse-root"
+                )
+            );
+
             rootSymlinkChecked=
                 assertRootSymlinkRejected(
                     world,
@@ -319,6 +340,7 @@ public final class KotlinPluginDirectoryTest {
             "productionArtifactLocator=true "+
             "deterministicPreloadOrder=true "+
             "preloadFailureCleanup=true "+
+            "preloadRuntimeCloseIdentityOnce=true "+
             "rootSymlinkChecked="+rootSymlinkChecked+" "+
             "ancestorSymlinkChecked="+ancestorSymlinkChecked+" "+
             "onDemand=true "+
@@ -623,6 +645,489 @@ public final class KotlinPluginDirectoryTest {
             throw new AssertionError(
                 "startup preload failure retained first unowned runtime"
             );
+    }
+
+    private static void assertPreloadRuntimeCloseIdentityOnce(
+        World world,
+        Path root
+    )throws Exception{
+        createIdentityPreloadScripts(
+            root
+        );
+
+        java.util.ArrayList<String> closeOrder=
+            new java.util.ArrayList<>();
+        RecordingRuntime shared=
+            new RecordingRuntime(
+                "fixture.kotlin.preload.shared",
+                "shared",
+                closeOrder,
+                null
+            );
+        IOException primary=
+            new IOException(
+                "fixture-shared-preload-failure"
+            );
+        SequenceLoader loader=
+            new SequenceLoader(
+                primary,
+                shared,
+                shared
+            );
+
+        Throwable observed=null;
+
+        try{
+            KotlinPluginDirectory
+                .loadStartup(
+                    world,
+                    root,
+                    loader
+                );
+        }catch(Throwable failure){
+            observed=failure;
+        }
+
+        if(observed!=primary)
+            throw new AssertionError(
+                "shared preload failure identity changed"
+            );
+
+        assertIdentityPreloadOrder(
+            loader.paths
+        );
+
+        if(shared.closeCount!=1)
+            throw new AssertionError(
+                "shared preload runtime close count mismatch: "+
+                shared.closeCount
+            );
+
+        if(!closeOrder.equals(
+                java.util.Collections
+                    .singletonList(
+                        "shared"
+                    )))
+            throw new AssertionError(
+                "shared preload runtime close order mismatch: "+
+                closeOrder
+            );
+
+        if(shared.enableCount!=0||
+           world.plugins().plugin(
+                "fixture.kotlin.preload.shared"
+            )!=null)
+            throw new AssertionError(
+                "shared preload failure reached plugin manager"
+            );
+
+        if(primary.getSuppressed().length!=0)
+            throw new AssertionError(
+                "shared non-throwing preload cleanup added suppression"
+            );
+    }
+
+    private static void assertPreloadThrowingDuplicateCloseOnce(
+        World world,
+        Path root
+    )throws Exception{
+        createIdentityPreloadScripts(
+            root
+        );
+
+        java.util.ArrayList<String> closeOrder=
+            new java.util.ArrayList<>();
+        IOException cleanup=
+            new IOException(
+                "fixture-shared-close-failure"
+            );
+        RecordingRuntime shared=
+            new RecordingRuntime(
+                "fixture.kotlin.preload.throwing-shared",
+                "shared",
+                closeOrder,
+                cleanup
+            );
+        IOException primary=
+            new IOException(
+                "fixture-shared-loader-failure"
+            );
+        SequenceLoader loader=
+            new SequenceLoader(
+                primary,
+                shared,
+                shared
+            );
+
+        Throwable observed=null;
+
+        try{
+            KotlinPluginDirectory
+                .loadStartup(
+                    world,
+                    root,
+                    loader
+                );
+        }catch(Throwable failure){
+            observed=failure;
+        }
+
+        if(observed!=primary)
+            throw new AssertionError(
+                "throwing shared preload primary changed"
+            );
+
+        assertIdentityPreloadOrder(
+            loader.paths
+        );
+
+        if(shared.closeCount!=1)
+            throw new AssertionError(
+                "throwing shared preload runtime closed more than once: "+
+                shared.closeCount
+            );
+
+        Throwable[] suppressed=
+            primary.getSuppressed();
+
+        if(suppressed.length!=1||
+           suppressed[0]!=cleanup)
+            throw new AssertionError(
+                "throwing shared preload cleanup suppression mismatch"
+            );
+
+        if(!closeOrder.equals(
+                java.util.Collections
+                    .singletonList(
+                        "shared"
+                    )))
+            throw new AssertionError(
+                "throwing shared preload close order mismatch: "+
+                closeOrder
+            );
+
+        if(shared.enableCount!=0||
+           world.plugins().plugin(
+                "fixture.kotlin.preload.throwing-shared"
+            )!=null)
+            throw new AssertionError(
+                "throwing shared preload failure reached plugin manager"
+            );
+    }
+
+    private static void assertPreloadDistinctReverseCleanup(
+        World world,
+        Path root
+    )throws Exception{
+        createMixedIdentityPreloadScripts(
+            root
+        );
+
+        java.util.ArrayList<String> closeOrder=
+            new java.util.ArrayList<>();
+        IOException cleanupOne=
+            new IOException(
+                "fixture-close-r1"
+            );
+        IOException cleanupTwo=
+            new IOException(
+                "fixture-close-r2"
+            );
+        IOException cleanupThree=
+            new IOException(
+                "fixture-close-r3"
+            );
+        RecordingRuntime first=
+            new RecordingRuntime(
+                "fixture.kotlin.preload.r1",
+                "R1",
+                closeOrder,
+                cleanupOne
+            );
+        RecordingRuntime second=
+            new RecordingRuntime(
+                "fixture.kotlin.preload.r2",
+                "R2",
+                closeOrder,
+                cleanupTwo
+            );
+        RecordingRuntime third=
+            new RecordingRuntime(
+                "fixture.kotlin.preload.r3",
+                "R3",
+                closeOrder,
+                cleanupThree
+            );
+        IOException primary=
+            new IOException(
+                "fixture-distinct-loader-failure"
+            );
+        SequenceLoader loader=
+            new SequenceLoader(
+                primary,
+                first,
+                second,
+                first,
+                third
+            );
+
+        Throwable observed=null;
+
+        try{
+            KotlinPluginDirectory
+                .loadStartup(
+                    world,
+                    root,
+                    loader
+                );
+        }catch(Throwable failure){
+            observed=failure;
+        }
+
+        if(observed!=primary)
+            throw new AssertionError(
+                "distinct preload primary changed"
+            );
+
+        java.util.List<String> expectedPaths=
+            java.util.Arrays.asList(
+                "01-a.kts",
+                "02-b.kts",
+                "03-c.kts",
+                "04-d.kts",
+                "05-e.kts"
+            );
+
+        if(!expectedPaths.equals(
+                loader.paths))
+            throw new AssertionError(
+                "mixed-identity preload discovery order mismatch expected="+
+                expectedPaths+
+                " actual="+
+                loader.paths
+            );
+
+        if(first.closeCount!=1||
+           second.closeCount!=1||
+           third.closeCount!=1)
+            throw new AssertionError(
+                "mixed-identity preload runtime close counts mismatch R1="+
+                first.closeCount+
+                " R2="+
+                second.closeCount+
+                " R3="+
+                third.closeCount
+            );
+
+        if(!closeOrder.equals(
+                java.util.Arrays.asList(
+                    "R3",
+                    "R1",
+                    "R2"
+                )))
+            throw new AssertionError(
+                "mixed-identity reverse close order mismatch: "+
+                closeOrder
+            );
+
+        Throwable[] suppressed=
+            primary.getSuppressed();
+
+        if(suppressed.length!=3||
+           suppressed[0]!=cleanupThree||
+           suppressed[1]!=cleanupOne||
+           suppressed[2]!=cleanupTwo)
+            throw new AssertionError(
+                "mixed-identity suppression order mismatch"
+            );
+
+        if(first.enableCount!=0||
+           second.enableCount!=0||
+           third.enableCount!=0||
+           world.plugins().plugin(
+                "fixture.kotlin.preload.r1"
+            )!=null||
+           world.plugins().plugin(
+                "fixture.kotlin.preload.r2"
+            )!=null||
+           world.plugins().plugin(
+                "fixture.kotlin.preload.r3"
+            )!=null)
+            throw new AssertionError(
+                "mixed-identity preload failure reached plugin manager"
+            );
+    }
+
+    private static void createMixedIdentityPreloadScripts(
+        Path root
+    )throws Exception{
+        Files.createDirectories(
+            root
+        );
+
+        for(String name:
+                new String[]{
+                    "01-a.kts",
+                    "02-b.kts",
+                    "03-c.kts",
+                    "04-d.kts",
+                    "05-e.kts"
+                })
+            Files.write(
+                root.resolve(
+                    name
+                ),
+                java.util.Collections
+                    .singletonList(
+                        "// mixed identity preload probe"
+                    ),
+                StandardCharsets.UTF_8
+            );
+    }
+
+    private static void createIdentityPreloadScripts(
+        Path root
+    )throws Exception{
+        Files.createDirectories(
+            root
+        );
+
+        for(String name:
+                new String[]{
+                    "01-a.kts",
+                    "02-b.kts",
+                    "03-c.kts"
+                })
+            Files.write(
+                root.resolve(
+                    name
+                ),
+                java.util.Collections
+                    .singletonList(
+                        "// identity preload probe"
+                    ),
+                StandardCharsets.UTF_8
+            );
+    }
+
+    private static void assertIdentityPreloadOrder(
+        java.util.List<String> paths
+    ){
+        java.util.List<String> expected=
+            java.util.Arrays.asList(
+                "01-a.kts",
+                "02-b.kts",
+                "03-c.kts"
+            );
+
+        if(!expected.equals(
+                paths))
+            throw new AssertionError(
+                "identity preload discovery order mismatch expected="+
+                expected+
+                " actual="+
+                paths
+            );
+    }
+
+    private static final class SequenceLoader
+        implements PluginLoader {
+
+        final java.util.ArrayList<String> paths=
+            new java.util.ArrayList<>();
+        private final IOException failure;
+        private final PluginRuntime[] runtimes;
+        private int next;
+
+        SequenceLoader(
+            IOException failure,
+            PluginRuntime... runtimes
+        ){
+            this.failure=failure;
+            this.runtimes=runtimes;
+        }
+
+        @Override public boolean supports(
+            PluginSource source
+        ){
+            return source!=null&&
+                !source.hasEntrypoint();
+        }
+
+        @Override public PluginRuntime load(
+            PluginSource source
+        )throws Exception{
+            paths.add(
+                source.path()
+                    .getFileName()
+                    .toString()
+            );
+
+            if(next<runtimes.length)
+                return runtimes[
+                    next++
+                ];
+
+            throw failure;
+        }
+    }
+
+    private static final class RecordingRuntime
+        implements PluginRuntime {
+
+        private final String id;
+        private final String label;
+        private final java.util.List<String>
+            closeOrder;
+        private final Exception closeFailure;
+        int closeCount;
+        int enableCount;
+
+        RecordingRuntime(
+            String id,
+            String label,
+            java.util.List<String> closeOrder,
+            Exception closeFailure
+        ){
+            this.id=id;
+            this.label=label;
+            this.closeOrder=closeOrder;
+            this.closeFailure=closeFailure;
+        }
+
+        @Override public PluginManifest manifest(){
+            return new PluginManifest(
+                id,
+                "1.0",
+                PluginApiVersion.CURRENT,
+                java.util.Collections.emptyList()
+            );
+        }
+
+        @Override public void enable(
+            PluginContext context
+        ){
+            enableCount++;
+        }
+
+        @Override public void disable(){
+        }
+
+        @Override public ClassLoader callbackClassLoader(){
+            return getClass()
+                .getClassLoader();
+        }
+
+        @Override public void close()
+            throws Exception{
+            closeCount++;
+            closeOrder.add(
+                label
+            );
+
+            if(closeFailure!=null)
+                throw closeFailure;
+        }
     }
 
     private static final class TrackingLoader
