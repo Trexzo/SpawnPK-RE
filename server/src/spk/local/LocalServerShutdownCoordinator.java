@@ -137,10 +137,16 @@ final class LocalServerShutdownCoordinator
                     );
             }finally{
                 synchronized(lifecycleLock){
-                    if(closeFailure!=null)
+                    if(closeFailure!=null){
                         recordTerminalHandoffFailureLocked(
                             closeFailure
                         );
+
+                        if(!accepted.isClosed())
+                            activeGameSockets.add(
+                                accepted
+                            );
+                    }
 
                     gameAcceptHandoffs--;
                     lifecycleLock.notifyAll();
@@ -566,7 +572,33 @@ final class LocalServerShutdownCoordinator
         }
 
         if(!owner){
-            terminal.awaitAndRethrow();
+            terminal.await();
+
+            Throwable residualFailure=
+                retryOwnedSocketsForTerminal();
+            Throwable terminalFailure=
+                terminal.failure();
+
+            if(residualFailure!=null&&
+               terminalFailure!=null&&
+               residualFailure!=terminalFailure)
+                terminalFailure.addSuppressed(
+                    residualFailure
+                );
+
+            if(terminalFailure!=null)
+                WorldCloseSequence.rethrow(
+                    terminalFailure
+                );
+
+            if(residualFailure!=null)
+                WorldCloseSequence.rethrow(
+                    new IllegalStateException(
+                        "residual session socket retirement failed",
+                        residualFailure
+                    )
+                );
+
             return;
         }
 
