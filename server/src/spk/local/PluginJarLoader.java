@@ -103,7 +103,7 @@ final class PluginJarLoader implements PluginLoader {
                 main
             );
 
-            loader=
+            IsolatedPluginClassLoader openedLoader=
                 new IsolatedPluginClassLoader(
                     snapshot.path()
                         .toUri()
@@ -113,15 +113,17 @@ final class PluginJarLoader implements PluginLoader {
                         "parent"
                     )
                 );
+            loader=openedLoader;
+
             Plugin delegate=
                 PluginThreadContext.call(
-                    loader,
+                    openedLoader,
                     ()->{
                         Class<?> type=
                             Class.forName(
                                 main,
                                 true,
-                                loader
+                                openedLoader
                             );
 
                         if(!Plugin.class
