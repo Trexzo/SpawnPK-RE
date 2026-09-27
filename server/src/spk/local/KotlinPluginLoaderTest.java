@@ -116,6 +116,11 @@ public final class KotlinPluginLoaderTest {
             apiJar,
             compileClasspath
         );
+        assertJarIndexFenced(
+            constructor,
+            apiJar,
+            compileClasspath
+        );
         assertClasspathIdentityPinned(
             constructor,
             healthy,
@@ -574,6 +579,7 @@ public final class KotlinPluginLoaderTest {
             "kotlinClasspathExtensionBypassFenced=true "+
             "kotlinManifestClasspathFenced=true "+
             "kotlinMultiReleaseClasspathFenced=true "+
+            "kotlinJarIndexFenced=true "+
             "serverInternalDenied=true "+
             "pluginApiIdentity=true "+
             "scriptSdkIdentity=true "+
@@ -1001,6 +1007,147 @@ public final class KotlinPluginLoaderTest {
             );
             out.write(
                 new byte[]{0}
+            );
+            out.closeEntry();
+        }
+    }
+
+
+    private static void assertJarIndexFenced(
+        Constructor<?> constructor,
+        Path apiJar,
+        List<Path> healthyClasspath
+    )throws Exception{
+        if(healthyClasspath.isEmpty())
+            return;
+
+        Path root=
+            Files.createTempDirectory(
+                "kotlin-jar-index-"
+            );
+        Path sibling=
+            root.resolve(
+                "indexed-sibling.jar"
+            );
+        Path dependency=
+            root.resolve(
+                "indexed-dependency.jar"
+            );
+        Path api=
+            root.resolve(
+                "indexed-api.jar"
+            );
+
+        try{
+            replaceWithForbiddenJar(
+                sibling,
+                "spk/local/IndexedLeak.class"
+            );
+            createJarIndexArchive(
+                dependency,
+                sibling.getFileName()
+                    .toString()
+            );
+
+            boolean dependencyRejected=false;
+
+            try{
+                constructor.newInstance(
+                    apiJar,
+                    java.util.Collections
+                        .singletonList(
+                            dependency
+                        )
+                );
+            }catch(InvocationTargetException expected){
+                Throwable cause=
+                    expected.getCause();
+
+                dependencyRejected=
+                    cause instanceof
+                        IllegalArgumentException&&
+                    cause.getMessage()!=null&&
+                    cause.getMessage()
+                        .contains(
+                            "JAR Index is forbidden"
+                        );
+            }
+
+            if(!dependencyRejected)
+                throw new AssertionError(
+                    "Kotlin dependency JAR Index was accepted"
+                );
+
+            createJarIndexArchive(
+                api,
+                sibling.getFileName()
+                    .toString()
+            );
+
+            boolean apiRejected=false;
+
+            try{
+                constructor.newInstance(
+                    api,
+                    healthyClasspath
+                );
+            }catch(InvocationTargetException expected){
+                Throwable cause=
+                    expected.getCause();
+
+                apiRejected=
+                    cause instanceof
+                        IllegalArgumentException&&
+                    cause.getMessage()!=null&&
+                    cause.getMessage()
+                        .contains(
+                            "JAR Index is forbidden"
+                        );
+            }
+
+            if(!apiRejected)
+                throw new AssertionError(
+                    "Kotlin API JAR Index was accepted"
+                );
+        }finally{
+            Files.deleteIfExists(
+                api
+            );
+            Files.deleteIfExists(
+                dependency
+            );
+            Files.deleteIfExists(
+                sibling
+            );
+            Files.deleteIfExists(
+                root
+            );
+        }
+    }
+
+    private static void createJarIndexArchive(
+        Path target,
+        String siblingName
+    )throws Exception{
+        try(JarOutputStream out=
+                new JarOutputStream(
+                    Files.newOutputStream(
+                        target
+                    )
+                )){
+            out.putNextEntry(
+                new JarEntry(
+                    "META-INF/INDEX.LIST"
+                )
+            );
+            String index=
+                "JarIndex-Version: 1.0\n\n"+
+                siblingName+
+                "\nspk/local\n";
+            out.write(
+                index.getBytes(
+                    java.nio.charset.StandardCharsets.UTF_8
+                )
             );
             out.closeEntry();
         }
