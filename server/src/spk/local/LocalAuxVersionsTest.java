@@ -17,6 +17,55 @@ public final class LocalAuxVersionsTest {
 
     public static void main(String[] args){
         assertFallback(
+            LocalAuxVersions.readUserHome(
+                FALLBACK,
+                ()->null
+            ),
+            "missing user.home"
+        );
+
+        assertFallback(
+            LocalAuxVersions.readUserHome(
+                FALLBACK,
+                ()->{
+                    throw new SecurityException(
+                        "fixture-user-home-security"
+                    );
+                }
+            ),
+            "user.home security failure"
+        );
+
+        assertFallback(
+            LocalAuxVersions.readUserHome(
+                FALLBACK,
+                ()->"bad\u0000home"
+            ),
+            "invalid user.home path"
+        );
+
+        RuntimeException homeRuntime=
+            new IllegalStateException(
+                "fixture-user-home-runtime"
+            );
+        Throwable homeRuntimeObserved=null;
+
+        try{
+            LocalAuxVersions.readUserHome(
+                FALLBACK,
+                ()->{ throw homeRuntime; }
+            );
+        }catch(Throwable failure){
+            homeRuntimeObserved=failure;
+        }
+
+        if(homeRuntimeObserved!=homeRuntime)
+            throw new AssertionError(
+                "unrelated user.home RuntimeException was swallowed",
+                homeRuntimeObserved
+            );
+
+        assertFallback(
             LocalAuxVersions.read(
                 new ByteArrayInputStream(
                     new byte[0]
@@ -110,6 +159,29 @@ public final class LocalAuxVersionsTest {
             "I/O failure"
         );
 
+        RuntimeException readRuntime=
+            new IllegalStateException(
+                "fixture-read-runtime"
+            );
+        Throwable readRuntimeObserved=null;
+
+        try{
+            LocalAuxVersions.read(
+                new RuntimeFailureInputStream(
+                    readRuntime
+                ),
+                FALLBACK
+            );
+        }catch(Throwable failure){
+            readRuntimeObserved=failure;
+        }
+
+        if(readRuntimeObserved!=readRuntime)
+            throw new AssertionError(
+                "unrelated bounded-read RuntimeException was swallowed",
+                readRuntimeObserved
+            );
+
         Error expected=
             new AssertionError(
                 "fixture-fatal-error"
@@ -135,6 +207,10 @@ public final class LocalAuxVersionsTest {
 
         System.out.println(
             "LOCAL_AUX_VERSIONS_PASS "+
+            "missingHomeFallback=true "+
+            "homeSecurityFallback=true "+
+            "invalidHomeFallback=true "+
+            "unrelatedRuntimeUnswept=true "+
             "emptyFallback=true "+
             "oneByteAccepted=true "+
             "maxAccepted=16383 "+
@@ -264,6 +340,30 @@ public final class LocalAuxVersionsTest {
             throw new IOException(
                 "fixture-read-failure"
             );
+        }
+    }
+
+    private static final class
+        RuntimeFailureInputStream
+        extends InputStream {
+        private final RuntimeException failure;
+
+        RuntimeFailureInputStream(
+            RuntimeException failure
+        ){
+            this.failure=failure;
+        }
+
+        @Override public int read(
+            byte[] buffer,
+            int offset,
+            int length
+        ){
+            throw failure;
+        }
+
+        @Override public int read(){
+            throw failure;
         }
     }
 
