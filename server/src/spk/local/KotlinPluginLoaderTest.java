@@ -101,6 +101,10 @@ public final class KotlinPluginLoaderTest {
             loader,
             healthy
         );
+        assertPathOnlyExecutionDenied(
+            loader,
+            healthy
+        );
 
         PluginSource healthySource=
             PluginSource.scriptSnapshot(
@@ -519,6 +523,7 @@ public final class KotlinPluginLoaderTest {
             "pluginApiIdentity=true "+
             "scriptSdkIdentity=true "+
             "sourceSnapshot=true "+
+            "pathOnlyExecutionDenied=true "+
             "eventCallback=true "+
             "commandDsl=true "+
             "commandPlayerArgsDsl=true "+
@@ -537,6 +542,42 @@ public final class KotlinPluginLoaderTest {
             "worldCloseIdempotent=true "+
             "terminalRuntime=true"
         );
+    }
+
+    private static void assertPathOnlyExecutionDenied(
+        PluginLoader loader,
+        Path healthy
+    )throws Exception{
+        PluginSource pathOnly=
+            PluginSource.script(
+                healthy
+            );
+
+        if(!loader.supports(
+                pathOnly))
+            throw new AssertionError(
+                "Kotlin loader routing no longer recognizes .kts path"
+            );
+
+        boolean denied=false;
+
+        try{
+            loader.load(
+                pathOnly
+            );
+        }catch(IllegalArgumentException expected){
+            denied=
+                expected.getMessage()!=null&&
+                expected.getMessage()
+                    .contains(
+                        "source snapshot is required"
+                    );
+        }
+
+        if(!denied)
+            throw new AssertionError(
+                "Kotlin loader reopened path-only script source"
+            );
     }
 
     private static void assertRealLoaderConsumesSnapshot(
