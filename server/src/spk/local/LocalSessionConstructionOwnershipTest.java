@@ -11,6 +11,7 @@ import java.util.concurrent.AbstractExecutorService;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -23,6 +24,7 @@ public final class LocalSessionConstructionOwnershipTest {
         assertRejectedSocketRetainsOwnershipUntilClosed();
         assertConstructionFailure();
         assertConcurrentShutdown();
+        assertExecutorRejectionRetainsOwnershipUntilClosed();
         assertSuccessPath();
 
         System.out.println(
@@ -38,6 +40,7 @@ public final class LocalSessionConstructionOwnershipTest {
             "postFenceSubmit=false "+
             "handoffRejectCloses=true "+
             "retireOwnershipUntilClosed=true "+
+            "executorRejectRetirement=true "+
             "successPath=true"
         );
     }
@@ -590,6 +593,103 @@ public final class LocalSessionConstructionOwnershipTest {
         pair.close();
     }
 
+    private static void
+        assertExecutorRejectionRetainsOwnershipUntilClosed()
+        throws Exception{
+        World world=
+            World.isolatedForTest(
+                25L
+            );
+        world.start();
+
+        RejectingExecutor pool=
+            new RejectingExecutor();
+        ServerSocket game=
+            new ServerSocket();
+        ServerSocket aux=
+            new ServerSocket();
+        BlockingCloseSocket socket=
+            new BlockingCloseSocket();
+
+        LocalServerShutdownCoordinator shutdown=
+            new LocalServerShutdownCoordinator(
+                world,
+                pool,
+                game,
+                aux
+            );
+
+        RuntimeException expected=
+            pool.rejection;
+        AtomicReference<Throwable> observed=
+            new AtomicReference<>();
+
+        Thread submitter=
+            new Thread(
+                ()->{
+                    try{
+                        shutdown.submitSession(
+                            socket,
+                            (LocalServerShutdownCoordinator.SessionFactory)
+                                ()->()->{}
+                        );
+                    }catch(Throwable failure){
+                        observed.set(
+                            failure
+                        );
+                    }
+                },
+                "executor-rejection-retire-fixture"
+            );
+        submitter.start();
+
+        if(!socket.closeEntered.await(
+                5,
+                TimeUnit.SECONDS))
+            throw new AssertionError(
+                "executor rejection did not enter socket close"
+            );
+
+        if(shutdown.activeSessionCount()!=1)
+            throw new AssertionError(
+                "executor rejection retired ownership before close completed"
+            );
+
+        if(observed.get()!=null)
+            throw new AssertionError(
+                "executor rejection escaped before socket close completed"
+            );
+
+        socket.releaseClose.countDown();
+
+        submitter.join(
+            5_000L
+        );
+
+        if(submitter.isAlive())
+            throw new AssertionError(
+                "executor rejection retirement did not finish"
+            );
+
+        if(observed.get()!=expected)
+            throw new AssertionError(
+                "executor rejection did not remain primary",
+                observed.get()
+            );
+
+        if(shutdown.activeSessionCount()!=0)
+            throw new AssertionError(
+                "executor rejection retained socket ownership"
+            );
+
+        if(!socket.isClosed())
+            throw new AssertionError(
+                "executor rejection left socket open"
+            );
+
+        shutdown.close();
+    }
+
     private static void assertSuccessPath()
         throws Exception{
         World world=
@@ -755,6 +855,46 @@ public final class LocalSessionConstructionOwnershipTest {
             }finally{
                 client.close();
             }
+        }
+    }
+
+    private static final class RejectingExecutor
+        extends AbstractExecutorService {
+
+        final RejectedExecutionException rejection=
+            new RejectedExecutionException(
+                "fixture-executor-rejection"
+            );
+        boolean shutdown;
+
+        @Override public void shutdown(){
+            shutdown=true;
+        }
+
+        @Override public List<Runnable> shutdownNow(){
+            shutdown=true;
+            return Collections.emptyList();
+        }
+
+        @Override public boolean isShutdown(){
+            return shutdown;
+        }
+
+        @Override public boolean isTerminated(){
+            return shutdown;
+        }
+
+        @Override public boolean awaitTermination(
+            long timeout,
+            TimeUnit unit
+        ){
+            return shutdown;
+        }
+
+        @Override public void execute(
+            Runnable command
+        ){
+            throw rejection;
         }
     }
 
