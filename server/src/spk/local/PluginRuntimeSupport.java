@@ -57,5 +57,42 @@ final class PluginRuntimeSupport {
             );
     }
 
+    static void transferSuppressedDistinct(
+        Throwable source,
+        Throwable target
+    ){
+        if(source==null||
+           target==null||
+           source==target)
+            return;
+
+        for(Throwable cleanup:
+                source.getSuppressed()){
+            if(cleanup==null||
+               cleanup==target||
+               alreadySuppressedByIdentity(
+                   target,
+                   cleanup
+               ))
+                continue;
+
+            target.addSuppressed(
+                cleanup
+            );
+        }
+    }
+
+    private static boolean alreadySuppressedByIdentity(
+        Throwable primary,
+        Throwable cleanup
+    ){
+        for(Throwable existing:
+                primary.getSuppressed())
+            if(existing==cleanup)
+                return true;
+
+        return false;
+    }
+
     private PluginRuntimeSupport(){}
 }
