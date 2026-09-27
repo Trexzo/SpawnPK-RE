@@ -3,6 +3,8 @@ package spk.local;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Field;
+import javax.tools.JavaCompiler;
+import javax.tools.ToolProvider;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.Files;
@@ -10,6 +12,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.jar.JarEntry;
 import java.util.jar.JarOutputStream;
+import java.io.IOException;
 import spk.content.api.ContentActionResult;
 import spk.content.api.ContentInteractionResult;
 import spk.content.api.ContentNpcOptionResult;
@@ -105,6 +108,22 @@ public final class KotlinPluginLoaderTest {
         assertClasspathRuntimeOwned(
             loader,
             healthy
+        );
+        assertPrivateSnapshotNames(
+            constructor,
+            healthy,
+            apiJar,
+            compileClasspath
+        );
+        assertClasspathCleanupDebt(
+            loader,
+            healthy
+        );
+        assertLazyDependencySnapshot(
+            constructor,
+            healthy,
+            apiJar,
+            compileClasspath
         );
 
         assertRealLoaderConsumesSnapshot(
@@ -536,6 +555,9 @@ public final class KotlinPluginLoaderTest {
             "pathOnlyExecutionDenied=true "+
             "kotlinClasspathIdentityPinned=true "+
             "kotlinClasspathRuntimeOwned=true "+
+            "kotlinClasspathCleanupDebt=true "+
+            "kotlinClasspathPrivateNames=true "+
+            "kotlinClasspathLazyResolution=true "+
             "eventCallback=true "+
             "commandDsl=true "+
             "commandPlayerArgsDsl=true "+
@@ -796,6 +818,498 @@ public final class KotlinPluginLoaderTest {
             runtime,
             "classpath runtime ownership"
         );
+    }
+
+
+    private static Object classpathSnapshot(
+        PluginRuntime runtime
+    )throws Exception{
+        Field snapshotField=
+            runtime.getClass()
+                .getDeclaredField(
+                    "classpathSnapshot"
+                );
+        snapshotField.setAccessible(
+            true
+        );
+        return snapshotField.get(
+            runtime
+        );
+    }
+
+    private static Path snapshotRoot(
+        Object snapshot
+    )throws Exception{
+        Field rootField=
+            snapshot.getClass()
+                .getDeclaredField(
+                    "root"
+                );
+        rootField.setAccessible(
+            true
+        );
+        return (Path)rootField.get(
+            snapshot
+        );
+    }
+
+    @SuppressWarnings("unchecked")
+    private static List<java.io.File> snapshotFiles(
+        Object snapshot
+    )throws Exception{
+        Field filesField=
+            snapshot.getClass()
+                .getDeclaredField(
+                    "files"
+                );
+        filesField.setAccessible(
+            true
+        );
+        return (List<java.io.File>)
+            filesField.get(
+                snapshot
+            );
+    }
+
+    private static void assertPrivateSnapshotNames(
+        Constructor<?> constructor,
+        Path healthy,
+        Path apiJar,
+        List<Path> healthyClasspath
+    )throws Exception{
+        if(healthyClasspath.isEmpty())
+            return;
+
+        Path root=
+            Files.createTempDirectory(
+                "kotlin-private-name-"
+            );
+        String callerName=
+            "caller-controlled-dependency-name-that-must-not-be-copied-"+
+            "abcdefghijklmnopqrstuvwxyz0123456789.jar";
+        Path dependency=
+            root.resolve(
+                callerName
+            );
+
+        PluginRuntime runtime=null;
+
+        try{
+            Files.copy(
+                healthyClasspath.get(0),
+                dependency
+            );
+
+            PluginLoader loader=
+                (PluginLoader)
+                    constructor.newInstance(
+                        apiJar,
+                        java.util.Collections
+                            .singletonList(
+                                dependency
+                            )
+                    );
+
+            runtime=
+                loader.load(
+                    snapshotSource(
+                        healthy
+                    )
+                );
+
+            Object snapshot=
+                classpathSnapshot(
+                    runtime
+                );
+            List<java.io.File> files=
+                snapshotFiles(
+                    snapshot
+                );
+
+            if(files.size()!=2||
+               !"000-api.jar".equals(
+                    files.get(0).getName()
+               )||
+               !"001-dependency.jar".equals(
+                    files.get(1).getName()
+               ))
+                throw new AssertionError(
+                    "Kotlin private classpath names are not fixed ordinal authority: "+
+                    files
+                );
+
+            for(java.io.File file:files)
+                if(file.getName()
+                        .contains(
+                            callerName
+                        ))
+                    throw new AssertionError(
+                        "private classpath name retained caller basename: "+
+                        file
+                    );
+        }finally{
+            if(runtime!=null)
+                runtime.close();
+
+            Files.deleteIfExists(
+                dependency
+            );
+            Files.deleteIfExists(
+                root
+            );
+        }
+    }
+
+    private static void assertClasspathCleanupDebt(
+        PluginLoader loader,
+        Path healthy
+    )throws Exception{
+        int debtBefore=
+            KotlinClasspathCleanupDebt
+                .count();
+        PluginRuntime runtime=
+            loader.load(
+                snapshotSource(
+                    healthy
+                )
+            );
+        Object snapshot=
+            classpathSnapshot(
+                runtime
+            );
+        Path root=
+            snapshotRoot(
+                snapshot
+            );
+        Path sentinel=
+            root.resolve(
+                "retirement-blocker.sentinel"
+            );
+
+        Files.write(
+            sentinel,
+            new byte[]{1}
+        );
+
+        Throwable closeFailure=null;
+
+        try{
+            runtime.close();
+        }catch(Throwable failure){
+            closeFailure=failure;
+        }
+
+        if(closeFailure==null)
+            throw new AssertionError(
+                "Kotlin classpath retirement blocker did not surface"
+            );
+
+        assertRuntimeReleased(
+            runtime,
+            "classpath cleanup debt"
+        );
+
+        if(KotlinClasspathCleanupDebt
+                .count()!=debtBefore+1)
+            throw new AssertionError(
+                "failed Kotlin classpath retirement did not register exactly one debt"
+            );
+
+        Throwable retryFailure=
+            KotlinClasspathCleanupDebt
+                .retryOnce(
+                    null
+                );
+
+        if(retryFailure==null||
+           KotlinClasspathCleanupDebt
+                .count()!=debtBefore+1)
+            throw new AssertionError(
+                "Kotlin cleanup debt retry spun through or lost blocked debt"
+            );
+
+        runtime.close();
+
+        if(KotlinClasspathCleanupDebt
+                .count()!=debtBefore+1)
+            throw new AssertionError(
+                "duplicate runtime close changed Kotlin cleanup debt"
+            );
+
+        Files.delete(
+            sentinel
+        );
+
+        Throwable drained=
+            KotlinClasspathCleanupDebt
+                .retryOnce(
+                    null
+                );
+
+        if(drained!=null||
+           KotlinClasspathCleanupDebt
+                .count()!=debtBefore||
+           Files.exists(
+                root
+           ))
+            throw new AssertionError(
+                "Kotlin cleanup debt did not retire after blocker removal"
+            );
+    }
+
+    private static void assertLazyDependencySnapshot(
+        Constructor<?> constructor,
+        Path healthy,
+        Path apiJar,
+        List<Path> healthyClasspath
+    )throws Exception{
+        if(healthyClasspath.isEmpty())
+            return;
+
+        Path root=
+            Files.createTempDirectory(
+                "kotlin-lazy-dependency-"
+            );
+        Path helperJar=
+            root.resolve(
+                "lazy-helper.jar"
+            );
+        Path script=
+            root.resolve(
+                "lazy.kts"
+            );
+        PluginRuntime runtime=null;
+
+        try{
+            createLazyHelperJar(
+                root,
+                helperJar
+            );
+
+            Files.write(
+                script,
+                java.util.Arrays.asList(
+                    "import lazy.fixture.LazyHelper",
+                    "import spk.plugin.api.Plugin",
+                    "import spk.plugin.api.PluginApiVersion",
+                    "import spk.plugin.api.PluginContext",
+                    "import spk.plugin.api.PluginManifest",
+                    "",
+                    "object : Plugin {",
+                    "    override fun manifest(): PluginManifest =",
+                    "        PluginManifest(",
+                    "            LazyHelper.id(),",
+                    "            \"1.0\",",
+                    "            PluginApiVersion.CURRENT,",
+                    "            emptyList<String>()",
+                    "        )",
+                    "    override fun enable(context: PluginContext) {}",
+                    "}"
+                ),
+                java.nio.charset.StandardCharsets.UTF_8
+            );
+
+            ArrayList<Path> dependencies=
+                new ArrayList<>(
+                    healthyClasspath
+                );
+            dependencies.add(
+                helperJar
+            );
+
+            PluginLoader lazyLoader=
+                (PluginLoader)
+                    constructor.newInstance(
+                        apiJar,
+                        dependencies
+                    );
+
+            runtime=
+                lazyLoader.load(
+                    snapshotSource(
+                        script
+                    )
+                );
+
+            Field dependencyLoaderField=
+                runtime.getClass()
+                    .getDeclaredField(
+                        "dependencyLoader"
+                    );
+            dependencyLoaderField
+                .setAccessible(
+                    true
+                );
+            ClassLoader owned=
+                (ClassLoader)
+                    dependencyLoaderField
+                        .get(
+                            runtime
+                        );
+
+            Files.delete(
+                helperJar
+            );
+
+            if(!"fixture.kotlin.lazy"
+                    .equals(
+                        runtime.manifest()
+                            .id()
+                    ))
+                throw new AssertionError(
+                    "lazy Kotlin dependency did not resolve from private snapshot"
+                );
+
+            Class<?> helper=
+                Class.forName(
+                    "lazy.fixture.LazyHelper",
+                    false,
+                    runtime.callbackClassLoader()
+                );
+
+            if(helper.getClassLoader()!=
+                    owned)
+                throw new AssertionError(
+                    "lazy dependency resolved outside owned Kotlin dependency loader"
+                );
+        }finally{
+            if(runtime!=null)
+                runtime.close();
+
+            Files.deleteIfExists(
+                helperJar
+            );
+            Files.deleteIfExists(
+                script
+            );
+            deleteTree(
+                root.resolve(
+                    "lazy-src"
+                )
+            );
+            deleteTree(
+                root.resolve(
+                    "lazy-classes"
+                )
+            );
+            Files.deleteIfExists(
+                root
+            );
+        }
+    }
+
+    private static void createLazyHelperJar(
+        Path root,
+        Path jar
+    )throws Exception{
+        JavaCompiler compiler=
+            ToolProvider.getSystemJavaCompiler();
+
+        if(compiler==null)
+            throw new AssertionError(
+                "system Java compiler unavailable"
+            );
+
+        Path sourceRoot=
+            root.resolve(
+                "lazy-src"
+            );
+        Path packageDir=
+            sourceRoot.resolve(
+                "lazy/fixture"
+            );
+        Path classes=
+            root.resolve(
+                "lazy-classes"
+            );
+        Files.createDirectories(
+            packageDir
+        );
+        Files.createDirectories(
+            classes
+        );
+
+        Path source=
+            packageDir.resolve(
+                "LazyHelper.java"
+            );
+        Files.write(
+            source,
+            java.util.Arrays.asList(
+                "package lazy.fixture;",
+                "public final class LazyHelper {",
+                "  public static String id(){ return \"fixture.kotlin.lazy\"; }",
+                "  private LazyHelper(){}",
+                "}"
+            ),
+            java.nio.charset.StandardCharsets.UTF_8
+        );
+
+        int result=
+            compiler.run(
+                null,
+                null,
+                null,
+                "-d",
+                classes.toString(),
+                source.toString()
+            );
+
+        if(result!=0)
+            throw new AssertionError(
+                "lazy dependency fixture javac failed: "+
+                result
+            );
+
+        Path classFile=
+            classes.resolve(
+                "lazy/fixture/LazyHelper.class"
+            );
+
+        try(JarOutputStream out=
+                new JarOutputStream(
+                    Files.newOutputStream(
+                        jar
+                    )
+                )){
+            out.putNextEntry(
+                new JarEntry(
+                    "lazy/fixture/LazyHelper.class"
+                )
+            );
+            Files.copy(
+                classFile,
+                out
+            );
+            out.closeEntry();
+        }
+    }
+
+    private static void deleteTree(
+        Path root
+    )throws IOException{
+        if(root==null||
+           !Files.exists(
+               root
+           ))
+            return;
+
+        try(java.util.stream.Stream<Path> stream=
+                Files.walk(
+                    root
+                )){
+            java.util.List<Path> paths=
+                stream.sorted(
+                    java.util.Comparator.reverseOrder()
+                ).collect(
+                    java.util.stream.Collectors.toList()
+                );
+
+            for(Path path:paths)
+                Files.deleteIfExists(
+                    path
+                );
+        }
     }
 
     private static void assertLoadRejected(
@@ -1355,9 +1869,18 @@ public final class KotlinPluginLoaderTest {
                         "spk/plugin/kotlin/KotlinPluginDslKt.class"
                     )
                 );
-                out.write(
-                    new byte[]{0}
+                byte[] hostile=
+                    new byte[8192];
+                java.util.Arrays.fill(
+                    hostile,
+                    (byte)0x5a
                 );
+
+                for(int i=0;i<128;i++)
+                    out.write(
+                        hostile
+                    );
+
                 out.closeEntry();
             }
 
