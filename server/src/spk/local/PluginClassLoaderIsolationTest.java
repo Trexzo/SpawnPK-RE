@@ -75,6 +75,12 @@ public final class PluginClassLoaderIsolationTest {
         assertPostLoaderFailureRetiresSnapshot(
             jarA
         );
+        assertExceptionalCloseReleasesRoots(
+            jarA
+        );
+        assertLiveCloseRace(
+            jarA
+        );
 
         PluginJarLoader.LoadedPlugin loadedA=
             PluginJarLoader.load(
@@ -100,6 +106,16 @@ public final class PluginClassLoaderIsolationTest {
                 ENTRYPOINT,
                 collisionParent
             );
+
+        System.clearProperty(
+            "spawnpk.fixture.isolation.a.throwTccl"
+        );
+        System.clearProperty(
+            "spawnpk.fixture.isolation.a.disableTccl"
+        );
+        System.clearProperty(
+            "spawnpk.fixture.isolation.b.disableTccl"
+        );
 
         assertTcclRestored(
             baseline,
@@ -196,6 +212,11 @@ public final class PluginClassLoaderIsolationTest {
                 throw new AssertionError(
                     "pre-enable duplicate rejection did not close loader"
                 );
+
+            assertRuntimeReferencesReleased(
+                duplicateA,
+                "pre-enable duplicate"
+            );
 
             assertTcclRestored(
                 baseline,
@@ -365,16 +386,13 @@ public final class PluginClassLoaderIsolationTest {
                     "throwing callback did not terminalize plugin A"
                 );
 
-            String failedReportA=
-                report(
-                    loadedA
+            if(!"true".equals(
+                    System.getProperty(
+                        "spawnpk.fixture.isolation.a.throwTccl"
+                    )))
+                throw new AssertionError(
+                    "throwing callback lost plugin TCCL evidence"
                 );
-
-            assertReport(
-                failedReportA,
-                "A",
-                true
-            );
 
             if(manager.disable(
                     "isolation.a"))
@@ -406,24 +424,16 @@ public final class PluginClassLoaderIsolationTest {
                     "manager did not close plugin classloader"
                 );
 
-            String disabledA=
-                report(
-                    loadedA
-                );
-            String disabledB=
-                report(
-                    loadedB
-                );
-
-            if(!disabledA.contains(
-                    "disable=true")||
-               !disabledB.contains(
-                    "disable=true"))
+            if(!"true".equals(
+                    System.getProperty(
+                        "spawnpk.fixture.isolation.a.disableTccl"
+                    ))||
+               !"true".equals(
+                    System.getProperty(
+                        "spawnpk.fixture.isolation.b.disableTccl"
+                    )))
                 throw new AssertionError(
-                    "disable callback did not observe plugin TCCL A="+
-                    disabledA+
-                    " B="+
-                    disabledB
+                    "disable callback did not observe plugin TCCL"
                 );
 
             assertHandleReleasedLoader(
@@ -431,6 +441,14 @@ public final class PluginClassLoaderIsolationTest {
             );
             assertHandleReleasedLoader(
                 handleB
+            );
+            assertRuntimeReferencesReleased(
+                loadedA,
+                "terminal callback failure"
+            );
+            assertRuntimeReferencesReleased(
+                loadedB,
+                "explicit disable"
             );
 
             assertTcclRestored(
@@ -457,6 +475,15 @@ public final class PluginClassLoaderIsolationTest {
                 .setContextClassLoader(
                     baseline
                 );
+            System.clearProperty(
+                "spawnpk.fixture.isolation.a.throwTccl"
+            );
+            System.clearProperty(
+                "spawnpk.fixture.isolation.a.disableTccl"
+            );
+            System.clearProperty(
+                "spawnpk.fixture.isolation.b.disableTccl"
+            );
         }
 
         System.out.println(
@@ -488,6 +515,9 @@ public final class PluginClassLoaderIsolationTest {
             "disableTccl=true "+
             "disableClosesLoader=true "+
             "terminalHandleReleasesLoader=true "+
+            "javaPluginRuntimeReferencesReleased=true "+
+            "javaPluginExceptionalCloseReleased=true "+
+            "javaPluginCloseRaceSafe=true "+
             "publicApiExpanded=false"
         );
     }
@@ -582,8 +612,14 @@ public final class PluginClassLoaderIsolationTest {
     private static String report(
         PluginJarLoader.LoadedPlugin loaded
     )throws Exception{
-        Object delegate=
-            loaded.delegate();
+        return report(
+            loaded.delegate()
+        );
+    }
+
+    private static String report(
+        Object delegate
+    )throws Exception{
         Method method=
             delegate.getClass()
                 .getMethod(
@@ -1231,6 +1267,355 @@ public final class PluginClassLoaderIsolationTest {
                 jar
             );
         }
+    }
+
+    private static void assertExceptionalCloseReleasesRoots(
+        Path jarA
+    )throws Exception{
+        PluginJarLoader.LoadedPlugin loaded=
+            PluginJarLoader.load(
+                jarA,
+                ENTRYPOINT
+            );
+        Path snapshot=
+            loaded.snapshotPath();
+        Path root=
+            snapshot.getParent();
+        Path sentinel=
+            root.resolve(
+                "retirement-sentinel"
+            );
+
+        Files.write(
+            sentinel,
+            new byte[]{1}
+        );
+
+        Throwable observed=null;
+
+        try{
+            loaded.close();
+        }catch(Throwable failure){
+            observed=failure;
+        }
+
+        if(!(observed instanceof
+                java.nio.file.DirectoryNotEmptyException))
+            throw new AssertionError(
+                "exceptional close did not surface snapshot-root retirement failure",
+                observed
+            );
+
+        if(Files.exists(snapshot))
+            throw new AssertionError(
+                "exceptional close did not retire private archive JAR"
+            );
+
+        assertRuntimeReferencesReleased(
+            loaded,
+            "exceptional close"
+        );
+
+        Files.deleteIfExists(
+            sentinel
+        );
+        Files.deleteIfExists(
+            root
+        );
+    }
+
+    private static void assertLiveCloseRace(
+        Path jarA
+    )throws Exception{
+        java.util.concurrent.CountDownLatch
+            manifestEntered=
+                new java.util.concurrent
+                    .CountDownLatch(1);
+        java.util.concurrent.CountDownLatch
+            releaseManifest=
+                new java.util.concurrent
+                    .CountDownLatch(1);
+
+        System.getProperties().put(
+            "spawnpk.fixture.isolation.a.manifestEnteredLatch",
+            manifestEntered
+        );
+        System.getProperties().put(
+            "spawnpk.fixture.isolation.a.manifestReleaseLatch",
+            releaseManifest
+        );
+
+        PluginJarLoader.LoadedPlugin loaded=
+            PluginJarLoader.load(
+                jarA,
+                ENTRYPOINT
+            );
+
+        java.util.concurrent.atomic.AtomicReference<Throwable>
+            callFailure=
+                new java.util.concurrent.atomic
+                    .AtomicReference<>();
+        java.util.concurrent.atomic.AtomicReference<Throwable>
+            closeFailure=
+                new java.util.concurrent.atomic
+                    .AtomicReference<>();
+
+        Thread caller=
+            new Thread(
+                ()->{
+                    try{
+                        loaded.manifest();
+                    }catch(Throwable failure){
+                        callFailure.set(
+                            failure
+                        );
+                    }
+                },
+                "java-plugin-live-call"
+            );
+        Thread closer=
+            new Thread(
+                ()->{
+                    try{
+                        loaded.close();
+                    }catch(Throwable failure){
+                        closeFailure.set(
+                            failure
+                        );
+                    }
+                },
+                "java-plugin-close-race"
+            );
+
+        try{
+            caller.start();
+
+            if(!manifestEntered.await(
+                    5L,
+                    java.util.concurrent
+                        .TimeUnit.SECONDS))
+                throw new AssertionError(
+                    "live manifest call did not enter fixture"
+                );
+
+            closer.start();
+
+            long blockedDeadline=
+                System.nanoTime()+
+                java.util.concurrent.TimeUnit
+                    .SECONDS.toNanos(
+                        5L
+                    );
+
+            while(closer.getState()!=
+                    Thread.State.BLOCKED){
+                if(!closer.isAlive())
+                    throw new AssertionError(
+                        "close completed while live synchronized call still owned runtime"
+                    );
+
+                if(System.nanoTime()>=
+                        blockedDeadline)
+                    throw new AssertionError(
+                        "close did not block behind live synchronized call"
+                    );
+
+                Thread.yield();
+            }
+
+            releaseManifest.countDown();
+
+            caller.join(
+                5_000L
+            );
+            closer.join(
+                5_000L
+            );
+
+            if(caller.isAlive()||
+               closer.isAlive())
+                throw new AssertionError(
+                    "serialized close race thread did not terminate"
+                );
+
+            if(callFailure.get()!=null)
+                throw new AssertionError(
+                    "pre-terminal live call failed",
+                    callFailure.get()
+                );
+
+            if(closeFailure.get()!=null)
+                throw new AssertionError(
+                    "serialized close failed",
+                    closeFailure.get()
+                );
+
+            boolean terminalDenied=false;
+
+            try{
+                loaded.manifest();
+            }catch(IllegalStateException expected){
+                terminalDenied=true;
+            }
+
+            if(!terminalDenied)
+                throw new AssertionError(
+                    "post-close call did not fail through terminal boundary"
+                );
+
+            assertRuntimeReferencesReleased(
+                loaded,
+                "live-close serialization"
+            );
+        }finally{
+            releaseManifest.countDown();
+            System.getProperties().remove(
+                "spawnpk.fixture.isolation.a.manifestEnteredLatch"
+            );
+            System.getProperties().remove(
+                "spawnpk.fixture.isolation.a.manifestReleaseLatch"
+            );
+
+            caller.join(
+                5_000L
+            );
+            closer.join(
+                5_000L
+            );
+
+            if(!loaded.closed())
+                loaded.close();
+        }
+    }
+
+    private static void assertRuntimeReferencesReleased(
+        PluginJarLoader.LoadedPlugin loaded,
+        String phase
+    )throws Exception{
+        for(String fieldName:
+                new String[]{
+                    "delegate",
+                    "loader",
+                    "snapshot"
+                }){
+            java.lang.reflect.Field field=
+                loaded.getClass()
+                    .getDeclaredField(
+                        fieldName
+                    );
+            field.setAccessible(
+                true
+            );
+
+            if(field.get(loaded)!=null)
+                throw new AssertionError(
+                    phase+
+                    " retained runtime field "+
+                    fieldName
+                );
+        }
+
+        boolean manifestDenied=false;
+
+        try{
+            loaded.manifest();
+        }catch(IllegalStateException expected){
+            manifestDenied=true;
+        }
+
+        if(!manifestDenied)
+            throw new AssertionError(
+                phase+
+                " terminal runtime still exposed manifest"
+            );
+
+        boolean enableDenied=false;
+
+        try{
+            loaded.enable(
+                null
+            );
+        }catch(IllegalStateException expected){
+            enableDenied=true;
+        }
+
+        if(!enableDenied)
+            throw new AssertionError(
+                phase+
+                " terminal runtime still accepted enable"
+            );
+
+        boolean disableDenied=false;
+
+        try{
+            loaded.disable();
+        }catch(IllegalStateException expected){
+            disableDenied=true;
+        }
+
+        if(!disableDenied)
+            throw new AssertionError(
+                phase+
+                " terminal runtime still accepted disable"
+            );
+
+        boolean callbackDenied=false;
+
+        try{
+            loaded.callbackClassLoader();
+        }catch(IllegalStateException expected){
+            callbackDenied=true;
+        }
+
+        if(!callbackDenied)
+            throw new AssertionError(
+                phase+
+                " terminal runtime still exposed callback loader"
+            );
+
+        boolean delegateDenied=false;
+
+        try{
+            loaded.delegate();
+        }catch(IllegalStateException expected){
+            delegateDenied=true;
+        }
+
+        if(!delegateDenied)
+            throw new AssertionError(
+                phase+
+                " terminal runtime still exposed delegate"
+            );
+
+        boolean loaderDenied=false;
+
+        try{
+            loaded.classLoader();
+        }catch(IllegalStateException expected){
+            loaderDenied=true;
+        }
+
+        if(!loaderDenied)
+            throw new AssertionError(
+                phase+
+                " terminal runtime still exposed classloader"
+            );
+
+        boolean snapshotDenied=false;
+
+        try{
+            loaded.snapshotPath();
+        }catch(IllegalStateException expected){
+            snapshotDenied=true;
+        }
+
+        if(!snapshotDenied)
+            throw new AssertionError(
+                phase+
+                " terminal runtime still exposed archive snapshot"
+            );
+
+        loaded.close();
     }
 
     private static void assertHandleReleasedLoader(
