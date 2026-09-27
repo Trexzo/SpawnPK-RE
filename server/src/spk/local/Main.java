@@ -237,64 +237,106 @@ public final class Main {
             // receive the same harmless local response behavior as before.
             request.consumeHeaders();
 
-            byte[] body;
-            String contentType = "text/plain; charset=us-ascii";
-            int status = 200;
-            String reason = "OK";
-            String classification;
+            LocalAuxResponseLiveness liveness=
+                LocalAuxResponseLiveness.arm(
+                    s
+                );
+            OutputStream responseOut=
+                liveness.output(
+                    out
+                );
+            Throwable responseFailure=null;
 
-            if (target.contains("/spk_live/versions.txt")) {
-                body = localVersions();
-                classification = "versions";
-            } else if (target.contains("/forum/10-updates") || target.contains("/forums/")) {
-                // rs.l.d.e is happy with an empty successful page; EOF from a valid HTTP
-                // response is not an exception, unlike v0.3's raw socket close.
-                body = new byte[0];
-                contentType = "text/html; charset=utf-8";
-                classification = "forum-placeholder";
-            } else if (target.contains("/Production/tradingpost")) {
-                body = "{}\n".getBytes(StandardCharsets.UTF_8);
-                contentType = "application/json; charset=utf-8";
-                classification = "tradingpost-placeholder";
-            } else if (target.endsWith("/cache.zip") || target.endsWith("/sprites.zip") || target.endsWith("/configs.zip")) {
-                Path local = localArchiveFor(target);
-                Long length =
-                    local==null
-                        ?null
-                        :LocalAuxArchiveAccess
-                            .writeIfAvailable(
-                                out,
-                                local,
-                                head
-                            );
+            try{
+                byte[] body;
+                String contentType = "text/plain; charset=us-ascii";
+                int status = 200;
+                String reason = "OK";
+                String classification;
+                boolean responseComplete=false;
 
-                if(length!=null) {
-                    System.out.println(
-                        "[local-aux] HTTP local-archive target=" + target +
-                        " status=200 bytes=" + length.longValue()
-                    );
-                    return;
+                if (target.contains("/spk_live/versions.txt")) {
+                    body = localVersions();
+                    classification = "versions";
+                } else if (target.contains("/forum/10-updates") || target.contains("/forums/")) {
+                    // rs.l.d.e is happy with an empty successful page; EOF from a valid HTTP
+                    // response is not an exception, unlike v0.3's raw socket close.
+                    body = new byte[0];
+                    contentType = "text/html; charset=utf-8";
+                    classification = "forum-placeholder";
+                } else if (target.contains("/Production/tradingpost")) {
+                    body = "{}\n".getBytes(StandardCharsets.UTF_8);
+                    contentType = "application/json; charset=utf-8";
+                    classification = "tradingpost-placeholder";
+                } else if (target.endsWith("/cache.zip") || target.endsWith("/sprites.zip") || target.endsWith("/configs.zip")) {
+                    Path local = localArchiveFor(target);
+                    Long length =
+                        local==null
+                            ?null
+                            :LocalAuxArchiveAccess
+                                .writeIfAvailable(
+                                    responseOut,
+                                    local,
+                                    head
+                                );
+
+                    if(length!=null) {
+                        System.out.println(
+                            "[local-aux] HTTP local-archive target=" + target +
+                            " status=200 bytes=" + length.longValue()
+                        );
+                        responseComplete=true;
+                        body=null;
+                        classification=null;
+                    }else{
+                        body = "LOCAL_ARCHIVE_NOT_PRESENT\n".getBytes(StandardCharsets.US_ASCII);
+                        status = 404;
+                        reason = "Not Found";
+                        classification = "unexpected-archive-request";
+                    }
+                } else {
+                    body = new byte[0];
+                    classification = "blocked-placeholder";
                 }
 
-                body = "LOCAL_ARCHIVE_NOT_PRESENT\n".getBytes(StandardCharsets.US_ASCII);
-                status = 404;
-                reason = "Not Found";
-                classification = "unexpected-archive-request";
-            } else {
-                body = new byte[0];
-                classification = "blocked-placeholder";
+                if(!responseComplete){
+                    LocalAuxHttpResponse.writeBytes(
+                        responseOut,
+                        status,
+                        reason,
+                        contentType,
+                        body,
+                        head
+                    );
+                    System.out.println("[local-aux] HTTP " + classification + " target=" + target
+                                     + " status=" + status + " bytes=" + body.length);
+                }
+            }catch(IOException|
+                   RuntimeException|
+                   Error failure){
+                responseFailure=failure;
             }
 
-            LocalAuxHttpResponse.writeBytes(
-                out,
-                status,
-                reason,
-                contentType,
-                body,
-                head
-            );
-            System.out.println("[local-aux] HTTP " + classification + " target=" + target
-                             + " status=" + status + " bytes=" + body.length);
+            responseFailure=
+                liveness.finish(
+                    responseFailure
+                );
+
+            if(responseFailure instanceof IOException)
+                throw (IOException)responseFailure;
+
+            if(responseFailure instanceof RuntimeException)
+                throw (RuntimeException)responseFailure;
+
+            if(responseFailure instanceof Error)
+                throw (Error)responseFailure;
+
+            if(responseFailure!=null)
+                throw new IOException(
+                    "unexpected auxiliary response failure",
+                    responseFailure
+                );
+
             return;
         }
 
