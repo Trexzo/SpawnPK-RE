@@ -4,11 +4,16 @@ import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.net.URI;
+import java.nio.ByteBuffer;
+import java.nio.channels.SeekableByteChannel;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
+import java.nio.file.OpenOption;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -24,6 +29,17 @@ final class KotlinPluginDirectory {
         "spk.plugin.apiJar";
     static final String SCRIPT_RUNTIME_PROPERTY =
         "spk.kotlinScript.runtimeJar";
+
+    interface SourceCaptureHook {
+        void beforeOpen(Path source)throws IOException;
+        void afterCapture(PluginSource source)throws IOException;
+    }
+
+    private static final SourceCaptureHook NO_CAPTURE_HOOK =
+        new SourceCaptureHook() {
+            @Override public void beforeOpen(Path source){}
+            @Override public void afterCapture(PluginSource source){}
+        };
 
     static int loadStartup(
         World world,
@@ -89,17 +105,16 @@ final class KotlinPluginDirectory {
                 "loader"
             );
 
-        Path source=
-            requireScriptWithinRoot(
+        PluginSource source=
+            captureScriptWithinRoot(
                 root,
-                script
+                script,
+                NO_CAPTURE_HOOK
             );
 
         PluginRuntime runtime=
             loader.load(
-                PluginSource.script(
-                    source
-                )
+                source
             );
 
         PluginHandle handle=
@@ -110,10 +125,41 @@ final class KotlinPluginDirectory {
             "KOTLIN_PLUGIN_ON_DEMAND_PASS id="+
             handle.manifest().id()+
             " source="+
-            source
+            source.path()
         );
 
         return handle;
+    }
+
+    static PluginHandle loadOnDemand(
+        World world,
+        Path root,
+        Path script,
+        PluginLoader loader,
+        SourceCaptureHook hook
+    )throws Exception{
+        if(world==null)
+            throw new IllegalArgumentException(
+                "world"
+            );
+        if(loader==null)
+            throw new IllegalArgumentException(
+                "loader"
+            );
+
+        PluginSource source=
+            captureScriptWithinRoot(
+                root,
+                script,
+                hook
+            );
+
+        return world.plugins()
+            .enable(
+                loader.load(
+                    source
+                )
+            );
     }
 
     static List<Path> discover(
@@ -215,11 +261,10 @@ final class KotlinPluginDirectory {
             for(Path script:scripts)
                 runtimes.add(
                     loader.load(
-                        PluginSource.script(
-                            requireScriptWithinRoot(
-                                root,
-                                script
-                            )
+                        captureScriptWithinRoot(
+                            root,
+                            script,
+                            NO_CAPTURE_HOOK
                         )
                     )
                 );
@@ -284,10 +329,11 @@ final class KotlinPluginDirectory {
         return handles.size();
     }
 
-    private static Path
-        requireScriptWithinRoot(
+    private static PluginSource
+        captureScriptWithinRoot(
             Path root,
-            Path script
+            Path script,
+            SourceCaptureHook hook
         )throws IOException{
         Path directory=
             normalizeRoot(root);
@@ -315,14 +361,6 @@ final class KotlinPluginDirectory {
             source
         );
 
-        if(!Files.isRegularFile(
-                source,
-                LinkOption.NOFOLLOW_LINKS))
-            throw new IOException(
-                "Kotlin plugin script missing: "+
-                source
-            );
-
         String name=
             source.getFileName()
                 .toString()
@@ -337,7 +375,81 @@ final class KotlinPluginDirectory {
                 source
             );
 
-        return source;
+        SourceCaptureHook captureHook=
+            hook==null
+                ?NO_CAPTURE_HOOK
+                :hook;
+
+        captureHook.beforeOpen(
+            source
+        );
+
+        java.util.HashSet<OpenOption> options=
+            new java.util.HashSet<>();
+        options.add(
+            StandardOpenOption.READ
+        );
+        options.add(
+            LinkOption.NOFOLLOW_LINKS
+        );
+
+        byte[] bytes;
+
+        try(SeekableByteChannel channel=
+                Files.newByteChannel(
+                    source,
+                    options
+                )){
+            java.io.ByteArrayOutputStream out=
+                new java.io.ByteArrayOutputStream();
+            ByteBuffer buffer=
+                ByteBuffer.allocate(
+                    8192
+                );
+
+            while(true){
+                int read=
+                    channel.read(
+                        buffer
+                    );
+
+                if(read<0)
+                    break;
+                if(read==0)
+                    continue;
+
+                out.write(
+                    buffer.array(),
+                    0,
+                    read
+                );
+                buffer.clear();
+            }
+
+            bytes=
+                out.toByteArray();
+        }catch(java.nio.file.FileSystemException denied){
+            throw new IOException(
+                "Kotlin plugin final source capture failed closed: "+
+                source,
+                denied
+            );
+        }
+
+        PluginSource snapshot=
+            PluginSource.scriptSnapshot(
+                source,
+                new String(
+                    bytes,
+                    StandardCharsets.UTF_8
+                )
+            );
+
+        captureHook.afterCapture(
+            snapshot
+        );
+
+        return snapshot;
     }
 
     private static void rejectSymlinkComponents(
