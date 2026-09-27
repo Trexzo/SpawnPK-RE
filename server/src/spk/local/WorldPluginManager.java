@@ -473,7 +473,8 @@ final class WorldPluginManager
                 tracker,
                 callbackScope,
                 admission,
-                candidate.runtimeClose
+                candidate.runtimeClose,
+                callbackLoader
             );
         entry.failureSink=
             (kind,failure)->
@@ -560,6 +561,7 @@ final class WorldPluginManager
             );
             entry.failureSink=null;
             entry.plugin=null;
+            entry.callbackLoader=null;
             entry.cleanupClaimed=true;
             entry.cleanupComplete=true;
 
@@ -665,9 +667,7 @@ final class WorldPluginManager
 
         try{
             ClassLoader callbackLoader=
-                PluginRuntimeSupport.callbackClassLoader(
-                    plugin
-                );
+                entry.callbackLoader;
 
             entry.callbacks.awaitQuiescent();
             entry.tasks.awaitQuiescent();
@@ -737,6 +737,7 @@ final class WorldPluginManager
 
             entry.failureSink=null;
             entry.plugin=null;
+            entry.callbackLoader=null;
         }
     }
 
@@ -1788,6 +1789,7 @@ final class WorldPluginManager
         final PluginCallbackScope callbacks;
         final RuntimeAdmissionGate admission;
         final RuntimeCloseOwnership runtimeClose;
+        ClassLoader callbackLoader;
         volatile RuntimeFailureSink failureSink;
         volatile RuntimeState runtimeState=
             RuntimeState.ENABLING;
@@ -1802,7 +1804,8 @@ final class WorldPluginManager
             EventTracker events,
             PluginCallbackScope callbacks,
             RuntimeAdmissionGate admission,
-            RuntimeCloseOwnership runtimeClose
+            RuntimeCloseOwnership runtimeClose,
+            ClassLoader callbackLoader
         ){
             this.plugin=plugin;
             this.manifest=manifest;
@@ -1819,6 +1822,8 @@ final class WorldPluginManager
                     runtimeClose,
                     "runtimeClose"
                 );
+            this.callbackLoader=
+                callbackLoader;
         }
 
         boolean runtimeEnabled(){
