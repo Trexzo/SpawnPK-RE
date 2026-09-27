@@ -232,11 +232,21 @@ final class LocalAuxResponseLiveness {
             deadline=null;
         }
 
-        if(pending!=null)
-            pending.cancel();
-
         Throwable result=
             primary;
+
+        if(pending!=null)
+            try{
+                pending.cancel();
+            }catch(RuntimeException|
+                   Error cancelFailure){
+                result=
+                    LocalAuxHttpWorker
+                        .preserveFailureOrder(
+                            result,
+                            cancelFailure
+                        );
+            }
 
         try{
             scheduler.shutdownNow();
