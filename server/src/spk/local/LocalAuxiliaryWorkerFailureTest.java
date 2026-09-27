@@ -6,6 +6,7 @@ import java.net.Socket;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.AbstractExecutorService;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -18,9 +19,12 @@ public final class LocalAuxiliaryWorkerFailureTest {
         assertPendingFailureFailsFreshAccept();
         assertAcceptedHandoffCannotCommitAfterFailure();
         assertAcceptedHandoffFailedOpenRemainsOwned();
+        assertAcceptedHandoffOwnershipWhileCloseBlocked();
         assertWakeFailureSuppressedAndRetried();
         assertFailedOpenWakeStillBlocksServing();
         assertDuplicateFailureKeepsFirstPrimary();
+        assertExactErrorTaskBoundaryIdentity();
+        assertPrePublicationLateFailureJoinsFirstTerminalResult();
         assertLatePostTerminalFailurePreservesPublishedIdentity();
         assertCleanAuxiliaryExitDoesNotFabricateFailure();
 
@@ -30,12 +34,15 @@ public final class LocalAuxiliaryWorkerFailureTest {
             "freshAcceptFailsFast=true "+
             "acceptedHandoffRejected=true "+
             "failedOpenAcceptedSocketRetained=true "+
+            "blockedCloseOwnershipContinuous=true "+
             "workerFailureIdentity=true "+
             "wakeCloseAttempted=true "+
             "wakeCloseRetry=true "+
             "wakeFailureSuppressed=true "+
             "failedOpenStillAuthoritative=true "+
             "duplicateKeepsFirst=true "+
+            "exactErrorIdentity=true "+
+            "prePublicationLateFailureIncluded=true "+
             "postTerminalEvidenceReconciled=true "+
             "terminalIdentityStable=true "+
             "cleanExitNoFailure=true"
@@ -319,6 +326,176 @@ public final class LocalAuxiliaryWorkerFailureTest {
         }
     }
 
+    private static void assertAcceptedHandoffOwnershipWhileCloseBlocked()
+        throws Exception{
+        Fixture fixture=
+            new Fixture(
+                new TrackingServerSocket(0)
+            );
+        RuntimeException expected=
+            new RuntimeException(
+                "fixture-aux-worker-blocked-close"
+            );
+        Object acceptLock=
+            new Object();
+        AtomicBoolean acceptEntered=
+            new AtomicBoolean();
+        AtomicBoolean releaseAccept=
+            new AtomicBoolean();
+        BlockingFirstCloseSocket accepted=
+            new BlockingFirstCloseSocket();
+        AtomicReference<Throwable> acceptFailure=
+            new AtomicReference<>();
+        AtomicReference<Throwable> terminalFailure=
+            new AtomicReference<>();
+
+        Thread acceptThread=
+            new Thread(
+                ()->{
+                    try{
+                        fixture.shutdown.acceptGameSocket(
+                            ()->{
+                                acceptEntered.set(true);
+
+                                synchronized(acceptLock){
+                                    while(!releaseAccept.get())
+                                        try{
+                                            acceptLock.wait();
+                                        }catch(InterruptedException error){
+                                            Thread.currentThread().interrupt();
+                                            throw new IOException(
+                                                error
+                                            );
+                                        }
+                                }
+
+                                return accepted;
+                            }
+                        );
+                    }catch(Throwable failure){
+                        acceptFailure.set(
+                            failure
+                        );
+                    }
+                },
+                "aux-worker-blocked-close-accept"
+            );
+
+        Thread terminalThread=
+            new Thread(
+                ()->{
+                    try{
+                        fixture.shutdown.close();
+                    }catch(Throwable failure){
+                        terminalFailure.set(
+                            failure
+                        );
+                    }
+                },
+                "aux-worker-blocked-close-terminal"
+            );
+
+        try{
+            acceptThread.start();
+
+            await(
+                acceptEntered::get,
+                "blocking-close game accept did not enter handoff"
+            );
+
+            fixture.shutdown.submitAuxiliary(
+                ()->{ throw expected; }
+            );
+
+            await(
+                ()->fixture.game.closeCalls>=1,
+                "blocking-close AUX failure did not publish"
+            );
+
+            synchronized(acceptLock){
+                releaseAccept.set(true);
+                acceptLock.notifyAll();
+            }
+
+            if(!accepted.firstCloseEntered.await(
+                    5,
+                    TimeUnit.SECONDS))
+                throw new AssertionError(
+                    "worker-winning accepted socket did not enter physical close"
+                );
+
+            if(fixture.shutdown.pendingGameAcceptHandoffs()!=0)
+                throw new AssertionError(
+                    "game accept handoff remained published while socket close was blocked"
+                );
+
+            if(fixture.shutdown.activeSessionCount()!=1)
+                throw new AssertionError(
+                    "blocked physical close created accepted-socket ownership gap"
+                );
+
+            terminalThread.start();
+
+            await(
+                fixture.shutdown::closing,
+                "terminal owner did not observe shutdown during blocked accepted close"
+            );
+
+            if(!terminalThread.isAlive()||
+               fixture.shutdown.activeSessionCount()!=1)
+                throw new AssertionError(
+                    "terminal owner did not remain coordinated with blocked owned socket"
+                );
+
+            accepted.releaseFirstClose.countDown();
+
+            acceptThread.join(
+                5_000L
+            );
+            terminalThread.join(
+                5_000L
+            );
+
+            if(acceptThread.isAlive()||
+               terminalThread.isAlive())
+                throw new AssertionError(
+                    "blocked accepted-socket ownership fixture did not converge"
+                );
+
+            if(acceptFailure.get()!=expected)
+                throw new AssertionError(
+                    "blocked accepted close lost exact worker primary",
+                    acceptFailure.get()
+                );
+
+            if(terminalFailure.get()!=null)
+                throw new AssertionError(
+                    "terminal retry unexpectedly failed",
+                    terminalFailure.get()
+                );
+
+            if(!accepted.isClosed()||
+               fixture.shutdown.activeSessionCount()!=0)
+                throw new AssertionError(
+                    "blocked accepted socket did not retire without ownership leak"
+                );
+        }finally{
+            synchronized(acceptLock){
+                releaseAccept.set(true);
+                acceptLock.notifyAll();
+            }
+            accepted.releaseFirstClose.countDown();
+
+            acceptThread.join(
+                1_000L
+            );
+            terminalThread.join(
+                1_000L
+            );
+            fixture.close();
+        }
+    }
+
     private static void assertWakeFailureSuppressedAndRetried()
         throws Exception{
         TrackingServerSocket game=
@@ -484,6 +661,199 @@ public final class LocalAuxiliaryWorkerFailureTest {
         }
     }
 
+    private static void assertExactErrorTaskBoundaryIdentity()
+        throws Exception{
+        World world=
+            World.isolatedForTest(
+                25L
+            );
+        world.start();
+
+        ManualExecutor pool=
+            new ManualExecutor();
+        TrackingServerSocket game=
+            new TrackingServerSocket(0);
+        ServerSocket aux=
+            new ServerSocket();
+        LocalServerShutdownCoordinator shutdown=
+            new LocalServerShutdownCoordinator(
+                world,
+                pool,
+                game,
+                aux
+            );
+        AssertionError expected=
+            new AssertionError(
+                "fixture-aux-worker-error"
+            );
+
+        if(!shutdown.submitAuxiliary(
+                ()->{ throw expected; }))
+            throw new AssertionError(
+                "Error identity fixture AUX task was rejected"
+            );
+
+        Throwable escaped=null;
+
+        try{
+            pool.runStored();
+        }catch(Throwable failure){
+            escaped=failure;
+        }
+
+        if(escaped!=expected)
+            throw new AssertionError(
+                "AUX task-boundary Error was wrapped/swallowed",
+                escaped
+            );
+
+        Throwable surfaced=null;
+
+        try{
+            shutdown.acceptGameSocket(
+                ()->new TrackingSocket()
+            );
+        }catch(Throwable failure){
+            surfaced=failure;
+        }
+
+        if(surfaced!=expected)
+            throw new AssertionError(
+                "published AUX Error identity changed at game accept boundary",
+                surfaced
+            );
+
+        shutdown.close();
+    }
+
+    private static void assertPrePublicationLateFailureJoinsFirstTerminalResult()
+        throws Exception{
+        World world=
+            World.isolatedForTest(
+                25L
+            );
+        world.start();
+
+        ManualExecutor pool=
+            new ManualExecutor();
+        TrackingServerSocket game=
+            new TrackingServerSocket(0);
+        ServerSocket aux=
+            new ServerSocket();
+        LocalServerShutdownCoordinator shutdown=
+            new LocalServerShutdownCoordinator(
+                world,
+                pool,
+                game,
+                aux
+            );
+        FailThenBlockAuxiliarySocket ownedAux=
+            new FailThenBlockAuxiliarySocket();
+
+        Socket accepted=
+            shutdown.acceptAuxiliarySocket(
+                ()->ownedAux
+            );
+
+        if(accepted!=ownedAux||
+           shutdown.activeAuxiliarySocketCount()!=1)
+            throw new AssertionError(
+                "pre-publication fixture did not establish active AUX socket ownership"
+            );
+
+        RuntimeException workerFailure=
+            new RuntimeException(
+                "fixture-pre-publication-worker"
+            );
+
+        if(!shutdown.submitAuxiliary(
+                ()->{ throw workerFailure; }))
+            throw new AssertionError(
+                "pre-publication fixture AUX task was rejected"
+            );
+
+        AtomicReference<Throwable> terminalObserved=
+            new AtomicReference<>();
+
+        Thread terminalThread=
+            new Thread(
+                ()->{
+                    try{
+                        shutdown.close();
+                    }catch(Throwable failure){
+                        terminalObserved.set(
+                            failure
+                        );
+                    }
+                },
+                "aux-worker-pre-publication-terminal"
+            );
+
+        terminalThread.start();
+
+        if(!ownedAux.secondCloseEntered.await(
+                5,
+                TimeUnit.SECONDS))
+            throw new AssertionError(
+                "terminal owner did not reach post-pool AUX retry fence"
+            );
+
+        Throwable taskObserved=null;
+
+        try{
+            pool.runStored();
+        }catch(Throwable failure){
+            taskObserved=failure;
+        }
+
+        if(taskObserved!=workerFailure)
+            throw new AssertionError(
+                "pre-publication AUX task did not escape exact worker failure",
+                taskObserved
+            );
+
+        ownedAux.releaseSecondClose.countDown();
+
+        terminalThread.join(
+            5_000L
+        );
+
+        if(terminalThread.isAlive())
+            throw new AssertionError(
+                "pre-publication terminal owner did not finish"
+            );
+
+        Throwable firstTerminal=
+            terminalObserved.get();
+
+        if(firstTerminal==null)
+            throw new AssertionError(
+                "pre-publication fixture did not publish terminal failure"
+            );
+
+        if(!containsRecursiveIdentity(
+                firstTerminal,
+                workerFailure))
+            throw new AssertionError(
+                "worker failure published after earlier drain was absent from first terminal result",
+                firstTerminal
+            );
+
+        Throwable repeated=null;
+
+        try{
+            shutdown.close();
+        }catch(Throwable failure){
+            repeated=failure;
+        }
+
+        if(repeated!=firstTerminal)
+            throw new AssertionError(
+                "pre-publication worker evidence changed terminal identity",
+                repeated
+            );
+    }
+
     private static void assertLatePostTerminalFailurePreservesPublishedIdentity()
         throws Exception{
         World world=
@@ -618,6 +988,36 @@ public final class LocalAuxiliaryWorkerFailureTest {
         }
     }
 
+    private static boolean containsRecursiveIdentity(
+        Throwable root,
+        Throwable expected
+    ){
+        if(root==expected)
+            return true;
+
+        Throwable cause=
+            root.getCause();
+
+        if(cause!=null&&
+           cause!=root&&
+           containsRecursiveIdentity(
+               cause,
+               expected
+           ))
+            return true;
+
+        for(Throwable suppressed:
+                root.getSuppressed())
+            if(suppressed!=root&&
+               containsRecursiveIdentity(
+                   suppressed,
+                   expected
+               ))
+                return true;
+
+        return false;
+    }
+
     private static boolean containsIdentity(
         Throwable[] values,
         Throwable expected
@@ -708,6 +1108,97 @@ public final class LocalAuxiliaryWorkerFailureTest {
 
         @Override public synchronized void close()
             throws IOException{
+            closed=true;
+        }
+
+        @Override public synchronized boolean isClosed(){
+            return closed;
+        }
+    }
+
+    private static final class BlockingFirstCloseSocket
+        extends Socket {
+        final CountDownLatch firstCloseEntered=
+            new CountDownLatch(1);
+        final CountDownLatch releaseFirstClose=
+            new CountDownLatch(1);
+        final IOException firstFailure=
+            new IOException(
+                "fixture-blocked-first-close"
+            );
+        int closeCalls;
+        boolean closed;
+
+        @Override public synchronized void close()
+            throws IOException{
+            closeCalls++;
+
+            if(closeCalls==1){
+                firstCloseEntered.countDown();
+
+                boolean interrupted=false;
+
+                for(;;)
+                    try{
+                        releaseFirstClose.await();
+                        break;
+                    }catch(InterruptedException error){
+                        interrupted=true;
+                    }
+
+                if(interrupted)
+                    Thread.currentThread()
+                        .interrupt();
+
+                throw firstFailure;
+            }
+
+            closed=true;
+        }
+
+        @Override public synchronized boolean isClosed(){
+            return closed;
+        }
+    }
+
+    private static final class FailThenBlockAuxiliarySocket
+        extends Socket {
+        final CountDownLatch secondCloseEntered=
+            new CountDownLatch(1);
+        final CountDownLatch releaseSecondClose=
+            new CountDownLatch(1);
+        final IOException firstFailure=
+            new IOException(
+                "fixture-aux-first-close"
+            );
+        int closeCalls;
+        boolean closed;
+
+        @Override public synchronized void close()
+            throws IOException{
+            closeCalls++;
+
+            if(closeCalls==1)
+                throw firstFailure;
+
+            if(closeCalls==2){
+                secondCloseEntered.countDown();
+
+                boolean interrupted=false;
+
+                for(;;)
+                    try{
+                        releaseSecondClose.await();
+                        break;
+                    }catch(InterruptedException error){
+                        interrupted=true;
+                    }
+
+                if(interrupted)
+                    Thread.currentThread()
+                        .interrupt();
+            }
+
             closed=true;
         }
 
