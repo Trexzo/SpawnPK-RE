@@ -83,16 +83,19 @@ final class LocalAuxHttpWorker {
                         socket
                     );
                     socket=null;
-                }catch(IOException releaseFailure){
-                    if(primary==null)
-                        primary=releaseFailure;
-                    else
-                        primary.addSuppressed(
+                }catch(Throwable releaseFailure){
+                    primary=
+                        preserveFailureOrder(
+                            primary,
                             releaseFailure
                         );
                 }
             }catch(IOException acceptFailure){
-                primary=acceptFailure;
+                primary=
+                    preserveFailureOrder(
+                        primary,
+                        acceptFailure
+                    );
             }finally{
                 if(socket!=null)
                     try{
@@ -100,17 +103,19 @@ final class LocalAuxHttpWorker {
                             socket
                         );
                         socket=null;
-                    }catch(IOException releaseFailure){
-                        if(primary==null)
-                            primary=releaseFailure;
-                        else
-                            primary.addSuppressed(
+                    }catch(Throwable releaseFailure){
+                        primary=
+                            preserveFailureOrder(
+                                primary,
                                 releaseFailure
                             );
 
-                        if(!serverClosed.getAsBoolean())
+                        if(releaseFailure
+                                instanceof IOException&&
+                           !serverClosed.getAsBoolean())
                             retirementFailure.accept(
-                                releaseFailure
+                                (IOException)
+                                    releaseFailure
                             );
                     }
             }
@@ -131,6 +136,40 @@ final class LocalAuxHttpWorker {
 
             throw (Error)primary;
         }
+    }
+
+    private static Throwable preserveFailureOrder(
+        Throwable current,
+        Throwable next
+    ){
+        Objects.requireNonNull(
+            next,
+            "next"
+        );
+
+        if(current==null)
+            return next;
+
+        if(current instanceof RuntimeException||
+           current instanceof Error){
+            current.addSuppressed(
+                next
+            );
+            return current;
+        }
+
+        if(current instanceof IOException&&
+           next instanceof IOException){
+            current.addSuppressed(
+                next
+            );
+            return current;
+        }
+
+        next.addSuppressed(
+            current
+        );
+        return next;
     }
 
     private LocalAuxHttpWorker(){}
