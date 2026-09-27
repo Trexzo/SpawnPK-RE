@@ -304,7 +304,7 @@ public final class LocalAuxHttpRequestReaderTest {
                 ),
                 new StepClock(50L),
                 ignored->{},
-                50L
+                100L
             );
 
         try{
