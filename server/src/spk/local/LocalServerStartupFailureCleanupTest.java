@@ -17,6 +17,7 @@ public final class LocalServerStartupFailureCleanupTest {
         assertPreCoordinatorSocketCloseFailureSuppressed();
         assertBindFailureCleanup();
         assertGameAcceptPollConfigurationFailureCleanup();
+        assertAuxiliaryAcceptPollConfigurationFailureCleanup();
         assertPostBindSetupFailureCleanup();
         assertHookConstructionFailureCleanup();
         assertHookRegistrationFailureCleanup();
@@ -33,6 +34,8 @@ public final class LocalServerStartupFailureCleanupTest {
             "bindFailurePrimary=true "+
             "gameAcceptPollConfigured=true "+
             "gameAcceptPollConfigurationFailure=true "+
+            "auxAcceptPollConfigured=true "+
+            "auxAcceptPollConfigurationFailure=true "+
             "gameClosed=true "+
             "auxClosed=true "+
             "poolTerminated=true "+
@@ -407,6 +410,95 @@ public final class LocalServerStartupFailureCleanupTest {
     }
 
     private static void
+        assertAuxiliaryAcceptPollConfigurationFailureCleanup()
+        throws Exception{
+        InetAddress loopback=
+            InetAddress.getByName(
+                "127.0.0.1"
+            );
+
+        World world=
+            World.isolatedForTest(
+                25L
+            );
+        world.start();
+
+        ExecutorService pool=
+            Executors.newCachedThreadPool();
+        SocketException expectedFailure=
+            new SocketException(
+                "fixture-aux-accept-poll-configuration-failure"
+            );
+        ServerSocket game=
+            new ServerSocket();
+        PollConfigurationFailServerSocket aux=
+            new PollConfigurationFailServerSocket(
+                expectedFailure
+            );
+
+        LocalServerShutdownCoordinator shutdown=
+            new LocalServerShutdownCoordinator(
+                world,
+                pool,
+                game,
+                aux
+            );
+
+        try{
+            Throwable observed=null;
+
+            try{
+                LocalServerStartupBinder.bind(
+                    shutdown,
+                    game,
+                    new InetSocketAddress(
+                        loopback,
+                        0
+                    ),
+                    aux,
+                    new InetSocketAddress(
+                        loopback,
+                        0
+                    )
+                );
+            }catch(Throwable failure){
+                observed=failure;
+            }
+
+            if(observed!=expectedFailure)
+                throw new AssertionError(
+                    "auxiliary accept poll configuration failure did not remain primary",
+                    observed
+                );
+
+            if(!aux.boundWhenConfigured)
+                throw new AssertionError(
+                    "auxiliary accept poll was configured before successful listener bind"
+                );
+
+            if(game.getSoTimeout()!=
+                    LocalServerShutdownCoordinator
+                        .GAME_ACCEPT_POLL_TIMEOUT_MILLIS)
+                throw new AssertionError(
+                    "auxiliary poll failure occurred before game poll configuration"
+                );
+
+            assertTerminal(
+                world,
+                pool,
+                game,
+                aux,
+                "auxiliary accept poll configuration failure"
+            );
+
+            shutdown.close();
+        }finally{
+            if(!world.closed())
+                shutdown.close();
+        }
+    }
+
+    private static void
         assertPostBindSetupFailureCleanup()
         throws Exception{
         InetAddress loopback=
@@ -455,6 +547,13 @@ public final class LocalServerStartupFailureCleanupTest {
                         .GAME_ACCEPT_POLL_TIMEOUT_MILLIS)
                 throw new AssertionError(
                     "game listener bounded accept poll was not configured"
+                );
+
+            if(aux.getSoTimeout()!=
+                    LocalServerShutdownCoordinator
+                        .AUXILIARY_ACCEPT_POLL_TIMEOUT_MILLIS)
+                throw new AssertionError(
+                    "auxiliary listener bounded accept poll was not configured"
                 );
 
             ExceptionInInitializerError expectedFailure=
