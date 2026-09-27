@@ -310,12 +310,9 @@ public final class Main {
     }
 
     private static Path localArchiveFor(String target) {
-        String name;
-        if (target.endsWith("/cache.zip")) name = "cache.zip";
-        else if (target.endsWith("/sprites.zip")) name = "sprites.zip";
-        else if (target.endsWith("/configs.zip")) name = "configs.zip";
-        else return null;
-        return Paths.get(System.getProperty("user.home"), ".spawnpk", name);
+        return LocalAuxArchivePath.resolve(
+            target
+        );
     }
 
     private static String printable(String s) {
