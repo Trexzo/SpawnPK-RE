@@ -39,6 +39,7 @@ public final class LocalSessionConstructionOwnershipTest {
         assertAuxListenerCloseFailurePublished();
         assertUncheckedListenerCloseFailurePublished();
         assertAuxiliaryAcceptedSocketOwnership();
+        assertAuxiliaryAcceptHandoffTerminalRace();
         assertSuccessPath();
 
         System.out.println(
@@ -79,6 +80,8 @@ public final class LocalSessionConstructionOwnershipTest {
             "auxSocketCloseFailureRetained=true "+
             "auxSocketRetry=true "+
             "auxSocketOwnershipZero=true "+
+            "auxAcceptHandoff=true "+
+            "auxPostFenceReject=true "+
             "successPath=true"
         );
     }
@@ -2071,15 +2074,16 @@ public final class LocalSessionConstructionOwnershipTest {
                 aux
             );
 
-        if(!shutdown.claimAuxiliarySocket(
-                healthy))
-            throw new AssertionError(
-                "healthy auxiliary socket claim was rejected"
+        Socket accepted=
+            shutdown.acceptAuxiliarySocket(
+                ()->healthy
             );
 
-        if(shutdown.activeAuxiliarySocketCount()!=1)
+        if(accepted!=healthy||
+           shutdown.activeAuxiliarySocketCount()!=1||
+           shutdown.pendingAuxiliaryAcceptHandoffs()!=0)
             throw new AssertionError(
-                "healthy auxiliary socket was not coordinator-owned"
+                "healthy auxiliary accept did not atomically transfer ownership"
             );
 
         shutdown.releaseAuxiliarySocket(
@@ -2092,15 +2096,15 @@ public final class LocalSessionConstructionOwnershipTest {
                 "healthy auxiliary socket ownership did not retire"
             );
 
-        if(!shutdown.claimAuxiliarySocket(
-                socket))
-            throw new AssertionError(
-                "terminal auxiliary socket claim was rejected before close"
+        Socket terminalCandidate=
+            shutdown.acceptAuxiliarySocket(
+                ()->socket
             );
 
-        if(shutdown.activeAuxiliarySocketCount()!=1)
+        if(terminalCandidate!=socket||
+           shutdown.activeAuxiliarySocketCount()!=1)
             throw new AssertionError(
-                "accepted auxiliary socket was not coordinator-owned"
+                "terminal fixture auxiliary socket was not owned"
             );
 
         Throwable observed=null;
@@ -2126,9 +2130,17 @@ public final class LocalSessionConstructionOwnershipTest {
                 "terminal auxiliary retry did not physically close socket"
             );
 
-        if(shutdown.activeAuxiliarySocketCount()!=0)
+        if(shutdown.activeAuxiliarySocketCount()!=0||
+           shutdown.pendingAuxiliaryAcceptHandoffs()!=0)
             throw new AssertionError(
-                "terminal auxiliary ownership did not retire"
+                "terminal auxiliary ownership/handoff did not retire"
+            );
+
+        if(shutdown.acceptAuxiliarySocket(
+                ()->new Socket()
+            )!=null)
+            throw new AssertionError(
+                "post-fence auxiliary accept was not rejected"
             );
 
         Throwable repeated=null;
@@ -2143,6 +2155,173 @@ public final class LocalSessionConstructionOwnershipTest {
             throw new AssertionError(
                 "repeated close changed auxiliary terminal failure identity",
                 repeated
+            );
+    }
+
+    private static void
+        assertAuxiliaryAcceptHandoffTerminalRace()
+        throws Exception{
+        World world=
+            World.isolatedForTest(
+                25L
+            );
+        world.start();
+
+        TrackingExecutor pool=
+            new TrackingExecutor();
+        ServerSocket game=
+            new ServerSocket();
+        ServerSocket aux=
+            new ServerSocket();
+        FailOnceCloseSocket accepted=
+            new FailOnceCloseSocket();
+
+        LocalServerShutdownCoordinator shutdown=
+            new LocalServerShutdownCoordinator(
+                world,
+                pool,
+                game,
+                aux
+            );
+
+        CountDownLatch acceptEntered=
+            new CountDownLatch(1);
+        CountDownLatch releaseAccept=
+            new CountDownLatch(1);
+        AtomicReference<Socket> acceptResult=
+            new AtomicReference<>();
+        AtomicReference<Throwable> acceptFailure=
+            new AtomicReference<>();
+
+        Thread accepter=
+            new Thread(
+                ()->{
+                    try{
+                        acceptResult.set(
+                            shutdown.acceptAuxiliarySocket(
+                                ()->{
+                                    acceptEntered.countDown();
+
+                                    try{
+                                        releaseAccept.await();
+                                    }catch(InterruptedException error){
+                                        Thread.currentThread()
+                                            .interrupt();
+                                        throw new IOException(
+                                            "fixture auxiliary accept interrupted",
+                                            error
+                                        );
+                                    }
+
+                                    return accepted;
+                                }
+                            )
+                        );
+                    }catch(Throwable failure){
+                        acceptFailure.set(
+                            failure
+                        );
+                    }
+                },
+                "auxiliary-accept-handoff-fixture"
+            );
+        accepter.start();
+
+        if(!acceptEntered.await(
+                5,
+                TimeUnit.SECONDS))
+            throw new AssertionError(
+                "auxiliary accept handoff did not publish before accept"
+            );
+
+        if(shutdown.pendingAuxiliaryAcceptHandoffs()!=1||
+           shutdown.activeAuxiliarySocketCount()!=0)
+            throw new AssertionError(
+                "auxiliary pre-accept handoff state mismatch"
+            );
+
+        AtomicReference<Throwable> terminalFailure=
+            new AtomicReference<>();
+        Thread closer=
+            new Thread(
+                ()->{
+                    try{
+                        shutdown.close();
+                    }catch(Throwable failure){
+                        terminalFailure.set(
+                            failure
+                        );
+                    }
+                },
+                "auxiliary-handoff-terminal-fixture"
+            );
+        closer.start();
+
+        long deadline=
+            System.nanoTime()+
+                TimeUnit.SECONDS.toNanos(
+                    5
+                );
+
+        while(!aux.isClosed()&&
+              System.nanoTime()<deadline)
+            Thread.yield();
+
+        if(!aux.isClosed())
+            throw new AssertionError(
+                "terminal close did not physically close aux listener"
+            );
+
+        if(!closer.isAlive())
+            throw new AssertionError(
+                "terminal close returned before pre-fence auxiliary handoff retired"
+            );
+
+        releaseAccept.countDown();
+
+        accepter.join(
+            5_000L
+        );
+        closer.join(
+            5_000L
+        );
+
+        if(accepter.isAlive()||
+           closer.isAlive())
+            throw new AssertionError(
+                "auxiliary accept handoff terminal reconciliation did not finish"
+            );
+
+        if(acceptResult.get()!=null)
+            throw new AssertionError(
+                "terminal-winning auxiliary accept returned live socket"
+            );
+
+        if(acceptFailure.get()!=
+                accepted.failure)
+            throw new AssertionError(
+                "terminal auxiliary handoff close failure was not observable",
+                acceptFailure.get()
+            );
+
+        Throwable observed=
+            terminalFailure.get();
+
+        if(!(observed instanceof
+                IllegalStateException)||
+           observed.getCause()!=
+                accepted.failure)
+            throw new AssertionError(
+                "terminal auxiliary handoff close failure was not published",
+                observed
+            );
+
+        if(!accepted.isClosed()||
+           accepted.closeCalls.get()<2||
+           shutdown.pendingAuxiliaryAcceptHandoffs()!=0||
+           shutdown.activeAuxiliarySocketCount()!=0)
+            throw new AssertionError(
+                "terminal auxiliary handoff/socket ownership did not fully retire"
             );
     }
 
