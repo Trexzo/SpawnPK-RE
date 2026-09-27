@@ -328,6 +328,13 @@ final class PluginJarLoader implements PluginLoader {
                             '/'
                         );
 
+                if("META-INF/INDEX.LIST"
+                        .equals(name))
+                    throw new IllegalArgumentException(
+                        "plugin JAR index is forbidden: "+
+                        name
+                    );
+
                 if(name.equals(
                         entrypointClass))
                     entrypointPresent=true;
