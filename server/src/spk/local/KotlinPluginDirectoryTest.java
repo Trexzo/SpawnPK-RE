@@ -410,6 +410,22 @@ public final class KotlinPluginDirectoryTest {
             StandardCharsets.UTF_8
         );
 
+        Path replacement=
+            temp.resolve(
+                "replacement-link.kts"
+            );
+
+        try{
+            Files.createSymbolicLink(
+                replacement,
+                outside
+            );
+        }catch(UnsupportedOperationException|
+               java.nio.file.FileSystemException|
+               SecurityException unavailable){
+            return false;
+        }
+
         Path probe=
             root.resolve(
                 "probe.kts"
@@ -431,6 +447,8 @@ public final class KotlinPluginDirectoryTest {
 
         final boolean[] hookRan=
             new boolean[1];
+        final boolean[] swapInstalled=
+            new boolean[1];
 
         KotlinPluginDirectory.SourceCaptureHook hook=
             new KotlinPluginDirectory.SourceCaptureHook(){
@@ -441,10 +459,11 @@ public final class KotlinPluginDirectoryTest {
                     Files.delete(
                         source
                     );
-                    Files.createSymbolicLink(
-                        source,
-                        outside
+                    Files.move(
+                        replacement,
+                        source
                     );
+                    swapInstalled[0]=true;
                 }
 
                 @Override public void afterCapture(
@@ -471,14 +490,16 @@ public final class KotlinPluginDirectoryTest {
                         loader,
                         hook
                     );
-        }catch(UnsupportedOperationException|
-               java.nio.file.FileSystemException|
-               SecurityException unavailable){
-            return false;
         }catch(IOException expected){
             if(!hookRan[0])
                 throw new AssertionError(
                     "final-child swap rejected before capture boundary",
+                    expected
+                );
+
+            if(!swapInstalled[0])
+                throw new AssertionError(
+                    "final-child symlink swap fixture failed before capture",
                     expected
                 );
 
