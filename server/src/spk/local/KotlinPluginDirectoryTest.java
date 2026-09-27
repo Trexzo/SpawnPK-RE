@@ -538,6 +538,11 @@ public final class KotlinPluginDirectoryTest {
                     "plugin published after final-child symlink swap"
                 );
 
+            assertNoCapturePins(
+                root,
+                "symlink swap"
+            );
+
             return true;
         }
 
@@ -652,6 +657,11 @@ public final class KotlinPluginDirectoryTest {
                     "plugin published after final-child non-regular swap"
                 );
 
+            assertNoCapturePins(
+                root,
+                "non-regular swap"
+            );
+
             return true;
         }finally{
             if(Files.isDirectory(
@@ -746,6 +756,47 @@ public final class KotlinPluginDirectoryTest {
             throw new AssertionError(
                 "snapshot-detached fixture did not disable"
             );
+
+        assertNoCapturePins(
+            root,
+            "healthy snapshot capture"
+        );
+    }
+
+    private static void assertNoCapturePins(
+        Path root,
+        String phase
+    )throws Exception{
+        if(!Files.isDirectory(
+                root,
+                LinkOption.NOFOLLOW_LINKS))
+            return;
+
+        try(Stream<Path> entries=
+                Files.list(
+                    root
+                )){
+            Path leaked=
+                entries.filter(
+                    path->
+                        path.getFileName()
+                            .toString()
+                            .startsWith(
+                                ".spawnpk-kts-capture-"
+                            )
+                )
+                .findFirst()
+                .orElse(
+                    null
+                );
+
+            if(leaked!=null)
+                throw new AssertionError(
+                    phase+
+                    " retained capture identity pin: "+
+                    leaked
+                );
+        }
     }
 
     private static boolean assertRootSymlinkRejected(
