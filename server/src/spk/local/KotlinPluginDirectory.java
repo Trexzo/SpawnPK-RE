@@ -393,6 +393,14 @@ final class KotlinPluginDirectory {
                 source
             );
 
+        if(!Files.isRegularFile(
+                source,
+                LinkOption.NOFOLLOW_LINKS))
+            throw new IOException(
+                "Kotlin plugin script missing or non-regular: "+
+                source
+            );
+
         SourceCaptureHook captureHook=
             hook==null
                 ?NO_CAPTURE_HOOK
@@ -401,14 +409,6 @@ final class KotlinPluginDirectory {
         captureHook.beforeOpen(
             source
         );
-
-        if(!Files.isRegularFile(
-                source,
-                LinkOption.NOFOLLOW_LINKS))
-            throw new IOException(
-                "Kotlin plugin final source is not a regular file: "+
-                source
-            );
 
         java.util.HashSet<OpenOption> options=
             new java.util.HashSet<>();
