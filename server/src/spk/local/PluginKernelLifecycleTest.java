@@ -680,10 +680,11 @@ public final class PluginKernelLifecycleTest {
                 world.plugins();
         RuntimeException shared=
             new IllegalStateException(
-                "same-batch-enable-disable"
+                "same-batch-rollback"
             );
         AtomicInteger firstDisable=
             new AtomicInteger();
+
         Plugin first=
             new Plugin(){
                 @Override public PluginManifest manifest(){
@@ -712,22 +713,46 @@ public final class PluginKernelLifecycleTest {
                     firstDisable.incrementAndGet();
                 }
             };
-        SameFailurePlugin second=
-            new SameFailurePlugin(
+
+        CleanupLoaderFailureRuntime middle=
+            new CleanupLoaderFailureRuntime(
                 "self.batch.b",
                 Collections.singletonList(
                     "self.batch.a"
                 ),
-                shared,
-                true
+                shared
             );
+
+        Plugin failing=
+            new Plugin(){
+                @Override public PluginManifest manifest(){
+                    return new PluginManifest(
+                        "self.batch.c",
+                        "1.0.0",
+                        PluginApiVersion.CURRENT,
+                        Collections.singletonList(
+                            "self.batch.b"
+                        )
+                    );
+                }
+
+                @Override public void enable(
+                    PluginContext context
+                ){
+                    middle.failCleanupLoader=true;
+                    throw shared;
+                }
+
+                @Override public void disable(){}
+            };
 
         try{
             Throwable observed=
                 captureFailure(
                     ()->manager.enableAll(
                         Arrays.<Plugin>asList(
-                            second,
+                            failing,
+                            middle,
                             first
                         )
                     )
@@ -735,28 +760,32 @@ public final class PluginKernelLifecycleTest {
 
             if(observed!=shared)
                 throw new AssertionError(
-                    "same batch failure identity changed",
+                    "same batch rollback failure identity changed",
                     observed
                 );
 
             if(shared.getSuppressed().length!=0)
                 throw new AssertionError(
-                    "same batch failure self-suppressed"
+                    "same batch rollback failure self-suppressed"
                 );
 
-            if(second.disableCount.get()!=1||
-               firstDisable.get()!=1)
+            if(firstDisable.get()!=1)
                 throw new AssertionError(
-                    "batch rollback did not continue first="+
-                    firstDisable.get()+
-                    " second="+
-                    second.disableCount.get()
+                    "batch rollback stopped after same-object cleanup failure"
+                );
+
+            if(middle.closeCount.get()!=1)
+                throw new AssertionError(
+                    "batch rollback did not retire failed cleanup runtime exactly once count="+
+                    middle.closeCount.get()
                 );
 
             if(manager.plugin(
                     "self.batch.a")!=null||
                manager.plugin(
-                    "self.batch.b")!=null)
+                    "self.batch.b")!=null||
+               manager.plugin(
+                    "self.batch.c")!=null)
                 throw new AssertionError(
                     "same-failure batch retained plugin"
                 );
@@ -764,13 +793,9 @@ public final class PluginKernelLifecycleTest {
             if(world.content()
                     .commandBinding(
                         "selfbatcha"
-                    )!=null||
-               world.content()
-                    .commandBinding(
-                        "selfbatchb"
                     )!=null)
                 throw new AssertionError(
-                    "same-failure batch retained content"
+                    "same-failure batch retained prior content"
                 );
         }finally{
             world.close();
@@ -1824,15 +1849,31 @@ public final class PluginKernelLifecycleTest {
         volatile boolean failCleanupLoader;
         final AtomicInteger disableCount=
             new AtomicInteger();
+        final AtomicInteger closeCount=
+            new AtomicInteger();
 
         CleanupLoaderFailureRuntime(
             String id,
             RuntimeException failure
         ){
+            this(
+                id,
+                Collections.<String>emptyList(),
+                failure
+            );
+        }
+
+        CleanupLoaderFailureRuntime(
+            String id,
+            List<String> dependencies,
+            RuntimeException failure
+        ){
             manifest=
                 new PluginManifest(
                     id,
-                    "1.0.0"
+                    "1.0.0",
+                    PluginApiVersion.CURRENT,
+                    dependencies
                 );
             this.failure=failure;
         }
@@ -1857,7 +1898,9 @@ public final class PluginKernelLifecycleTest {
                 .getClassLoader();
         }
 
-        @Override public void close(){}
+        @Override public void close(){
+            closeCount.incrementAndGet();
+        }
     }
 
     private static final class CloseFailureRuntime
