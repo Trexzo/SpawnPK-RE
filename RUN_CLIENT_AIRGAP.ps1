@@ -1,3 +1,7 @@
+param(
+    [string]$LocalLabUserHome = $env:SPAWNPK_LOCALLAB_USER_HOME
+)
+
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
 Set-Location $PSScriptRoot
@@ -19,7 +23,51 @@ Write-Host 'Launching AIRGAP client (client binary unchanged since v0.3).' -Fore
 Write-Host 'Known SpawnPK game/cache/CDN/forum/API application endpoints are rewritten to 127.0.0.1.' -ForegroundColor Cyan
 Write-Host 'Use fake local credentials only.' -ForegroundColor Yellow
 
-& $java.Path -jar $jar
+$javaArgs = @()
+if (-not [string]::IsNullOrWhiteSpace($LocalLabUserHome)) {
+    $resolvedHome = [IO.Path]::GetFullPath($LocalLabUserHome)
+    $resolvedHome = $resolvedHome.TrimEnd(
+        [IO.Path]::DirectorySeparatorChar,
+        [IO.Path]::AltDirectorySeparatorChar
+    )
+
+    $realHome = [Environment]::GetFolderPath(
+        [Environment+SpecialFolder]::UserProfile
+    )
+    if (-not [string]::IsNullOrWhiteSpace($realHome)) {
+        $realHome = [IO.Path]::GetFullPath($realHome).TrimEnd(
+            [IO.Path]::DirectorySeparatorChar,
+            [IO.Path]::AltDirectorySeparatorChar
+        )
+        if ([StringComparer]::OrdinalIgnoreCase.Equals(
+                $resolvedHome,
+                $realHome
+            )) {
+            throw 'Refusing LocalLab isolated user.home because it resolves to the real OS user home.'
+        }
+    }
+
+    $cacheRoot = Join-Path $resolvedHome '.spawnpk'
+    $dataRoot = Join-Path $resolvedHome '.spawnpk-data'
+
+    if (-not (Test-Path -LiteralPath $cacheRoot -PathType Container)) {
+        throw "Isolated LocalLab user.home is not seeded: missing cache root $cacheRoot"
+    }
+
+    if (-not (Test-Path -LiteralPath $dataRoot -PathType Container)) {
+        New-Item -ItemType Directory -Path $dataRoot -Force | Out-Null
+    }
+
+    $javaArgs += "-Duser.home=$resolvedHome"
+
+    Write-Host "LOCAL_LAB_CLIENT_HOME_ISOLATED home=$resolvedHome" -ForegroundColor Green
+    Write-Host "LOCAL_LAB_CLIENT_CACHE_ROOT $cacheRoot" -ForegroundColor Green
+    Write-Host "LOCAL_LAB_CLIENT_DATA_ROOT $dataRoot" -ForegroundColor Green
+} else {
+    Write-Host 'LOCAL_LAB_CLIENT_HOME_DEFAULT no isolated user.home requested' -ForegroundColor DarkGray
+}
+
+& $java.Path @javaArgs -jar $jar
 if ($LASTEXITCODE -ne 0) {
     throw "AIRGAP client exited with code $LASTEXITCODE using $($java.Path)"
 }
