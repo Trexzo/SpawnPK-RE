@@ -241,6 +241,10 @@ internal class KotlinPluginLoader @JvmOverloads constructor(
                 }
 
                 val name = entry.name.replace('\\', '/')
+                validateVersionedClassEntry(
+                    path,
+                    name
+                )
 
                 if (!name.startsWith("spk/")) {
                     continue
@@ -272,6 +276,10 @@ internal class KotlinPluginLoader @JvmOverloads constructor(
                     val name =
                         entry.name
                             .replace('\\', '/')
+                    validateVersionedClassEntry(
+                        path,
+                        name
+                    )
 
                     if (name.startsWith("spk/")) {
                         require(
@@ -307,6 +315,23 @@ internal class KotlinPluginLoader @JvmOverloads constructor(
                     }
                 }
             }
+        }
+    }
+
+    private fun validateVersionedClassEntry(
+        path: Path,
+        name: String
+    ) {
+        require(
+            !(name.startsWith(
+                "META-INF/versions/"
+            ) &&
+                name.endsWith(
+                    ".class"
+                ))
+        ) {
+            "Kotlin classpath archive contains forbidden multi-release class entry: " +
+                path + " entry=" + name
         }
     }
 
