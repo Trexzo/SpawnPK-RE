@@ -83,3 +83,6 @@ server/.gradle/
 .gradle/
 *.lock
 *.pid
+
+# LocalLab isolated client profile
+runtime/locallab-user-home/
