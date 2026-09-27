@@ -41,6 +41,7 @@ public final class LocalSessionConstructionOwnershipTest {
         assertUncheckedListenerCloseFailurePublished();
         assertAuxiliaryAcceptedSocketOwnership();
         assertAuxiliaryIdlePollKeepsOneHandoff();
+        assertAuxiliaryTerminalAfterIdlePolls();
         assertAuxiliaryRealFailureAfterIdlePolls();
         assertAuxiliaryFailedOpenListenerPollRetiresWorker();
         assertAuxiliaryAcceptHandoffTerminalRace();
@@ -87,6 +88,8 @@ public final class LocalSessionConstructionOwnershipTest {
             "auxAcceptHandoff=true "+
             "auxIdlePollHandoffContinuous=true "+
             "auxPollTimeoutNotDiagnostic=true "+
+            "auxTerminalPollExit=true "+
+            "auxHandoffRetiredExactlyOnce=true "+
             "auxRealAcceptFailurePreserved=true "+
             "auxFailedOpenPollExit=true "+
             "auxFailedOpenPoolTerminates=true "+
@@ -2241,6 +2244,180 @@ public final class LocalSessionConstructionOwnershipTest {
     }
 
     private static void
+        assertAuxiliaryTerminalAfterIdlePolls()
+        throws Exception{
+        World world=
+            World.isolatedForTest(
+                25L
+            );
+        world.start();
+
+        TrackingExecutor pool=
+            new TrackingExecutor();
+        ServerSocket game=
+            new ServerSocket();
+        BlockingCloseServerSocket aux=
+            new BlockingCloseServerSocket();
+
+        LocalServerShutdownCoordinator shutdown=
+            new LocalServerShutdownCoordinator(
+                world,
+                pool,
+                game,
+                aux
+            );
+
+        CountDownLatch thirdAcceptEntered=
+            new CountDownLatch(1);
+        CountDownLatch releaseThirdPoll=
+            new CountDownLatch(1);
+        AtomicInteger calls=
+            new AtomicInteger();
+        AtomicReference<Socket> result=
+            new AtomicReference<>();
+        AtomicReference<Throwable> acceptFailure=
+            new AtomicReference<>();
+
+        Thread accepter=
+            new Thread(
+                ()->{
+                    try{
+                        result.set(
+                            shutdown
+                                .acceptAuxiliarySocket(
+                                    ()->{
+                                        int call=
+                                            calls.incrementAndGet();
+
+                                        if(shutdown
+                                                .pendingAuxiliaryAcceptHandoffs()!=1)
+                                            throw new AssertionError(
+                                                "terminal AUX poll fixture lost continuous handoff"
+                                            );
+
+                                        if(call<=2)
+                                            throw new SocketTimeoutException(
+                                                "fixture-aux-terminal-idle-"+call
+                                            );
+
+                                        thirdAcceptEntered
+                                            .countDown();
+
+                                        try{
+                                            releaseThirdPoll
+                                                .await();
+                                        }catch(InterruptedException error){
+                                            Thread.currentThread()
+                                                .interrupt();
+                                            throw new IOException(
+                                                "fixture terminal AUX poll interrupted",
+                                                error
+                                            );
+                                        }
+
+                                        throw new SocketTimeoutException(
+                                            "fixture-aux-terminal-exit"
+                                        );
+                                    }
+                                )
+                        );
+                    }catch(Throwable failure){
+                        acceptFailure.set(
+                            failure
+                        );
+                    }
+                },
+                "aux-terminal-after-idle-polls"
+            );
+        accepter.start();
+
+        if(!thirdAcceptEntered.await(
+                5,
+                TimeUnit.SECONDS))
+            throw new AssertionError(
+                "terminal AUX poll fixture did not complete healthy idle polls"
+            );
+
+        if(calls.get()!=3||
+           shutdown.pendingAuxiliaryAcceptHandoffs()!=1)
+            throw new AssertionError(
+                "healthy AUX polls did not retain exactly one handoff"
+            );
+
+        AtomicReference<Throwable> terminalFailure=
+            new AtomicReference<>();
+        Thread closer=
+            new Thread(
+                ()->{
+                    try{
+                        shutdown.close();
+                    }catch(Throwable failure){
+                        terminalFailure.set(
+                            failure
+                        );
+                    }
+                },
+                "aux-terminal-after-idle-close"
+            );
+        closer.start();
+
+        if(!aux.closeEntered.await(
+                5,
+                TimeUnit.SECONDS))
+            throw new AssertionError(
+                "terminal AUX poll fixture did not publish closing fence"
+            );
+
+        if(!shutdown.closing()||
+           shutdown.pendingAuxiliaryAcceptHandoffs()!=1)
+            throw new AssertionError(
+                "terminal fence observed false zero-handoff gap before AUX poll"
+            );
+
+        releaseThirdPoll.countDown();
+
+        accepter.join(
+            5_000L
+        );
+
+        if(accepter.isAlive())
+            throw new AssertionError(
+                "terminal AUX poll did not release in-flight accept"
+            );
+
+        if(result.get()!=null||
+           acceptFailure.get()!=null||
+           shutdown.pendingAuxiliaryAcceptHandoffs()!=0)
+            throw new AssertionError(
+                "terminal AUX poll escaped timeout/failure or retained handoff",
+                acceptFailure.get()
+            );
+
+        aux.releaseClose.countDown();
+
+        closer.join(
+            5_000L
+        );
+
+        if(closer.isAlive())
+            throw new AssertionError(
+                "terminal AUX poll close fixture did not converge"
+            );
+
+        if(terminalFailure.get()!=null)
+            throw new AssertionError(
+                "clean terminal AUX poll fabricated terminal failure",
+                terminalFailure.get()
+            );
+
+        if(calls.get()!=3||
+           shutdown.activeAuxiliarySocketCount()!=0)
+            throw new AssertionError(
+                "terminal AUX poll committed socket or repeated after terminal exit"
+            );
+    }
+
+    private static void
         assertAuxiliaryRealFailureAfterIdlePolls()
         throws Exception{
         World world=
@@ -2829,6 +3006,43 @@ public final class LocalSessionConstructionOwnershipTest {
 
         shutdown.close();
         pair.close();
+    }
+
+    private static final class BlockingCloseServerSocket
+        extends ServerSocket {
+
+        final CountDownLatch closeEntered=
+            new CountDownLatch(1);
+        final CountDownLatch releaseClose=
+            new CountDownLatch(1);
+
+        BlockingCloseServerSocket()
+            throws IOException{
+            super();
+        }
+
+        @Override public void close()
+            throws IOException{
+            closeEntered.countDown();
+
+            boolean interrupted=false;
+
+            for(;;)
+                try{
+                    releaseClose.await();
+                    break;
+                }catch(InterruptedException error){
+                    interrupted=true;
+                }
+
+            try{
+                super.close();
+            }finally{
+                if(interrupted)
+                    Thread.currentThread()
+                        .interrupt();
+            }
+        }
     }
 
     private static final class AlwaysFailUncheckedServerSocket
