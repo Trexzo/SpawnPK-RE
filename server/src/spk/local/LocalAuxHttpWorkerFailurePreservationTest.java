@@ -12,8 +12,10 @@ public final class LocalAuxHttpWorkerFailurePreservationTest {
         String[] args
     )throws Exception{
         assertRuntimePrimaryAcrossUncheckedReleaseFailure();
+        assertSameRuntimeObjectCleanupPreservesPrimary();
         assertRuntimePrimaryAcrossMixedReleaseFailures();
         assertErrorPrimaryAcrossUncheckedReleaseFailure();
+        assertSameIOExceptionObjectCleanupRemainsConnectionScoped();
         assertUncheckedReleaseBecomesPrimaryOverCheckedHandler();
         assertIoFailureRemainsConnectionScoped();
         assertCleanRetirementUnchanged();
@@ -23,6 +25,7 @@ public final class LocalAuxHttpWorkerFailurePreservationTest {
             "runtimePrimary=true "+
             "errorPrimary=true "+
             "uncheckedReleaseSuppressed=true "+
+            "selfSuppressionGuard=true "+
             "retirementSuppressed=true "+
             "residualRetry=true "+
             "secondRetirementSuppressed=true "+
@@ -75,6 +78,47 @@ public final class LocalAuxHttpWorkerFailurePreservationTest {
            expected.getSuppressed()[0]!=release)
             throw new AssertionError(
                 "unchecked release replaced runtime handler primary or retry was skipped",
+                observed
+            );
+    }
+
+    private static void
+        assertSameRuntimeObjectCleanupPreservesPrimary(){
+        FakeSocket socket=
+            new FakeSocket();
+        RuntimeException expected=
+            new IllegalStateException(
+                "fixture-same-runtime"
+            );
+        AtomicInteger releases=
+            new AtomicInteger();
+        Throwable observed=null;
+
+        try{
+            LocalAuxHttpWorker.run(
+                ()->false,
+                once(
+                    socket
+                ),
+                ignored->{
+                    throw expected;
+                },
+                ignored->{
+                    if(releases.incrementAndGet()==1)
+                        throw expected;
+                },
+                failure->{},
+                failure->{}
+            );
+        }catch(Throwable failure){
+            observed=failure;
+        }
+
+        if(observed!=expected||
+           releases.get()!=2||
+           expected.getSuppressed().length!=0)
+            throw new AssertionError(
+                "same runtime cleanup object triggered self-suppression or replaced primary",
                 observed
             );
     }
@@ -185,6 +229,45 @@ public final class LocalAuxHttpWorkerFailurePreservationTest {
             throw new AssertionError(
                 "unchecked release replaced Error handler primary",
                 observed
+            );
+    }
+
+    private static void
+        assertSameIOExceptionObjectCleanupRemainsConnectionScoped()
+        throws Exception{
+        FakeSocket socket=
+            new FakeSocket();
+        IOException expected=
+            new IOException(
+                "fixture-same-io"
+            );
+        AtomicInteger releases=
+            new AtomicInteger();
+        AtomicReference<IOException>
+            connectionObserved=
+                new AtomicReference<>();
+
+        LocalAuxHttpWorker.run(
+            ()->false,
+            once(
+                socket
+            ),
+            ignored->{
+                throw expected;
+            },
+            ignored->{
+                if(releases.incrementAndGet()==1)
+                    throw expected;
+            },
+            connectionObserved::set,
+            failure->{}
+        );
+
+        if(connectionObserved.get()!=expected||
+           releases.get()!=2||
+           expected.getSuppressed().length!=0)
+            throw new AssertionError(
+                "same IOException cleanup object triggered self-suppression or changed connection classification"
             );
     }
 
