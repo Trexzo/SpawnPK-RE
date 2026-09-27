@@ -473,6 +473,24 @@ final class LocalServerShutdownCoordinator
         return primary;
     }
 
+    private static Throwable combineFailure(
+        Throwable primary,
+        Throwable next
+    ){
+        if(next==null)
+            return primary;
+
+        if(primary==null)
+            return next;
+
+        if(primary!=next)
+            primary.addSuppressed(
+                next
+            );
+
+        return primary;
+    }
+
     private static void rethrowSocketCloseFailure(
         Throwable failure
     )throws IOException{
@@ -573,11 +591,19 @@ final class LocalServerShutdownCoordinator
             game.isClosed();
 
         // First close pass covers active ownership present at terminal
-        // publication. Failed-open sockets remain in activeGameSockets.
+        // publication. Failed-open sockets remain in activeGameSockets. A
+        // later successful retry may retire the resource, but it must not
+        // erase the original terminal close failure from terminal history.
+        Throwable firstSocketCloseFailure=null;
+
         for(Socket socket:sockets)
-            retireOwnedSocket(
-                socket
-            );
+            firstSocketCloseFailure=
+                combineFailure(
+                    firstSocketCloseFailure,
+                    retireOwnedSocket(
+                        socket
+                    )
+                );
 
         awaitPreTerminalHandoffs(
             waitGameAcceptHandoffs
@@ -594,7 +620,10 @@ final class LocalServerShutdownCoordinator
         // snapshot, and a first active-socket close may have failed. Retry
         // every still-owned active socket once after the awaited handoffs.
         Throwable socketRetirementFailure=
-            retryOwnedSocketsForTerminal();
+            combineFailure(
+                firstSocketCloseFailure,
+                retryOwnedSocketsForTerminal()
+            );
 
         Throwable failure=null;
 
