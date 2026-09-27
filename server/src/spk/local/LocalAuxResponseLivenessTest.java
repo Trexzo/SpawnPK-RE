@@ -5,6 +5,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.net.Socket;
+import java.net.SocketTimeoutException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -19,9 +20,13 @@ public final class LocalAuxResponseLivenessTest {
         assertWatchdogNonterminationIsWorkerFatal();
         assertInterruptedWatchdogJoinIsWorkerFatal();
         assertTimeoutAbortsBlockedWriteAndWorkerContinues();
+        assertWriteFailureKeepsPrimaryAcrossTimeout();
+        assertUncheckedPrimaryKeepsIdentityAcrossTimeout();
+        assertFinalWriteTimeoutRaceCannotReturnClean();
         assertTerminalCloseWinsWithoutSyntheticTimeout();
         assertSuccessfulTimeoutKeepsOwnershipUntilWorkerRelease();
         assertAbortFailurePreservesCoordinatorOwnership();
+        assertFailedOpenAbortPublishesDurableFailure();
         assertLargeStreamingProgressIsNotTotalDurationBounded();
 
         System.out.println(
@@ -32,12 +37,18 @@ public final class LocalAuxResponseLivenessTest {
             "watchdogNonterminationFatal=true "+
             "interruptedWatchdogJoinFatal=true "+
             "stalledWriteAborted=true "+
+            "abortRetry=true "+
             "timeoutConnectionScoped=true "+
+            "timeoutEvidenceDurable=true "+
+            "writePrimaryPreserved=true "+
+            "uncheckedPrimaryPreserved=true "+
+            "finalWriteRaceBounded=true "+
             "sameWorkerContinues=true "+
             "terminalWins=true "+
             "watchdogRetired=true "+
             "successfulTimeoutOwnershipHeld=true "+
             "failedAbortOwnershipRetained=true "+
+            "failedOpenAbortPublished=true "+
             "largeStreamingExact=true "+
             "noTotalDurationCap=true"
         );
@@ -254,6 +265,13 @@ public final class LocalAuxResponseLivenessTest {
                 new AtomicReference<>();
         AtomicInteger timeoutSchedulers=
             new AtomicInteger();
+        IOException firstAbortFailure=
+            new IOException(
+                "fixture-first-timeout-close-failure"
+            );
+        first.closeFailure=
+            firstAbortFailure;
+        first.failCloseAttempts=1;
 
         LocalAuxHttpWorker.run(
             ()->false,
@@ -319,13 +337,124 @@ public final class LocalAuxResponseLivenessTest {
             failure->{}
         );
 
+        Throwable observedConnection=
+            connectionFailure.get();
+
         if(timeoutSchedulers.get()!=1||
-           connectionFailure.get()==null||
+           !(observedConnection instanceof IOException)||
            !first.isClosed()||
-           first.closeCalls!=1||
-           secondHandled.get()!=1)
+           first.closeCalls!=2||
+           secondHandled.get()!=1||
+           !containsSuppressedTimeout(
+                observedConnection
+            ))
             throw new AssertionError(
-                "timed-out response did not remain connection-scoped or worker did not continue"
+                "timed-out response did not retry abort, preserve timeout evidence, or continue worker",
+                observedConnection
+            );
+    }
+
+    private static void
+        assertWriteFailureKeepsPrimaryAcrossTimeout()
+        throws Exception{
+        FakeSocket socket=
+            new FakeSocket();
+        ManualScheduler scheduler=
+            new ManualScheduler();
+        LocalAuxResponseLiveness liveness=
+            LocalAuxResponseLiveness.arm(
+                socket,
+                scheduler
+            );
+        IOException writeFailure=
+            new IOException(
+                "fixture-write-primary"
+            );
+
+        scheduler.trigger();
+
+        Throwable observed=
+            liveness.finish(
+                writeFailure
+            );
+
+        if(observed!=writeFailure||
+           !containsSuppressedTimeout(
+                writeFailure
+            ))
+            throw new AssertionError(
+                "write IOException lost primary identity or durable timeout evidence",
+                observed
+            );
+    }
+
+    private static void
+        assertUncheckedPrimaryKeepsIdentityAcrossTimeout()
+        throws Exception{
+        FakeSocket socket=
+            new FakeSocket();
+        ManualScheduler scheduler=
+            new ManualScheduler();
+        LocalAuxResponseLiveness liveness=
+            LocalAuxResponseLiveness.arm(
+                socket,
+                scheduler
+            );
+        RuntimeException expected=
+            new IllegalStateException(
+                "fixture-unchecked-primary"
+            );
+
+        scheduler.trigger();
+
+        Throwable observed=
+            liveness.finish(
+                expected
+            );
+
+        if(observed!=expected||
+           !containsSuppressedTimeout(
+                expected
+            ))
+            throw new AssertionError(
+                "unchecked response primary was replaced by timeout",
+                observed
+            );
+    }
+
+    private static void
+        assertFinalWriteTimeoutRaceCannotReturnClean()
+        throws Exception{
+        FakeSocket socket=
+            new FakeSocket();
+        ManualScheduler scheduler=
+            new ManualScheduler();
+        LocalAuxResponseLiveness liveness=
+            LocalAuxResponseLiveness.arm(
+                socket,
+                scheduler
+            );
+        OutputStream out=
+            liveness.output(
+                new ByteArrayOutputStream()
+            );
+
+        out.write(
+            1
+        );
+
+        scheduler.trigger();
+
+        Throwable observed=
+            liveness.finish(
+                null
+            );
+
+        if(!(observed instanceof SocketTimeoutException)||
+           !liveness.timedOut())
+            throw new AssertionError(
+                "final successful write/timeout race returned clean success",
+                observed
             );
     }
 
@@ -489,11 +618,16 @@ public final class LocalAuxResponseLivenessTest {
                 );
             socket.closeFailure=
                 abortFailure;
+            socket.failCloseAttempts=2;
+            AtomicReference<Throwable>
+                durableFailure=
+                    new AtomicReference<>();
 
             LocalAuxResponseLiveness liveness=
                 LocalAuxResponseLiveness.arm(
                     socket,
-                    scheduler
+                    scheduler,
+                    durableFailure::set
                 );
 
             scheduler.trigger();
@@ -503,15 +637,20 @@ public final class LocalAuxResponseLivenessTest {
                     null
                 );
 
-            if(observed!=abortFailure||
+            if(!(observed instanceof SocketTimeoutException)||
+               observed.getSuppressed().length<2||
+               observed.getSuppressed()[0]!=abortFailure||
+               durableFailure.get()!=observed||
                coordinator.activeAuxiliarySocketCount()!=1||
-               socket.isClosed())
+               socket.isClosed()||
+               socket.closeCalls!=2)
                 throw new AssertionError(
-                    "failed timeout abort retired coordinator ownership or lost close failure",
+                    "failed timeout abort did not preserve timeout primary, close evidence, ownership, and durable signal",
                     observed
                 );
 
             socket.closeFailure=null;
+            socket.failCloseAttempts=0;
             coordinator.releaseAuxiliarySocket(
                 socket
             );
@@ -525,6 +664,78 @@ public final class LocalAuxResponseLivenessTest {
             try{
                 coordinator.close();
             }catch(Throwable ignored){
+            }
+        }
+    }
+
+    private static void
+        assertFailedOpenAbortPublishesDurableFailure()
+        throws Exception{
+        World world=
+            World.isolatedForTest(
+                25L
+            );
+        java.util.concurrent.ExecutorService pool=
+            java.util.concurrent.Executors
+                .newSingleThreadExecutor();
+        java.net.ServerSocket game=
+            new java.net.ServerSocket();
+        java.net.ServerSocket aux=
+            new java.net.ServerSocket();
+        LocalServerShutdownCoordinator coordinator=
+            new LocalServerShutdownCoordinator(
+                world,
+                pool,
+                game,
+                aux
+            );
+        FakeSocket socket=
+            new FakeSocket();
+        socket.closeFailure=
+            new IOException(
+                "fixture-persistent-timeout-close-failure"
+            );
+        socket.failCloseAttempts=2;
+        ManualScheduler scheduler=
+            new ManualScheduler();
+
+        try{
+            Socket accepted=
+                coordinator
+                    .acceptAuxiliarySocket(
+                        ()->socket
+                    );
+
+            if(accepted!=socket)
+                throw new AssertionError(
+                    "durable-failure fixture socket not accepted"
+                );
+
+            LocalAuxResponseLiveness liveness=
+                LocalAuxResponseLiveness.arm(
+                    socket,
+                    scheduler,
+                    coordinator::publishAuxiliaryWorkerFailure
+                );
+
+            scheduler.trigger();
+
+            if(socket.isClosed()||
+               socket.closeCalls!=2||
+               !game.isClosed()||
+               coordinator.activeAuxiliarySocketCount()!=1||
+               !liveness.timedOut())
+                throw new AssertionError(
+                    "failed-open timeout did not publish durable AUX unhealthy state"
+                );
+
+            socket.closeFailure=null;
+            socket.failCloseAttempts=0;
+        }finally{
+            try{
+                coordinator.close();
+            }catch(Throwable expected){
+                // The published AUX timeout is terminal evidence by design.
             }
         }
     }
@@ -580,6 +791,17 @@ public final class LocalAuxResponseLivenessTest {
                 "healthy multi-chunk archive was treated as total-duration timeout or changed bytes",
                 failure
             );
+    }
+
+    private static boolean containsSuppressedTimeout(
+        Throwable failure
+    ){
+        for(Throwable suppressed:
+                failure.getSuppressed())
+            if(suppressed instanceof SocketTimeoutException)
+                return true;
+
+        return false;
     }
 
     private static final class
@@ -695,13 +917,15 @@ public final class LocalAuxResponseLivenessTest {
         extends Socket {
         boolean closed;
         int closeCalls;
+        int failCloseAttempts;
         IOException closeFailure;
 
         @Override public synchronized void close()
             throws IOException{
             closeCalls++;
 
-            if(closeFailure!=null)
+            if(closeFailure!=null&&
+               closeCalls<=failCloseAttempts)
                 throw closeFailure;
 
             closed=true;
