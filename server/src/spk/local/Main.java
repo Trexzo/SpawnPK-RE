@@ -63,14 +63,23 @@ public final class Main {
             );
         }
 
-        ExecutorService pool = Executors.newCachedThreadPool(r -> {
-            Thread t = new Thread(r, "spk-local-session"); t.setDaemon(true); return t;
-        });
-
         LocalServerStartupBinder.Resources startup =
             LocalServerStartupBinder.prepare(
                 world,
-                pool
+                ()->
+                    Executors.newCachedThreadPool(
+                        r->{
+                            Thread t=
+                                new Thread(
+                                    r,
+                                    "spk-local-session"
+                                );
+                            t.setDaemon(
+                                true
+                            );
+                            return t;
+                        }
+                    )
             );
         ServerSocket game = startup.game;
         ServerSocket aux = startup.aux;

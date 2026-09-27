@@ -7,16 +7,25 @@ import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 
 /**
- * Failure-atomic acquisition of the LocalLab listener/socket startup boundary.
+ * Failure-atomic acquisition of the LocalLab pre-steady-state startup boundary.
  *
- * Listener construction is guarded before a coordinator can exist; once both
- * sockets exist, the ordinary shutdown coordinator owns World, pool and sockets
- * for bind and shutdown-hook registration failure cleanup.
+ * Session-pool and listener construction are guarded before a coordinator can
+ * exist. Once both sockets exist, the ordinary shutdown coordinator owns World,
+ * pool and sockets for bind and later startup-handoff failure cleanup.
  */
 final class LocalServerStartupBinder {
     interface ListenerFactory {
         ServerSocket create()
             throws IOException;
+    }
+
+    interface ExecutorFactory {
+        ExecutorService create();
+    }
+
+    private interface CleanupAction {
+        void run()
+            throws Exception;
     }
 
     interface ShutdownHookFactory {
@@ -46,6 +55,64 @@ final class LocalServerStartupBinder {
             this.aux=aux;
             this.shutdown=shutdown;
         }
+    }
+
+    static Resources prepare(
+        World world,
+        ExecutorFactory poolFactory
+    )throws IOException{
+        return prepare(
+            world,
+            poolFactory,
+            ServerSocket::new
+        );
+    }
+
+    static Resources prepare(
+        World world,
+        ExecutorFactory poolFactory,
+        ListenerFactory listenerFactory
+    )throws IOException{
+        Objects.requireNonNull(
+            world,
+            "world"
+        );
+        Objects.requireNonNull(
+            poolFactory,
+            "poolFactory"
+        );
+        Objects.requireNonNull(
+            listenerFactory,
+            "listenerFactory"
+        );
+
+        final ExecutorService pool;
+
+        try{
+            pool=
+                Objects.requireNonNull(
+                    poolFactory.create(),
+                    "pool"
+                );
+        }catch(Throwable failure){
+            runCleanup(
+                failure,
+                world::close
+            );
+
+            rethrowPrepareFailure(
+                failure
+            );
+            throw new AssertionError(
+                "unreachable"
+            );
+        }
+
+        return prepare(
+            world,
+            pool,
+            listenerFactory
+        );
     }
 
     static Resources prepare(
@@ -111,9 +178,7 @@ final class LocalServerStartupBinder {
                 failure
             );
 
-            if(failure instanceof IOException)
-                throw (IOException)failure;
-            rethrowUnchecked(
+            rethrowPrepareFailure(
                 failure
             );
             throw new AssertionError(
@@ -314,11 +379,11 @@ final class LocalServerStartupBinder {
     ){
         runCleanup(
             primary,
-            ()->closeQuietly(aux)
+            ()->closeOwned(aux)
         );
         runCleanup(
             primary,
-            ()->closeQuietly(game)
+            ()->closeOwned(game)
         );
         runCleanup(
             primary,
@@ -332,7 +397,7 @@ final class LocalServerStartupBinder {
 
     private static void runCleanup(
         Throwable primary,
-        Runnable cleanup
+        CleanupAction cleanup
     ){
         try{
             cleanup.run();
@@ -344,16 +409,22 @@ final class LocalServerStartupBinder {
         }
     }
 
-    private static void closeQuietly(
+    private static void closeOwned(
         ServerSocket socket
-    ){
-        if(socket==null)
-            return;
-
-        try{
+    )throws IOException{
+        if(socket!=null)
             socket.close();
-        }catch(IOException ignored){
-        }
+    }
+
+    private static void rethrowPrepareFailure(
+        Throwable failure
+    )throws IOException{
+        if(failure instanceof IOException)
+            throw (IOException)failure;
+
+        rethrowUnchecked(
+            failure
+        );
     }
 
     private static void rethrowUnchecked(
