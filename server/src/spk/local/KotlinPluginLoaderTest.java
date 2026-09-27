@@ -97,9 +97,20 @@ public final class KotlinPluginLoaderTest {
             compileClasspath
         );
 
+        assertRealLoaderConsumesSnapshot(
+            loader,
+            healthy
+        );
+
         PluginSource healthySource=
-            PluginSource.script(
-                healthy
+            PluginSource.scriptSnapshot(
+                healthy,
+                new String(
+                    Files.readAllBytes(
+                        healthy
+                    ),
+                    java.nio.charset.StandardCharsets.UTF_8
+                )
             );
 
         if(!loader.supports(
@@ -507,6 +518,7 @@ public final class KotlinPluginLoaderTest {
             "serverInternalDenied=true "+
             "pluginApiIdentity=true "+
             "scriptSdkIdentity=true "+
+            "sourceSnapshot=true "+
             "eventCallback=true "+
             "commandDsl=true "+
             "commandPlayerArgsDsl=true "+
@@ -525,6 +537,66 @@ public final class KotlinPluginLoaderTest {
             "worldCloseIdempotent=true "+
             "terminalRuntime=true"
         );
+    }
+
+    private static void assertRealLoaderConsumesSnapshot(
+        PluginLoader loader,
+        Path healthy
+    )throws Exception{
+        String text=
+            new String(
+                Files.readAllBytes(
+                    healthy
+                ),
+                java.nio.charset.StandardCharsets.UTF_8
+            );
+        Path temp=
+            Files.createTempFile(
+                "kotlin-loader-snapshot-",
+                ".kts"
+            );
+
+        try{
+            Files.write(
+                temp,
+                "// path mutation B must be ignored\n"
+                    .getBytes(
+                        java.nio.charset.StandardCharsets.UTF_8
+                    )
+            );
+
+            PluginSource snapshot=
+                PluginSource.scriptSnapshot(
+                    temp,
+                    text
+                );
+
+            Files.delete(
+                temp
+            );
+
+            PluginRuntime detached=
+                loader.load(
+                    snapshot
+                );
+
+            try{
+                if(!"fixture.kotlin.script"
+                        .equals(
+                            detached.manifest()
+                                .id()
+                        ))
+                    throw new AssertionError(
+                        "real Kotlin loader did not evaluate captured source snapshot"
+                    );
+            }finally{
+                detached.close();
+            }
+        }finally{
+            Files.deleteIfExists(
+                temp
+            );
+        }
     }
 
     private static void assertBinding(
