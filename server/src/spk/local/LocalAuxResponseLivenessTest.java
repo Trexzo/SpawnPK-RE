@@ -50,6 +50,7 @@ public final class LocalAuxResponseLivenessTest {
             "watchdogRetired=true "+
             "successfulTimeoutOwnershipHeld=true "+
             "failedAbortOwnershipRetained=true "+
+            "uncheckedAbortSuppressed=true "+
             "failedOpenAbortPublished=true "+
             "largeStreamingExact=true "+
             "noTotalDurationCap=true"
@@ -614,9 +615,9 @@ public final class LocalAuxResponseLivenessTest {
                     "fixture auxiliary socket was not coordinator-owned"
                 );
 
-            IOException abortFailure=
-                new IOException(
-                    "fixture-timeout-close-failure"
+            RuntimeException abortFailure=
+                new IllegalStateException(
+                    "fixture-timeout-close-runtime"
                 );
             socket.closeFailure=
                 abortFailure;
@@ -1025,7 +1026,7 @@ public final class LocalAuxResponseLivenessTest {
         boolean closed;
         int closeCalls;
         int failCloseAttempts;
-        IOException closeFailure;
+        Throwable closeFailure;
         final CountDownLatch closedLatch=
             new CountDownLatch(
                 1
@@ -1036,8 +1037,19 @@ public final class LocalAuxResponseLivenessTest {
             closeCalls++;
 
             if(closeFailure!=null&&
-               closeCalls<=failCloseAttempts)
-                throw closeFailure;
+               closeCalls<=failCloseAttempts){
+                if(closeFailure instanceof IOException)
+                    throw (IOException)closeFailure;
+                if(closeFailure instanceof RuntimeException)
+                    throw (RuntimeException)closeFailure;
+                if(closeFailure instanceof Error)
+                    throw (Error)closeFailure;
+
+                throw new IOException(
+                    "fixture socket close failure",
+                    closeFailure
+                );
+            }
 
             closed=true;
             closedLatch.countDown();
