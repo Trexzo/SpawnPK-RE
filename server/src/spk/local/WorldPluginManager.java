@@ -784,6 +784,7 @@ final class WorldPluginManager
             terminalizing.remove(
                 entry.manifest.id()
             );
+            entry.runtimeClose.release();
             notifyAll();
         }
     }
@@ -1905,7 +1906,7 @@ final class WorldPluginManager
     }
 
     private static final class RuntimeCloseOwnership {
-        private final Plugin plugin;
+        private volatile Plugin plugin;
         private boolean attempted;
 
         RuntimeCloseOwnership(
@@ -1918,6 +1919,10 @@ final class WorldPluginManager
             Plugin candidate
         ){
             return plugin==candidate;
+        }
+
+        void release(){
+            plugin=null;
         }
 
         synchronized Throwable close(
