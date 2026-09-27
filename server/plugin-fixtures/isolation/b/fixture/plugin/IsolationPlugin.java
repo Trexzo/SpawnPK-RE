@@ -82,6 +82,12 @@ public final class IsolationPlugin
                 100,
                 command->{
                     throwTccl=tccl();
+                    System.setProperty(
+                        "spawnpk.fixture.isolation.b.throwTccl",
+                        Boolean.toString(
+                            throwTccl
+                        )
+                    );
                     throw new IllegalStateException(
                         "fixture-throw-"+
                         Version.value()
@@ -105,6 +111,12 @@ public final class IsolationPlugin
 
     @Override public void disable(){
         disableTccl=tccl();
+        System.setProperty(
+            "spawnpk.fixture.isolation.b.disableTccl",
+            Boolean.toString(
+                disableTccl
+            )
+        );
     }
 
     public String report(){
