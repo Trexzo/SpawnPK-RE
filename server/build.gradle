@@ -4199,6 +4199,20 @@ tasks.register('localAuxVersionsRegression', JavaExec) {
 }
 
 
+tasks.register('localAuxArchiveAccessRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves optional AUX archive access SecurityException maps to unavailable while IOException and unrelated unchecked failures retain their classifications.'
+    dependsOn(
+        tasks.named('testClasses'),
+        tasks.named('localAuxHttpResponseRegression')
+    )
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.LocalAuxArchiveAccessTest'
+}
+
+
 tasks.register('localAuxArchivePathRegression', JavaExec) {
     group = 'verification'
     description = 'Proves optional LocalLab archive path resolution fails closed when caller home state is unavailable without swallowing unrelated failures.'
