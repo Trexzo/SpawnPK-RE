@@ -5,6 +5,19 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 /** One execution context for shared logical ticks and queued gameplay commands. */
 final class WorldPulse implements AutoCloseable,Runnable {
+    interface PulseThreadFactory {
+        Thread create(
+            Runnable target,
+            String name
+        );
+    }
+
+    interface PulseThreadStarter {
+        void start(
+            Thread thread
+        );
+    }
+
     static final int MAX_COMMANDS_PER_TICK=512;
     static final int MAX_COMMANDS_PER_PLAYER_PER_TICK=32;
     /**
@@ -16,6 +29,8 @@ final class WorldPulse implements AutoCloseable,Runnable {
     static final int MAX_COMMANDS_PER_PLAYER_PER_FAST_LOOP=32;
     private final World world;
     private final long tickMillis;
+    private final PulseThreadFactory threadFactory;
+    private final PulseThreadStarter threadStarter;
     private final AtomicBoolean running=new AtomicBoolean();
     private Thread thread;
     private volatile Thread compatibilityExecutionThread;
@@ -32,15 +47,108 @@ final class WorldPulse implements AutoCloseable,Runnable {
     private long fastCommandsProcessed;
     private long tasksProcessed;
 
-    WorldPulse(World world,long tickMillis){this.world=world;this.tickMillis=tickMillis;}
+    WorldPulse(
+        World world,
+        long tickMillis
+    ){
+        this(
+            world,
+            tickMillis,
+            (target,name)->
+                new Thread(
+                    target,
+                    name
+                ),
+            Thread::start
+        );
+    }
+
+    WorldPulse(
+        World world,
+        long tickMillis,
+        PulseThreadFactory threadFactory,
+        PulseThreadStarter threadStarter
+    ){
+        this.world=
+            Objects.requireNonNull(
+                world,
+                "world"
+            );
+        this.tickMillis=tickMillis;
+        this.threadFactory=
+            Objects.requireNonNull(
+                threadFactory,
+                "threadFactory"
+            );
+        this.threadStarter=
+            Objects.requireNonNull(
+                threadStarter,
+                "threadStarter"
+            );
+    }
 
     synchronized void start(){
-        if(running.get())return;
-        running.set(true);
-        nextTickAt=System.currentTimeMillis()+tickMillis;
-        thread=new Thread(this,"spk-world-pulse");
-        thread.setDaemon(true);
-        thread.start();
+        if(running.get())
+            return;
+
+        Thread candidate=null;
+
+        try{
+            candidate=
+                Objects.requireNonNull(
+                    threadFactory.create(
+                        this,
+                        "spk-world-pulse"
+                    ),
+                    "pulse thread"
+                );
+            candidate.setDaemon(
+                true
+            );
+
+            nextTickAt=
+                System.currentTimeMillis()+
+                tickMillis;
+            thread=candidate;
+
+            // The new run() may execute immediately, so publish running before
+            // invoking the starter. Any starter failure rolls this publication
+            // back before start() returns.
+            running.set(
+                true
+            );
+
+            threadStarter.start(
+                candidate
+            );
+        }catch(Throwable failure){
+            running.set(
+                false
+            );
+
+            if(thread==candidate)
+                thread=null;
+
+            nextTickAt=0L;
+            notifyAll();
+
+            rethrowStartFailure(
+                failure
+            );
+        }
+    }
+
+    private static void rethrowStartFailure(
+        Throwable failure
+    ){
+        if(failure instanceof RuntimeException)
+            throw (RuntimeException)failure;
+        if(failure instanceof Error)
+            throw (Error)failure;
+
+        throw new RuntimeException(
+            failure
+        );
     }
 
     boolean running(){return running.get();}
