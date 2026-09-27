@@ -4133,6 +4133,17 @@ tasks.register('localServerStartupFailureCleanupRegression', JavaExec) {
 }
 
 
+tasks.register('localSessionConstructionOwnershipRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves accepted game sockets are coordinator-owned before fallible LocalSession construction and remain fenced across concurrent shutdown.'
+    dependsOn tasks.named('testClasses')
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.LocalSessionConstructionOwnershipTest'
+}
+
+
 tasks.register('chat1CurrentCumulativeCertification') {
     group = 'verification'
     description = 'Runs the complete current Chat 1 release candidate: Issue #5 Kotlin scripting, #271/#427 presentation/application gates, Issue #7 pet-damage ownership, focused 175 and canonical exact-v308 179.'
