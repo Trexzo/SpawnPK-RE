@@ -7,16 +7,48 @@ final class MainShutdownFinalizer {
         Runnable shutdown,
         Runnable removeHook
     ){
+        WorldCloseSequence.rethrow(
+            collect(
+                null,
+                shutdown,
+                removeHook
+            )
+        );
+    }
+
+    static void runPreserving(
+        Throwable primary,
+        Runnable shutdown,
+        Runnable removeHook
+    )throws Exception{
+        rethrowPreserving(
+            collect(
+                primary,
+                shutdown,
+                removeHook
+            )
+        );
+    }
+
+    private static Throwable collect(
+        Throwable primary,
+        Runnable shutdown,
+        Runnable removeHook
+    ){
         if(shutdown==null||
            removeHook==null)
             throw new NullPointerException();
 
-        Throwable failure=null;
+        Throwable failure=primary;
 
         try{
             shutdown.run();
         }catch(Throwable shutdownFailure){
-            failure=shutdownFailure;
+            failure=
+                appendFailure(
+                    failure,
+                    shutdownFailure
+                );
         }
 
         try{
@@ -26,15 +58,47 @@ final class MainShutdownFinalizer {
             // JVM shutdown is already in progress. The registered hook
             // owns terminal cleanup in that case.
         }catch(Throwable hookFailure){
-            if(failure==null)
-                failure=hookFailure;
-            else if(hookFailure!=failure)
-                failure.addSuppressed(
+            failure=
+                appendFailure(
+                    failure,
                     hookFailure
                 );
         }
 
-        WorldCloseSequence.rethrow(
+        return failure;
+    }
+
+    private static Throwable appendFailure(
+        Throwable primary,
+        Throwable next
+    ){
+        if(next==null)
+            return primary;
+
+        if(primary==null)
+            return next;
+
+        if(next!=primary)
+            primary.addSuppressed(
+                next
+            );
+
+        return primary;
+    }
+
+    private static void rethrowPreserving(
+        Throwable failure
+    )throws Exception{
+        if(failure==null)
+            return;
+
+        if(failure instanceof Exception)
+            throw (Exception)failure;
+
+        if(failure instanceof Error)
+            throw (Error)failure;
+
+        throw new RuntimeException(
             failure
         );
     }
