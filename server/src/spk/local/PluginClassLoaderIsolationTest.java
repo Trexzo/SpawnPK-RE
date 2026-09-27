@@ -101,10 +101,15 @@ public final class PluginClassLoaderIsolationTest {
                 collisionParent
             );
 
-        Object retainedDelegateA=
-            loadedA.delegate();
-        Object retainedDelegateB=
-            loadedB.delegate();
+        System.clearProperty(
+            "spawnpk.fixture.isolation.a.throwTccl"
+        );
+        System.clearProperty(
+            "spawnpk.fixture.isolation.a.disableTccl"
+        );
+        System.clearProperty(
+            "spawnpk.fixture.isolation.b.disableTccl"
+        );
 
         assertTcclRestored(
             baseline,
@@ -375,16 +380,13 @@ public final class PluginClassLoaderIsolationTest {
                     "throwing callback did not terminalize plugin A"
                 );
 
-            String failedReportA=
-                report(
-                    retainedDelegateA
+            if(!"true".equals(
+                    System.getProperty(
+                        "spawnpk.fixture.isolation.a.throwTccl"
+                    )))
+                throw new AssertionError(
+                    "throwing callback lost plugin TCCL evidence"
                 );
-
-            assertReport(
-                failedReportA,
-                "A",
-                true
-            );
 
             if(manager.disable(
                     "isolation.a"))
@@ -416,24 +418,16 @@ public final class PluginClassLoaderIsolationTest {
                     "manager did not close plugin classloader"
                 );
 
-            String disabledA=
-                report(
-                    retainedDelegateA
-                );
-            String disabledB=
-                report(
-                    retainedDelegateB
-                );
-
-            if(!disabledA.contains(
-                    "disable=true")||
-               !disabledB.contains(
-                    "disable=true"))
+            if(!"true".equals(
+                    System.getProperty(
+                        "spawnpk.fixture.isolation.a.disableTccl"
+                    ))||
+               !"true".equals(
+                    System.getProperty(
+                        "spawnpk.fixture.isolation.b.disableTccl"
+                    )))
                 throw new AssertionError(
-                    "disable callback did not observe plugin TCCL A="+
-                    disabledA+
-                    " B="+
-                    disabledB
+                    "disable callback did not observe plugin TCCL"
                 );
 
             assertHandleReleasedLoader(
@@ -475,6 +469,15 @@ public final class PluginClassLoaderIsolationTest {
                 .setContextClassLoader(
                     baseline
                 );
+            System.clearProperty(
+                "spawnpk.fixture.isolation.a.throwTccl"
+            );
+            System.clearProperty(
+                "spawnpk.fixture.isolation.a.disableTccl"
+            );
+            System.clearProperty(
+                "spawnpk.fixture.isolation.b.disableTccl"
+            );
         }
 
         System.out.println(
