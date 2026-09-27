@@ -222,6 +222,10 @@ final class LocalServerStartupBinder {
             aux.bind(
                 auxAddress
             );
+            game.setSoTimeout(
+                LocalServerShutdownCoordinator
+                    .GAME_ACCEPT_POLL_TIMEOUT_MILLIS
+            );
         }catch(Throwable failure){
             try{
                 shutdown.close();
