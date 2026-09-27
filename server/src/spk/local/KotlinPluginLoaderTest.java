@@ -12,6 +12,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.jar.JarEntry;
 import java.util.jar.JarOutputStream;
+import java.util.jar.Attributes;
+import java.util.jar.Manifest;
 import java.io.IOException;
 import spk.content.api.ContentActionResult;
 import spk.content.api.ContentInteractionResult;
@@ -100,6 +102,11 @@ public final class KotlinPluginLoaderTest {
             compileClasspath
         );
         assertDependencyExtensionFence(
+            constructor,
+            apiJar,
+            compileClasspath
+        );
+        assertManifestClasspathFenced(
             constructor,
             apiJar,
             compileClasspath
@@ -560,6 +567,7 @@ public final class KotlinPluginLoaderTest {
             "apiOnlyCompile=true "+
             "dependencyNamespaceFence=true "+
             "kotlinClasspathExtensionBypassFenced=true "+
+            "kotlinManifestClasspathFenced=true "+
             "serverInternalDenied=true "+
             "pluginApiIdentity=true "+
             "scriptSdkIdentity=true "+
@@ -726,6 +734,133 @@ public final class KotlinPluginLoaderTest {
             Files.deleteIfExists(
                 root
             );
+        }
+    }
+
+
+    private static void assertManifestClasspathFenced(
+        Constructor<?> constructor,
+        Path apiJar,
+        List<Path> healthyClasspath
+    )throws Exception{
+        if(healthyClasspath.isEmpty())
+            return;
+
+        Path root=
+            Files.createTempDirectory(
+                "kotlin-manifest-classpath-"
+            );
+        Path dependency=
+            root.resolve(
+                "manifest-dependency.jar"
+            );
+        Path api=
+            root.resolve(
+                "manifest-api.jar"
+            );
+
+        try{
+            createManifestClasspathJar(
+                dependency,
+                "sibling-unvalidated.jar"
+            );
+
+            boolean dependencyRejected=false;
+
+            try{
+                constructor.newInstance(
+                    apiJar,
+                    java.util.Collections
+                        .singletonList(
+                            dependency
+                        )
+                );
+            }catch(InvocationTargetException expected){
+                Throwable cause=
+                    expected.getCause();
+
+                dependencyRejected=
+                    cause instanceof
+                        IllegalArgumentException&&
+                    cause.getMessage()!=null&&
+                    cause.getMessage()
+                        .contains(
+                            "manifest Class-Path is forbidden"
+                        );
+            }
+
+            if(!dependencyRejected)
+                throw new AssertionError(
+                    "Kotlin dependency manifest Class-Path was accepted"
+                );
+
+            createManifestClasspathJar(
+                api,
+                "file:/tmp/absolute-unvalidated.jar"
+            );
+
+            boolean apiRejected=false;
+
+            try{
+                constructor.newInstance(
+                    api,
+                    healthyClasspath
+                );
+            }catch(InvocationTargetException expected){
+                Throwable cause=
+                    expected.getCause();
+
+                apiRejected=
+                    cause instanceof
+                        IllegalArgumentException&&
+                    cause.getMessage()!=null&&
+                    cause.getMessage()
+                        .contains(
+                            "manifest Class-Path is forbidden"
+                        );
+            }
+
+            if(!apiRejected)
+                throw new AssertionError(
+                    "Kotlin API manifest Class-Path was accepted"
+                );
+        }finally{
+            Files.deleteIfExists(
+                api
+            );
+            Files.deleteIfExists(
+                dependency
+            );
+            Files.deleteIfExists(
+                root
+            );
+        }
+    }
+
+    private static void createManifestClasspathJar(
+        Path target,
+        String classPath
+    )throws Exception{
+        Manifest manifest=
+            new Manifest();
+        Attributes attributes=
+            manifest.getMainAttributes();
+        attributes.put(
+            Attributes.Name.MANIFEST_VERSION,
+            "1.0"
+        );
+        attributes.put(
+            Attributes.Name.CLASS_PATH,
+            classPath
+        );
+
+        try(JarOutputStream out=
+                new JarOutputStream(
+                    Files.newOutputStream(
+                        target
+                    ),
+                    manifest
+                )){
         }
     }
 
