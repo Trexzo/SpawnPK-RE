@@ -582,7 +582,7 @@ public final class PluginKernelLifecycleTest {
             "batchRollback=true "+
             "pluginSelfSuppressionSafe=true "+
             "enableRollbackEvidencePreserved=true "+
-            "worldCloseSelfSuppressionSafe=true "+
+            "worldCloseSnapshotLoader=true "+
             "pluginRuntimeCloseExactlyOnce=true "+
             "pluginCleanupUsesSnapshotLoader=true "+
             "pluginCleanupContinuesAfterLoaderFailure=true "+
@@ -598,7 +598,7 @@ public final class PluginKernelLifecycleTest {
         enableRollbackEvidencePreserved();
         runtimeCloseSuppressionIdentity();
         suppressionHelperOrdering();
-        worldCloseSameObjectAggregate();
+        worldCloseUsesSnapshotLoader();
     }
 
     private static void sameObjectEnableDisableRollback()
@@ -900,7 +900,7 @@ public final class PluginKernelLifecycleTest {
         }
     }
 
-    private static void worldCloseSameObjectAggregate()
+    private static void worldCloseUsesSnapshotLoader()
         throws Exception{
         World world=
             World.isolatedForTest(
