@@ -1,8 +1,10 @@
 package spk.local
 
 import java.io.File
+import java.net.URLClassLoader
 import java.nio.file.Files
 import java.nio.file.Path
+import java.nio.file.StandardOpenOption
 import java.util.Locale
 import java.util.jar.JarFile
 import kotlin.script.experimental.api.ResultValue
@@ -14,6 +16,7 @@ import kotlin.script.experimental.api.valueOrNull
 import kotlin.script.experimental.host.toScriptSource
 import kotlin.script.experimental.jvm.baseClassLoader
 import kotlin.script.experimental.jvm.jvm
+import kotlin.script.experimental.jvm.loadDependencies
 import kotlin.script.experimental.jvm.updateClasspath
 import kotlin.script.experimental.jvmhost.BasicJvmScriptingHost
 import kotlin.script.experimental.jvmhost.createJvmCompilationConfigurationFromTemplate
@@ -34,7 +37,7 @@ internal class KotlinPluginLoader(
 ) : PluginLoader {
     private val apiJar: Path =
         apiJar.toAbsolutePath().normalize()
-    private val compileClasspath: List<File>
+    private val compileClasspath: List<Path>
     private val host = BasicJvmScriptingHost()
 
     init {
@@ -68,7 +71,7 @@ internal class KotlinPluginLoader(
         }
 
         this.compileClasspath =
-            normalized.map(Path::toFile)
+            normalized.toList()
     }
 
     override fun supports(source: PluginSource?): Boolean {
@@ -92,80 +95,130 @@ internal class KotlinPluginLoader(
 
         val script = source.path()
         val scriptText = source.requireScriptText()
+        val snapshot =
+            ClasspathSnapshot.capture(
+                compileClasspath
+            )
+        var dependencyLoader: URLClassLoader? = null
 
-        val compilation =
-            createJvmCompilationConfigurationFromTemplate<SimpleScriptTemplate> {
-                updateClasspath(compileClasspath)
-                compilerOptions(
-                    "-jvm-target",
-                    "11",
-                    "-Xjdk-release=11"
+        try {
+            val files = snapshot.files
+
+            validateApiJar(
+                files.first().toPath()
+            )
+
+            for (file in files.drop(1)) {
+                validateDependencyJar(
+                    file.toPath()
                 )
             }
 
-        val parent =
-            ScriptApiClassLoader(
-                Plugin::class.java.classLoader
-            )
-
-        val evaluation =
-            ScriptEvaluationConfiguration {
-                jvm {
-                    baseClassLoader(parent)
+            val compilation =
+                createJvmCompilationConfigurationFromTemplate<SimpleScriptTemplate> {
+                    updateClasspath(files)
+                    compilerOptions(
+                        "-jvm-target",
+                        "11",
+                        "-Xjdk-release=11"
+                    )
                 }
+
+            val apiParent =
+                ScriptApiClassLoader(
+                    Plugin::class.java.classLoader
+                )
+
+            val ownedDependencyLoader =
+                URLClassLoader(
+                    files.map {
+                        it.toURI().toURL()
+                    }.toTypedArray(),
+                    apiParent
+                )
+            dependencyLoader =
+                ownedDependencyLoader
+
+            val evaluation =
+                ScriptEvaluationConfiguration {
+                    jvm {
+                        baseClassLoader(
+                            ownedDependencyLoader
+                        )
+                        loadDependencies(false)
+                    }
+                }
+
+            val evaluated =
+                host.eval(
+                    scriptText.toScriptSource(
+                        script.toString()
+                    ),
+                    compilation,
+                    evaluation
+                )
+
+            if (evaluated is ResultWithDiagnostics.Failure) {
+                throw IllegalArgumentException(
+                    diagnosticMessage(
+                        script,
+                        evaluated.reports
+                    )
+                )
             }
 
-        val evaluated =
-            host.eval(
-                scriptText.toScriptSource(script.toString()),
-                compilation,
-                evaluation
+            val result =
+                evaluated.valueOrNull()
+                    ?: throw IllegalArgumentException(
+                        "Kotlin script produced no evaluation result: $script"
+                    )
+
+            val value =
+                when (val returned = result.returnValue) {
+                    is ResultValue.Value ->
+                        returned.value
+                    is ResultValue.Error ->
+                        throw IllegalArgumentException(
+                            "Kotlin plugin script evaluation failed: $script errorClass=" +
+                                returned.error.javaClass.name,
+                            returned.error
+                        )
+                    else ->
+                        throw IllegalArgumentException(
+                            "Kotlin plugin script must end with a Plugin expression: $script result=" +
+                                returned::class.java.name
+                        )
+                }
+
+            val plugin =
+                value as? Plugin
+                    ?: throw IllegalArgumentException(
+                        "Kotlin plugin script result does not implement Plugin: $script resultClass=" +
+                            (value?.javaClass?.name ?: "<null>")
+                    )
+
+            return LoadedKotlinScript(
+                plugin,
+                script,
+                ownedDependencyLoader,
+                snapshot
+            )
+        } catch (failure: Throwable) {
+            try {
+                dependencyLoader?.close()
+            } catch (cleanup: Throwable) {
+                suppressIfDistinct(
+                    failure,
+                    cleanup
+                )
+            }
+
+            snapshot.retire(
+                failure
             )
 
-        if (evaluated is ResultWithDiagnostics.Failure) {
-            throw IllegalArgumentException(
-                diagnosticMessage(
-                    script,
-                    evaluated.reports
-                )
-            )
+            throw failure
         }
-
-        val result =
-            evaluated.valueOrNull()
-                ?: throw IllegalArgumentException(
-                    "Kotlin script produced no evaluation result: $script"
-                )
-
-        val value =
-            when (val returned = result.returnValue) {
-                is ResultValue.Value ->
-                    returned.value
-                is ResultValue.Error ->
-                    throw IllegalArgumentException(
-                        "Kotlin plugin script evaluation failed: $script errorClass=" +
-                            returned.error.javaClass.name,
-                        returned.error
-                    )
-                else ->
-                    throw IllegalArgumentException(
-                        "Kotlin plugin script must end with a Plugin expression: $script result=" +
-                            returned::class.java.name
-                    )
-            }
-
-        val plugin =
-            value as? Plugin
-                ?: throw IllegalArgumentException(
-                    "Kotlin plugin script result does not implement Plugin: $script resultClass=" +
-                        (value?.javaClass?.name ?: "<null>")
-                )
-
-        return LoadedKotlinScript(
-            plugin,
-            script,
-            parent
-        )
     }
 
     private fun validateApiJar(path: Path) {
@@ -293,7 +346,8 @@ internal class KotlinPluginLoader(
     private class LoadedKotlinScript(
         delegate: Plugin,
         private val source: Path,
-        parent: ClassLoader
+        dependencyLoader: URLClassLoader,
+        classpathSnapshot: ClasspathSnapshot
     ) : PluginRuntime {
         @Volatile
         private var delegate: Plugin? = delegate
@@ -303,7 +357,19 @@ internal class KotlinPluginLoader(
             delegate.javaClass.classLoader
 
         @Volatile
-        private var baseLoader: ClassLoader? = parent
+        private var baseLoader: ClassLoader? =
+            dependencyLoader
+
+        @Volatile
+        private var dependencyLoader: URLClassLoader? =
+            dependencyLoader
+
+        @Volatile
+        private var classpathSnapshot: ClasspathSnapshot? =
+            classpathSnapshot
+
+        @Volatile
+        private var closed = false
 
         override fun manifest(): PluginManifest =
             requireDelegate().manifest()
@@ -322,10 +388,42 @@ internal class KotlinPluginLoader(
                     "Kotlin plugin runtime closed: $source"
                 )
 
+        @Synchronized
         override fun close() {
+            if (closed) {
+                return
+            }
+
+            closed = true
+
+            val ownedDependencyLoader =
+                dependencyLoader
+            val ownedSnapshot =
+                classpathSnapshot
+            var failure: Throwable? = null
+
             delegate = null
             callbackLoader = null
             baseLoader = null
+            dependencyLoader = null
+            classpathSnapshot = null
+
+            try {
+                ownedDependencyLoader?.close()
+            } catch (cleanup: Throwable) {
+                failure = cleanup
+            }
+
+            if (ownedSnapshot != null) {
+                failure =
+                    ownedSnapshot.retire(
+                        failure
+                    )
+            }
+
+            if (failure != null) {
+                throw failure
+            }
         }
 
         private fun requireDelegate(): Plugin =
@@ -333,6 +431,163 @@ internal class KotlinPluginLoader(
                 ?: throw IllegalStateException(
                     "Kotlin plugin runtime closed: $source"
                 )
+    }
+
+    private class ClasspathSnapshot private constructor(
+        val root: Path,
+        val files: List<File>
+    ) {
+        private var retired = false
+
+        @Synchronized
+        fun retire(
+            primary: Throwable?
+        ): Throwable? {
+            if (retired) {
+                return primary
+            }
+
+            retired = true
+
+            val paths =
+                files.map(File::toPath)
+            val cleanup =
+                KotlinClasspathCleanupDebt
+                    .retire(
+                        root,
+                        paths
+                    )
+
+            if (cleanup == null) {
+                return primary
+            }
+
+            KotlinClasspathCleanupDebt
+                .register(
+                    root,
+                    paths
+                )
+
+            if (primary == null) {
+                return cleanup
+            }
+
+            suppressIfDistinct(
+                primary,
+                cleanup
+            )
+            return primary
+        }
+
+        companion object {
+            fun capture(
+                originals: List<Path>
+            ): ClasspathSnapshot {
+                val root =
+                    Files.createTempDirectory(
+                        "spawnpk-kotlin-classpath-"
+                    )
+                val files =
+                    ArrayList<File>()
+
+                try {
+                    originals.forEachIndexed {
+                        index,
+                        original ->
+
+                        val originalName =
+                            original.fileName
+                                ?.toString()
+                                ?: "artifact"
+                        val target =
+                            root.resolve(
+                                index.toString()
+                                    .padStart(
+                                        3,
+                                        '0'
+                                    ) +
+                                    "-" +
+                                    originalName
+                            )
+
+                        files.add(
+                            target.toFile()
+                        )
+
+                        Files.newInputStream(
+                            original
+                        ).use { input ->
+                            Files.newOutputStream(
+                                target,
+                                StandardOpenOption.CREATE_NEW,
+                                StandardOpenOption.WRITE
+                            ).use { output ->
+                                val buffer =
+                                    ByteArray(8192)
+
+                                while (true) {
+                                    val read =
+                                        input.read(
+                                            buffer
+                                        )
+
+                                    if (read < 0) {
+                                        break
+                                    }
+
+                                    output.write(
+                                        buffer,
+                                        0,
+                                        read
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    return ClasspathSnapshot(
+                        root,
+                        files.toList()
+                    )
+                } catch (failure: Throwable) {
+                    val paths =
+                        files.map(File::toPath)
+                    val cleanup =
+                        KotlinClasspathCleanupDebt
+                            .retire(
+                                root,
+                                paths
+                            )
+
+                    if (cleanup != null) {
+                        KotlinClasspathCleanupDebt
+                            .register(
+                                root,
+                                paths
+                            )
+                        suppressIfDistinct(
+                            failure,
+                            cleanup
+                        )
+                    }
+
+                    throw failure
+                }
+            }
+        }
+    }
+
+    private companion object {
+        fun suppressIfDistinct(
+            primary: Throwable,
+            cleanup: Throwable
+        ) {
+            if (primary !== cleanup) {
+                primary.addSuppressed(
+                    cleanup
+                )
+            }
+        }
     }
 
     /**
