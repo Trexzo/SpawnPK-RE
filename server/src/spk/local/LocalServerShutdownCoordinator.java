@@ -48,6 +48,10 @@ final class LocalServerShutdownCoordinator
     private int sessionFactoryHandoffs;
     private Throwable terminalHandoffFailure;
     private Throwable terminalAuxiliarySocketFailure;
+    private Throwable auxiliaryWorkerFailure;
+    private Throwable terminalAuxiliaryWorkerFailure;
+    private boolean auxiliaryWorkerFailureSurfaced;
+    private boolean terminalCompletionPublished;
 
     LocalServerShutdownCoordinator(
         World world,
@@ -92,11 +96,28 @@ final class LocalServerShutdownCoordinator
             "acceptor"
         );
 
+        Throwable pendingWorkerFailure;
+
         synchronized(lifecycleLock){
             if(closing)
                 return null;
 
-            gameAcceptHandoffs++;
+            pendingWorkerFailure=
+                auxiliaryWorkerFailure;
+
+            if(pendingWorkerFailure==null)
+                gameAcceptHandoffs++;
+            else
+                auxiliaryWorkerFailureSurfaced=true;
+        }
+
+        if(pendingWorkerFailure!=null){
+            rethrowAcceptFailure(
+                pendingWorkerFailure
+            );
+            throw new AssertionError(
+                "unreachable"
+            );
         }
 
         Socket accepted=null;
@@ -113,21 +134,60 @@ final class LocalServerShutdownCoordinator
         }
 
         boolean terminal;
+        Throwable workerFailure;
 
         synchronized(lifecycleLock){
             terminal=closing;
+            workerFailure=
+                terminal
+                    ?null
+                    :auxiliaryWorkerFailure;
+
+            if(workerFailure!=null)
+                auxiliaryWorkerFailureSurfaced=true;
 
             if(failure==null&&
-               !terminal)
+               !terminal&&
+               accepted!=null)
                 activeGameSockets.add(
                     accepted
                 );
 
             if(failure!=null||
-               !terminal){
+               !terminal||
+               workerFailure!=null){
                 gameAcceptHandoffs--;
                 lifecycleLock.notifyAll();
             }
+        }
+
+        if(workerFailure!=null){
+            Throwable closeFailure=null;
+
+            if(accepted!=null)
+                closeFailure=
+                    retireOwnedSocket(
+                        accepted
+                    );
+
+            if(failure!=null&&
+               failure!=workerFailure)
+                workerFailure.addSuppressed(
+                    failure
+                );
+
+            if(closeFailure!=null&&
+               closeFailure!=workerFailure)
+                workerFailure.addSuppressed(
+                    closeFailure
+                );
+
+            rethrowAcceptFailure(
+                workerFailure
+            );
+            throw new AssertionError(
+                "unreachable"
+            );
         }
 
         if(failure==null&&
@@ -789,9 +849,119 @@ final class LocalServerShutdownCoordinator
             if(closing)
                 return false;
 
-            pool.execute(task);
+            pool.execute(
+                ()->{
+                    try{
+                        task.run();
+                    }catch(Throwable failure){
+                        publishAuxiliaryWorkerFailure(
+                            failure
+                        );
+
+                        WorldCloseSequence.rethrow(
+                            failure
+                        );
+                    }
+                }
+            );
             return true;
         }
+    }
+
+    private void publishAuxiliaryWorkerFailure(
+        Throwable failure
+    ){
+        Objects.requireNonNull(
+            failure,
+            "failure"
+        );
+
+        boolean wakeGame=false;
+
+        synchronized(lifecycleLock){
+            if(closing){
+                if(terminalCompletionPublished){
+                    Throwable published=
+                        terminal.failure();
+
+                    if(published!=null&&
+                       published!=failure)
+                        published.addSuppressed(
+                            failure
+                        );
+                    else
+                        recordTerminalAuxiliaryWorkerFailureLocked(
+                            failure
+                        );
+                }else
+                    recordTerminalAuxiliaryWorkerFailureLocked(
+                        failure
+                    );
+            }else if(auxiliaryWorkerFailure==null){
+                auxiliaryWorkerFailure=failure;
+                wakeGame=true;
+            }else if(auxiliaryWorkerFailure!=failure)
+                auxiliaryWorkerFailure.addSuppressed(
+                    failure
+                );
+        }
+
+        if(!wakeGame)
+            return;
+
+        Throwable wakeFailure=
+            closeServerSocket(
+                game,
+                "game"
+            );
+
+        if(!game.isClosed())
+            wakeFailure=
+                combineFailure(
+                    wakeFailure,
+                    closeServerSocket(
+                        game,
+                        "game"
+                    )
+                );
+
+        if(wakeFailure!=null&&
+           wakeFailure!=failure)
+            failure.addSuppressed(
+                wakeFailure
+            );
+    }
+
+    private void recordTerminalAuxiliaryWorkerFailureLocked(
+        Throwable failure
+    ){
+        if(failure==null)
+            return;
+
+        if(terminalAuxiliaryWorkerFailure==null)
+            terminalAuxiliaryWorkerFailure=failure;
+        else if(terminalAuxiliaryWorkerFailure!=failure)
+            terminalAuxiliaryWorkerFailure.addSuppressed(
+                failure
+            );
+    }
+
+    private Throwable drainTerminalAuxiliaryWorkerFailure(){
+        synchronized(lifecycleLock){
+            Throwable failure=
+                terminalAuxiliaryWorkerFailure;
+            terminalAuxiliaryWorkerFailure=null;
+            return failure;
+        }
+    }
+
+    private Throwable reconcileAuxiliaryWorkerAfterPool(
+        Throwable initialFailure
+    ){
+        return combineFailure(
+            initialFailure,
+            drainTerminalAuxiliaryWorkerFailure()
+        );
     }
 
     boolean closing(){
@@ -812,6 +982,8 @@ final class LocalServerShutdownCoordinator
             null;
         ArrayList<Socket> auxiliarySockets=
             null;
+        Throwable initialAuxiliaryWorkerFailure=
+            null;
 
         synchronized(lifecycleLock){
             if(!closing){
@@ -825,6 +997,10 @@ final class LocalServerShutdownCoordinator
                     new ArrayList<>(
                         activeAuxiliarySockets
                     );
+
+                if(!auxiliaryWorkerFailureSurfaced)
+                    initialAuxiliaryWorkerFailure=
+                        auxiliaryWorkerFailure;
             }
         }
 
@@ -868,6 +1044,11 @@ final class LocalServerShutdownCoordinator
                 combineFailure(
                     residualFailure,
                     retryOwnedAuxiliarySocketsForTerminal()
+                );
+            residualFailure=
+                combineFailure(
+                    residualFailure,
+                    drainTerminalAuxiliaryWorkerFailure()
                 );
             Throwable terminalFailure=
                 terminal.failure();
@@ -991,6 +1172,8 @@ final class LocalServerShutdownCoordinator
 
         final Throwable initialAuxiliarySocketFailure=
             firstAuxiliarySocketCloseFailure;
+        final Throwable initialWorkerFailure=
+            initialAuxiliaryWorkerFailure;
 
         Throwable failure=null;
 
@@ -1014,6 +1197,11 @@ final class LocalServerShutdownCoordinator
                         socketRetirementFailure
                     ),
                     this::closePool,
+                    ()->WorldCloseSequence.rethrow(
+                        reconcileAuxiliaryWorkerAfterPool(
+                            initialWorkerFailure
+                        )
+                    ),
                     ()->throwIfCloseFailed(
                         "auxiliary socket retirement failed",
                         reconcileAuxiliaryAfterPool(
@@ -1023,9 +1211,22 @@ final class LocalServerShutdownCoordinator
                     world::close
                 );
         }finally{
-            terminal.complete(
-                failure
-            );
+            synchronized(lifecycleLock){
+                Throwable lateWorkerFailure=
+                    terminalAuxiliaryWorkerFailure;
+                terminalAuxiliaryWorkerFailure=null;
+
+                failure=
+                    combineFailure(
+                        failure,
+                        lateWorkerFailure
+                    );
+
+                terminal.complete(
+                    failure
+                );
+                terminalCompletionPublished=true;
+            }
         }
 
         WorldCloseSequence.rethrow(
