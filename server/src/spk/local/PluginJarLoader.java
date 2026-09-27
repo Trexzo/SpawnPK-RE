@@ -91,21 +91,28 @@ final class PluginJarLoader implements PluginLoader {
                 entrypoint
             );
 
-        validateArchive(
-            path,
-            main
-        );
-
-        IsolatedPluginClassLoader loader=
-            new IsolatedPluginClassLoader(
-                path.toUri().toURL(),
-                Objects.requireNonNull(
-                    parent,
-                    "parent"
-                )
+        ArchiveSnapshot snapshot=
+            ArchiveSnapshot.capture(
+                path
             );
+        IsolatedPluginClassLoader loader=null;
 
         try{
+            validateArchive(
+                snapshot.path(),
+                main
+            );
+
+            loader=
+                new IsolatedPluginClassLoader(
+                    snapshot.path()
+                        .toUri()
+                        .toURL(),
+                    Objects.requireNonNull(
+                        parent,
+                        "parent"
+                    )
+                );
             Plugin delegate=
                 PluginThreadContext.call(
                     loader,
@@ -148,13 +155,25 @@ final class PluginJarLoader implements PluginLoader {
                 delegate,
                 loader,
                 path,
-                main
+                main,
+                snapshot
             );
         }catch(Throwable failure){
+            if(loader!=null)
+                try{
+                    loader.close();
+                }catch(Throwable cleanup){
+                    preserveFailure(
+                        failure,
+                        cleanup
+                    );
+                }
+
             try{
-                loader.close();
+                snapshot.close();
             }catch(Throwable cleanup){
-                failure.addSuppressed(
+                preserveFailure(
+                    failure,
                     cleanup
                 );
             }
@@ -277,6 +296,25 @@ final class PluginJarLoader implements PluginLoader {
         return clean;
     }
 
+    private static void preserveFailure(
+        Throwable primary,
+        Throwable cleanup
+    ){
+        if(primary==null||
+           cleanup==null||
+           primary==cleanup)
+            return;
+
+        for(Throwable existing:
+                primary.getSuppressed())
+            if(existing==cleanup)
+                return;
+
+        primary.addSuppressed(
+            cleanup
+        );
+    }
+
     private static void rethrow(
         Throwable failure
     )throws Exception{
@@ -298,13 +336,15 @@ final class PluginJarLoader implements PluginLoader {
         private final IsolatedPluginClassLoader loader;
         private final Path source;
         private final String entrypoint;
+        private final ArchiveSnapshot snapshot;
         private volatile boolean closed;
 
         LoadedPlugin(
             Plugin delegate,
             IsolatedPluginClassLoader loader,
             Path source,
-            String entrypoint
+            String entrypoint,
+            ArchiveSnapshot snapshot
         ){
             this.delegate=
                 Objects.requireNonNull(
@@ -320,6 +360,11 @@ final class PluginJarLoader implements PluginLoader {
                 source;
             this.entrypoint=
                 entrypoint;
+            this.snapshot=
+                Objects.requireNonNull(
+                    snapshot,
+                    "snapshot"
+                );
         }
 
         @Override public PluginManifest manifest(){
@@ -380,6 +425,10 @@ final class PluginJarLoader implements PluginLoader {
             return closed;
         }
 
+        Path snapshotPath(){
+            return snapshot.path();
+        }
+
         private void requireOpen(){
             if(closed)
                 throw new IllegalStateException(
@@ -394,7 +443,141 @@ final class PluginJarLoader implements PluginLoader {
                 return;
 
             closed=true;
-            loader.close();
+            IOException failure=null;
+
+            try{
+                loader.close();
+            }catch(IOException cleanup){
+                failure=cleanup;
+            }
+
+            try{
+                snapshot.close();
+            }catch(IOException cleanup){
+                if(failure==null)
+                    failure=cleanup;
+                else if(failure!=cleanup)
+                    failure.addSuppressed(
+                        cleanup
+                    );
+            }
+
+            if(failure!=null)
+                throw failure;
+        }
+    }
+
+    private static final class ArchiveSnapshot
+        implements AutoCloseable {
+        private final Path root;
+        private final Path path;
+        private boolean closed;
+
+        private ArchiveSnapshot(
+            Path root,
+            Path path
+        ){
+            this.root=root;
+            this.path=path;
+        }
+
+        static ArchiveSnapshot capture(
+            Path source
+        )throws IOException{
+            if(!Files.isRegularFile(source))
+                throw new IllegalArgumentException(
+                    "plugin JAR missing: "+
+                    source
+                );
+
+            byte[] bytes=
+                Files.readAllBytes(
+                    source
+                );
+            Path root=
+                Files.createTempDirectory(
+                    "spawnpk-plugin-archive-"
+                );
+            Path path=
+                root.resolve(
+                    "plugin.jar"
+                );
+
+            try{
+                Files.write(
+                    path,
+                    bytes
+                );
+
+                return new ArchiveSnapshot(
+                    root,
+                    path
+                );
+            }catch(Throwable failure){
+                try{
+                    Files.deleteIfExists(
+                        path
+                    );
+                }catch(Throwable cleanup){
+                    preserveFailure(
+                        failure,
+                        cleanup
+                    );
+                }
+
+                try{
+                    Files.deleteIfExists(
+                        root
+                    );
+                }catch(Throwable cleanup){
+                    preserveFailure(
+                        failure,
+                        cleanup
+                    );
+                }
+
+                rethrow(failure);
+                throw new AssertionError(
+                    "unreachable"
+                );
+            }
+        }
+
+        Path path(){
+            return path;
+        }
+
+        @Override public synchronized void close()
+            throws IOException{
+            if(closed)
+                return;
+
+            closed=true;
+            IOException failure=null;
+
+            try{
+                Files.deleteIfExists(
+                    path
+                );
+            }catch(IOException cleanup){
+                failure=cleanup;
+            }
+
+            try{
+                Files.deleteIfExists(
+                    root
+                );
+            }catch(IOException cleanup){
+                if(failure==null)
+                    failure=cleanup;
+                else if(failure!=cleanup)
+                    failure.addSuppressed(
+                        cleanup
+                    );
+            }
+
+            if(failure!=null)
+                throw failure;
         }
     }
 
