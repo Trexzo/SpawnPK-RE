@@ -517,6 +517,7 @@ public final class PluginClassLoaderIsolationTest {
             "terminalHandleReleasesLoader=true "+
             "javaPluginRuntimeReferencesReleased=true "+
             "javaPluginExceptionalCloseReleased=true "+
+            "javaPluginArchiveCleanupDebtRetried=true "+
             "javaPluginCloseRaceSafe=true "+
             "publicApiExpanded=false"
         );
@@ -1272,6 +1273,10 @@ public final class PluginClassLoaderIsolationTest {
     private static void assertExceptionalCloseReleasesRoots(
         Path jarA
     )throws Exception{
+        int baselineDebt=
+            PluginJarLoader
+                .archiveCleanupDebtCount();
+
         PluginJarLoader.LoadedPlugin loaded=
             PluginJarLoader.load(
                 jarA,
@@ -1316,11 +1321,72 @@ public final class PluginClassLoaderIsolationTest {
             "exceptional close"
         );
 
+        if(PluginJarLoader
+                .archiveCleanupDebtCount()!=
+                    baselineDebt+1)
+            throw new AssertionError(
+                "exceptional close did not retain exactly one path-only cleanup debt"
+            );
+
+        Throwable retryFailure=
+            PluginJarLoader
+                .retryArchiveCleanupDebtOnce(
+                    null
+                );
+
+        if(!(retryFailure instanceof
+                java.nio.file.DirectoryNotEmptyException))
+            throw new AssertionError(
+                "bounded retry did not report still-blocked archive root",
+                retryFailure
+            );
+
+        if(PluginJarLoader
+                .archiveCleanupDebtCount()!=
+                    baselineDebt+1)
+            throw new AssertionError(
+                "failed bounded retry dropped archive cleanup debt"
+            );
+
+        assertRuntimeReferencesReleased(
+            loaded,
+            "failed cleanup-debt retry"
+        );
+
+        loaded.close();
+
+        if(PluginJarLoader
+                .archiveCleanupDebtCount()!=
+                    baselineDebt+1)
+            throw new AssertionError(
+                "duplicate runtime close changed path-only cleanup debt ownership"
+            );
+
         Files.deleteIfExists(
             sentinel
         );
-        Files.deleteIfExists(
-            root
+
+        World retryWorld=
+            World.isolatedForTest(
+                25L
+            );
+        retryWorld.close();
+
+        if(PluginJarLoader
+                .archiveCleanupDebtCount()!=
+                    baselineDebt)
+            throw new AssertionError(
+                "World-close cleanup retry retained archive cleanup debt"
+            );
+
+        if(Files.exists(root))
+            throw new AssertionError(
+                "World-close cleanup retry retained archive root"
+            );
+
+        assertRuntimeReferencesReleased(
+            loaded,
+            "World-close cleanup-debt retry"
         );
     }
 
