@@ -81,6 +81,7 @@ public final class LocalSessionConstructionOwnershipTest {
             "auxSocketRetry=true "+
             "auxSocketOwnershipZero=true "+
             "auxAcceptHandoff=true "+
+            "auxHandoffBeforePoolShutdown=true "+
             "auxPostFenceReject=true "+
             "successPath=true"
         );
@@ -2275,6 +2276,11 @@ public final class LocalSessionConstructionOwnershipTest {
         if(!closer.isAlive())
             throw new AssertionError(
                 "terminal close returned before pre-fence auxiliary handoff retired"
+            );
+
+        if(pool.shutdown)
+            throw new AssertionError(
+                "pool shutdown began before pre-fence auxiliary handoff retired"
             );
 
         releaseAccept.countDown();
