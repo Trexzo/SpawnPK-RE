@@ -86,16 +86,12 @@ final class LocalAuxHttpRequestReader {
 
         long now=
             clock.nanoTime();
-        long candidate=
+
+        // nanoTime values are allowed to wrap.  Standard deadline subtraction
+        // remains correct for this small positive interval across that wrap.
+        deadlineNanos=
             now+
             deadlineBudgetNanos;
-
-        if(candidate<now)
-            candidate=
-                Long.MAX_VALUE;
-
-        deadlineNanos=
-            candidate;
 
         updateReadTimeout();
     }
