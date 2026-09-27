@@ -33,6 +33,8 @@ public final class LocalSessionConstructionOwnershipTest {
             "activeZero=true "+
             "noTaskOnFailure=true "+
             "concurrentShutdownOwnsSocket=true "+
+            "factoryRetirementBarrier=true "+
+            "worldOpenUntilFactoryRetires=true "+
             "postFenceSubmit=false "+
             "handoffRejectCloses=true "+
             "retireOwnershipUntilClosed=true "+
@@ -486,19 +488,34 @@ public final class LocalSessionConstructionOwnershipTest {
                 "session factory did not enter"
             );
 
+        CountDownLatch closeReturned=
+            new CountDownLatch(1);
         Thread closer=
             new Thread(
-                shutdown::close,
+                ()->{
+                    try{
+                        shutdown.close();
+                    }finally{
+                        closeReturned.countDown();
+                    }
+                },
                 "session-construction-close-fixture"
             );
         closer.start();
-        closer.join(
-            5_000L
-        );
 
-        if(closer.isAlive())
+        long closeDeadline=
+            System.nanoTime()+
+                TimeUnit.SECONDS.toNanos(
+                    5
+                );
+
+        while(!shutdown.closing()&&
+              System.nanoTime()<closeDeadline)
+            Thread.yield();
+
+        if(!shutdown.closing())
             throw new AssertionError(
-                "shutdown waited for blocked session factory"
+                "shutdown fence did not publish while factory was blocked"
             );
 
         if(!socket.isClosed())
@@ -506,14 +523,35 @@ public final class LocalSessionConstructionOwnershipTest {
                 "concurrent shutdown did not close claimed accepted socket"
             );
 
+        if(shutdown.pendingSessionFactoryHandoffs()!=1)
+            throw new AssertionError(
+                "blocked session factory was not terminally accounted"
+            );
+
+        if(closeReturned.getCount()==0||
+           !closer.isAlive())
+            throw new AssertionError(
+                "terminal close returned before session factory retired"
+            );
+
+        if(world.closed())
+            throw new AssertionError(
+                "World closed before in-flight session factory retired"
+            );
+
         releaseFactory.countDown();
+
         submitter.join(
             5_000L
         );
+        closer.join(
+            5_000L
+        );
 
-        if(submitter.isAlive())
+        if(submitter.isAlive()||
+           closer.isAlive())
             throw new AssertionError(
-                "session submitter did not leave after shutdown fence"
+                "session factory/terminal close did not retire together"
             );
 
         if(submitFailure.get()!=null)
@@ -538,9 +576,15 @@ public final class LocalSessionConstructionOwnershipTest {
                 "post-fence session reached executor"
             );
 
-        if(shutdown.activeSessionCount()!=0)
+        if(shutdown.activeSessionCount()!=0||
+           shutdown.pendingSessionFactoryHandoffs()!=0)
             throw new AssertionError(
-                "post-fence factory completion retained active socket"
+                "post-fence factory completion retained ownership"
+            );
+
+        if(!world.closed())
+            throw new AssertionError(
+                "World did not close after session factory retired"
             );
 
         pair.close();
