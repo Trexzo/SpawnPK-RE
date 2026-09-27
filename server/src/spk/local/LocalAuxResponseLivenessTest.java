@@ -27,6 +27,7 @@ public final class LocalAuxResponseLivenessTest {
         assertFinalWriteTimeoutRaceCannotReturnClean();
         assertTerminalFenceWinsBeforePhysicalClose();
         assertTerminalWinsBetweenValidationAndTimeoutClaim();
+        assertHealthyFinishWinsBeforeTimeoutClaim();
         assertTimeoutClaimWinsBeforeTerminalFence();
         assertTerminalCloseWinsWithoutSyntheticTimeout();
         assertSuccessfulTimeoutKeepsOwnershipUntilWorkerRelease();
@@ -51,6 +52,7 @@ public final class LocalAuxResponseLivenessTest {
             "sameWorkerContinues=true "+
             "terminalFenceWins=true "+
             "terminalClaimSerialized=true "+
+            "healthyFinishClaimRevalidated=true "+
             "timeoutClaimSerialized=true "+
             "terminalWins=true "+
             "watchdogRetired=true "+
@@ -672,6 +674,134 @@ public final class LocalAuxResponseLivenessTest {
                     coordinator.close();
                 }catch(Throwable ignored){
                 }
+        }
+    }
+
+    private static void
+        assertHealthyFinishWinsBeforeTimeoutClaim()
+        throws Exception{
+        World world=
+            World.isolatedForTest(
+                25L
+            );
+        java.util.concurrent.ExecutorService pool=
+            java.util.concurrent.Executors
+                .newSingleThreadExecutor();
+        java.net.ServerSocket game=
+            new java.net.ServerSocket();
+        java.net.ServerSocket aux=
+            new java.net.ServerSocket();
+        LocalServerShutdownCoordinator coordinator=
+            new LocalServerShutdownCoordinator(
+                world,
+                pool,
+                game,
+                aux
+            );
+        FakeSocket socket=
+            new FakeSocket();
+        ManualScheduler scheduler=
+            new ManualScheduler();
+        CountDownLatch claimReached=
+            new CountDownLatch(1);
+        CountDownLatch releaseClaim=
+            new CountDownLatch(1);
+        AtomicInteger publications=
+            new AtomicInteger();
+        AtomicReference<Throwable> triggerFailure=
+            new AtomicReference<>();
+
+        LocalAuxResponseLiveness liveness=
+            LocalAuxResponseLiveness.arm(
+                socket,
+                scheduler,
+                commit->{
+                    claimReached.countDown();
+
+                    try{
+                        releaseClaim.await();
+                    }catch(InterruptedException error){
+                        Thread.currentThread()
+                            .interrupt();
+                        throw new IllegalStateException(
+                            "fixture healthy-finish claim interrupted",
+                            error
+                        );
+                    }
+
+                    return coordinator
+                        .claimAuxiliaryResponseTimeout(
+                            commit
+                        );
+                },
+                failure->
+                    publications.incrementAndGet()
+            );
+
+        Thread trigger=
+            new Thread(
+                ()->{
+                    try{
+                        scheduler.trigger();
+                    }catch(Throwable failure){
+                        triggerFailure.set(
+                            failure
+                        );
+                    }
+                },
+                "fixture-healthy-finish-before-timeout-claim"
+            );
+
+        try{
+            trigger.start();
+
+            if(!claimReached.await(
+                    5,
+                    TimeUnit.SECONDS))
+                throw new AssertionError(
+                    "watchdog did not reach healthy-finish pre-claim pause"
+                );
+
+            Throwable finishFailure=
+                liveness.finish(
+                    null
+                );
+
+            if(finishFailure!=null)
+                throw new AssertionError(
+                    "healthy finish failed before timeout claim",
+                    finishFailure
+                );
+
+            releaseClaim.countDown();
+
+            trigger.join(
+                5_000L
+            );
+
+            if(trigger.isAlive())
+                throw new AssertionError(
+                    "healthy-finish claim fixture did not converge"
+                );
+
+            if(triggerFailure.get()!=null||
+               liveness.timedOut()||
+               socket.closeCalls!=0||
+               publications.get()!=0)
+                throw new AssertionError(
+                    "healthy finish was converted into timeout after precheck",
+                    triggerFailure.get()
+                );
+        }finally{
+            releaseClaim.countDown();
+            trigger.join(
+                1_000L
+            );
+
+            try{
+                coordinator.close();
+            }catch(Throwable ignored){
+            }
         }
     }
 
