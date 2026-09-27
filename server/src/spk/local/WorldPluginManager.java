@@ -561,6 +561,7 @@ final class WorldPluginManager
             );
             entry.failureSink=null;
             entry.plugin=null;
+            entry.callbackLoader=null;
             entry.cleanupClaimed=true;
             entry.cleanupComplete=true;
 
@@ -736,6 +737,7 @@ final class WorldPluginManager
 
             entry.failureSink=null;
             entry.plugin=null;
+            entry.callbackLoader=null;
         }
     }
 
@@ -1787,7 +1789,7 @@ final class WorldPluginManager
         final PluginCallbackScope callbacks;
         final RuntimeAdmissionGate admission;
         final RuntimeCloseOwnership runtimeClose;
-        final ClassLoader callbackLoader;
+        ClassLoader callbackLoader;
         volatile RuntimeFailureSink failureSink;
         volatile RuntimeState runtimeState=
             RuntimeState.ENABLING;
