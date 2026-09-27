@@ -190,9 +190,11 @@ final class LocalAuxResponseLiveness {
         }
 
         Throwable abort;
+        boolean expired;
 
         synchronized(lock){
             abort=abortFailure;
+            expired=timedOut;
         }
 
         if(abort!=null)
@@ -202,6 +204,13 @@ final class LocalAuxResponseLiveness {
                         result,
                         abort
                     );
+
+        if(expired&&
+           result==null)
+            result=
+                new IOException(
+                    "auxiliary response made no progress before deadline"
+                );
 
         return result;
     }
