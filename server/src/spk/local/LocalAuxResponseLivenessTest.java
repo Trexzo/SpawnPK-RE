@@ -16,6 +16,7 @@ public final class LocalAuxResponseLivenessTest {
     )throws Exception{
         assertArmedBeforeFirstWriteAndHealthyCompletionCancels();
         assertProgressRefreshesSingleDeadline();
+        assertWatchdogNonterminationIsWorkerFatal();
         assertTimeoutAbortsBlockedWriteAndWorkerContinues();
         assertTerminalCloseWinsWithoutSyntheticTimeout();
         assertSuccessfulTimeoutKeepsOwnershipUntilWorkerRelease();
@@ -27,6 +28,7 @@ public final class LocalAuxResponseLivenessTest {
             "armedBeforeFirstWrite=true "+
             "progressRefreshes=true "+
             "singleOutstandingDeadline=true "+
+            "watchdogNonterminationFatal=true "+
             "stalledWriteAborted=true "+
             "timeoutConnectionScoped=true "+
             "sameWorkerContinues=true "+
@@ -155,6 +157,36 @@ public final class LocalAuxResponseLivenessTest {
            scheduler.outstandingTasks()!=0)
             throw new AssertionError(
                 "refreshed deadline survived finish",
+                failure
+            );
+    }
+
+    private static void
+        assertWatchdogNonterminationIsWorkerFatal()
+        throws Exception{
+        FakeSocket socket=
+            new FakeSocket();
+        ManualScheduler scheduler=
+            new ManualScheduler();
+        scheduler.terminates=false;
+
+        LocalAuxResponseLiveness liveness=
+            LocalAuxResponseLiveness.arm(
+                socket,
+                scheduler
+            );
+
+        Throwable failure=
+            liveness.finish(
+                null
+            );
+
+        if(!(failure instanceof IllegalStateException)||
+           failure.getMessage()==null||
+           !failure.getMessage().contains(
+                "did not terminate"))
+            throw new AssertionError(
+                "watchdog nontermination was normalized into connection-scoped failure",
                 failure
             );
     }
@@ -546,6 +578,7 @@ public final class LocalAuxResponseLivenessTest {
         int maxOutstanding;
         boolean shutdown;
         boolean awaited;
+        boolean terminates=true;
 
         @Override public synchronized
             LocalAuxResponseLiveness.Cancellable
@@ -603,7 +636,7 @@ public final class LocalAuxResponseLivenessTest {
             long timeoutMillis
         ){
             awaited=true;
-            return true;
+            return terminates;
         }
 
         @Override public synchronized int outstandingTasks(){
