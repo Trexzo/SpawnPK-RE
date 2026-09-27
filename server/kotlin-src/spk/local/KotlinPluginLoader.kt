@@ -241,25 +241,26 @@ internal class KotlinPluginLoader @JvmOverloads constructor(
                 }
 
                 val name = entry.name.replace('\\', '/')
-                validateVersionedClassEntry(
-                    path,
-                    name
-                )
                 validateJarIndexEntry(
                     path,
                     name
                 )
+                val effectiveName =
+                    effectiveVersionedResource(
+                        name
+                    ) ?: name
 
-                if (!name.startsWith("spk/")) {
+                if (!effectiveName.startsWith("spk/")) {
                     continue
                 }
 
                 require(
-                    name.startsWith("spk/plugin/api/") ||
-                        name.startsWith("spk/content/api/") ||
-                        exportedEventResource(name)
+                    effectiveName.startsWith("spk/plugin/api/") ||
+                        effectiveName.startsWith("spk/content/api/") ||
+                        exportedEventResource(effectiveName)
                 ) {
-                    "plugin API JAR exposes non-public SpawnPK namespace: $name"
+                    "plugin API JAR exposes non-public SpawnPK namespace: " +
+                        effectiveName + " archiveEntry=" + name
                 }
             }
         }
@@ -280,30 +281,33 @@ internal class KotlinPluginLoader @JvmOverloads constructor(
                     val name =
                         entry.name
                             .replace('\\', '/')
-                    validateVersionedClassEntry(
-                        path,
-                        name
-                    )
                     validateJarIndexEntry(
                         path,
                         name
                     )
+                    val effectiveName =
+                        effectiveVersionedResource(
+                            name
+                        ) ?: name
 
-                    if (name.startsWith("spk/")) {
+                    if (effectiveName.startsWith("spk/")) {
                         require(
                             exportedDslResource(
-                                name
+                                effectiveName
                             )
                         ) {
                             "Kotlin script dependency contains SpawnPK classes outside the DSL allowlist: " +
-                                path + " entry=" + entry.name
+                                path + " entry=" + entry.name +
+                                " effective=" + effectiveName
                         }
 
                         val expected =
                             Plugin::class.java.classLoader
-                                .getResourceAsStream(name)
+                                .getResourceAsStream(
+                                    effectiveName
+                                )
                                 ?: throw IllegalArgumentException(
-                                    "Kotlin DSL server resource missing: $name"
+                                    "Kotlin DSL server resource missing: $effectiveName"
                                 )
 
                         expected.use { trusted ->
@@ -316,7 +320,8 @@ internal class KotlinPluginLoader @JvmOverloads constructor(
                                         )
                                     ) {
                                         "Kotlin DSL dependency class does not match server SDK: " +
-                                            path + " entry=" + entry.name
+                                            path + " entry=" + entry.name +
+                                            " effective=" + effectiveName
                                     }
                                 }
                         }
@@ -338,21 +343,39 @@ internal class KotlinPluginLoader @JvmOverloads constructor(
         }
     }
 
-    private fun validateVersionedClassEntry(
-        path: Path,
+    private fun effectiveVersionedResource(
         name: String
-    ) {
-        require(
-            !(name.startsWith(
-                "META-INF/versions/"
-            ) &&
-                name.endsWith(
-                    ".class"
-                ))
-        ) {
-            "Kotlin classpath archive contains forbidden multi-release class entry: " +
-                path + " entry=" + name
+    ): String? {
+        val prefix = "META-INF/versions/"
+
+        if (!name.startsWith(prefix)) {
+            return null
         }
+
+        val versionEnd =
+            name.indexOf(
+                '/',
+                prefix.length
+            )
+
+        if (versionEnd <= prefix.length ||
+            versionEnd + 1 >= name.length) {
+            return null
+        }
+
+        val version =
+            name.substring(
+                prefix.length,
+                versionEnd
+            )
+
+        if (version.any { !it.isDigit() }) {
+            return null
+        }
+
+        return name.substring(
+            versionEnd + 1
+        )
     }
 
     private fun validateManifestClasspath(
