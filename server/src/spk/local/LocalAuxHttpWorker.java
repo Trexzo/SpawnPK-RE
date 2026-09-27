@@ -138,7 +138,7 @@ final class LocalAuxHttpWorker {
         }
     }
 
-    private static Throwable preserveFailureOrder(
+    static Throwable preserveFailureOrder(
         Throwable current,
         Throwable next
     ){
