@@ -1774,6 +1774,21 @@ public final class PluginKernelLifecycleTest {
                     "snapshot cleanup handle survived terminal cleanup"
                 );
 
+            java.lang.reflect.Field handleLoader=
+                handle.getClass()
+                    .getDeclaredField(
+                        "callbackLoader"
+                    );
+            handleLoader.setAccessible(
+                true
+            );
+
+            if(handleLoader.get(
+                    handle)!=null)
+                throw new AssertionError(
+                    "retained disabled handle kept snapshotted callback loader"
+                );
+
             assertManagerCleanupIdle(
                 manager,
                 "snapshot-loader cleanup"
