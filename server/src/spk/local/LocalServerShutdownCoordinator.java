@@ -574,6 +574,17 @@ final class LocalServerShutdownCoordinator
         if(!owner){
             terminal.await();
 
+            Throwable listenerRetryFailure=
+                retryOpenListeners();
+
+            // A listener that recovered only on this repeated close can now
+            // safely unblock and retire the pre-fence accept handoff. Rejoin
+            // that barrier before draining its late failure/socket ownership.
+            if(game.isClosed())
+                awaitPreTerminalHandoffs(
+                    true
+                );
+
             Throwable lateHandoffFailure;
 
             synchronized(lifecycleLock){
@@ -584,8 +595,8 @@ final class LocalServerShutdownCoordinator
 
             Throwable residualFailure=
                 combineFailure(
-                    lateHandoffFailure,
-                    retryOpenListeners()
+                    listenerRetryFailure,
+                    lateHandoffFailure
                 );
             residualFailure=
                 combineFailure(
