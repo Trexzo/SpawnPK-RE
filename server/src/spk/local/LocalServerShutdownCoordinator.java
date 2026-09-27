@@ -14,6 +14,16 @@ import java.util.concurrent.TimeUnit;
 final class LocalServerShutdownCoordinator
     implements AutoCloseable {
 
+    interface SessionFactory {
+        Runnable create()
+            throws Exception;
+    }
+
+    interface GameSocketAcceptor {
+        Socket accept()
+            throws IOException;
+    }
+
     private final Object lifecycleLock=
         new Object();
     private final World world;
@@ -26,6 +36,8 @@ final class LocalServerShutdownCoordinator
         new TerminalCloseState();
 
     private boolean closing;
+    private int gameAcceptHandoffs;
+    private int sessionFactoryHandoffs;
 
     LocalServerShutdownCoordinator(
         World world,
@@ -55,6 +67,101 @@ final class LocalServerShutdownCoordinator
             );
     }
 
+    Socket acceptGameSocket()
+        throws IOException{
+        return acceptGameSocket(
+            game::accept
+        );
+    }
+
+    Socket acceptGameSocket(
+        GameSocketAcceptor acceptor
+    )throws IOException{
+        Objects.requireNonNull(
+            acceptor,
+            "acceptor"
+        );
+
+        synchronized(lifecycleLock){
+            if(closing)
+                return null;
+
+            gameAcceptHandoffs++;
+        }
+
+        Socket accepted=null;
+        Throwable failure=null;
+
+        try{
+            accepted=
+                Objects.requireNonNull(
+                    acceptor.accept(),
+                    "accepted socket"
+                );
+        }catch(Throwable error){
+            failure=error;
+        }
+
+        boolean terminal;
+
+        synchronized(lifecycleLock){
+            gameAcceptHandoffs--;
+            terminal=closing;
+
+            if(failure==null){
+                if(terminal)
+                    closeQuietly(
+                        accepted
+                    );
+                else
+                    activeGameSockets.add(
+                        accepted
+                    );
+            }
+
+            lifecycleLock.notifyAll();
+        }
+
+        if(failure!=null){
+            if(terminal&&
+               failure instanceof IOException)
+                return null;
+
+            rethrowAcceptFailure(
+                failure
+            );
+        }
+
+        return terminal
+            ?null
+            :accepted;
+    }
+
+    void rejectSessionSocket(
+        Socket socket
+    ){
+        Objects.requireNonNull(
+            socket,
+            "socket"
+        );
+
+        retireOwnedSocket(
+            socket
+        );
+    }
+
+    int pendingGameAcceptHandoffs(){
+        synchronized(lifecycleLock){
+            return gameAcceptHandoffs;
+        }
+    }
+
+    int pendingSessionFactoryHandoffs(){
+        synchronized(lifecycleLock){
+            return sessionFactoryHandoffs;
+        }
+    }
+
     boolean submitSession(
         Socket socket,
         Runnable session
@@ -68,44 +175,154 @@ final class LocalServerShutdownCoordinator
             "session"
         );
 
-        synchronized(lifecycleLock){
-            if(closing){
-                closeQuietly(socket);
-                return false;
-            }
+        try{
+            return submitSession(
+                socket,
+                (SessionFactory)
+                    ()->session
+            );
+        }catch(RuntimeException error){
+            throw error;
+        }catch(Error error){
+            throw error;
+        }catch(Exception error){
+            throw new RuntimeException(
+                error
+            );
+        }
+    }
 
-            activeGameSockets.add(
+    boolean submitSession(
+        Socket socket,
+        SessionFactory factory
+    )throws Exception{
+        Objects.requireNonNull(
+            socket,
+            "socket"
+        );
+        Objects.requireNonNull(
+            factory,
+            "factory"
+        );
+
+        boolean rejectedBeforeFactory=false;
+
+        synchronized(lifecycleLock){
+            if(closing)
+                rejectedBeforeFactory=true;
+            else{
+                activeGameSockets.add(
+                    socket
+                );
+                sessionFactoryHandoffs++;
+            }
+        }
+
+        if(rejectedBeforeFactory){
+            retireOwnedSocket(
+                socket
+            );
+            return false;
+        }
+
+        final Runnable session;
+
+        try{
+            session=
+                Objects.requireNonNull(
+                    factory.create(),
+                    "session"
+                );
+        }catch(Throwable failure){
+            retireOwnedSocket(
                 socket
             );
 
-            try{
-                pool.execute(
-                    ()->{
-                        try{
-                            session.run();
-                        }finally{
-                            synchronized(lifecycleLock){
-                                activeGameSockets.remove(
+            synchronized(lifecycleLock){
+                sessionFactoryHandoffs--;
+                lifecycleLock.notifyAll();
+            }
+
+            rethrowFactoryFailure(
+                failure
+            );
+            throw new AssertionError(
+                "unreachable"
+            );
+        }
+
+        boolean rejectedAfterFactory=false;
+        RuntimeException submissionFailure=null;
+
+        synchronized(lifecycleLock){
+            sessionFactoryHandoffs--;
+            lifecycleLock.notifyAll();
+
+            if(closing)
+                rejectedAfterFactory=true;
+            else
+                try{
+                    pool.execute(
+                        ()->{
+                            try{
+                                session.run();
+                            }finally{
+                                retireOwnedSocket(
                                     socket
                                 );
                             }
-
-                            closeQuietly(
-                                socket
-                            );
                         }
-                    }
-                );
-            }catch(RuntimeException error){
-                activeGameSockets.remove(
-                    socket
-                );
-                closeQuietly(socket);
-                throw error;
-            }
-
-            return true;
+                    );
+                }catch(RuntimeException error){
+                    submissionFailure=error;
+                }
         }
+
+        if(rejectedAfterFactory){
+            retireOwnedSocket(
+                socket
+            );
+            return false;
+        }
+
+        if(submissionFailure!=null){
+            retireOwnedSocket(
+                socket
+            );
+            throw submissionFailure;
+        }
+
+        return true;
+    }
+
+    private void retireOwnedSocket(
+        Socket socket
+    ){
+        // Keep ownership published until close has completed. A concurrent
+        // terminal owner may close the same socket redundantly, but it can
+        // never observe the socket as retired while it is still open.
+        closeQuietly(
+            socket
+        );
+
+        synchronized(lifecycleLock){
+            activeGameSockets.remove(
+                socket
+            );
+        }
+    }
+
+    private static void rethrowFactoryFailure(
+        Throwable failure
+    )throws Exception{
+        if(failure instanceof Exception)
+            throw (Exception)failure;
+        if(failure instanceof Error)
+            throw (Error)failure;
+
+        throw new RuntimeException(
+            failure
+        );
     }
 
     boolean submitAuxiliary(
@@ -152,6 +369,8 @@ final class LocalServerShutdownCoordinator
                         new ArrayList<>(
                             activeGameSockets))
                     closeQuietly(socket);
+
+                activeGameSockets.clear();
             }
         }
 
@@ -159,6 +378,8 @@ final class LocalServerShutdownCoordinator
             terminal.awaitAndRethrow();
             return;
         }
+
+        awaitPreTerminalHandoffs();
 
         Throwable failure=null;
 
@@ -175,6 +396,40 @@ final class LocalServerShutdownCoordinator
         }
 
         WorldCloseSequence.rethrow(
+            failure
+        );
+    }
+
+    private void awaitPreTerminalHandoffs(){
+        boolean interrupted=false;
+
+        synchronized(lifecycleLock){
+            while(gameAcceptHandoffs!=0||
+                  sessionFactoryHandoffs!=0)
+                try{
+                    lifecycleLock.wait();
+                }catch(InterruptedException error){
+                    interrupted=true;
+                }
+        }
+
+        if(interrupted)
+            Thread.currentThread()
+                .interrupt();
+    }
+
+    private static void rethrowAcceptFailure(
+        Throwable failure
+    )throws IOException{
+        if(failure instanceof IOException)
+            throw (IOException)failure;
+        if(failure instanceof RuntimeException)
+            throw (RuntimeException)failure;
+        if(failure instanceof Error)
+            throw (Error)failure;
+
+        throw new IOException(
+            "game socket accept failed",
             failure
         );
     }

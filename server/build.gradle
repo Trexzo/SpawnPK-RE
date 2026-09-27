@@ -4144,6 +4144,17 @@ tasks.register('worldPulseStartFailureAtomicRegression', JavaExec) {
 }
 
 
+tasks.register('localSessionConstructionOwnershipRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves accepted game sockets are coordinator-owned before fallible LocalSession construction and remain fenced across concurrent shutdown.'
+    dependsOn tasks.named('testClasses')
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.LocalSessionConstructionOwnershipTest'
+}
+
+
 tasks.register('chat1CurrentCumulativeCertification') {
     group = 'verification'
     description = 'Runs the complete current Chat 1 release candidate: Issue #5 Kotlin scripting, #271/#427 presentation/application gates, Issue #7 pet-damage ownership, focused 175 and canonical exact-v308 179.'
@@ -4162,7 +4173,8 @@ tasks.register('chat1CurrentCumulativeCertification') {
         tasks.named('petDamageContentCommandActionOwnershipRegression'),
         tasks.named('petSpecializedProcContentCommandActionOwnershipRegression'),
         tasks.named('localServerStartupFailureCleanupRegression'),
-        tasks.named('worldPulseStartFailureAtomicRegression')
+        tasks.named('worldPulseStartFailureAtomicRegression'),
+        tasks.named('localSessionConstructionOwnershipRegression')
     )
 
     doLast {
@@ -4180,6 +4192,7 @@ tasks.register('chat1CurrentCumulativeCertification') {
             'specializedPetProc=true ' +
             'startupFailureAtomic=true ' +
             'worldPulseStartAtomic=true ' +
+            'localSessionConstructionOwnership=true ' +
             'focused=175 ' +
             'exactV308=179 ' +
             'clientSha256=' + v308AcceptanceClientSha256 + ' ' +
