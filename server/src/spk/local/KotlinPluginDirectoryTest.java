@@ -819,7 +819,7 @@ public final class KotlinPluginDirectoryTest {
         World world,
         Path root
     )throws Exception{
-        createIdentityPreloadScripts(
+        createMixedIdentityPreloadScripts(
             root
         );
 
@@ -832,6 +832,10 @@ public final class KotlinPluginDirectoryTest {
         IOException cleanupTwo=
             new IOException(
                 "fixture-close-r2"
+            );
+        IOException cleanupThree=
+            new IOException(
+                "fixture-close-r3"
             );
         RecordingRuntime first=
             new RecordingRuntime(
@@ -847,6 +851,13 @@ public final class KotlinPluginDirectoryTest {
                 closeOrder,
                 cleanupTwo
             );
+        RecordingRuntime third=
+            new RecordingRuntime(
+                "fixture.kotlin.preload.r3",
+                "R3",
+                closeOrder,
+                cleanupThree
+            );
         IOException primary=
             new IOException(
                 "fixture-distinct-loader-failure"
@@ -855,7 +866,9 @@ public final class KotlinPluginDirectoryTest {
             new SequenceLoader(
                 primary,
                 first,
-                second
+                second,
+                first,
+                third
             );
 
         Throwable observed=null;
@@ -876,49 +889,99 @@ public final class KotlinPluginDirectoryTest {
                 "distinct preload primary changed"
             );
 
-        assertIdentityPreloadOrder(
-            loader.paths
-        );
+        java.util.List<String> expectedPaths=
+            java.util.Arrays.asList(
+                "01-a.kts",
+                "02-b.kts",
+                "03-c.kts",
+                "04-d.kts",
+                "05-e.kts"
+            );
+
+        if(!expectedPaths.equals(
+                loader.paths))
+            throw new AssertionError(
+                "mixed-identity preload discovery order mismatch expected="+
+                expectedPaths+
+                " actual="+
+                loader.paths
+            );
 
         if(first.closeCount!=1||
-           second.closeCount!=1)
+           second.closeCount!=1||
+           third.closeCount!=1)
             throw new AssertionError(
-                "distinct preload runtime close counts mismatch R1="+
+                "mixed-identity preload runtime close counts mismatch R1="+
                 first.closeCount+
                 " R2="+
-                second.closeCount
+                second.closeCount+
+                " R3="+
+                third.closeCount
             );
 
         if(!closeOrder.equals(
                 java.util.Arrays.asList(
-                    "R2",
-                    "R1"
+                    "R3",
+                    "R1",
+                    "R2"
                 )))
             throw new AssertionError(
-                "distinct preload reverse close order mismatch: "+
+                "mixed-identity reverse close order mismatch: "+
                 closeOrder
             );
 
         Throwable[] suppressed=
             primary.getSuppressed();
 
-        if(suppressed.length!=2||
-           suppressed[0]!=cleanupTwo||
-           suppressed[1]!=cleanupOne)
+        if(suppressed.length!=3||
+           suppressed[0]!=cleanupThree||
+           suppressed[1]!=cleanupOne||
+           suppressed[2]!=cleanupTwo)
             throw new AssertionError(
-                "distinct preload suppression order mismatch"
+                "mixed-identity suppression order mismatch"
             );
 
         if(first.enableCount!=0||
            second.enableCount!=0||
+           third.enableCount!=0||
            world.plugins().plugin(
                 "fixture.kotlin.preload.r1"
             )!=null||
            world.plugins().plugin(
                 "fixture.kotlin.preload.r2"
+            )!=null||
+           world.plugins().plugin(
+                "fixture.kotlin.preload.r3"
             )!=null)
             throw new AssertionError(
-                "distinct preload failure reached plugin manager"
+                "mixed-identity preload failure reached plugin manager"
+            );
+    }
+
+    private static void createMixedIdentityPreloadScripts(
+        Path root
+    )throws Exception{
+        Files.createDirectories(
+            root
+        );
+
+        for(String name:
+                new String[]{
+                    "01-a.kts",
+                    "02-b.kts",
+                    "03-c.kts",
+                    "04-d.kts",
+                    "05-e.kts"
+                })
+            Files.write(
+                root.resolve(
+                    name
+                ),
+                java.util.Collections
+                    .singletonList(
+                        "// mixed identity preload probe"
+                    ),
+                StandardCharsets.UTF_8
             );
     }
 
