@@ -258,6 +258,4 @@ final class LocalAuxResponseDeadline
             );
         }
     }
-
-    private LocalAuxResponseDeadline(){}
 }
