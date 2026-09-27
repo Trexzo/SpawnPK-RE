@@ -4177,6 +4177,21 @@ tasks.register('localAuxHttpResponseRegression', JavaExec) {
 }
 
 
+tasks.register('localAuxResponseLivenessRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves AUX response writes are guarded by one bounded no-progress watchdog without changing exact archive streaming semantics.'
+    dependsOn(
+        tasks.named('testClasses'),
+        tasks.named('localAuxHttpResponseRegression'),
+        tasks.named('localAuxHttpWorkerFailurePreservationRegression')
+    )
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.LocalAuxResponseLivenessTest'
+}
+
+
 tasks.register('localAuxiliaryWorkerFailureRegression', JavaExec) {
     group = 'verification'
     description = 'Proves an uncaught auxiliary worker failure becomes authoritative serving failure instead of silently killing the AUX accept task.'
