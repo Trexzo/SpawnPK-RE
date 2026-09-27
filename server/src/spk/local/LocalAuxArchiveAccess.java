@@ -78,20 +78,51 @@ final class LocalAuxArchiveAccess {
             return null;
         }
 
-        try(SeekableByteChannel owned=
-                channel){
-            return Long.valueOf(
-                LocalAuxHttpResponse
-                    .writeOpenedFile(
-                        out,
-                        200,
-                        "OK",
-                        "application/zip",
-                        owned,
-                        head
-                    )
-            );
+        Long result=null;
+        Throwable primary=null;
+
+        try{
+            result=
+                Long.valueOf(
+                    LocalAuxHttpResponse
+                        .writeOpenedFile(
+                            out,
+                            200,
+                            "OK",
+                            "application/zip",
+                            channel,
+                            head
+                        )
+                );
+        }catch(IOException|
+               RuntimeException|
+               Error failure){
+            primary=failure;
         }
+
+        try{
+            channel.close();
+        }catch(IOException|
+               RuntimeException|
+               Error closeFailure){
+            primary=
+                LocalAuxHttpWorker
+                    .preserveFailureOrder(
+                        primary,
+                        closeFailure
+                    );
+        }
+
+        if(primary instanceof IOException)
+            throw (IOException)primary;
+
+        if(primary instanceof RuntimeException)
+            throw (RuntimeException)primary;
+
+        if(primary instanceof Error)
+            throw (Error)primary;
+
+        return result;
     }
 
     private LocalAuxArchiveAccess(){}
