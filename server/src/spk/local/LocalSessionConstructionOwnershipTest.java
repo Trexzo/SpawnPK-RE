@@ -29,6 +29,7 @@ public final class LocalSessionConstructionOwnershipTest {
         assertExecutorRejectionRetainsOwnershipUntilClosed();
         assertCheckedCloseFailureRetainsOwnershipAndTerminalRetries();
         assertTerminalCloseFailurePublishedAndOwnershipRetained();
+        assertTerminalFailOnceCloseFailureRemainsPublished();
         assertGameListenerCloseFailurePublishesWithoutHandoffHang();
         assertAuxListenerCloseFailurePublished();
         assertUncheckedListenerCloseFailurePublished();
@@ -53,6 +54,7 @@ public final class LocalSessionConstructionOwnershipTest {
             "checkedCloseFailureRetained=true "+
             "terminalCloseRetry=true "+
             "terminalCloseFailurePublished=true "+
+            "terminalRetryDoesNotEraseFailure=true "+
             "repeatedCloseFailurePublished=true "+
             "gameListenerFailurePublished=true "+
             "gameListenerFailureNoHandoffHang=true "+
@@ -1003,6 +1005,84 @@ public final class LocalSessionConstructionOwnershipTest {
         if(shutdown.activeSessionCount()!=1)
             throw new AssertionError(
                 "repeated failed close changed retained ownership"
+            );
+    }
+
+    private static void
+        assertTerminalFailOnceCloseFailureRemainsPublished()
+        throws Exception{
+        World world=
+            World.isolatedForTest(
+                25L
+            );
+        world.start();
+
+        TrackingExecutor pool=
+            new TrackingExecutor();
+        ServerSocket game=
+            new ServerSocket();
+        ServerSocket aux=
+            new ServerSocket();
+        FailOnceCloseSocket socket=
+            new FailOnceCloseSocket();
+
+        LocalServerShutdownCoordinator shutdown=
+            new LocalServerShutdownCoordinator(
+                world,
+                pool,
+                game,
+                aux
+            );
+
+        shutdown.acceptGameSocket(
+            ()->socket
+        );
+
+        Throwable observed=null;
+
+        try{
+            shutdown.close();
+        }catch(Throwable failure){
+            observed=failure;
+        }
+
+        if(!(observed instanceof
+                IllegalStateException)||
+           observed.getCause()!=
+                socket.failure)
+            throw new AssertionError(
+                "first terminal socket close failure was erased by successful retry",
+                observed
+            );
+
+        if(socket.closeCalls.get()<2||
+           !socket.isClosed())
+            throw new AssertionError(
+                "terminal fail-once socket did not recover on retry"
+            );
+
+        if(shutdown.activeSessionCount()!=0)
+            throw new AssertionError(
+                "successful terminal retry did not retire socket ownership"
+            );
+
+        if(!world.closed())
+            throw new AssertionError(
+                "terminal fail-once close failure skipped World teardown"
+            );
+
+        Throwable repeated=null;
+
+        try{
+            shutdown.close();
+        }catch(Throwable failure){
+            repeated=failure;
+        }
+
+        if(repeated!=observed)
+            throw new AssertionError(
+                "repeated close did not preserve first terminal socket failure",
+                repeated
             );
     }
 
