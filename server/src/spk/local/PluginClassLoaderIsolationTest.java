@@ -68,6 +68,10 @@ public final class PluginClassLoaderIsolationTest {
             jarA,
             jarB
         );
+        assertJarIndexRejected(
+            jarA,
+            jarB
+        );
         assertPostLoaderFailureRetiresSnapshot(
             jarA
         );
@@ -467,6 +471,7 @@ public final class PluginClassLoaderIsolationTest {
             "reservedNamespaceRejected=true "+
             "javaPluginArchiveIdentityPinned=true "+
             "javaPluginManifestClasspathFenced=true "+
+            "javaPluginJarIndexFenced=true "+
             "javaPluginSnapshotFailureRetired=true "+
             "constructorTccl=true "+
             "manifestTccl=true "+
@@ -740,6 +745,162 @@ public final class PluginClassLoaderIsolationTest {
             label+
                 " manifest Class-Path rejection"
         );
+    }
+
+    private static void assertJarIndexRejected(
+        Path jarA,
+        Path jarB
+    )throws Exception{
+        Path directory=
+            Files.createTempDirectory(
+                "plugin-jar-index-"
+            );
+        Path poisoned=
+            directory.resolve(
+                "plugin.jar"
+            );
+        Path sibling=
+            directory.resolve(
+                "b.jar"
+            );
+
+        try{
+            Files.copy(
+                jarB,
+                sibling,
+                StandardCopyOption.REPLACE_EXISTING
+            );
+            writeJarWithIndex(
+                jarA,
+                poisoned,
+                sibling.getFileName()
+                    .toString()
+            );
+
+            final Path[] snapshot=
+                new Path[1];
+            boolean rejected=false;
+
+            try{
+                PluginJarLoader.load(
+                    poisoned,
+                    ENTRYPOINT,
+                    Plugin.class.getClassLoader(),
+                    (source,admitted)->{},
+                    (source,admitted)->
+                        snapshot[0]=admitted
+                );
+            }catch(IllegalArgumentException expected){
+                rejected=
+                    expected.getMessage()!=null&&
+                    expected.getMessage()
+                        .contains(
+                            "JAR index is forbidden"
+                        );
+            }
+
+            if(!rejected)
+                throw new AssertionError(
+                    "Java plugin JAR Index was accepted"
+                );
+
+            assertSnapshotRetired(
+                snapshot[0],
+                "JAR Index rejection"
+            );
+        }finally{
+            Files.deleteIfExists(
+                poisoned
+            );
+            Files.deleteIfExists(
+                sibling
+            );
+            Files.deleteIfExists(
+                directory
+            );
+        }
+    }
+
+    private static void writeJarWithIndex(
+        Path source,
+        Path target,
+        String siblingName
+    )throws Exception{
+        try(JarFile input=
+                new JarFile(
+                    source.toFile()
+                );
+            JarOutputStream output=
+                new JarOutputStream(
+                    Files.newOutputStream(
+                        target
+                    )
+                )){
+            java.util.Enumeration<JarEntry>
+                entries=
+                    input.entries();
+            byte[] buffer=
+                new byte[8192];
+
+            while(entries.hasMoreElements()){
+                JarEntry entry=
+                    entries.nextElement();
+
+                if("META-INF/INDEX.LIST"
+                        .equals(
+                            entry.getName()
+                        ))
+                    continue;
+
+                JarEntry copy=
+                    new JarEntry(
+                        entry.getName()
+                    );
+
+                copy.setTime(
+                    entry.getTime()
+                );
+                output.putNextEntry(
+                    copy
+                );
+
+                if(!entry.isDirectory())
+                    try(java.io.InputStream in=
+                            input.getInputStream(
+                                entry
+                            )){
+                        int read;
+
+                        while((read=
+                                in.read(
+                                    buffer
+                                ))!=-1)
+                            output.write(
+                                buffer,
+                                0,
+                                read
+                            );
+                    }
+
+                output.closeEntry();
+            }
+
+            output.putNextEntry(
+                new JarEntry(
+                    "META-INF/INDEX.LIST"
+                )
+            );
+            String index=
+                "JarIndex-Version: 1.0\n\n"+
+                siblingName+
+                "\nfixture/privatepkg/\n\n";
+            output.write(
+                index.getBytes(
+                    java.nio.charset.StandardCharsets.UTF_8
+                )
+            );
+            output.closeEntry();
+        }
     }
 
     private static void assertPostLoaderFailureRetiresSnapshot(
