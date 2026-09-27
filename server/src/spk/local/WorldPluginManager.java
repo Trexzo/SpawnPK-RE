@@ -110,13 +110,13 @@ final class WorldPluginManager
         enableAll(
             Collection<? extends Plugin> plugins
         )throws Exception{
+        Objects.requireNonNull(
+            plugins,
+            "plugins"
+        );
+
         ArrayList<Plugin> requested=
-            new ArrayList<>(
-                Objects.requireNonNull(
-                    plugins,
-                    "plugins"
-                )
-            );
+            new ArrayList<>();
         ArrayList<Entry> added=
             new ArrayList<>();
         RuntimeAdmissionGate admission=
@@ -125,17 +125,22 @@ final class WorldPluginManager
             runtimeCloses=
                 new IdentityHashMap<>();
 
-        for(Plugin plugin:requested)
-            if(!runtimeCloses.containsKey(
-                    plugin))
-                runtimeCloses.put(
-                    plugin,
-                    new RuntimeCloseOwnership(
-                        plugin
-                    )
+        try{
+            for(Plugin plugin:plugins){
+                requested.add(
+                    plugin
                 );
 
-        try{
+                if(!runtimeCloses.containsKey(
+                        plugin))
+                    runtimeCloses.put(
+                        plugin,
+                        new RuntimeCloseOwnership(
+                            plugin
+                        )
+                    );
+            }
+
             requireOpen();
 
             List<Candidate> ordered=
