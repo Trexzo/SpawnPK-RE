@@ -442,7 +442,7 @@ public final class KotlinPluginLoaderTest {
 
             PluginRuntime failingRuntime=
                 loader.load(
-                    PluginSource.script(
+                    snapshotSource(
                         failingScript
                     )
                 );
@@ -482,7 +482,7 @@ public final class KotlinPluginLoaderTest {
 
             try{
                 loader.load(
-                    PluginSource.script(
+                    snapshotSource(
                         denied
                     )
                 );
@@ -541,6 +541,20 @@ public final class KotlinPluginLoaderTest {
             "enableFailureClosesRuntime=true "+
             "worldCloseIdempotent=true "+
             "terminalRuntime=true"
+        );
+    }
+
+    private static PluginSource snapshotSource(
+        Path path
+    )throws Exception{
+        return PluginSource.scriptSnapshot(
+            path,
+            new String(
+                Files.readAllBytes(
+                    path
+                ),
+                java.nio.charset.StandardCharsets.UTF_8
+            )
         );
     }
 
