@@ -4177,6 +4177,20 @@ tasks.register('localAuxHttpResponseRegression', JavaExec) {
 }
 
 
+tasks.register('localAuxResponseLivenessRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves AUX response writes are guarded by one bounded no-progress watchdog without changing exact archive streaming semantics.'
+    dependsOn(
+        tasks.named('testClasses'),
+        tasks.named('localAuxHttpResponseRegression')
+    )
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.LocalAuxResponseLivenessTest'
+}
+
+
 tasks.register('localAuxiliaryWorkerFailureRegression', JavaExec) {
     group = 'verification'
     description = 'Proves an uncaught auxiliary worker failure becomes authoritative serving failure instead of silently killing the AUX accept task.'
@@ -4274,6 +4288,7 @@ tasks.register('chat1CurrentCumulativeCertification') {
         tasks.named('localSessionConstructionOwnershipRegression'),
         tasks.named('worldAdmissionPulseStartAtomicRegression'),
         tasks.named('localAuxHttpResponseRegression'),
+        tasks.named('localAuxResponseLivenessRegression'),
         tasks.named('localAuxiliaryWorkerFailureRegression'),
         tasks.named('localAuxVersionsRegression'),
         tasks.named('localAuxHttpWorkerFailurePreservationRegression'),
@@ -4300,6 +4315,7 @@ tasks.register('chat1CurrentCumulativeCertification') {
             'localSessionConstructionOwnership=true ' +
             'worldAdmissionPulseStartAtomic=true ' +
             'localAuxHttpStreaming=true ' +
+            'localAuxResponseLiveness=true ' +
             'auxWorkerFailurePropagation=true ' +
             'localAuxVersionsBounded=true ' +
             'auxHandlerFailurePreserved=true ' +
