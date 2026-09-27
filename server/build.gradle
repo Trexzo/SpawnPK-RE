@@ -4199,6 +4199,17 @@ tasks.register('localAuxVersionsRegression', JavaExec) {
 }
 
 
+tasks.register('localAuxHttpWorkerFailurePreservationRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves AUX handler RuntimeException/Error remains primary when socket retirement also fails, while handler IOException stays connection-scoped.'
+    dependsOn tasks.named('testClasses')
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.LocalAuxHttpWorkerFailurePreservationTest'
+}
+
+
 tasks.register('localAuxArchivePathRegression', JavaExec) {
     group = 'verification'
     description = 'Proves optional LocalLab archive path resolution fails closed when caller home state is unavailable without swallowing unrelated failures.'
