@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
+import java.net.SocketException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -15,6 +16,7 @@ public final class LocalServerStartupFailureCleanupTest {
         assertListenerConstructionFailureCleanup();
         assertPreCoordinatorSocketCloseFailureSuppressed();
         assertBindFailureCleanup();
+        assertGameAcceptPollConfigurationFailureCleanup();
         assertPostBindSetupFailureCleanup();
         assertHookConstructionFailureCleanup();
         assertHookRegistrationFailureCleanup();
@@ -29,6 +31,8 @@ public final class LocalServerStartupFailureCleanupTest {
             "preCoordinatorCloseFailureSuppressed=true "+
             "gameBoundBeforeAuxFailure=true "+
             "bindFailurePrimary=true "+
+            "gameAcceptPollConfigured=true "+
+            "gameAcceptPollConfigurationFailure=true "+
             "gameClosed=true "+
             "auxClosed=true "+
             "poolTerminated=true "+
@@ -321,6 +325,88 @@ public final class LocalServerStartupFailureCleanupTest {
     }
 
     private static void
+        assertGameAcceptPollConfigurationFailureCleanup()
+        throws Exception{
+        InetAddress loopback=
+            InetAddress.getByName(
+                "127.0.0.1"
+            );
+
+        World world=
+            World.isolatedForTest(
+                25L
+            );
+        world.start();
+
+        ExecutorService pool=
+            Executors.newCachedThreadPool();
+        SocketException expectedFailure=
+            new SocketException(
+                "fixture-game-accept-poll-configuration-failure"
+            );
+        PollConfigurationFailServerSocket game=
+            new PollConfigurationFailServerSocket(
+                expectedFailure
+            );
+        ServerSocket aux=
+            new ServerSocket();
+
+        LocalServerShutdownCoordinator shutdown=
+            new LocalServerShutdownCoordinator(
+                world,
+                pool,
+                game,
+                aux
+            );
+
+        try{
+            Throwable observed=null;
+
+            try{
+                LocalServerStartupBinder.bind(
+                    shutdown,
+                    game,
+                    new InetSocketAddress(
+                        loopback,
+                        0
+                    ),
+                    aux,
+                    new InetSocketAddress(
+                        loopback,
+                        0
+                    )
+                );
+            }catch(Throwable failure){
+                observed=failure;
+            }
+
+            if(observed!=expectedFailure)
+                throw new AssertionError(
+                    "game accept poll configuration failure did not remain primary",
+                    observed
+                );
+
+            if(!game.boundWhenConfigured)
+                throw new AssertionError(
+                    "game accept poll was configured before successful listener bind"
+                );
+
+            assertTerminal(
+                world,
+                pool,
+                game,
+                aux,
+                "game accept poll configuration failure"
+            );
+
+            shutdown.close();
+        }finally{
+            if(!world.closed())
+                shutdown.close();
+        }
+    }
+
+    private static void
         assertPostBindSetupFailureCleanup()
         throws Exception{
         InetAddress loopback=
@@ -363,6 +449,13 @@ public final class LocalServerStartupFailureCleanupTest {
                     0
                 )
             );
+
+            if(game.getSoTimeout()!=
+                    LocalServerShutdownCoordinator
+                        .GAME_ACCEPT_POLL_TIMEOUT_MILLIS)
+                throw new AssertionError(
+                    "game listener bounded accept poll was not configured"
+                );
 
             ExceptionInInitializerError expectedFailure=
                 new ExceptionInInitializerError(
@@ -613,6 +706,26 @@ public final class LocalServerStartupFailureCleanupTest {
                 phase+
                 " left World live"
             );
+    }
+
+    private static final class PollConfigurationFailServerSocket
+        extends ServerSocket {
+
+        private final SocketException failure;
+        private boolean boundWhenConfigured;
+
+        PollConfigurationFailServerSocket(
+            SocketException failure
+        )throws IOException{
+            this.failure=failure;
+        }
+
+        @Override public void setSoTimeout(
+            int timeout
+        )throws SocketException{
+            boundWhenConfigured=isBound();
+            throw failure;
+        }
     }
 
     private static final class FailingCloseServerSocket
