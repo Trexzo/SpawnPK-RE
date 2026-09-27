@@ -4,6 +4,8 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.net.SocketTimeoutException;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public final class LocalAuxHttpRequestReaderTest {
@@ -12,10 +14,13 @@ public final class LocalAuxHttpRequestReaderTest {
         assertOrdinaryRequest();
         assertExactLineLimitAccepted();
         assertOverlongPhysicalLineRejected();
+        assertCrPaddingCannotBypassPhysicalLineLimit();
         assertHeaderLineLimit();
         assertTotalBudget();
         assertAbsoluteDeadlineDoesNotReset();
         assertFailureIsConnectionScoped();
+        assertWorkerContinuesAfterMalformedConnection();
+        assertUncheckedWorkerFailureStillEscapes();
 
         System.out.println(
             "LOCAL_AUX_HTTP_REQUEST_READER_PASS "+
@@ -23,11 +28,16 @@ public final class LocalAuxHttpRequestReaderTest {
             "lineLimit=8192 "+
             "exactLineLimitAccepted=true "+
             "overlongRejected=true "+
+            "crPaddingRejected=true "+
             "headerLinesBounded=64 "+
             "totalBytesBounded=65536 "+
             "absoluteDeadline=true "+
             "deadlineDoesNotReset=true "+
-            "connectionScoped=true"
+            "connectionScoped=true "+
+            "sameWorkerContinues=true "+
+            "failedSocketRetired=true "+
+            "nextSocketHandled=true "+
+            "uncheckedStillEscapes=true"
         );
     }
 
@@ -162,6 +172,53 @@ public final class LocalAuxHttpRequestReaderTest {
                 1)
             throw new AssertionError(
                 "overlong line consumed unexpected byte count: "+
+                reader.totalBytes()
+            );
+    }
+
+    private static void assertCrPaddingCannotBypassPhysicalLineLimit()
+        throws Exception{
+        byte[] line=
+            (
+                repeat(
+                    '\r',
+                    LocalAuxHttpRequestReader
+                        .MAX_LINE_BYTES
+                )+
+                "A\n"
+            ).getBytes(
+                StandardCharsets
+                    .ISO_8859_1
+            );
+
+        LocalAuxHttpRequestReader reader=
+            reader(
+                line
+            );
+        boolean rejected=false;
+
+        try{
+            reader.readRequestLine();
+        }catch(IOException expected){
+            rejected=
+                expected.getMessage()!=null&&
+                expected.getMessage()
+                    .contains(
+                        "physical line exceeds"
+                    );
+        }
+
+        if(!rejected)
+            throw new AssertionError(
+                "CR padding bypassed physical request-line ceiling"
+            );
+
+        if(reader.totalBytes()!=
+                LocalAuxHttpRequestReader
+                    .MAX_LINE_BYTES+
+                1)
+            throw new AssertionError(
+                "CR-padded overlong line consumed unexpected bytes: "+
                 reader.totalBytes()
             );
     }
@@ -371,6 +428,158 @@ public final class LocalAuxHttpRequestReaderTest {
             );
     }
 
+    private static void assertWorkerContinuesAfterMalformedConnection()
+        throws Exception{
+        FakeSocket malformed=
+            new FakeSocket(
+                (
+                    repeat(
+                        '\r',
+                        LocalAuxHttpRequestReader
+                            .MAX_LINE_BYTES
+                    )+
+                    "A\n"
+                ).getBytes(
+                    StandardCharsets
+                        .ISO_8859_1
+                )
+            );
+        FakeSocket valid=
+            new FakeSocket(
+                (
+                    "GET /Production/tradingpost HTTP/1.1\r\n"+
+                    "Host: 127.0.0.1\r\n"+
+                    "\r\n"
+                ).getBytes(
+                    StandardCharsets
+                        .ISO_8859_1
+                )
+            );
+        List<Socket> accepted=
+            new ArrayList<>();
+        accepted.add(
+            malformed
+        );
+        accepted.add(
+            valid
+        );
+        AtomicInteger index=
+            new AtomicInteger();
+        AtomicInteger failures=
+            new AtomicInteger();
+        AtomicInteger releases=
+            new AtomicInteger();
+
+        LocalAuxHttpWorker.run(
+            ()->false,
+            ()->{
+                int current=
+                    index.getAndIncrement();
+
+                return current<
+                        accepted.size()
+                    ?accepted.get(
+                        current
+                    )
+                    :null;
+            },
+            Main::handleAuxConnection,
+            socket->{
+                releases.incrementAndGet();
+                socket.close();
+            },
+            failure->
+                failures.incrementAndGet(),
+            failure->{
+                throw new AssertionError(
+                    "worker retirement retry unexpectedly failed",
+                    failure
+                );
+            }
+        );
+
+        if(failures.get()!=1)
+            throw new AssertionError(
+                "malformed connection did not remain one connection-scoped failure count="+
+                failures.get()
+            );
+
+        if(releases.get()!=2||
+           !malformed.isClosed()||
+           !valid.isClosed())
+            throw new AssertionError(
+                "worker did not retire both accepted sockets releases="+
+                releases.get()
+            );
+
+        String response=
+            new String(
+                valid.output(),
+                StandardCharsets
+                    .ISO_8859_1
+            );
+
+        if(!response.contains(
+                "HTTP/1.1 200 OK\r\n")||
+           !response.endsWith(
+                "{}\n"))
+            throw new AssertionError(
+                "same AUX worker did not handle valid connection after malformed peer: "+
+                response
+            );
+    }
+
+    private static void assertUncheckedWorkerFailureStillEscapes()
+        throws Exception{
+        FakeSocket socket=
+            new FakeSocket(
+                new byte[0]
+            );
+        RuntimeException expected=
+            new IllegalStateException(
+                "fixture-worker-unchecked"
+            );
+        AtomicInteger releases=
+            new AtomicInteger();
+        Throwable observed=null;
+
+        try{
+            LocalAuxHttpWorker.run(
+                ()->false,
+                new LocalAuxHttpWorker.Acceptor(){
+                    private boolean first=true;
+
+                    @Override public Socket accept(){
+                        if(!first)
+                            return null;
+
+                        first=false;
+                        return socket;
+                    }
+                },
+                ignored->{
+                    throw expected;
+                },
+                owned->{
+                    releases.incrementAndGet();
+                    owned.close();
+                },
+                failure->{},
+                failure->{}
+            );
+        }catch(Throwable failure){
+            observed=failure;
+        }
+
+        if(observed!=expected||
+           releases.get()!=1||
+           !socket.isClosed())
+            throw new AssertionError(
+                "unchecked AUX worker failure was swallowed/wrapped or socket not retired",
+                observed
+            );
+    }
+
     private static LocalAuxHttpRequestReader reader(
         byte[] bytes
     )throws Exception{
@@ -398,6 +607,54 @@ public final class LocalAuxHttpRequestReaderTest {
         return new String(
             chars
         );
+    }
+
+    private static final class FakeSocket
+        extends Socket {
+        private final ByteArrayInputStream input;
+        private final java.io.ByteArrayOutputStream output=
+            new java.io.ByteArrayOutputStream();
+        private boolean closed;
+        private int timeoutMillis;
+
+        FakeSocket(
+            byte[] input
+        ){
+            this.input=
+                new ByteArrayInputStream(
+                    input
+                );
+        }
+
+        @Override public InputStream getInputStream(){
+            return input;
+        }
+
+        @Override public OutputStream getOutputStream(){
+            return output;
+        }
+
+        @Override public void setSoTimeout(
+            int timeout
+        ){
+            timeoutMillis=timeout;
+        }
+
+        @Override public int getSoTimeout(){
+            return timeoutMillis;
+        }
+
+        @Override public synchronized void close(){
+            closed=true;
+        }
+
+        @Override public synchronized boolean isClosed(){
+            return closed;
+        }
+
+        byte[] output(){
+            return output.toByteArray();
+        }
     }
 
     private static final class
