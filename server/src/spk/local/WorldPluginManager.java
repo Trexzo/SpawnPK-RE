@@ -148,9 +148,11 @@ final class WorldPluginManager
                         "BATCH_ROLLBACK"
                     );
                 }catch(Throwable cleanup){
-                    failure.addSuppressed(
-                        cleanup
-                    );
+                    PluginRuntimeSupport
+                        .suppressIfDistinct(
+                            failure,
+                            cleanup
+                        );
                 }
 
             for(Plugin plugin:requested)
@@ -495,7 +497,11 @@ final class WorldPluginManager
                         plugin::disable
                     );
                 }catch(Throwable cleanup){
-                    failure.addSuppressed(cleanup);
+                    PluginRuntimeSupport
+                        .suppressIfDistinct(
+                            failure,
+                            cleanup
+                        );
                 }
 
             tracker.close(
@@ -507,7 +513,11 @@ final class WorldPluginManager
                     moduleId
                 );
             }catch(Throwable cleanup){
-                failure.addSuppressed(cleanup);
+                PluginRuntimeSupport
+                    .suppressIfDistinct(
+                        failure,
+                        cleanup
+                    );
             }
 
             PluginRuntimeSupport.closePluginRuntime(
