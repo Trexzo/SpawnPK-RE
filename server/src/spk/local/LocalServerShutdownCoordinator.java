@@ -930,6 +930,11 @@ final class LocalServerShutdownCoordinator
                     )
                 );
 
+        final Throwable terminalGameListenerFailure=
+            gameListenerFailure;
+        final Throwable terminalAuxListenerFailure=
+            auxListenerFailure;
+
         // If the game listener is physically closed after the bounded retry,
         // its blocked accept is expected to retire and success semantics still
         // wait for it. If it remains failed-open, waiting here could deadlock
@@ -994,11 +999,11 @@ final class LocalServerShutdownCoordinator
                 WorldCloseSequence.run(
                     ()->throwIfCloseFailed(
                         "game listener close failed",
-                        gameListenerFailure
+                        terminalGameListenerFailure
                     ),
                     ()->throwIfCloseFailed(
                         "aux listener close failed",
-                        auxListenerFailure
+                        terminalAuxListenerFailure
                     ),
                     ()->throwIfCloseFailed(
                         "terminal accept handoff close failed",
