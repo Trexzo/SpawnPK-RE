@@ -8,8 +8,11 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
+import java.util.jar.Attributes;
 import java.util.jar.JarEntry;
+import java.util.jar.JarFile;
 import java.util.jar.JarOutputStream;
+import java.util.jar.Manifest;
 import spk.content.api.ContentResult;
 import spk.event.DomainEventBus;
 import spk.plugin.api.Plugin;
@@ -60,6 +63,13 @@ public final class PluginClassLoaderIsolationTest {
         assertArchiveSnapshotPinned(
             jarA,
             jarB
+        );
+        assertManifestClasspathRejected(
+            jarA,
+            jarB
+        );
+        assertPostLoaderFailureRetiresSnapshot(
+            jarA
         );
 
         PluginJarLoader.LoadedPlugin loadedA=
@@ -456,6 +466,8 @@ public final class PluginClassLoaderIsolationTest {
             "serverInternalDenied=true "+
             "reservedNamespaceRejected=true "+
             "javaPluginArchiveIdentityPinned=true "+
+            "javaPluginManifestClasspathFenced=true "+
+            "javaPluginSnapshotFailureRetired=true "+
             "constructorTccl=true "+
             "manifestTccl=true "+
             "enableTccl=true "+
@@ -625,6 +637,217 @@ public final class PluginClassLoaderIsolationTest {
             );
     }
 
+    private static void assertManifestClasspathRejected(
+        Path jarA,
+        Path jarB
+    )throws Exception{
+        Path directory=
+            Files.createTempDirectory(
+                "plugin-manifest-classpath-"
+            );
+        Path poisoned=
+            directory.resolve(
+                "plugin.jar"
+            );
+
+        try{
+            writeJarWithManifestClasspath(
+                jarA,
+                poisoned,
+                jarB.toUri().toString()
+            );
+
+            final Path[] snapshot=
+                new Path[1];
+            boolean rejected=false;
+
+            try{
+                PluginJarLoader.load(
+                    poisoned,
+                    ENTRYPOINT,
+                    Plugin.class.getClassLoader(),
+                    (source,admitted)->{},
+                    (source,admitted)->
+                        snapshot[0]=admitted
+                );
+            }catch(IllegalArgumentException expected){
+                rejected=
+                    expected.getMessage()!=null&&
+                    expected.getMessage()
+                        .contains(
+                            "manifest Class-Path is forbidden"
+                        );
+            }
+
+            if(!rejected)
+                throw new AssertionError(
+                    "Java plugin manifest Class-Path was accepted"
+                );
+
+            assertSnapshotRetired(
+                snapshot[0],
+                "manifest Class-Path rejection"
+            );
+        }finally{
+            Files.deleteIfExists(
+                poisoned
+            );
+            Files.deleteIfExists(
+                directory
+            );
+        }
+    }
+
+    private static void assertPostLoaderFailureRetiresSnapshot(
+        Path jarA
+    )throws Exception{
+        final Path[] snapshot=
+            new Path[1];
+        boolean rejected=false;
+
+        try{
+            PluginJarLoader.load(
+                jarA,
+                "fixture.privatepkg.Version",
+                Plugin.class.getClassLoader(),
+                (source,admitted)->{},
+                (source,admitted)->
+                    snapshot[0]=admitted
+            );
+        }catch(IllegalArgumentException expected){
+            rejected=
+                expected.getMessage()!=null&&
+                expected.getMessage()
+                    .contains(
+                        "does not implement Plugin"
+                    );
+        }
+
+        if(!rejected)
+            throw new AssertionError(
+                "post-loader invalid entrypoint was accepted"
+            );
+
+        assertSnapshotRetired(
+            snapshot[0],
+            "post-loader entrypoint rejection"
+        );
+    }
+
+    private static void assertSnapshotRetired(
+        Path snapshot,
+        String phase
+    ){
+        if(snapshot==null)
+            throw new AssertionError(
+                phase+
+                " did not expose private snapshot identity"
+            );
+
+        Path root=
+            snapshot.getParent();
+
+        if(Files.exists(
+                snapshot)||
+           (root!=null&&
+            Files.exists(
+                root)))
+            throw new AssertionError(
+                phase+
+                " retained private snapshot/root"
+            );
+    }
+
+    private static void writeJarWithManifestClasspath(
+        Path source,
+        Path target,
+        String classPath
+    )throws Exception{
+        try(JarFile input=
+                new JarFile(
+                    source.toFile()
+                )){
+            Manifest manifest=
+                input.getManifest()==null
+                    ?new Manifest()
+                    :new Manifest(
+                        input.getManifest()
+                    );
+
+            Attributes attributes=
+                manifest.getMainAttributes();
+
+            if(attributes.getValue(
+                    Attributes.Name.MANIFEST_VERSION)==null)
+                attributes.put(
+                    Attributes.Name.MANIFEST_VERSION,
+                    "1.0"
+                );
+
+            attributes.put(
+                Attributes.Name.CLASS_PATH,
+                classPath
+            );
+
+            try(JarOutputStream output=
+                    new JarOutputStream(
+                        Files.newOutputStream(
+                            target
+                        ),
+                        manifest
+                    )){
+                java.util.Enumeration<JarEntry>
+                    entries=
+                        input.entries();
+                byte[] buffer=
+                    new byte[8192];
+
+                while(entries.hasMoreElements()){
+                    JarEntry entry=
+                        entries.nextElement();
+
+                    if("META-INF/MANIFEST.MF"
+                            .equalsIgnoreCase(
+                                entry.getName()
+                            ))
+                        continue;
+
+                    JarEntry copy=
+                        new JarEntry(
+                            entry.getName()
+                        );
+
+                    copy.setTime(
+                        entry.getTime()
+                    );
+                    output.putNextEntry(
+                        copy
+                    );
+
+                    if(!entry.isDirectory())
+                        try(java.io.InputStream in=
+                                input.getInputStream(
+                                    entry
+                                )){
+                            int read;
+
+                            while((read=
+                                    in.read(
+                                        buffer
+                                    ))!=-1)
+                                output.write(
+                                    buffer,
+                                    0,
+                                    read
+                                );
+                        }
+
+                    output.closeEntry();
+                }
+            }
+        }
+    }
+
     private static void assertArchiveSnapshotPinned(
         Path jarA,
         Path jarB
@@ -766,12 +989,18 @@ public final class PluginClassLoaderIsolationTest {
                 out.closeEntry();
             }
 
+            final Path[] snapshot=
+                new Path[1];
             boolean rejected=false;
 
             try{
                 PluginJarLoader.load(
                     jar,
-                    "fixture.plugin.Missing"
+                    "fixture.plugin.Missing",
+                    Plugin.class.getClassLoader(),
+                    (source,admitted)->{},
+                    (source,admitted)->
+                        snapshot[0]=admitted
                 );
             }catch(IllegalArgumentException expected){
                 rejected=
@@ -787,6 +1016,11 @@ public final class PluginClassLoaderIsolationTest {
                     "reserved namespace accepted: "+
                     entry
                 );
+
+            assertSnapshotRetired(
+                snapshot[0],
+                "reserved namespace rejection"
+            );
         }finally{
             Files.deleteIfExists(
                 jar
