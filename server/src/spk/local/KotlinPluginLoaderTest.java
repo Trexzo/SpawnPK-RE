@@ -893,6 +893,14 @@ public final class KotlinPluginLoaderTest {
             root.resolve(
                 "multi-release-dependency.jar"
             );
+        Path resource=
+            root.resolve(
+                "multi-release-resource.jar"
+            );
+        Path unrelated=
+            root.resolve(
+                "multi-release-unrelated.jar"
+            );
         Path api=
             root.resolve(
                 "multi-release-api.jar"
@@ -934,6 +942,53 @@ public final class KotlinPluginLoaderTest {
                 );
 
             createMultiReleaseClassJar(
+                resource,
+                "META-INF/versions/9/spk/local/hidden.txt"
+            );
+
+            boolean resourceRejected=false;
+
+            try{
+                constructor.newInstance(
+                    apiJar,
+                    java.util.Collections
+                        .singletonList(
+                            resource
+                        )
+                );
+            }catch(InvocationTargetException expected){
+                Throwable cause=
+                    expected.getCause();
+
+                resourceRejected=
+                    cause instanceof
+                        IllegalArgumentException&&
+                    cause.getMessage()!=null&&
+                    cause.getMessage()
+                        .contains(
+                            "outside the DSL allowlist"
+                        );
+            }
+
+            if(!resourceRejected)
+                throw new AssertionError(
+                    "Kotlin dependency versioned SpawnPK resource was accepted"
+                );
+
+            createMultiReleaseClassJar(
+                unrelated,
+                "META-INF/versions/9/module-info.class"
+            );
+
+            constructor.newInstance(
+                apiJar,
+                java.util.Collections
+                    .singletonList(
+                        unrelated
+                    )
+            );
+
+            createMultiReleaseClassJar(
                 api,
                 "META-INF/versions/9/spk/local/HiddenApi.class"
             );
@@ -966,6 +1021,12 @@ public final class KotlinPluginLoaderTest {
         }finally{
             Files.deleteIfExists(
                 api
+            );
+            Files.deleteIfExists(
+                unrelated
+            );
+            Files.deleteIfExists(
+                resource
             );
             Files.deleteIfExists(
                 dependency
