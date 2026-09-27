@@ -37,6 +37,7 @@ final class LocalServerShutdownCoordinator
 
     private boolean closing;
     private int gameAcceptHandoffs;
+    private int sessionFactoryHandoffs;
 
     LocalServerShutdownCoordinator(
         World world,
@@ -155,6 +156,12 @@ final class LocalServerShutdownCoordinator
         }
     }
 
+    int pendingSessionFactoryHandoffs(){
+        synchronized(lifecycleLock){
+            return sessionFactoryHandoffs;
+        }
+    }
+
     boolean submitSession(
         Socket socket,
         Runnable session
@@ -210,6 +217,7 @@ final class LocalServerShutdownCoordinator
             activeGameSockets.add(
                 socket
             );
+            sessionFactoryHandoffs++;
         }
 
         final Runnable session;
@@ -224,6 +232,12 @@ final class LocalServerShutdownCoordinator
             retireOwnedSocket(
                 socket
             );
+
+            synchronized(lifecycleLock){
+                sessionFactoryHandoffs--;
+                lifecycleLock.notifyAll();
+            }
+
             rethrowFactoryFailure(
                 failure
             );
@@ -233,6 +247,9 @@ final class LocalServerShutdownCoordinator
         }
 
         synchronized(lifecycleLock){
+            sessionFactoryHandoffs--;
+            lifecycleLock.notifyAll();
+
             if(closing){
                 activeGameSockets.remove(
                     socket
@@ -355,7 +372,7 @@ final class LocalServerShutdownCoordinator
             return;
         }
 
-        awaitGameAcceptHandoffs();
+        awaitPreTerminalHandoffs();
 
         Throwable failure=null;
 
@@ -376,11 +393,12 @@ final class LocalServerShutdownCoordinator
         );
     }
 
-    private void awaitGameAcceptHandoffs(){
+    private void awaitPreTerminalHandoffs(){
         boolean interrupted=false;
 
         synchronized(lifecycleLock){
-            while(gameAcceptHandoffs!=0)
+            while(gameAcceptHandoffs!=0||
+                  sessionFactoryHandoffs!=0)
                 try{
                     lifecycleLock.wait();
                 }catch(InterruptedException error){
