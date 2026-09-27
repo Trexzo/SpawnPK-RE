@@ -14,7 +14,7 @@ final class LocalAuxVersions {
     static byte[] read(
         Path path,
         byte[] fallback
-    )throws IOException{
+    ){
         Objects.requireNonNull(
             path,
             "path"
@@ -24,24 +24,29 @@ final class LocalAuxVersions {
             "fallback"
         );
 
-        if(!Files.isRegularFile(path))
-            return fallback.clone();
+        try{
+            if(!Files.isRegularFile(path))
+                return fallback.clone();
 
-        try(InputStream in=
-                Files.newInputStream(
-                    path
-                )){
-            return read(
-                in,
-                fallback
-            );
+            try(InputStream in=
+                    Files.newInputStream(
+                        path
+                    )){
+                return read(
+                    in,
+                    fallback
+                );
+            }
+        }catch(IOException|
+               SecurityException ignored){
+            return fallback.clone();
         }
     }
 
     static byte[] read(
         InputStream in,
         byte[] fallback
-    )throws IOException{
+    ){
         Objects.requireNonNull(
             in,
             "in"
@@ -51,34 +56,24 @@ final class LocalAuxVersions {
             "fallback"
         );
 
-        byte[] data=
-            new byte[
-                MAX_ACCEPTED_LENGTH
-            ];
-        int total=0;
+        try{
+            byte[] data=
+                new byte[
+                    MAX_ACCEPTED_LENGTH
+                ];
+            int total=0;
 
-        while(total<
-                MAX_ACCEPTED_LENGTH){
-            int count=
-                in.read(
-                    data,
-                    total,
-                    MAX_ACCEPTED_LENGTH-
-                        total
-                );
-
-            if(count<0)
-                return total==0
-                    ?fallback.clone()
-                    :Arrays.copyOf(
+            while(total<
+                    MAX_ACCEPTED_LENGTH){
+                int count=
+                    in.read(
                         data,
-                        total
+                        total,
+                        MAX_ACCEPTED_LENGTH-
+                            total
                     );
 
-            if(count==0){
-                int value=in.read();
-
-                if(value<0)
+                if(count<0)
                     return total==0
                         ?fallback.clone()
                         :Arrays.copyOf(
@@ -86,18 +81,33 @@ final class LocalAuxVersions {
                             total
                         );
 
-                data[total++]=
-                    (byte)value;
-                continue;
+                if(count==0){
+                    int value=in.read();
+
+                    if(value<0)
+                        return total==0
+                            ?fallback.clone()
+                            :Arrays.copyOf(
+                                data,
+                                total
+                            );
+
+                    data[total++]=
+                        (byte)value;
+                    continue;
+                }
+
+                total+=count;
             }
 
-            total+=count;
+            // The established policy accepts only lengths strictly smaller than
+            // 16,384 bytes. Reaching the ceiling is sufficient to reject without
+            // reading any further caller-owned bytes.
+            return fallback.clone();
+        }catch(IOException|
+               SecurityException ignored){
+            return fallback.clone();
         }
-
-        // The established policy accepts only lengths strictly smaller than
-        // 16,384 bytes. Reaching the ceiling is sufficient to reject without
-        // reading any further caller-owned bytes.
-        return fallback.clone();
     }
 
     private LocalAuxVersions(){}
