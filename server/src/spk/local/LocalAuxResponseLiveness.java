@@ -170,7 +170,7 @@ final class LocalAuxResponseLiveness {
                     LocalAuxHttpWorker
                         .preserveFailureOrder(
                             result,
-                            new IOException(
+                            new IllegalStateException(
                                 "auxiliary response watchdog did not terminate"
                             )
                         );
