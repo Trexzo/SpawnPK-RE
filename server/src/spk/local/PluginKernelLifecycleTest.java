@@ -858,6 +858,28 @@ public final class PluginKernelLifecycleTest {
             throw new AssertionError(
                 "helper self-suppression changed suppressed list"
             );
+
+        Error errorPrimary=
+            new AssertionError(
+                "helper-error-primary"
+            );
+        RuntimeException runtimeCleanup=
+            new IllegalStateException(
+                "helper-runtime-cleanup"
+            );
+
+        PluginRuntimeSupport
+            .suppressIfDistinct(
+                errorPrimary,
+                runtimeCleanup
+            );
+
+        if(errorPrimary.getSuppressed().length!=1||
+           errorPrimary.getSuppressed()[0]!=
+                runtimeCleanup)
+            throw new AssertionError(
+                "Error-primary suppression ordering changed"
+            );
     }
 
     private static Throwable captureFailure(
