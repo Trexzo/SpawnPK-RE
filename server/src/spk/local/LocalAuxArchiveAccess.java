@@ -2,8 +2,10 @@ package spk.local;
 
 import java.io.IOException;
 import java.io.OutputStream;
+import java.nio.channels.SeekableByteChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.util.Objects;
 
 final class LocalAuxArchiveAccess {
@@ -13,11 +15,9 @@ final class LocalAuxArchiveAccess {
         );
     }
 
-    interface ArchiveWriter {
-        long write(
-            OutputStream out,
-            Path file,
-            boolean head
+    interface ChannelOpener {
+        SeekableByteChannel open(
+            Path file
         )throws IOException;
     }
 
@@ -31,14 +31,10 @@ final class LocalAuxArchiveAccess {
             file,
             head,
             Files::isRegularFile,
-            (targetOut,targetFile,targetHead)->
-                LocalAuxHttpResponse.writeFile(
-                    targetOut,
-                    200,
-                    "OK",
-                    "application/zip",
-                    targetFile,
-                    targetHead
+            target->
+                Files.newByteChannel(
+                    target,
+                    StandardOpenOption.READ
                 )
         );
     }
@@ -48,7 +44,7 @@ final class LocalAuxArchiveAccess {
         Path file,
         boolean head,
         RegularFileProbe probe,
-        ArchiveWriter writer
+        ChannelOpener opener
     )throws IOException{
         Objects.requireNonNull(
             out,
@@ -63,24 +59,38 @@ final class LocalAuxArchiveAccess {
             "probe"
         );
         Objects.requireNonNull(
-            writer,
-            "writer"
+            opener,
+            "opener"
         );
+
+        final SeekableByteChannel channel;
 
         try{
             if(!probe.isRegularFile(
                     file))
                 return null;
 
-            return Long.valueOf(
-                writer.write(
-                    out,
-                    file,
-                    head
-                )
-            );
+            channel=
+                opener.open(
+                    file
+                );
         }catch(SecurityException expected){
             return null;
+        }
+
+        try(SeekableByteChannel owned=
+                channel){
+            return Long.valueOf(
+                LocalAuxHttpResponse
+                    .writeOpenedFile(
+                        out,
+                        200,
+                        "OK",
+                        "application/zip",
+                        owned,
+                        head
+                    )
+            );
         }
     }
 
