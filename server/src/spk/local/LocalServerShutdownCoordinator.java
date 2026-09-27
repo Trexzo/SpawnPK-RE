@@ -144,13 +144,7 @@ final class LocalServerShutdownCoordinator
             "socket"
         );
 
-        synchronized(lifecycleLock){
-            activeGameSockets.remove(
-                socket
-            );
-        }
-
-        closeQuietly(
+        retireOwnedSocket(
             socket
         );
     }
@@ -227,13 +221,9 @@ final class LocalServerShutdownCoordinator
                     "session"
                 );
         }catch(Throwable failure){
-            synchronized(lifecycleLock){
-                activeGameSockets.remove(
-                    socket
-                );
-            }
-
-            closeQuietly(socket);
+            retireOwnedSocket(
+                socket
+            );
             rethrowFactoryFailure(
                 failure
             );
@@ -278,6 +268,23 @@ final class LocalServerShutdownCoordinator
             }
 
             return true;
+        }
+    }
+
+    private void retireOwnedSocket(
+        Socket socket
+    ){
+        // Keep ownership published until close has completed. A concurrent
+        // terminal owner may close the same socket redundantly, but it can
+        // never observe the socket as retired while it is still open.
+        closeQuietly(
+            socket
+        );
+
+        synchronized(lifecycleLock){
+            activeGameSockets.remove(
+                socket
+            );
         }
     }
 
