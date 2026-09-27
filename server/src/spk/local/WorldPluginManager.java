@@ -77,14 +77,14 @@ final class WorldPluginManager
     @Override public synchronized PluginHandle enable(
         Plugin plugin
     )throws Exception{
-        requireOpen();
-
         RuntimeCloseOwnership runtimeClose=
             new RuntimeCloseOwnership(
                 plugin
             );
 
         try{
+            requireOpen();
+
             return enableOne(
                 snapshotCandidate(
                     plugin,
@@ -110,8 +110,6 @@ final class WorldPluginManager
         enableAll(
             Collection<? extends Plugin> plugins
         )throws Exception{
-        requireOpen();
-
         ArrayList<Plugin> requested=
             new ArrayList<>(
                 Objects.requireNonNull(
@@ -138,6 +136,8 @@ final class WorldPluginManager
                 );
 
         try{
+            requireOpen();
+
             List<Candidate> ordered=
                 dependencyOrder(
                     snapshotCandidates(
@@ -1186,8 +1186,12 @@ final class WorldPluginManager
 
         for(Entry entry:
                 enabled.values())
-            if(entry.enabled&&
-               entry.plugin==plugin)
+            if(entry.plugin==plugin)
+                return true;
+
+        for(Entry entry:
+                terminalizing.values())
+            if(entry.plugin==plugin)
                 return true;
 
         return false;
