@@ -81,7 +81,7 @@ public final class LocalSessionConstructionOwnershipTest {
             "auxSocketRetry=true "+
             "auxSocketOwnershipZero=true "+
             "auxAcceptHandoff=true "+
-            "auxHandoffBeforePoolShutdown=true "+
+            "auxHandoffBoundedPool=true "+
             "auxPostFenceReject=true "+
             "successPath=true"
         );
@@ -2168,8 +2168,8 @@ public final class LocalSessionConstructionOwnershipTest {
             );
         world.start();
 
-        TrackingExecutor pool=
-            new TrackingExecutor();
+        NonTerminatingExecutor pool=
+            new NonTerminatingExecutor();
         ServerSocket game=
             new ServerSocket();
         ServerSocket aux=
@@ -2258,29 +2258,54 @@ public final class LocalSessionConstructionOwnershipTest {
             );
         closer.start();
 
-        long deadline=
-            System.nanoTime()+
-                TimeUnit.SECONDS.toNanos(
-                    5
-                );
+        closer.join(
+            5_000L
+        );
 
-        while(!aux.isClosed()&&
-              System.nanoTime()<deadline)
-            Thread.yield();
-
-        if(!aux.isClosed())
+        if(closer.isAlive()){
+            releaseAccept.countDown();
+            accepter.join(
+                5_000L
+            );
             throw new AssertionError(
-                "terminal close did not physically close aux listener"
+                "auxiliary handoff bypassed bounded pool shutdown"
+            );
+        }
+
+        Throwable first=
+            terminalFailure.get();
+
+        if(first==null)
+            throw new AssertionError(
+                "unresolved auxiliary handoff allowed clean terminal completion"
             );
 
-        if(!closer.isAlive())
+        if(!pool.shutdown||
+           !pool.shutdownNow)
             throw new AssertionError(
-                "terminal close returned before pre-fence auxiliary handoff retired"
+                "terminal close did not reach bounded pool shutdown policy"
             );
 
-        if(pool.shutdown)
+        if(!containsThrowableMessage(
+                first,
+                "session executor did not terminate after forced shutdown"))
             throw new AssertionError(
-                "pool shutdown began before pre-fence auxiliary handoff retired"
+                "pool nontermination was not terminal evidence",
+                first
+            );
+
+        if(!containsThrowableMessage(
+                first,
+                "auxiliary accept handoff unresolved count=1"))
+            throw new AssertionError(
+                "unresolved auxiliary handoff was not terminal evidence",
+                first
+            );
+
+        if(shutdown.pendingAuxiliaryAcceptHandoffs()!=1||
+           shutdown.activeAuxiliarySocketCount()!=0)
+            throw new AssertionError(
+                "terminal publication corrupted unresolved auxiliary handoff state"
             );
 
         releaseAccept.countDown();
@@ -2288,14 +2313,10 @@ public final class LocalSessionConstructionOwnershipTest {
         accepter.join(
             5_000L
         );
-        closer.join(
-            5_000L
-        );
 
-        if(accepter.isAlive()||
-           closer.isAlive())
+        if(accepter.isAlive())
             throw new AssertionError(
-                "auxiliary accept handoff terminal reconciliation did not finish"
+                "released auxiliary handoff did not retire"
             );
 
         if(acceptResult.get()!=null)
@@ -2310,16 +2331,25 @@ public final class LocalSessionConstructionOwnershipTest {
                 acceptFailure.get()
             );
 
-        Throwable observed=
-            terminalFailure.get();
-
-        if(!(observed instanceof
-                IllegalStateException)||
-           observed.getCause()!=
-                accepted.failure)
+        if(shutdown.pendingAuxiliaryAcceptHandoffs()!=0||
+           shutdown.activeAuxiliarySocketCount()!=1||
+           accepted.isClosed())
             throw new AssertionError(
-                "terminal auxiliary handoff close failure was not published",
-                observed
+                "late auxiliary handoff failure did not retain socket ownership"
+            );
+
+        Throwable repeated=null;
+
+        try{
+            shutdown.close();
+        }catch(Throwable failure){
+            repeated=failure;
+        }
+
+        if(repeated!=first)
+            throw new AssertionError(
+                "auxiliary recovery changed published terminal failure identity",
+                repeated
             );
 
         if(!accepted.isClosed()||
@@ -2327,8 +2357,70 @@ public final class LocalSessionConstructionOwnershipTest {
            shutdown.pendingAuxiliaryAcceptHandoffs()!=0||
            shutdown.activeAuxiliarySocketCount()!=0)
             throw new AssertionError(
-                "terminal auxiliary handoff/socket ownership did not fully retire"
+                "repeated close did not reconcile late auxiliary socket ownership"
             );
+
+        if(!containsSuppressedIdentity(
+                first,
+                accepted.failure))
+            throw new AssertionError(
+                "late auxiliary socket failure was not retained diagnostically"
+            );
+    }
+
+    private static boolean containsThrowableMessage(
+        Throwable failure,
+        String text
+    ){
+        if(failure==null)
+            return false;
+
+        String message=
+            failure.getMessage();
+
+        if(message!=null&&
+           message.contains(
+               text
+           ))
+            return true;
+
+        if(containsThrowableMessage(
+                failure.getCause(),
+                text))
+            return true;
+
+        for(Throwable suppressed:
+                failure.getSuppressed())
+            if(containsThrowableMessage(
+                    suppressed,
+                    text))
+                return true;
+
+        return false;
+    }
+
+    private static boolean containsSuppressedIdentity(
+        Throwable failure,
+        Throwable expected
+    ){
+        if(failure==null)
+            return false;
+
+        for(Throwable suppressed:
+                failure.getSuppressed()){
+            if(suppressed==expected)
+                return true;
+
+            if(containsSuppressedIdentity(
+                    suppressed,
+                    expected))
+                return true;
+        }
+
+        return containsSuppressedIdentity(
+            failure.getCause(),
+            expected
+        );
     }
 
     private static void assertSuccessPath()
@@ -2679,6 +2771,46 @@ public final class LocalSessionConstructionOwnershipTest {
             Runnable command
         ){
             throw rejection;
+        }
+    }
+
+    private static final class NonTerminatingExecutor
+        extends AbstractExecutorService {
+
+        boolean shutdown;
+        boolean shutdownNow;
+
+        @Override public void shutdown(){
+            shutdown=true;
+        }
+
+        @Override public List<Runnable> shutdownNow(){
+            shutdown=true;
+            shutdownNow=true;
+            return Collections.emptyList();
+        }
+
+        @Override public boolean isShutdown(){
+            return shutdown;
+        }
+
+        @Override public boolean isTerminated(){
+            return false;
+        }
+
+        @Override public boolean awaitTermination(
+            long timeout,
+            TimeUnit unit
+        ){
+            return false;
+        }
+
+        @Override public void execute(
+            Runnable command
+        ){
+            throw new AssertionError(
+                "fixture does not execute auxiliary accept through pool"
+            );
         }
     }
 
