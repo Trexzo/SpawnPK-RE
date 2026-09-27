@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import importlib.util
 import json
+import sys
 from pathlib import Path
 
 EXPECTED_SHA = "6cf617b5e14e60b5bc58d4f1c72e11476f09382d40a72f49be122009157c7fad"
@@ -90,6 +91,7 @@ def load_writer():
     if spec is None or spec.loader is None:
         raise AssertionError("cannot import writer")
     module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
     spec.loader.exec_module(module)
     return module
 
