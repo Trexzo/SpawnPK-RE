@@ -322,7 +322,7 @@ public final class Main {
                 p,
                 FALLBACK_VERSIONS
             );
-        } catch (IOException | SecurityException ignored) {
+        } catch (java.nio.file.InvalidPathException | SecurityException ignored) {
             return FALLBACK_VERSIONS.clone();
         }
     }
