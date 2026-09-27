@@ -5,6 +5,7 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.net.SocketTimeoutException;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.AbstractExecutorService;
@@ -39,6 +40,9 @@ public final class LocalSessionConstructionOwnershipTest {
         assertAuxListenerCloseFailurePublished();
         assertUncheckedListenerCloseFailurePublished();
         assertAuxiliaryAcceptedSocketOwnership();
+        assertAuxiliaryIdlePollKeepsOneHandoff();
+        assertAuxiliaryRealFailureAfterIdlePolls();
+        assertAuxiliaryFailedOpenListenerPollRetiresWorker();
         assertAuxiliaryAcceptHandoffTerminalRace();
         assertSuccessPath();
 
@@ -81,6 +85,11 @@ public final class LocalSessionConstructionOwnershipTest {
             "auxSocketRetry=true "+
             "auxSocketOwnershipZero=true "+
             "auxAcceptHandoff=true "+
+            "auxIdlePollHandoffContinuous=true "+
+            "auxPollTimeoutNotDiagnostic=true "+
+            "auxRealAcceptFailurePreserved=true "+
+            "auxFailedOpenPollExit=true "+
+            "auxFailedOpenPoolTerminates=true "+
             "auxHandoffBoundedPool=true "+
             "auxPostFenceReject=true "+
             "successPath=true"
@@ -2157,6 +2166,324 @@ public final class LocalSessionConstructionOwnershipTest {
                 "repeated close changed auxiliary terminal failure identity",
                 repeated
             );
+    }
+
+    private static void
+        assertAuxiliaryIdlePollKeepsOneHandoff()
+        throws Exception{
+        World world=
+            World.isolatedForTest(
+                25L
+            );
+        world.start();
+
+        TrackingExecutor pool=
+            new TrackingExecutor();
+        ServerSocket game=
+            new ServerSocket();
+        ServerSocket aux=
+            new ServerSocket();
+        Socket accepted=
+            new Socket();
+        AtomicInteger calls=
+            new AtomicInteger();
+
+        LocalServerShutdownCoordinator shutdown=
+            new LocalServerShutdownCoordinator(
+                world,
+                pool,
+                game,
+                aux
+            );
+
+        try{
+            Socket observed=
+                shutdown.acceptAuxiliarySocket(
+                    ()->{
+                        int call=
+                            calls.incrementAndGet();
+
+                        if(shutdown
+                                .pendingAuxiliaryAcceptHandoffs()!=1)
+                            throw new AssertionError(
+                                "auxiliary idle poll released/reacquired handoff"
+                            );
+
+                        if(call<=2)
+                            throw new SocketTimeoutException(
+                                "fixture-aux-idle-poll-"+call
+                            );
+
+                        return accepted;
+                    }
+                );
+
+            if(observed!=accepted||
+               calls.get()!=3||
+               shutdown.pendingAuxiliaryAcceptHandoffs()!=0||
+               shutdown.activeAuxiliarySocketCount()!=1)
+                throw new AssertionError(
+                    "auxiliary idle polls did not preserve one handoff through accepted ownership"
+                );
+
+            shutdown.releaseAuxiliarySocket(
+                accepted
+            );
+
+            if(!accepted.isClosed()||
+               shutdown.activeAuxiliarySocketCount()!=0)
+                throw new AssertionError(
+                    "auxiliary idle-poll accepted socket did not retire"
+                );
+        }finally{
+            shutdown.close();
+        }
+    }
+
+    private static void
+        assertAuxiliaryRealFailureAfterIdlePolls()
+        throws Exception{
+        World world=
+            World.isolatedForTest(
+                25L
+            );
+        world.start();
+
+        TrackingExecutor pool=
+            new TrackingExecutor();
+        ServerSocket game=
+            new ServerSocket();
+        ServerSocket aux=
+            new ServerSocket();
+        IOException expected=
+            new IOException(
+                "fixture-aux-real-accept-failure-after-polls"
+            );
+        AtomicInteger calls=
+            new AtomicInteger();
+
+        LocalServerShutdownCoordinator shutdown=
+            new LocalServerShutdownCoordinator(
+                world,
+                pool,
+                game,
+                aux
+            );
+
+        Throwable observed=null;
+
+        try{
+            try{
+                shutdown.acceptAuxiliarySocket(
+                    ()->{
+                        int call=
+                            calls.incrementAndGet();
+
+                        if(shutdown
+                                .pendingAuxiliaryAcceptHandoffs()!=1)
+                            throw new AssertionError(
+                                "auxiliary real-failure fixture lost handoff across idle poll"
+                            );
+
+                        if(call<=2)
+                            throw new SocketTimeoutException(
+                                "fixture-aux-real-failure-idle-"+call
+                            );
+
+                        throw expected;
+                    }
+                );
+            }catch(Throwable failure){
+                observed=failure;
+            }
+
+            if(observed!=expected||
+               calls.get()!=3||
+               shutdown.pendingAuxiliaryAcceptHandoffs()!=0||
+               expected.getSuppressed().length!=0)
+                throw new AssertionError(
+                    "real auxiliary accept IOException changed or retained idle poll diagnostics",
+                    observed
+                );
+        }finally{
+            shutdown.close();
+        }
+    }
+
+    private static void
+        assertAuxiliaryFailedOpenListenerPollRetiresWorker()
+        throws Exception{
+        InetAddress loopback=
+            InetAddress.getByName(
+                "127.0.0.1"
+            );
+        World world=
+            World.isolatedForTest(
+                25L
+            );
+        world.start();
+
+        ExecutorService pool=
+            Executors.newSingleThreadExecutor();
+        ServerSocket game=
+            new ServerSocket();
+        FailCountCloseServerSocket aux=
+            new FailCountCloseServerSocket(
+                2,
+                "fixture-aux-failed-open-poll-listener"
+            );
+
+        LocalServerShutdownCoordinator shutdown=
+            new LocalServerShutdownCoordinator(
+                world,
+                pool,
+                game,
+                aux
+            );
+
+        try{
+            LocalServerStartupBinder.bind(
+                shutdown,
+                game,
+                new InetSocketAddress(
+                    loopback,
+                    0
+                ),
+                aux,
+                new InetSocketAddress(
+                    loopback,
+                    0
+                )
+            );
+
+            CountDownLatch acceptStarted=
+                new CountDownLatch(1);
+
+            if(!shutdown.submitAuxiliary(
+                    ()->{
+                        acceptStarted.countDown();
+
+                        try{
+                            Socket socket=
+                                shutdown
+                                    .acceptAuxiliarySocket();
+
+                            if(socket!=null)
+                                throw new AssertionError(
+                                    "terminal auxiliary poll returned a live socket"
+                                );
+                        }catch(IOException failure){
+                            throw new RuntimeException(
+                                failure
+                            );
+                        }
+                    }))
+                throw new AssertionError(
+                    "failed-open auxiliary poll worker was not submitted"
+                );
+
+            if(!acceptStarted.await(
+                    5,
+                    TimeUnit.SECONDS))
+                throw new AssertionError(
+                    "failed-open auxiliary worker did not enter accept"
+                );
+
+            long handoffDeadline=
+                System.nanoTime()+
+                TimeUnit.SECONDS.toNanos(
+                    5
+                );
+
+            while(shutdown
+                        .pendingAuxiliaryAcceptHandoffs()!=1&&
+                  System.nanoTime()<
+                        handoffDeadline)
+                Thread.yield();
+
+            if(shutdown
+                    .pendingAuxiliaryAcceptHandoffs()!=1)
+                throw new AssertionError(
+                    "failed-open auxiliary accept handoff did not publish"
+                );
+
+            Throwable first=null;
+
+            try{
+                shutdown.close();
+            }catch(Throwable failure){
+                first=failure;
+            }
+
+            if(!(first instanceof
+                    IllegalStateException)||
+               first.getCause()!=
+                    aux.failure)
+                throw new AssertionError(
+                    "failed-open auxiliary listener failure was not terminal primary",
+                    first
+                );
+
+            if(!pool.isTerminated())
+                throw new AssertionError(
+                    "bounded auxiliary accept poll did not let executor terminate"
+                );
+
+            if(shutdown
+                    .pendingAuxiliaryAcceptHandoffs()!=0)
+                throw new AssertionError(
+                    "terminal auxiliary poll did not retire handoff exactly once"
+                );
+
+            if(containsThrowableMessage(
+                    first,
+                    "session executor did not terminate after forced shutdown")||
+               containsThrowableMessage(
+                    first,
+                    "auxiliary accept handoff unresolved count="))
+                throw new AssertionError(
+                    "failed-open auxiliary listener fabricated pool/handoff nontermination despite bounded poll",
+                    first
+                );
+
+            if(aux.isClosed()||
+               aux.closeCalls.get()!=2)
+                throw new AssertionError(
+                    "fixture did not preserve failed-open listener after bounded owner retries"
+                );
+
+            Throwable repeated=null;
+
+            try{
+                shutdown.close();
+            }catch(Throwable failure){
+                repeated=failure;
+            }
+
+            if(repeated!=first)
+                throw new AssertionError(
+                    "failed-open auxiliary listener recovery changed terminal failure identity",
+                    repeated
+                );
+
+            if(!aux.isClosed()||
+               aux.closeCalls.get()<3)
+                throw new AssertionError(
+                    "repeated close did not physically retire recovered auxiliary listener"
+                );
+        }finally{
+            if(!aux.isClosed())
+                try{
+                    aux.close();
+                }catch(Throwable ignored){
+                }
+
+            if(!world.closed())
+                try{
+                    shutdown.close();
+                }catch(Throwable ignored){
+                }
+        }
     }
 
     private static void
