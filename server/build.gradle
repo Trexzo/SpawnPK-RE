@@ -4133,6 +4133,17 @@ tasks.register('localServerStartupFailureCleanupRegression', JavaExec) {
 }
 
 
+tasks.register('worldPulseStartFailureAtomicRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves WorldPulse startup publishes running before the starter but rolls all startup state back when thread creation/start fails.'
+    dependsOn tasks.named('testClasses')
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.WorldPulseStartFailureAtomicTest'
+}
+
+
 tasks.register('chat1CurrentCumulativeCertification') {
     group = 'verification'
     description = 'Runs the complete current Chat 1 release candidate: Issue #5 Kotlin scripting, #271/#427 presentation/application gates, Issue #7 pet-damage ownership, focused 175 and canonical exact-v308 179.'
@@ -4150,7 +4161,8 @@ tasks.register('chat1CurrentCumulativeCertification') {
         tasks.named('bloodcoreLotteryPresentationRegression'),
         tasks.named('petDamageContentCommandActionOwnershipRegression'),
         tasks.named('petSpecializedProcContentCommandActionOwnershipRegression'),
-        tasks.named('localServerStartupFailureCleanupRegression')
+        tasks.named('localServerStartupFailureCleanupRegression'),
+        tasks.named('worldPulseStartFailureAtomicRegression')
     )
 
     doLast {
@@ -4167,6 +4179,7 @@ tasks.register('chat1CurrentCumulativeCertification') {
             'petDamage=true ' +
             'specializedPetProc=true ' +
             'startupFailureAtomic=true ' +
+            'worldPulseStartAtomic=true ' +
             'focused=175 ' +
             'exactV308=179 ' +
             'clientSha256=' + v308AcceptanceClientSha256 + ' ' +
