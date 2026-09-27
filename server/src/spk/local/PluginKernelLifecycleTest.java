@@ -586,6 +586,7 @@ public final class PluginKernelLifecycleTest {
             "worldCloseSnapshotLoader=true "+
             "pluginRuntimeCloseExactlyOnce=true "+
             "pluginRuntimeOpeningFenceOwned=true "+
+            "pluginRuntimeCloseOwnerReleased=true "+
             "pluginCleanupUsesSnapshotLoader=true "+
             "pluginCleanupContinuesAfterLoaderFailure=true "+
             "dependencyCycleRejected=true "+
@@ -2139,9 +2140,10 @@ public final class PluginKernelLifecycleTest {
         AtomicReference<Throwable> cleanupFailure=
             new AtomicReference<>();
 
-        manager.enable(
-            runtime
-        );
+        PluginHandle retainedHandle=
+            manager.enable(
+                runtime
+            );
         manager.beginClose();
 
         Thread cleanup=
@@ -2166,6 +2168,12 @@ public final class PluginKernelLifecycleTest {
             throw new AssertionError(
                 "terminal cleanup did not enter plugin disable"
             );
+
+        assertRuntimeCloseOwnerIdentity(
+            retainedHandle,
+            runtime,
+            "terminalizing cleanup"
+        );
 
         try{
             Throwable observed=
@@ -2212,6 +2220,12 @@ public final class PluginKernelLifecycleTest {
                 " disable="+runtime.disableCount.get()+
                 " close="+runtime.closeCount.get()
             );
+
+        assertRuntimeCloseOwnerIdentity(
+            retainedHandle,
+            null,
+            "terminal cleanup complete"
+        );
 
         world.close();
         world.close();
@@ -2372,6 +2386,12 @@ public final class PluginKernelLifecycleTest {
                     "retained disabled handle kept snapshotted callback loader"
                 );
 
+            assertRuntimeCloseOwnerIdentity(
+                handle,
+                null,
+                "retained disabled handle"
+            );
+
             assertManagerCleanupIdle(
                 manager,
                 "snapshot-loader cleanup"
@@ -2390,6 +2410,60 @@ public final class PluginKernelLifecycleTest {
             if(!world.closed())
                 world.close();
         }
+    }
+
+    private static void assertRuntimeCloseOwnerIdentity(
+        PluginHandle handle,
+        Plugin expected,
+        String phase
+    )throws Exception{
+        java.lang.reflect.Field ownerField=
+            handle.getClass()
+                .getDeclaredField(
+                    "runtimeClose"
+                );
+        ownerField.setAccessible(
+            true
+        );
+        Object owner=
+            ownerField.get(
+                handle
+            );
+
+        if(owner==null)
+            throw new AssertionError(
+                phase+
+                " lost runtime-close owner token"
+            );
+
+        java.lang.reflect.Field pluginField=
+            owner.getClass()
+                .getDeclaredField(
+                    "plugin"
+                );
+        pluginField.setAccessible(
+            true
+        );
+
+        Object actual=
+            pluginField.get(
+                owner
+            );
+
+        if(actual!=expected)
+            throw new AssertionError(
+                phase+
+                " runtime-close owner identity mismatch expected="+
+                (expected==null
+                    ?"<released>"
+                    :expected.getClass()
+                        .getName())+
+                " actual="+
+                (actual==null
+                    ?"<released>"
+                    :actual.getClass()
+                        .getName())
+            );
     }
 
     private static void assertManagerCleanupIdle(
