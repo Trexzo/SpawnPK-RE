@@ -96,6 +96,16 @@ public final class KotlinPluginLoaderTest {
             apiJar,
             compileClasspath
         );
+        assertClasspathIdentityPinned(
+            constructor,
+            healthy,
+            apiJar,
+            compileClasspath
+        );
+        assertClasspathRuntimeOwned(
+            loader,
+            healthy
+        );
 
         assertRealLoaderConsumesSnapshot(
             loader,
@@ -524,6 +534,8 @@ public final class KotlinPluginLoaderTest {
             "scriptSdkIdentity=true "+
             "sourceSnapshot=true "+
             "pathOnlyExecutionDenied=true "+
+            "kotlinClasspathIdentityPinned=true "+
+            "kotlinClasspathRuntimeOwned=true "+
             "eventCallback=true "+
             "commandDsl=true "+
             "commandPlayerArgsDsl=true "+
@@ -556,6 +568,298 @@ public final class KotlinPluginLoaderTest {
                 java.nio.charset.StandardCharsets.UTF_8
             )
         );
+    }
+
+    private static void assertClasspathIdentityPinned(
+        Constructor<?> constructor,
+        Path healthy,
+        Path apiJar,
+        List<Path> healthyClasspath
+    )throws Exception{
+        if(healthyClasspath.isEmpty())
+            throw new AssertionError(
+                "Kotlin classpath identity regression requires at least one runtime dependency"
+            );
+
+        Path root=
+            Files.createTempDirectory(
+                "kotlin-classpath-identity-"
+            );
+        Path api=
+            root.resolve(
+                "api.jar"
+            );
+        Path runtime=
+            root.resolve(
+                "runtime.jar"
+            );
+
+        try{
+            Files.copy(
+                apiJar,
+                api
+            );
+            Files.copy(
+                healthyClasspath.get(0),
+                runtime
+            );
+
+            PluginLoader apiLoader=
+                (PluginLoader)
+                    constructor.newInstance(
+                        api,
+                        java.util.Collections
+                            .singletonList(
+                                runtime
+                            )
+                    );
+
+            replaceWithForbiddenJar(
+                api,
+                "spk/local/ClasspathSwap.class"
+            );
+
+            assertLoadRejected(
+                apiLoader,
+                healthy,
+                "non-public SpawnPK namespace",
+                "replaced API artifact entered compiler authority"
+            );
+
+            Files.copy(
+                apiJar,
+                api,
+                java.nio.file.StandardCopyOption.REPLACE_EXISTING
+            );
+            Files.copy(
+                healthyClasspath.get(0),
+                runtime,
+                java.nio.file.StandardCopyOption.REPLACE_EXISTING
+            );
+
+            PluginLoader runtimeLoader=
+                (PluginLoader)
+                    constructor.newInstance(
+                        api,
+                        java.util.Collections
+                            .singletonList(
+                                runtime
+                            )
+                    );
+
+            replaceWithForbiddenJar(
+                runtime,
+                "spk/local/RuntimeSwap.class"
+            );
+
+            assertLoadRejected(
+                runtimeLoader,
+                healthy,
+                "outside the DSL allowlist",
+                "replaced runtime artifact entered compiler authority"
+            );
+
+            Files.copy(
+                healthyClasspath.get(0),
+                runtime,
+                java.nio.file.StandardCopyOption.REPLACE_EXISTING
+            );
+
+            PluginLoader forgedLoader=
+                (PluginLoader)
+                    constructor.newInstance(
+                        api,
+                        java.util.Collections
+                            .singletonList(
+                                runtime
+                            )
+                    );
+
+            replaceWithForbiddenJar(
+                runtime,
+                "spk/plugin/kotlin/KotlinPluginDslKt.class"
+            );
+
+            assertLoadRejected(
+                forgedLoader,
+                healthy,
+                "does not match server SDK",
+                "forged DSL artifact entered compiler authority"
+            );
+        }finally{
+            Files.deleteIfExists(
+                runtime
+            );
+            Files.deleteIfExists(
+                api
+            );
+            Files.deleteIfExists(
+                root
+            );
+        }
+    }
+
+    private static void assertClasspathRuntimeOwned(
+        PluginLoader loader,
+        Path healthy
+    )throws Exception{
+        int debtBefore=
+            KotlinClasspathCleanupDebt
+                .count();
+        PluginRuntime runtime=
+            loader.load(
+                snapshotSource(
+                    healthy
+                )
+            );
+
+        Field snapshotField=
+            runtime.getClass()
+                .getDeclaredField(
+                    "classpathSnapshot"
+                );
+        snapshotField.setAccessible(
+            true
+        );
+        Object snapshot=
+            snapshotField.get(
+                runtime
+            );
+
+        if(snapshot==null)
+            throw new AssertionError(
+                "live Kotlin runtime did not own classpath snapshot"
+            );
+
+        Field rootField=
+            snapshot.getClass()
+                .getDeclaredField(
+                    "root"
+                );
+        rootField.setAccessible(
+            true
+        );
+        Path root=
+            (Path)
+                rootField.get(
+                    snapshot
+                );
+
+        Field filesField=
+            snapshot.getClass()
+                .getDeclaredField(
+                    "files"
+                );
+        filesField.setAccessible(
+            true
+        );
+
+        @SuppressWarnings("unchecked")
+        List<java.io.File> files=
+            (List<java.io.File>)
+                filesField.get(
+                    snapshot
+                );
+
+        if(root==null||
+           !Files.isDirectory(
+                root
+           )||
+           files.isEmpty())
+            throw new AssertionError(
+                "live Kotlin classpath snapshot missing"
+            );
+
+        for(java.io.File file:files)
+            if(!file.isFile())
+                throw new AssertionError(
+                    "live Kotlin classpath artifact missing: "+
+                    file
+                );
+
+        runtime.close();
+        runtime.close();
+
+        if(Files.exists(
+                root))
+            throw new AssertionError(
+                "closed Kotlin runtime retained classpath snapshot root"
+            );
+
+        if(KotlinClasspathCleanupDebt
+                .count()!=debtBefore)
+            throw new AssertionError(
+                "healthy Kotlin runtime close created cleanup debt"
+            );
+
+        assertRuntimeReleased(
+            runtime,
+            "classpath runtime ownership"
+        );
+    }
+
+    private static void assertLoadRejected(
+        PluginLoader loader,
+        Path healthy,
+        String expected,
+        String failureMessage
+    )throws Exception{
+        int debtBefore=
+            KotlinClasspathCleanupDebt
+                .count();
+        boolean rejected=false;
+
+        try{
+            loader.load(
+                snapshotSource(
+                    healthy
+                )
+            );
+        }catch(IllegalArgumentException failure){
+            rejected=
+                failure.getMessage()!=null&&
+                failure.getMessage()
+                    .contains(
+                        expected
+                    );
+        }
+
+        if(!rejected)
+            throw new AssertionError(
+                failureMessage
+            );
+
+        if(KotlinClasspathCleanupDebt
+                .count()!=debtBefore)
+            throw new AssertionError(
+                "rejected Kotlin classpath snapshot leaked cleanup debt"
+            );
+    }
+
+    private static void replaceWithForbiddenJar(
+        Path target,
+        String entry
+    )throws Exception{
+        Files.deleteIfExists(
+            target
+        );
+
+        try(JarOutputStream out=
+                new JarOutputStream(
+                    Files.newOutputStream(
+                        target
+                    )
+                )){
+            out.putNextEntry(
+                new JarEntry(
+                    entry
+                )
+            );
+            out.write(
+                new byte[]{0}
+            );
+            out.closeEntry();
+        }
     }
 
     private static void assertPathOnlyExecutionDenied(
@@ -751,7 +1055,9 @@ public final class KotlinPluginLoaderTest {
                 new String[]{
                     "delegate",
                     "callbackLoader",
-                    "baseLoader"
+                    "baseLoader",
+                    "dependencyLoader",
+                    "classpathSnapshot"
                 }){
             Field field=
                 runtime.getClass()
