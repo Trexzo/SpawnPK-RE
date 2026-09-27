@@ -702,7 +702,7 @@ final class PluginJarLoader implements PluginLoader {
 
         static ArchiveSnapshot capture(
             Path source
-        )throws IOException{
+        )throws Exception{
             return capture(
                 source,
                 (root,snapshot)->{}
@@ -712,7 +712,7 @@ final class PluginJarLoader implements PluginLoader {
         static ArchiveSnapshot capture(
             Path source,
             ArchiveCaptureHook hook
-        )throws IOException{
+        )throws Exception{
             if(!Files.isRegularFile(source))
                 throw new IllegalArgumentException(
                     "plugin JAR missing: "+
