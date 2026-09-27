@@ -515,6 +515,7 @@ public final class PluginKernelLifecycleTest {
 
         pluginSelfSuppressionRegression();
         pluginRuntimeCloseExactlyOnceRegression();
+        pluginCleanupUsesSnapshotLoaderRegression();
 
         CloseProbePlugin closeProbe=
             new CloseProbePlugin();
@@ -583,6 +584,8 @@ public final class PluginKernelLifecycleTest {
             "enableRollbackEvidencePreserved=true "+
             "worldCloseSelfSuppressionSafe=true "+
             "pluginRuntimeCloseExactlyOnce=true "+
+            "pluginCleanupUsesSnapshotLoader=true "+
+            "pluginCleanupContinuesAfterLoaderFailure=true "+
             "dependencyCycleRejected=true "+
             "worldCloseClean=true"
         );
@@ -776,10 +779,14 @@ public final class PluginKernelLifecycleTest {
                     "batch rollback stopped after same-object cleanup failure"
                 );
 
-            if(middle.closeCount.get()!=1)
+            if(middle.disableCount.get()!=1||
+               middle.closeCount.get()!=1||
+               middle.callbackLoaderCalls.get()!=1)
                 throw new AssertionError(
-                    "batch rollback did not retire failed cleanup runtime exactly once count="+
-                    middle.closeCount.get()
+                    "batch rollback did not use snapshotted cleanup loader "+
+                    "queries="+middle.callbackLoaderCalls.get()+
+                    " disable="+middle.disableCount.get()+
+                    " close="+middle.closeCount.get()
                 );
 
             if(manager.plugin(
@@ -948,33 +955,36 @@ public final class PluginKernelLifecycleTest {
             first
         );
 
+        if(middle.callbackLoaderCalls.get()!=1||
+           first.callbackLoaderCalls.get()!=1)
+            throw new AssertionError(
+                "runtime callback loader was not snapshotted exactly once"
+            );
+
         middle.failCleanupLoader=true;
         first.failCleanupLoader=true;
 
-        Throwable observed=
-            captureFailure(
-                world::close
+        world.close();
+        world.close();
+
+        if(tailDisable.get()!=1||
+           middle.disableCount.get()!=1||
+           first.disableCount.get()!=1||
+           middle.closeCount.get()!=1||
+           first.closeCount.get()!=1)
+            throw new AssertionError(
+                "world-close snapshot-loader cleanup count mismatch"
             );
 
-        if(observed!=shared)
+        if(middle.callbackLoaderCalls.get()!=1||
+           first.callbackLoaderCalls.get()!=1)
             throw new AssertionError(
-                "world-close aggregate replaced shared primary",
-                observed
-            );
-
-        if(shared.getSuppressed().length!=0)
-            throw new AssertionError(
-                "world-close aggregate self-suppressed shared failure"
-            );
-
-        if(tailDisable.get()!=1)
-            throw new AssertionError(
-                "world-close aggregate aborted before remaining cleanup"
+                "world-close re-queried hostile runtime callback loader"
             );
 
         if(!manager.enabled().isEmpty())
             throw new AssertionError(
-                "world-close aggregate retained plugin handles"
+                "world-close snapshot-loader cleanup retained plugin handles"
             );
     }
 
@@ -1659,6 +1669,129 @@ public final class PluginKernelLifecycleTest {
             throw new AssertionError(
                 "successful World-close runtime cleanup count mismatch"
             );
+    }
+
+    private static void pluginCleanupUsesSnapshotLoaderRegression()
+        throws Exception{
+        World world=
+            World.isolatedForTest(
+                25L
+            );
+        WorldPluginManager manager=
+            (WorldPluginManager)
+                world.plugins();
+        int listenerBaseline=
+            world.domainEvents()
+                .listenerCount();
+        RuntimeException hostileFailure=
+            new IllegalStateException(
+                "post-enable-loader-failure"
+            );
+        SnapshotCleanupRuntime runtime=
+            new SnapshotCleanupRuntime(
+                hostileFailure
+            );
+
+        try{
+            PluginHandle handle=
+                manager.enable(
+                    runtime
+                );
+
+            if(!handle.enabled()||
+               runtime.callbackLoaderCalls.get()!=1)
+                throw new AssertionError(
+                    "snapshot cleanup runtime enable/loader count mismatch"
+                );
+
+            if(world.content()
+                    .commandBinding(
+                        "snapcleanup"
+                    )==null)
+                throw new AssertionError(
+                    "snapshot cleanup content binding missing before disable"
+                );
+
+            if(world.domainEvents()
+                    .listenerCount()!=
+                        listenerBaseline+1)
+                throw new AssertionError(
+                    "snapshot cleanup event subscription missing before disable"
+                );
+
+            if(runtime.task==null||
+               !runtime.task.active())
+                throw new AssertionError(
+                    "snapshot cleanup pending task missing before disable"
+                );
+
+            runtime.failLaterLoader=true;
+
+            if(!manager.disable(
+                    "cleanup.snapshot"))
+                throw new AssertionError(
+                    "snapshot cleanup explicit disable failed"
+                );
+
+            if(runtime.callbackLoaderCalls.get()!=1)
+                throw new AssertionError(
+                    "terminal cleanup re-queried hostile runtime callback loader"
+                );
+
+            if(runtime.disableCount.get()!=1||
+               runtime.closeCount.get()!=1||
+               !runtime.disableTcclCorrect)
+                throw new AssertionError(
+                    "snapshot cleanup disable/runtime retirement mismatch "+
+                    "disable="+runtime.disableCount.get()+
+                    " close="+runtime.closeCount.get()+
+                    " tccl="+runtime.disableTcclCorrect
+                );
+
+            if(world.content()
+                    .commandBinding(
+                        "snapcleanup"
+                    )!=null)
+                throw new AssertionError(
+                    "snapshot cleanup content binding survived terminal cleanup"
+                );
+
+            if(world.domainEvents()
+                    .listenerCount()!=
+                        listenerBaseline)
+                throw new AssertionError(
+                    "snapshot cleanup event subscription survived terminal cleanup"
+                );
+
+            if(runtime.task.active())
+                throw new AssertionError(
+                    "snapshot cleanup pending task survived terminal cleanup"
+                );
+
+            if(manager.plugin(
+                    "cleanup.snapshot")!=null)
+                throw new AssertionError(
+                    "snapshot cleanup handle survived terminal cleanup"
+                );
+
+            assertManagerCleanupIdle(
+                manager,
+                "snapshot-loader cleanup"
+            );
+
+            world.close();
+            world.close();
+
+            if(runtime.callbackLoaderCalls.get()!=1||
+               runtime.disableCount.get()!=1||
+               runtime.closeCount.get()!=1)
+                throw new AssertionError(
+                    "repeated World close revisited snapshot cleanup runtime"
+                );
+        }finally{
+            if(!world.closed())
+                world.close();
+        }
     }
 
     private static void assertManagerCleanupIdle(
@@ -2450,6 +2583,8 @@ public final class PluginKernelLifecycleTest {
             new AtomicInteger();
         final AtomicInteger closeCount=
             new AtomicInteger();
+        final AtomicInteger callbackLoaderCalls=
+            new AtomicInteger();
 
         CleanupLoaderFailureRuntime(
             String id,
@@ -2490,8 +2625,90 @@ public final class PluginKernelLifecycleTest {
         }
 
         @Override public ClassLoader callbackClassLoader(){
+            callbackLoaderCalls.incrementAndGet();
+
             if(failCleanupLoader)
                 throw failure;
+
+            return getClass()
+                .getClassLoader();
+        }
+
+        @Override public void close(){
+            closeCount.incrementAndGet();
+        }
+    }
+
+    private static final class SnapshotCleanupRuntime
+        implements PluginRuntime {
+        private final RuntimeException hostileFailure;
+        volatile boolean failLaterLoader;
+        volatile boolean disableTcclCorrect;
+        PluginTask task;
+        final AtomicInteger callbackLoaderCalls=
+            new AtomicInteger();
+        final AtomicInteger disableCount=
+            new AtomicInteger();
+        final AtomicInteger closeCount=
+            new AtomicInteger();
+
+        SnapshotCleanupRuntime(
+            RuntimeException hostileFailure
+        ){
+            this.hostileFailure=
+                hostileFailure;
+        }
+
+        @Override public PluginManifest manifest(){
+            return new PluginManifest(
+                "cleanup.snapshot",
+                "1.0.0"
+            );
+        }
+
+        @Override public void enable(
+            PluginContext context
+        ){
+            context.content()
+                .command(
+                    "snapcleanup",
+                    100,
+                    request->
+                        ContentResult.handled(
+                            "SNAPSHOT_CLEANUP",
+                            null
+                        )
+                );
+
+            context.events()
+                .subscribe(
+                    ProbeEvent.class,
+                    DomainEventBus.Priority.NORMAL,
+                    event->{}
+                );
+
+            task=
+                context.scheduler()
+                    .schedule(
+                        10L,
+                        ()->{}
+                    );
+        }
+
+        @Override public void disable(){
+            disableCount.incrementAndGet();
+            disableTcclCorrect=
+                Thread.currentThread()
+                    .getContextClassLoader()==
+                    getClass()
+                        .getClassLoader();
+        }
+
+        @Override public ClassLoader callbackClassLoader(){
+            callbackLoaderCalls.incrementAndGet();
+
+            if(failLaterLoader)
+                throw hostileFailure;
 
             return getClass()
                 .getClassLoader();
