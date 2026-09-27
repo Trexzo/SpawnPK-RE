@@ -348,6 +348,12 @@ final class WorldPluginManager
             }
         }
 
+        failure=
+            PluginJarLoader
+                .retryArchiveCleanupDebtOnce(
+                    failure
+                );
+
         rethrowUnchecked(
             failure
         );
