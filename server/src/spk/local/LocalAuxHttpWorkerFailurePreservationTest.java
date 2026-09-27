@@ -11,9 +11,10 @@ public final class LocalAuxHttpWorkerFailurePreservationTest {
     public static void main(
         String[] args
     )throws Exception{
-        assertRuntimePrimaryAcrossReleaseFailure();
-        assertRuntimePrimaryAcrossTwoReleaseFailures();
-        assertErrorPrimaryAcrossReleaseFailure();
+        assertRuntimePrimaryAcrossUncheckedReleaseFailure();
+        assertRuntimePrimaryAcrossMixedReleaseFailures();
+        assertErrorPrimaryAcrossUncheckedReleaseFailure();
+        assertUncheckedReleaseBecomesPrimaryOverCheckedHandler();
         assertIoFailureRemainsConnectionScoped();
         assertCleanRetirementUnchanged();
 
@@ -21,25 +22,28 @@ public final class LocalAuxHttpWorkerFailurePreservationTest {
             "LOCAL_AUX_HTTP_WORKER_FAILURE_PRESERVATION_PASS "+
             "runtimePrimary=true "+
             "errorPrimary=true "+
+            "uncheckedReleaseSuppressed=true "+
             "retirementSuppressed=true "+
             "residualRetry=true "+
             "secondRetirementSuppressed=true "+
+            "uncheckedCleanupFatal=true "+
             "ioConnectionScoped=true "+
             "workerContinues=true "+
             "cleanRetirement=true"
         );
     }
 
-    private static void assertRuntimePrimaryAcrossReleaseFailure(){
+    private static void
+        assertRuntimePrimaryAcrossUncheckedReleaseFailure(){
         FakeSocket socket=
             new FakeSocket();
         RuntimeException expected=
             new IllegalStateException(
                 "fixture-handler-runtime"
             );
-        IOException release=
-            new IOException(
-                "fixture-release-first"
+        RuntimeException release=
+            new IllegalArgumentException(
+                "fixture-release-runtime"
             );
         AtomicInteger releases=
             new AtomicInteger();
@@ -70,25 +74,26 @@ public final class LocalAuxHttpWorkerFailurePreservationTest {
            expected.getSuppressed().length!=1||
            expected.getSuppressed()[0]!=release)
             throw new AssertionError(
-                "runtime handler failure was replaced or retirement retry missing",
+                "unchecked release replaced runtime handler primary or retry was skipped",
                 observed
             );
     }
 
-    private static void assertRuntimePrimaryAcrossTwoReleaseFailures(){
+    private static void
+        assertRuntimePrimaryAcrossMixedReleaseFailures(){
         FakeSocket socket=
             new FakeSocket();
         RuntimeException expected=
             new IllegalArgumentException(
                 "fixture-handler-runtime-two"
             );
-        IOException first=
-            new IOException(
-                "fixture-release-first"
+        Error first=
+            new AssertionError(
+                "fixture-release-error"
             );
         IOException second=
             new IOException(
-                "fixture-release-second"
+                "fixture-release-io"
             );
         AtomicInteger releases=
             new AtomicInteger();
@@ -110,9 +115,10 @@ public final class LocalAuxHttpWorkerFailurePreservationTest {
                     int attempt=
                         releases.incrementAndGet();
 
-                    throw attempt==1
-                        ?first
-                        :second;
+                    if(attempt==1)
+                        throw first;
+
+                    throw second;
                 },
                 failure->{},
                 retirementObserved::set
@@ -131,21 +137,22 @@ public final class LocalAuxHttpWorkerFailurePreservationTest {
            suppressed[1]!=second||
            retirementObserved.get()!=second)
             throw new AssertionError(
-                "second retirement failure did not remain behind runtime primary",
+                "mixed cleanup failures did not remain behind runtime handler primary",
                 observed
             );
     }
 
-    private static void assertErrorPrimaryAcrossReleaseFailure(){
+    private static void
+        assertErrorPrimaryAcrossUncheckedReleaseFailure(){
         FakeSocket socket=
             new FakeSocket();
         Error expected=
             new AssertionError(
                 "fixture-handler-error"
             );
-        IOException release=
-            new IOException(
-                "fixture-error-release"
+        Error release=
+            new LinkageError(
+                "fixture-release-error"
             );
         AtomicInteger releases=
             new AtomicInteger();
@@ -176,7 +183,53 @@ public final class LocalAuxHttpWorkerFailurePreservationTest {
            expected.getSuppressed().length!=1||
            expected.getSuppressed()[0]!=release)
             throw new AssertionError(
-                "Error handler failure was replaced by retirement failure",
+                "unchecked release replaced Error handler primary",
+                observed
+            );
+    }
+
+    private static void
+        assertUncheckedReleaseBecomesPrimaryOverCheckedHandler(){
+        FakeSocket socket=
+            new FakeSocket();
+        IOException handlerFailure=
+            new IOException(
+                "fixture-handler-io-before-runtime-release"
+            );
+        RuntimeException releaseFailure=
+            new IllegalStateException(
+                "fixture-release-runtime-primary"
+            );
+        AtomicInteger releases=
+            new AtomicInteger();
+        Throwable observed=null;
+
+        try{
+            LocalAuxHttpWorker.run(
+                ()->false,
+                once(
+                    socket
+                ),
+                ignored->{
+                    throw handlerFailure;
+                },
+                ignored->{
+                    if(releases.incrementAndGet()==1)
+                        throw releaseFailure;
+                },
+                failure->{},
+                failure->{}
+            );
+        }catch(Throwable failure){
+            observed=failure;
+        }
+
+        if(observed!=releaseFailure||
+           releases.get()!=2||
+           releaseFailure.getSuppressed().length!=1||
+           releaseFailure.getSuppressed()[0]!=handlerFailure)
+            throw new AssertionError(
+                "unchecked cleanup failure was normalized into checked connection failure",
                 observed
             );
     }
