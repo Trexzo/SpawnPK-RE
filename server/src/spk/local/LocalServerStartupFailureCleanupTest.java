@@ -344,7 +344,7 @@ public final class LocalServerStartupFailureCleanupTest {
             new SocketException(
                 "fixture-game-accept-poll-configuration-failure"
             );
-        ServerSocket game=
+        PollConfigurationFailServerSocket game=
             new PollConfigurationFailServerSocket(
                 expectedFailure
             );
@@ -384,6 +384,11 @@ public final class LocalServerStartupFailureCleanupTest {
                 throw new AssertionError(
                     "game accept poll configuration failure did not remain primary",
                     observed
+                );
+
+            if(!game.boundWhenConfigured)
+                throw new AssertionError(
+                    "game accept poll was configured before successful listener bind"
                 );
 
             assertTerminal(
@@ -707,6 +712,7 @@ public final class LocalServerStartupFailureCleanupTest {
         extends ServerSocket {
 
         private final SocketException failure;
+        private boolean boundWhenConfigured;
 
         PollConfigurationFailServerSocket(
             SocketException failure
@@ -717,6 +723,7 @@ public final class LocalServerStartupFailureCleanupTest {
         @Override public void setSoTimeout(
             int timeout
         )throws SocketException{
+            boundWhenConfigured=isBound();
             throw failure;
         }
     }
