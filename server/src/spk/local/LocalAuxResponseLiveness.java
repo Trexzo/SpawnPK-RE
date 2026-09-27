@@ -322,8 +322,6 @@ final class LocalAuxResponseLiveness {
     private void expire(
         long expected
     ){
-        SocketTimeoutException timeout;
-
         synchronized(lock){
             if(finished||
                expected!=generation)
@@ -333,10 +331,15 @@ final class LocalAuxResponseLiveness {
 
             if(socket.isClosed())
                 return;
+        }
 
-            boolean claimed=
-                timeoutAuthority.claim(
-                    ()->{
+        final SocketTimeoutException[] claimedTimeout=
+            new SocketTimeoutException[1];
+
+        boolean claimed=
+            timeoutAuthority.claim(
+                ()->{
+                    synchronized(lock){
                         if(finished||
                            expected!=generation||
                            socket.isClosed())
@@ -347,15 +350,23 @@ final class LocalAuxResponseLiveness {
                             new SocketTimeoutException(
                                 "auxiliary HTTP response made no progress before deadline"
                             );
+                        claimedTimeout[0]=
+                            timeoutFailure;
                         return true;
                     }
-                );
+                }
+            );
 
-            if(!claimed)
-                return;
+        if(!claimed)
+            return;
 
-            timeout=timeoutFailure;
-        }
+        SocketTimeoutException timeout=
+            claimedTimeout[0];
+
+        if(timeout==null)
+            throw new IllegalStateException(
+                "auxiliary response timeout authority committed without timeout evidence"
+            );
 
         Throwable first=
             closeSocketOnce();
