@@ -4155,6 +4155,17 @@ tasks.register('localSessionConstructionOwnershipRegression', JavaExec) {
 }
 
 
+tasks.register('worldAdmissionPulseStartAtomicRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves registerPlayerAndStart rolls back exact player membership when WorldPulse startup fails and permits a clean retry.'
+    dependsOn tasks.named('testClasses')
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.WorldAdmissionPulseStartAtomicTest'
+}
+
+
 tasks.register('chat1CurrentCumulativeCertification') {
     group = 'verification'
     description = 'Runs the complete current Chat 1 release candidate: Issue #5 Kotlin scripting, #271/#427 presentation/application gates, Issue #7 pet-damage ownership, focused 175 and canonical exact-v308 179.'
