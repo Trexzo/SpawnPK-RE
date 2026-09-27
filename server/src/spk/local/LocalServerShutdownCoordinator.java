@@ -105,21 +105,37 @@ final class LocalServerShutdownCoordinator
         boolean terminal;
 
         synchronized(lifecycleLock){
-            gameAcceptHandoffs--;
             terminal=closing;
 
-            if(failure==null){
-                if(terminal)
-                    closeQuietly(
-                        accepted
-                    );
-                else
-                    activeGameSockets.add(
-                        accepted
-                    );
+            if(failure==null&&
+               !terminal)
+                activeGameSockets.add(
+                    accepted
+                );
+
+            if(failure!=null||
+               !terminal){
+                gameAcceptHandoffs--;
+                lifecycleLock.notifyAll();
+            }
+        }
+
+        if(failure==null&&
+           terminal){
+            // Keep the handoff published while physical close runs, but do
+            // not hold lifecycleLock across potentially blocking socket I/O.
+            try{
+                closeQuietly(
+                    accepted
+                );
+            }finally{
+                synchronized(lifecycleLock){
+                    gameAcceptHandoffs--;
+                    lifecycleLock.notifyAll();
+                }
             }
 
-            lifecycleLock.notifyAll();
+            return null;
         }
 
         if(failure!=null){
@@ -132,9 +148,7 @@ final class LocalServerShutdownCoordinator
             );
         }
 
-        return terminal
-            ?null
-            :accepted;
+        return accepted;
     }
 
     void rejectSessionSocket(
@@ -356,27 +370,39 @@ final class LocalServerShutdownCoordinator
 
     @Override public void close(){
         boolean owner=false;
+        ArrayList<Socket> sockets=
+            null;
 
         synchronized(lifecycleLock){
             if(!closing){
                 closing=true;
                 owner=true;
-
-                closeQuietly(game);
-                closeQuietly(aux);
-
-                for(Socket socket:
-                        new ArrayList<>(
-                            activeGameSockets))
-                    closeQuietly(socket);
-
-                activeGameSockets.clear();
+                sockets=
+                    new ArrayList<>(
+                        activeGameSockets
+                    );
             }
         }
 
         if(!owner){
             terminal.awaitAndRethrow();
             return;
+        }
+
+        // Publish the terminal fence first, then perform potentially blocking
+        // socket closes without lifecycleLock. No new ownership may enter
+        // after closing=true, and existing ownership stays published until
+        // each physical close has returned.
+        closeQuietly(game);
+        closeQuietly(aux);
+
+        for(Socket socket:sockets)
+            closeQuietly(socket);
+
+        synchronized(lifecycleLock){
+            activeGameSockets.removeAll(
+                sockets
+            );
         }
 
         awaitPreTerminalHandoffs();
