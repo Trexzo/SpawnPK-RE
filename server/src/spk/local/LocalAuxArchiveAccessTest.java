@@ -2,6 +2,7 @@ package spk.local;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.nio.channels.SeekableByteChannel;
 import java.nio.charset.StandardCharsets;
@@ -25,6 +26,7 @@ public final class LocalAuxArchiveAccessTest {
         assertBodyIOExceptionKeepsCloseIOExceptionSubordinate();
         assertUncheckedCloseOverridesBodyIOException();
         assertFatalCloseOverridesBodyIOException();
+        assertWriteIOExceptionPromotesUncheckedClose();
         assertCleanCloseFailuresEscape();
         assertUncheckedResponseFailureStaysPrimary();
         assertPostOpenCloseSecurityIsFatal();
@@ -44,6 +46,7 @@ public final class LocalAuxArchiveAccessTest {
             "closeIoOrdering=true "+
             "closeRuntimeOverridesIo=true "+
             "closeErrorOverridesIo=true "+
+            "writeIoOrdering=true "+
             "cleanCloseFailures=true "+
             "uncheckedResponsePrimary=true "+
             "postOpenCloseSecurityFatal=true "+
@@ -387,6 +390,36 @@ public final class LocalAuxArchiveAccessTest {
         );
     }
 
+    private static void
+        assertWriteIOExceptionPromotesUncheckedClose(){
+        IOException write=
+            new IOException(
+                "fixture-response-write-io"
+            );
+        RuntimeException close=
+            new IllegalStateException(
+                "fixture-response-write-close-runtime"
+            );
+
+        Throwable observed=
+            invoke(
+                new ThrowingOutputStream(
+                    write
+                ),
+                new OrderedFailureChannel(
+                    null,
+                    close
+                )
+            );
+
+        assertPrimaryWithSingleSuppressed(
+            "response write IOException + close RuntimeException",
+            observed,
+            close,
+            write
+        );
+    }
+
     private static void assertCleanCloseFailuresEscape(){
         IOException closeIo=
             new IOException(
@@ -549,10 +582,20 @@ public final class LocalAuxArchiveAccessTest {
     private static Throwable invoke(
         SeekableByteChannel channel
     ){
+        return invoke(
+            new ByteArrayOutputStream(),
+            channel
+        );
+    }
+
+    private static Throwable invoke(
+        OutputStream out,
+        SeekableByteChannel channel
+    ){
         try{
             LocalAuxArchiveAccess
                 .writeIfAvailable(
-                    new ByteArrayOutputStream(),
+                    out,
                     Path.of(
                         "fixture-ordering.zip"
                     ),
@@ -637,6 +680,31 @@ public final class LocalAuxArchiveAccessTest {
         @Override public void close()
             throws IOException{
             open=false;
+        }
+    }
+
+    private static final class ThrowingOutputStream
+        extends OutputStream {
+        private final IOException failure;
+
+        ThrowingOutputStream(
+            IOException failure
+        ){
+            this.failure=failure;
+        }
+
+        @Override public void write(
+            int value
+        )throws IOException{
+            throw failure;
+        }
+
+        @Override public void write(
+            byte[] source,
+            int offset,
+            int length
+        )throws IOException{
+            throw failure;
         }
     }
 
