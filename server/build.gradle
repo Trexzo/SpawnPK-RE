@@ -4224,6 +4224,20 @@ tasks.register('localAuxHttpRequestReaderRegression', JavaExec) {
 }
 
 
+tasks.register('localAuxArchivePathRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves optional LocalLab archive path resolution fails closed when caller home state is unavailable without swallowing unrelated failures.'
+    dependsOn(
+        tasks.named('testClasses'),
+        tasks.named('localAuxHttpResponseRegression')
+    )
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.LocalAuxArchivePathTest'
+}
+
+
 tasks.register('chat1CurrentCumulativeCertification') {
     group = 'verification'
     description = 'Runs the complete current Chat 1 release candidate: Issue #5 Kotlin scripting, #271/#427 presentation/application gates, Issue #7 pet-damage ownership, focused 175 and canonical exact-v308 179.'
@@ -4249,7 +4263,8 @@ tasks.register('chat1CurrentCumulativeCertification') {
         tasks.named('localAuxiliaryWorkerFailureRegression'),
         tasks.named('localAuxVersionsRegression'),
         tasks.named('localAuxHttpWorkerFailurePreservationRegression'),
-        tasks.named('localAuxHttpRequestReaderRegression')
+        tasks.named('localAuxHttpRequestReaderRegression'),
+        tasks.named('localAuxArchivePathRegression')
     )
 
     doLast {
@@ -4274,6 +4289,7 @@ tasks.register('chat1CurrentCumulativeCertification') {
             'localAuxVersionsBounded=true ' +
             'auxHandlerFailurePreserved=true ' +
             'localAuxRequestBounded=true ' +
+            'localAuxArchivePathSafe=true ' +
             'focused=175 ' +
             'exactV308=179 ' +
             'clientSha256=' + v308AcceptanceClientSha256 + ' ' +
