@@ -101,6 +101,11 @@ public final class PluginClassLoaderIsolationTest {
                 collisionParent
             );
 
+        Object retainedDelegateA=
+            loadedA.delegate();
+        Object retainedDelegateB=
+            loadedB.delegate();
+
         assertTcclRestored(
             baseline,
             "plugin load"
@@ -196,6 +201,11 @@ public final class PluginClassLoaderIsolationTest {
                 throw new AssertionError(
                     "pre-enable duplicate rejection did not close loader"
                 );
+
+            assertRuntimeReferencesReleased(
+                duplicateA,
+                "pre-enable duplicate"
+            );
 
             assertTcclRestored(
                 baseline,
@@ -367,7 +377,7 @@ public final class PluginClassLoaderIsolationTest {
 
             String failedReportA=
                 report(
-                    loadedA
+                    retainedDelegateA
                 );
 
             assertReport(
@@ -408,11 +418,11 @@ public final class PluginClassLoaderIsolationTest {
 
             String disabledA=
                 report(
-                    loadedA
+                    retainedDelegateA
                 );
             String disabledB=
                 report(
-                    loadedB
+                    retainedDelegateB
                 );
 
             if(!disabledA.contains(
@@ -431,6 +441,14 @@ public final class PluginClassLoaderIsolationTest {
             );
             assertHandleReleasedLoader(
                 handleB
+            );
+            assertRuntimeReferencesReleased(
+                loadedA,
+                "terminal callback failure"
+            );
+            assertRuntimeReferencesReleased(
+                loadedB,
+                "explicit disable"
             );
 
             assertTcclRestored(
@@ -488,6 +506,7 @@ public final class PluginClassLoaderIsolationTest {
             "disableTccl=true "+
             "disableClosesLoader=true "+
             "terminalHandleReleasesLoader=true "+
+            "javaPluginRuntimeReferencesReleased=true "+
             "publicApiExpanded=false"
         );
     }
@@ -582,8 +601,14 @@ public final class PluginClassLoaderIsolationTest {
     private static String report(
         PluginJarLoader.LoadedPlugin loaded
     )throws Exception{
-        Object delegate=
-            loaded.delegate();
+        return report(
+            loaded.delegate()
+        );
+    }
+
+    private static String report(
+        Object delegate
+    )throws Exception{
         Method method=
             delegate.getClass()
                 .getMethod(
@@ -1231,6 +1256,136 @@ public final class PluginClassLoaderIsolationTest {
                 jar
             );
         }
+    }
+
+    private static void assertRuntimeReferencesReleased(
+        PluginJarLoader.LoadedPlugin loaded,
+        String phase
+    )throws Exception{
+        for(String fieldName:
+                new String[]{
+                    "delegate",
+                    "loader",
+                    "snapshot"
+                }){
+            java.lang.reflect.Field field=
+                loaded.getClass()
+                    .getDeclaredField(
+                        fieldName
+                    );
+            field.setAccessible(
+                true
+            );
+
+            if(field.get(loaded)!=null)
+                throw new AssertionError(
+                    phase+
+                    " retained runtime field "+
+                    fieldName
+                );
+        }
+
+        boolean manifestDenied=false;
+
+        try{
+            loaded.manifest();
+        }catch(IllegalStateException expected){
+            manifestDenied=true;
+        }
+
+        if(!manifestDenied)
+            throw new AssertionError(
+                phase+
+                " terminal runtime still exposed manifest"
+            );
+
+        boolean enableDenied=false;
+
+        try{
+            loaded.enable(
+                null
+            );
+        }catch(IllegalStateException expected){
+            enableDenied=true;
+        }
+
+        if(!enableDenied)
+            throw new AssertionError(
+                phase+
+                " terminal runtime still accepted enable"
+            );
+
+        boolean disableDenied=false;
+
+        try{
+            loaded.disable();
+        }catch(IllegalStateException expected){
+            disableDenied=true;
+        }
+
+        if(!disableDenied)
+            throw new AssertionError(
+                phase+
+                " terminal runtime still accepted disable"
+            );
+
+        boolean callbackDenied=false;
+
+        try{
+            loaded.callbackClassLoader();
+        }catch(IllegalStateException expected){
+            callbackDenied=true;
+        }
+
+        if(!callbackDenied)
+            throw new AssertionError(
+                phase+
+                " terminal runtime still exposed callback loader"
+            );
+
+        boolean delegateDenied=false;
+
+        try{
+            loaded.delegate();
+        }catch(IllegalStateException expected){
+            delegateDenied=true;
+        }
+
+        if(!delegateDenied)
+            throw new AssertionError(
+                phase+
+                " terminal runtime still exposed delegate"
+            );
+
+        boolean loaderDenied=false;
+
+        try{
+            loaded.classLoader();
+        }catch(IllegalStateException expected){
+            loaderDenied=true;
+        }
+
+        if(!loaderDenied)
+            throw new AssertionError(
+                phase+
+                " terminal runtime still exposed classloader"
+            );
+
+        boolean snapshotDenied=false;
+
+        try{
+            loaded.snapshotPath();
+        }catch(IllegalStateException expected){
+            snapshotDenied=true;
+        }
+
+        if(!snapshotDenied)
+            throw new AssertionError(
+                phase+
+                " terminal runtime still exposed archive snapshot"
+            );
+
+        loaded.close();
     }
 
     private static void assertHandleReleasedLoader(
