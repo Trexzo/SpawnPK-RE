@@ -78,6 +78,9 @@ public final class PluginClassLoaderIsolationTest {
         assertExceptionalCloseReleasesRoots(
             jarA
         );
+        assertCaptureFailureCleanupDebt(
+            jarA
+        );
         assertLiveCloseRace(
             jarA
         );
@@ -518,6 +521,7 @@ public final class PluginClassLoaderIsolationTest {
             "javaPluginRuntimeReferencesReleased=true "+
             "javaPluginExceptionalCloseReleased=true "+
             "javaPluginArchiveCleanupDebtRetried=true "+
+            "javaPluginCaptureFailureDebtRetried=true "+
             "javaPluginCloseRaceSafe=true "+
             "publicApiExpanded=false"
         );
@@ -1388,6 +1392,108 @@ public final class PluginClassLoaderIsolationTest {
             loaded,
             "World-close cleanup-debt retry"
         );
+    }
+
+    private static void assertCaptureFailureCleanupDebt(
+        Path jarA
+    )throws Exception{
+        int baselineDebt=
+            PluginJarLoader
+                .archiveCleanupDebtCount();
+        IOException primary=
+            new IOException(
+                "fixture-capture-primary"
+            );
+        final Path[] root=
+            new Path[1];
+        final Path[] sentinel=
+            new Path[1];
+
+        Throwable observed=null;
+
+        try{
+            PluginJarLoader
+                .captureArchiveForTest(
+                    jarA,
+                    (privateRoot,snapshot)->{
+                        root[0]=privateRoot;
+                        sentinel[0]=
+                            privateRoot.resolve(
+                                "capture-retirement-sentinel"
+                            );
+
+                        Files.write(
+                            sentinel[0],
+                            new byte[]{1}
+                        );
+
+                        throw primary;
+                    }
+                );
+        }catch(Throwable failure){
+            observed=failure;
+        }
+
+        if(observed!=primary)
+            throw new AssertionError(
+                "capture failure identity changed",
+                observed
+            );
+
+        if(primary.getSuppressed().length!=1||
+           !(primary.getSuppressed()[0] instanceof
+                java.nio.file.DirectoryNotEmptyException))
+            throw new AssertionError(
+                "capture cleanup failure was not subordinate evidence"
+            );
+
+        if(root[0]==null||
+           sentinel[0]==null||
+           !Files.exists(
+                root[0]
+           )||
+           !Files.exists(
+                sentinel[0]
+           ))
+            throw new AssertionError(
+                "capture failure fixture did not retain blocked private root"
+            );
+
+        if(PluginJarLoader
+                .archiveCleanupDebtCount()!=
+                    baselineDebt+1)
+            throw new AssertionError(
+                "capture failure did not transfer exactly one cleanup debt"
+            );
+
+        Files.deleteIfExists(
+            sentinel[0]
+        );
+
+        Throwable retry=
+            PluginJarLoader
+                .retryArchiveCleanupDebtOnce(
+                    null
+                );
+
+        if(retry!=null)
+            throw new AssertionError(
+                "capture-failure cleanup debt did not retire after blocker removal",
+                retry
+            );
+
+        if(PluginJarLoader
+                .archiveCleanupDebtCount()!=
+                    baselineDebt)
+            throw new AssertionError(
+                "capture-failure cleanup debt remained after successful drain"
+            );
+
+        if(Files.exists(
+                root[0]))
+            throw new AssertionError(
+                "capture-failure private root remained after successful drain"
+            );
     }
 
     private static void assertLiveCloseRace(
