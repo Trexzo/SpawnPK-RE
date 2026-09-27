@@ -79,10 +79,16 @@ final class WorldPluginManager
     )throws Exception{
         requireOpen();
 
+        RuntimeCloseOwnership runtimeClose=
+            new RuntimeCloseOwnership(
+                plugin
+            );
+
         try{
             return enableOne(
                 snapshotCandidate(
-                    plugin
+                    plugin,
+                    runtimeClose
                 ),
                 true,
                 new RuntimeAdmissionGate()
@@ -90,10 +96,9 @@ final class WorldPluginManager
         }catch(Throwable failure){
             if(!ownsPluginInstance(
                     plugin))
-                PluginRuntimeSupport.closePluginRuntime(
-                        plugin,
-                        failure
-                    );
+                runtimeClose.close(
+                    failure
+                );
             rethrow(failure);
             throw new AssertionError(
                 "unreachable"
@@ -118,12 +123,26 @@ final class WorldPluginManager
             new ArrayList<>();
         RuntimeAdmissionGate admission=
             new RuntimeAdmissionGate();
+        IdentityHashMap<Plugin,RuntimeCloseOwnership>
+            runtimeCloses=
+                new IdentityHashMap<>();
+
+        for(Plugin plugin:requested)
+            if(!runtimeCloses.containsKey(
+                    plugin))
+                runtimeCloses.put(
+                    plugin,
+                    new RuntimeCloseOwnership(
+                        plugin
+                    )
+                );
 
         try{
             List<Candidate> ordered=
                 dependencyOrder(
                     snapshotCandidates(
-                        requested
+                        requested,
+                        runtimeCloses
                     )
                 );
 
@@ -158,8 +177,9 @@ final class WorldPluginManager
             for(Plugin plugin:requested)
                 if(!ownsPluginInstance(
                         plugin))
-                    PluginRuntimeSupport.closePluginRuntime(
-                            plugin,
+                    runtimeCloses.get(
+                            plugin
+                        ).close(
                             failure
                         );
 
@@ -334,11 +354,16 @@ final class WorldPluginManager
     }
 
     private Candidate snapshotCandidate(
-        Plugin plugin
+        Plugin plugin,
+        RuntimeCloseOwnership runtimeClose
     ){
         Objects.requireNonNull(
             plugin,
             "plugin"
+        );
+        Objects.requireNonNull(
+            runtimeClose,
+            "runtimeClose"
         );
 
         ClassLoader callbackLoader=
@@ -362,12 +387,16 @@ final class WorldPluginManager
         return new Candidate(
             plugin,
             callbackLoader,
-            manifest
+            manifest,
+            runtimeClose
         );
     }
 
     private List<Candidate> snapshotCandidates(
-        Collection<? extends Plugin> plugins
+        Collection<? extends Plugin> plugins,
+        IdentityHashMap<
+            Plugin,RuntimeCloseOwnership
+        > runtimeCloses
     ){
         ArrayList<Candidate> snapshots=
             new ArrayList<>();
@@ -379,7 +408,10 @@ final class WorldPluginManager
                 ))
             snapshots.add(
                 snapshotCandidate(
-                    plugin
+                    plugin,
+                    runtimeCloses.get(
+                        plugin
+                    )
                 )
             );
 
@@ -440,7 +472,8 @@ final class WorldPluginManager
                 moduleId,
                 tracker,
                 callbackScope,
-                admission
+                admission,
+                candidate.runtimeClose
             );
         entry.failureSink=
             (kind,failure)->
@@ -522,8 +555,7 @@ final class WorldPluginManager
                     );
             }
 
-            PluginRuntimeSupport.closePluginRuntime(
-                plugin,
+            candidate.runtimeClose.close(
                 failure
             );
             entry.failureSink=null;
@@ -630,66 +662,68 @@ final class WorldPluginManager
 
         Plugin plugin=
             entry.plugin;
-        ClassLoader callbackLoader=
-            PluginRuntimeSupport.callbackClassLoader(
-                plugin
-            );
-
-        entry.callbacks.awaitQuiescent();
-        entry.tasks.awaitQuiescent();
-        entry.callbacks.finishClose();
 
         try{
-            if(plugin!=null)
-                PluginThreadContext.run(
-                    callbackLoader,
-                    plugin::disable
+            ClassLoader callbackLoader=
+                PluginRuntimeSupport.callbackClassLoader(
+                    plugin
                 );
-        }catch(Throwable failure){
-            recordTerminalDiagnostic(
-                entry,
-                reason+":DISABLE",
-                failure
-            );
-            System.err.println(
-                "[plugins] disable callback failed id="+
-                entry.manifest.id()+
-                " reason="+reason+
-                " errorClass="+
-                safeFailureClassName(
-                    failure
-                )
-            );
-        }
 
-        entry.tasks.close();
-        entry.events.close(
-            entry::callbackFailure
-        );
+            entry.callbacks.awaitQuiescent();
+            entry.tasks.awaitQuiescent();
+            entry.callbacks.finishClose();
 
-        try{
-            content.uninstallModule(
-                entry.moduleId
-            );
-        }catch(Throwable failure){
-            recordTerminalDiagnostic(
-                entry,
-                reason+":CONTENT_UNINSTALL",
-                failure
-            );
-            System.err.println(
-                "[plugins] content uninstall failed id="+
-                entry.manifest.id()+
-                " reason="+reason+
-                " errorClass="+
-                safeFailureClassName(
+            try{
+                if(plugin!=null)
+                    PluginThreadContext.run(
+                        callbackLoader,
+                        plugin::disable
+                    );
+            }catch(Throwable failure){
+                recordTerminalDiagnostic(
+                    entry,
+                    reason+":DISABLE",
                     failure
-                )
+                );
+                System.err.println(
+                    "[plugins] disable callback failed id="+
+                    entry.manifest.id()+
+                    " reason="+reason+
+                    " errorClass="+
+                    safeFailureClassName(
+                        failure
+                    )
+                );
+            }
+
+            entry.tasks.close();
+            entry.events.close(
+                entry::callbackFailure
             );
+
+            try{
+                content.uninstallModule(
+                    entry.moduleId
+                );
+            }catch(Throwable failure){
+                recordTerminalDiagnostic(
+                    entry,
+                    reason+":CONTENT_UNINSTALL",
+                    failure
+                );
+                System.err.println(
+                    "[plugins] content uninstall failed id="+
+                    entry.manifest.id()+
+                    " reason="+reason+
+                    " errorClass="+
+                    safeFailureClassName(
+                        failure
+                    )
+                );
+            }
         }finally{
             Throwable loaderFailure=
-                PluginRuntimeSupport.closePluginRuntime(
-                    plugin,
+                entry.runtimeClose.close(
                     null
                 );
 
@@ -1753,6 +1787,7 @@ final class WorldPluginManager
         PluginTaskTracker tasks;
         final PluginCallbackScope callbacks;
         final RuntimeAdmissionGate admission;
+        final RuntimeCloseOwnership runtimeClose;
         volatile RuntimeFailureSink failureSink;
         volatile RuntimeState runtimeState=
             RuntimeState.ENABLING;
@@ -1766,7 +1801,8 @@ final class WorldPluginManager
             String moduleId,
             EventTracker events,
             PluginCallbackScope callbacks,
-            RuntimeAdmissionGate admission
+            RuntimeAdmissionGate admission,
+            RuntimeCloseOwnership runtimeClose
         ){
             this.plugin=plugin;
             this.manifest=manifest;
@@ -1777,6 +1813,11 @@ final class WorldPluginManager
                 Objects.requireNonNull(
                     admission,
                     "admission"
+                );
+            this.runtimeClose=
+                Objects.requireNonNull(
+                    runtimeClose,
+                    "runtimeClose"
                 );
         }
 
@@ -1819,11 +1860,13 @@ final class WorldPluginManager
         final Plugin plugin;
         final ClassLoader callbackLoader;
         final PluginManifest manifest;
+        final RuntimeCloseOwnership runtimeClose;
 
         Candidate(
             Plugin plugin,
             ClassLoader callbackLoader,
-            PluginManifest manifest
+            PluginManifest manifest,
+            RuntimeCloseOwnership runtimeClose
         ){
             this.plugin=
                 Objects.requireNonNull(
@@ -1836,6 +1879,38 @@ final class WorldPluginManager
                 Objects.requireNonNull(
                     manifest,
                     "manifest"
+                );
+            this.runtimeClose=
+                Objects.requireNonNull(
+                    runtimeClose,
+                    "runtimeClose"
+                );
+        }
+    }
+
+    private static final class RuntimeCloseOwnership {
+        private final Plugin plugin;
+        private boolean attempted;
+
+        RuntimeCloseOwnership(
+            Plugin plugin
+        ){
+            this.plugin=plugin;
+        }
+
+        synchronized Throwable close(
+            Throwable primary
+        ){
+            if(attempted||
+               !(plugin instanceof PluginRuntime))
+                return null;
+
+            attempted=true;
+
+            return PluginRuntimeSupport
+                .closePluginRuntime(
+                    plugin,
+                    primary
                 );
         }
     }
