@@ -385,14 +385,26 @@ final class KotlinPluginDirectory {
         List<PluginRuntime> runtimes,
         Throwable primary
     ){
+        java.util.Set<PluginRuntime> closed=
+            java.util.Collections
+                .newSetFromMap(
+                    new java.util.IdentityHashMap<>()
+                );
+
         for(int i=runtimes.size()-1;
             i>=0;
-            i--)
-            PluginRuntimeSupport
-                .closePluginRuntime(
-                    runtimes.get(i),
-                    primary
-                );
+            i--){
+            PluginRuntime runtime=
+                runtimes.get(i);
+
+            if(closed.add(
+                    runtime))
+                PluginRuntimeSupport
+                    .closePluginRuntime(
+                        runtime,
+                        primary
+                    );
+        }
     }
 
     private static PluginLoader
