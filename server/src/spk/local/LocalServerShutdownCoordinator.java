@@ -128,7 +128,7 @@ final class LocalServerShutdownCoordinator
             // finishes. Do not inject it into activeGameSockets: terminal
             // completion may already be in progress if the listener itself
             // failed to close and could not unblock this accept.
-            IOException closeFailure=null;
+            Throwable closeFailure=null;
 
             try{
                 closeFailure=
@@ -148,7 +148,9 @@ final class LocalServerShutdownCoordinator
             }
 
             if(closeFailure!=null)
-                throw closeFailure;
+                rethrowAcceptFailure(
+                    closeFailure
+                );
 
             return null;
         }
@@ -191,13 +193,15 @@ final class LocalServerShutdownCoordinator
             "socket"
         );
 
-        IOException closeFailure=
+        Throwable closeFailure=
             retireOwnedSocket(
                 socket
             );
 
         if(closeFailure!=null)
-            throw closeFailure;
+            rethrowSocketCloseFailure(
+                closeFailure
+            );
     }
 
     int pendingGameAcceptHandoffs(){
@@ -269,13 +273,15 @@ final class LocalServerShutdownCoordinator
         }
 
         if(rejectedBeforeFactory){
-            IOException closeFailure=
+            Throwable closeFailure=
                 closeUnownedSocket(
                     socket
                 );
 
             if(closeFailure!=null)
-                throw closeFailure;
+                rethrowFactoryFailure(
+                    closeFailure
+                );
 
             return false;
         }
@@ -289,7 +295,7 @@ final class LocalServerShutdownCoordinator
                     "session"
                 );
         }catch(Throwable failure){
-            IOException closeFailure=
+            Throwable closeFailure=
                 retireOwnedSocket(
                     socket
                 );
@@ -329,7 +335,7 @@ final class LocalServerShutdownCoordinator
                             try{
                                 session.run();
                             }finally{
-                                IOException closeFailure=
+                                Throwable closeFailure=
                                     retireOwnedSocket(
                                         socket
                                     );
@@ -350,19 +356,21 @@ final class LocalServerShutdownCoordinator
         }
 
         if(rejectedAfterFactory){
-            IOException closeFailure=
+            Throwable closeFailure=
                 retireOwnedSocket(
                     socket
                 );
 
             if(closeFailure!=null)
-                throw closeFailure;
+                rethrowFactoryFailure(
+                    closeFailure
+                );
 
             return false;
         }
 
         if(submissionFailure!=null){
-            IOException closeFailure=
+            Throwable closeFailure=
                 retireOwnedSocket(
                     socket
                 );
@@ -379,13 +387,13 @@ final class LocalServerShutdownCoordinator
         return true;
     }
 
-    private IOException retireOwnedSocket(
+    private Throwable retireOwnedSocket(
         Socket socket
     ){
         // Ownership is retired only after the Socket itself reports closed.
         // A checked close failure that leaves it open therefore remains
         // coordinator-owned for a later terminal retry.
-        IOException failure=
+        Throwable failure=
             closeSocket(
                 socket
             );
@@ -405,10 +413,10 @@ final class LocalServerShutdownCoordinator
         return failure;
     }
 
-    private static IOException closeUnownedSocket(
+    private static Throwable closeUnownedSocket(
         Socket socket
     ){
-        IOException failure=
+        Throwable failure=
             closeSocket(
                 socket
             );
@@ -423,7 +431,7 @@ final class LocalServerShutdownCoordinator
         return failure;
     }
 
-    private IOException retryOwnedSocketsForTerminal(){
+    private Throwable retryOwnedSocketsForTerminal(){
         ArrayList<Socket> remaining;
 
         synchronized(lifecycleLock){
@@ -433,10 +441,10 @@ final class LocalServerShutdownCoordinator
                 );
         }
 
-        IOException primary=null;
+        Throwable primary=null;
 
         for(Socket socket:remaining){
-            IOException failure=
+            Throwable failure=
                 retireOwnedSocket(
                     socket
                 );
@@ -463,6 +471,22 @@ final class LocalServerShutdownCoordinator
         }
 
         return primary;
+    }
+
+    private static void rethrowSocketCloseFailure(
+        Throwable failure
+    )throws IOException{
+        if(failure instanceof IOException)
+            throw (IOException)failure;
+        if(failure instanceof RuntimeException)
+            throw (RuntimeException)failure;
+        if(failure instanceof Error)
+            throw (Error)failure;
+
+        throw new IOException(
+            "session socket close failed",
+            failure
+        );
     }
 
     private static void rethrowFactoryFailure(
@@ -530,12 +554,12 @@ final class LocalServerShutdownCoordinator
 
         // Publish the terminal fence first, then perform potentially blocking
         // listener/socket closes without lifecycleLock.
-        IOException gameListenerFailure=
+        Throwable gameListenerFailure=
             closeServerSocket(
                 game,
                 "game"
             );
-        IOException auxListenerFailure=
+        Throwable auxListenerFailure=
             closeServerSocket(
                 aux,
                 "aux"
@@ -569,7 +593,7 @@ final class LocalServerShutdownCoordinator
         // A session-factory handoff may have completed after the first
         // snapshot, and a first active-socket close may have failed. Retry
         // every still-owned active socket once after the awaited handoffs.
-        IOException socketRetirementFailure=
+        Throwable socketRetirementFailure=
             retryOwnedSocketsForTerminal();
 
         Throwable failure=null;
@@ -692,26 +716,26 @@ final class LocalServerShutdownCoordinator
         }
     }
 
-    private static IOException closeSocket(
+    private static Throwable closeSocket(
         Socket socket
     ){
         try{
             socket.close();
             return null;
-        }catch(IOException failure){
+        }catch(Throwable failure){
             return failure;
         }
     }
 
-    private static IOException closeServerSocket(
+    private static Throwable closeServerSocket(
         ServerSocket socket,
         String label
     ){
-        IOException failure=null;
+        Throwable failure=null;
 
         try{
             socket.close();
-        }catch(IOException error){
+        }catch(Throwable error){
             failure=error;
         }
 
