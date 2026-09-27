@@ -78,20 +78,63 @@ final class LocalAuxArchiveAccess {
             return null;
         }
 
-        try(SeekableByteChannel owned=
-                channel){
-            return Long.valueOf(
-                LocalAuxHttpResponse
-                    .writeOpenedFile(
-                        out,
-                        200,
-                        "OK",
-                        "application/zip",
-                        owned,
-                        head
-                    )
-            );
+        Long result=null;
+        Throwable failure=null;
+
+        try{
+            result=
+                Long.valueOf(
+                    LocalAuxHttpResponse
+                        .writeOpenedFile(
+                            out,
+                            200,
+                            "OK",
+                            "application/zip",
+                            channel,
+                            head
+                        )
+                );
+        }catch(IOException|
+               RuntimeException|
+               Error responseFailure){
+            failure=responseFailure;
         }
+
+        try{
+            channel.close();
+        }catch(Throwable closeFailure){
+            failure=
+                LocalAuxHttpWorker
+                    .preserveFailureOrder(
+                        failure,
+                        closeFailure
+                    );
+        }
+
+        if(failure!=null)
+            rethrowPostOpenFailure(
+                failure
+            );
+
+        return result;
+    }
+
+    private static void rethrowPostOpenFailure(
+        Throwable failure
+    )throws IOException{
+        if(failure instanceof IOException)
+            throw (IOException)failure;
+
+        if(failure instanceof RuntimeException)
+            throw (RuntimeException)failure;
+
+        if(failure instanceof Error)
+            throw (Error)failure;
+
+        throw new IOException(
+            "archive response/close failed",
+            failure
+        );
     }
 
     private LocalAuxArchiveAccess(){}
