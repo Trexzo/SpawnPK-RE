@@ -136,6 +136,8 @@ public final class Main {
                 runtime::addShutdownHook
             );
 
+        Throwable servingFailure=null;
+
         try {
             if (!shutdown.submitAuxiliary(
                     () -> localAux(aux)))
@@ -167,8 +169,11 @@ public final class Main {
                                 )))
                     break;
             }
+        } catch (Throwable failure) {
+            servingFailure=failure;
         } finally {
-            MainShutdownFinalizer.run(
+            MainShutdownFinalizer.runPreserving(
+                servingFailure,
                 shutdown::close,
                 ()->runtime.removeShutdownHook(
                     shutdownHook
