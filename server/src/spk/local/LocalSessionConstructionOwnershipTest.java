@@ -40,6 +40,8 @@ public final class LocalSessionConstructionOwnershipTest {
         assertUncheckedListenerCloseFailurePublished();
         assertAuxiliaryAcceptedSocketOwnership();
         assertAuxiliaryAcceptHandoffTerminalRace();
+        assertAuxiliaryWorkerFailureWakesMain();
+        assertLateAuxiliaryWorkerFailureJoinsTerminal();
         assertSuccessPath();
 
         System.out.println(
@@ -83,6 +85,10 @@ public final class LocalSessionConstructionOwnershipTest {
             "auxAcceptHandoff=true "+
             "auxHandoffBoundedPool=true "+
             "auxPostFenceReject=true "+
+            "auxWorkerFailurePrimary=true "+
+            "auxWorkerWakeAttempt=true "+
+            "auxWorkerWakeFailureSuppressed=true "+
+            "lateAuxWorkerFailureRetained=true "+
             "successPath=true"
         );
     }
@@ -2423,6 +2429,209 @@ public final class LocalSessionConstructionOwnershipTest {
         );
     }
 
+    private static void
+        assertAuxiliaryWorkerFailureWakesMain()
+        throws Exception{
+        World world=
+            World.isolatedForTest(
+                25L
+            );
+        world.start();
+
+        CapturingExecutor pool=
+            new CapturingExecutor(
+                true
+            );
+        ServerSocket game=
+            new ServerSocket();
+        ServerSocket aux=
+            new ServerSocket();
+
+        LocalServerShutdownCoordinator shutdown=
+            new LocalServerShutdownCoordinator(
+                world,
+                pool,
+                game,
+                aux
+            );
+
+        RuntimeException workerFailure=
+            new RuntimeException(
+                "fixture-aux-worker-failure"
+            );
+        IOException acceptWakeFailure=
+            new IOException(
+                "fixture-game-accept-wakeup"
+            );
+        CountDownLatch acceptEntered=
+            new CountDownLatch(1);
+        CountDownLatch releaseAccept=
+            new CountDownLatch(1);
+        AtomicReference<Throwable> observed=
+            new AtomicReference<>();
+
+        Thread acceptThread=
+            new Thread(
+                ()->{
+                    try{
+                        shutdown.acceptGameSocket(
+                            ()->{
+                                acceptEntered.countDown();
+
+                                try{
+                                    releaseAccept.await();
+                                }catch(InterruptedException error){
+                                    Thread.currentThread()
+                                        .interrupt();
+                                    throw new IOException(
+                                        "fixture accept interrupted",
+                                        error
+                                    );
+                                }
+
+                                throw acceptWakeFailure;
+                            }
+                        );
+                    }catch(Throwable failure){
+                        observed.set(
+                            failure
+                        );
+                    }
+                },
+                "aux-worker-failure-game-accept"
+            );
+        acceptThread.start();
+
+        if(!acceptEntered.await(
+                5,
+                TimeUnit.SECONDS))
+            throw new AssertionError(
+                "game accept did not enter before auxiliary worker failure"
+            );
+
+        if(!shutdown.submitAuxiliary(
+                ()->{
+                    throw workerFailure;
+                }))
+            throw new AssertionError(
+                "auxiliary worker fixture was not submitted"
+            );
+
+        pool.runCaptured();
+
+        if(!game.isClosed())
+            throw new AssertionError(
+                "auxiliary worker failure did not attempt game-listener wake"
+            );
+
+        releaseAccept.countDown();
+        acceptThread.join(
+            5_000L
+        );
+
+        if(acceptThread.isAlive())
+            throw new AssertionError(
+                "game accept did not retire after auxiliary worker failure"
+            );
+
+        if(observed.get()!=
+                workerFailure)
+            throw new AssertionError(
+                "auxiliary worker failure did not remain serving primary",
+                observed.get()
+            );
+
+        if(!containsSuppressedIdentity(
+                workerFailure,
+                acceptWakeFailure))
+            throw new AssertionError(
+                "synthetic game-accept wake failure was not suppressed behind worker failure"
+            );
+
+        shutdown.close();
+    }
+
+    private static void
+        assertLateAuxiliaryWorkerFailureJoinsTerminal()
+        throws Exception{
+        World world=
+            World.isolatedForTest(
+                25L
+            );
+        world.start();
+
+        CapturingExecutor pool=
+            new CapturingExecutor(
+                false
+            );
+        ServerSocket game=
+            new ServerSocket();
+        ServerSocket aux=
+            new ServerSocket();
+
+        LocalServerShutdownCoordinator shutdown=
+            new LocalServerShutdownCoordinator(
+                world,
+                pool,
+                game,
+                aux
+            );
+
+        RuntimeException workerFailure=
+            new RuntimeException(
+                "fixture-late-aux-worker-failure"
+            );
+
+        if(!shutdown.submitAuxiliary(
+                ()->{
+                    throw workerFailure;
+                }))
+            throw new AssertionError(
+                "late auxiliary worker fixture was not submitted"
+            );
+
+        Throwable first=null;
+
+        try{
+            shutdown.close();
+        }catch(Throwable failure){
+            first=failure;
+        }
+
+        if(first==null||
+           !containsThrowableMessage(
+               first,
+               "session executor did not terminate after forced shutdown"
+           ))
+            throw new AssertionError(
+                "nonterminating pool did not establish terminal failure",
+                first
+            );
+
+        pool.runCaptured();
+
+        Throwable repeated=null;
+
+        try{
+            shutdown.close();
+        }catch(Throwable failure){
+            repeated=failure;
+        }
+
+        if(repeated!=first)
+            throw new AssertionError(
+                "late auxiliary worker failure replaced terminal identity",
+                repeated
+            );
+
+        if(!containsSuppressedIdentity(
+                first,
+                workerFailure))
+            throw new AssertionError(
+                "late auxiliary worker failure was not retained behind terminal failure"
+            );
+    }
+
     private static void assertSuccessPath()
         throws Exception{
         World world=
@@ -2771,6 +2980,74 @@ public final class LocalSessionConstructionOwnershipTest {
             Runnable command
         ){
             throw rejection;
+        }
+    }
+
+    private static final class CapturingExecutor
+        extends AbstractExecutorService {
+
+        final boolean terminates;
+        Runnable captured;
+        boolean shutdown;
+        boolean shutdownNow;
+
+        CapturingExecutor(
+            boolean terminates
+        ){
+            this.terminates=
+                terminates;
+        }
+
+        void runCaptured(){
+            Runnable task=
+                captured;
+
+            if(task==null)
+                throw new AssertionError(
+                    "no captured auxiliary task"
+                );
+
+            captured=null;
+            task.run();
+        }
+
+        @Override public void shutdown(){
+            shutdown=true;
+        }
+
+        @Override public List<Runnable> shutdownNow(){
+            shutdown=true;
+            shutdownNow=true;
+            return Collections.emptyList();
+        }
+
+        @Override public boolean isShutdown(){
+            return shutdown;
+        }
+
+        @Override public boolean isTerminated(){
+            return shutdown&&
+                terminates;
+        }
+
+        @Override public boolean awaitTermination(
+            long timeout,
+            TimeUnit unit
+        ){
+            return shutdown&&
+                terminates;
+        }
+
+        @Override public void execute(
+            Runnable command
+        ){
+            if(captured!=null)
+                throw new AssertionError(
+                    "multiple captured tasks"
+                );
+
+            captured=
+                command;
         }
     }
 
