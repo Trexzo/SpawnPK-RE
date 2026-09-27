@@ -514,6 +514,7 @@ public final class PluginKernelLifecycleTest {
             );
 
         pluginSelfSuppressionRegression();
+        pluginRuntimeCloseExactlyOnceRegression();
 
         CloseProbePlugin closeProbe=
             new CloseProbePlugin();
@@ -581,6 +582,7 @@ public final class PluginKernelLifecycleTest {
             "pluginSelfSuppressionSafe=true "+
             "enableRollbackEvidencePreserved=true "+
             "worldCloseSelfSuppressionSafe=true "+
+            "pluginRuntimeCloseExactlyOnce=true "+
             "dependencyCycleRejected=true "+
             "worldCloseClean=true"
         );
@@ -872,7 +874,7 @@ public final class PluginKernelLifecycleTest {
                     );
 
             if(plugin.disableCount.get()!=1||
-               plugin.closeCount.get()<1||
+               plugin.closeCount.get()!=1||
                manager.plugin(
                    "self.unwrap"
                )!=null||
@@ -1097,6 +1099,393 @@ public final class PluginKernelLifecycleTest {
         throw new AssertionError(
             "expected failure did not occur"
         );
+    }
+
+    private static void pluginRuntimeCloseExactlyOnceRegression()
+        throws Exception{
+        singleFailedRuntimeClosesOnce();
+        batchRuntimeRollbackClosesOnce();
+        snapshotFailureRuntimeClosesOnce();
+        duplicateRequestedRuntimeClosesOnce();
+        successfulRuntimeLifecycleClosesOnce();
+    }
+
+    private static void singleFailedRuntimeClosesOnce()
+        throws Exception{
+        World world=
+            World.isolatedForTest(
+                25L
+            );
+        WorldPluginManager manager=
+            (WorldPluginManager)
+                world.plugins();
+        RuntimeException primary=
+            new IllegalStateException(
+                "single-close-primary"
+            );
+        CountingPluginRuntime runtime=
+            new CountingPluginRuntime(
+                "close.single",
+                Collections.<String>emptyList(),
+                primary,
+                null,
+                null,
+                true
+            );
+        int baseline=
+            world.domainEvents()
+                .listenerCount();
+
+        try{
+            Throwable observed=
+                captureFailure(
+                    ()->manager.enable(
+                        runtime
+                    )
+                );
+
+            if(observed!=primary)
+                throw new AssertionError(
+                    "single failed runtime primary changed",
+                    observed
+                );
+
+            if(runtime.closeCount.get()!=1||
+               runtime.disableCount.get()!=1)
+                throw new AssertionError(
+                    "single failed runtime cleanup count close="+
+                    runtime.closeCount.get()+
+                    " disable="+
+                    runtime.disableCount.get()
+                );
+
+            if(manager.plugin(
+                    "close.single")!=null||
+               world.content()
+                   .commandBinding(
+                       "closesingle"
+                   )!=null||
+               world.domainEvents()
+                   .listenerCount()!=
+                       baseline)
+                throw new AssertionError(
+                    "single failed runtime retained lifecycle roots"
+                );
+        }finally{
+            world.close();
+        }
+
+        World throwingWorld=
+            World.isolatedForTest(
+                25L
+            );
+        WorldPluginManager throwingManager=
+            (WorldPluginManager)
+                throwingWorld.plugins();
+        RuntimeException throwingPrimary=
+            new IllegalStateException(
+                "single-close-throw-primary"
+            );
+        RuntimeException closeFailure=
+            new IllegalArgumentException(
+                "single-close-cleanup"
+            );
+        CountingPluginRuntime throwingRuntime=
+            new CountingPluginRuntime(
+                "close.single.throw",
+                Collections.<String>emptyList(),
+                throwingPrimary,
+                null,
+                closeFailure,
+                false
+            );
+
+        try{
+            Throwable observed=
+                captureFailure(
+                    ()->throwingManager.enable(
+                        throwingRuntime
+                    )
+                );
+
+            if(observed!=throwingPrimary||
+               throwingRuntime.closeCount.get()!=1||
+               throwingPrimary.getSuppressed().length!=1||
+               throwingPrimary.getSuppressed()[0]!=
+                    closeFailure)
+                throw new AssertionError(
+                    "throwing runtime close was retried or reordered",
+                    observed
+                );
+        }finally{
+            throwingWorld.close();
+        }
+    }
+
+    private static void batchRuntimeRollbackClosesOnce()
+        throws Exception{
+        World world=
+            World.isolatedForTest(
+                25L
+            );
+        WorldPluginManager manager=
+            (WorldPluginManager)
+                world.plugins();
+        RuntimeException primary=
+            new IllegalStateException(
+                "batch-close-primary"
+            );
+
+        CountingPluginRuntime a=
+            new CountingPluginRuntime(
+                "close.batch.a",
+                Collections.<String>emptyList(),
+                null,
+                null,
+                null,
+                true
+            );
+        CountingPluginRuntime b=
+            new CountingPluginRuntime(
+                "close.batch.b",
+                Collections.singletonList(
+                    "close.batch.a"
+                ),
+                null,
+                null,
+                null,
+                true
+            );
+        CountingPluginRuntime c=
+            new CountingPluginRuntime(
+                "close.batch.c",
+                Collections.singletonList(
+                    "close.batch.b"
+                ),
+                primary,
+                null,
+                null,
+                true
+            );
+
+        try{
+            Throwable observed=
+                captureFailure(
+                    ()->manager.enableAll(
+                        Arrays.<Plugin>asList(
+                            c,
+                            b,
+                            a
+                        )
+                    )
+                );
+
+            if(observed!=primary)
+                throw new AssertionError(
+                    "batch runtime primary changed",
+                    observed
+                );
+
+            for(CountingPluginRuntime runtime:
+                    Arrays.asList(
+                        a,
+                        b,
+                        c
+                    ))
+                if(runtime.closeCount.get()!=1||
+                   runtime.disableCount.get()!=1)
+                    throw new AssertionError(
+                        "batch runtime cleanup not exactly once id="+
+                        runtime.manifest().id()+
+                        " close="+
+                        runtime.closeCount.get()+
+                        " disable="+
+                        runtime.disableCount.get()
+                    );
+
+            if(!manager.enabled().isEmpty())
+                throw new AssertionError(
+                    "batch runtime rollback retained handles"
+                );
+        }finally{
+            world.close();
+        }
+    }
+
+    private static void snapshotFailureRuntimeClosesOnce()
+        throws Exception{
+        World world=
+            World.isolatedForTest(
+                25L
+            );
+        WorldPluginManager manager=
+            (WorldPluginManager)
+                world.plugins();
+        RuntimeException snapshotFailure=
+            new IllegalStateException(
+                "snapshot-callback-loader-failure"
+            );
+        CountingPluginRuntime runtime=
+            new CountingPluginRuntime(
+                "close.snapshot",
+                Collections.<String>emptyList(),
+                null,
+                null,
+                null,
+                false
+            );
+        runtime.callbackLoaderFailure=
+            snapshotFailure;
+
+        try{
+            Throwable observed=
+                captureFailure(
+                    ()->manager.enable(
+                        runtime
+                    )
+                );
+
+            if(observed!=snapshotFailure||
+               runtime.closeCount.get()!=1||
+               runtime.enableCount.get()!=0||
+               runtime.disableCount.get()!=0)
+                throw new AssertionError(
+                    "snapshot failure runtime ownership mismatch",
+                    observed
+                );
+        }finally{
+            world.close();
+        }
+    }
+
+    private static void duplicateRequestedRuntimeClosesOnce()
+        throws Exception{
+        World world=
+            World.isolatedForTest(
+                25L
+            );
+        WorldPluginManager manager=
+            (WorldPluginManager)
+                world.plugins();
+        CountingPluginRuntime runtime=
+            new CountingPluginRuntime(
+                "close.duplicate",
+                Collections.<String>emptyList(),
+                null,
+                null,
+                null,
+                false
+            );
+
+        try{
+            captureFailure(
+                ()->manager.enableAll(
+                    Arrays.<Plugin>asList(
+                        runtime,
+                        runtime
+                    )
+                )
+            );
+
+            if(runtime.closeCount.get()!=1)
+                throw new AssertionError(
+                    "duplicate requested runtime closed "+
+                    runtime.closeCount.get()+
+                    " times"
+                );
+
+            if(manager.plugin(
+                    "close.duplicate")!=null)
+                throw new AssertionError(
+                    "duplicate requested runtime retained handle"
+                );
+        }finally{
+            world.close();
+        }
+    }
+
+    private static void successfulRuntimeLifecycleClosesOnce()
+        throws Exception{
+        World world=
+            World.isolatedForTest(
+                25L
+            );
+        WorldPluginManager manager=
+            (WorldPluginManager)
+                world.plugins();
+        CountingPluginRuntime explicit=
+            new CountingPluginRuntime(
+                "close.success.explicit",
+                Collections.<String>emptyList(),
+                null,
+                null,
+                null,
+                false
+            );
+
+        try{
+            PluginHandle handle=
+                manager.enable(
+                    explicit
+                );
+
+            if(!handle.enabled())
+                throw new AssertionError(
+                    "successful runtime did not enable"
+                );
+
+            if(!manager.disable(
+                    "close.success.explicit"))
+                throw new AssertionError(
+                    "successful runtime explicit disable failed"
+                );
+
+            if(explicit.closeCount.get()!=1||
+               explicit.disableCount.get()!=1)
+                throw new AssertionError(
+                    "successful explicit runtime cleanup count mismatch"
+                );
+
+            world.close();
+            world.close();
+
+            if(explicit.closeCount.get()!=1)
+                throw new AssertionError(
+                    "repeated World close reclosed explicit runtime"
+                );
+        }finally{
+            if(!world.closed())
+                world.close();
+        }
+
+        World terminalWorld=
+            World.isolatedForTest(
+                25L
+            );
+        WorldPluginManager terminalManager=
+            (WorldPluginManager)
+                terminalWorld.plugins();
+        CountingPluginRuntime terminal=
+            new CountingPluginRuntime(
+                "close.success.world",
+                Collections.<String>emptyList(),
+                null,
+                null,
+                null,
+                false
+            );
+
+        terminalManager.enable(
+            terminal
+        );
+        terminalWorld.close();
+        terminalWorld.close();
+
+        if(terminal.closeCount.get()!=1||
+           terminal.disableCount.get()!=1)
+            throw new AssertionError(
+                "successful World-close runtime cleanup count mismatch"
+            );
     }
 
     private static void installBaseContent(
@@ -1837,8 +2226,8 @@ public final class PluginKernelLifecycleTest {
         }
 
         @Override public void close(){
-            if(closeCount.incrementAndGet()==1)
-                throw runtimeCleanup;
+            closeCount.incrementAndGet();
+            throw runtimeCleanup;
         }
     }
 
@@ -1941,6 +2330,104 @@ public final class PluginKernelLifecycleTest {
                 throw (Exception)failure;
 
             throw (Error)failure;
+        }
+    }
+
+    private static final class CountingPluginRuntime
+        implements PluginRuntime {
+        private final PluginManifest manifest;
+        private final RuntimeException enableFailure;
+        private final RuntimeException disableFailure;
+        private final RuntimeException closeFailure;
+        private final boolean registerContent;
+        volatile RuntimeException callbackLoaderFailure;
+        final AtomicInteger enableCount=
+            new AtomicInteger();
+        final AtomicInteger disableCount=
+            new AtomicInteger();
+        final AtomicInteger closeCount=
+            new AtomicInteger();
+
+        CountingPluginRuntime(
+            String id,
+            List<String> dependencies,
+            RuntimeException enableFailure,
+            RuntimeException disableFailure,
+            RuntimeException closeFailure,
+            boolean registerContent
+        ){
+            manifest=
+                new PluginManifest(
+                    id,
+                    "1.0.0",
+                    PluginApiVersion.CURRENT,
+                    dependencies
+                );
+            this.enableFailure=enableFailure;
+            this.disableFailure=disableFailure;
+            this.closeFailure=closeFailure;
+            this.registerContent=registerContent;
+        }
+
+        @Override public PluginManifest manifest(){
+            return manifest;
+        }
+
+        @Override public void enable(
+            PluginContext context
+        ){
+            enableCount.incrementAndGet();
+
+            if(registerContent){
+                context.content()
+                    .command(
+                        manifest.id()
+                            .replace(
+                                ".",
+                                ""
+                            ),
+                        100,
+                        request->
+                            ContentResult.handled(
+                                "COUNTING_RUNTIME",
+                                null
+                            )
+                    );
+                context.events()
+                    .subscribe(
+                        ProbeEvent.class,
+                        DomainEventBus.Priority.NORMAL,
+                        event->{}
+                    );
+            }
+
+            if(enableFailure!=null)
+                throw enableFailure;
+        }
+
+        @Override public void disable(){
+            disableCount.incrementAndGet();
+
+            if(disableFailure!=null)
+                throw disableFailure;
+        }
+
+        @Override public ClassLoader callbackClassLoader(){
+            RuntimeException failure=
+                callbackLoaderFailure;
+
+            if(failure!=null)
+                throw failure;
+
+            return getClass()
+                .getClassLoader();
+        }
+
+        @Override public void close(){
+            closeCount.incrementAndGet();
+
+            if(closeFailure!=null)
+                throw closeFailure;
         }
     }
 
