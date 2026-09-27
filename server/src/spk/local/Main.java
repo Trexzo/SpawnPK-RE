@@ -196,7 +196,7 @@ public final class Main {
 
                 handleAuxConnection(
                     socket,
-                    shutdown::closing,
+                    shutdown::claimAuxiliaryResponseTimeout,
                     shutdown::publishAuxiliaryWorkerFailure
                 );
             },
@@ -217,14 +217,15 @@ public final class Main {
     static void handleAuxConnection(Socket s) throws IOException {
         handleAuxConnection(
             s,
-            ()->false,
+            commit->commit.getAsBoolean(),
             failure->{}
         );
     }
 
     static void handleAuxConnection(
         Socket s,
-        java.util.function.BooleanSupplier terminalClosing,
+        LocalAuxResponseLiveness.TimeoutAuthority
+            timeoutAuthority,
         java.util.function.Consumer<Throwable> livenessFailure
     ) throws IOException {
         InputStream in = s.getInputStream();
@@ -254,7 +255,7 @@ public final class Main {
             LocalAuxResponseLiveness liveness=
                 LocalAuxResponseLiveness.arm(
                     s,
-                    terminalClosing,
+                    timeoutAuthority,
                     livenessFailure
                 );
             OutputStream responseOut=
