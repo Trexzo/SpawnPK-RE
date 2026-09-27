@@ -838,8 +838,7 @@ final class LocalServerShutdownCoordinator
             // safely unblock and retire the pre-fence accept handoff. Rejoin
             // that barrier before draining its late failure/socket ownership.
             awaitPreTerminalHandoffs(
-                game.isClosed(),
-                aux.isClosed()
+                game.isClosed()
             );
 
             Throwable lateHandoffFailure;
@@ -937,8 +936,6 @@ final class LocalServerShutdownCoordinator
         // the terminal owner forever; terminal failure is published instead.
         boolean waitGameAcceptHandoffs=
             game.isClosed();
-        boolean waitAuxiliaryAcceptHandoffs=
-            aux.isClosed();
 
         // First close pass covers active ownership present at terminal
         // publication. Failed-open sockets remain in activeGameSockets. A
@@ -967,8 +964,7 @@ final class LocalServerShutdownCoordinator
                 );
 
         awaitPreTerminalHandoffs(
-            waitGameAcceptHandoffs,
-            waitAuxiliaryAcceptHandoffs
+            waitGameAcceptHandoffs
         );
 
         Throwable handoffFailure;
@@ -1015,12 +1011,8 @@ final class LocalServerShutdownCoordinator
                     this::closePool,
                     ()->throwIfCloseFailed(
                         "auxiliary socket retirement failed",
-                        combineFailure(
-                            combineFailure(
-                                initialAuxiliarySocketFailure,
-                                drainTerminalAuxiliarySocketFailure()
-                            ),
-                            retryOwnedAuxiliarySocketsForTerminal()
+                        reconcileAuxiliaryAfterPool(
+                            initialAuxiliarySocketFailure
                         )
                     ),
                     world::close
@@ -1036,17 +1028,44 @@ final class LocalServerShutdownCoordinator
         );
     }
 
+    private Throwable reconcileAuxiliaryAfterPool(
+        Throwable initialFailure
+    ){
+        Throwable failure=
+            combineFailure(
+                initialFailure,
+                drainTerminalAuxiliarySocketFailure()
+            );
+
+        failure=
+            combineFailure(
+                failure,
+                retryOwnedAuxiliarySocketsForTerminal()
+            );
+
+        synchronized(lifecycleLock){
+            if(auxiliaryAcceptHandoffs!=0)
+                failure=
+                    combineFailure(
+                        failure,
+                        new IOException(
+                            "auxiliary accept handoff unresolved count="+
+                            auxiliaryAcceptHandoffs
+                        )
+                    );
+        }
+
+        return failure;
+    }
+
     private void awaitPreTerminalHandoffs(
-        boolean waitGameAcceptHandoffs,
-        boolean waitAuxiliaryAcceptHandoffs
+        boolean waitGameAcceptHandoffs
     ){
         boolean interrupted=false;
 
         synchronized(lifecycleLock){
             while((waitGameAcceptHandoffs&&
                    gameAcceptHandoffs!=0)||
-                  (waitAuxiliaryAcceptHandoffs&&
-                   auxiliaryAcceptHandoffs!=0)||
                   sessionFactoryHandoffs!=0)
                 try{
                     lifecycleLock.wait();
