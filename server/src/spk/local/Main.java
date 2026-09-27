@@ -186,53 +186,42 @@ public final class Main {
         ServerSocket server,
         LocalServerShutdownCoordinator shutdown
     ) {
-        while (!server.isClosed()) {
-            Socket socket=null;
+        LocalAuxHttpWorker.run(
+            server::isClosed,
+            shutdown::acceptAuxiliarySocket,
+            socket->{
+                if(!socket.getInetAddress()
+                        .isLoopbackAddress())
+                    return;
 
-            try {
-                socket=
-                    shutdown.acceptAuxiliarySocket();
-
-                if(socket==null)
-                    break;
-
-                try{
-                    if (!socket.getInetAddress().isLoopbackAddress())
-                        continue;
-
-                    handleAuxConnection(
-                        socket
-                    );
-                }finally{
-                    shutdown.releaseAuxiliarySocket(
-                        socket
-                    );
-                    socket=null;
-                }
-            } catch (IOException e) {
-                if (!server.isClosed())
-                    System.err.println("[local-aux] " + e);
-            } finally {
-                if(socket!=null)
-                    try{
-                        shutdown.releaseAuxiliarySocket(
-                            socket
-                        );
-                    }catch(IOException e){
-                        if(!server.isClosed())
-                            System.err.println(
-                                "[local-aux] socket retirement failed " + e
-                            );
-                    }
-            }
-        }
+                handleAuxConnection(
+                    socket
+                );
+            },
+            shutdown::releaseAuxiliarySocket,
+            failure->
+                System.err.println(
+                    "[local-aux] "+
+                    failure
+                ),
+            failure->
+                System.err.println(
+                    "[local-aux] socket retirement failed "+
+                    failure
+                )
+        );
     }
 
-    private static void handleAuxConnection(Socket s) throws IOException {
-        s.setSoTimeout(2_000);
+    static void handleAuxConnection(Socket s) throws IOException {
         InputStream in = s.getInputStream();
         OutputStream out = s.getOutputStream();
-        String first = readAsciiLine(in, 8192);
+        LocalAuxHttpRequestReader request =
+            LocalAuxHttpRequestReader.forSocket(
+                s,
+                in
+            );
+        String first =
+            request.readRequestLine();
         if (first == null || first.isEmpty()) {
             System.out.println("[local-aux] " + s.getRemoteSocketAddress() + " empty connection; closed locally");
             return;
@@ -242,12 +231,11 @@ public final class Main {
             boolean head = first.startsWith("HEAD ");
             String[] parts = first.split(" ", 3);
             String target = parts.length >= 2 ? parts[1] : "/";
-            // Consume remaining HTTP request headers.  Body-bearing requests are not
-            // required by startup; POST endpoints receive a harmless local response.
-            while (true) {
-                String line = readAsciiLine(in, 8192);
-                if (line == null || line.isEmpty()) break;
-            }
+            // Consume remaining HTTP request headers under the same absolute
+            // request deadline and aggregate byte/line budget as the request line.
+            // Body-bearing requests are not required by startup; POST endpoints
+            // receive the same harmless local response behavior as before.
+            request.consumeHeaders();
 
             byte[] body;
             String contentType = "text/plain; charset=us-ascii";
@@ -328,17 +316,6 @@ public final class Main {
         else if (target.endsWith("/configs.zip")) name = "configs.zip";
         else return null;
         return Paths.get(System.getProperty("user.home"), ".spawnpk", name);
-    }
-
-    private static String readAsciiLine(InputStream in, int max) throws IOException {
-        ByteArrayOutputStream b = new ByteArrayOutputStream();
-        while (b.size() < max) {
-            int x = in.read();
-            if (x < 0) return b.size() == 0 ? null : b.toString(StandardCharsets.ISO_8859_1.name());
-            if (x == '\n') break;
-            if (x != '\r') b.write(x);
-        }
-        return b.toString(StandardCharsets.ISO_8859_1.name());
     }
 
     private static String printable(String s) {

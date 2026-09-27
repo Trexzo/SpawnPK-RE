@@ -4199,6 +4199,31 @@ tasks.register('localAuxVersionsRegression', JavaExec) {
 }
 
 
+tasks.register('localAuxHttpWorkerFailurePreservationRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves AUX handler RuntimeException/Error remains primary across any socket-retirement Throwable while checked handler I/O stays connection-scoped.'
+    dependsOn tasks.named('testClasses')
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.LocalAuxHttpWorkerFailurePreservationTest'
+}
+
+
+tasks.register('localAuxHttpRequestReaderRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves LocalLab AUX HTTP request parsing has a physical-line limit, total request budget and absolute deadline that continuous peer traffic cannot reset.'
+    dependsOn(
+        tasks.named('testClasses'),
+        tasks.named('localAuxHttpResponseRegression')
+    )
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.LocalAuxHttpRequestReaderTest'
+}
+
+
 tasks.register('chat1CurrentCumulativeCertification') {
     group = 'verification'
     description = 'Runs the complete current Chat 1 release candidate: Issue #5 Kotlin scripting, #271/#427 presentation/application gates, Issue #7 pet-damage ownership, focused 175 and canonical exact-v308 179.'
@@ -4222,7 +4247,9 @@ tasks.register('chat1CurrentCumulativeCertification') {
         tasks.named('worldAdmissionPulseStartAtomicRegression'),
         tasks.named('localAuxHttpResponseRegression'),
         tasks.named('localAuxiliaryWorkerFailureRegression'),
-        tasks.named('localAuxVersionsRegression')
+        tasks.named('localAuxVersionsRegression'),
+        tasks.named('localAuxHttpWorkerFailurePreservationRegression'),
+        tasks.named('localAuxHttpRequestReaderRegression')
     )
 
     doLast {
@@ -4245,6 +4272,8 @@ tasks.register('chat1CurrentCumulativeCertification') {
             'localAuxHttpStreaming=true ' +
             'auxWorkerFailurePropagation=true ' +
             'localAuxVersionsBounded=true ' +
+            'auxHandlerFailurePreserved=true ' +
+            'localAuxRequestBounded=true ' +
             'focused=175 ' +
             'exactV308=179 ' +
             'clientSha256=' + v308AcceptanceClientSha256 + ' ' +
