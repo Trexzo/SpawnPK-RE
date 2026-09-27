@@ -423,11 +423,11 @@ final class PluginJarLoader implements PluginLoader {
     static final class LoadedPlugin
         implements PluginRuntime {
 
-        private final Plugin delegate;
-        private final IsolatedPluginClassLoader loader;
+        private volatile Plugin delegate;
+        private volatile IsolatedPluginClassLoader loader;
         private final Path source;
         private final String entrypoint;
-        private final ArchiveSnapshot snapshot;
+        private volatile ArchiveSnapshot snapshot;
         private volatile boolean closed;
 
         LoadedPlugin(
@@ -459,23 +459,31 @@ final class PluginJarLoader implements PluginLoader {
         }
 
         @Override public PluginManifest manifest(){
-            requireOpen();
+            Plugin current=
+                requireDelegate();
+            IsolatedPluginClassLoader
+                currentLoader=
+                    requireLoader();
 
             return PluginThreadContext
                 .callUnchecked(
-                    loader,
-                    delegate::manifest
+                    currentLoader,
+                    current::manifest
                 );
         }
 
         @Override public void enable(
             PluginContext context
         )throws Exception{
-            requireOpen();
+            Plugin current=
+                requireDelegate();
+            IsolatedPluginClassLoader
+                currentLoader=
+                    requireLoader();
 
             PluginThreadContext.run(
-                loader,
-                ()->delegate.enable(
+                currentLoader,
+                ()->current.enable(
                     context
                 )
             );
@@ -483,25 +491,29 @@ final class PluginJarLoader implements PluginLoader {
 
         @Override public void disable()
             throws Exception{
-            requireOpen();
+            Plugin current=
+                requireDelegate();
+            IsolatedPluginClassLoader
+                currentLoader=
+                    requireLoader();
 
             PluginThreadContext.run(
-                loader,
-                delegate::disable
+                currentLoader,
+                current::disable
             );
         }
 
         Plugin delegate(){
-            return delegate;
+            return requireDelegate();
         }
 
         @Override public ClassLoader
             callbackClassLoader(){
-            return loader;
+            return requireLoader();
         }
 
         ClassLoader classLoader(){
-            return loader;
+            return requireLoader();
         }
 
         Path source(){
@@ -517,15 +529,44 @@ final class PluginJarLoader implements PluginLoader {
         }
 
         Path snapshotPath(){
-            return snapshot.path();
+            ArchiveSnapshot current=
+                snapshot;
+
+            if(current==null)
+                throw terminalFailure();
+
+            return current.path();
         }
 
-        private void requireOpen(){
-            if(closed)
-                throw new IllegalStateException(
-                    "plugin classloader closed: "+
-                    entrypoint
-                );
+        private Plugin requireDelegate(){
+            Plugin current=
+                delegate;
+
+            if(closed||
+               current==null)
+                throw terminalFailure();
+
+            return current;
+        }
+
+        private IsolatedPluginClassLoader
+            requireLoader(){
+            IsolatedPluginClassLoader current=
+                loader;
+
+            if(closed||
+               current==null)
+                throw terminalFailure();
+
+            return current;
+        }
+
+        private IllegalStateException
+            terminalFailure(){
+            return new IllegalStateException(
+                "plugin classloader closed: "+
+                entrypoint
+            );
         }
 
         @Override public synchronized void close()
@@ -534,16 +575,23 @@ final class PluginJarLoader implements PluginLoader {
                 return;
 
             closed=true;
+
+            IsolatedPluginClassLoader
+                ownedLoader=loader;
+            ArchiveSnapshot
+                ownedSnapshot=snapshot;
             Throwable failure=null;
 
             try{
-                loader.close();
+                if(ownedLoader!=null)
+                    ownedLoader.close();
             }catch(Throwable cleanup){
                 failure=cleanup;
             }
 
             try{
-                snapshot.close();
+                if(ownedSnapshot!=null)
+                    ownedSnapshot.close();
             }catch(Throwable cleanup){
                 if(failure==null)
                     failure=cleanup;
@@ -552,6 +600,10 @@ final class PluginJarLoader implements PluginLoader {
                         failure,
                         cleanup
                     );
+            }finally{
+                delegate=null;
+                loader=null;
+                snapshot=null;
             }
 
             if(failure!=null)
