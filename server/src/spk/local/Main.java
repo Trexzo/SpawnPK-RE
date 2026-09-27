@@ -133,18 +133,16 @@ public final class Main {
                 return;
 
             while (!shutdown.closing()) {
-                Socket s;
+                Socket s=
+                    shutdown.acceptGameSocket();
 
-                try {
-                    s = game.accept();
-                } catch (SocketException error) {
-                    if (shutdown.closing())
-                        break;
-                    throw error;
-                }
+                if(s==null)
+                    break;
 
                 if (!s.getInetAddress().isLoopbackAddress()) {
-                    s.close();
+                    shutdown.rejectSessionSocket(
+                        s
+                    );
                     continue;
                 }
 
