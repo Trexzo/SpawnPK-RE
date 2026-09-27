@@ -1628,10 +1628,13 @@ public final class LocalAuxResponseLivenessTest {
             };
         }
 
-        synchronized void trigger(){
-            Runnable task=
-                current;
-            current=null;
+        void trigger(){
+            Runnable task;
+
+            synchronized(this){
+                task=current;
+                current=null;
+            }
 
             if(task!=null)
                 task.run();
