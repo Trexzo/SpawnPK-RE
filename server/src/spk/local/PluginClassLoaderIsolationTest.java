@@ -7,6 +7,7 @@ import java.net.URLClassLoader;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.util.jar.JarEntry;
 import java.util.jar.JarOutputStream;
 import spk.content.api.ContentResult;
@@ -54,6 +55,11 @@ public final class PluginClassLoaderIsolationTest {
         );
         assertReservedNamespaceRejected(
             "spk/plugin/fixture/Fake.class"
+        );
+
+        assertArchiveSnapshotPinned(
+            jarA,
+            jarB
         );
 
         PluginJarLoader.LoadedPlugin loadedA=
@@ -449,6 +455,7 @@ public final class PluginClassLoaderIsolationTest {
             "eventNamespaceNarrow=true "+
             "serverInternalDenied=true "+
             "reservedNamespaceRejected=true "+
+            "javaPluginArchiveIdentityPinned=true "+
             "constructorTccl=true "+
             "manifestTccl=true "+
             "enableTccl=true "+
@@ -616,6 +623,120 @@ public final class PluginClassLoaderIsolationTest {
                 " actual="+
                 report
             );
+    }
+
+    private static void assertArchiveSnapshotPinned(
+        Path jarA,
+        Path jarB
+    )throws Exception{
+        Path directory=
+            Files.createTempDirectory(
+                "plugin-archive-snapshot-"
+            );
+        Path source=
+            directory.resolve(
+                "plugin.jar"
+            );
+        final Path[] admittedSnapshot=
+            new Path[1];
+        PluginJarLoader.LoadedPlugin loaded=null;
+
+        try{
+            Files.copy(
+                jarA,
+                source,
+                StandardCopyOption.REPLACE_EXISTING
+            );
+
+            loaded=
+                PluginJarLoader.load(
+                    source,
+                    ENTRYPOINT,
+                    Plugin.class.getClassLoader(),
+                    (
+                        original,
+                        snapshot
+                    )->{
+                        admittedSnapshot[0]=
+                            snapshot;
+
+                        Files.copy(
+                            jarB,
+                            original,
+                            StandardCopyOption.REPLACE_EXISTING
+                        );
+                    }
+                );
+
+            if(admittedSnapshot[0]==null||
+               !Files.isRegularFile(
+                    admittedSnapshot[0]
+                ))
+                throw new AssertionError(
+                    "validated private archive snapshot missing while runtime is live"
+                );
+
+            if(!source.equals(
+                    loaded.source()
+                ))
+                throw new AssertionError(
+                    "archive snapshot replaced diagnostic source identity"
+                );
+
+            PluginManifest manifest=
+                loaded.manifest();
+
+            if(!"isolation.a".equals(
+                    manifest.id()))
+                throw new AssertionError(
+                    "post-validation pathname swap changed executed plugin expected=isolation.a actual="+
+                    manifest.id()
+                );
+
+            Files.deleteIfExists(
+                source
+            );
+
+            String report=
+                report(
+                    loaded
+                );
+
+            if(report==null||
+               !report.startsWith(
+                    "A|"))
+                throw new AssertionError(
+                    "plugin runtime stopped using admitted archive after original path deletion: "+
+                    report
+                );
+
+            Path snapshot=
+                loaded.snapshotPath();
+            Path snapshotRoot=
+                snapshot.getParent();
+
+            loaded.close();
+
+            if(Files.exists(
+                    snapshot)||
+               (snapshotRoot!=null&&
+                Files.exists(
+                    snapshotRoot)))
+                throw new AssertionError(
+                    "closed Java plugin retained private archive snapshot"
+                );
+        }finally{
+            if(loaded!=null&&
+               !loaded.closed())
+                loaded.close();
+
+            Files.deleteIfExists(
+                source
+            );
+            Files.deleteIfExists(
+                directory
+            );
+        }
     }
 
     private static void assertReservedNamespaceRejected(
