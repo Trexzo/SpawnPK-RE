@@ -182,7 +182,7 @@ final class LocalAuxResponseLiveness {
                 LocalAuxHttpWorker
                     .preserveFailureOrder(
                         result,
-                        new IOException(
+                        new IllegalStateException(
                             "interrupted while joining auxiliary response watchdog",
                             interrupted
                         )
