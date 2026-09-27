@@ -402,6 +402,14 @@ final class KotlinPluginDirectory {
             source
         );
 
+        if(!Files.isRegularFile(
+                source,
+                LinkOption.NOFOLLOW_LINKS))
+            throw new IOException(
+                "Kotlin plugin final source is not a regular file: "+
+                source
+            );
+
         java.util.HashSet<OpenOption> options=
             new java.util.HashSet<>();
         options.add(
@@ -446,7 +454,7 @@ final class KotlinPluginDirectory {
 
             bytes=
                 out.toByteArray();
-        }catch(java.nio.file.FileSystemException denied){
+        }catch(IOException denied){
             throw new IOException(
                 "Kotlin plugin final source capture failed closed: "+
                 source,
