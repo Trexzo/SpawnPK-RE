@@ -155,9 +155,10 @@ public final class LocalAuxHttpResponseTest {
             CountingOutputStream counted=
                 new CountingOutputStream();
 
-            LocalAuxHttpResponse.copy(
+            LocalAuxHttpResponse.copyExactly(
                 guarded,
-                counted
+                counted,
+                5L * 1024L * 1024L
             );
 
             if(counted.bytes!=
@@ -170,6 +171,45 @@ public final class LocalAuxHttpResponseTest {
                     " bytes="+
                     counted.bytes
                 );
+
+            ByteArrayOutputStream bounded=
+                new ByteArrayOutputStream();
+
+            LocalAuxHttpResponse.copyExactly(
+                new ByteArrayInputStream(
+                    new byte[32]
+                ),
+                bounded,
+                7
+            );
+
+            if(bounded.size()!=7)
+                throw new AssertionError(
+                    "archive snapshot length was not enforced"
+                );
+
+            boolean shortSourceRejected=false;
+
+            try{
+                LocalAuxHttpResponse.copyExactly(
+                    new ByteArrayInputStream(
+                        new byte[3]
+                    ),
+                    new ByteArrayOutputStream(),
+                    4
+                );
+            }catch(java.io.IOException expected){
+                shortSourceRejected=
+                    expected.getMessage()!=null&&
+                    expected.getMessage().contains(
+                        "ended early"
+                    );
+            }
+
+            if(!shortSourceRejected)
+                throw new AssertionError(
+                    "short archive source did not fail closed"
+                );
         }finally{
             Files.deleteIfExists(
                 file
@@ -180,6 +220,8 @@ public final class LocalAuxHttpResponseTest {
             "LOCAL_AUX_HTTP_RESPONSE_PASS "+
             "streaming=true "+
             "boundedBuffer=true "+
+            "exactSnapshotLength=true "+
+            "shortSourceRejected=true "+
             "contentLength=true "+
             "getExact=true "+
             "headNoBody=true "+
