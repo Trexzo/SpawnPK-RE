@@ -3,6 +3,7 @@ package spk.local;
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.net.SocketTimeoutException;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Objects;
@@ -13,6 +14,8 @@ import java.util.concurrent.TimeUnit;
 
 final class LocalServerShutdownCoordinator
     implements AutoCloseable {
+
+    static final int GAME_ACCEPT_POLL_TIMEOUT_MILLIS=250;
 
     interface SessionFactory {
         Runnable create()
@@ -123,14 +126,54 @@ final class LocalServerShutdownCoordinator
         Socket accepted=null;
         Throwable failure=null;
 
-        try{
-            accepted=
-                Objects.requireNonNull(
-                    acceptor.accept(),
-                    "accepted socket"
+        for(;;){
+            try{
+                accepted=
+                    Objects.requireNonNull(
+                        acceptor.accept(),
+                        "accepted socket"
+                    );
+            }catch(Throwable error){
+                failure=error;
+            }
+
+            if(!(failure instanceof SocketTimeoutException))
+                break;
+
+            boolean terminalPoll;
+            Throwable pollWorkerFailure;
+
+            synchronized(lifecycleLock){
+                terminalPoll=closing;
+                pollWorkerFailure=
+                    terminalPoll
+                        ?null
+                        :auxiliaryWorkerFailure;
+
+                if(pollWorkerFailure!=null)
+                    auxiliaryWorkerFailureSurfaced=true;
+
+                if(terminalPoll||
+                   pollWorkerFailure!=null){
+                    gameAcceptHandoffs--;
+                    lifecycleLock.notifyAll();
+                }
+            }
+
+            if(pollWorkerFailure!=null){
+                rethrowAcceptFailure(
+                    pollWorkerFailure
                 );
-        }catch(Throwable error){
-            failure=error;
+                throw new AssertionError(
+                    "unreachable"
+                );
+            }
+
+            if(terminalPoll)
+                return null;
+
+            accepted=null;
+            failure=null;
         }
 
         boolean terminal;
