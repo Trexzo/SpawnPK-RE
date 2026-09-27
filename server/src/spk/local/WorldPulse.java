@@ -126,9 +126,7 @@ final class WorldPulse implements AutoCloseable,Runnable {
                 false
             );
 
-            if(thread==candidate)
-                thread=null;
-
+            thread=null;
             nextTickAt=0L;
             notifyAll();
 
