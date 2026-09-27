@@ -7,8 +7,12 @@ import java.net.URLClassLoader;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
+import java.util.jar.Attributes;
 import java.util.jar.JarEntry;
+import java.util.jar.JarFile;
 import java.util.jar.JarOutputStream;
+import java.util.jar.Manifest;
 import spk.content.api.ContentResult;
 import spk.event.DomainEventBus;
 import spk.plugin.api.Plugin;
@@ -54,6 +58,22 @@ public final class PluginClassLoaderIsolationTest {
         );
         assertReservedNamespaceRejected(
             "spk/plugin/fixture/Fake.class"
+        );
+
+        assertArchiveSnapshotPinned(
+            jarA,
+            jarB
+        );
+        assertManifestClasspathRejected(
+            jarA,
+            jarB
+        );
+        assertJarIndexRejected(
+            jarA,
+            jarB
+        );
+        assertPostLoaderFailureRetiresSnapshot(
+            jarA
         );
 
         PluginJarLoader.LoadedPlugin loadedA=
@@ -449,6 +469,10 @@ public final class PluginClassLoaderIsolationTest {
             "eventNamespaceNarrow=true "+
             "serverInternalDenied=true "+
             "reservedNamespaceRejected=true "+
+            "javaPluginArchiveIdentityPinned=true "+
+            "javaPluginManifestClasspathFenced=true "+
+            "javaPluginJarIndexFenced=true "+
+            "javaPluginSnapshotFailureRetired=true "+
             "constructorTccl=true "+
             "manifestTccl=true "+
             "enableTccl=true "+
@@ -618,6 +642,531 @@ public final class PluginClassLoaderIsolationTest {
             );
     }
 
+    private static void assertManifestClasspathRejected(
+        Path jarA,
+        Path jarB
+    )throws Exception{
+        Path directory=
+            Files.createTempDirectory(
+                "plugin-manifest-classpath-"
+            );
+        Path sibling=
+            directory.resolve(
+                "b.jar"
+            );
+
+        try{
+            Files.copy(
+                jarB,
+                sibling,
+                StandardCopyOption.REPLACE_EXISTING
+            );
+
+            assertManifestClasspathRejectedCase(
+                jarA,
+                directory.resolve(
+                    "absolute.jar"
+                ),
+                jarB.toUri().toString(),
+                "absolute"
+            );
+            assertManifestClasspathRejectedCase(
+                jarA,
+                directory.resolve(
+                    "relative.jar"
+                ),
+                sibling.getFileName()
+                    .toString(),
+                "relative"
+            );
+        }finally{
+            Files.deleteIfExists(
+                directory.resolve(
+                    "absolute.jar"
+                )
+            );
+            Files.deleteIfExists(
+                directory.resolve(
+                    "relative.jar"
+                )
+            );
+            Files.deleteIfExists(
+                sibling
+            );
+            Files.deleteIfExists(
+                directory
+            );
+        }
+    }
+
+    private static void assertManifestClasspathRejectedCase(
+        Path jarA,
+        Path poisoned,
+        String classPath,
+        String label
+    )throws Exception{
+        writeJarWithManifestClasspath(
+            jarA,
+            poisoned,
+            classPath
+        );
+
+        final Path[] snapshot=
+            new Path[1];
+        boolean rejected=false;
+
+        try{
+            PluginJarLoader.load(
+                poisoned,
+                ENTRYPOINT,
+                Plugin.class.getClassLoader(),
+                (source,admitted)->{},
+                (source,admitted)->
+                    snapshot[0]=admitted
+            );
+        }catch(IllegalArgumentException expected){
+            rejected=
+                expected.getMessage()!=null&&
+                expected.getMessage()
+                    .contains(
+                        "manifest Class-Path is forbidden"
+                    );
+        }
+
+        if(!rejected)
+            throw new AssertionError(
+                "Java plugin "+
+                label+
+                " manifest Class-Path was accepted"
+            );
+
+        assertSnapshotRetired(
+            snapshot[0],
+            label+
+                " manifest Class-Path rejection"
+        );
+    }
+
+    private static void assertJarIndexRejected(
+        Path jarA,
+        Path jarB
+    )throws Exception{
+        Path directory=
+            Files.createTempDirectory(
+                "plugin-jar-index-"
+            );
+        Path poisoned=
+            directory.resolve(
+                "plugin.jar"
+            );
+        Path sibling=
+            directory.resolve(
+                "b.jar"
+            );
+
+        try{
+            Files.copy(
+                jarB,
+                sibling,
+                StandardCopyOption.REPLACE_EXISTING
+            );
+            writeJarWithIndex(
+                jarA,
+                poisoned,
+                sibling.getFileName()
+                    .toString()
+            );
+
+            final Path[] snapshot=
+                new Path[1];
+            boolean rejected=false;
+
+            try{
+                PluginJarLoader.load(
+                    poisoned,
+                    ENTRYPOINT,
+                    Plugin.class.getClassLoader(),
+                    (source,admitted)->{},
+                    (source,admitted)->
+                        snapshot[0]=admitted
+                );
+            }catch(IllegalArgumentException expected){
+                rejected=
+                    expected.getMessage()!=null&&
+                    expected.getMessage()
+                        .contains(
+                            "JAR index is forbidden"
+                        );
+            }
+
+            if(!rejected)
+                throw new AssertionError(
+                    "Java plugin JAR Index was accepted"
+                );
+
+            assertSnapshotRetired(
+                snapshot[0],
+                "JAR Index rejection"
+            );
+        }finally{
+            Files.deleteIfExists(
+                poisoned
+            );
+            Files.deleteIfExists(
+                sibling
+            );
+            Files.deleteIfExists(
+                directory
+            );
+        }
+    }
+
+    private static void writeJarWithIndex(
+        Path source,
+        Path target,
+        String siblingName
+    )throws Exception{
+        try(JarFile input=
+                new JarFile(
+                    source.toFile()
+                );
+            JarOutputStream output=
+                new JarOutputStream(
+                    Files.newOutputStream(
+                        target
+                    )
+                )){
+            java.util.Enumeration<JarEntry>
+                entries=
+                    input.entries();
+            byte[] buffer=
+                new byte[8192];
+
+            while(entries.hasMoreElements()){
+                JarEntry entry=
+                    entries.nextElement();
+
+                if("META-INF/INDEX.LIST"
+                        .equals(
+                            entry.getName()
+                        ))
+                    continue;
+
+                JarEntry copy=
+                    new JarEntry(
+                        entry.getName()
+                    );
+
+                copy.setTime(
+                    entry.getTime()
+                );
+                output.putNextEntry(
+                    copy
+                );
+
+                if(!entry.isDirectory())
+                    try(java.io.InputStream in=
+                            input.getInputStream(
+                                entry
+                            )){
+                        int read;
+
+                        while((read=
+                                in.read(
+                                    buffer
+                                ))!=-1)
+                            output.write(
+                                buffer,
+                                0,
+                                read
+                            );
+                    }
+
+                output.closeEntry();
+            }
+
+            output.putNextEntry(
+                new JarEntry(
+                    "META-INF/INDEX.LIST"
+                )
+            );
+            String index=
+                "JarIndex-Version: 1.0\n\n"+
+                siblingName+
+                "\nfixture/privatepkg/\n\n";
+            output.write(
+                index.getBytes(
+                    java.nio.charset.StandardCharsets.UTF_8
+                )
+            );
+            output.closeEntry();
+        }
+    }
+
+    private static void assertPostLoaderFailureRetiresSnapshot(
+        Path jarA
+    )throws Exception{
+        final Path[] snapshot=
+            new Path[1];
+        boolean rejected=false;
+
+        try{
+            PluginJarLoader.load(
+                jarA,
+                "fixture.privatepkg.Version",
+                Plugin.class.getClassLoader(),
+                (source,admitted)->{},
+                (source,admitted)->
+                    snapshot[0]=admitted
+            );
+        }catch(IllegalArgumentException expected){
+            rejected=
+                expected.getMessage()!=null&&
+                expected.getMessage()
+                    .contains(
+                        "does not implement Plugin"
+                    );
+        }
+
+        if(!rejected)
+            throw new AssertionError(
+                "post-loader invalid entrypoint was accepted"
+            );
+
+        assertSnapshotRetired(
+            snapshot[0],
+            "post-loader entrypoint rejection"
+        );
+    }
+
+    private static void assertSnapshotRetired(
+        Path snapshot,
+        String phase
+    ){
+        if(snapshot==null)
+            throw new AssertionError(
+                phase+
+                " did not expose private snapshot identity"
+            );
+
+        Path root=
+            snapshot.getParent();
+
+        if(Files.exists(
+                snapshot)||
+           (root!=null&&
+            Files.exists(
+                root)))
+            throw new AssertionError(
+                phase+
+                " retained private snapshot/root"
+            );
+    }
+
+    private static void writeJarWithManifestClasspath(
+        Path source,
+        Path target,
+        String classPath
+    )throws Exception{
+        try(JarFile input=
+                new JarFile(
+                    source.toFile()
+                )){
+            Manifest manifest=
+                input.getManifest()==null
+                    ?new Manifest()
+                    :new Manifest(
+                        input.getManifest()
+                    );
+
+            Attributes attributes=
+                manifest.getMainAttributes();
+
+            if(attributes.getValue(
+                    Attributes.Name.MANIFEST_VERSION)==null)
+                attributes.put(
+                    Attributes.Name.MANIFEST_VERSION,
+                    "1.0"
+                );
+
+            attributes.put(
+                Attributes.Name.CLASS_PATH,
+                classPath
+            );
+
+            try(JarOutputStream output=
+                    new JarOutputStream(
+                        Files.newOutputStream(
+                            target
+                        ),
+                        manifest
+                    )){
+                java.util.Enumeration<JarEntry>
+                    entries=
+                        input.entries();
+                byte[] buffer=
+                    new byte[8192];
+
+                while(entries.hasMoreElements()){
+                    JarEntry entry=
+                        entries.nextElement();
+
+                    if("META-INF/MANIFEST.MF"
+                            .equalsIgnoreCase(
+                                entry.getName()
+                            ))
+                        continue;
+
+                    JarEntry copy=
+                        new JarEntry(
+                            entry.getName()
+                        );
+
+                    copy.setTime(
+                        entry.getTime()
+                    );
+                    output.putNextEntry(
+                        copy
+                    );
+
+                    if(!entry.isDirectory())
+                        try(java.io.InputStream in=
+                                input.getInputStream(
+                                    entry
+                                )){
+                            int read;
+
+                            while((read=
+                                    in.read(
+                                        buffer
+                                    ))!=-1)
+                                output.write(
+                                    buffer,
+                                    0,
+                                    read
+                                );
+                        }
+
+                    output.closeEntry();
+                }
+            }
+        }
+    }
+
+    private static void assertArchiveSnapshotPinned(
+        Path jarA,
+        Path jarB
+    )throws Exception{
+        Path directory=
+            Files.createTempDirectory(
+                "plugin-archive-snapshot-"
+            );
+        Path source=
+            directory.resolve(
+                "plugin.jar"
+            );
+        final Path[] admittedSnapshot=
+            new Path[1];
+        PluginJarLoader.LoadedPlugin loaded=null;
+
+        try{
+            Files.copy(
+                jarA,
+                source,
+                StandardCopyOption.REPLACE_EXISTING
+            );
+
+            loaded=
+                PluginJarLoader.load(
+                    source,
+                    ENTRYPOINT,
+                    Plugin.class.getClassLoader(),
+                    (
+                        original,
+                        snapshot
+                    )->{
+                        admittedSnapshot[0]=
+                            snapshot;
+
+                        Files.copy(
+                            jarB,
+                            original,
+                            StandardCopyOption.REPLACE_EXISTING
+                        );
+                    }
+                );
+
+            if(admittedSnapshot[0]==null||
+               !Files.isRegularFile(
+                    admittedSnapshot[0]
+                ))
+                throw new AssertionError(
+                    "validated private archive snapshot missing while runtime is live"
+                );
+
+            if(!source.equals(
+                    loaded.source()
+                ))
+                throw new AssertionError(
+                    "archive snapshot replaced diagnostic source identity"
+                );
+
+            PluginManifest manifest=
+                loaded.manifest();
+
+            if(!"isolation.a".equals(
+                    manifest.id()))
+                throw new AssertionError(
+                    "post-validation pathname swap changed executed plugin expected=isolation.a actual="+
+                    manifest.id()
+                );
+
+            Files.deleteIfExists(
+                source
+            );
+
+            String report=
+                report(
+                    loaded
+                );
+
+            if(report==null||
+               !report.startsWith(
+                    "A|"))
+                throw new AssertionError(
+                    "plugin runtime stopped using admitted archive after original path deletion: "+
+                    report
+                );
+
+            Path snapshot=
+                loaded.snapshotPath();
+            Path snapshotRoot=
+                snapshot.getParent();
+
+            loaded.close();
+
+            if(Files.exists(
+                    snapshot)||
+               (snapshotRoot!=null&&
+                Files.exists(
+                    snapshotRoot)))
+                throw new AssertionError(
+                    "closed Java plugin retained private archive snapshot"
+                );
+        }finally{
+            if(loaded!=null&&
+               !loaded.closed())
+                loaded.close();
+
+            Files.deleteIfExists(
+                source
+            );
+            Files.deleteIfExists(
+                directory
+            );
+        }
+    }
+
     private static void assertReservedNamespaceRejected(
         String entry
     )throws Exception{
@@ -645,12 +1194,18 @@ public final class PluginClassLoaderIsolationTest {
                 out.closeEntry();
             }
 
+            final Path[] snapshot=
+                new Path[1];
             boolean rejected=false;
 
             try{
                 PluginJarLoader.load(
                     jar,
-                    "fixture.plugin.Missing"
+                    "fixture.plugin.Missing",
+                    Plugin.class.getClassLoader(),
+                    (source,admitted)->{},
+                    (source,admitted)->
+                        snapshot[0]=admitted
                 );
             }catch(IllegalArgumentException expected){
                 rejected=
@@ -666,6 +1221,11 @@ public final class PluginClassLoaderIsolationTest {
                     "reserved namespace accepted: "+
                     entry
                 );
+
+            assertSnapshotRetired(
+                snapshot[0],
+                "reserved namespace rejection"
+            );
         }finally{
             Files.deleteIfExists(
                 jar
