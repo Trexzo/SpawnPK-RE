@@ -234,74 +234,35 @@ public final class LocalSessionConstructionOwnershipTest {
                 aux
             );
 
-        boolean claimed=
-            shutdown.submitSession(
-                socket,
-                (LocalServerShutdownCoordinator.SessionFactory)
-                    ()->()->{}
-            );
-
-        if(!claimed)
-            throw new AssertionError(
-                "fixture socket was not claimed"
-            );
-
-        // The tracking executor deliberately throws from execute(), so use a
-        // fresh coordinator claim through accept handoff instead.
-        shutdown.close();
-        world=
-            World.isolatedForTest(
-                25L
-            );
-        world.start();
-        pool=
-            new TrackingExecutor();
-        game=
-            new ServerSocket();
-        aux=
-            new ServerSocket();
-        shutdown=
-            new LocalServerShutdownCoordinator(
-                world,
-                pool,
-                game,
-                aux
-            );
-
-        final LocalServerShutdownCoordinator finalShutdown=
-            shutdown;
-        final BlockingCloseSocket finalSocket=
-            socket;
-
         // Seed ownership through the same accepted-socket handoff used by Main.
         Socket accepted=
-            finalShutdown.acceptGameSocket(
-                ()->finalSocket
+            shutdown.acceptGameSocket(
+                ()->socket
             );
 
-        if(accepted!=finalSocket||
-           finalShutdown.activeSessionCount()!=1)
+        if(accepted!=socket||
+           shutdown.activeSessionCount()!=1)
             throw new AssertionError(
                 "fixture rejected socket was not coordinator-owned"
             );
 
         Thread rejecter=
             new Thread(
-                ()->finalShutdown.rejectSessionSocket(
-                    finalSocket
+                ()->shutdown.rejectSessionSocket(
+                    socket
                 ),
                 "rejected-socket-retire-fixture"
             );
         rejecter.start();
 
-        if(!finalSocket.closeEntered.await(
+        if(!socket.closeEntered.await(
                 5,
                 TimeUnit.SECONDS))
             throw new AssertionError(
                 "rejected socket close did not enter"
             );
 
-        if(finalShutdown.activeSessionCount()!=1)
+        if(shutdown.activeSessionCount()!=1)
             throw new AssertionError(
                 "socket ownership retired before close completed"
             );
@@ -312,7 +273,7 @@ public final class LocalSessionConstructionOwnershipTest {
             new Thread(
                 ()->{
                     try{
-                        finalShutdown.close();
+                        shutdown.close();
                     }finally{
                         terminalReturned.countDown();
                     }
@@ -326,11 +287,11 @@ public final class LocalSessionConstructionOwnershipTest {
                 TimeUnit.SECONDS.toNanos(
                     5
                 );
-        while(!finalShutdown.closing()&&
+        while(!shutdown.closing()&&
               System.nanoTime()<deadline)
             Thread.yield();
 
-        if(!finalShutdown.closing())
+        if(!shutdown.closing())
             throw new AssertionError(
                 "terminal fence did not publish for rejected socket"
             );
@@ -340,7 +301,7 @@ public final class LocalSessionConstructionOwnershipTest {
                 "terminal close returned while rejected socket close was blocked"
             );
 
-        finalSocket.releaseClose.countDown();
+        socket.releaseClose.countDown();
 
         rejecter.join(
             5_000L
@@ -355,7 +316,7 @@ public final class LocalSessionConstructionOwnershipTest {
                 "rejected socket retirement race did not terminate"
             );
 
-        if(finalShutdown.activeSessionCount()!=0)
+        if(shutdown.activeSessionCount()!=0)
             throw new AssertionError(
                 "rejected socket ownership survived completed close"
             );
