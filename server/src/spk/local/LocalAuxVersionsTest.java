@@ -7,10 +7,13 @@ import java.util.Arrays;
 
 public final class LocalAuxVersionsTest {
     private static final byte[] FALLBACK =
-        "cache_version = 67.0\r\n"+
-        "sprite_version = 72.0\r\n"+
-        "config_version = 110.0\r\n"
-        .getBytes(java.nio.charset.StandardCharsets.US_ASCII);
+        (
+            "cache_version = 67.0\r\n"+
+            "sprite_version = 72.0\r\n"+
+            "config_version = 110.0\r\n"
+        ).getBytes(
+            java.nio.charset.StandardCharsets.US_ASCII
+        );
 
     public static void main(String[] args){
         assertFallback(
