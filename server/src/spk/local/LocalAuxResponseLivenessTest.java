@@ -28,6 +28,7 @@ public final class LocalAuxResponseLivenessTest {
         assertTerminalFenceWinsBeforePhysicalClose();
         assertTerminalWinsBetweenValidationAndTimeoutClaim();
         assertHealthyFinishWinsBeforeTimeoutClaim();
+        assertProgressWinsBeforeStaleTimeoutClaim();
         assertTimeoutClaimWinsBeforeTerminalFence();
         assertTerminalCloseWinsWithoutSyntheticTimeout();
         assertSuccessfulTimeoutKeepsOwnershipUntilWorkerRelease();
@@ -53,6 +54,7 @@ public final class LocalAuxResponseLivenessTest {
             "terminalFenceWins=true "+
             "terminalClaimSerialized=true "+
             "healthyFinishClaimRevalidated=true "+
+            "progressGenerationClaimRevalidated=true "+
             "timeoutClaimSerialized=true "+
             "terminalWins=true "+
             "watchdogRetired=true "+
@@ -795,6 +797,171 @@ public final class LocalAuxResponseLivenessTest {
         }finally{
             releaseClaim.countDown();
             trigger.join(
+                1_000L
+            );
+
+            try{
+                coordinator.close();
+            }catch(Throwable ignored){
+            }
+        }
+    }
+
+    private static void
+        assertProgressWinsBeforeStaleTimeoutClaim()
+        throws Exception{
+        World world=
+            World.isolatedForTest(
+                25L
+            );
+        java.util.concurrent.ExecutorService pool=
+            java.util.concurrent.Executors
+                .newSingleThreadExecutor();
+        java.net.ServerSocket game=
+            new java.net.ServerSocket();
+        java.net.ServerSocket aux=
+            new java.net.ServerSocket();
+        LocalServerShutdownCoordinator coordinator=
+            new LocalServerShutdownCoordinator(
+                world,
+                pool,
+                game,
+                aux
+            );
+        FakeSocket socket=
+            new FakeSocket();
+        ManualScheduler scheduler=
+            new ManualScheduler();
+        CountDownLatch firstClaimReached=
+            new CountDownLatch(1);
+        CountDownLatch releaseFirstClaim=
+            new CountDownLatch(1);
+        AtomicInteger claimCalls=
+            new AtomicInteger();
+        AtomicInteger publications=
+            new AtomicInteger();
+        AtomicReference<Throwable> triggerFailure=
+            new AtomicReference<>();
+
+        LocalAuxResponseLiveness liveness=
+            LocalAuxResponseLiveness.arm(
+                socket,
+                scheduler,
+                commit->{
+                    int call=
+                        claimCalls.incrementAndGet();
+
+                    if(call==1){
+                        firstClaimReached.countDown();
+
+                        try{
+                            releaseFirstClaim.await();
+                        }catch(InterruptedException error){
+                            Thread.currentThread()
+                                .interrupt();
+                            throw new IllegalStateException(
+                                "fixture progress claim interrupted",
+                                error
+                            );
+                        }
+                    }
+
+                    return coordinator
+                        .claimAuxiliaryResponseTimeout(
+                            commit
+                        );
+                },
+                failure->
+                    publications.incrementAndGet()
+            );
+        OutputStream out=
+            liveness.output(
+                new ByteArrayOutputStream()
+            );
+
+        Thread staleTrigger=
+            new Thread(
+                ()->{
+                    try{
+                        scheduler.trigger();
+                    }catch(Throwable failure){
+                        triggerFailure.set(
+                            failure
+                        );
+                    }
+                },
+                "fixture-progress-before-stale-timeout-claim"
+            );
+
+        try{
+            staleTrigger.start();
+
+            if(!firstClaimReached.await(
+                    5,
+                    TimeUnit.SECONDS))
+                throw new AssertionError(
+                    "stale deadline did not reach pre-claim pause"
+                );
+
+            int schedulesBeforeProgress=
+                scheduler.scheduleCalls;
+
+            out.write(
+                1
+            );
+
+            if(scheduler.scheduleCalls!=
+                    schedulesBeforeProgress+1||
+               scheduler.outstandingTasks()!=1)
+                throw new AssertionError(
+                    "successful progress did not arm exactly one fresh deadline"
+                );
+
+            releaseFirstClaim.countDown();
+
+            staleTrigger.join(
+                5_000L
+            );
+
+            if(staleTrigger.isAlive())
+                throw new AssertionError(
+                    "stale timeout claim did not converge after progress"
+                );
+
+            if(triggerFailure.get()!=null||
+               liveness.timedOut()||
+               socket.closeCalls!=0||
+               publications.get()!=0||
+               scheduler.outstandingTasks()!=1)
+                throw new AssertionError(
+                    "stale generation claimed timeout after successful progress",
+                    triggerFailure.get()
+                );
+
+            scheduler.trigger();
+
+            if(!liveness.timedOut()||
+               !socket.isClosed()||
+               socket.closeCalls!=1||
+               claimCalls.get()!=2)
+                throw new AssertionError(
+                    "fresh generation did not retain normal timeout behavior"
+                );
+
+            Throwable finishFailure=
+                liveness.finish(
+                    null
+                );
+
+            if(!(finishFailure instanceof
+                    SocketTimeoutException))
+                throw new AssertionError(
+                    "fresh generation timeout evidence missing",
+                    finishFailure
+                );
+        }finally{
+            releaseFirstClaim.countDown();
+            staleTrigger.join(
                 1_000L
             );
 
