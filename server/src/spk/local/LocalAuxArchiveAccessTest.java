@@ -7,7 +7,6 @@ import java.nio.channels.SeekableByteChannel;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardOpenOption;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public final class LocalAuxArchiveAccessTest {
@@ -23,6 +22,14 @@ public final class LocalAuxArchiveAccessTest {
         assertRuntimeUnswept();
         assertFatalUnswept();
 
+        assertBodyIOExceptionKeepsCloseIOExceptionSubordinate();
+        assertUncheckedCloseOverridesBodyIOException();
+        assertFatalCloseOverridesBodyIOException();
+        assertCleanCloseFailuresEscape();
+        assertUncheckedResponseFailureStaysPrimary();
+        assertPostOpenCloseSecurityIsFatal();
+        assertSameFailureDoesNotSelfSuppress();
+
         System.out.println(
             "LOCAL_AUX_ARCHIVE_ACCESS_PASS "+
             "regularServed=true "+
@@ -33,7 +40,14 @@ public final class LocalAuxArchiveAccessTest {
             "postOpenIoConnectionScoped=true "+
             "runtimeUnswept=true "+
             "fatalUnswept=true "+
-            "singleHandleInherited=true"
+            "singleHandleInherited=true "+
+            "closeIoOrdering=true "+
+            "closeRuntimeOverridesIo=true "+
+            "closeErrorOverridesIo=true "+
+            "cleanCloseFailures=true "+
+            "uncheckedResponsePrimary=true "+
+            "postOpenCloseSecurityFatal=true "+
+            "sameFailureIdentity=true"
         );
     }
 
@@ -215,25 +229,13 @@ public final class LocalAuxArchiveAccessTest {
             new IOException(
                 "fixture-post-open-io"
             );
-        Throwable observed=null;
-
-        try{
-            LocalAuxArchiveAccess
-                .writeIfAvailable(
-                    new ByteArrayOutputStream(),
-                    Path.of(
-                        "fixture-stream-io.zip"
-                    ),
-                    false,
-                    file->true,
-                    file->
-                        new FailingReadChannel(
-                            expected
-                        )
-                );
-        }catch(Throwable failure){
-            observed=failure;
-        }
+        Throwable observed=
+            invoke(
+                new OrderedFailureChannel(
+                    expected,
+                    null
+                )
+            );
 
         if(observed!=expected)
             throw new AssertionError(
@@ -304,6 +306,290 @@ public final class LocalAuxArchiveAccessTest {
             );
     }
 
+    private static void
+        assertBodyIOExceptionKeepsCloseIOExceptionSubordinate(){
+        IOException body=
+            new IOException(
+                "fixture-body-io"
+            );
+        IOException close=
+            new IOException(
+                "fixture-close-io"
+            );
+
+        Throwable observed=
+            invoke(
+                new OrderedFailureChannel(
+                    body,
+                    close
+                )
+            );
+
+        assertPrimaryWithSingleSuppressed(
+            "body IOException + close IOException",
+            observed,
+            body,
+            close
+        );
+    }
+
+    private static void
+        assertUncheckedCloseOverridesBodyIOException(){
+        IOException body=
+            new IOException(
+                "fixture-body-before-runtime-close"
+            );
+        RuntimeException close=
+            new IllegalStateException(
+                "fixture-runtime-close"
+            );
+
+        Throwable observed=
+            invoke(
+                new OrderedFailureChannel(
+                    body,
+                    close
+                )
+            );
+
+        assertPrimaryWithSingleSuppressed(
+            "body IOException + close RuntimeException",
+            observed,
+            close,
+            body
+        );
+    }
+
+    private static void
+        assertFatalCloseOverridesBodyIOException(){
+        IOException body=
+            new IOException(
+                "fixture-body-before-error-close"
+            );
+        Error close=
+            new AssertionError(
+                "fixture-error-close"
+            );
+
+        Throwable observed=
+            invoke(
+                new OrderedFailureChannel(
+                    body,
+                    close
+                )
+            );
+
+        assertPrimaryWithSingleSuppressed(
+            "body IOException + close Error",
+            observed,
+            close,
+            body
+        );
+    }
+
+    private static void assertCleanCloseFailuresEscape(){
+        IOException closeIo=
+            new IOException(
+                "fixture-clean-close-io"
+            );
+        Throwable ioObserved=
+            invoke(
+                new OrderedFailureChannel(
+                    null,
+                    closeIo
+                )
+            );
+
+        if(ioObserved!=closeIo)
+            throw new AssertionError(
+                "clean close IOException lost identity",
+                ioObserved
+            );
+
+        RuntimeException closeRuntime=
+            new IllegalStateException(
+                "fixture-clean-close-runtime"
+            );
+        Throwable runtimeObserved=
+            invoke(
+                new OrderedFailureChannel(
+                    null,
+                    closeRuntime
+                )
+            );
+
+        if(runtimeObserved!=closeRuntime)
+            throw new AssertionError(
+                "clean close RuntimeException lost identity",
+                runtimeObserved
+            );
+
+        Error closeError=
+            new AssertionError(
+                "fixture-clean-close-error"
+            );
+        Throwable errorObserved=
+            invoke(
+                new OrderedFailureChannel(
+                    null,
+                    closeError
+                )
+            );
+
+        if(errorObserved!=closeError)
+            throw new AssertionError(
+                "clean close Error lost identity",
+                errorObserved
+            );
+    }
+
+    private static void
+        assertUncheckedResponseFailureStaysPrimary(){
+        RuntimeException bodyRuntime=
+            new IllegalStateException(
+                "fixture-response-runtime"
+            );
+        IOException closeIo=
+            new IOException(
+                "fixture-response-runtime-close-io"
+            );
+
+        Throwable runtimeObserved=
+            invoke(
+                new OrderedFailureChannel(
+                    bodyRuntime,
+                    closeIo
+                )
+            );
+
+        assertPrimaryWithSingleSuppressed(
+            "response RuntimeException + close IOException",
+            runtimeObserved,
+            bodyRuntime,
+            closeIo
+        );
+
+        Error bodyError=
+            new AssertionError(
+                "fixture-response-error"
+            );
+        RuntimeException closeRuntime=
+            new IllegalStateException(
+                "fixture-response-error-close-runtime"
+            );
+
+        Throwable errorObserved=
+            invoke(
+                new OrderedFailureChannel(
+                    bodyError,
+                    closeRuntime
+                )
+            );
+
+        assertPrimaryWithSingleSuppressed(
+            "response Error + close RuntimeException",
+            errorObserved,
+            bodyError,
+            closeRuntime
+        );
+    }
+
+    private static void assertPostOpenCloseSecurityIsFatal(){
+        IOException body=
+            new IOException(
+                "fixture-body-before-security-close"
+            );
+        SecurityException close=
+            new SecurityException(
+                "fixture-post-open-close-security"
+            );
+
+        Throwable observed=
+            invoke(
+                new OrderedFailureChannel(
+                    body,
+                    close
+                )
+            );
+
+        assertPrimaryWithSingleSuppressed(
+            "body IOException + post-open close SecurityException",
+            observed,
+            close,
+            body
+        );
+    }
+
+    private static void assertSameFailureDoesNotSelfSuppress(){
+        IOException same=
+            new IOException(
+                "fixture-same-body-close"
+            );
+
+        Throwable observed=
+            invoke(
+                new OrderedFailureChannel(
+                    same,
+                    same
+                )
+            );
+
+        if(observed!=same)
+            throw new AssertionError(
+                "same body/close failure lost primary identity",
+                observed
+            );
+
+        if(observed.getSuppressed().length!=0)
+            throw new AssertionError(
+                "same body/close failure self-suppressed"
+            );
+    }
+
+    private static Throwable invoke(
+        SeekableByteChannel channel
+    ){
+        try{
+            LocalAuxArchiveAccess
+                .writeIfAvailable(
+                    new ByteArrayOutputStream(),
+                    Path.of(
+                        "fixture-ordering.zip"
+                    ),
+                    false,
+                    file->true,
+                    file->channel
+                );
+            return null;
+        }catch(Throwable failure){
+            return failure;
+        }
+    }
+
+    private static void assertPrimaryWithSingleSuppressed(
+        String label,
+        Throwable observed,
+        Throwable expectedPrimary,
+        Throwable expectedSuppressed
+    ){
+        if(observed!=expectedPrimary)
+            throw new AssertionError(
+                label+
+                " primary identity mismatch",
+                observed
+            );
+
+        Throwable[] suppressed=
+            observed.getSuppressed();
+
+        if(suppressed.length!=1||
+           suppressed[0]!=expectedSuppressed)
+            throw new AssertionError(
+                label+
+                " suppression ordering mismatch"
+            );
+    }
+
     private static class EmptyChannel
         implements SeekableByteChannel {
         boolean open=true;
@@ -348,30 +634,64 @@ public final class LocalAuxArchiveAccessTest {
             return open;
         }
 
-        @Override public void close(){
+        @Override public void close()
+            throws IOException{
             open=false;
         }
     }
 
-    private static final class FailingReadChannel
+    private static final class OrderedFailureChannel
         extends EmptyChannel {
-        private final IOException failure;
+        private final Throwable bodyFailure;
+        private final Throwable closeFailure;
 
-        FailingReadChannel(
-            IOException failure
+        OrderedFailureChannel(
+            Throwable bodyFailure,
+            Throwable closeFailure
         ){
-            this.failure=failure;
+            this.bodyFailure=bodyFailure;
+            this.closeFailure=closeFailure;
         }
 
         @Override public long size(){
-            return 1L;
+            return bodyFailure==null
+                ?0L
+                :1L;
         }
 
         @Override public int read(
             ByteBuffer destination
         )throws IOException{
-            throw failure;
+            if(bodyFailure==null)
+                return -1;
+
+            throwAllowed(
+                bodyFailure
+            );
+            return -1;
         }
+
+        @Override public void close()
+            throws IOException{
+            open=false;
+
+            if(closeFailure!=null)
+                throwAllowed(
+                    closeFailure
+                );
+        }
+    }
+
+    private static void throwAllowed(
+        Throwable failure
+    )throws IOException{
+        if(failure instanceof IOException)
+            throw (IOException)failure;
+
+        if(failure instanceof RuntimeException)
+            throw (RuntimeException)failure;
+
+        throw (Error)failure;
     }
 
     private LocalAuxArchiveAccessTest(){}
