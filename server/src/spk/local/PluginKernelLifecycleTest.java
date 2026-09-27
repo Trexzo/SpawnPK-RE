@@ -1678,6 +1678,7 @@ public final class PluginKernelLifecycleTest {
         closedManagerOpeningFenceOwnsFreshRuntime();
         worldOpenOpeningFenceOwnsFreshRuntime();
         openingFenceBatchOwnsRuntimeIdentityOnce();
+        partialCollectionMaterializationOwnsObservedRuntimes();
         terminalizingRuntimeRemainsOwned();
     }
 
@@ -1934,6 +1935,193 @@ public final class PluginKernelLifecycleTest {
         }finally{
             manager.closeResources();
             world.close();
+        }
+    }
+
+    private static void partialCollectionMaterializationOwnsObservedRuntimes()
+        throws Exception{
+        World world=
+            World.isolatedForTest(
+                25L
+            );
+        WorldPluginManager manager=
+            (WorldPluginManager)
+                world.plugins();
+
+        RuntimeException primary=
+            new IllegalStateException(
+                "partial-collection-primary"
+            );
+        RuntimeException firstClose=
+            new IllegalArgumentException(
+                "partial-close-r1"
+            );
+        RuntimeException secondClose=
+            new IllegalStateException(
+                "partial-close-r2"
+            );
+        CountingPluginRuntime first=
+            new CountingPluginRuntime(
+                "opening.partial.r1",
+                Collections.<String>emptyList(),
+                null,
+                null,
+                firstClose,
+                false
+            );
+        CountingPluginRuntime second=
+            new CountingPluginRuntime(
+                "opening.partial.r2",
+                Collections.<String>emptyList(),
+                null,
+                null,
+                secondClose,
+                false
+            );
+
+        try{
+            Throwable observed=
+                captureFailure(
+                    ()->manager.enableAll(
+                        new ThrowingPluginCollection(
+                            primary,
+                            first,
+                            first,
+                            second
+                        )
+                    )
+                );
+
+            if(observed!=primary)
+                throw new AssertionError(
+                    "partial collection failure identity changed",
+                    observed
+                );
+
+            if(first.closeCount.get()!=1||
+               second.closeCount.get()!=1||
+               first.enableCount.get()!=0||
+               second.enableCount.get()!=0||
+               first.disableCount.get()!=0||
+               second.disableCount.get()!=0)
+                throw new AssertionError(
+                    "partial collection retirement count mismatch "+
+                    "r1Close="+first.closeCount.get()+
+                    " r2Close="+second.closeCount.get()
+                );
+
+            Throwable[] suppressed=
+                primary.getSuppressed();
+
+            if(suppressed.length!=2||
+               suppressed[0]!=firstClose||
+               suppressed[1]!=secondClose)
+                throw new AssertionError(
+                    "partial collection cleanup suppression order changed"
+                );
+
+            if(!manager.enabled().isEmpty()||
+               manager.plugin(
+                   "opening.partial.r1"
+               )!=null||
+               manager.plugin(
+                   "opening.partial.r2"
+               )!=null)
+                throw new AssertionError(
+                    "partial collection materialization created plugin handle"
+                );
+        }finally{
+            world.close();
+        }
+
+        World ownedWorld=
+            World.isolatedForTest(
+                25L
+            );
+        WorldPluginManager ownedManager=
+            (WorldPluginManager)
+                ownedWorld.plugins();
+        CountingPluginRuntime owned=
+            new CountingPluginRuntime(
+                "opening.partial.owned",
+                Collections.<String>emptyList(),
+                null,
+                null,
+                null,
+                false
+            );
+        CountingPluginRuntime fresh=
+            new CountingPluginRuntime(
+                "opening.partial.fresh",
+                Collections.<String>emptyList(),
+                null,
+                null,
+                null,
+                false
+            );
+        RuntimeException ownedPrimary=
+            new IllegalStateException(
+                "partial-owned-primary"
+            );
+
+        try{
+            ownedManager.enable(
+                owned
+            );
+
+            Throwable observed=
+                captureFailure(
+                    ()->ownedManager.enableAll(
+                        new ThrowingPluginCollection(
+                            ownedPrimary,
+                            owned,
+                            fresh,
+                            owned
+                        )
+                    )
+                );
+
+            if(observed!=ownedPrimary)
+                throw new AssertionError(
+                    "partial owned collection failure identity changed",
+                    observed
+                );
+
+            if(owned.closeCount.get()!=0||
+               owned.enableCount.get()!=1||
+               fresh.closeCount.get()!=1||
+               fresh.enableCount.get()!=0)
+                throw new AssertionError(
+                    "partial collection disturbed already-owned runtime "+
+                    "ownedClose="+owned.closeCount.get()+
+                    " ownedEnable="+owned.enableCount.get()+
+                    " freshClose="+fresh.closeCount.get()
+                );
+
+            PluginHandle handle=
+                ownedManager.plugin(
+                    "opening.partial.owned"
+                );
+
+            if(handle==null||
+               !handle.enabled())
+                throw new AssertionError(
+                    "partial collection failure lost already-owned runtime"
+                );
+
+            if(!ownedManager.disable(
+                    "opening.partial.owned"))
+                throw new AssertionError(
+                    "partial collection owned runtime cleanup failed"
+                );
+
+            if(owned.closeCount.get()!=1||
+               owned.disableCount.get()!=1)
+                throw new AssertionError(
+                    "already-owned runtime did not retire exactly once through original owner"
+                );
+        }finally{
+            ownedWorld.close();
         }
     }
 
@@ -3258,6 +3446,47 @@ public final class PluginKernelLifecycleTest {
 
             if(closeFailure!=null)
                 throw closeFailure;
+        }
+    }
+
+    private static final class ThrowingPluginCollection
+        extends AbstractCollection<Plugin> {
+
+        private final RuntimeException failure;
+        private final Plugin[] values;
+
+        ThrowingPluginCollection(
+            RuntimeException failure,
+            Plugin... values
+        ){
+            this.failure=failure;
+            this.values=values;
+        }
+
+        @Override public Iterator<Plugin> iterator(){
+            return new Iterator<Plugin>(){
+                private int index;
+
+                @Override public boolean hasNext(){
+                    if(index<values.length)
+                        return true;
+
+                    throw failure;
+                }
+
+                @Override public Plugin next(){
+                    if(index>=values.length)
+                        throw new NoSuchElementException();
+
+                    return values[
+                        index++
+                    ];
+                }
+            };
+        }
+
+        @Override public int size(){
+            return values.length+1;
         }
     }
 
