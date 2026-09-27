@@ -148,9 +148,11 @@ final class WorldPluginManager
                         "BATCH_ROLLBACK"
                     );
                 }catch(Throwable cleanup){
-                    failure.addSuppressed(
-                        cleanup
-                    );
+                    PluginRuntimeSupport
+                        .suppressIfDistinct(
+                            failure,
+                            cleanup
+                        );
                 }
 
             for(Plugin plugin:requested)
@@ -302,9 +304,11 @@ final class WorldPluginManager
                     if(failure==null)
                         failure=cleanup;
                     else
-                        failure.addSuppressed(
-                            cleanup
-                        );
+                        PluginRuntimeSupport
+                            .suppressIfDistinct(
+                                failure,
+                                cleanup
+                            );
                 }finally{
                     completeCleanup(
                         entry
@@ -495,7 +499,11 @@ final class WorldPluginManager
                         plugin::disable
                     );
                 }catch(Throwable cleanup){
-                    failure.addSuppressed(cleanup);
+                    PluginRuntimeSupport
+                        .suppressIfDistinct(
+                            failure,
+                            cleanup
+                        );
                 }
 
             tracker.close(
@@ -507,7 +515,11 @@ final class WorldPluginManager
                     moduleId
                 );
             }catch(Throwable cleanup){
-                failure.addSuppressed(cleanup);
+                PluginRuntimeSupport
+                    .suppressIfDistinct(
+                        failure,
+                        cleanup
+                    );
             }
 
             PluginRuntimeSupport.closePluginRuntime(
@@ -1337,8 +1349,14 @@ final class WorldPluginManager
             Throwable cause=
                 failure.getCause();
 
-            if(cause!=null)
+            if(cause!=null){
+                PluginRuntimeSupport
+                    .transferSuppressedDistinct(
+                        failure,
+                        cause
+                    );
                 rethrow(cause);
+            }
         }
 
         if(failure instanceof Exception)
