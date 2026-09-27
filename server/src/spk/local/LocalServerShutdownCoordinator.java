@@ -11,6 +11,7 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BooleanSupplier;
 
 final class LocalServerShutdownCoordinator
     implements AutoCloseable {
@@ -1005,6 +1006,22 @@ final class LocalServerShutdownCoordinator
             initialFailure,
             drainTerminalAuxiliaryWorkerFailure()
         );
+    }
+
+    boolean claimAuxiliaryResponseTimeout(
+        BooleanSupplier commit
+    ){
+        Objects.requireNonNull(
+            commit,
+            "commit"
+        );
+
+        synchronized(lifecycleLock){
+            if(closing)
+                return false;
+
+            return commit.getAsBoolean();
+        }
     }
 
     boolean closing(){
