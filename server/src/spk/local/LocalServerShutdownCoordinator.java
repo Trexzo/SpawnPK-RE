@@ -585,6 +585,11 @@ final class LocalServerShutdownCoordinator
             Throwable residualFailure=
                 combineFailure(
                     lateHandoffFailure,
+                    retryOpenListeners()
+                );
+            residualFailure=
+                combineFailure(
+                    residualFailure,
                     retryOwnedSocketsForTerminal()
                 );
             Throwable terminalFailure=
@@ -626,10 +631,32 @@ final class LocalServerShutdownCoordinator
                 "aux"
             );
 
-        // If the game listener is physically closed, its blocked accept is
-        // expected to retire and success semantics still wait for it. If the
-        // listener failed open, waiting that handoff here could deadlock the
-        // terminal owner forever; terminal failure is published instead.
+        // Retry physical listener retirement once without erasing the first
+        // failure. Resource recovery and diagnostic truth are separate.
+        if(!game.isClosed())
+            gameListenerFailure=
+                combineFailure(
+                    gameListenerFailure,
+                    closeServerSocket(
+                        game,
+                        "game"
+                    )
+                );
+
+        if(!aux.isClosed())
+            auxListenerFailure=
+                combineFailure(
+                    auxListenerFailure,
+                    closeServerSocket(
+                        aux,
+                        "aux"
+                    )
+                );
+
+        // If the game listener is physically closed after the bounded retry,
+        // its blocked accept is expected to retire and success semantics still
+        // wait for it. If it remains failed-open, waiting here could deadlock
+        // the terminal owner forever; terminal failure is published instead.
         boolean waitGameAcceptHandoffs=
             game.isClosed();
 
@@ -752,6 +779,32 @@ final class LocalServerShutdownCoordinator
             "game socket accept failed",
             failure
         );
+    }
+
+    private Throwable retryOpenListeners(){
+        Throwable failure=null;
+
+        if(!game.isClosed())
+            failure=
+                combineFailure(
+                    failure,
+                    closeServerSocket(
+                        game,
+                        "game"
+                    )
+                );
+
+        if(!aux.isClosed())
+            failure=
+                combineFailure(
+                    failure,
+                    closeServerSocket(
+                        aux,
+                        "aux"
+                    )
+                );
+
+        return failure;
     }
 
     private void closePool(){

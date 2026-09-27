@@ -30,6 +30,9 @@ public final class LocalSessionConstructionOwnershipTest {
         assertCheckedCloseFailureRetainsOwnershipAndTerminalRetries();
         assertTerminalCloseFailurePublishedAndOwnershipRetained();
         assertTerminalFailOnceCloseFailureRemainsPublished();
+        assertFailOnceGameListenerRetriedBeforeHandoffBarrier();
+        assertFailOnceAuxListenerRetiredByOwnerRetry();
+        assertResidualListenerRetriedByRepeatedClose();
         assertGameListenerCloseFailurePublishesWithoutHandoffHang();
         assertLateTerminalAcceptCloseFailureRetainsOwnership();
         assertAuxListenerCloseFailurePublished();
@@ -57,6 +60,9 @@ public final class LocalSessionConstructionOwnershipTest {
             "terminalCloseFailurePublished=true "+
             "terminalRetryDoesNotEraseFailure=true "+
             "repeatedCloseFailurePublished=true "+
+            "listenerOwnerRetry=true "+
+            "listenerRetryPreservesFailure=true "+
+            "listenerRepeatedCloseRetry=true "+
             "gameListenerFailurePublished=true "+
             "gameListenerFailureNoHandoffHang=true "+
             "lateAcceptHandoffRetired=true "+
@@ -1091,6 +1097,285 @@ public final class LocalSessionConstructionOwnershipTest {
     }
 
     private static void
+        assertFailOnceGameListenerRetriedBeforeHandoffBarrier()
+        throws Exception{
+        World world=
+            World.isolatedForTest(
+                25L
+            );
+        world.start();
+
+        TrackingExecutor pool=
+            new TrackingExecutor();
+        FailCountCloseServerSocket game=
+            new FailCountCloseServerSocket(
+                1,
+                "fixture-fail-once-game-listener"
+            );
+        ServerSocket aux=
+            new ServerSocket();
+        Socket accepted=
+            new Socket();
+
+        LocalServerShutdownCoordinator shutdown=
+            new LocalServerShutdownCoordinator(
+                world,
+                pool,
+                game,
+                aux
+            );
+
+        CountDownLatch acceptEntered=
+            new CountDownLatch(1);
+        CountDownLatch releaseAccept=
+            new CountDownLatch(1);
+        AtomicReference<Throwable> acceptFailure=
+            new AtomicReference<>();
+
+        Thread accepter=
+            new Thread(
+                ()->{
+                    try{
+                        shutdown.acceptGameSocket(
+                            ()->{
+                                acceptEntered.countDown();
+
+                                try{
+                                    releaseAccept.await();
+                                }catch(InterruptedException error){
+                                    Thread.currentThread()
+                                        .interrupt();
+                                    throw new IOException(
+                                        "fixture accept interrupted",
+                                        error
+                                    );
+                                }
+
+                                return accepted;
+                            }
+                        );
+                    }catch(Throwable failure){
+                        acceptFailure.set(
+                            failure
+                        );
+                    }
+                },
+                "fail-once-game-listener-accept"
+            );
+        accepter.start();
+
+        if(!acceptEntered.await(
+                5,
+                TimeUnit.SECONDS))
+            throw new AssertionError(
+                "fail-once listener accept handoff did not publish"
+            );
+
+        AtomicReference<Throwable> terminalFailure=
+            new AtomicReference<>();
+        Thread closer=
+            new Thread(
+                ()->{
+                    try{
+                        shutdown.close();
+                    }catch(Throwable failure){
+                        terminalFailure.set(
+                            failure
+                        );
+                    }
+                },
+                "fail-once-game-listener-close"
+            );
+        closer.start();
+
+        long deadline=
+            System.nanoTime()+
+                TimeUnit.SECONDS.toNanos(
+                    5
+                );
+
+        while(game.closeCalls.get()<2&&
+              System.nanoTime()<deadline)
+            Thread.yield();
+
+        if(game.closeCalls.get()<2||
+           !game.isClosed())
+            throw new AssertionError(
+                "owner did not retry and retire fail-once game listener"
+            );
+
+        if(!closer.isAlive())
+            throw new AssertionError(
+                "closed game listener bypassed pending accept handoff barrier"
+            );
+
+        releaseAccept.countDown();
+        accepter.join(
+            5_000L
+        );
+        closer.join(
+            5_000L
+        );
+
+        if(accepter.isAlive()||
+           closer.isAlive())
+            throw new AssertionError(
+                "fail-once listener fixture did not retire"
+            );
+
+        if(acceptFailure.get()!=null)
+            throw new AssertionError(
+                "fail-once listener accept handoff failed unexpectedly",
+                acceptFailure.get()
+            );
+
+        Throwable observed=
+            terminalFailure.get();
+
+        if(!(observed instanceof
+                IllegalStateException)||
+           observed.getCause()!=
+                game.failure)
+            throw new AssertionError(
+                "successful listener retry erased first close failure",
+                observed
+            );
+
+        if(!accepted.isClosed()||
+           shutdown.pendingGameAcceptHandoffs()!=0)
+            throw new AssertionError(
+                "fail-once listener handoff did not retire cleanly"
+            );
+    }
+
+    private static void
+        assertFailOnceAuxListenerRetiredByOwnerRetry()
+        throws Exception{
+        World world=
+            World.isolatedForTest(
+                25L
+            );
+        world.start();
+
+        TrackingExecutor pool=
+            new TrackingExecutor();
+        ServerSocket game=
+            new ServerSocket();
+        FailCountCloseServerSocket aux=
+            new FailCountCloseServerSocket(
+                1,
+                "fixture-fail-once-aux-listener"
+            );
+
+        LocalServerShutdownCoordinator shutdown=
+            new LocalServerShutdownCoordinator(
+                world,
+                pool,
+                game,
+                aux
+            );
+
+        Throwable observed=null;
+
+        try{
+            shutdown.close();
+        }catch(Throwable failure){
+            observed=failure;
+        }
+
+        if(!(observed instanceof
+                IllegalStateException)||
+           observed.getCause()!=
+                aux.failure)
+            throw new AssertionError(
+                "fail-once aux listener failure was not retained",
+                observed
+            );
+
+        if(aux.closeCalls.get()<2||
+           !aux.isClosed())
+            throw new AssertionError(
+                "owner did not retry and retire fail-once aux listener"
+            );
+
+        if(!world.closed())
+            throw new AssertionError(
+                "fail-once aux retry skipped World teardown"
+            );
+    }
+
+    private static void
+        assertResidualListenerRetriedByRepeatedClose()
+        throws Exception{
+        World world=
+            World.isolatedForTest(
+                25L
+            );
+        world.start();
+
+        TrackingExecutor pool=
+            new TrackingExecutor();
+        FailCountCloseServerSocket game=
+            new FailCountCloseServerSocket(
+                2,
+                "fixture-fail-twice-game-listener"
+            );
+        ServerSocket aux=
+            new ServerSocket();
+
+        LocalServerShutdownCoordinator shutdown=
+            new LocalServerShutdownCoordinator(
+                world,
+                pool,
+                game,
+                aux
+            );
+
+        Throwable first=null;
+
+        try{
+            shutdown.close();
+        }catch(Throwable failure){
+            first=failure;
+        }
+
+        if(!(first instanceof
+                IllegalStateException)||
+           first.getCause()!=
+                game.failure)
+            throw new AssertionError(
+                "residual listener first failure was not published",
+                first
+            );
+
+        if(game.isClosed()||
+           game.closeCalls.get()!=2)
+            throw new AssertionError(
+                "owner retry did not leave expected residual listener"
+            );
+
+        Throwable repeated=null;
+
+        try{
+            shutdown.close();
+        }catch(Throwable failure){
+            repeated=failure;
+        }
+
+        if(repeated!=first)
+            throw new AssertionError(
+                "residual listener retry changed terminal failure identity",
+                repeated
+            );
+
+        if(!game.isClosed()||
+           game.closeCalls.get()<3)
+            throw new AssertionError(
+                "repeated close did not retire residual listener"
+            );
+    }
+
+    private static void
         assertGameListenerCloseFailurePublishesWithoutHandoffHang()
         throws Exception{
         World world=
@@ -1672,6 +1957,42 @@ public final class LocalSessionConstructionOwnershipTest {
         @Override public void close()
             throws IOException{
             if(closeCalls.incrementAndGet()==1)
+                throw failure;
+
+            super.close();
+        }
+    }
+
+    private static final class FailCountCloseServerSocket
+        extends ServerSocket {
+
+        final IOException failure;
+        final int failures;
+        final AtomicInteger closeCalls=
+            new AtomicInteger();
+
+        FailCountCloseServerSocket(
+            int failures,
+            String message
+        )throws IOException{
+            super();
+
+            if(failures<0)
+                throw new IllegalArgumentException(
+                    "failures"
+                );
+
+            this.failures=failures;
+            failure=
+                new IOException(
+                    message
+                );
+        }
+
+        @Override public void close()
+            throws IOException{
+            if(closeCalls.incrementAndGet()<=
+                    failures)
                 throw failure;
 
             super.close();
