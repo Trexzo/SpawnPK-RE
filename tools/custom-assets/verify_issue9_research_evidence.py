@@ -25,6 +25,8 @@ EXPECTED_ZIPS = {
 }
 
 R10_FILES = {
+    "tools/core/obj_to_spawnpk_ffff_skin.py":
+        "a37f135cd8cd8eb4c41c3c2a17212ea63244ed6afd654d7b682a551c88514bf0",
     "tools/core/compile_spawnpk_rig_v1.py":
         "338d0c7da4f74dc54919ca702c5c0579a1e43e278a483a0e67ed621ccae332ad",
     "tools/core/make_v308_frame_group_json.py":
@@ -200,6 +202,7 @@ def main() -> int:
         f"r11={EXPECTED_ZIPS['r11']} "
         f"r12={EXPECTED_ZIPS['r12']} "
         "r11SourceMatchesR12=true "
+        "modelGeometryEncoderSourcePreserved=true "
         "rigCompilerSourcePreserved=true "
         "textureBuilderSourcePreserved=true "
         "modelWriterSourcePreserved=true "
