@@ -38,6 +38,7 @@ final class LocalServerShutdownCoordinator
     private boolean closing;
     private int gameAcceptHandoffs;
     private int sessionFactoryHandoffs;
+    private Throwable terminalHandoffFailure;
 
     LocalServerShutdownCoordinator(
         World world,
@@ -122,24 +123,25 @@ final class LocalServerShutdownCoordinator
 
         if(failure==null&&
            terminal){
-            // This socket completed a pre-fence accept after closing was
-            // published. Keep explicit ownership until physical close really
-            // succeeds so terminal close can retry a checked close failure.
-            synchronized(lifecycleLock){
-                activeGameSockets.add(
-                    accepted
-                );
-            }
-
-            IOException closeFailure;
+            // A pre-fence accept that completes after terminal publication is
+            // still owned by this handoff until its socket-close attempt
+            // finishes. Do not inject it into activeGameSockets: terminal
+            // completion may already be in progress if the listener itself
+            // failed to close and could not unblock this accept.
+            IOException closeFailure=null;
 
             try{
                 closeFailure=
-                    retireOwnedSocket(
+                    closeUnownedSocket(
                         accepted
                     );
             }finally{
                 synchronized(lifecycleLock){
+                    if(closeFailure!=null)
+                        recordTerminalHandoffFailureLocked(
+                            closeFailure
+                        );
+
                     gameAcceptHandoffs--;
                     lifecycleLock.notifyAll();
                 }
@@ -162,6 +164,23 @@ final class LocalServerShutdownCoordinator
         }
 
         return accepted;
+    }
+
+    private void recordTerminalHandoffFailureLocked(
+        Throwable failure
+    ){
+        if(failure==null)
+            return;
+
+        if(terminalHandoffFailure==null)
+            terminalHandoffFailure=
+                failure;
+        else if(terminalHandoffFailure!=
+                failure)
+            terminalHandoffFailure
+                .addSuppressed(
+                    failure
+                );
     }
 
     void rejectSessionSocket(
@@ -510,24 +529,46 @@ final class LocalServerShutdownCoordinator
         }
 
         // Publish the terminal fence first, then perform potentially blocking
-        // socket closes without lifecycleLock. No new ownership may enter
-        // after closing=true, and existing ownership stays published until
-        // each physical close has returned.
-        closeQuietly(game);
-        closeQuietly(aux);
+        // listener/socket closes without lifecycleLock.
+        IOException gameListenerFailure=
+            closeServerSocket(
+                game,
+                "game"
+            );
+        IOException auxListenerFailure=
+            closeServerSocket(
+                aux,
+                "aux"
+            );
 
-        // First close pass covers ownership present at terminal publication.
-        // Failed-open sockets remain in activeGameSockets.
+        // If the game listener is physically closed, its blocked accept is
+        // expected to retire and success semantics still wait for it. If the
+        // listener failed open, waiting that handoff here could deadlock the
+        // terminal owner forever; terminal failure is published instead.
+        boolean waitGameAcceptHandoffs=
+            game.isClosed();
+
+        // First close pass covers active ownership present at terminal
+        // publication. Failed-open sockets remain in activeGameSockets.
         for(Socket socket:sockets)
             retireOwnedSocket(
                 socket
             );
 
-        awaitPreTerminalHandoffs();
+        awaitPreTerminalHandoffs(
+            waitGameAcceptHandoffs
+        );
 
-        // A handoff may have completed after the first snapshot, and a first
-        // close may have failed. Retry every still-owned socket once after all
-        // pre-fence handoffs have retired.
+        Throwable handoffFailure;
+
+        synchronized(lifecycleLock){
+            handoffFailure=
+                terminalHandoffFailure;
+        }
+
+        // A session-factory handoff may have completed after the first
+        // snapshot, and a first active-socket close may have failed. Retry
+        // every still-owned active socket once after the awaited handoffs.
         IOException socketRetirementFailure=
             retryOwnedSocketsForTerminal();
 
@@ -536,13 +577,22 @@ final class LocalServerShutdownCoordinator
         try{
             failure=
                 WorldCloseSequence.run(
-                    ()->{
-                        if(socketRetirementFailure!=null)
-                            throw new IllegalStateException(
-                                "session socket retirement failed",
-                                socketRetirementFailure
-                            );
-                    },
+                    ()->throwIfCloseFailed(
+                        "game listener close failed",
+                        gameListenerFailure
+                    ),
+                    ()->throwIfCloseFailed(
+                        "aux listener close failed",
+                        auxListenerFailure
+                    ),
+                    ()->throwIfCloseFailed(
+                        "terminal accept handoff close failed",
+                        handoffFailure
+                    ),
+                    ()->throwIfCloseFailed(
+                        "session socket retirement failed",
+                        socketRetirementFailure
+                    ),
                     this::closePool,
                     world::close
                 );
@@ -557,11 +607,14 @@ final class LocalServerShutdownCoordinator
         );
     }
 
-    private void awaitPreTerminalHandoffs(){
+    private void awaitPreTerminalHandoffs(
+        boolean waitGameAcceptHandoffs
+    ){
         boolean interrupted=false;
 
         synchronized(lifecycleLock){
-            while(gameAcceptHandoffs!=0||
+            while((waitGameAcceptHandoffs&&
+                   gameAcceptHandoffs!=0)||
                   sessionFactoryHandoffs!=0)
                 try{
                     lifecycleLock.wait();
@@ -573,6 +626,19 @@ final class LocalServerShutdownCoordinator
         if(interrupted)
             Thread.currentThread()
                 .interrupt();
+    }
+
+    private static void throwIfCloseFailed(
+        String message,
+        Throwable failure
+    ){
+        if(failure==null)
+            return;
+
+        throw new IllegalStateException(
+            message,
+            failure
+        );
     }
 
     private static void rethrowAcceptFailure(
@@ -637,12 +703,26 @@ final class LocalServerShutdownCoordinator
         }
     }
 
-    private static void closeQuietly(
-        ServerSocket socket
+    private static IOException closeServerSocket(
+        ServerSocket socket,
+        String label
     ){
+        IOException failure=null;
+
         try{
             socket.close();
-        }catch(IOException ignored){
+        }catch(IOException error){
+            failure=error;
         }
+
+        if(!socket.isClosed()&&
+           failure==null)
+            failure=
+                new IOException(
+                    label+
+                    " listener close returned without closing listener"
+                );
+
+        return failure;
     }
 }
