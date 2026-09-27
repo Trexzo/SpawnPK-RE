@@ -129,7 +129,7 @@ public final class Main {
 
         try {
             if (!shutdown.submitAuxiliary(
-                    () -> localAux(aux)))
+                    () -> localAux(aux, shutdown)))
                 return;
 
             while (!shutdown.closing()) {
@@ -168,13 +168,48 @@ public final class Main {
         }
     }
 
-    private static void localAux(ServerSocket server) {
+    private static void localAux(
+        ServerSocket server,
+        LocalServerShutdownCoordinator shutdown
+    ) {
         while (!server.isClosed()) {
-            try (Socket s = server.accept()) {
-                if (!s.getInetAddress().isLoopbackAddress()) continue;
-                handleAuxConnection(s);
+            Socket socket=null;
+
+            try {
+                socket=server.accept();
+
+                if(!shutdown.claimAuxiliarySocket(
+                        socket))
+                    continue;
+
+                try{
+                    if (!socket.getInetAddress().isLoopbackAddress())
+                        continue;
+
+                    handleAuxConnection(
+                        socket
+                    );
+                }finally{
+                    shutdown.releaseAuxiliarySocket(
+                        socket
+                    );
+                    socket=null;
+                }
             } catch (IOException e) {
-                if (!server.isClosed()) System.err.println("[local-aux] " + e);
+                if (!server.isClosed())
+                    System.err.println("[local-aux] " + e);
+            } finally {
+                if(socket!=null)
+                    try{
+                        shutdown.releaseAuxiliarySocket(
+                            socket
+                        );
+                    }catch(IOException e){
+                        if(!server.isClosed())
+                            System.err.println(
+                                "[local-aux] socket retirement failed " + e
+                            );
+                    }
             }
         }
     }
