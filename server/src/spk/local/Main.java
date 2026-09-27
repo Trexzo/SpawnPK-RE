@@ -316,15 +316,9 @@ public final class Main {
     }
 
     private static byte[] localVersions() {
-        try {
-            Path p = Paths.get(System.getProperty("user.home"), ".spawnpk", "versions.dat");
-            return LocalAuxVersions.read(
-                p,
-                FALLBACK_VERSIONS
-            );
-        } catch (java.nio.file.InvalidPathException | SecurityException ignored) {
-            return FALLBACK_VERSIONS.clone();
-        }
+        return LocalAuxVersions.readUserHome(
+            FALLBACK_VERSIONS
+        );
     }
 
     private static Path localArchiveFor(String target) {
