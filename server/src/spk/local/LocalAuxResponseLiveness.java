@@ -4,7 +4,9 @@ import java.io.FilterOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.net.Socket;
+import java.net.SocketTimeoutException;
 import java.util.Objects;
+import java.util.function.Consumer;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.ThreadFactory;
@@ -39,19 +41,31 @@ final class LocalAuxResponseLiveness {
         new Object();
     private final Socket socket;
     private final Scheduler scheduler;
+    private final Consumer<Throwable> fatalFailure;
 
     private Cancellable deadline;
     private long generation;
     private boolean finished;
     private boolean timedOut;
-    private Throwable abortFailure;
+    private SocketTimeoutException timeoutFailure;
 
     static LocalAuxResponseLiveness arm(
         Socket socket
     ){
+        return arm(
+            socket,
+            failure->{}
+        );
+    }
+
+    static LocalAuxResponseLiveness arm(
+        Socket socket,
+        Consumer<Throwable> fatalFailure
+    ){
         return new LocalAuxResponseLiveness(
             socket,
-            new ExecutorScheduler()
+            new ExecutorScheduler(),
+            fatalFailure
         );
     }
 
@@ -59,15 +73,29 @@ final class LocalAuxResponseLiveness {
         Socket socket,
         Scheduler scheduler
     ){
+        return arm(
+            socket,
+            scheduler,
+            failure->{}
+        );
+    }
+
+    static LocalAuxResponseLiveness arm(
+        Socket socket,
+        Scheduler scheduler,
+        Consumer<Throwable> fatalFailure
+    ){
         return new LocalAuxResponseLiveness(
             socket,
-            scheduler
+            scheduler,
+            fatalFailure
         );
     }
 
     private LocalAuxResponseLiveness(
         Socket socket,
-        Scheduler scheduler
+        Scheduler scheduler,
+        Consumer<Throwable> fatalFailure
     ){
         this.socket=
             Objects.requireNonNull(
@@ -78,6 +106,11 @@ final class LocalAuxResponseLiveness {
             Objects.requireNonNull(
                 scheduler,
                 "scheduler"
+            );
+        this.fatalFailure=
+            Objects.requireNonNull(
+                fatalFailure,
+                "fatalFailure"
             );
 
         synchronized(lock){
@@ -162,6 +195,19 @@ final class LocalAuxResponseLiveness {
 
         Throwable result=
             primary;
+        SocketTimeoutException timeout;
+
+        synchronized(lock){
+            timeout=timeoutFailure;
+        }
+
+        if(timeout!=null)
+            result=
+                LocalAuxHttpWorker
+                    .preserveFailureOrder(
+                        result,
+                        timeout
+                    );
 
         try{
             if(!scheduler.awaitTermination(
@@ -188,29 +234,6 @@ final class LocalAuxResponseLiveness {
                         )
                     );
         }
-
-        Throwable abort;
-        boolean expired;
-
-        synchronized(lock){
-            abort=abortFailure;
-            expired=timedOut;
-        }
-
-        if(abort!=null)
-            result=
-                LocalAuxHttpWorker
-                    .preserveFailureOrder(
-                        result,
-                        abort
-                    );
-
-        if(expired&&
-           result==null)
-            result=
-                new IOException(
-                    "auxiliary response made no progress before deadline"
-                );
 
         return result;
     }
@@ -255,6 +278,8 @@ final class LocalAuxResponseLiveness {
     private void expire(
         long expected
     ){
+        SocketTimeoutException timeout;
+
         synchronized(lock){
             if(finished||
                expected!=generation)
@@ -266,22 +291,64 @@ final class LocalAuxResponseLiveness {
                 return;
 
             timedOut=true;
+            timeout=
+                new SocketTimeoutException(
+                    "auxiliary HTTP response made no progress before deadline"
+                );
+            timeoutFailure=
+                timeout;
         }
 
+        Throwable first=
+            closeSocketOnce();
+
+        if(first!=null&&
+           first!=timeout)
+            timeout.addSuppressed(
+                first
+            );
+
+        if(!socket.isClosed()){
+            Throwable second=
+                closeSocketOnce();
+
+            if(second!=null&&
+               second!=timeout&&
+               second!=first)
+                timeout.addSuppressed(
+                    second
+                );
+        }
+
+        if(socket.isClosed())
+            return;
+
+        IOException failedOpen=
+            new IOException(
+                "auxiliary response timeout could not close socket after bounded retry"
+            );
+        timeout.addSuppressed(
+            failedOpen
+        );
+
+        try{
+            fatalFailure.accept(
+                timeout
+            );
+        }catch(Throwable publicationFailure){
+            if(publicationFailure!=timeout)
+                timeout.addSuppressed(
+                    publicationFailure
+                );
+        }
+    }
+
+    private Throwable closeSocketOnce(){
         try{
             socket.close();
+            return null;
         }catch(Throwable failure){
-            synchronized(lock){
-                if(abortFailure==null)
-                    abortFailure=
-                        failure;
-                else if(abortFailure!=
-                        failure)
-                    abortFailure
-                        .addSuppressed(
-                            failure
-                        );
-            }
+            return failure;
         }
     }
 
