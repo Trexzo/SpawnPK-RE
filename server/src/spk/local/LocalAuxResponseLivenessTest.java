@@ -24,6 +24,7 @@ public final class LocalAuxResponseLivenessTest {
         assertWatchdogShutdownFailureOrdering();
         assertWatchdogShutdownFailureStillAwaitsRetirement();
         assertWatchdogShutdownSameFailureDoesNotSelfSuppress();
+        assertTimeoutEvidenceSurvivesWatchdogShutdownFailure();
         assertTimeoutAbortsBlockedWriteAndWorkerContinues();
         assertWriteFailureKeepsPrimaryAcrossTimeout();
         assertUncheckedPrimaryKeepsIdentityAcrossTimeout();
@@ -49,6 +50,7 @@ public final class LocalAuxResponseLivenessTest {
             "watchdogShutdownFailureOrdered=true "+
             "watchdogShutdownAwaited=true "+
             "watchdogShutdownSelfSuppressionSafe=true "+
+            "watchdogShutdownTimeoutRetained=true "+
             "stalledWriteAborted=true "+
             "abortRetry=true "+
             "timeoutConnectionScoped=true "+
@@ -500,6 +502,49 @@ public final class LocalAuxResponseLivenessTest {
             throw new AssertionError(
                 label+
                 " suppression ordering mismatch"
+            );
+    }
+
+    private static void
+        assertTimeoutEvidenceSurvivesWatchdogShutdownFailure()
+        throws Exception{
+        FakeSocket socket=
+            new FakeSocket();
+        ManualScheduler scheduler=
+            new ManualScheduler();
+        LocalAuxResponseLiveness liveness=
+            LocalAuxResponseLiveness.arm(
+                socket,
+                scheduler
+            );
+
+        scheduler.trigger();
+
+        if(!liveness.timedOut())
+            throw new AssertionError(
+                "fixture timeout did not commit before watchdog shutdown failure"
+            );
+
+        RuntimeException shutdown=
+            new SecurityException(
+                "fixture-watchdog-shutdown-after-timeout"
+            );
+        scheduler.shutdownFailure=
+            shutdown;
+
+        Throwable observed=
+            liveness.finish(
+                null
+            );
+
+        if(observed!=shutdown||
+           !scheduler.awaited||
+           observed.getSuppressed().length!=1||
+           !(observed.getSuppressed()[0]
+                instanceof SocketTimeoutException))
+            throw new AssertionError(
+                "watchdog shutdown failure erased durable timeout evidence",
+                observed
             );
     }
 
