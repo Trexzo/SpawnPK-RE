@@ -31,7 +31,8 @@ final class PluginRuntimeSupport {
             return null;
         }catch(Throwable cleanup){
             if(primary!=null)
-                primary.addSuppressed(
+                suppressIfDistinct(
+                    primary,
                     cleanup
                 );
             else
@@ -42,6 +43,55 @@ final class PluginRuntimeSupport {
                 );
             return cleanup;
         }
+    }
+
+    static void suppressIfDistinct(
+        Throwable primary,
+        Throwable cleanup
+    ){
+        if(primary!=null&&
+           cleanup!=null&&
+           primary!=cleanup)
+            primary.addSuppressed(
+                cleanup
+            );
+    }
+
+    static void transferSuppressedDistinct(
+        Throwable source,
+        Throwable target
+    ){
+        if(source==null||
+           target==null||
+           source==target)
+            return;
+
+        for(Throwable cleanup:
+                source.getSuppressed()){
+            if(cleanup==null||
+               cleanup==target||
+               alreadySuppressedByIdentity(
+                   target,
+                   cleanup
+               ))
+                continue;
+
+            target.addSuppressed(
+                cleanup
+            );
+        }
+    }
+
+    private static boolean alreadySuppressedByIdentity(
+        Throwable primary,
+        Throwable cleanup
+    ){
+        for(Throwable existing:
+                primary.getSuppressed())
+            if(existing==cleanup)
+                return true;
+
+        return false;
     }
 
     private PluginRuntimeSupport(){}
