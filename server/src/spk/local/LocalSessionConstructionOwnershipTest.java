@@ -26,6 +26,8 @@ public final class LocalSessionConstructionOwnershipTest {
         assertConstructionFailure();
         assertConcurrentShutdown();
         assertExecutorRejectionRetainsOwnershipUntilClosed();
+        assertCheckedCloseFailureRetainsOwnershipAndTerminalRetries();
+        assertTerminalCloseFailurePublishedAndOwnershipRetained();
         assertSuccessPath();
 
         System.out.println(
@@ -43,6 +45,10 @@ public final class LocalSessionConstructionOwnershipTest {
             "retireOwnershipUntilClosed=true "+
             "executorRejectRetirement=true "+
             "terminalCloseLockFree=true "+
+            "checkedCloseFailureRetained=true "+
+            "terminalCloseRetry=true "+
+            "terminalCloseFailurePublished=true "+
+            "repeatedCloseFailurePublished=true "+
             "successPath=true"
         );
     }
@@ -253,11 +259,22 @@ public final class LocalSessionConstructionOwnershipTest {
                 "fixture rejected socket was not coordinator-owned"
             );
 
+        AtomicReference<Throwable> rejectFailure=
+            new AtomicReference<>();
+
         Thread rejecter=
             new Thread(
-                ()->shutdown.rejectSessionSocket(
-                    socket
-                ),
+                ()->{
+                    try{
+                        shutdown.rejectSessionSocket(
+                            socket
+                        );
+                    }catch(Throwable failure){
+                        rejectFailure.set(
+                            failure
+                        );
+                    }
+                },
                 "rejected-socket-retire-fixture"
             );
         rejecter.start();
@@ -344,6 +361,12 @@ public final class LocalSessionConstructionOwnershipTest {
            closer.isAlive())
             throw new AssertionError(
                 "rejected socket retirement race did not terminate"
+            );
+
+        if(rejectFailure.get()!=null)
+            throw new AssertionError(
+                "successful rejected-socket close unexpectedly failed",
+                rejectFailure.get()
             );
 
         if(shutdown.activeSessionCount()!=0)
@@ -715,6 +738,181 @@ public final class LocalSessionConstructionOwnershipTest {
         shutdown.close();
     }
 
+    private static void
+        assertCheckedCloseFailureRetainsOwnershipAndTerminalRetries()
+        throws Exception{
+        World world=
+            World.isolatedForTest(
+                25L
+            );
+        world.start();
+
+        TrackingExecutor pool=
+            new TrackingExecutor();
+        ServerSocket game=
+            new ServerSocket();
+        ServerSocket aux=
+            new ServerSocket();
+        FailOnceCloseSocket socket=
+            new FailOnceCloseSocket();
+
+        LocalServerShutdownCoordinator shutdown=
+            new LocalServerShutdownCoordinator(
+                world,
+                pool,
+                game,
+                aux
+            );
+
+        Socket accepted=
+            shutdown.acceptGameSocket(
+                ()->socket
+            );
+
+        if(accepted!=socket||
+           shutdown.activeSessionCount()!=1)
+            throw new AssertionError(
+                "fail-once socket was not coordinator-owned"
+            );
+
+        IOException observed=null;
+
+        try{
+            shutdown.rejectSessionSocket(
+                socket
+            );
+        }catch(IOException failure){
+            observed=failure;
+        }
+
+        if(observed!=socket.failure)
+            throw new AssertionError(
+                "checked socket close failure was not observable"
+            );
+
+        if(socket.isClosed())
+            throw new AssertionError(
+                "fail-once socket unexpectedly closed on failed attempt"
+            );
+
+        if(shutdown.activeSessionCount()!=1)
+            throw new AssertionError(
+                "checked close failure silently retired open socket"
+            );
+
+        shutdown.close();
+
+        if(socket.closeCalls.get()<2||
+           !socket.isClosed())
+            throw new AssertionError(
+                "terminal close did not retry and close retained socket"
+            );
+
+        if(shutdown.activeSessionCount()!=0)
+            throw new AssertionError(
+                "ownership did not retire after successful terminal retry"
+            );
+
+        if(!world.closed())
+            throw new AssertionError(
+                "World did not close after successful socket retry"
+            );
+    }
+
+    private static void
+        assertTerminalCloseFailurePublishedAndOwnershipRetained()
+        throws Exception{
+        World world=
+            World.isolatedForTest(
+                25L
+            );
+        world.start();
+
+        TrackingExecutor pool=
+            new TrackingExecutor();
+        ServerSocket game=
+            new ServerSocket();
+        ServerSocket aux=
+            new ServerSocket();
+        AlwaysFailCloseSocket socket=
+            new AlwaysFailCloseSocket();
+
+        LocalServerShutdownCoordinator shutdown=
+            new LocalServerShutdownCoordinator(
+                world,
+                pool,
+                game,
+                aux
+            );
+
+        Socket accepted=
+            shutdown.acceptGameSocket(
+                ()->socket
+            );
+
+        if(accepted!=socket||
+           shutdown.activeSessionCount()!=1)
+            throw new AssertionError(
+                "always-fail socket was not coordinator-owned"
+            );
+
+        Throwable terminalFailure=null;
+
+        try{
+            shutdown.close();
+        }catch(Throwable failure){
+            terminalFailure=failure;
+        }
+
+        if(!(terminalFailure instanceof
+                IllegalStateException)||
+           terminalFailure.getCause()!=
+                socket.failure)
+            throw new AssertionError(
+                "terminal socket-close failure was not published with exact cause",
+                terminalFailure
+            );
+
+        if(socket.closeCalls.get()<2)
+            throw new AssertionError(
+                "terminal close did not retry still-owned socket"
+            );
+
+        if(socket.isClosed())
+            throw new AssertionError(
+                "always-fail socket unexpectedly became closed"
+            );
+
+        if(shutdown.activeSessionCount()!=1)
+            throw new AssertionError(
+                "terminal close failure silently retired open socket"
+            );
+
+        if(!world.closed())
+            throw new AssertionError(
+                "socket retirement failure skipped World teardown"
+            );
+
+        Throwable repeatedFailure=null;
+
+        try{
+            shutdown.close();
+        }catch(Throwable failure){
+            repeatedFailure=failure;
+        }
+
+        if(repeatedFailure!=terminalFailure)
+            throw new AssertionError(
+                "repeated close did not publish the same terminal failure",
+                repeatedFailure
+            );
+
+        if(shutdown.activeSessionCount()!=1)
+            throw new AssertionError(
+                "repeated failed close changed retained ownership"
+            );
+    }
+
     private static void assertSuccessPath()
         throws Exception{
         World world=
@@ -794,6 +992,42 @@ public final class LocalSessionConstructionOwnershipTest {
 
         shutdown.close();
         pair.close();
+    }
+
+    private static final class FailOnceCloseSocket
+        extends Socket {
+
+        final IOException failure=
+            new IOException(
+                "fixture-first-socket-close-failure"
+            );
+        final AtomicInteger closeCalls=
+            new AtomicInteger();
+
+        @Override public void close()
+            throws IOException{
+            if(closeCalls.incrementAndGet()==1)
+                throw failure;
+
+            super.close();
+        }
+    }
+
+    private static final class AlwaysFailCloseSocket
+        extends Socket {
+
+        final IOException failure=
+            new IOException(
+                "fixture-terminal-socket-close-failure"
+            );
+        final AtomicInteger closeCalls=
+            new AtomicInteger();
+
+        @Override public void close()
+            throws IOException{
+            closeCalls.incrementAndGet();
+            throw failure;
+        }
     }
 
     private static final class BlockingCloseSocket
