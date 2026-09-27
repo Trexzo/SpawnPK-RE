@@ -119,6 +119,12 @@ public final class KotlinPluginLoaderTest {
             loader,
             healthy
         );
+        assertClasspathCaptureFailureDebt(
+            loaderType,
+            healthy,
+            apiJar,
+            compileClasspath
+        );
         assertLazyDependencySnapshot(
             constructor,
             healthy,
@@ -556,6 +562,7 @@ public final class KotlinPluginLoaderTest {
             "kotlinClasspathIdentityPinned=true "+
             "kotlinClasspathRuntimeOwned=true "+
             "kotlinClasspathCleanupDebt=true "+
+            "kotlinClasspathCaptureFailureDebt=true "+
             "kotlinClasspathPrivateNames=true "+
             "kotlinClasspathLazyResolution=true "+
             "eventCallback=true "+
@@ -1054,6 +1061,127 @@ public final class KotlinPluginLoaderTest {
            ))
             throw new AssertionError(
                 "Kotlin cleanup debt did not retire after blocker removal"
+            );
+    }
+
+
+    private static void assertClasspathCaptureFailureDebt(
+        Class<?> loaderType,
+        Path healthy,
+        Path apiJar,
+        List<Path> healthyClasspath
+    )throws Exception{
+        if(healthyClasspath.isEmpty())
+            return;
+
+        Constructor<?> constructor=
+            loaderType.getConstructor(
+                Path.class,
+                List.class,
+                KotlinClasspathCaptureHook.class
+            );
+        final Path[] blockedRoot=
+            new Path[1];
+        final Path[] sentinel=
+            new Path[1];
+
+        KotlinClasspathCaptureHook hook=
+            (root,target,index)->{
+                if(index!=0)
+                    return;
+
+                blockedRoot[0]=root;
+                sentinel[0]=
+                    root.resolve(
+                        "capture-blocker.sentinel"
+                    );
+                Files.write(
+                    sentinel[0],
+                    new byte[]{1}
+                );
+                throw new IOException(
+                    "fixture-kotlin-capture-primary"
+                );
+            };
+
+        PluginLoader loader=
+            (PluginLoader)
+                constructor.newInstance(
+                    apiJar,
+                    healthyClasspath,
+                    hook
+                );
+        int debtBefore=
+            KotlinClasspathCleanupDebt
+                .count();
+        Throwable failure=null;
+
+        try{
+            loader.load(
+                snapshotSource(
+                    healthy
+                )
+            );
+        }catch(Throwable expected){
+            failure=expected;
+        }
+
+        if(failure==null||
+           !containsMessage(
+                failure,
+                "fixture-kotlin-capture-primary"
+           ))
+            throw new AssertionError(
+                "Kotlin classpath capture primary failure was not preserved"
+            );
+
+        if(failure.getSuppressed().length==0)
+            throw new AssertionError(
+                "Kotlin classpath capture cleanup failure was not suppressed"
+            );
+
+        if(blockedRoot[0]==null||
+           sentinel[0]==null||
+           !Files.exists(
+               blockedRoot[0]
+           )||
+           KotlinClasspathCleanupDebt
+                .count()!=debtBefore+1)
+            throw new AssertionError(
+                "pre-runtime Kotlin classpath capture failure did not transfer path-only debt"
+            );
+
+        Throwable retry=
+            KotlinClasspathCleanupDebt
+                .retryOnce(
+                    null
+                );
+
+        if(retry==null||
+           KotlinClasspathCleanupDebt
+                .count()!=debtBefore+1)
+            throw new AssertionError(
+                "blocked pre-runtime Kotlin cleanup debt was not retained for one bounded retry"
+            );
+
+        Files.delete(
+            sentinel[0]
+        );
+
+        Throwable drained=
+            KotlinClasspathCleanupDebt
+                .retryOnce(
+                    null
+                );
+
+        if(drained!=null||
+           KotlinClasspathCleanupDebt
+                .count()!=debtBefore||
+           Files.exists(
+               blockedRoot[0]
+           ))
+            throw new AssertionError(
+                "pre-runtime Kotlin cleanup debt did not drain after blocker removal"
             );
     }
 
