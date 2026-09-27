@@ -60,7 +60,8 @@ final class KotlinPluginDirectory {
             world,
             root,
             defaultLoader(),
-            scripts
+            scripts,
+            NO_CAPTURE_HOOK
         );
     }
 
@@ -86,7 +87,8 @@ final class KotlinPluginDirectory {
             world,
             root,
             loader,
-            discover(root)
+            discover(root),
+            NO_CAPTURE_HOOK
         );
     }
 
@@ -129,6 +131,21 @@ final class KotlinPluginDirectory {
         );
 
         return handle;
+    }
+
+    static int loadStartup(
+        World world,
+        Path root,
+        PluginLoader loader,
+        SourceCaptureHook hook
+    )throws Exception{
+        return loadStartup(
+            world,
+            root,
+            loader,
+            discover(root),
+            hook
+        );
     }
 
     static PluginHandle loadOnDemand(
@@ -243,7 +260,8 @@ final class KotlinPluginDirectory {
         World world,
         Path root,
         PluginLoader loader,
-        List<Path> scripts
+        List<Path> scripts,
+        SourceCaptureHook hook
     )throws Exception{
         if(world==null)
             throw new IllegalArgumentException(
@@ -264,7 +282,7 @@ final class KotlinPluginDirectory {
                         captureScriptWithinRoot(
                             root,
                             script,
-                            NO_CAPTURE_HOOK
+                            hook
                         )
                     )
                 );
