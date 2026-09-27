@@ -645,57 +645,101 @@ public final class PluginClassLoaderIsolationTest {
             Files.createTempDirectory(
                 "plugin-manifest-classpath-"
             );
-        Path poisoned=
+        Path sibling=
             directory.resolve(
-                "plugin.jar"
+                "b.jar"
             );
 
         try{
-            writeJarWithManifestClasspath(
-                jarA,
-                poisoned,
-                jarB.toUri().toString()
+            Files.copy(
+                jarB,
+                sibling,
+                StandardCopyOption.REPLACE_EXISTING
             );
 
-            final Path[] snapshot=
-                new Path[1];
-            boolean rejected=false;
-
-            try{
-                PluginJarLoader.load(
-                    poisoned,
-                    ENTRYPOINT,
-                    Plugin.class.getClassLoader(),
-                    (source,admitted)->{},
-                    (source,admitted)->
-                        snapshot[0]=admitted
-                );
-            }catch(IllegalArgumentException expected){
-                rejected=
-                    expected.getMessage()!=null&&
-                    expected.getMessage()
-                        .contains(
-                            "manifest Class-Path is forbidden"
-                        );
-            }
-
-            if(!rejected)
-                throw new AssertionError(
-                    "Java plugin manifest Class-Path was accepted"
-                );
-
-            assertSnapshotRetired(
-                snapshot[0],
-                "manifest Class-Path rejection"
+            assertManifestClasspathRejectedCase(
+                jarA,
+                directory.resolve(
+                    "absolute.jar"
+                ),
+                jarB.toUri().toString(),
+                "absolute"
+            );
+            assertManifestClasspathRejectedCase(
+                jarA,
+                directory.resolve(
+                    "relative.jar"
+                ),
+                sibling.getFileName()
+                    .toString(),
+                "relative"
             );
         }finally{
             Files.deleteIfExists(
-                poisoned
+                directory.resolve(
+                    "absolute.jar"
+                )
+            );
+            Files.deleteIfExists(
+                directory.resolve(
+                    "relative.jar"
+                )
+            );
+            Files.deleteIfExists(
+                sibling
             );
             Files.deleteIfExists(
                 directory
             );
         }
+    }
+
+    private static void assertManifestClasspathRejectedCase(
+        Path jarA,
+        Path poisoned,
+        String classPath,
+        String label
+    )throws Exception{
+        writeJarWithManifestClasspath(
+            jarA,
+            poisoned,
+            classPath
+        );
+
+        final Path[] snapshot=
+            new Path[1];
+        boolean rejected=false;
+
+        try{
+            PluginJarLoader.load(
+                poisoned,
+                ENTRYPOINT,
+                Plugin.class.getClassLoader(),
+                (source,admitted)->{},
+                (source,admitted)->
+                    snapshot[0]=admitted
+            );
+        }catch(IllegalArgumentException expected){
+            rejected=
+                expected.getMessage()!=null&&
+                expected.getMessage()
+                    .contains(
+                        "manifest Class-Path is forbidden"
+                    );
+        }
+
+        if(!rejected)
+            throw new AssertionError(
+                "Java plugin "+
+                label+
+                " manifest Class-Path was accepted"
+            );
+
+        assertSnapshotRetired(
+            snapshot[0],
+            label+
+                " manifest Class-Path rejection"
+        );
     }
 
     private static void assertPostLoaderFailureRetiresSnapshot(
