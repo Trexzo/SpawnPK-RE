@@ -150,12 +150,14 @@ public final class Main {
 
                 if (!shutdown.submitSession(
                         s,
-                        new LocalSession(
-                            s,
-                            bootstrapFinal,
-                            movementFinal,
-                            world
-                        )))
+                        (LocalServerShutdownCoordinator.SessionFactory)
+                            ()->
+                                new LocalSession(
+                                    s,
+                                    bootstrapFinal,
+                                    movementFinal,
+                                    world
+                                )))
                     break;
             }
         } finally {
