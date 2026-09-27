@@ -574,8 +574,19 @@ final class LocalServerShutdownCoordinator
         if(!owner){
             terminal.await();
 
+            Throwable lateHandoffFailure;
+
+            synchronized(lifecycleLock){
+                lateHandoffFailure=
+                    terminalHandoffFailure;
+                terminalHandoffFailure=null;
+            }
+
             Throwable residualFailure=
-                retryOwnedSocketsForTerminal();
+                combineFailure(
+                    lateHandoffFailure,
+                    retryOwnedSocketsForTerminal()
+                );
             Throwable terminalFailure=
                 terminal.failure();
 
@@ -646,6 +657,7 @@ final class LocalServerShutdownCoordinator
         synchronized(lifecycleLock){
             handoffFailure=
                 terminalHandoffFailure;
+            terminalHandoffFailure=null;
         }
 
         // A session-factory handoff may have completed after the first
