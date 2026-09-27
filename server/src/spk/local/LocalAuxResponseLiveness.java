@@ -235,10 +235,21 @@ final class LocalAuxResponseLiveness {
         if(pending!=null)
             pending.cancel();
 
-        scheduler.shutdownNow();
-
         Throwable result=
             primary;
+
+        try{
+            scheduler.shutdownNow();
+        }catch(RuntimeException|
+               Error shutdownFailure){
+            result=
+                LocalAuxHttpWorker
+                    .preserveFailureOrder(
+                        result,
+                        shutdownFailure
+                    );
+        }
+
         SocketTimeoutException timeout;
 
         synchronized(lock){
