@@ -515,6 +515,7 @@ public final class PluginKernelLifecycleTest {
 
         pluginSelfSuppressionRegression();
         pluginRuntimeCloseExactlyOnceRegression();
+        pluginRuntimeOpeningFenceOwnedRegression();
         pluginCleanupUsesSnapshotLoaderRegression();
 
         CloseProbePlugin closeProbe=
@@ -584,6 +585,7 @@ public final class PluginKernelLifecycleTest {
             "enableRollbackEvidencePreserved=true "+
             "worldCloseSnapshotLoader=true "+
             "pluginRuntimeCloseExactlyOnce=true "+
+            "pluginRuntimeOpeningFenceOwned=true "+
             "pluginCleanupUsesSnapshotLoader=true "+
             "pluginCleanupContinuesAfterLoaderFailure=true "+
             "dependencyCycleRejected=true "+
@@ -1668,6 +1670,587 @@ public final class PluginKernelLifecycleTest {
            terminal.disableCount.get()!=1)
             throw new AssertionError(
                 "successful World-close runtime cleanup count mismatch"
+            );
+    }
+
+    private static void pluginRuntimeOpeningFenceOwnedRegression()
+        throws Exception{
+        closedManagerOpeningFenceOwnsFreshRuntime();
+        worldOpenOpeningFenceOwnsFreshRuntime();
+        openingFenceBatchOwnsRuntimeIdentityOnce();
+        partialCollectionMaterializationOwnsObservedRuntimes();
+        terminalizingRuntimeRemainsOwned();
+    }
+
+    private static void closedManagerOpeningFenceOwnsFreshRuntime()
+        throws Exception{
+        World world=
+            World.isolatedForTest(
+                25L
+            );
+        WorldPluginManager manager=
+            isolatedPluginManager(
+                world,
+                ()->true
+            );
+
+        manager.beginClose();
+
+        CountingPluginRuntime runtime=
+            new CountingPluginRuntime(
+                "opening.closed.single",
+                Collections.<String>emptyList(),
+                null,
+                null,
+                null,
+                false
+            );
+
+        try{
+            Throwable observed=
+                captureFailure(
+                    ()->manager.enable(
+                        runtime
+                    )
+                );
+
+            assertOpeningFenceFailure(
+                observed,
+                "closed manager single"
+            );
+
+            if(runtime.enableCount.get()!=0||
+               runtime.disableCount.get()!=0||
+               runtime.closeCount.get()!=1)
+                throw new AssertionError(
+                    "closed-manager fresh runtime ownership mismatch "+
+                    "enable="+runtime.enableCount.get()+
+                    " disable="+runtime.disableCount.get()+
+                    " close="+runtime.closeCount.get()
+                );
+
+            RuntimeException closeFailure=
+                new IllegalArgumentException(
+                    "opening-closed-close-failure"
+                );
+            CountingPluginRuntime throwing=
+                new CountingPluginRuntime(
+                    "opening.closed.throw",
+                    Collections.<String>emptyList(),
+                    null,
+                    null,
+                    closeFailure,
+                    false
+                );
+
+            Throwable throwingObserved=
+                captureFailure(
+                    ()->manager.enable(
+                        throwing
+                    )
+                );
+
+            assertOpeningFenceFailure(
+                throwingObserved,
+                "closed manager throwing single"
+            );
+
+            if(throwing.closeCount.get()!=1||
+               throwingObserved.getSuppressed().length!=1||
+               throwingObserved.getSuppressed()[0]!=
+                    closeFailure)
+                throw new AssertionError(
+                    "closed-manager runtime close failure was not suppressed exactly once",
+                    throwingObserved
+                );
+        }finally{
+            manager.closeResources();
+            world.close();
+        }
+    }
+
+    private static void worldOpenOpeningFenceOwnsFreshRuntime()
+        throws Exception{
+        World world=
+            World.isolatedForTest(
+                25L
+            );
+        AtomicBoolean worldOpen=
+            new AtomicBoolean(
+                false
+            );
+        WorldPluginManager manager=
+            isolatedPluginManager(
+                world,
+                worldOpen::get
+            );
+        RuntimeException closeFailure=
+            new IllegalStateException(
+                "opening-world-open-close-failure"
+            );
+        CountingPluginRuntime runtime=
+            new CountingPluginRuntime(
+                "opening.worldopen.single",
+                Collections.<String>emptyList(),
+                null,
+                null,
+                closeFailure,
+                false
+            );
+
+        try{
+            Throwable observed=
+                captureFailure(
+                    ()->manager.enable(
+                        runtime
+                    )
+                );
+
+            assertOpeningFenceFailure(
+                observed,
+                "worldOpen false single"
+            );
+
+            if(runtime.enableCount.get()!=0||
+               runtime.disableCount.get()!=0||
+               runtime.closeCount.get()!=1||
+               observed.getSuppressed().length!=1||
+               observed.getSuppressed()[0]!=
+                    closeFailure)
+                throw new AssertionError(
+                    "worldOpen-false runtime ownership/suppression mismatch",
+                    observed
+                );
+
+            CountingPluginRuntime first=
+                new CountingPluginRuntime(
+                    "opening.worldopen.batch.a",
+                    Collections.<String>emptyList(),
+                    null,
+                    null,
+                    null,
+                    false
+                );
+            CountingPluginRuntime second=
+                new CountingPluginRuntime(
+                    "opening.worldopen.batch.b",
+                    Collections.<String>emptyList(),
+                    null,
+                    null,
+                    null,
+                    false
+                );
+
+            Throwable batchObserved=
+                captureFailure(
+                    ()->manager.enableAll(
+                        Arrays.<Plugin>asList(
+                            first,
+                            first,
+                            second
+                        )
+                    )
+                );
+
+            assertOpeningFenceFailure(
+                batchObserved,
+                "worldOpen false batch"
+            );
+
+            if(first.closeCount.get()!=1||
+               second.closeCount.get()!=1||
+               first.enableCount.get()!=0||
+               second.enableCount.get()!=0)
+                throw new AssertionError(
+                    "worldOpen-false batch runtime identity ownership mismatch "+
+                    "firstClose="+first.closeCount.get()+
+                    " secondClose="+second.closeCount.get()
+                );
+        }finally{
+            manager.beginClose();
+            manager.closeResources();
+            world.close();
+        }
+    }
+
+    private static void openingFenceBatchOwnsRuntimeIdentityOnce()
+        throws Exception{
+        World world=
+            World.isolatedForTest(
+                25L
+            );
+        WorldPluginManager manager=
+            isolatedPluginManager(
+                world,
+                ()->true
+            );
+
+        manager.beginClose();
+
+        CountingPluginRuntime first=
+            new CountingPluginRuntime(
+                "opening.closed.batch.a",
+                Collections.<String>emptyList(),
+                null,
+                null,
+                null,
+                false
+            );
+        CountingPluginRuntime second=
+            new CountingPluginRuntime(
+                "opening.closed.batch.b",
+                Collections.<String>emptyList(),
+                null,
+                null,
+                null,
+                false
+            );
+
+        try{
+            Throwable observed=
+                captureFailure(
+                    ()->manager.enableAll(
+                        Arrays.<Plugin>asList(
+                            first,
+                            first,
+                            second
+                        )
+                    )
+                );
+
+            assertOpeningFenceFailure(
+                observed,
+                "closed manager batch"
+            );
+
+            if(first.closeCount.get()!=1||
+               second.closeCount.get()!=1||
+               first.enableCount.get()!=0||
+               second.enableCount.get()!=0)
+                throw new AssertionError(
+                    "closed-manager batch runtime identity ownership mismatch "+
+                    "firstClose="+first.closeCount.get()+
+                    " secondClose="+second.closeCount.get()
+                );
+        }finally{
+            manager.closeResources();
+            world.close();
+        }
+    }
+
+    private static void partialCollectionMaterializationOwnsObservedRuntimes()
+        throws Exception{
+        World world=
+            World.isolatedForTest(
+                25L
+            );
+        WorldPluginManager manager=
+            (WorldPluginManager)
+                world.plugins();
+
+        RuntimeException primary=
+            new IllegalStateException(
+                "partial-collection-primary"
+            );
+        RuntimeException firstClose=
+            new IllegalArgumentException(
+                "partial-close-r1"
+            );
+        RuntimeException secondClose=
+            new IllegalStateException(
+                "partial-close-r2"
+            );
+        CountingPluginRuntime first=
+            new CountingPluginRuntime(
+                "opening.partial.r1",
+                Collections.<String>emptyList(),
+                null,
+                null,
+                firstClose,
+                false
+            );
+        CountingPluginRuntime second=
+            new CountingPluginRuntime(
+                "opening.partial.r2",
+                Collections.<String>emptyList(),
+                null,
+                null,
+                secondClose,
+                false
+            );
+
+        try{
+            Throwable observed=
+                captureFailure(
+                    ()->manager.enableAll(
+                        new ThrowingPluginCollection(
+                            primary,
+                            first,
+                            first,
+                            second
+                        )
+                    )
+                );
+
+            if(observed!=primary)
+                throw new AssertionError(
+                    "partial collection failure identity changed",
+                    observed
+                );
+
+            if(first.closeCount.get()!=1||
+               second.closeCount.get()!=1||
+               first.enableCount.get()!=0||
+               second.enableCount.get()!=0||
+               first.disableCount.get()!=0||
+               second.disableCount.get()!=0)
+                throw new AssertionError(
+                    "partial collection retirement count mismatch "+
+                    "r1Close="+first.closeCount.get()+
+                    " r2Close="+second.closeCount.get()
+                );
+
+            Throwable[] suppressed=
+                primary.getSuppressed();
+
+            if(suppressed.length!=2||
+               suppressed[0]!=firstClose||
+               suppressed[1]!=secondClose)
+                throw new AssertionError(
+                    "partial collection cleanup suppression order changed"
+                );
+
+            if(!manager.enabled().isEmpty()||
+               manager.plugin(
+                   "opening.partial.r1"
+               )!=null||
+               manager.plugin(
+                   "opening.partial.r2"
+               )!=null)
+                throw new AssertionError(
+                    "partial collection materialization created plugin handle"
+                );
+        }finally{
+            world.close();
+        }
+
+        World ownedWorld=
+            World.isolatedForTest(
+                25L
+            );
+        WorldPluginManager ownedManager=
+            (WorldPluginManager)
+                ownedWorld.plugins();
+        CountingPluginRuntime owned=
+            new CountingPluginRuntime(
+                "opening.partial.owned",
+                Collections.<String>emptyList(),
+                null,
+                null,
+                null,
+                false
+            );
+        CountingPluginRuntime fresh=
+            new CountingPluginRuntime(
+                "opening.partial.fresh",
+                Collections.<String>emptyList(),
+                null,
+                null,
+                null,
+                false
+            );
+        RuntimeException ownedPrimary=
+            new IllegalStateException(
+                "partial-owned-primary"
+            );
+
+        try{
+            ownedManager.enable(
+                owned
+            );
+
+            Throwable observed=
+                captureFailure(
+                    ()->ownedManager.enableAll(
+                        new ThrowingPluginCollection(
+                            ownedPrimary,
+                            owned,
+                            fresh,
+                            owned
+                        )
+                    )
+                );
+
+            if(observed!=ownedPrimary)
+                throw new AssertionError(
+                    "partial owned collection failure identity changed",
+                    observed
+                );
+
+            if(owned.closeCount.get()!=0||
+               owned.enableCount.get()!=1||
+               fresh.closeCount.get()!=1||
+               fresh.enableCount.get()!=0)
+                throw new AssertionError(
+                    "partial collection disturbed already-owned runtime "+
+                    "ownedClose="+owned.closeCount.get()+
+                    " ownedEnable="+owned.enableCount.get()+
+                    " freshClose="+fresh.closeCount.get()
+                );
+
+            PluginHandle handle=
+                ownedManager.plugin(
+                    "opening.partial.owned"
+                );
+
+            if(handle==null||
+               !handle.enabled())
+                throw new AssertionError(
+                    "partial collection failure lost already-owned runtime"
+                );
+
+            if(!ownedManager.disable(
+                    "opening.partial.owned"))
+                throw new AssertionError(
+                    "partial collection owned runtime cleanup failed"
+                );
+
+            if(owned.closeCount.get()!=1||
+               owned.disableCount.get()!=1)
+                throw new AssertionError(
+                    "already-owned runtime did not retire exactly once through original owner"
+                );
+        }finally{
+            ownedWorld.close();
+        }
+    }
+
+    private static void terminalizingRuntimeRemainsOwned()
+        throws Exception{
+        World world=
+            World.isolatedForTest(
+                25L
+            );
+        WorldPluginManager manager=
+            (WorldPluginManager)
+                world.plugins();
+        BlockingOpeningFenceRuntime runtime=
+            new BlockingOpeningFenceRuntime();
+        AtomicReference<Throwable> cleanupFailure=
+            new AtomicReference<>();
+
+        manager.enable(
+            runtime
+        );
+        manager.beginClose();
+
+        Thread cleanup=
+            new Thread(
+                ()->{
+                    try{
+                        manager.closeResources();
+                    }catch(Throwable failure){
+                        cleanupFailure.set(
+                            failure
+                        );
+                    }
+                },
+                "plugin-opening-fence-cleanup"
+            );
+
+        cleanup.start();
+
+        if(!runtime.disableEntered.await(
+                5,
+                java.util.concurrent.TimeUnit.SECONDS))
+            throw new AssertionError(
+                "terminal cleanup did not enter plugin disable"
+            );
+
+        try{
+            Throwable observed=
+                captureFailure(
+                    ()->manager.enable(
+                        runtime
+                    )
+                );
+
+            assertOpeningFenceFailure(
+                observed,
+                "terminalizing owned runtime"
+            );
+
+            if(runtime.closeCount.get()!=0)
+                throw new AssertionError(
+                    "rejected re-enable closed still-owned terminalizing runtime"
+                );
+        }finally{
+            runtime.releaseDisable.countDown();
+        }
+
+        cleanup.join(
+            5_000L
+        );
+
+        if(cleanup.isAlive())
+            throw new AssertionError(
+                "terminal cleanup did not finish"
+            );
+
+        if(cleanupFailure.get()!=null)
+            throw new AssertionError(
+                "terminal cleanup failed",
+                cleanupFailure.get()
+            );
+
+        if(runtime.enableCount.get()!=1||
+           runtime.disableCount.get()!=1||
+           runtime.closeCount.get()!=1)
+            throw new AssertionError(
+                "terminalizing runtime ownership was not exactly once "+
+                "enable="+runtime.enableCount.get()+
+                " disable="+runtime.disableCount.get()+
+                " close="+runtime.closeCount.get()
+            );
+
+        world.close();
+        world.close();
+
+        if(runtime.closeCount.get()!=1)
+            throw new AssertionError(
+                "repeated World close reclosed terminalizing runtime"
+            );
+    }
+
+    private static WorldPluginManager isolatedPluginManager(
+        World world,
+        java.util.function.BooleanSupplier worldOpen
+    ){
+        return new WorldPluginManager(
+            world.content(),
+            world.domainEvents(),
+            world.clock(),
+            world.events(),
+            worldOpen,
+            ()->true
+        );
+    }
+
+    private static void assertOpeningFenceFailure(
+        Throwable failure,
+        String phase
+    ){
+        if(!(failure instanceof
+                IllegalStateException)||
+           failure.getMessage()==null||
+           !failure.getMessage()
+               .contains(
+                   "plugin manager closed"
+               ))
+            throw new AssertionError(
+                phase+
+                " did not preserve opening-fence failure",
+                failure
             );
     }
 
@@ -2863,6 +3446,109 @@ public final class PluginKernelLifecycleTest {
 
             if(closeFailure!=null)
                 throw closeFailure;
+        }
+    }
+
+    private static final class ThrowingPluginCollection
+        extends AbstractCollection<Plugin> {
+
+        private final RuntimeException failure;
+        private final Plugin[] values;
+
+        ThrowingPluginCollection(
+            RuntimeException failure,
+            Plugin... values
+        ){
+            this.failure=failure;
+            this.values=values;
+        }
+
+        @Override public Iterator<Plugin> iterator(){
+            return new Iterator<Plugin>(){
+                private int index;
+
+                @Override public boolean hasNext(){
+                    if(index<values.length)
+                        return true;
+
+                    throw failure;
+                }
+
+                @Override public Plugin next(){
+                    if(index>=values.length)
+                        throw new NoSuchElementException();
+
+                    return values[
+                        index++
+                    ];
+                }
+            };
+        }
+
+        @Override public int size(){
+            return values.length+1;
+        }
+    }
+
+    private static final class BlockingOpeningFenceRuntime
+        implements PluginRuntime {
+
+        final AtomicInteger enableCount=
+            new AtomicInteger();
+        final AtomicInteger disableCount=
+            new AtomicInteger();
+        final AtomicInteger closeCount=
+            new AtomicInteger();
+        final java.util.concurrent.CountDownLatch
+            disableEntered=
+                new java.util.concurrent.CountDownLatch(
+                    1
+                );
+        final java.util.concurrent.CountDownLatch
+            releaseDisable=
+                new java.util.concurrent.CountDownLatch(
+                    1
+                );
+
+        @Override public PluginManifest manifest(){
+            return new PluginManifest(
+                "opening.terminalizing",
+                "1.0.0"
+            );
+        }
+
+        @Override public void enable(
+            PluginContext context
+        ){
+            enableCount.incrementAndGet();
+        }
+
+        @Override public void disable(){
+            disableCount.incrementAndGet();
+            disableEntered.countDown();
+
+            boolean interrupted=false;
+
+            while(true)
+                try{
+                    releaseDisable.await();
+                    break;
+                }catch(InterruptedException ignored){
+                    interrupted=true;
+                }
+
+            if(interrupted)
+                Thread.currentThread()
+                    .interrupt();
+        }
+
+        @Override public ClassLoader callbackClassLoader(){
+            return getClass()
+                .getClassLoader();
+        }
+
+        @Override public void close(){
+            closeCount.incrementAndGet();
         }
     }
 
