@@ -4177,6 +4177,17 @@ tasks.register('localAuxHttpResponseRegression', JavaExec) {
 }
 
 
+tasks.register('localAuxiliaryWorkerFailureRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves an uncaught auxiliary worker failure becomes authoritative serving failure instead of silently killing the AUX accept task.'
+    dependsOn tasks.named('testClasses')
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.LocalAuxiliaryWorkerFailureTest'
+}
+
+
 tasks.register('chat1CurrentCumulativeCertification') {
     group = 'verification'
     description = 'Runs the complete current Chat 1 release candidate: Issue #5 Kotlin scripting, #271/#427 presentation/application gates, Issue #7 pet-damage ownership, focused 175 and canonical exact-v308 179.'
