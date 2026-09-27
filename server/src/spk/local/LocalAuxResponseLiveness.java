@@ -6,6 +6,7 @@ import java.io.OutputStream;
 import java.net.Socket;
 import java.net.SocketTimeoutException;
 import java.util.Objects;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
@@ -41,6 +42,7 @@ final class LocalAuxResponseLiveness {
         new Object();
     private final Socket socket;
     private final Scheduler scheduler;
+    private final BooleanSupplier terminalClosing;
     private final Consumer<Throwable> fatalFailure;
 
     private Cancellable deadline;
@@ -54,6 +56,7 @@ final class LocalAuxResponseLiveness {
     ){
         return arm(
             socket,
+            ()->false,
             failure->{}
         );
     }
@@ -62,9 +65,22 @@ final class LocalAuxResponseLiveness {
         Socket socket,
         Consumer<Throwable> fatalFailure
     ){
+        return arm(
+            socket,
+            ()->false,
+            fatalFailure
+        );
+    }
+
+    static LocalAuxResponseLiveness arm(
+        Socket socket,
+        BooleanSupplier terminalClosing,
+        Consumer<Throwable> fatalFailure
+    ){
         return new LocalAuxResponseLiveness(
             socket,
             new ExecutorScheduler(),
+            terminalClosing,
             fatalFailure
         );
     }
@@ -76,6 +92,7 @@ final class LocalAuxResponseLiveness {
         return arm(
             socket,
             scheduler,
+            ()->false,
             failure->{}
         );
     }
@@ -85,9 +102,24 @@ final class LocalAuxResponseLiveness {
         Scheduler scheduler,
         Consumer<Throwable> fatalFailure
     ){
+        return arm(
+            socket,
+            scheduler,
+            ()->false,
+            fatalFailure
+        );
+    }
+
+    static LocalAuxResponseLiveness arm(
+        Socket socket,
+        Scheduler scheduler,
+        BooleanSupplier terminalClosing,
+        Consumer<Throwable> fatalFailure
+    ){
         return new LocalAuxResponseLiveness(
             socket,
             scheduler,
+            terminalClosing,
             fatalFailure
         );
     }
@@ -95,6 +127,7 @@ final class LocalAuxResponseLiveness {
     private LocalAuxResponseLiveness(
         Socket socket,
         Scheduler scheduler,
+        BooleanSupplier terminalClosing,
         Consumer<Throwable> fatalFailure
     ){
         this.socket=
@@ -106,6 +139,11 @@ final class LocalAuxResponseLiveness {
             Objects.requireNonNull(
                 scheduler,
                 "scheduler"
+            );
+        this.terminalClosing=
+            Objects.requireNonNull(
+                terminalClosing,
+                "terminalClosing"
             );
         this.fatalFailure=
             Objects.requireNonNull(
@@ -287,7 +325,8 @@ final class LocalAuxResponseLiveness {
 
             deadline=null;
 
-            if(socket.isClosed())
+            if(socket.isClosed()||
+               terminalClosing.getAsBoolean())
                 return;
 
             timedOut=true;
