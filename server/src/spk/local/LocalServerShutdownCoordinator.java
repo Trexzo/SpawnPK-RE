@@ -17,6 +17,7 @@ final class LocalServerShutdownCoordinator
     implements AutoCloseable {
 
     static final int GAME_ACCEPT_POLL_TIMEOUT_MILLIS=250;
+    static final int AUXILIARY_ACCEPT_POLL_TIMEOUT_MILLIS=250;
 
     interface SessionFactory {
         Runnable create()
@@ -664,14 +665,36 @@ final class LocalServerShutdownCoordinator
         Socket accepted=null;
         Throwable failure=null;
 
-        try{
-            accepted=
-                Objects.requireNonNull(
-                    acceptor.accept(),
-                    "accepted auxiliary socket"
-                );
-        }catch(Throwable error){
-            failure=error;
+        for(;;){
+            try{
+                accepted=
+                    Objects.requireNonNull(
+                        acceptor.accept(),
+                        "accepted auxiliary socket"
+                    );
+            }catch(Throwable error){
+                failure=error;
+            }
+
+            if(!(failure instanceof SocketTimeoutException))
+                break;
+
+            boolean terminalPoll;
+
+            synchronized(lifecycleLock){
+                terminalPoll=closing;
+
+                if(terminalPoll){
+                    auxiliaryAcceptHandoffs--;
+                    lifecycleLock.notifyAll();
+                }
+            }
+
+            if(terminalPoll)
+                return null;
+
+            accepted=null;
+            failure=null;
         }
 
         boolean terminal;
