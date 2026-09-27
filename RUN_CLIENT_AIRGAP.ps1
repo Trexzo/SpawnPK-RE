@@ -26,19 +26,17 @@ Write-Host 'Use fake local credentials only.' -ForegroundColor Yellow
 $javaArgs = @()
 if (-not [string]::IsNullOrWhiteSpace($LocalLabUserHome)) {
     $resolvedHome = [IO.Path]::GetFullPath($LocalLabUserHome)
-    $resolvedHome = $resolvedHome.TrimEnd(
+    $trimChars = [char[]]@(
         [IO.Path]::DirectorySeparatorChar,
         [IO.Path]::AltDirectorySeparatorChar
     )
+    $resolvedHome = $resolvedHome.TrimEnd($trimChars)
 
     $realHome = [Environment]::GetFolderPath(
         [Environment+SpecialFolder]::UserProfile
     )
     if (-not [string]::IsNullOrWhiteSpace($realHome)) {
-        $realHome = [IO.Path]::GetFullPath($realHome).TrimEnd(
-            [IO.Path]::DirectorySeparatorChar,
-            [IO.Path]::AltDirectorySeparatorChar
-        )
+        $realHome = [IO.Path]::GetFullPath($realHome).TrimEnd($trimChars)
         if ([StringComparer]::OrdinalIgnoreCase.Equals(
                 $resolvedHome,
                 $realHome
