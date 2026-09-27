@@ -63,14 +63,23 @@ public final class Main {
             );
         }
 
-        ExecutorService pool = Executors.newCachedThreadPool(r -> {
-            Thread t = new Thread(r, "spk-local-session"); t.setDaemon(true); return t;
-        });
-
         LocalServerStartupBinder.Resources startup =
             LocalServerStartupBinder.prepare(
                 world,
-                pool
+                ()->
+                    Executors.newCachedThreadPool(
+                        r->{
+                            Thread t=
+                                new Thread(
+                                    r,
+                                    "spk-local-session"
+                                );
+                            t.setDaemon(
+                                true
+                            );
+                            return t;
+                        }
+                    )
             );
         ServerSocket game = startup.game;
         ServerSocket aux = startup.aux;
@@ -127,6 +136,8 @@ public final class Main {
                 runtime::addShutdownHook
             );
 
+        Throwable servingFailure=null;
+
         try {
             if (!shutdown.submitAuxiliary(
                     () -> localAux(aux, shutdown)))
@@ -158,8 +169,11 @@ public final class Main {
                                 )))
                     break;
             }
+        } catch (Throwable failure) {
+            servingFailure=failure;
         } finally {
-            MainShutdownFinalizer.run(
+            MainShutdownFinalizer.runPreserving(
+                servingFailure,
                 shutdown::close,
                 ()->runtime.removeShutdownHook(
                     shutdownHook
