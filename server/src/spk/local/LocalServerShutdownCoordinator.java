@@ -124,13 +124,15 @@ final class LocalServerShutdownCoordinator
            terminal){
             // Keep the handoff published while physical close runs, but do
             // not hold lifecycleLock across potentially blocking socket I/O.
-            closeQuietly(
-                accepted
-            );
-
-            synchronized(lifecycleLock){
-                gameAcceptHandoffs--;
-                lifecycleLock.notifyAll();
+            try{
+                closeQuietly(
+                    accepted
+                );
+            }finally{
+                synchronized(lifecycleLock){
+                    gameAcceptHandoffs--;
+                    lifecycleLock.notifyAll();
+                }
             }
 
             return null;
