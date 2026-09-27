@@ -765,11 +765,18 @@ final class LocalServerShutdownCoordinator
 
         if(!terminated){
             pool.shutdownNow();
-            awaitPool(
-                1,
-                TimeUnit.SECONDS
-            );
+            terminated=
+                awaitPool(
+                    1,
+                    TimeUnit.SECONDS
+                );
         }
+
+        if(!terminated&&
+           !pool.isTerminated())
+            throw new IllegalStateException(
+                "session executor did not terminate after forced shutdown"
+            );
     }
 
     private boolean awaitPool(
