@@ -349,9 +349,12 @@ public final class LocalAuxResponseLivenessTest {
                     null
                 );
 
-            if(failure!=null)
+            if(!(failure instanceof IOException)||
+               failure.getMessage()==null||
+               !failure.getMessage().contains(
+                    "no progress"))
                 throw new AssertionError(
-                    "successful timeout produced cleanup failure",
+                    "successful timeout did not surface as connection-scoped response failure",
                     failure
                 );
 
