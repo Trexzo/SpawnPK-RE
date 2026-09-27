@@ -62,6 +62,7 @@ public final class LocalSessionConstructionOwnershipTest {
             "lateAcceptHandoffRetired=true "+
             "lateAcceptCloseFailureOwned=true "+
             "lateAcceptResidualRetry=true "+
+            "lateAcceptFailureRetained=true "+
             "auxListenerFailurePublished=true "+
             "uncheckedListenerFailurePublished=true "+
             "successPath=true"
@@ -1408,6 +1409,19 @@ public final class LocalSessionConstructionOwnershipTest {
             throw new AssertionError(
                 "residual retry changed the published terminal failure",
                 repeated
+            );
+
+        boolean lateFailureRetained=false;
+
+        for(Throwable suppressed:
+                terminalFailure.getSuppressed())
+            if(suppressed==
+                    accepted.failure)
+                lateFailureRetained=true;
+
+        if(!lateFailureRetained)
+            throw new AssertionError(
+                "late accepted-socket close failure was not retained in terminal diagnostics"
             );
 
         if(!accepted.isClosed()||
