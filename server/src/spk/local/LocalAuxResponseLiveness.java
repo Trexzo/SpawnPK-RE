@@ -218,7 +218,9 @@ final class LocalAuxResponseLiveness {
 
     private void progress(){
         synchronized(lock){
-            if(finished)
+            if(finished||
+               timedOut||
+               socket.isClosed())
                 return;
 
             if(deadline!=null)
