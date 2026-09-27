@@ -55,6 +55,24 @@ final class World implements AutoCloseable {
         long tickMillis,
         PlayerRepository repository
     ){
+        this(
+            tickMillis,
+            repository,
+            (target,name)->
+                new Thread(
+                    target,
+                    name
+                ),
+            Thread::start
+        );
+    }
+
+    private World(
+        long tickMillis,
+        PlayerRepository repository,
+        WorldPulse.PulseThreadFactory pulseThreadFactory,
+        WorldPulse.PulseThreadStarter pulseThreadStarter
+    ){
         realtime=
             new WorldRealtimeQueue(
                 (player,generation)->
@@ -83,7 +101,13 @@ final class World implements AutoCloseable {
                         action::run
                     )
             );
-        pulse=new WorldPulse(this,tickMillis);
+        pulse=
+            new WorldPulse(
+                this,
+                tickMillis,
+                pulseThreadFactory,
+                pulseThreadStarter
+            );
         domainEvents=new DomainEventBus(
             () -> pulse.inExecutionContext()
         );
@@ -132,6 +156,19 @@ final class World implements AutoCloseable {
         return new World(
             tickMillis,
             repository
+        );
+    }
+
+    static World isolatedForTest(
+        long tickMillis,
+        WorldPulse.PulseThreadFactory pulseThreadFactory,
+        WorldPulse.PulseThreadStarter pulseThreadStarter
+    ){
+        return new World(
+            tickMillis,
+            new FilePlayerRepository(),
+            pulseThreadFactory,
+            pulseThreadStarter
         );
     }
 
@@ -357,7 +394,26 @@ final class World implements AutoCloseable {
                     );
             }
 
-            pulse.start();
+            try{
+                pulse.start();
+            }catch(Throwable failure){
+                synchronized(player.mutationLock()){
+                    if(!players.unregister(
+                            player,
+                            generation))
+                        failure.addSuppressed(
+                            new IllegalStateException(
+                                "failed World admission could not roll back player generation "+
+                                generation
+                            )
+                        );
+                }
+
+                rethrowUnchecked(
+                    failure
+                );
+            }
+
             return generation;
         }
     }
@@ -524,6 +580,19 @@ final class World implements AutoCloseable {
                 action
             );
         }
+    }
+
+    private static void rethrowUnchecked(
+        Throwable failure
+    ){
+        if(failure instanceof RuntimeException)
+            throw (RuntimeException)failure;
+        if(failure instanceof Error)
+            throw (Error)failure;
+
+        throw new RuntimeException(
+            failure
+        );
     }
 
     private static CompletableFuture<Void>
