@@ -24,18 +24,21 @@ public final class LocalSessionConstructionOwnershipTest {
         assertShutdownWinsAcceptedHandoff();
         assertRejectedSocketRetainsOwnershipUntilClosed();
         assertConstructionFailure();
+        assertFactoryFailureSuppressesUncheckedCloseFailure();
         assertConcurrentShutdown();
         assertExecutorRejectionRetainsOwnershipUntilClosed();
         assertCheckedCloseFailureRetainsOwnershipAndTerminalRetries();
         assertTerminalCloseFailurePublishedAndOwnershipRetained();
         assertGameListenerCloseFailurePublishesWithoutHandoffHang();
         assertAuxListenerCloseFailurePublished();
+        assertUncheckedListenerCloseFailurePublished();
         assertSuccessPath();
 
         System.out.println(
             "LOCAL_SESSION_CONSTRUCTION_OWNERSHIP_PASS "+
             "claimedBeforeFactory=true "+
             "constructionFailurePrimary=true "+
+            "uncheckedCloseSuppressed=true "+
             "socketClosed=true "+
             "activeZero=true "+
             "noTaskOnFailure=true "+
@@ -55,6 +58,7 @@ public final class LocalSessionConstructionOwnershipTest {
             "gameListenerFailureNoHandoffHang=true "+
             "lateAcceptHandoffRetired=true "+
             "auxListenerFailurePublished=true "+
+            "uncheckedListenerFailurePublished=true "+
             "successPath=true"
         );
     }
@@ -458,6 +462,89 @@ public final class LocalSessionConstructionOwnershipTest {
 
         shutdown.close();
         pair.close();
+    }
+
+    private static void
+        assertFactoryFailureSuppressesUncheckedCloseFailure()
+        throws Exception{
+        World world=
+            World.isolatedForTest(
+                25L
+            );
+        world.start();
+
+        TrackingExecutor pool=
+            new TrackingExecutor();
+        ServerSocket game=
+            new ServerSocket();
+        ServerSocket aux=
+            new ServerSocket();
+        FailOnceUncheckedCloseSocket socket=
+            new FailOnceUncheckedCloseSocket();
+
+        LocalServerShutdownCoordinator shutdown=
+            new LocalServerShutdownCoordinator(
+                world,
+                pool,
+                game,
+                aux
+            );
+
+        RuntimeException expected=
+            new RuntimeException(
+                "fixture-factory-primary"
+            );
+        Throwable observed=null;
+
+        try{
+            shutdown.submitSession(
+                socket,
+                (LocalServerShutdownCoordinator.SessionFactory)
+                    ()->{
+                        throw expected;
+                    }
+            );
+        }catch(Throwable failure){
+            observed=failure;
+        }
+
+        if(observed!=expected)
+            throw new AssertionError(
+                "unchecked socket close replaced factory primary",
+                observed
+            );
+
+        Throwable[] suppressed=
+            observed.getSuppressed();
+
+        if(suppressed.length!=1||
+           suppressed[0]!=socket.failure)
+            throw new AssertionError(
+                "unchecked socket close was not suppressed behind factory primary"
+            );
+
+        if(socket.isClosed())
+            throw new AssertionError(
+                "unchecked fail-once socket unexpectedly closed"
+            );
+
+        if(shutdown.activeSessionCount()!=1)
+            throw new AssertionError(
+                "unchecked failed-open socket lost coordinator ownership"
+            );
+
+        shutdown.close();
+
+        if(!socket.isClosed()||
+           shutdown.activeSessionCount()!=0)
+            throw new AssertionError(
+                "terminal retry did not retire unchecked failed-open socket"
+            );
+
+        if(!world.closed())
+            throw new AssertionError(
+                "World did not close after unchecked socket retry"
+            );
     }
 
     private static void assertConcurrentShutdown()
@@ -1165,6 +1252,67 @@ public final class LocalSessionConstructionOwnershipTest {
             );
     }
 
+    private static void
+        assertUncheckedListenerCloseFailurePublished()
+        throws Exception{
+        World world=
+            World.isolatedForTest(
+                25L
+            );
+        world.start();
+
+        TrackingExecutor pool=
+            new TrackingExecutor();
+        AlwaysFailUncheckedServerSocket game=
+            new AlwaysFailUncheckedServerSocket();
+        ServerSocket aux=
+            new ServerSocket();
+
+        LocalServerShutdownCoordinator shutdown=
+            new LocalServerShutdownCoordinator(
+                world,
+                pool,
+                game,
+                aux
+            );
+
+        Throwable observed=null;
+
+        try{
+            shutdown.close();
+        }catch(Throwable failure){
+            observed=failure;
+        }
+
+        if(!(observed instanceof
+                IllegalStateException)||
+           observed.getCause()!=
+                game.failure)
+            throw new AssertionError(
+                "unchecked listener close failure was not terminally published",
+                observed
+            );
+
+        if(!world.closed())
+            throw new AssertionError(
+                "unchecked listener close failure skipped World teardown"
+            );
+
+        Throwable repeated=null;
+
+        try{
+            shutdown.close();
+        }catch(Throwable failure){
+            repeated=failure;
+        }
+
+        if(repeated!=observed)
+            throw new AssertionError(
+                "repeated close did not observe same unchecked listener failure",
+                repeated
+            );
+    }
+
     private static void assertSuccessPath()
         throws Exception{
         World world=
@@ -1244,6 +1392,43 @@ public final class LocalSessionConstructionOwnershipTest {
 
         shutdown.close();
         pair.close();
+    }
+
+    private static final class AlwaysFailUncheckedServerSocket
+        extends ServerSocket {
+
+        final RuntimeException failure=
+            new RuntimeException(
+                "fixture-unchecked-listener-close-failure"
+            );
+
+        AlwaysFailUncheckedServerSocket()
+            throws IOException{
+            super();
+        }
+
+        @Override public void close(){
+            throw failure;
+        }
+    }
+
+    private static final class FailOnceUncheckedCloseSocket
+        extends Socket {
+
+        final RuntimeException failure=
+            new RuntimeException(
+                "fixture-unchecked-socket-close-failure"
+            );
+        final AtomicInteger closeCalls=
+            new AtomicInteger();
+
+        @Override public void close()
+            throws IOException{
+            if(closeCalls.incrementAndGet()==1)
+                throw failure;
+
+            super.close();
+        }
     }
 
     private static final class AlwaysFailCloseServerSocket
