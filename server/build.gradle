@@ -4188,6 +4188,17 @@ tasks.register('localAuxiliaryWorkerFailureRegression', JavaExec) {
 }
 
 
+tasks.register('localAuxVersionsRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves local versions.dat input is accepted only below 16 KiB and never read beyond the existing decision bound.'
+    dependsOn tasks.named('testClasses')
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.LocalAuxVersionsTest'
+}
+
+
 tasks.register('chat1CurrentCumulativeCertification') {
     group = 'verification'
     description = 'Runs the complete current Chat 1 release candidate: Issue #5 Kotlin scripting, #271/#427 presentation/application gates, Issue #7 pet-damage ownership, focused 175 and canonical exact-v308 179.'
@@ -4210,7 +4221,8 @@ tasks.register('chat1CurrentCumulativeCertification') {
         tasks.named('localSessionConstructionOwnershipRegression'),
         tasks.named('worldAdmissionPulseStartAtomicRegression'),
         tasks.named('localAuxHttpResponseRegression'),
-        tasks.named('localAuxiliaryWorkerFailureRegression')
+        tasks.named('localAuxiliaryWorkerFailureRegression'),
+        tasks.named('localAuxVersionsRegression')
     )
 
     doLast {
@@ -4232,6 +4244,7 @@ tasks.register('chat1CurrentCumulativeCertification') {
             'worldAdmissionPulseStartAtomic=true ' +
             'localAuxHttpStreaming=true ' +
             'auxWorkerFailurePropagation=true ' +
+            'localAuxVersionsBounded=true ' +
             'focused=175 ' +
             'exactV308=179 ' +
             'clientSha256=' + v308AcceptanceClientSha256 + ' ' +
