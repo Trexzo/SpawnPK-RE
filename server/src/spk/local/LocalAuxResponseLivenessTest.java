@@ -25,6 +25,7 @@ public final class LocalAuxResponseLivenessTest {
         assertWriteFailureKeepsPrimaryAcrossTimeout();
         assertUncheckedPrimaryKeepsIdentityAcrossTimeout();
         assertFinalWriteTimeoutRaceCannotReturnClean();
+        assertTerminalFenceWinsBeforePhysicalClose();
         assertTerminalCloseWinsWithoutSyntheticTimeout();
         assertSuccessfulTimeoutKeepsOwnershipUntilWorkerRelease();
         assertAbortFailurePreservesCoordinatorOwnership();
@@ -46,6 +47,7 @@ public final class LocalAuxResponseLivenessTest {
             "uncheckedPrimaryPreserved=true "+
             "finalWriteRaceBounded=true "+
             "sameWorkerContinues=true "+
+            "terminalFenceWins=true "+
             "terminalWins=true "+
             "watchdogRetired=true "+
             "successfulTimeoutOwnershipHeld=true "+
@@ -458,6 +460,43 @@ public final class LocalAuxResponseLivenessTest {
             throw new AssertionError(
                 "final successful write/timeout race returned clean success",
                 observed
+            );
+    }
+
+    private static void
+        assertTerminalFenceWinsBeforePhysicalClose()
+        throws Exception{
+        FakeSocket socket=
+            new FakeSocket();
+        ManualScheduler scheduler=
+            new ManualScheduler();
+        LocalAuxResponseLiveness liveness=
+            LocalAuxResponseLiveness.arm(
+                socket,
+                scheduler,
+                ()->true,
+                failure->{
+                    throw new AssertionError(
+                        "terminal-fenced watchdog published failure",
+                        failure
+                    );
+                }
+            );
+
+        scheduler.trigger();
+
+        Throwable failure=
+            liveness.finish(
+                null
+            );
+
+        if(failure!=null||
+           liveness.timedOut()||
+           socket.isClosed()||
+           socket.closeCalls!=0)
+            throw new AssertionError(
+                "published terminal fence did not neutralize response timeout before physical close",
+                failure
             );
     }
 
