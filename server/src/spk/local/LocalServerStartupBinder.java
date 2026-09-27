@@ -226,6 +226,10 @@ final class LocalServerStartupBinder {
                 LocalServerShutdownCoordinator
                     .GAME_ACCEPT_POLL_TIMEOUT_MILLIS
             );
+            aux.setSoTimeout(
+                LocalServerShutdownCoordinator
+                    .AUXILIARY_ACCEPT_POLL_TIMEOUT_MILLIS
+            );
         }catch(Throwable failure){
             try{
                 shutdown.close();
