@@ -239,12 +239,9 @@ final class LocalServerShutdownCoordinator
         boolean rejectedBeforeFactory=false;
 
         synchronized(lifecycleLock){
-            if(closing){
-                activeGameSockets.add(
-                    socket
-                );
+            if(closing)
                 rejectedBeforeFactory=true;
-            }else{
+            else{
                 activeGameSockets.add(
                     socket
                 );
@@ -254,7 +251,7 @@ final class LocalServerShutdownCoordinator
 
         if(rejectedBeforeFactory){
             IOException closeFailure=
-                retireOwnedSocket(
+                closeUnownedSocket(
                     socket
                 );
 
@@ -384,6 +381,24 @@ final class LocalServerShutdownCoordinator
             failure=
                 new IOException(
                     "session socket close returned without closing socket"
+                );
+
+        return failure;
+    }
+
+    private static IOException closeUnownedSocket(
+        Socket socket
+    ){
+        IOException failure=
+            closeSocket(
+                socket
+            );
+
+        if(!socket.isClosed()&&
+           failure==null)
+            failure=
+                new IOException(
+                    "rejected session socket close returned without closing socket"
                 );
 
         return failure;
