@@ -304,9 +304,11 @@ final class WorldPluginManager
                     if(failure==null)
                         failure=cleanup;
                     else
-                        failure.addSuppressed(
-                            cleanup
-                        );
+                        PluginRuntimeSupport
+                            .suppressIfDistinct(
+                                failure,
+                                cleanup
+                            );
                 }finally{
                     completeCleanup(
                         entry
