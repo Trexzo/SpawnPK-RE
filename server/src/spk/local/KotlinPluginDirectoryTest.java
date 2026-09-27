@@ -94,6 +94,8 @@ public final class KotlinPluginDirectoryTest {
 
         boolean rootSymlinkChecked=false;
         boolean ancestorSymlinkChecked=false;
+        boolean onDemandSwapChecked=false;
+        boolean startupSwapChecked=false;
 
         try{
             int empty=
@@ -148,6 +150,31 @@ public final class KotlinPluginDirectoryTest {
                     world,
                     temp
                 );
+
+            onDemandSwapChecked=
+                assertFinalChildSwapRejected(
+                    world,
+                    temp.resolve(
+                        "swap-ondemand"
+                    ),
+                    false
+                );
+
+            startupSwapChecked=
+                assertFinalChildSwapRejected(
+                    world,
+                    temp.resolve(
+                        "swap-startup"
+                    ),
+                    true
+                );
+
+            assertSnapshotDetachedFromPath(
+                world,
+                temp.resolve(
+                    "snapshot-detached"
+                )
+            );
 
             System.setProperty(
                 KotlinPluginDirectory
@@ -343,11 +370,211 @@ public final class KotlinPluginDirectoryTest {
             "preloadRuntimeCloseIdentityOnce=true "+
             "rootSymlinkChecked="+rootSymlinkChecked+" "+
             "ancestorSymlinkChecked="+ancestorSymlinkChecked+" "+
+            "onDemandSwapChecked="+onDemandSwapChecked+" "+
+            "startupSwapChecked="+startupSwapChecked+" "+
+            "kotlinScriptSourceSnapshot=true "+
             "onDemand=true "+
             "rootConfinement=true "+
             "eventCallback=true "+
             "commandCallback=true"
         );
+    }
+
+    private static boolean assertFinalChildSwapRejected(
+        World world,
+        Path temp,
+        boolean startup
+    )throws Exception{
+        Path root=
+            temp.resolve(
+                "plugins"
+            ).resolve(
+                "kotlin"
+            );
+        Files.createDirectories(
+            root
+        );
+
+        Path outside=
+            temp.resolve(
+                "outside.kts"
+            );
+        Files.createDirectories(
+            outside.getParent()
+        );
+        Files.write(
+            outside,
+            java.util.Collections.singletonList(
+                "// outside snapshot must never be admitted"
+            ),
+            StandardCharsets.UTF_8
+        );
+
+        Path probe=
+            root.resolve(
+                "probe.kts"
+            );
+        Files.write(
+            probe,
+            java.util.Collections.singletonList(
+                "// admitted A"
+            ),
+            StandardCharsets.UTF_8
+        );
+
+        SnapshotLoader loader=
+            new SnapshotLoader(
+                "// admitted A\n",
+                "fixture.kotlin.snapshot.swap."+
+                    (startup?"startup":"ondemand")
+            );
+
+        final boolean[] hookRan=
+            new boolean[1];
+
+        KotlinPluginDirectory.SourceCaptureHook hook=
+            new KotlinPluginDirectory.SourceCaptureHook(){
+                @Override public void beforeOpen(
+                    Path source
+                )throws IOException{
+                    hookRan[0]=true;
+                    Files.delete(
+                        source
+                    );
+                    Files.createSymbolicLink(
+                        source,
+                        outside
+                    );
+                }
+
+                @Override public void afterCapture(
+                    PluginSource source
+                ){
+                }
+            };
+
+        try{
+            if(startup)
+                KotlinPluginDirectory
+                    .loadStartup(
+                        world,
+                        root,
+                        loader,
+                        hook
+                    );
+            else
+                KotlinPluginDirectory
+                    .loadOnDemand(
+                        world,
+                        root,
+                        probe,
+                        loader,
+                        hook
+                    );
+        }catch(UnsupportedOperationException|
+               java.nio.file.FileSystemException|
+               SecurityException unavailable){
+            return false;
+        }catch(IOException expected){
+            if(!hookRan[0])
+                throw new AssertionError(
+                    "final-child swap rejected before capture boundary",
+                    expected
+                );
+
+            if(loader.loads!=0)
+                throw new AssertionError(
+                    "loader observed source after final-child symlink swap"
+                );
+
+            if(world.plugins().plugin(
+                    loader.id)!=null)
+                throw new AssertionError(
+                    "plugin published after final-child symlink swap"
+                );
+
+            return true;
+        }
+
+        throw new AssertionError(
+            "final-child symlink swap reached Kotlin loader"
+        );
+    }
+
+    private static void assertSnapshotDetachedFromPath(
+        World world,
+        Path temp
+    )throws Exception{
+        Path root=
+            temp.resolve(
+                "plugins"
+            ).resolve(
+                "kotlin"
+            );
+        Files.createDirectories(
+            root
+        );
+
+        Path probe=
+            root.resolve(
+                "probe.kts"
+            );
+        String admitted=
+            "// immutable snapshot A\n";
+        Files.write(
+            probe,
+            admitted.getBytes(
+                StandardCharsets.UTF_8
+            )
+        );
+
+        SnapshotLoader loader=
+            new SnapshotLoader(
+                admitted,
+                "fixture.kotlin.snapshot.detached"
+            );
+
+        PluginHandle handle=
+            KotlinPluginDirectory
+                .loadOnDemand(
+                    world,
+                    root,
+                    probe,
+                    loader,
+                    new KotlinPluginDirectory.SourceCaptureHook(){
+                        @Override public void beforeOpen(
+                            Path source
+                        ){
+                        }
+
+                        @Override public void afterCapture(
+                            PluginSource source
+                        )throws IOException{
+                            Files.write(
+                                source.path(),
+                                "// mutated path B\n"
+                                    .getBytes(
+                                        StandardCharsets.UTF_8
+                                    )
+                            );
+                        }
+                    }
+                );
+
+        if(loader.loads!=1||
+           !handle.enabled()||
+           !loader.id.equals(
+                handle.manifest().id()
+            ))
+            throw new AssertionError(
+                "captured snapshot was not delivered to loader"
+            );
+
+        if(!world.plugins().disable(
+                loader.id))
+            throw new AssertionError(
+                "snapshot-detached fixture did not disable"
+            );
     }
 
     private static boolean assertRootSymlinkRejected(
@@ -1127,6 +1354,93 @@ public final class KotlinPluginDirectoryTest {
 
             if(closeFailure!=null)
                 throw closeFailure;
+        }
+    }
+
+    private static final class SnapshotLoader
+        implements PluginLoader {
+        private final String expectedText;
+        final String id;
+        int loads;
+
+        SnapshotLoader(
+            String expectedText,
+            String id
+        ){
+            this.expectedText=expectedText;
+            this.id=id;
+        }
+
+        @Override public boolean supports(
+            PluginSource source
+        ){
+            return source!=null&&
+                source.hasScriptSnapshot()&&
+                !source.hasEntrypoint();
+        }
+
+        @Override public PluginRuntime load(
+            PluginSource source
+        ){
+            loads++;
+
+            if(!source.hasScriptSnapshot())
+                throw new AssertionError(
+                    "directory handed loader a path-only script source"
+                );
+
+            if(!expectedText.equals(
+                    source.requireScriptText()))
+                throw new AssertionError(
+                    "loader observed mutated script bytes instead of admitted snapshot"
+                );
+
+            return new SnapshotRuntime(
+                id
+            );
+        }
+    }
+
+    private static final class SnapshotRuntime
+        implements PluginRuntime {
+        private final String id;
+        private boolean closed;
+
+        SnapshotRuntime(
+            String id
+        ){
+            this.id=id;
+        }
+
+        @Override public PluginManifest manifest(){
+            return new PluginManifest(
+                id,
+                "1.0",
+                PluginApiVersion.CURRENT,
+                java.util.Collections.emptyList()
+            );
+        }
+
+        @Override public void enable(
+            PluginContext context
+        ){
+        }
+
+        @Override public void disable(){
+        }
+
+        @Override public ClassLoader callbackClassLoader(){
+            if(closed)
+                throw new IllegalStateException(
+                    "snapshot runtime closed"
+                );
+
+            return getClass()
+                .getClassLoader();
+        }
+
+        @Override public void close(){
+            closed=true;
         }
     }
 
