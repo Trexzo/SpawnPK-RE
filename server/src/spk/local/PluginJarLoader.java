@@ -577,10 +577,6 @@ final class PluginJarLoader implements PluginLoader {
                     source
                 );
 
-            byte[] bytes=
-                Files.readAllBytes(
-                    source
-                );
             Path root=
                 Files.createTempDirectory(
                     "spawnpk-plugin-archive-"
@@ -591,10 +587,28 @@ final class PluginJarLoader implements PluginLoader {
                 );
 
             try{
-                Files.write(
-                    path,
-                    bytes
-                );
+                try(java.io.InputStream input=
+                        Files.newInputStream(
+                            source
+                        );
+                    java.io.OutputStream output=
+                        Files.newOutputStream(
+                            path
+                        )){
+                    byte[] buffer=
+                        new byte[8192];
+                    int read;
+
+                    while((read=
+                            input.read(
+                                buffer
+                            ))!=-1)
+                        output.write(
+                            buffer,
+                            0,
+                            read
+                        );
+                }
 
                 return new ArchiveSnapshot(
                     root,
