@@ -11,7 +11,9 @@ public final class LocalServerStartupFailureCleanupTest {
     public static void main(
         String[] args
     )throws Exception{
+        assertPoolConstructionFailureCleanup();
         assertListenerConstructionFailureCleanup();
+        assertPreCoordinatorSocketCloseFailureSuppressed();
         assertBindFailureCleanup();
         assertPostBindSetupFailureCleanup();
         assertHookConstructionFailureCleanup();
@@ -19,8 +21,12 @@ public final class LocalServerStartupFailureCleanupTest {
 
         System.out.println(
             "LOCAL_SERVER_STARTUP_FAILURE_CLEANUP_PASS "+
+            "poolConstructionFailure=true "+
+            "poolFailurePrimary=true "+
+            "listenerFactoryNotReached=true "+
             "listenerConstructionFailure=true "+
             "partialConstructedSocketClosed=true "+
+            "preCoordinatorCloseFailureSuppressed=true "+
             "gameBoundBeforeAuxFailure=true "+
             "bindFailurePrimary=true "+
             "gameClosed=true "+
@@ -36,6 +42,133 @@ public final class LocalServerStartupFailureCleanupTest {
             "hookFailurePrimary=true "+
             "repeatedCloseSafe=true"
         );
+    }
+
+    private static void
+        assertPoolConstructionFailureCleanup()
+        throws Exception{
+        World world=
+            World.isolatedForTest(
+                25L
+            );
+        world.start();
+
+        SecurityException expectedFailure=
+            new SecurityException(
+                "fixture-pool-construction-failure"
+            );
+        Throwable observed=null;
+        final int[] listenerCalls=
+            new int[1];
+
+        try{
+            LocalServerStartupBinder.prepare(
+                world,
+                ()->{
+                    throw expectedFailure;
+                },
+                ()->{
+                    listenerCalls[0]++;
+                    return new ServerSocket();
+                }
+            );
+        }catch(Throwable failure){
+            observed=failure;
+        }
+
+        if(observed!=expectedFailure)
+            throw new AssertionError(
+                "pool construction failure did not remain primary"
+            );
+
+        if(listenerCalls[0]!=0)
+            throw new AssertionError(
+                "listener factory ran after pool acquisition failure"
+            );
+
+        if(!world.closed())
+            throw new AssertionError(
+                "pool construction failure left World live"
+            );
+    }
+
+    private static void
+        assertPreCoordinatorSocketCloseFailureSuppressed()
+        throws Exception{
+        World world=
+            World.isolatedForTest(
+                25L
+            );
+        world.start();
+
+        ExecutorService pool=
+            Executors.newCachedThreadPool();
+
+        IOException closeFailure=
+            new IOException(
+                "fixture-listener-close-failure"
+            );
+        FailingCloseServerSocket[] first=
+            new FailingCloseServerSocket[1];
+        IOException expectedFailure=
+            new IOException(
+                "fixture-second-listener-construction-failure"
+            );
+        final int[] calls=
+            new int[1];
+        Throwable observed=null;
+
+        try{
+            LocalServerStartupBinder.prepare(
+                world,
+                pool,
+                ()->{
+                    calls[0]++;
+
+                    if(calls[0]==1){
+                        first[0]=
+                            new FailingCloseServerSocket(
+                                closeFailure
+                            );
+                        return first[0];
+                    }
+
+                    throw expectedFailure;
+                }
+            );
+        }catch(Throwable failure){
+            observed=failure;
+        }finally{
+            if(first[0]!=null)
+                first[0].forceClose();
+        }
+
+        if(observed!=expectedFailure)
+            throw new AssertionError(
+                "listener construction failure did not remain primary when close also failed"
+            );
+
+        boolean suppressed=false;
+
+        for(Throwable failure:
+                observed.getSuppressed())
+            if(failure==closeFailure)
+                suppressed=true;
+
+        if(!suppressed)
+            throw new AssertionError(
+                "listener close failure was not attached as suppressed"
+            );
+
+        if(!pool.isTerminated())
+            throw new AssertionError(
+                "socket-close cleanup failure skipped pool termination"
+            );
+
+        if(!world.closed())
+            throw new AssertionError(
+                "socket-close cleanup failure skipped World close"
+            );
     }
 
     private static void
@@ -480,6 +613,33 @@ public final class LocalServerStartupFailureCleanupTest {
                 phase+
                 " left World live"
             );
+    }
+
+    private static final class FailingCloseServerSocket
+        extends ServerSocket {
+
+        private final IOException failure;
+        private boolean fail=true;
+
+        FailingCloseServerSocket(
+            IOException failure
+        )throws IOException{
+            this.failure=failure;
+        }
+
+        @Override public void close()
+            throws IOException{
+            if(fail)
+                throw failure;
+
+            super.close();
+        }
+
+        void forceClose()
+            throws IOException{
+            fail=false;
+            super.close();
+        }
     }
 
     private LocalServerStartupFailureCleanupTest(){}
