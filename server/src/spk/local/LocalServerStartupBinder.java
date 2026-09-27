@@ -7,11 +7,11 @@ import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 
 /**
- * Failure-atomic acquisition of the LocalLab listener/socket startup boundary.
+ * Failure-atomic acquisition of the LocalLab pre-steady-state startup boundary.
  *
- * Listener construction is guarded before a coordinator can exist; once both
- * sockets exist, the ordinary shutdown coordinator owns World, pool and sockets
- * for bind and shutdown-hook registration failure cleanup.
+ * Session-pool and listener construction are guarded before a coordinator can
+ * exist. Once both sockets exist, the ordinary shutdown coordinator owns World,
+ * pool and sockets for bind and later startup-handoff failure cleanup.
  */
 final class LocalServerStartupBinder {
     interface ListenerFactory {
