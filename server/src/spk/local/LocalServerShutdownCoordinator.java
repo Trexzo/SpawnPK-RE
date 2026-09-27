@@ -32,6 +32,8 @@ final class LocalServerShutdownCoordinator
     private final ServerSocket aux;
     private final Set<Socket> activeGameSockets=
         new HashSet<>();
+    private final Set<Socket> activeAuxiliarySockets=
+        new HashSet<>();
     private final TerminalCloseState terminal=
         new TerminalCloseState();
 
@@ -39,6 +41,7 @@ final class LocalServerShutdownCoordinator
     private int gameAcceptHandoffs;
     private int sessionFactoryHandoffs;
     private Throwable terminalHandoffFailure;
+    private Throwable terminalAuxiliarySocketFailure;
 
     LocalServerShutdownCoordinator(
         World world,
@@ -526,6 +529,163 @@ final class LocalServerShutdownCoordinator
         );
     }
 
+    boolean claimAuxiliarySocket(
+        Socket socket
+    )throws IOException{
+        Objects.requireNonNull(
+            socket,
+            "socket"
+        );
+
+        boolean terminal;
+
+        synchronized(lifecycleLock){
+            terminal=closing;
+            activeAuxiliarySockets.add(
+                socket
+            );
+        }
+
+        if(!terminal)
+            return true;
+
+        Throwable failure=
+            retireOwnedAuxiliarySocket(
+                socket
+            );
+
+        if(failure!=null){
+            synchronized(lifecycleLock){
+                recordTerminalAuxiliarySocketFailureLocked(
+                    failure
+                );
+            }
+
+            rethrowSocketCloseFailure(
+                failure
+            );
+        }
+
+        return false;
+    }
+
+    void releaseAuxiliarySocket(
+        Socket socket
+    )throws IOException{
+        Objects.requireNonNull(
+            socket,
+            "socket"
+        );
+
+        Throwable failure=
+            retireOwnedAuxiliarySocket(
+                socket
+            );
+
+        if(failure==null)
+            return;
+
+        synchronized(lifecycleLock){
+            if(closing)
+                recordTerminalAuxiliarySocketFailureLocked(
+                    failure
+                );
+        }
+
+        rethrowSocketCloseFailure(
+            failure
+        );
+    }
+
+    int activeAuxiliarySocketCount(){
+        synchronized(lifecycleLock){
+            return activeAuxiliarySockets.size();
+        }
+    }
+
+    private Throwable retireOwnedAuxiliarySocket(
+        Socket socket
+    ){
+        Throwable failure=
+            closeSocket(
+                socket
+            );
+
+        if(socket.isClosed()){
+            synchronized(lifecycleLock){
+                activeAuxiliarySockets.remove(
+                    socket
+                );
+            }
+        }else if(failure==null)
+            failure=
+                new IOException(
+                    "auxiliary socket close returned without closing socket"
+                );
+
+        return failure;
+    }
+
+    private Throwable retryOwnedAuxiliarySocketsForTerminal(){
+        ArrayList<Socket> remaining;
+
+        synchronized(lifecycleLock){
+            remaining=
+                new ArrayList<>(
+                    activeAuxiliarySockets
+                );
+        }
+
+        Throwable primary=null;
+
+        for(Socket socket:remaining)
+            primary=
+                combineFailure(
+                    primary,
+                    retireOwnedAuxiliarySocket(
+                        socket
+                    )
+                );
+
+        synchronized(lifecycleLock){
+            if(!activeAuxiliarySockets.isEmpty()&&
+               primary==null)
+                primary=
+                    new IOException(
+                        "auxiliary socket retirement incomplete count="+
+                        activeAuxiliarySockets.size()
+                    );
+        }
+
+        return primary;
+    }
+
+    private void recordTerminalAuxiliarySocketFailureLocked(
+        Throwable failure
+    ){
+        if(failure==null)
+            return;
+
+        if(terminalAuxiliarySocketFailure==null)
+            terminalAuxiliarySocketFailure=
+                failure;
+        else if(terminalAuxiliarySocketFailure!=
+                failure)
+            terminalAuxiliarySocketFailure
+                .addSuppressed(
+                    failure
+                );
+    }
+
+    private Throwable drainTerminalAuxiliarySocketFailure(){
+        synchronized(lifecycleLock){
+            Throwable failure=
+                terminalAuxiliarySocketFailure;
+            terminalAuxiliarySocketFailure=null;
+            return failure;
+        }
+    }
+
     boolean submitAuxiliary(
         Runnable task
     ){
@@ -559,6 +719,8 @@ final class LocalServerShutdownCoordinator
         boolean owner=false;
         ArrayList<Socket> sockets=
             null;
+        ArrayList<Socket> auxiliarySockets=
+            null;
 
         synchronized(lifecycleLock){
             if(!closing){
@@ -567,6 +729,10 @@ final class LocalServerShutdownCoordinator
                 sockets=
                     new ArrayList<>(
                         activeGameSockets
+                    );
+                auxiliarySockets=
+                    new ArrayList<>(
+                        activeAuxiliarySockets
                     );
             }
         }
@@ -602,6 +768,16 @@ final class LocalServerShutdownCoordinator
                 combineFailure(
                     residualFailure,
                     retryOwnedSocketsForTerminal()
+                );
+            residualFailure=
+                combineFailure(
+                    residualFailure,
+                    drainTerminalAuxiliarySocketFailure()
+                );
+            residualFailure=
+                combineFailure(
+                    residualFailure,
+                    retryOwnedAuxiliarySocketsForTerminal()
                 );
             Throwable terminalFailure=
                 terminal.failure();
@@ -686,6 +862,17 @@ final class LocalServerShutdownCoordinator
                     )
                 );
 
+        Throwable firstAuxiliarySocketCloseFailure=null;
+
+        for(Socket socket:auxiliarySockets)
+            firstAuxiliarySocketCloseFailure=
+                combineFailure(
+                    firstAuxiliarySocketCloseFailure,
+                    retireOwnedAuxiliarySocket(
+                        socket
+                    )
+                );
+
         awaitPreTerminalHandoffs(
             waitGameAcceptHandoffs
         );
@@ -706,6 +893,9 @@ final class LocalServerShutdownCoordinator
                 firstSocketCloseFailure,
                 retryOwnedSocketsForTerminal()
             );
+
+        final Throwable initialAuxiliarySocketFailure=
+            firstAuxiliarySocketCloseFailure;
 
         Throwable failure=null;
 
@@ -729,6 +919,16 @@ final class LocalServerShutdownCoordinator
                         socketRetirementFailure
                     ),
                     this::closePool,
+                    ()->throwIfCloseFailed(
+                        "auxiliary socket retirement failed",
+                        combineFailure(
+                            combineFailure(
+                                initialAuxiliarySocketFailure,
+                                drainTerminalAuxiliarySocketFailure()
+                            ),
+                            retryOwnedAuxiliarySocketsForTerminal()
+                        )
+                    ),
                     world::close
                 );
         }finally{
