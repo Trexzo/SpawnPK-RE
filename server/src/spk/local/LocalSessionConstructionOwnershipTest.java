@@ -2442,8 +2442,11 @@ public final class LocalSessionConstructionOwnershipTest {
             new CapturingExecutor(
                 true
             );
-        ServerSocket game=
-            new ServerSocket();
+        FailCountCloseServerSocket game=
+            new FailCountCloseServerSocket(
+                2,
+                "fixture-aux-worker-game-wake-close-failure"
+            );
         ServerSocket aux=
             new ServerSocket();
 
@@ -2519,9 +2522,17 @@ public final class LocalSessionConstructionOwnershipTest {
 
         pool.runCaptured();
 
-        if(!game.isClosed())
+        if(game.closeCalls.get()!=2||
+           game.isClosed())
             throw new AssertionError(
-                "auxiliary worker failure did not attempt game-listener wake"
+                "auxiliary worker failure did not perform bounded game-listener wake attempts"
+            );
+
+        if(!containsSuppressedIdentity(
+                workerFailure,
+                game.failure))
+            throw new AssertionError(
+                "game-listener wake failure was not suppressed behind auxiliary worker failure"
             );
 
         releaseAccept.countDown();
