@@ -4199,6 +4199,20 @@ tasks.register('localAuxVersionsRegression', JavaExec) {
 }
 
 
+tasks.register('localAuxArchivePathRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves optional LocalLab archive path resolution fails closed when caller home state is unavailable without swallowing unrelated failures.'
+    dependsOn(
+        tasks.named('testClasses'),
+        tasks.named('localAuxHttpResponseRegression')
+    )
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.LocalAuxArchivePathTest'
+}
+
+
 tasks.register('localAuxHttpRequestReaderRegression', JavaExec) {
     group = 'verification'
     description = 'Proves LocalLab AUX HTTP request parsing has a physical-line limit, total request budget and absolute deadline that continuous peer traffic cannot reset.'
