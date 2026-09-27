@@ -510,11 +510,40 @@ final class LocalServerShutdownCoordinator
         }
 
         // Publish the terminal fence first, then perform potentially blocking
-        // socket closes without lifecycleLock. No new ownership may enter
-        // after closing=true, and existing ownership stays published until
-        // each physical close has returned.
-        closeQuietly(game);
-        closeQuietly(aux);
+        // listener/socket closes without lifecycleLock. Listener close failure
+        // is terminal evidence: swallowing it can strand a blocked accept
+        // handoff forever.
+        IOException listenerCloseFailure=
+            closeServerSocket(
+                game
+            );
+        listenerCloseFailure=
+            combineIOException(
+                listenerCloseFailure,
+                closeServerSocket(
+                    aux
+                )
+            );
+
+        // Retry a failed-open listener once. If the game listener still is
+        // not closed after this bounded retry, terminal failure semantics must
+        // not wait forever for accept() to unblock.
+        if(!game.isClosed())
+            listenerCloseFailure=
+                combineIOException(
+                    listenerCloseFailure,
+                    closeServerSocket(
+                        game
+                    )
+                );
+        if(!aux.isClosed())
+            listenerCloseFailure=
+                combineIOException(
+                    listenerCloseFailure,
+                    closeServerSocket(
+                        aux
+                    )
+                );
 
         // First close pass covers ownership present at terminal publication.
         // Failed-open sockets remain in activeGameSockets.
@@ -523,19 +552,30 @@ final class LocalServerShutdownCoordinator
                 socket
             );
 
-        awaitPreTerminalHandoffs();
+        awaitPreTerminalHandoffs(
+            game.isClosed()
+        );
 
         // A handoff may have completed after the first snapshot, and a first
-        // close may have failed. Retry every still-owned socket once after all
-        // pre-fence handoffs have retired.
+        // close may have failed. Retry every still-owned socket once after the
+        // safely-waitable pre-fence handoffs have retired.
         IOException socketRetirementFailure=
             retryOwnedSocketsForTerminal();
 
+        final IOException terminalListenerFailure=
+            listenerCloseFailure;
         Throwable failure=null;
 
         try{
             failure=
                 WorldCloseSequence.run(
+                    ()->{
+                        if(terminalListenerFailure!=null)
+                            throw new IllegalStateException(
+                                "server listener close failed",
+                                terminalListenerFailure
+                            );
+                    },
                     ()->{
                         if(socketRetirementFailure!=null)
                             throw new IllegalStateException(
@@ -557,11 +597,14 @@ final class LocalServerShutdownCoordinator
         );
     }
 
-    private void awaitPreTerminalHandoffs(){
+    private void awaitPreTerminalHandoffs(
+        boolean waitForGameAccepts
+    ){
         boolean interrupted=false;
 
         synchronized(lifecycleLock){
-            while(gameAcceptHandoffs!=0||
+            while((waitForGameAccepts&&
+                   gameAcceptHandoffs!=0)||
                   sessionFactoryHandoffs!=0)
                 try{
                     lifecycleLock.wait();
@@ -637,12 +680,32 @@ final class LocalServerShutdownCoordinator
         }
     }
 
-    private static void closeQuietly(
+    private static IOException closeServerSocket(
         ServerSocket socket
     ){
         try{
             socket.close();
-        }catch(IOException ignored){
+            return null;
+        }catch(IOException failure){
+            return failure;
         }
+    }
+
+    private static IOException combineIOException(
+        IOException primary,
+        IOException next
+    ){
+        if(next==null)
+            return primary;
+
+        if(primary==null)
+            return next;
+
+        if(primary!=next)
+            primary.addSuppressed(
+                next
+            );
+
+        return primary;
     }
 }
