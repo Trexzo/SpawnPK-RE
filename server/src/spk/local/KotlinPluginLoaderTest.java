@@ -99,6 +99,11 @@ public final class KotlinPluginLoaderTest {
             apiJar,
             compileClasspath
         );
+        assertDependencyExtensionFence(
+            constructor,
+            apiJar,
+            compileClasspath
+        );
         assertClasspathIdentityPinned(
             constructor,
             healthy,
@@ -554,6 +559,7 @@ public final class KotlinPluginLoaderTest {
             "kts=true "+
             "apiOnlyCompile=true "+
             "dependencyNamespaceFence=true "+
+            "kotlinClasspathExtensionBypassFenced=true "+
             "serverInternalDenied=true "+
             "pluginApiIdentity=true "+
             "scriptSdkIdentity=true "+
@@ -597,6 +603,130 @@ public final class KotlinPluginLoaderTest {
                 java.nio.charset.StandardCharsets.UTF_8
             )
         );
+    }
+
+
+    private static void assertDependencyExtensionFence(
+        Constructor<?> constructor,
+        Path apiJar,
+        List<Path> healthyClasspath
+    )throws Exception{
+        if(healthyClasspath.isEmpty())
+            return;
+
+        Path root=
+            Files.createTempDirectory(
+                "kotlin-extension-fence-"
+            );
+        Path healthyBin=
+            root.resolve(
+                "runtime.bin"
+            );
+        Path forbiddenBin=
+            root.resolve(
+                "forbidden.dat"
+            );
+        Path plain=
+            root.resolve(
+                "plain.classpath"
+            );
+
+        try{
+            Files.copy(
+                healthyClasspath.get(0),
+                healthyBin
+            );
+
+            constructor.newInstance(
+                apiJar,
+                java.util.Collections
+                    .singletonList(
+                        healthyBin
+                    )
+            );
+
+            replaceWithForbiddenJar(
+                forbiddenBin,
+                "spk/local/ExtensionBypass.class"
+            );
+
+            boolean forbiddenRejected=false;
+
+            try{
+                constructor.newInstance(
+                    apiJar,
+                    java.util.Collections
+                        .singletonList(
+                            forbiddenBin
+                        )
+                );
+            }catch(InvocationTargetException expected){
+                Throwable cause=
+                    expected.getCause();
+
+                forbiddenRejected=
+                    cause instanceof
+                        IllegalArgumentException&&
+                    cause.getMessage()!=null&&
+                    cause.getMessage()
+                        .contains(
+                            "outside the DSL allowlist"
+                        );
+            }
+
+            if(!forbiddenRejected)
+                throw new AssertionError(
+                    "Kotlin dependency archive bypassed policy through non-.jar filename"
+                );
+
+            Files.write(
+                plain,
+                new byte[]{
+                    1,2,3,4
+                }
+            );
+
+            boolean plainRejected=false;
+
+            try{
+                constructor.newInstance(
+                    apiJar,
+                    java.util.Collections
+                        .singletonList(
+                            plain
+                        )
+                );
+            }catch(InvocationTargetException expected){
+                Throwable cause=
+                    expected.getCause();
+
+                plainRejected=
+                    cause instanceof
+                        java.util.zip.ZipException||
+                    cause instanceof
+                        java.io.IOException||
+                    cause instanceof
+                        IllegalArgumentException;
+            }
+
+            if(!plainRejected)
+                throw new AssertionError(
+                    "Kotlin loader accepted regular non-archive classpath file"
+                );
+        }finally{
+            Files.deleteIfExists(
+                plain
+            );
+            Files.deleteIfExists(
+                forbiddenBin
+            );
+            Files.deleteIfExists(
+                healthyBin
+            );
+            Files.deleteIfExists(
+                root
+            );
+        }
     }
 
     private static void assertClasspathIdentityPinned(
