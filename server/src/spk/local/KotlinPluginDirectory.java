@@ -4,11 +4,16 @@ import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.net.URI;
+import java.nio.ByteBuffer;
+import java.nio.channels.SeekableByteChannel;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
+import java.nio.file.OpenOption;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -24,6 +29,17 @@ final class KotlinPluginDirectory {
         "spk.plugin.apiJar";
     static final String SCRIPT_RUNTIME_PROPERTY =
         "spk.kotlinScript.runtimeJar";
+
+    interface SourceCaptureHook {
+        void beforeOpen(Path source)throws IOException;
+        void afterCapture(PluginSource source)throws IOException;
+    }
+
+    private static final SourceCaptureHook NO_CAPTURE_HOOK =
+        new SourceCaptureHook() {
+            @Override public void beforeOpen(Path source){}
+            @Override public void afterCapture(PluginSource source){}
+        };
 
     static int loadStartup(
         World world,
@@ -44,7 +60,8 @@ final class KotlinPluginDirectory {
             world,
             root,
             defaultLoader(),
-            scripts
+            scripts,
+            NO_CAPTURE_HOOK
         );
     }
 
@@ -70,7 +87,8 @@ final class KotlinPluginDirectory {
             world,
             root,
             loader,
-            discover(root)
+            discover(root),
+            NO_CAPTURE_HOOK
         );
     }
 
@@ -89,17 +107,16 @@ final class KotlinPluginDirectory {
                 "loader"
             );
 
-        Path source=
-            requireScriptWithinRoot(
+        PluginSource source=
+            captureScriptWithinRoot(
                 root,
-                script
+                script,
+                NO_CAPTURE_HOOK
             );
 
         PluginRuntime runtime=
             loader.load(
-                PluginSource.script(
-                    source
-                )
+                source
             );
 
         PluginHandle handle=
@@ -110,10 +127,56 @@ final class KotlinPluginDirectory {
             "KOTLIN_PLUGIN_ON_DEMAND_PASS id="+
             handle.manifest().id()+
             " source="+
-            source
+            source.path()
         );
 
         return handle;
+    }
+
+    static int loadStartup(
+        World world,
+        Path root,
+        PluginLoader loader,
+        SourceCaptureHook hook
+    )throws Exception{
+        return loadStartup(
+            world,
+            root,
+            loader,
+            discover(root),
+            hook
+        );
+    }
+
+    static PluginHandle loadOnDemand(
+        World world,
+        Path root,
+        Path script,
+        PluginLoader loader,
+        SourceCaptureHook hook
+    )throws Exception{
+        if(world==null)
+            throw new IllegalArgumentException(
+                "world"
+            );
+        if(loader==null)
+            throw new IllegalArgumentException(
+                "loader"
+            );
+
+        PluginSource source=
+            captureScriptWithinRoot(
+                root,
+                script,
+                hook
+            );
+
+        return world.plugins()
+            .enable(
+                loader.load(
+                    source
+                )
+            );
     }
 
     static List<Path> discover(
@@ -197,7 +260,8 @@ final class KotlinPluginDirectory {
         World world,
         Path root,
         PluginLoader loader,
-        List<Path> scripts
+        List<Path> scripts,
+        SourceCaptureHook hook
     )throws Exception{
         if(world==null)
             throw new IllegalArgumentException(
@@ -215,11 +279,10 @@ final class KotlinPluginDirectory {
             for(Path script:scripts)
                 runtimes.add(
                     loader.load(
-                        PluginSource.script(
-                            requireScriptWithinRoot(
-                                root,
-                                script
-                            )
+                        captureScriptWithinRoot(
+                            root,
+                            script,
+                            hook
                         )
                     )
                 );
@@ -284,10 +347,11 @@ final class KotlinPluginDirectory {
         return handles.size();
     }
 
-    private static Path
-        requireScriptWithinRoot(
+    private static PluginSource
+        captureScriptWithinRoot(
             Path root,
-            Path script
+            Path script,
+            SourceCaptureHook hook
         )throws IOException{
         Path directory=
             normalizeRoot(root);
@@ -315,14 +379,6 @@ final class KotlinPluginDirectory {
             source
         );
 
-        if(!Files.isRegularFile(
-                source,
-                LinkOption.NOFOLLOW_LINKS))
-            throw new IOException(
-                "Kotlin plugin script missing: "+
-                source
-            );
-
         String name=
             source.getFileName()
                 .toString()
@@ -337,7 +393,170 @@ final class KotlinPluginDirectory {
                 source
             );
 
-        return source;
+        if(!Files.isRegularFile(
+                source,
+                LinkOption.NOFOLLOW_LINKS))
+            throw new IOException(
+                "Kotlin plugin script missing or non-regular: "+
+                source
+            );
+
+        SourceCaptureHook captureHook=
+            hook==null
+                ?NO_CAPTURE_HOOK
+                :hook;
+
+        captureHook.beforeOpen(
+            source
+        );
+
+        byte[] bytes=
+            capturePinnedRegularFile(
+                source
+            );
+
+        PluginSource snapshot=
+            PluginSource.scriptSnapshot(
+                source,
+                new String(
+                    bytes,
+                    StandardCharsets.UTF_8
+                )
+            );
+
+        captureHook.afterCapture(
+            snapshot
+        );
+
+        return snapshot;
+    }
+
+    private static byte[] capturePinnedRegularFile(
+        Path source
+    )throws IOException{
+        Path pinned=null;
+
+        for(int attempt=0;
+            attempt<16;
+            attempt++){
+            Path candidate=
+                source.resolveSibling(
+                    ".spawnpk-kts-capture-"+
+                    java.util.UUID
+                        .randomUUID()
+                        .toString()+
+                    ".tmp"
+                );
+
+            try{
+                Files.createLink(
+                    candidate,
+                    source
+                );
+                pinned=candidate;
+                break;
+            }catch(java.nio.file.FileAlreadyExistsException collision){
+                continue;
+            }catch(UnsupportedOperationException unsupported){
+                throw new IOException(
+                    "Kotlin plugin filesystem cannot pin source identity with a hard link: "+
+                    source,
+                    unsupported
+                );
+            }
+        }
+
+        if(pinned==null)
+            throw new IOException(
+                "Could not allocate Kotlin plugin source identity pin: "+
+                source
+            );
+
+        IOException primary=null;
+
+        try{
+            if(Files.isSymbolicLink(
+                    source)||
+               Files.isSymbolicLink(
+                    pinned)||
+               !Files.isRegularFile(
+                    source,
+                    LinkOption.NOFOLLOW_LINKS)||
+               !Files.isRegularFile(
+                    pinned,
+                    LinkOption.NOFOLLOW_LINKS)||
+               !Files.isSameFile(
+                    source,
+                    pinned))
+                throw new IOException(
+                    "Kotlin plugin final source identity is not the admitted regular direct child: "+
+                    source
+                );
+
+            java.util.HashSet<OpenOption> options=
+                new java.util.HashSet<>();
+            options.add(
+                StandardOpenOption.READ
+            );
+            options.add(
+                LinkOption.NOFOLLOW_LINKS
+            );
+
+            try(SeekableByteChannel channel=
+                    Files.newByteChannel(
+                        pinned,
+                        options
+                    )){
+                java.io.ByteArrayOutputStream out=
+                    new java.io.ByteArrayOutputStream();
+                ByteBuffer buffer=
+                    ByteBuffer.allocate(
+                        8192
+                    );
+
+                while(true){
+                    int read=
+                        channel.read(
+                            buffer
+                        );
+
+                    if(read<0)
+                        break;
+                    if(read==0)
+                        continue;
+
+                    out.write(
+                        buffer.array(),
+                        0,
+                        read
+                    );
+                    buffer.clear();
+                }
+
+                return out.toByteArray();
+            }
+        }catch(IOException denied){
+            primary=
+                new IOException(
+                    "Kotlin plugin final source capture failed closed: "+
+                    source,
+                    denied
+                );
+            throw primary;
+        }finally{
+            try{
+                Files.deleteIfExists(
+                    pinned
+                );
+            }catch(IOException cleanup){
+                if(primary!=null)
+                    primary.addSuppressed(
+                        cleanup
+                    );
+                else
+                    throw cleanup;
+            }
+        }
     }
 
     private static void rejectSymlinkComponents(
