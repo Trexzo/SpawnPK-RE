@@ -59,6 +59,7 @@ final class LocalAuxHttpWorker {
 
         while(!serverClosed.getAsBoolean()){
             Socket socket=null;
+            Throwable primary=null;
 
             try{
                 socket=
@@ -71,30 +72,64 @@ final class LocalAuxHttpWorker {
                     handler.handle(
                         socket
                     );
-                }finally{
+                }catch(IOException|
+                       RuntimeException|
+                       Error failure){
+                    primary=failure;
+                }
+
+                try{
                     releaser.release(
                         socket
                     );
                     socket=null;
+                }catch(IOException releaseFailure){
+                    if(primary==null)
+                        primary=releaseFailure;
+                    else
+                        primary.addSuppressed(
+                            releaseFailure
+                        );
                 }
-            }catch(IOException failure){
-                if(!serverClosed.getAsBoolean())
-                    connectionFailure.accept(
-                        failure
-                    );
+            }catch(IOException acceptFailure){
+                primary=acceptFailure;
             }finally{
                 if(socket!=null)
                     try{
                         releaser.release(
                             socket
                         );
+                        socket=null;
                     }catch(IOException releaseFailure){
+                        if(primary==null)
+                            primary=releaseFailure;
+                        else
+                            primary.addSuppressed(
+                                releaseFailure
+                            );
+
                         if(!serverClosed.getAsBoolean())
                             retirementFailure.accept(
                                 releaseFailure
                             );
                     }
             }
+
+            if(primary==null)
+                continue;
+
+            if(primary instanceof IOException){
+                if(!serverClosed.getAsBoolean())
+                    connectionFailure.accept(
+                        (IOException)primary
+                    );
+                continue;
+            }
+
+            if(primary instanceof RuntimeException)
+                throw (RuntimeException)primary;
+
+            throw (Error)primary;
         }
     }
 
