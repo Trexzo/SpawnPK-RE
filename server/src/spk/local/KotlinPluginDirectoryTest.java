@@ -96,6 +96,8 @@ public final class KotlinPluginDirectoryTest {
         boolean ancestorSymlinkChecked=false;
         boolean onDemandSwapChecked=false;
         boolean startupSwapChecked=false;
+        boolean onDemandNonRegularSwapChecked=false;
+        boolean startupNonRegularSwapChecked=false;
 
         try{
             int empty=
@@ -165,6 +167,24 @@ public final class KotlinPluginDirectoryTest {
                     world,
                     temp.resolve(
                         "swap-startup"
+                    ),
+                    true
+                );
+
+            onDemandNonRegularSwapChecked=
+                assertFinalChildNonRegularSwapRejected(
+                    world,
+                    temp.resolve(
+                        "nonregular-ondemand"
+                    ),
+                    false
+                );
+
+            startupNonRegularSwapChecked=
+                assertFinalChildNonRegularSwapRejected(
+                    world,
+                    temp.resolve(
+                        "nonregular-startup"
                     ),
                     true
                 );
@@ -372,6 +392,9 @@ public final class KotlinPluginDirectoryTest {
             "ancestorSymlinkChecked="+ancestorSymlinkChecked+" "+
             "onDemandSwapChecked="+onDemandSwapChecked+" "+
             "startupSwapChecked="+startupSwapChecked+" "+
+            "onDemandNonRegularSwapChecked="+onDemandNonRegularSwapChecked+" "+
+            "startupNonRegularSwapChecked="+startupNonRegularSwapChecked+" "+
+            "captureRegularIdentityPinned=true "+
             "kotlinScriptSourceSnapshot=true "+
             "onDemand=true "+
             "rootConfinement=true "+
@@ -519,6 +542,127 @@ public final class KotlinPluginDirectoryTest {
 
         throw new AssertionError(
             "final-child symlink swap reached Kotlin loader"
+        );
+    }
+
+    private static boolean
+        assertFinalChildNonRegularSwapRejected(
+            World world,
+            Path temp,
+            boolean startup
+        )throws Exception{
+        Path root=
+            temp.resolve(
+                "plugins"
+            ).resolve(
+                "kotlin"
+            );
+        Files.createDirectories(
+            root
+        );
+
+        Path probe=
+            root.resolve(
+                "probe.kts"
+            );
+        Files.write(
+            probe,
+            java.util.Collections.singletonList(
+                "// admitted regular A"
+            ),
+            StandardCharsets.UTF_8
+        );
+
+        SnapshotLoader loader=
+            new SnapshotLoader(
+                "// admitted regular A\n",
+                "fixture.kotlin.snapshot.nonregular."+
+                    (startup?"startup":"ondemand")
+            );
+
+        final boolean[] hookRan=
+            new boolean[1];
+        final boolean[] swapInstalled=
+            new boolean[1];
+
+        KotlinPluginDirectory.SourceCaptureHook hook=
+            new KotlinPluginDirectory.SourceCaptureHook(){
+                @Override public void beforeOpen(
+                    Path source
+                )throws IOException{
+                    hookRan[0]=true;
+                    Files.delete(
+                        source
+                    );
+                    Files.createDirectory(
+                        source
+                    );
+                    swapInstalled[0]=true;
+                }
+
+                @Override public void afterCapture(
+                    PluginSource source
+                ){
+                }
+            };
+
+        try{
+            if(startup)
+                KotlinPluginDirectory
+                    .loadStartup(
+                        world,
+                        root,
+                        loader,
+                        hook
+                    );
+            else
+                KotlinPluginDirectory
+                    .loadOnDemand(
+                        world,
+                        root,
+                        probe,
+                        loader,
+                        hook
+                    );
+        }catch(IOException expected){
+            if(!hookRan[0])
+                throw new AssertionError(
+                    "non-regular swap rejected before capture boundary",
+                    expected
+                );
+
+            if(!swapInstalled[0]||
+               !Files.isDirectory(
+                    probe,
+                    LinkOption.NOFOLLOW_LINKS))
+                throw new AssertionError(
+                    "non-regular swap fixture was not installed",
+                    expected
+                );
+
+            if(loader.loads!=0)
+                throw new AssertionError(
+                    "loader observed source after final-child non-regular swap"
+                );
+
+            if(world.plugins().plugin(
+                    loader.id)!=null)
+                throw new AssertionError(
+                    "plugin published after final-child non-regular swap"
+                );
+
+            return true;
+        }finally{
+            if(Files.isDirectory(
+                    probe,
+                    LinkOption.NOFOLLOW_LINKS))
+                Files.deleteIfExists(
+                    probe
+                );
+        }
+
+        throw new AssertionError(
+            "final-child non-regular swap reached Kotlin loader"
         );
     }
 
