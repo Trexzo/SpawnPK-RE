@@ -513,6 +513,8 @@ public final class PluginKernelLifecycleTest {
                 "dependency cycle executed plugin code"
             );
 
+        pluginSelfSuppressionRegression();
+
         CloseProbePlugin closeProbe=
             new CloseProbePlugin();
 
@@ -576,8 +578,499 @@ public final class PluginKernelLifecycleTest {
             "dependencyOrder=dep.a_dep.b_dep.c "+
             "manifestSnapshotOnce=true "+
             "batchRollback=true "+
+            "pluginSelfSuppressionSafe=true "+
+            "enableRollbackEvidencePreserved=true "+
+            "worldCloseSelfSuppressionSafe=true "+
             "dependencyCycleRejected=true "+
             "worldCloseClean=true"
+        );
+    }
+
+    private static void pluginSelfSuppressionRegression()
+        throws Exception{
+        sameObjectEnableDisableRollback();
+        sameObjectBatchRollback();
+        enableRollbackEvidencePreserved();
+        runtimeCloseSuppressionIdentity();
+        suppressionHelperOrdering();
+        worldCloseSameObjectAggregate();
+    }
+
+    private static void sameObjectEnableDisableRollback()
+        throws Exception{
+        World world=
+            World.isolatedForTest(
+                25L
+            );
+        WorldPluginManager manager=
+            (WorldPluginManager)
+                world.plugins();
+        RuntimeException shared=
+            new IllegalStateException(
+                "same-enable-disable"
+            );
+        SameFailurePlugin plugin=
+            new SameFailurePlugin(
+                "self.single",
+                Collections.<String>emptyList(),
+                shared,
+                true
+            );
+        int baseline=
+            world.domainEvents()
+                .listenerCount();
+
+        try{
+            Throwable observed=
+                captureFailure(
+                    ()->manager.enable(
+                        plugin
+                    )
+                );
+
+            if(observed!=shared)
+                throw new AssertionError(
+                    "same enable/disable failure identity changed",
+                    observed
+                );
+
+            if(shared.getSuppressed().length!=0)
+                throw new AssertionError(
+                    "same enable/disable failure self-suppressed"
+                );
+
+            if(plugin.disableCount.get()!=1)
+                throw new AssertionError(
+                    "same enable/disable compensation count="+
+                    plugin.disableCount.get()
+                );
+
+            if(manager.plugin(
+                    "self.single")!=null)
+                throw new AssertionError(
+                    "same-failure plugin retained after failed enable"
+                );
+
+            if(world.content()
+                    .commandBinding(
+                        "selfsingle"
+                    )!=null)
+                throw new AssertionError(
+                    "same-failure plugin content survived rollback"
+                );
+
+            if(world.domainEvents()
+                    .listenerCount()!=baseline)
+                throw new AssertionError(
+                    "same-failure plugin event survived rollback"
+                );
+        }finally{
+            world.close();
+        }
+    }
+
+    private static void sameObjectBatchRollback()
+        throws Exception{
+        World world=
+            World.isolatedForTest(
+                25L
+            );
+        WorldPluginManager manager=
+            (WorldPluginManager)
+                world.plugins();
+        RuntimeException shared=
+            new IllegalStateException(
+                "same-batch-enable-disable"
+            );
+        AtomicInteger firstDisable=
+            new AtomicInteger();
+        Plugin first=
+            new Plugin(){
+                @Override public PluginManifest manifest(){
+                    return new PluginManifest(
+                        "self.batch.a",
+                        "1.0.0"
+                    );
+                }
+
+                @Override public void enable(
+                    PluginContext context
+                ){
+                    context.content()
+                        .command(
+                            "selfbatcha",
+                            100,
+                            command->
+                                ContentResult.handled(
+                                    "A",
+                                    null
+                                )
+                        );
+                }
+
+                @Override public void disable(){
+                    firstDisable.incrementAndGet();
+                }
+            };
+        SameFailurePlugin second=
+            new SameFailurePlugin(
+                "self.batch.b",
+                Collections.singletonList(
+                    "self.batch.a"
+                ),
+                shared,
+                true
+            );
+
+        try{
+            Throwable observed=
+                captureFailure(
+                    ()->manager.enableAll(
+                        Arrays.<Plugin>asList(
+                            second,
+                            first
+                        )
+                    )
+                );
+
+            if(observed!=shared)
+                throw new AssertionError(
+                    "same batch failure identity changed",
+                    observed
+                );
+
+            if(shared.getSuppressed().length!=0)
+                throw new AssertionError(
+                    "same batch failure self-suppressed"
+                );
+
+            if(second.disableCount.get()!=1||
+               firstDisable.get()!=1)
+                throw new AssertionError(
+                    "batch rollback did not continue first="+
+                    firstDisable.get()+
+                    " second="+
+                    second.disableCount.get()
+                );
+
+            if(manager.plugin(
+                    "self.batch.a")!=null||
+               manager.plugin(
+                    "self.batch.b")!=null)
+                throw new AssertionError(
+                    "same-failure batch retained plugin"
+                );
+
+            if(world.content()
+                    .commandBinding(
+                        "selfbatcha"
+                    )!=null||
+               world.content()
+                    .commandBinding(
+                        "selfbatchb"
+                    )!=null)
+                throw new AssertionError(
+                    "same-failure batch retained content"
+                );
+        }finally{
+            world.close();
+        }
+    }
+
+    private static void enableRollbackEvidencePreserved()
+        throws Exception{
+        World world=
+            World.isolatedForTest(
+                25L
+            );
+        WorldPluginManager manager=
+            (WorldPluginManager)
+                world.plugins();
+        RuntimeException primary=
+            new IllegalStateException(
+                "enable-primary"
+            );
+        RuntimeException disableCleanup=
+            new IllegalArgumentException(
+                "disable-cleanup"
+            );
+        RuntimeException runtimeCleanup=
+            new IllegalStateException(
+                "runtime-close-cleanup"
+            );
+        DistinctCleanupRuntimePlugin plugin=
+            new DistinctCleanupRuntimePlugin(
+                primary,
+                disableCleanup,
+                runtimeCleanup
+            );
+        int baseline=
+            world.domainEvents()
+                .listenerCount();
+
+        try{
+            Throwable observed=
+                captureFailure(
+                    ()->manager.enable(
+                        plugin
+                    )
+                );
+
+            if(observed!=primary)
+                throw new AssertionError(
+                    "enable rollback exposed wrapper instead of original cause",
+                    observed
+                );
+
+            Throwable[] suppressed=
+                primary.getSuppressed();
+
+            if(suppressed.length!=2||
+               suppressed[0]!=disableCleanup||
+               suppressed[1]!=runtimeCleanup)
+                throw new AssertionError(
+                    "enable rollback cleanup evidence order mismatch "+
+                    Arrays.toString(
+                        suppressed
+                    )
+                );
+
+            for(Throwable cleanup:suppressed)
+                if(cleanup==observed.getCause()||
+                   cleanup.getClass()
+                       .getName()
+                       .contains(
+                           "PluginEnableFailure"
+                       ))
+                    throw new AssertionError(
+                        "internal PluginEnableFailure leaked through rollback evidence"
+                    );
+
+            if(plugin.disableCount.get()!=1||
+               plugin.closeCount.get()<1||
+               manager.plugin(
+                   "self.unwrap"
+               )!=null||
+               world.content()
+                   .commandBinding(
+                       "selfunwrap"
+                   )!=null||
+               world.domainEvents()
+                   .listenerCount()!=
+                       baseline)
+                throw new AssertionError(
+                    "enable rollback evidence path did not finish cleanup"
+                );
+        }finally{
+            world.close();
+        }
+    }
+
+    private static void worldCloseSameObjectAggregate()
+        throws Exception{
+        World world=
+            World.isolatedForTest(
+                25L
+            );
+        WorldPluginManager manager=
+            (WorldPluginManager)
+                world.plugins();
+        RuntimeException shared=
+            new IllegalStateException(
+                "world-close-shared"
+            );
+        AtomicInteger tailDisable=
+            new AtomicInteger();
+
+        Plugin tail=
+            new Plugin(){
+                @Override public PluginManifest manifest(){
+                    return new PluginManifest(
+                        "self.world.a",
+                        "1.0.0"
+                    );
+                }
+
+                @Override public void enable(
+                    PluginContext context
+                ){}
+
+                @Override public void disable(){
+                    tailDisable.incrementAndGet();
+                }
+            };
+
+        CleanupLoaderFailureRuntime middle=
+            new CleanupLoaderFailureRuntime(
+                "self.world.b",
+                shared
+            );
+        CleanupLoaderFailureRuntime first=
+            new CleanupLoaderFailureRuntime(
+                "self.world.c",
+                shared
+            );
+
+        manager.enable(
+            tail
+        );
+        manager.enable(
+            middle
+        );
+        manager.enable(
+            first
+        );
+
+        middle.failCleanupLoader=true;
+        first.failCleanupLoader=true;
+
+        Throwable observed=
+            captureFailure(
+                world::close
+            );
+
+        if(observed!=shared)
+            throw new AssertionError(
+                "world-close aggregate replaced shared primary",
+                observed
+            );
+
+        if(shared.getSuppressed().length!=0)
+            throw new AssertionError(
+                "world-close aggregate self-suppressed shared failure"
+            );
+
+        if(tailDisable.get()!=1)
+            throw new AssertionError(
+                "world-close aggregate aborted before remaining cleanup"
+            );
+
+        if(!manager.enabled().isEmpty())
+            throw new AssertionError(
+                "world-close aggregate retained plugin handles"
+            );
+    }
+
+    private static void runtimeCloseSuppressionIdentity(){
+        RuntimeException shared=
+            new IllegalStateException(
+                "same-runtime-close"
+            );
+        CloseFailureRuntime same=
+            new CloseFailureRuntime(
+                shared
+            );
+
+        Throwable cleanup=
+            PluginRuntimeSupport
+                .closePluginRuntime(
+                    same,
+                    shared
+                );
+
+        if(cleanup!=shared||
+           same.closeCount.get()!=1||
+           shared.getSuppressed().length!=0)
+            throw new AssertionError(
+                "runtime close same-object suppression mismatch"
+            );
+
+        RuntimeException primary=
+            new IllegalStateException(
+                "runtime-primary"
+            );
+        Error distinct=
+            new AssertionError(
+                "runtime-close-distinct"
+            );
+        CloseFailureRuntime different=
+            new CloseFailureRuntime(
+                distinct
+            );
+
+        Throwable distinctCleanup=
+            PluginRuntimeSupport
+                .closePluginRuntime(
+                    different,
+                    primary
+                );
+
+        if(distinctCleanup!=distinct||
+           different.closeCount.get()!=1||
+           primary.getSuppressed().length!=1||
+           primary.getSuppressed()[0]!=distinct)
+            throw new AssertionError(
+                "runtime close distinct suppression ordering changed"
+            );
+    }
+
+    private static void suppressionHelperOrdering(){
+        RuntimeException primary=
+            new IllegalStateException(
+                "helper-primary"
+            );
+        Error cleanup=
+            new AssertionError(
+                "helper-cleanup"
+            );
+
+        PluginRuntimeSupport
+            .suppressIfDistinct(
+                primary,
+                cleanup
+            );
+
+        if(primary.getSuppressed().length!=1||
+           primary.getSuppressed()[0]!=cleanup)
+            throw new AssertionError(
+                "distinct helper suppression ordering changed"
+            );
+
+        PluginRuntimeSupport
+            .suppressIfDistinct(
+                primary,
+                primary
+            );
+
+        if(primary.getSuppressed().length!=1)
+            throw new AssertionError(
+                "helper self-suppression changed suppressed list"
+            );
+
+        Error errorPrimary=
+            new AssertionError(
+                "helper-error-primary"
+            );
+        RuntimeException runtimeCleanup=
+            new IllegalStateException(
+                "helper-runtime-cleanup"
+            );
+
+        PluginRuntimeSupport
+            .suppressIfDistinct(
+                errorPrimary,
+                runtimeCleanup
+            );
+
+        if(errorPrimary.getSuppressed().length!=1||
+           errorPrimary.getSuppressed()[0]!=
+                runtimeCleanup)
+            throw new AssertionError(
+                "Error-primary suppression ordering changed"
+            );
+    }
+
+    private static Throwable captureFailure(
+        ThrowingAction action
+    ){
+        try{
+            action.run();
+        }catch(Throwable failure){
+            return failure;
+        }
+
+        throw new AssertionError(
+            "expected failure did not occur"
         );
     }
 
@@ -1187,6 +1680,224 @@ public final class PluginKernelLifecycleTest {
 
         @Override public void disable(){
             disableCount.incrementAndGet();
+        }
+    }
+
+    private static final class SameFailurePlugin
+        implements Plugin {
+        private final PluginManifest manifest;
+        private final RuntimeException failure;
+        private final boolean registerContent;
+        final AtomicInteger disableCount=
+            new AtomicInteger();
+
+        SameFailurePlugin(
+            String id,
+            List<String> dependencies,
+            RuntimeException failure,
+            boolean registerContent
+        ){
+            this.manifest=
+                new PluginManifest(
+                    id,
+                    "1.0.0",
+                    PluginApiVersion.CURRENT,
+                    dependencies
+                );
+            this.failure=
+                failure;
+            this.registerContent=
+                registerContent;
+        }
+
+        @Override public PluginManifest manifest(){
+            return manifest;
+        }
+
+        @Override public void enable(
+            PluginContext context
+        ){
+            if(registerContent){
+                String command=
+                    manifest.id()
+                        .replace(
+                            ".",
+                            ""
+                        );
+
+                context.content()
+                    .command(
+                        command,
+                        100,
+                        request->
+                            ContentResult.handled(
+                                "SELF",
+                                null
+                            )
+                    );
+                context.events()
+                    .subscribe(
+                        ProbeEvent.class,
+                        DomainEventBus.Priority.NORMAL,
+                        event->{}
+                    );
+            }
+
+            throw failure;
+        }
+
+        @Override public void disable(){
+            disableCount.incrementAndGet();
+            throw failure;
+        }
+    }
+
+    private static final class DistinctCleanupRuntimePlugin
+        implements PluginRuntime {
+        private final RuntimeException primary;
+        private final RuntimeException disableCleanup;
+        private final RuntimeException runtimeCleanup;
+        final AtomicInteger disableCount=
+            new AtomicInteger();
+        final AtomicInteger closeCount=
+            new AtomicInteger();
+
+        DistinctCleanupRuntimePlugin(
+            RuntimeException primary,
+            RuntimeException disableCleanup,
+            RuntimeException runtimeCleanup
+        ){
+            this.primary=primary;
+            this.disableCleanup=disableCleanup;
+            this.runtimeCleanup=runtimeCleanup;
+        }
+
+        @Override public PluginManifest manifest(){
+            return new PluginManifest(
+                "self.unwrap",
+                "1.0.0"
+            );
+        }
+
+        @Override public void enable(
+            PluginContext context
+        ){
+            context.content()
+                .command(
+                    "selfunwrap",
+                    100,
+                    request->
+                        ContentResult.handled(
+                            "UNWRAP",
+                            null
+                        )
+                );
+            context.events()
+                .subscribe(
+                    ProbeEvent.class,
+                    DomainEventBus.Priority.NORMAL,
+                    event->{}
+                );
+            throw primary;
+        }
+
+        @Override public void disable(){
+            disableCount.incrementAndGet();
+            throw disableCleanup;
+        }
+
+        @Override public ClassLoader callbackClassLoader(){
+            return getClass()
+                .getClassLoader();
+        }
+
+        @Override public void close(){
+            if(closeCount.incrementAndGet()==1)
+                throw runtimeCleanup;
+        }
+    }
+
+    private static final class CleanupLoaderFailureRuntime
+        implements PluginRuntime {
+        private final PluginManifest manifest;
+        private final RuntimeException failure;
+        volatile boolean failCleanupLoader;
+        final AtomicInteger disableCount=
+            new AtomicInteger();
+
+        CleanupLoaderFailureRuntime(
+            String id,
+            RuntimeException failure
+        ){
+            manifest=
+                new PluginManifest(
+                    id,
+                    "1.0.0"
+                );
+            this.failure=failure;
+        }
+
+        @Override public PluginManifest manifest(){
+            return manifest;
+        }
+
+        @Override public void enable(
+            PluginContext context
+        ){}
+
+        @Override public void disable(){
+            disableCount.incrementAndGet();
+        }
+
+        @Override public ClassLoader callbackClassLoader(){
+            if(failCleanupLoader)
+                throw failure;
+
+            return getClass()
+                .getClassLoader();
+        }
+
+        @Override public void close(){}
+    }
+
+    private static final class CloseFailureRuntime
+        implements PluginRuntime {
+        private final Throwable failure;
+        final AtomicInteger closeCount=
+            new AtomicInteger();
+
+        CloseFailureRuntime(
+            Throwable failure
+        ){
+            this.failure=failure;
+        }
+
+        @Override public PluginManifest manifest(){
+            return new PluginManifest(
+                "self.runtime",
+                "1.0.0"
+            );
+        }
+
+        @Override public void enable(
+            PluginContext context
+        ){}
+
+        @Override public void disable(){}
+
+        @Override public ClassLoader callbackClassLoader(){
+            return getClass()
+                .getClassLoader();
+        }
+
+        @Override public void close()
+            throws Exception{
+            closeCount.incrementAndGet();
+
+            if(failure instanceof Exception)
+                throw (Exception)failure;
+
+            throw (Error)failure;
         }
     }
 
