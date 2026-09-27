@@ -19,6 +19,11 @@ final class LocalServerShutdownCoordinator
             throws Exception;
     }
 
+    interface GameSocketAcceptor {
+        Socket accept()
+            throws IOException;
+    }
+
     private final Object lifecycleLock=
         new Object();
     private final World world;
@@ -31,6 +36,7 @@ final class LocalServerShutdownCoordinator
         new TerminalCloseState();
 
     private boolean closing;
+    private int gameAcceptHandoffs;
 
     LocalServerShutdownCoordinator(
         World world,
@@ -58,6 +64,101 @@ final class LocalServerShutdownCoordinator
                 aux,
                 "aux"
             );
+    }
+
+    Socket acceptGameSocket()
+        throws IOException{
+        return acceptGameSocket(
+            game::accept
+        );
+    }
+
+    Socket acceptGameSocket(
+        GameSocketAcceptor acceptor
+    )throws IOException{
+        Objects.requireNonNull(
+            acceptor,
+            "acceptor"
+        );
+
+        synchronized(lifecycleLock){
+            if(closing)
+                return null;
+
+            gameAcceptHandoffs++;
+        }
+
+        Socket accepted=null;
+        Throwable failure=null;
+
+        try{
+            accepted=
+                Objects.requireNonNull(
+                    acceptor.accept(),
+                    "accepted socket"
+                );
+        }catch(Throwable error){
+            failure=error;
+        }
+
+        boolean terminal;
+
+        synchronized(lifecycleLock){
+            gameAcceptHandoffs--;
+            terminal=closing;
+
+            if(failure==null){
+                if(terminal)
+                    closeQuietly(
+                        accepted
+                    );
+                else
+                    activeGameSockets.add(
+                        accepted
+                    );
+            }
+
+            lifecycleLock.notifyAll();
+        }
+
+        if(failure!=null){
+            if(terminal&&
+               failure instanceof IOException)
+                return null;
+
+            rethrowAcceptFailure(
+                failure
+            );
+        }
+
+        return terminal
+            ?null
+            :accepted;
+    }
+
+    void rejectSessionSocket(
+        Socket socket
+    ){
+        Objects.requireNonNull(
+            socket,
+            "socket"
+        );
+
+        synchronized(lifecycleLock){
+            activeGameSockets.remove(
+                socket
+            );
+        }
+
+        closeQuietly(
+            socket
+        );
+    }
+
+    int pendingGameAcceptHandoffs(){
+        synchronized(lifecycleLock){
+            return gameAcceptHandoffs;
+        }
     }
 
     boolean submitSession(
@@ -105,6 +206,9 @@ final class LocalServerShutdownCoordinator
 
         synchronized(lifecycleLock){
             if(closing){
+                activeGameSockets.remove(
+                    socket
+                );
                 closeQuietly(socket);
                 return false;
             }
@@ -234,6 +338,8 @@ final class LocalServerShutdownCoordinator
                         new ArrayList<>(
                             activeGameSockets))
                     closeQuietly(socket);
+
+                activeGameSockets.clear();
             }
         }
 
@@ -241,6 +347,8 @@ final class LocalServerShutdownCoordinator
             terminal.awaitAndRethrow();
             return;
         }
+
+        awaitGameAcceptHandoffs();
 
         Throwable failure=null;
 
@@ -257,6 +365,39 @@ final class LocalServerShutdownCoordinator
         }
 
         WorldCloseSequence.rethrow(
+            failure
+        );
+    }
+
+    private void awaitGameAcceptHandoffs(){
+        boolean interrupted=false;
+
+        synchronized(lifecycleLock){
+            while(gameAcceptHandoffs!=0)
+                try{
+                    lifecycleLock.wait();
+                }catch(InterruptedException error){
+                    interrupted=true;
+                }
+        }
+
+        if(interrupted)
+            Thread.currentThread()
+                .interrupt();
+    }
+
+    private static void rethrowAcceptFailure(
+        Throwable failure
+    )throws IOException{
+        if(failure instanceof IOException)
+            throw (IOException)failure;
+        if(failure instanceof RuntimeException)
+            throw (RuntimeException)failure;
+        if(failure instanceof Error)
+            throw (Error)failure;
+
+        throw new IOException(
+            "game socket accept failed",
             failure
         );
     }
