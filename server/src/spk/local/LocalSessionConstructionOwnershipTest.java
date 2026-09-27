@@ -117,8 +117,8 @@ public final class LocalSessionConstructionOwnershipTest {
             );
         world.start();
 
-        ExecutorService pool=
-            Executors.newSingleThreadExecutor();
+        TrackingExecutor pool=
+            new TrackingExecutor();
         ServerSocket game=
             new ServerSocket();
         ServerSocket aux=
@@ -237,6 +237,11 @@ public final class LocalSessionConstructionOwnershipTest {
         if(taskRan.get())
             throw new AssertionError(
                 "session task ran after shutdown fence"
+            );
+
+        if(pool.executeCalls!=0)
+            throw new AssertionError(
+                "post-fence session reached executor"
             );
 
         if(shutdown.activeSessionCount()!=0)
