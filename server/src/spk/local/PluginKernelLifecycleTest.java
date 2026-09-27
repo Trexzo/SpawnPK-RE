@@ -294,6 +294,12 @@ public final class PluginKernelLifecycleTest {
                 "failed plugin event subscription leaked"
             );
 
+        assertPluginSelfSuppressionSafety(
+            world,
+            manager,
+            listenersBeforeFailure
+        );
+
         ArrayList<String> order=
             new ArrayList<>();
 
@@ -573,6 +579,7 @@ public final class PluginKernelLifecycleTest {
             "reenable=true "+
             "preEnableGuards=true "+
             "failureRollback=true "+
+            "pluginSelfSuppressionSafe=true "+
             "dependencyOrder=dep.a_dep.b_dep.c "+
             "manifestSnapshotOnce=true "+
             "batchRollback=true "+
@@ -631,6 +638,207 @@ public final class PluginKernelLifecycleTest {
                     );
                 }
             }
+        );
+    }
+
+    private static void assertPluginSelfSuppressionSafety(
+        World world,
+        PluginManager manager,
+        int listenerBaseline
+    )throws Exception{
+        RuntimeException shared=
+            new RuntimeException(
+                "plugin-shared-failure"
+            );
+        FailurePlugin single=
+            new FailurePlugin(
+                "self.single",
+                shared,
+                true,
+                true,
+                "selfsuppressionprobe"
+            );
+
+        Throwable observed=
+            captureFailure(
+                ()->manager.enable(
+                    single
+                )
+            );
+
+        if(observed!=shared)
+            throw new AssertionError(
+                "same-object enable rollback replaced primary",
+                observed
+            );
+
+        if(shared.getSuppressed().length!=0)
+            throw new AssertionError(
+                "same-object enable rollback self-suppressed"
+            );
+
+        if(single.enableCount.get()!=1||
+           single.disableCount.get()!=1||
+           manager.plugin(
+               "self.single"
+           )!=null||
+           world.content()
+               .commandBinding(
+                   "selfsuppressionprobe"
+               )!=null||
+           world.domainEvents()
+               .listenerCount()!=
+                   listenerBaseline)
+            throw new AssertionError(
+                "same-object enable rollback did not finish cleanup"
+            );
+
+        RuntimeException batchShared=
+            new RuntimeException(
+                "plugin-batch-shared-failure"
+            );
+        FailurePlugin batchA=
+            new FailurePlugin(
+                "self.batch.a",
+                null,
+                false,
+                false,
+                null
+            );
+        FailurePlugin batchB=
+            new FailurePlugin(
+                "self.batch.b",
+                batchShared,
+                true,
+                true,
+                null,
+                Collections.singletonList(
+                    "self.batch.a"
+                )
+            );
+
+        Throwable batchObserved=
+            captureFailure(
+                ()->manager.enableAll(
+                    Arrays.<Plugin>asList(
+                        batchB,
+                        batchA
+                    )
+                )
+            );
+
+        if(batchObserved!=batchShared||
+           batchShared.getSuppressed().length!=0)
+            throw new AssertionError(
+                "batch same-object rollback replaced/suppressed primary",
+                batchObserved
+            );
+
+        if(batchA.disableCount.get()!=1||
+           batchB.disableCount.get()!=1||
+           manager.plugin(
+               "self.batch.a"
+           )!=null||
+           manager.plugin(
+               "self.batch.b"
+           )!=null)
+            throw new AssertionError(
+                "batch rollback stopped after same-object cleanup failure"
+            );
+
+        RuntimeException runtimeShared=
+            new RuntimeException(
+                "runtime-shared-failure"
+            );
+        CloseFailureRuntime sameRuntime=
+            new CloseFailureRuntime(
+                "self.runtime.same",
+                runtimeShared
+            );
+
+        Throwable sameClose=
+            PluginRuntimeSupport
+                .closePluginRuntime(
+                    sameRuntime,
+                    runtimeShared
+                );
+
+        if(sameClose!=runtimeShared||
+           sameRuntime.closeCount.get()!=1||
+           runtimeShared.getSuppressed().length!=0)
+            throw new AssertionError(
+                "runtime same-object close self-suppression mismatch"
+            );
+
+        RuntimeException primary=
+            new RuntimeException(
+                "runtime-primary"
+            );
+        RuntimeException distinctCleanup=
+            new RuntimeException(
+                "runtime-cleanup"
+            );
+        CloseFailureRuntime distinctRuntime=
+            new CloseFailureRuntime(
+                "self.runtime.distinct",
+                distinctCleanup
+            );
+
+        Throwable distinctClose=
+            PluginRuntimeSupport
+                .closePluginRuntime(
+                    distinctRuntime,
+                    primary
+                );
+
+        if(distinctClose!=distinctCleanup||
+           distinctRuntime.closeCount.get()!=1||
+           primary.getSuppressed().length!=1||
+           primary.getSuppressed()[0]!=
+                distinctCleanup)
+            throw new AssertionError(
+                "distinct runtime cleanup ordering changed"
+            );
+
+        AssertionError errorPrimary=
+            new AssertionError(
+                "runtime-error-primary"
+            );
+        RuntimeException runtimeCleanup=
+            new RuntimeException(
+                "runtime-error-cleanup"
+            );
+        CloseFailureRuntime errorRuntime=
+            new CloseFailureRuntime(
+                "self.runtime.error",
+                runtimeCleanup
+            );
+
+        PluginRuntimeSupport.closePluginRuntime(
+            errorRuntime,
+            errorPrimary
+        );
+
+        if(errorRuntime.closeCount.get()!=1||
+           errorPrimary.getSuppressed().length!=1||
+           errorPrimary.getSuppressed()[0]!=
+                runtimeCleanup)
+            throw new AssertionError(
+                "Error/runtime cleanup ordering changed"
+            );
+    }
+
+    private static Throwable captureFailure(
+        ThrowingThrowableAction action
+    ){
+        try{
+            action.run();
+        }catch(Throwable failure){
+            return failure;
+        }
+
+        throw new AssertionError(
+            "expected failure did not occur"
         );
     }
 
@@ -905,6 +1113,11 @@ public final class PluginKernelLifecycleTest {
         void run()throws Exception;
     }
 
+    @FunctionalInterface
+    private interface ThrowingThrowableAction {
+        void run()throws Throwable;
+    }
+
     private static final class ProbeEvent
         implements DomainEventBus.Event {}
 
@@ -1068,6 +1281,137 @@ public final class PluginKernelLifecycleTest {
 
         @Override public void disable(){
             disableCount.incrementAndGet();
+        }
+    }
+
+    private static final class FailurePlugin
+        implements Plugin {
+
+        private final PluginManifest manifest;
+        private final RuntimeException failure;
+        private final boolean failEnable;
+        private final boolean failDisable;
+        private final String command;
+        final AtomicInteger enableCount=
+            new AtomicInteger();
+        final AtomicInteger disableCount=
+            new AtomicInteger();
+
+        FailurePlugin(
+            String id,
+            RuntimeException failure,
+            boolean failEnable,
+            boolean failDisable,
+            String command
+        ){
+            this(
+                id,
+                failure,
+                failEnable,
+                failDisable,
+                command,
+                Collections.<String>emptyList()
+            );
+        }
+
+        FailurePlugin(
+            String id,
+            RuntimeException failure,
+            boolean failEnable,
+            boolean failDisable,
+            String command,
+            List<String> dependencies
+        ){
+            manifest=
+                new PluginManifest(
+                    id,
+                    "1.0.0",
+                    PluginApiVersion.CURRENT,
+                    dependencies
+                );
+            this.failure=failure;
+            this.failEnable=failEnable;
+            this.failDisable=failDisable;
+            this.command=command;
+        }
+
+        @Override public PluginManifest manifest(){
+            return manifest;
+        }
+
+        @Override public void enable(
+            PluginContext context
+        ){
+            enableCount.incrementAndGet();
+
+            context.events().subscribe(
+                ProbeEvent.class,
+                DomainEventBus.Priority.NORMAL,
+                event->{}
+            );
+
+            if(command!=null)
+                context.content().command(
+                    command,
+                    100,
+                    request->
+                        ContentResult.handled(
+                            "SELF_SUPPRESSION",
+                            null
+                        )
+                );
+
+            if(failEnable)
+                throw failure;
+        }
+
+        @Override public void disable(){
+            disableCount.incrementAndGet();
+
+            if(failDisable)
+                throw failure;
+        }
+    }
+
+    private static final class CloseFailureRuntime
+        implements PluginRuntime {
+
+        private final PluginManifest manifest;
+        private final RuntimeException closeFailure;
+        final AtomicInteger closeCount=
+            new AtomicInteger();
+
+        CloseFailureRuntime(
+            String id,
+            RuntimeException closeFailure
+        ){
+            manifest=
+                new PluginManifest(
+                    id,
+                    "1.0.0"
+                );
+            this.closeFailure=closeFailure;
+        }
+
+        @Override public PluginManifest manifest(){
+            return manifest;
+        }
+
+        @Override public void enable(
+            PluginContext context
+        ){}
+
+        @Override public void disable(){}
+
+        @Override public ClassLoader
+            callbackClassLoader(){
+            return getClass()
+                .getClassLoader();
+        }
+
+        @Override public void close(){
+            closeCount.incrementAndGet();
+            throw closeFailure;
         }
     }
 
