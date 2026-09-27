@@ -190,11 +190,11 @@ public final class Main {
             Socket socket=null;
 
             try {
-                socket=server.accept();
+                socket=
+                    shutdown.acceptAuxiliarySocket();
 
-                if(!shutdown.claimAuxiliarySocket(
-                        socket))
-                    continue;
+                if(socket==null)
+                    break;
 
                 try{
                     if (!socket.getInetAddress().isLoopbackAddress())
