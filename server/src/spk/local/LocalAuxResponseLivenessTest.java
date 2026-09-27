@@ -21,6 +21,9 @@ public final class LocalAuxResponseLivenessTest {
         assertProgressRefreshesSingleDeadline();
         assertWatchdogNonterminationIsWorkerFatal();
         assertInterruptedWatchdogJoinIsWorkerFatal();
+        assertWatchdogCancelFailureOrdering();
+        assertWatchdogCancelFailureDoesNotSkipLaterRetirement();
+        assertWatchdogCancelSameFailureDoesNotSelfSuppress();
         assertWatchdogShutdownFailureOrdering();
         assertWatchdogShutdownFailureStillAwaitsRetirement();
         assertWatchdogShutdownSameFailureDoesNotSelfSuppress();
@@ -47,6 +50,9 @@ public final class LocalAuxResponseLivenessTest {
             "singleOutstandingDeadline=true "+
             "watchdogNonterminationFatal=true "+
             "interruptedWatchdogJoinFatal=true "+
+            "watchdogCancelFailureOrdered=true "+
+            "watchdogCancelContinuesRetirement=true "+
+            "watchdogCancelSelfSuppressionSafe=true "+
             "watchdogShutdownFailureOrdered=true "+
             "watchdogShutdownAwaited=true "+
             "watchdogShutdownSelfSuppressionSafe=true "+
@@ -258,6 +264,202 @@ public final class LocalAuxResponseLivenessTest {
             throw new AssertionError(
                 "interrupted watchdog join was normalized or interrupt status was lost",
                 failure
+            );
+    }
+
+    private static void
+        assertWatchdogCancelFailureOrdering()
+        throws Exception{
+        RuntimeException responseRuntime=
+            new IllegalStateException(
+                "fixture-response-before-cancel-runtime"
+            );
+        RuntimeException cancelRuntime=
+            new SecurityException(
+                "fixture-deadline-cancel-runtime"
+            );
+        ManualScheduler runtimeScheduler=
+            new ManualScheduler();
+        runtimeScheduler.cancelFailure=
+            cancelRuntime;
+        LocalAuxResponseLiveness runtimeLiveness=
+            LocalAuxResponseLiveness.arm(
+                new FakeSocket(),
+                runtimeScheduler
+            );
+
+        Throwable runtimeObserved=
+            runtimeLiveness.finish(
+                responseRuntime
+            );
+
+        assertPrimaryWithSingleSuppressed(
+            "response RuntimeException + deadline cancel RuntimeException",
+            runtimeObserved,
+            responseRuntime,
+            cancelRuntime
+        );
+
+        if(!runtimeScheduler.cancelCalled||
+           !runtimeScheduler.shutdown||
+           !runtimeScheduler.awaited)
+            throw new AssertionError(
+                "deadline cancel RuntimeException skipped later watchdog retirement"
+            );
+
+        IOException responseIo=
+            new IOException(
+                "fixture-response-before-cancel-io"
+            );
+        RuntimeException cancelOverIo=
+            new SecurityException(
+                "fixture-deadline-cancel-over-io"
+            );
+        ManualScheduler ioScheduler=
+            new ManualScheduler();
+        ioScheduler.cancelFailure=
+            cancelOverIo;
+        LocalAuxResponseLiveness ioLiveness=
+            LocalAuxResponseLiveness.arm(
+                new FakeSocket(),
+                ioScheduler
+            );
+
+        Throwable ioObserved=
+            ioLiveness.finish(
+                responseIo
+            );
+
+        assertPrimaryWithSingleSuppressed(
+            "response IOException + deadline cancel RuntimeException",
+            ioObserved,
+            cancelOverIo,
+            responseIo
+        );
+
+        if(!ioScheduler.cancelCalled||
+           !ioScheduler.shutdown||
+           !ioScheduler.awaited)
+            throw new AssertionError(
+                "deadline cancel-over-I/O skipped later watchdog retirement"
+            );
+
+        Error cancelError=
+            new AssertionError(
+                "fixture-deadline-cancel-error"
+            );
+        ManualScheduler errorScheduler=
+            new ManualScheduler();
+        errorScheduler.cancelFailure=
+            cancelError;
+        LocalAuxResponseLiveness errorLiveness=
+            LocalAuxResponseLiveness.arm(
+                new FakeSocket(),
+                errorScheduler
+            );
+
+        Throwable errorObserved=
+            errorLiveness.finish(
+                null
+            );
+
+        if(errorObserved!=cancelError||
+           !errorScheduler.cancelCalled||
+           !errorScheduler.shutdown||
+           !errorScheduler.awaited)
+            throw new AssertionError(
+                "clean response did not preserve exact deadline cancel Error and continue retirement",
+                errorObserved
+            );
+    }
+
+    private static void
+        assertWatchdogCancelFailureDoesNotSkipLaterRetirement()
+        throws Exception{
+        RuntimeException cancel=
+            new SecurityException(
+                "fixture-deadline-cancel-before-shutdown"
+            );
+        RuntimeException shutdown=
+            new IllegalStateException(
+                "fixture-watchdog-shutdown-after-cancel"
+            );
+        ManualScheduler scheduler=
+            new ManualScheduler();
+        scheduler.cancelFailure=
+            cancel;
+        scheduler.shutdownFailure=
+            shutdown;
+        scheduler.terminates=false;
+
+        LocalAuxResponseLiveness liveness=
+            LocalAuxResponseLiveness.arm(
+                new FakeSocket(),
+                scheduler
+            );
+
+        Throwable observed=
+            liveness.finish(
+                null
+            );
+
+        if(observed!=cancel||
+           !scheduler.cancelCalled||
+           !scheduler.shutdown||
+           !scheduler.awaited)
+            throw new AssertionError(
+                "deadline cancel failure skipped shutdown or bounded await",
+                observed
+            );
+
+        Throwable[] suppressed=
+            observed.getSuppressed();
+
+        if(suppressed.length!=2||
+           suppressed[0]!=shutdown||
+           !(suppressed[1]
+                instanceof IllegalStateException)||
+           suppressed[1].getMessage()==null||
+           !suppressed[1].getMessage()
+                .contains(
+                    "did not terminate"
+                ))
+            throw new AssertionError(
+                "cancel/shutdown/nontermination failure ordering mismatch"
+            );
+    }
+
+    private static void
+        assertWatchdogCancelSameFailureDoesNotSelfSuppress()
+        throws Exception{
+        RuntimeException same=
+            new SecurityException(
+                "fixture-same-response-deadline-cancel"
+            );
+        ManualScheduler scheduler=
+            new ManualScheduler();
+        scheduler.cancelFailure=
+            same;
+
+        LocalAuxResponseLiveness liveness=
+            LocalAuxResponseLiveness.arm(
+                new FakeSocket(),
+                scheduler
+            );
+
+        Throwable observed=
+            liveness.finish(
+                same
+            );
+
+        if(observed!=same||
+           observed.getSuppressed().length!=0||
+           !scheduler.cancelCalled||
+           !scheduler.shutdown||
+           !scheduler.awaited)
+            throw new AssertionError(
+                "same response/deadline cancel failure self-suppressed or skipped retirement",
+                observed
             );
     }
 
@@ -1880,10 +2082,12 @@ public final class LocalAuxResponseLivenessTest {
         private long token;
         int scheduleCalls;
         int maxOutstanding;
+        boolean cancelCalled;
         boolean shutdown;
         boolean awaited;
         boolean terminates=true;
         boolean interruptAwait;
+        Throwable cancelFailure;
         Throwable shutdownFailure;
 
         @Override public synchronized
@@ -1918,8 +2122,20 @@ public final class LocalAuxResponseLivenessTest {
 
             return ()->{
                 synchronized(ManualScheduler.this){
+                    cancelCalled=true;
+
                     if(token==mine)
                         current=null;
+
+                    if(cancelFailure
+                            instanceof RuntimeException)
+                        throw (RuntimeException)
+                            cancelFailure;
+
+                    if(cancelFailure
+                            instanceof Error)
+                        throw (Error)
+                            cancelFailure;
                 }
             };
         }
