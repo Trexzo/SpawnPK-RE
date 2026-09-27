@@ -32,9 +32,10 @@ import spk.plugin.api.PluginManifest
  * Scripts compile against an explicit allowlist classpath supplied by the
  * server. They do not inherit the server implementation classpath.
  */
-internal class KotlinPluginLoader(
+internal class KotlinPluginLoader @JvmOverloads constructor(
     apiJar: Path,
-    compileClasspath: List<Path>
+    compileClasspath: List<Path>,
+    private val captureHook: KotlinClasspathCaptureHook? = null
 ) : PluginLoader {
     private val apiJar: Path =
         apiJar.toAbsolutePath().normalize()
@@ -98,7 +99,8 @@ internal class KotlinPluginLoader(
         val scriptText = source.requireScriptText()
         val snapshot =
             ClasspathSnapshot.capture(
-                compileClasspath
+                compileClasspath,
+                captureHook
             )
         var dependencyLoader: URLClassLoader? = null
 
@@ -521,7 +523,8 @@ internal class KotlinPluginLoader(
 
         companion object {
             fun capture(
-                originals: List<Path>
+                originals: List<Path>,
+                hook: KotlinClasspathCaptureHook?
             ): ClasspathSnapshot {
                 val root =
                     Files.createTempDirectory(
@@ -555,6 +558,12 @@ internal class KotlinPluginLoader(
 
                         files.add(
                             target.toFile()
+                        )
+
+                        hook?.beforeCopy(
+                            root,
+                            target,
+                            index
                         )
 
                         Files.newInputStream(
