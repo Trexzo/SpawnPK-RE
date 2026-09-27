@@ -32,6 +32,37 @@ public final class IsolationPlugin
     public IsolationPlugin(){}
 
     @Override public PluginManifest manifest(){
+        Object entered=
+            System.getProperties()
+                .get(
+                    "spawnpk.fixture.isolation.a.manifestEnteredLatch"
+                );
+        Object release=
+            System.getProperties()
+                .get(
+                    "spawnpk.fixture.isolation.a.manifestReleaseLatch"
+                );
+
+        if(entered instanceof
+                java.util.concurrent.CountDownLatch&&
+           release instanceof
+                java.util.concurrent.CountDownLatch){
+            ((java.util.concurrent.CountDownLatch)
+                entered).countDown();
+
+            try{
+                ((java.util.concurrent.CountDownLatch)
+                    release).await();
+            }catch(InterruptedException interrupted){
+                Thread.currentThread()
+                    .interrupt();
+                throw new IllegalStateException(
+                    "fixture-manifest-interrupted",
+                    interrupted
+                );
+            }
+        }
+
         manifestTccl=tccl();
 
         return new PluginManifest(
