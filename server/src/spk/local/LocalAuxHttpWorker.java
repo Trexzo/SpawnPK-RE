@@ -29,7 +29,8 @@ final class LocalAuxHttpWorker {
         Acceptor acceptor,
         Handler handler,
         Releaser releaser,
-        Consumer<IOException> connectionFailure
+        Consumer<IOException> connectionFailure,
+        Consumer<IOException> retirementFailure
     ){
         Objects.requireNonNull(
             serverClosed,
@@ -50,6 +51,10 @@ final class LocalAuxHttpWorker {
         Objects.requireNonNull(
             connectionFailure,
             "connectionFailure"
+        );
+        Objects.requireNonNull(
+            retirementFailure,
+            "retirementFailure"
         );
 
         while(!serverClosed.getAsBoolean()){
@@ -85,7 +90,7 @@ final class LocalAuxHttpWorker {
                         );
                     }catch(IOException releaseFailure){
                         if(!serverClosed.getAsBoolean())
-                            connectionFailure.accept(
+                            retirementFailure.accept(
                                 releaseFailure
                             );
                     }
