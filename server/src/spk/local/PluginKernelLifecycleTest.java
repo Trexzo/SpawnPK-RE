@@ -2003,11 +2003,19 @@ public final class PluginKernelLifecycleTest {
                first.enableCount.get()!=0||
                second.enableCount.get()!=0||
                first.disableCount.get()!=0||
-               second.disableCount.get()!=0)
+               second.disableCount.get()!=0||
+               first.manifestCalls.get()!=0||
+               second.manifestCalls.get()!=0||
+               first.callbackLoaderCalls.get()!=0||
+               second.callbackLoaderCalls.get()!=0)
                 throw new AssertionError(
-                    "partial collection retirement count mismatch "+
+                    "partial collection crossed pre-snapshot boundary "+
                     "r1Close="+first.closeCount.get()+
-                    " r2Close="+second.closeCount.get()
+                    " r2Close="+second.closeCount.get()+
+                    " r1Manifest="+first.manifestCalls.get()+
+                    " r2Manifest="+second.manifestCalls.get()+
+                    " r1Loader="+first.callbackLoaderCalls.get()+
+                    " r2Loader="+second.callbackLoaderCalls.get()
                 );
 
             Throwable[] suppressed=
@@ -2069,6 +2077,11 @@ public final class PluginKernelLifecycleTest {
                 owned
             );
 
+            int ownedManifestBefore=
+                owned.manifestCalls.get();
+            int ownedLoaderBefore=
+                owned.callbackLoaderCalls.get();
+
             Throwable observed=
                 captureFailure(
                     ()->ownedManager.enableAll(
@@ -2089,13 +2102,24 @@ public final class PluginKernelLifecycleTest {
 
             if(owned.closeCount.get()!=0||
                owned.enableCount.get()!=1||
+               owned.manifestCalls.get()!=
+                    ownedManifestBefore||
+               owned.callbackLoaderCalls.get()!=
+                    ownedLoaderBefore||
                fresh.closeCount.get()!=1||
-               fresh.enableCount.get()!=0)
+               fresh.enableCount.get()!=0||
+               fresh.disableCount.get()!=0||
+               fresh.manifestCalls.get()!=0||
+               fresh.callbackLoaderCalls.get()!=0)
                 throw new AssertionError(
-                    "partial collection disturbed already-owned runtime "+
+                    "partial collection disturbed ownership/snapshot boundary "+
                     "ownedClose="+owned.closeCount.get()+
                     " ownedEnable="+owned.enableCount.get()+
-                    " freshClose="+fresh.closeCount.get()
+                    " ownedManifest="+owned.manifestCalls.get()+
+                    " ownedLoader="+owned.callbackLoaderCalls.get()+
+                    " freshClose="+fresh.closeCount.get()+
+                    " freshManifest="+fresh.manifestCalls.get()+
+                    " freshLoader="+fresh.callbackLoaderCalls.get()
                 );
 
             PluginHandle handle=
@@ -3366,6 +3390,10 @@ public final class PluginKernelLifecycleTest {
         private final boolean advanceClock;
         private final RuntimeException closeFailure;
         private final List<String> disableOrder;
+        final AtomicInteger manifestCalls=
+            new AtomicInteger();
+        final AtomicInteger callbackLoaderCalls=
+            new AtomicInteger();
         final AtomicInteger enableCount=
             new AtomicInteger();
         final AtomicInteger disableCount=
@@ -3589,6 +3617,7 @@ public final class PluginKernelLifecycleTest {
         }
 
         @Override public PluginManifest manifest(){
+            manifestCalls.incrementAndGet();
             return manifest;
         }
 
@@ -3632,6 +3661,8 @@ public final class PluginKernelLifecycleTest {
         }
 
         @Override public ClassLoader callbackClassLoader(){
+            callbackLoaderCalls.incrementAndGet();
+
             RuntimeException failure=
                 callbackLoaderFailure;
 
