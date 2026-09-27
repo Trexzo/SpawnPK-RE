@@ -80,6 +80,20 @@ final class PluginJarLoader implements PluginLoader {
         String entrypoint,
         ClassLoader parent
     )throws Exception{
+        return load(
+            jar,
+            entrypoint,
+            parent,
+            (source,snapshot)->{}
+        );
+    }
+
+    static LoadedPlugin load(
+        Path jar,
+        String entrypoint,
+        ClassLoader parent,
+        ArchiveAdmissionHook admissionHook
+    )throws Exception{
         Path path=
             Objects.requireNonNull(
                 jar,
@@ -101,6 +115,14 @@ final class PluginJarLoader implements PluginLoader {
             validateArchive(
                 snapshot.path(),
                 main
+            );
+
+            Objects.requireNonNull(
+                admissionHook,
+                "admissionHook"
+            ).afterValidation(
+                path,
+                snapshot.path()
             );
 
             IsolatedPluginClassLoader openedLoader=
@@ -185,6 +207,13 @@ final class PluginJarLoader implements PluginLoader {
                 "unreachable"
             );
         }
+    }
+
+    interface ArchiveAdmissionHook {
+        void afterValidation(
+            Path source,
+            Path snapshot
+        )throws Exception;
     }
 
     static ClassLoader callbackClassLoader(
