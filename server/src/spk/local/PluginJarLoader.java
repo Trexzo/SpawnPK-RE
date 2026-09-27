@@ -248,6 +248,26 @@ final class PluginJarLoader implements PluginLoader {
         )throws Exception;
     }
 
+    interface ArchiveCaptureHook {
+        void afterPrivatePathsCreated(
+            Path root,
+            Path snapshot
+        )throws IOException;
+    }
+
+    static void captureArchiveForTest(
+        Path source,
+        ArchiveCaptureHook hook
+    )throws Exception{
+        ArchiveSnapshot snapshot=
+            ArchiveSnapshot.capture(
+                source,
+                hook
+            );
+
+        snapshot.close();
+    }
+
     static ClassLoader callbackClassLoader(
         Plugin plugin
     ){
@@ -683,6 +703,16 @@ final class PluginJarLoader implements PluginLoader {
         static ArchiveSnapshot capture(
             Path source
         )throws IOException{
+            return capture(
+                source,
+                (root,snapshot)->{}
+            );
+        }
+
+        static ArchiveSnapshot capture(
+            Path source,
+            ArchiveCaptureHook hook
+        )throws IOException{
             if(!Files.isRegularFile(source))
                 throw new IllegalArgumentException(
                     "plugin JAR missing: "+
@@ -699,13 +729,27 @@ final class PluginJarLoader implements PluginLoader {
                 );
 
             try{
+                Files.createFile(
+                    path
+                );
+
+                Objects.requireNonNull(
+                    hook,
+                    "hook"
+                ).afterPrivatePathsCreated(
+                    root,
+                    path
+                );
+
                 try(java.io.InputStream input=
                         Files.newInputStream(
                             source
                         );
                     java.io.OutputStream output=
                         Files.newOutputStream(
-                            path
+                            path,
+                            java.nio.file.StandardOpenOption.WRITE,
+                            java.nio.file.StandardOpenOption.TRUNCATE_EXISTING
                         )){
                     byte[] buffer=
                         new byte[8192];
@@ -727,22 +771,17 @@ final class PluginJarLoader implements PluginLoader {
                     path
                 );
             }catch(Throwable failure){
-                try{
-                    Files.deleteIfExists(
-                        path
-                    );
-                }catch(Throwable cleanup){
-                    preserveFailure(
-                        failure,
-                        cleanup
-                    );
-                }
-
-                try{
-                    Files.deleteIfExists(
+                Throwable cleanup=
+                    ArchiveCleanupDebt.delete(
+                        path,
                         root
                     );
-                }catch(Throwable cleanup){
+
+                if(cleanup!=null){
+                    ArchiveCleanupDebt.register(
+                        path,
+                        root
+                    );
                     preserveFailure(
                         failure,
                         cleanup
