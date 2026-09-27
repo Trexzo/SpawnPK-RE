@@ -10,6 +10,7 @@ public final class LocalAuxHttpRequestReaderTest {
     public static void main(String[] args)
         throws Exception{
         assertOrdinaryRequest();
+        assertExactLineLimitAccepted();
         assertOverlongPhysicalLineRejected();
         assertHeaderLineLimit();
         assertTotalBudget();
@@ -20,6 +21,7 @@ public final class LocalAuxHttpRequestReaderTest {
             "LOCAL_AUX_HTTP_REQUEST_READER_PASS "+
             "ordinary=true "+
             "lineLimit=8192 "+
+            "exactLineLimitAccepted=true "+
             "overlongRejected=true "+
             "headerLinesBounded=64 "+
             "totalBytesBounded=65536 "+
@@ -79,6 +81,37 @@ public final class LocalAuxHttpRequestReaderTest {
            timeout.minMillis<=0)
             throw new AssertionError(
                 "ordinary request did not maintain positive bounded timeout"
+            );
+    }
+
+    private static void assertExactLineLimitAccepted()
+        throws Exception{
+        byte[] line=
+            (
+                repeat(
+                    'A',
+                    LocalAuxHttpRequestReader
+                        .MAX_LINE_BYTES
+                )+
+                "\n"
+            ).getBytes(
+                StandardCharsets
+                    .ISO_8859_1
+            );
+
+        LocalAuxHttpRequestReader reader=
+            reader(
+                line
+            );
+        String value=
+            reader.readRequestLine();
+
+        if(value==null||
+           value.length()!=
+                LocalAuxHttpRequestReader
+                    .MAX_LINE_BYTES)
+            throw new AssertionError(
+                "exact 8 KiB request line was not accepted"
             );
     }
 
