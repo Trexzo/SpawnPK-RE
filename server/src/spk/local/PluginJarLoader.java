@@ -469,32 +469,35 @@ final class PluginJarLoader implements PluginLoader {
         }
 
         @Override public synchronized void close()
-            throws IOException{
+            throws Exception{
             if(closed)
                 return;
 
             closed=true;
-            IOException failure=null;
+            Throwable failure=null;
 
             try{
                 loader.close();
-            }catch(IOException cleanup){
+            }catch(Throwable cleanup){
                 failure=cleanup;
             }
 
             try{
                 snapshot.close();
-            }catch(IOException cleanup){
+            }catch(Throwable cleanup){
                 if(failure==null)
                     failure=cleanup;
-                else if(failure!=cleanup)
-                    failure.addSuppressed(
+                else
+                    preserveFailure(
+                        failure,
                         cleanup
                     );
             }
 
             if(failure!=null)
-                throw failure;
+                rethrow(
+                    failure
+                );
         }
     }
 
@@ -579,18 +582,18 @@ final class PluginJarLoader implements PluginLoader {
         }
 
         @Override public synchronized void close()
-            throws IOException{
+            throws Exception{
             if(closed)
                 return;
 
             closed=true;
-            IOException failure=null;
+            Throwable failure=null;
 
             try{
                 Files.deleteIfExists(
                     path
                 );
-            }catch(IOException cleanup){
+            }catch(Throwable cleanup){
                 failure=cleanup;
             }
 
@@ -598,17 +601,20 @@ final class PluginJarLoader implements PluginLoader {
                 Files.deleteIfExists(
                     root
                 );
-            }catch(IOException cleanup){
+            }catch(Throwable cleanup){
                 if(failure==null)
                     failure=cleanup;
-                else if(failure!=cleanup)
-                    failure.addSuppressed(
+                else
+                    preserveFailure(
+                        failure,
                         cleanup
                     );
             }
 
             if(failure!=null)
-                throw failure;
+                rethrow(
+                    failure
+                );
         }
     }
 
