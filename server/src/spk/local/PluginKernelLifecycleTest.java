@@ -3390,10 +3390,6 @@ public final class PluginKernelLifecycleTest {
         private final boolean advanceClock;
         private final RuntimeException closeFailure;
         private final List<String> disableOrder;
-        final AtomicInteger manifestCalls=
-            new AtomicInteger();
-        final AtomicInteger callbackLoaderCalls=
-            new AtomicInteger();
         final AtomicInteger enableCount=
             new AtomicInteger();
         final AtomicInteger disableCount=
@@ -3588,6 +3584,10 @@ public final class PluginKernelLifecycleTest {
         private final RuntimeException closeFailure;
         private final boolean registerContent;
         volatile RuntimeException callbackLoaderFailure;
+        final AtomicInteger manifestCalls=
+            new AtomicInteger();
+        final AtomicInteger callbackLoaderCalls=
+            new AtomicInteger();
         final AtomicInteger enableCount=
             new AtomicInteger();
         final AtomicInteger disableCount=
