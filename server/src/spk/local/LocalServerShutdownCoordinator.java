@@ -868,7 +868,7 @@ final class LocalServerShutdownCoordinator
         }
     }
 
-    private void publishAuxiliaryWorkerFailure(
+    void publishAuxiliaryWorkerFailure(
         Throwable failure
     ){
         Objects.requireNonNull(
