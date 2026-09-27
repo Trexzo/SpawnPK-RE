@@ -4182,8 +4182,7 @@ tasks.register('localAuxResponseLivenessRegression', JavaExec) {
     description = 'Proves AUX response writes are guarded by one bounded no-progress watchdog without changing exact archive streaming semantics.'
     dependsOn(
         tasks.named('testClasses'),
-        tasks.named('localAuxHttpResponseRegression'),
-        tasks.named('localAuxHttpWorkerFailurePreservationRegression')
+        tasks.named('localAuxHttpResponseRegression')
     )
 
     workingDir repoRoot
