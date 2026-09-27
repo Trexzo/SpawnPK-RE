@@ -20,6 +20,15 @@ public final class LocalAuxArchiveAccessTest {
         assertOpenSecurityUnavailable();
         assertOpenIOExceptionPropagates();
         assertPostOpenIOExceptionPropagates();
+        assertBodyIOExceptionCloseIOException();
+        assertBodyIOExceptionCloseRuntime();
+        assertBodyIOExceptionCloseError();
+        assertCleanCloseIOException();
+        assertCleanCloseRuntime();
+        assertCleanCloseError();
+        assertResponseRuntimeKeepsPrimary();
+        assertResponseErrorKeepsPrimary();
+        assertSameObjectCleanupDoesNotSelfSuppress();
         assertRuntimeUnswept();
         assertFatalUnswept();
 
@@ -31,6 +40,15 @@ public final class LocalAuxArchiveAccessTest {
             "openSecurityUnavailable=true "+
             "openIoConnectionScoped=true "+
             "postOpenIoConnectionScoped=true "+
+            "bodyIoCloseIoPrimary=true "+
+            "bodyIoCloseRuntimePrimary=true "+
+            "bodyIoCloseErrorPrimary=true "+
+            "cleanCloseIo=true "+
+            "cleanCloseRuntime=true "+
+            "cleanCloseError=true "+
+            "responseRuntimePrimary=true "+
+            "responseErrorPrimary=true "+
+            "sameObjectSelfSuppressionGuard=true "+
             "runtimeUnswept=true "+
             "fatalUnswept=true "+
             "singleHandleInherited=true"
@@ -242,6 +260,261 @@ public final class LocalAuxArchiveAccessTest {
             );
     }
 
+    private static void assertBodyIOExceptionCloseIOException(){
+        IOException body=
+            new IOException(
+                "fixture-body-io-close-io"
+            );
+        IOException close=
+            new IOException(
+                "fixture-close-io-after-body-io"
+            );
+        Throwable observed=
+            invokeArchive(
+                new FailingReadAndCloseChannel(
+                    body,
+                    close
+                )
+            );
+
+        assertPrimaryWithSuppressed(
+            observed,
+            body,
+            close,
+            "body IOException + close IOException"
+        );
+    }
+
+    private static void assertBodyIOExceptionCloseRuntime(){
+        IOException body=
+            new IOException(
+                "fixture-body-io-close-runtime"
+            );
+        RuntimeException close=
+            new IllegalStateException(
+                "fixture-close-runtime-after-body-io"
+            );
+        Throwable observed=
+            invokeArchive(
+                new FailingReadAndCloseChannel(
+                    body,
+                    close
+                )
+            );
+
+        assertPrimaryWithSuppressed(
+            observed,
+            close,
+            body,
+            "body IOException + close RuntimeException"
+        );
+    }
+
+    private static void assertBodyIOExceptionCloseError(){
+        IOException body=
+            new IOException(
+                "fixture-body-io-close-error"
+            );
+        Error close=
+            new AssertionError(
+                "fixture-close-error-after-body-io"
+            );
+        Throwable observed=
+            invokeArchive(
+                new FailingReadAndCloseChannel(
+                    body,
+                    close
+                )
+            );
+
+        assertPrimaryWithSuppressed(
+            observed,
+            close,
+            body,
+            "body IOException + close Error"
+        );
+    }
+
+    private static void assertCleanCloseIOException(){
+        IOException close=
+            new IOException(
+                "fixture-clean-close-io"
+            );
+        Throwable observed=
+            invokeArchive(
+                new FailingCloseChannel(
+                    close
+                )
+            );
+
+        if(observed!=close)
+            throw new AssertionError(
+                "clean archive close IOException identity changed",
+                observed
+            );
+    }
+
+    private static void assertCleanCloseRuntime(){
+        RuntimeException close=
+            new IllegalArgumentException(
+                "fixture-clean-close-runtime"
+            );
+        Throwable observed=
+            invokeArchive(
+                new FailingCloseChannel(
+                    close
+                )
+            );
+
+        if(observed!=close)
+            throw new AssertionError(
+                "clean archive close RuntimeException identity changed",
+                observed
+            );
+    }
+
+    private static void assertCleanCloseError(){
+        Error close=
+            new LinkageError(
+                "fixture-clean-close-error"
+            );
+        Throwable observed=
+            invokeArchive(
+                new FailingCloseChannel(
+                    close
+                )
+            );
+
+        if(observed!=close)
+            throw new AssertionError(
+                "clean archive close Error identity changed",
+                observed
+            );
+    }
+
+    private static void assertResponseRuntimeKeepsPrimary(){
+        RuntimeException response=
+            new IllegalStateException(
+                "fixture-response-runtime"
+            );
+        IOException close=
+            new IOException(
+                "fixture-close-io-after-response-runtime"
+            );
+        Throwable observed=
+            invokeArchive(
+                new FailingSizeAndCloseChannel(
+                    response,
+                    close
+                )
+            );
+
+        assertPrimaryWithSuppressed(
+            observed,
+            response,
+            close,
+            "response RuntimeException + close IOException"
+        );
+    }
+
+    private static void assertResponseErrorKeepsPrimary(){
+        Error response=
+            new AssertionError(
+                "fixture-response-error"
+            );
+        RuntimeException close=
+            new IllegalStateException(
+                "fixture-close-runtime-after-response-error"
+            );
+        Throwable observed=
+            invokeArchive(
+                new FailingSizeAndCloseChannel(
+                    response,
+                    close
+                )
+            );
+
+        assertPrimaryWithSuppressed(
+            observed,
+            response,
+            close,
+            "response Error + close RuntimeException"
+        );
+    }
+
+    private static void assertSameObjectCleanupDoesNotSelfSuppress(){
+        IOException same=
+            new IOException(
+                "fixture-same-body-close-io"
+            );
+        Throwable observed=
+            invokeArchive(
+                new FailingReadAndCloseChannel(
+                    same,
+                    same
+                )
+            );
+
+        if(observed!=same||
+           same.getSuppressed().length!=0)
+            throw new AssertionError(
+                "same archive response/close failure self-suppressed or changed identity",
+                observed
+            );
+    }
+
+    private static Throwable invokeArchive(
+        SeekableByteChannel channel
+    ){
+        Throwable observed=null;
+
+        try{
+            LocalAuxArchiveAccess
+                .writeIfAvailable(
+                    new ByteArrayOutputStream(),
+                    Path.of(
+                        "fixture-post-open-order.zip"
+                    ),
+                    false,
+                    file->true,
+                    file->channel
+                );
+        }catch(Throwable failure){
+            observed=failure;
+        }
+
+        if(observed==null)
+            throw new AssertionError(
+                "archive failure-order fixture unexpectedly completed cleanly"
+            );
+
+        return observed;
+    }
+
+    private static void assertPrimaryWithSuppressed(
+        Throwable observed,
+        Throwable primary,
+        Throwable suppressed,
+        String phase
+    ){
+        if(observed!=primary)
+            throw new AssertionError(
+                phase+
+                " changed primary identity",
+                observed
+            );
+
+        Throwable[] values=
+            primary.getSuppressed();
+
+        if(values.length!=1||
+           values[0]!=suppressed)
+            throw new AssertionError(
+                phase+
+                " did not retain cleanup/body evidence in order"
+            );
+    }
+
     private static void assertRuntimeUnswept(){
         RuntimeException expected=
             new IllegalStateException(
@@ -333,7 +606,8 @@ public final class LocalAuxArchiveAccessTest {
             return this;
         }
 
-        @Override public long size(){
+        @Override public long size()
+            throws IOException{
             return 0L;
         }
 
@@ -348,9 +622,108 @@ public final class LocalAuxArchiveAccessTest {
             return open;
         }
 
-        @Override public void close(){
+        @Override public void close()
+            throws IOException{
             open=false;
         }
+    }
+
+    private static final class FailingCloseChannel
+        extends EmptyChannel {
+        private final Throwable closeFailure;
+
+        FailingCloseChannel(
+            Throwable closeFailure
+        ){
+            this.closeFailure=closeFailure;
+        }
+
+        @Override public void close()
+            throws IOException{
+            throwFailure(
+                closeFailure
+            );
+        }
+    }
+
+    private static final class FailingReadAndCloseChannel
+        extends EmptyChannel {
+        private final IOException readFailure;
+        private final Throwable closeFailure;
+
+        FailingReadAndCloseChannel(
+            IOException readFailure,
+            Throwable closeFailure
+        ){
+            this.readFailure=readFailure;
+            this.closeFailure=closeFailure;
+        }
+
+        @Override public long size(){
+            return 1L;
+        }
+
+        @Override public int read(
+            ByteBuffer destination
+        )throws IOException{
+            throw readFailure;
+        }
+
+        @Override public void close()
+            throws IOException{
+            throwFailure(
+                closeFailure
+            );
+        }
+    }
+
+    private static final class FailingSizeAndCloseChannel
+        extends EmptyChannel {
+        private final Throwable responseFailure;
+        private final Throwable closeFailure;
+
+        FailingSizeAndCloseChannel(
+            Throwable responseFailure,
+            Throwable closeFailure
+        ){
+            this.responseFailure=responseFailure;
+            this.closeFailure=closeFailure;
+        }
+
+        @Override public long size()
+            throws IOException{
+            throwFailure(
+                responseFailure
+            );
+            throw new AssertionError(
+                "unreachable"
+            );
+        }
+
+        @Override public void close()
+            throws IOException{
+            throwFailure(
+                closeFailure
+            );
+        }
+    }
+
+    private static void throwFailure(
+        Throwable failure
+    )throws IOException{
+        if(failure instanceof IOException)
+            throw (IOException)failure;
+
+        if(failure instanceof RuntimeException)
+            throw (RuntimeException)failure;
+
+        if(failure instanceof Error)
+            throw (Error)failure;
+
+        throw new IOException(
+            "fixture unsupported throwable",
+            failure
+        );
     }
 
     private static final class FailingReadChannel
