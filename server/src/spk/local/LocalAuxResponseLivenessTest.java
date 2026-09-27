@@ -21,6 +21,9 @@ public final class LocalAuxResponseLivenessTest {
         assertProgressRefreshesSingleDeadline();
         assertWatchdogNonterminationIsWorkerFatal();
         assertInterruptedWatchdogJoinIsWorkerFatal();
+        assertWatchdogShutdownFailureOrdering();
+        assertWatchdogShutdownFailureStillAwaitsRetirement();
+        assertWatchdogShutdownSameFailureDoesNotSelfSuppress();
         assertTimeoutAbortsBlockedWriteAndWorkerContinues();
         assertWriteFailureKeepsPrimaryAcrossTimeout();
         assertUncheckedPrimaryKeepsIdentityAcrossTimeout();
@@ -43,6 +46,9 @@ public final class LocalAuxResponseLivenessTest {
             "singleOutstandingDeadline=true "+
             "watchdogNonterminationFatal=true "+
             "interruptedWatchdogJoinFatal=true "+
+            "watchdogShutdownFailureOrdered=true "+
+            "watchdogShutdownAwaited=true "+
+            "watchdogShutdownSelfSuppressionSafe=true "+
             "stalledWriteAborted=true "+
             "abortRetry=true "+
             "timeoutConnectionScoped=true "+
@@ -250,6 +256,250 @@ public final class LocalAuxResponseLivenessTest {
             throw new AssertionError(
                 "interrupted watchdog join was normalized or interrupt status was lost",
                 failure
+            );
+    }
+
+    private static void
+        assertWatchdogShutdownFailureOrdering()
+        throws Exception{
+        RuntimeException responseRuntime=
+            new IllegalStateException(
+                "fixture-response-runtime-primary"
+            );
+        RuntimeException shutdownRuntime=
+            new SecurityException(
+                "fixture-watchdog-shutdown-runtime"
+            );
+        ManualScheduler runtimeScheduler=
+            new ManualScheduler();
+        runtimeScheduler.shutdownFailure=
+            shutdownRuntime;
+        LocalAuxResponseLiveness runtimeLiveness=
+            LocalAuxResponseLiveness.arm(
+                new FakeSocket(),
+                runtimeScheduler
+            );
+
+        Throwable runtimeObserved=
+            runtimeLiveness.finish(
+                responseRuntime
+            );
+
+        assertPrimaryWithSingleSuppressed(
+            "response RuntimeException + watchdog shutdown RuntimeException",
+            runtimeObserved,
+            responseRuntime,
+            shutdownRuntime
+        );
+
+        if(!runtimeScheduler.awaited)
+            throw new AssertionError(
+                "watchdog retirement was not awaited after shutdown RuntimeException"
+            );
+
+        IOException responseIo=
+            new IOException(
+                "fixture-response-io-primary"
+            );
+        RuntimeException shutdownOverIo=
+            new SecurityException(
+                "fixture-watchdog-shutdown-over-io"
+            );
+        ManualScheduler ioScheduler=
+            new ManualScheduler();
+        ioScheduler.shutdownFailure=
+            shutdownOverIo;
+        LocalAuxResponseLiveness ioLiveness=
+            LocalAuxResponseLiveness.arm(
+                new FakeSocket(),
+                ioScheduler
+            );
+
+        Throwable ioObserved=
+            ioLiveness.finish(
+                responseIo
+            );
+
+        assertPrimaryWithSingleSuppressed(
+            "response IOException + watchdog shutdown RuntimeException",
+            ioObserved,
+            shutdownOverIo,
+            responseIo
+        );
+
+        if(!ioScheduler.awaited)
+            throw new AssertionError(
+                "watchdog retirement was not awaited after shutdown-over-I/O failure"
+            );
+
+        Error shutdownError=
+            new AssertionError(
+                "fixture-watchdog-shutdown-error"
+            );
+        ManualScheduler errorScheduler=
+            new ManualScheduler();
+        errorScheduler.shutdownFailure=
+            shutdownError;
+        LocalAuxResponseLiveness errorLiveness=
+            LocalAuxResponseLiveness.arm(
+                new FakeSocket(),
+                errorScheduler
+            );
+
+        Throwable errorObserved=
+            errorLiveness.finish(
+                null
+            );
+
+        if(errorObserved!=shutdownError||
+           !errorScheduler.awaited)
+            throw new AssertionError(
+                "clean response did not preserve exact watchdog shutdown Error and await retirement",
+                errorObserved
+            );
+    }
+
+    private static void
+        assertWatchdogShutdownFailureStillAwaitsRetirement()
+        throws Exception{
+        RuntimeException shutdown=
+            new SecurityException(
+                "fixture-watchdog-shutdown-nontermination"
+            );
+        ManualScheduler nonterminating=
+            new ManualScheduler();
+        nonterminating.shutdownFailure=
+            shutdown;
+        nonterminating.terminates=false;
+        LocalAuxResponseLiveness first=
+            LocalAuxResponseLiveness.arm(
+                new FakeSocket(),
+                nonterminating
+            );
+
+        Throwable nonterminationObserved=
+            first.finish(
+                null
+            );
+
+        if(nonterminationObserved!=shutdown||
+           !nonterminating.awaited||
+           nonterminationObserved.getSuppressed().length!=1||
+           !(nonterminationObserved.getSuppressed()[0]
+                instanceof IllegalStateException)||
+           nonterminationObserved.getSuppressed()[0]
+                .getMessage()==null||
+           !nonterminationObserved.getSuppressed()[0]
+                .getMessage()
+                .contains(
+                    "did not terminate"
+                ))
+            throw new AssertionError(
+                "watchdog shutdown failure skipped/lost nontermination evidence",
+                nonterminationObserved
+            );
+
+        RuntimeException interruptedShutdown=
+            new SecurityException(
+                "fixture-watchdog-shutdown-interrupted-await"
+            );
+        ManualScheduler interrupted=
+            new ManualScheduler();
+        interrupted.shutdownFailure=
+            interruptedShutdown;
+        interrupted.interruptAwait=true;
+        LocalAuxResponseLiveness second=
+            LocalAuxResponseLiveness.arm(
+                new FakeSocket(),
+                interrupted
+            );
+
+        Throwable interruptedObserved=
+            second.finish(
+                null
+            );
+        boolean interruptRestored=
+            Thread.currentThread()
+                .isInterrupted();
+
+        Thread.interrupted();
+
+        if(interruptedObserved!=
+                interruptedShutdown||
+           !interrupted.awaited||
+           !interruptRestored||
+           interruptedObserved
+                .getSuppressed().length!=1||
+           !(interruptedObserved
+                .getSuppressed()[0]
+                instanceof IllegalStateException)||
+           interruptedObserved
+                .getSuppressed()[0]
+                .getMessage()==null||
+           !interruptedObserved
+                .getSuppressed()[0]
+                .getMessage()
+                .contains(
+                    "interrupted"
+                ))
+            throw new AssertionError(
+                "watchdog shutdown failure skipped/lost interrupted join evidence",
+                interruptedObserved
+            );
+    }
+
+    private static void
+        assertWatchdogShutdownSameFailureDoesNotSelfSuppress()
+        throws Exception{
+        RuntimeException same=
+            new SecurityException(
+                "fixture-same-response-watchdog-shutdown"
+            );
+        ManualScheduler scheduler=
+            new ManualScheduler();
+        scheduler.shutdownFailure=
+            same;
+        LocalAuxResponseLiveness liveness=
+            LocalAuxResponseLiveness.arm(
+                new FakeSocket(),
+                scheduler
+            );
+
+        Throwable observed=
+            liveness.finish(
+                same
+            );
+
+        if(observed!=same||
+           observed.getSuppressed().length!=0||
+           !scheduler.awaited)
+            throw new AssertionError(
+                "same response/watchdog shutdown failure self-suppressed or skipped await",
+                observed
+            );
+    }
+
+    private static void assertPrimaryWithSingleSuppressed(
+        String label,
+        Throwable observed,
+        Throwable expectedPrimary,
+        Throwable expectedSuppressed
+    ){
+        if(observed!=expectedPrimary)
+            throw new AssertionError(
+                label+
+                " primary identity mismatch",
+                observed
+            );
+
+        Throwable[] suppressed=
+            observed.getSuppressed();
+
+        if(suppressed.length!=1||
+           suppressed[0]!=expectedSuppressed)
+            throw new AssertionError(
+                label+
+                " suppression ordering mismatch"
             );
     }
 
@@ -1589,6 +1839,7 @@ public final class LocalAuxResponseLivenessTest {
         boolean awaited;
         boolean terminates=true;
         boolean interruptAwait;
+        Throwable shutdownFailure;
 
         @Override public synchronized
             LocalAuxResponseLiveness.Cancellable
@@ -1643,6 +1894,12 @@ public final class LocalAuxResponseLivenessTest {
         @Override public synchronized void shutdownNow(){
             shutdown=true;
             current=null;
+
+            if(shutdownFailure instanceof RuntimeException)
+                throw (RuntimeException)shutdownFailure;
+
+            if(shutdownFailure instanceof Error)
+                throw (Error)shutdownFailure;
         }
 
         @Override public synchronized boolean awaitTermination(
