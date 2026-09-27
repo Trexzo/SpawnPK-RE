@@ -2361,60 +2361,72 @@ public final class LocalSessionConstructionOwnershipTest {
             );
         closer.start();
 
-        if(!aux.closeEntered.await(
-                5,
-                TimeUnit.SECONDS))
-            throw new AssertionError(
-                "terminal AUX poll fixture did not publish closing fence"
+        try{
+            if(!aux.closeEntered.await(
+                    5,
+                    TimeUnit.SECONDS))
+                throw new AssertionError(
+                    "terminal AUX poll fixture did not publish closing fence"
+                );
+
+            if(!shutdown.closing()||
+               shutdown.pendingAuxiliaryAcceptHandoffs()!=1)
+                throw new AssertionError(
+                    "terminal fence observed false zero-handoff gap before AUX poll"
+                );
+
+            releaseThirdPoll.countDown();
+
+            accepter.join(
+                5_000L
             );
 
-        if(!shutdown.closing()||
-           shutdown.pendingAuxiliaryAcceptHandoffs()!=1)
-            throw new AssertionError(
-                "terminal fence observed false zero-handoff gap before AUX poll"
+            if(accepter.isAlive())
+                throw new AssertionError(
+                    "terminal AUX poll did not release in-flight accept"
+                );
+
+            if(result.get()!=null||
+               acceptFailure.get()!=null||
+               shutdown.pendingAuxiliaryAcceptHandoffs()!=0)
+                throw new AssertionError(
+                    "terminal AUX poll escaped timeout/failure or retained handoff",
+                    acceptFailure.get()
+                );
+
+            aux.releaseClose.countDown();
+
+            closer.join(
+                5_000L
             );
 
-        releaseThirdPoll.countDown();
+            if(closer.isAlive())
+                throw new AssertionError(
+                    "terminal AUX poll close fixture did not converge"
+                );
 
-        accepter.join(
-            5_000L
-        );
+            if(terminalFailure.get()!=null)
+                throw new AssertionError(
+                    "clean terminal AUX poll fabricated terminal failure",
+                    terminalFailure.get()
+                );
 
-        if(accepter.isAlive())
-            throw new AssertionError(
-                "terminal AUX poll did not release in-flight accept"
+            if(calls.get()!=3||
+               shutdown.activeAuxiliarySocketCount()!=0)
+                throw new AssertionError(
+                    "terminal AUX poll committed socket or repeated after terminal exit"
+                );
+        }finally{
+            releaseThirdPoll.countDown();
+            aux.releaseClose.countDown();
+
+            accepter.join(
+                1_000L
             );
-
-        if(result.get()!=null||
-           acceptFailure.get()!=null||
-           shutdown.pendingAuxiliaryAcceptHandoffs()!=0)
-            throw new AssertionError(
-                "terminal AUX poll escaped timeout/failure or retained handoff",
-                acceptFailure.get()
+            closer.join(
+                1_000L
             );
-
-        aux.releaseClose.countDown();
-
-        closer.join(
-            5_000L
-        );
-
-        if(closer.isAlive())
-            throw new AssertionError(
-                "terminal AUX poll close fixture did not converge"
-            );
-
-        if(terminalFailure.get()!=null)
-            throw new AssertionError(
-                "clean terminal AUX poll fabricated terminal failure",
-                terminalFailure.get()
-            );
-
-        if(calls.get()!=3||
-           shutdown.activeAuxiliarySocketCount()!=0)
-            throw new AssertionError(
-                "terminal AUX poll committed socket or repeated after terminal exit"
-            );
+        }
     }
 
     private static void
