@@ -410,57 +410,10 @@ final class KotlinPluginDirectory {
             source
         );
 
-        java.util.HashSet<OpenOption> options=
-            new java.util.HashSet<>();
-        options.add(
-            StandardOpenOption.READ
-        );
-        options.add(
-            LinkOption.NOFOLLOW_LINKS
-        );
-
-        byte[] bytes;
-
-        try(SeekableByteChannel channel=
-                Files.newByteChannel(
-                    source,
-                    options
-                )){
-            java.io.ByteArrayOutputStream out=
-                new java.io.ByteArrayOutputStream();
-            ByteBuffer buffer=
-                ByteBuffer.allocate(
-                    8192
-                );
-
-            while(true){
-                int read=
-                    channel.read(
-                        buffer
-                    );
-
-                if(read<0)
-                    break;
-                if(read==0)
-                    continue;
-
-                out.write(
-                    buffer.array(),
-                    0,
-                    read
-                );
-                buffer.clear();
-            }
-
-            bytes=
-                out.toByteArray();
-        }catch(IOException denied){
-            throw new IOException(
-                "Kotlin plugin final source capture failed closed: "+
-                source,
-                denied
+        byte[] bytes=
+            capturePinnedRegularFile(
+                source
             );
-        }
 
         PluginSource snapshot=
             PluginSource.scriptSnapshot(
@@ -476,6 +429,134 @@ final class KotlinPluginDirectory {
         );
 
         return snapshot;
+    }
+
+    private static byte[] capturePinnedRegularFile(
+        Path source
+    )throws IOException{
+        Path pinned=null;
+
+        for(int attempt=0;
+            attempt<16;
+            attempt++){
+            Path candidate=
+                source.resolveSibling(
+                    ".spawnpk-kts-capture-"+
+                    java.util.UUID
+                        .randomUUID()
+                        .toString()+
+                    ".tmp"
+                );
+
+            try{
+                Files.createLink(
+                    candidate,
+                    source
+                );
+                pinned=candidate;
+                break;
+            }catch(java.nio.file.FileAlreadyExistsException collision){
+                continue;
+            }catch(UnsupportedOperationException unsupported){
+                throw new IOException(
+                    "Kotlin plugin filesystem cannot pin source identity with a hard link: "+
+                    source,
+                    unsupported
+                );
+            }
+        }
+
+        if(pinned==null)
+            throw new IOException(
+                "Could not allocate Kotlin plugin source identity pin: "+
+                source
+            );
+
+        IOException primary=null;
+
+        try{
+            if(Files.isSymbolicLink(
+                    source)||
+               Files.isSymbolicLink(
+                    pinned)||
+               !Files.isRegularFile(
+                    source,
+                    LinkOption.NOFOLLOW_LINKS)||
+               !Files.isRegularFile(
+                    pinned,
+                    LinkOption.NOFOLLOW_LINKS)||
+               !Files.isSameFile(
+                    source,
+                    pinned))
+                throw new IOException(
+                    "Kotlin plugin final source identity is not the admitted regular direct child: "+
+                    source
+                );
+
+            java.util.HashSet<OpenOption> options=
+                new java.util.HashSet<>();
+            options.add(
+                StandardOpenOption.READ
+            );
+            options.add(
+                LinkOption.NOFOLLOW_LINKS
+            );
+
+            try(SeekableByteChannel channel=
+                    Files.newByteChannel(
+                        pinned,
+                        options
+                    )){
+                java.io.ByteArrayOutputStream out=
+                    new java.io.ByteArrayOutputStream();
+                ByteBuffer buffer=
+                    ByteBuffer.allocate(
+                        8192
+                    );
+
+                while(true){
+                    int read=
+                        channel.read(
+                            buffer
+                        );
+
+                    if(read<0)
+                        break;
+                    if(read==0)
+                        continue;
+
+                    out.write(
+                        buffer.array(),
+                        0,
+                        read
+                    );
+                    buffer.clear();
+                }
+
+                return out.toByteArray();
+            }
+        }catch(IOException denied){
+            primary=
+                new IOException(
+                    "Kotlin plugin final source capture failed closed: "+
+                    source,
+                    denied
+                );
+            throw primary;
+        }finally{
+            try{
+                Files.deleteIfExists(
+                    pinned
+                );
+            }catch(IOException cleanup){
+                if(primary!=null)
+                    primary.addSuppressed(
+                        cleanup
+                    );
+                else
+                    throw cleanup;
+            }
+        }
     }
 
     private static void rejectSymlinkComponents(
