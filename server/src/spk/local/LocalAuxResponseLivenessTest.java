@@ -18,6 +18,7 @@ public final class LocalAuxResponseLivenessTest {
         assertProgressRefreshesSingleDeadline();
         assertTimeoutAbortsBlockedWriteAndWorkerContinues();
         assertTerminalCloseWinsWithoutSyntheticTimeout();
+        assertSuccessfulTimeoutKeepsOwnershipUntilWorkerRelease();
         assertAbortFailurePreservesCoordinatorOwnership();
         assertLargeStreamingProgressIsNotTotalDurationBounded();
 
@@ -31,6 +32,7 @@ public final class LocalAuxResponseLivenessTest {
             "sameWorkerContinues=true "+
             "terminalWins=true "+
             "watchdogRetired=true "+
+            "successfulTimeoutOwnershipHeld=true "+
             "failedAbortOwnershipRetained=true "+
             "largeStreamingExact=true "+
             "noTotalDurationCap=true"
@@ -286,6 +288,87 @@ public final class LocalAuxResponseLivenessTest {
                 "terminal socket close did not neutralize watchdog",
                 failure
             );
+    }
+
+    private static void
+        assertSuccessfulTimeoutKeepsOwnershipUntilWorkerRelease()
+        throws Exception{
+        World world=
+            World.isolatedForTest(
+                25L
+            );
+        java.util.concurrent.ExecutorService pool=
+            java.util.concurrent.Executors
+                .newSingleThreadExecutor();
+        java.net.ServerSocket game=
+            new java.net.ServerSocket();
+        java.net.ServerSocket aux=
+            new java.net.ServerSocket();
+        LocalServerShutdownCoordinator coordinator=
+            new LocalServerShutdownCoordinator(
+                world,
+                pool,
+                game,
+                aux
+            );
+        FakeSocket socket=
+            new FakeSocket();
+        ManualScheduler scheduler=
+            new ManualScheduler();
+
+        try{
+            Socket accepted=
+                coordinator
+                    .acceptAuxiliarySocket(
+                        ()->socket
+                    );
+
+            if(accepted!=socket||
+               coordinator.activeAuxiliarySocketCount()!=1)
+                throw new AssertionError(
+                    "fixture auxiliary socket was not coordinator-owned"
+                );
+
+            LocalAuxResponseLiveness liveness=
+                LocalAuxResponseLiveness.arm(
+                    socket,
+                    scheduler
+                );
+
+            scheduler.trigger();
+
+            if(!socket.isClosed()||
+               !liveness.timedOut()||
+               coordinator.activeAuxiliarySocketCount()!=1)
+                throw new AssertionError(
+                    "successful timeout close retired ownership before worker release"
+                );
+
+            Throwable failure=
+                liveness.finish(
+                    null
+                );
+
+            if(failure!=null)
+                throw new AssertionError(
+                    "successful timeout produced cleanup failure",
+                    failure
+                );
+
+            coordinator.releaseAuxiliarySocket(
+                socket
+            );
+
+            if(coordinator.activeAuxiliarySocketCount()!=0)
+                throw new AssertionError(
+                    "worker release did not retire physically closed timeout socket"
+                );
+        }finally{
+            try{
+                coordinator.close();
+            }catch(Throwable ignored){
+            }
+        }
     }
 
     private static void
