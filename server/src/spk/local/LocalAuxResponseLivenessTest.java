@@ -17,6 +17,7 @@ public final class LocalAuxResponseLivenessTest {
         assertArmedBeforeFirstWriteAndHealthyCompletionCancels();
         assertProgressRefreshesSingleDeadline();
         assertWatchdogNonterminationIsWorkerFatal();
+        assertInterruptedWatchdogJoinIsWorkerFatal();
         assertTimeoutAbortsBlockedWriteAndWorkerContinues();
         assertTerminalCloseWinsWithoutSyntheticTimeout();
         assertSuccessfulTimeoutKeepsOwnershipUntilWorkerRelease();
@@ -29,6 +30,7 @@ public final class LocalAuxResponseLivenessTest {
             "progressRefreshes=true "+
             "singleOutstandingDeadline=true "+
             "watchdogNonterminationFatal=true "+
+            "interruptedWatchdogJoinFatal=true "+
             "stalledWriteAborted=true "+
             "timeoutConnectionScoped=true "+
             "sameWorkerContinues=true "+
@@ -187,6 +189,42 @@ public final class LocalAuxResponseLivenessTest {
                 "did not terminate"))
             throw new AssertionError(
                 "watchdog nontermination was normalized into connection-scoped failure",
+                failure
+            );
+    }
+
+    private static void
+        assertInterruptedWatchdogJoinIsWorkerFatal()
+        throws Exception{
+        FakeSocket socket=
+            new FakeSocket();
+        ManualScheduler scheduler=
+            new ManualScheduler();
+        scheduler.interruptAwait=true;
+
+        LocalAuxResponseLiveness liveness=
+            LocalAuxResponseLiveness.arm(
+                socket,
+                scheduler
+            );
+
+        Throwable failure=
+            liveness.finish(
+                null
+            );
+        boolean interrupted=
+            Thread.currentThread()
+                .isInterrupted();
+
+        Thread.interrupted();
+
+        if(!(failure instanceof IllegalStateException)||
+           failure.getMessage()==null||
+           !failure.getMessage().contains(
+                "interrupted")||
+           !interrupted)
+            throw new AssertionError(
+                "interrupted watchdog join was normalized or interrupt status was lost",
                 failure
             );
     }
@@ -579,6 +617,7 @@ public final class LocalAuxResponseLivenessTest {
         boolean shutdown;
         boolean awaited;
         boolean terminates=true;
+        boolean interruptAwait;
 
         @Override public synchronized
             LocalAuxResponseLiveness.Cancellable
@@ -634,8 +673,14 @@ public final class LocalAuxResponseLivenessTest {
 
         @Override public synchronized boolean awaitTermination(
             long timeoutMillis
-        ){
+        )throws InterruptedException{
             awaited=true;
+
+            if(interruptAwait)
+                throw new InterruptedException(
+                    "fixture-watchdog-join-interrupt"
+                );
+
             return terminates;
         }
 
