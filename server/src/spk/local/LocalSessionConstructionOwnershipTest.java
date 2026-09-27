@@ -16,6 +16,7 @@ public final class LocalSessionConstructionOwnershipTest {
     public static void main(
         String[] args
     )throws Exception{
+        assertShutdownWinsAcceptedHandoff();
         assertConstructionFailure();
         assertConcurrentShutdown();
         assertSuccessPath();
@@ -29,8 +30,173 @@ public final class LocalSessionConstructionOwnershipTest {
             "noTaskOnFailure=true "+
             "concurrentShutdownOwnsSocket=true "+
             "postFenceSubmit=false "+
+            "handoffRejectCloses=true "+
             "successPath=true"
         );
+    }
+
+    private static void
+        assertShutdownWinsAcceptedHandoff()
+        throws Exception{
+        World world=
+            World.isolatedForTest(
+                25L
+            );
+        world.start();
+
+        TrackingExecutor pool=
+            new TrackingExecutor();
+        ServerSocket game=
+            new ServerSocket();
+        ServerSocket aux=
+            new ServerSocket();
+        Socket accepted=
+            new Socket();
+
+        LocalServerShutdownCoordinator shutdown=
+            new LocalServerShutdownCoordinator(
+                world,
+                pool,
+                game,
+                aux
+            );
+
+        CountDownLatch acceptorHasSocket=
+            new CountDownLatch(1);
+        CountDownLatch releaseHandoff=
+            new CountDownLatch(1);
+        CountDownLatch closeReturned=
+            new CountDownLatch(1);
+        AtomicReference<Socket> returned=
+            new AtomicReference<>();
+        AtomicReference<Throwable> acceptFailure=
+            new AtomicReference<>();
+
+        Thread accepter=
+            new Thread(
+                ()->{
+                    try{
+                        returned.set(
+                            shutdown.acceptGameSocket(
+                                ()->{
+                                    acceptorHasSocket.countDown();
+
+                                    try{
+                                        if(!releaseHandoff.await(
+                                                5,
+                                                TimeUnit.SECONDS))
+                                            throw new IOException(
+                                                "fixture accept handoff release timed out"
+                                            );
+                                    }catch(InterruptedException error){
+                                        Thread.currentThread()
+                                            .interrupt();
+                                        throw new IOException(
+                                            "fixture accept handoff interrupted",
+                                            error
+                                        );
+                                    }
+
+                                    return accepted;
+                                }
+                            )
+                        );
+                    }catch(Throwable failure){
+                        acceptFailure.set(
+                            failure
+                        );
+                    }
+                },
+                "accepted-handoff-fixture"
+            );
+        accepter.start();
+
+        if(!acceptorHasSocket.await(
+                5,
+                TimeUnit.SECONDS))
+            throw new AssertionError(
+                "fixture acceptor did not acquire socket"
+            );
+
+        if(shutdown.pendingGameAcceptHandoffs()!=1)
+            throw new AssertionError(
+                "accepted socket handoff was not coordinator-owned"
+            );
+
+        Thread closer=
+            new Thread(
+                ()->{
+                    try{
+                        shutdown.close();
+                    }finally{
+                        closeReturned.countDown();
+                    }
+                },
+                "accepted-handoff-close-fixture"
+            );
+        closer.start();
+
+        long deadline=
+            System.nanoTime()+
+                TimeUnit.SECONDS.toNanos(
+                    5
+                );
+
+        while(!shutdown.closing()&&
+              System.nanoTime()<deadline)
+            Thread.yield();
+
+        if(!shutdown.closing())
+            throw new AssertionError(
+                "shutdown fence did not publish"
+            );
+
+        if(closeReturned.getCount()==0)
+            throw new AssertionError(
+                "terminal close returned before accepted handoff retired"
+            );
+
+        releaseHandoff.countDown();
+
+        accepter.join(
+            5_000L
+        );
+        closer.join(
+            5_000L
+        );
+
+        if(accepter.isAlive()||
+           closer.isAlive())
+            throw new AssertionError(
+                "accepted handoff race did not terminate"
+            );
+
+        if(acceptFailure.get()!=null)
+            throw new AssertionError(
+                "accepted handoff failed",
+                acceptFailure.get()
+            );
+
+        if(returned.get()!=null)
+            throw new AssertionError(
+                "shutdown-winning accept handoff returned a live socket"
+            );
+
+        if(!accepted.isClosed())
+            throw new AssertionError(
+                "shutdown-winning accepted socket was not closed"
+            );
+
+        if(shutdown.pendingGameAcceptHandoffs()!=0||
+           shutdown.activeSessionCount()!=0)
+            throw new AssertionError(
+                "accepted handoff ownership survived terminal close"
+            );
+
+        if(closeReturned.getCount()!=0)
+            throw new AssertionError(
+                "terminal close did not finish after handoff retirement"
+            );
     }
 
     private static void assertConstructionFailure()
