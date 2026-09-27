@@ -150,6 +150,9 @@ final class LocalAuxHttpWorker {
         if(current==null)
             return next;
 
+        if(current==next)
+            return current;
+
         if(current instanceof RuntimeException||
            current instanceof Error){
             current.addSuppressed(
