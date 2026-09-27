@@ -78,9 +78,10 @@ final class LocalAuxHttpResponse {
                     Files.newInputStream(
                         file
                     )){
-                copy(
+                copyExactly(
                     in,
-                    out
+                    out,
+                    length
                 );
             }
 
@@ -88,9 +89,10 @@ final class LocalAuxHttpResponse {
         return length;
     }
 
-    static void copy(
+    static void copyExactly(
         InputStream in,
-        OutputStream out
+        OutputStream out,
+        long length
     )throws IOException{
         Objects.requireNonNull(
             in,
@@ -101,28 +103,61 @@ final class LocalAuxHttpResponse {
             "out"
         );
 
+        if(length<0)
+            throw new IOException(
+                "negative stream length: "+
+                length
+            );
+
         byte[] buffer=
             new byte[
                 COPY_BUFFER_SIZE
             ];
+        long remaining=
+            length;
 
-        for(;;){
+        while(remaining>0){
+            int requested=
+                (int)Math.min(
+                    (long)buffer.length,
+                    remaining
+                );
             int count=
                 in.read(
-                    buffer
+                    buffer,
+                    0,
+                    requested
                 );
 
             if(count<0)
-                break;
+                throw new IOException(
+                    "auxiliary response source ended early remaining="+
+                    remaining
+                );
 
-            if(count==0)
+            if(count==0){
+                int value=
+                    in.read();
+
+                if(value<0)
+                    throw new IOException(
+                        "auxiliary response source ended early remaining="+
+                        remaining
+                    );
+
+                out.write(
+                    value
+                );
+                remaining--;
                 continue;
+            }
 
             out.write(
                 buffer,
                 0,
                 count
             );
+            remaining-=count;
         }
     }
 
