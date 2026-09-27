@@ -81,6 +81,9 @@ public final class PluginClassLoaderIsolationTest {
         assertCaptureFailureCleanupDebt(
             jarA
         );
+        assertValidationRollbackCleanupDebt(
+            jarA
+        );
         assertLiveCloseRace(
             jarA
         );
@@ -522,6 +525,7 @@ public final class PluginClassLoaderIsolationTest {
             "javaPluginExceptionalCloseReleased=true "+
             "javaPluginArchiveCleanupDebtRetried=true "+
             "javaPluginCaptureFailureDebtRetried=true "+
+            "javaPluginValidationRollbackDebtRetried=true "+
             "javaPluginCloseRaceSafe=true "+
             "publicApiExpanded=false"
         );
@@ -1493,6 +1497,111 @@ public final class PluginClassLoaderIsolationTest {
                 root[0]))
             throw new AssertionError(
                 "capture-failure private root remained after successful drain"
+            );
+    }
+
+    private static void assertValidationRollbackCleanupDebt(
+        Path jarA
+    )throws Exception{
+        int baselineDebt=
+            PluginJarLoader
+                .archiveCleanupDebtCount();
+        IOException primary=
+            new IOException(
+                "fixture-post-validation-primary"
+            );
+        final Path[] root=
+            new Path[1];
+        final Path[] sentinel=
+            new Path[1];
+
+        Throwable observed=null;
+
+        try{
+            PluginJarLoader.load(
+                jarA,
+                ENTRYPOINT,
+                Plugin.class.getClassLoader(),
+                (source,snapshot)->{
+                    throw primary;
+                },
+                (source,snapshot)->{
+                    root[0]=
+                        snapshot.getParent();
+                    sentinel[0]=
+                        root[0].resolve(
+                            "rollback-retirement-sentinel"
+                        );
+
+                    Files.write(
+                        sentinel[0],
+                        new byte[]{1}
+                    );
+                }
+            );
+        }catch(Throwable failure){
+            observed=failure;
+        }
+
+        if(observed!=primary)
+            throw new AssertionError(
+                "post-validation load failure identity changed",
+                observed
+            );
+
+        if(primary.getSuppressed().length!=1||
+           !(primary.getSuppressed()[0] instanceof
+                java.nio.file.DirectoryNotEmptyException))
+            throw new AssertionError(
+                "post-validation cleanup failure was not subordinate evidence"
+            );
+
+        if(root[0]==null||
+           sentinel[0]==null||
+           !Files.exists(
+                root[0]
+           )||
+           !Files.exists(
+                sentinel[0]
+           ))
+            throw new AssertionError(
+                "post-validation rollback fixture did not retain blocked private root"
+            );
+
+        if(PluginJarLoader
+                .archiveCleanupDebtCount()!=
+                    baselineDebt+1)
+            throw new AssertionError(
+                "post-validation rollback did not transfer exactly one cleanup debt"
+            );
+
+        Files.deleteIfExists(
+            sentinel[0]
+        );
+
+        Throwable retry=
+            PluginJarLoader
+                .retryArchiveCleanupDebtOnce(
+                    null
+                );
+
+        if(retry!=null)
+            throw new AssertionError(
+                "post-validation cleanup debt did not retire after blocker removal",
+                retry
+            );
+
+        if(PluginJarLoader
+                .archiveCleanupDebtCount()!=
+                    baselineDebt)
+            throw new AssertionError(
+                "post-validation cleanup debt remained after successful drain"
+            );
+
+        if(Files.exists(
+                root[0]))
+            throw new AssertionError(
+                "post-validation private root remained after successful drain"
             );
     }
 
