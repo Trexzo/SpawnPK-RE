@@ -1129,6 +1129,8 @@ public final class LocalSessionConstructionOwnershipTest {
             new CountDownLatch(1);
         CountDownLatch releaseAccept=
             new CountDownLatch(1);
+        AtomicReference<Throwable> acceptFailure=
+            new AtomicReference<>();
 
         Thread accepter=
             new Thread(
@@ -1152,8 +1154,8 @@ public final class LocalSessionConstructionOwnershipTest {
                                 return accepted;
                             }
                         );
-                    }catch(IOException failure){
-                        throw new RuntimeException(
+                    }catch(Throwable failure){
+                        acceptFailure.set(
                             failure
                         );
                     }
@@ -1219,6 +1221,12 @@ public final class LocalSessionConstructionOwnershipTest {
            closer.isAlive())
             throw new AssertionError(
                 "fail-once listener fixture did not retire"
+            );
+
+        if(acceptFailure.get()!=null)
+            throw new AssertionError(
+                "fail-once listener accept handoff failed unexpectedly",
+                acceptFailure.get()
             );
 
         Throwable observed=
