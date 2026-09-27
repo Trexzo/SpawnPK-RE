@@ -248,6 +248,26 @@ final class PluginJarLoader implements PluginLoader {
         )throws Exception;
     }
 
+    interface ArchiveCaptureHook {
+        void afterPrivatePathsCreated(
+            Path root,
+            Path snapshot
+        )throws IOException;
+    }
+
+    static void captureArchiveForTest(
+        Path source,
+        ArchiveCaptureHook hook
+    )throws Exception{
+        ArchiveSnapshot snapshot=
+            ArchiveSnapshot.capture(
+                source,
+                hook
+            );
+
+        snapshot.close();
+    }
+
     static ClassLoader callbackClassLoader(
         Plugin plugin
     ){
@@ -266,6 +286,59 @@ final class PluginJarLoader implements PluginLoader {
                 plugin,
                 primary
             );
+    }
+
+    static int archiveCleanupDebtCount(){
+        synchronized(
+            ArchiveCleanupDebt.DEBTS
+        ){
+            return ArchiveCleanupDebt
+                .DEBTS.size();
+        }
+    }
+
+    static Throwable retryArchiveCleanupDebtOnce(
+        Throwable primary
+    ){
+        synchronized(
+            ArchiveCleanupDebt.DEBTS
+        ){
+            Throwable aggregate=primary;
+
+            java.util.Iterator<ArchiveCleanupDebt>
+                iterator=
+                    ArchiveCleanupDebt.DEBTS
+                        .iterator();
+
+            while(iterator.hasNext()){
+                ArchiveCleanupDebt debt=
+                    iterator.next();
+                Throwable retry=
+                    debt.retry();
+
+                if(retry==null){
+                    iterator.remove();
+                    continue;
+                }
+
+                if(aggregate==null)
+                    aggregate=retry;
+                else
+                    preserveFailure(
+                        aggregate,
+                        retry
+                    );
+
+                System.err.println(
+                    "[plugins] Java archive cleanup debt retry failed root="+
+                    debt.root+
+                    " errorClass="+
+                    retry.getClass().getName()
+                );
+            }
+
+            return aggregate;
+        }
     }
 
     private static void validateArchive(
@@ -630,6 +703,16 @@ final class PluginJarLoader implements PluginLoader {
         static ArchiveSnapshot capture(
             Path source
         )throws IOException{
+            return capture(
+                source,
+                (root,snapshot)->{}
+            );
+        }
+
+        static ArchiveSnapshot capture(
+            Path source,
+            ArchiveCaptureHook hook
+        )throws IOException{
             if(!Files.isRegularFile(source))
                 throw new IllegalArgumentException(
                     "plugin JAR missing: "+
@@ -646,13 +729,27 @@ final class PluginJarLoader implements PluginLoader {
                 );
 
             try{
+                Files.createFile(
+                    path
+                );
+
+                Objects.requireNonNull(
+                    hook,
+                    "hook"
+                ).afterPrivatePathsCreated(
+                    root,
+                    path
+                );
+
                 try(java.io.InputStream input=
                         Files.newInputStream(
                             source
                         );
                     java.io.OutputStream output=
                         Files.newOutputStream(
-                            path
+                            path,
+                            java.nio.file.StandardOpenOption.WRITE,
+                            java.nio.file.StandardOpenOption.TRUNCATE_EXISTING
                         )){
                     byte[] buffer=
                         new byte[8192];
@@ -674,22 +771,17 @@ final class PluginJarLoader implements PluginLoader {
                     path
                 );
             }catch(Throwable failure){
-                try{
-                    Files.deleteIfExists(
-                        path
-                    );
-                }catch(Throwable cleanup){
-                    preserveFailure(
-                        failure,
-                        cleanup
-                    );
-                }
-
-                try{
-                    Files.deleteIfExists(
+                Throwable cleanup=
+                    ArchiveCleanupDebt.delete(
+                        path,
                         root
                     );
-                }catch(Throwable cleanup){
+
+                if(cleanup!=null){
+                    ArchiveCleanupDebt.register(
+                        path,
+                        root
+                    );
                     preserveFailure(
                         failure,
                         cleanup
@@ -713,6 +805,72 @@ final class PluginJarLoader implements PluginLoader {
                 return;
 
             closed=true;
+            Throwable failure=
+                ArchiveCleanupDebt.delete(
+                    path,
+                    root
+                );
+
+            if(failure!=null){
+                ArchiveCleanupDebt.register(
+                    path,
+                    root
+                );
+                rethrow(
+                    failure
+                );
+            }
+        }
+    }
+
+    private static final class ArchiveCleanupDebt {
+        private static final java.util.ArrayList<
+            ArchiveCleanupDebt
+        > DEBTS=
+            new java.util.ArrayList<>();
+
+        private final Path path;
+        private final Path root;
+
+        private ArchiveCleanupDebt(
+            Path path,
+            Path root
+        ){
+            this.path=path;
+            this.root=root;
+        }
+
+        static void register(
+            Path path,
+            Path root
+        ){
+            synchronized(DEBTS){
+                for(ArchiveCleanupDebt existing:
+                        DEBTS)
+                    if(existing.path.equals(path)&&
+                       existing.root.equals(root))
+                        return;
+
+                DEBTS.add(
+                    new ArchiveCleanupDebt(
+                        path,
+                        root
+                    )
+                );
+            }
+        }
+
+        Throwable retry(){
+            return delete(
+                path,
+                root
+            );
+        }
+
+        static Throwable delete(
+            Path path,
+            Path root
+        ){
             Throwable failure=null;
 
             try{
@@ -737,10 +895,7 @@ final class PluginJarLoader implements PluginLoader {
                     );
             }
 
-            if(failure!=null)
-                rethrow(
-                    failure
-                );
+            return failure;
         }
     }
 
