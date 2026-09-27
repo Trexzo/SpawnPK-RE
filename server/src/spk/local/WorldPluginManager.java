@@ -1347,8 +1347,14 @@ final class WorldPluginManager
             Throwable cause=
                 failure.getCause();
 
-            if(cause!=null)
+            if(cause!=null){
+                PluginRuntimeSupport
+                    .transferSuppressedDistinct(
+                        failure,
+                        cause
+                    );
                 rethrow(cause);
+            }
         }
 
         if(failure instanceof Exception)
