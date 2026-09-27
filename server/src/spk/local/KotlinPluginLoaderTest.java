@@ -111,6 +111,11 @@ public final class KotlinPluginLoaderTest {
             apiJar,
             compileClasspath
         );
+        assertMultiReleaseClasspathFenced(
+            constructor,
+            apiJar,
+            compileClasspath
+        );
         assertClasspathIdentityPinned(
             constructor,
             healthy,
@@ -568,6 +573,7 @@ public final class KotlinPluginLoaderTest {
             "dependencyNamespaceFence=true "+
             "kotlinClasspathExtensionBypassFenced=true "+
             "kotlinManifestClasspathFenced=true "+
+            "kotlinMultiReleaseClasspathFenced=true "+
             "serverInternalDenied=true "+
             "pluginApiIdentity=true "+
             "scriptSdkIdentity=true "+
@@ -861,6 +867,142 @@ public final class KotlinPluginLoaderTest {
                     ),
                     manifest
                 )){
+        }
+    }
+
+
+    private static void assertMultiReleaseClasspathFenced(
+        Constructor<?> constructor,
+        Path apiJar,
+        List<Path> healthyClasspath
+    )throws Exception{
+        if(healthyClasspath.isEmpty())
+            return;
+
+        Path root=
+            Files.createTempDirectory(
+                "kotlin-multi-release-"
+            );
+        Path dependency=
+            root.resolve(
+                "multi-release-dependency.jar"
+            );
+        Path api=
+            root.resolve(
+                "multi-release-api.jar"
+            );
+
+        try{
+            createMultiReleaseClassJar(
+                dependency,
+                "META-INF/versions/9/spk/local/HiddenDependency.class"
+            );
+
+            boolean dependencyRejected=false;
+
+            try{
+                constructor.newInstance(
+                    apiJar,
+                    java.util.Collections
+                        .singletonList(
+                            dependency
+                        )
+                );
+            }catch(InvocationTargetException expected){
+                Throwable cause=
+                    expected.getCause();
+
+                dependencyRejected=
+                    cause instanceof
+                        IllegalArgumentException&&
+                    cause.getMessage()!=null&&
+                    cause.getMessage()
+                        .contains(
+                            "forbidden multi-release class entry"
+                        );
+            }
+
+            if(!dependencyRejected)
+                throw new AssertionError(
+                    "Kotlin dependency multi-release class was accepted"
+                );
+
+            createMultiReleaseClassJar(
+                api,
+                "META-INF/versions/9/spk/local/HiddenApi.class"
+            );
+
+            boolean apiRejected=false;
+
+            try{
+                constructor.newInstance(
+                    api,
+                    healthyClasspath
+                );
+            }catch(InvocationTargetException expected){
+                Throwable cause=
+                    expected.getCause();
+
+                apiRejected=
+                    cause instanceof
+                        IllegalArgumentException&&
+                    cause.getMessage()!=null&&
+                    cause.getMessage()
+                        .contains(
+                            "forbidden multi-release class entry"
+                        );
+            }
+
+            if(!apiRejected)
+                throw new AssertionError(
+                    "Kotlin API multi-release class was accepted"
+                );
+        }finally{
+            Files.deleteIfExists(
+                api
+            );
+            Files.deleteIfExists(
+                dependency
+            );
+            Files.deleteIfExists(
+                root
+            );
+        }
+    }
+
+    private static void createMultiReleaseClassJar(
+        Path target,
+        String entryName
+    )throws Exception{
+        Manifest manifest=
+            new Manifest();
+        Attributes attributes=
+            manifest.getMainAttributes();
+        attributes.put(
+            Attributes.Name.MANIFEST_VERSION,
+            "1.0"
+        );
+        attributes.putValue(
+            "Multi-Release",
+            "true"
+        );
+
+        try(JarOutputStream out=
+                new JarOutputStream(
+                    Files.newOutputStream(
+                        target
+                    ),
+                    manifest
+                )){
+            out.putNextEntry(
+                new JarEntry(
+                    entryName
+                )
+            );
+            out.write(
+                new byte[]{0}
+            );
+            out.closeEntry();
         }
     }
 
