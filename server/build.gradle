@@ -4166,6 +4166,17 @@ tasks.register('worldAdmissionPulseStartAtomicRegression', JavaExec) {
 }
 
 
+tasks.register('localAuxHttpResponseRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves LocalLab auxiliary archive responses stream with bounded memory while preserving HTTP length, HEAD and missing-archive behavior.'
+    dependsOn tasks.named('testClasses')
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.LocalAuxHttpResponseTest'
+}
+
+
 tasks.register('chat1CurrentCumulativeCertification') {
     group = 'verification'
     description = 'Runs the complete current Chat 1 release candidate: Issue #5 Kotlin scripting, #271/#427 presentation/application gates, Issue #7 pet-damage ownership, focused 175 and canonical exact-v308 179.'
@@ -4186,7 +4197,8 @@ tasks.register('chat1CurrentCumulativeCertification') {
         tasks.named('localServerStartupFailureCleanupRegression'),
         tasks.named('worldPulseStartFailureAtomicRegression'),
         tasks.named('localSessionConstructionOwnershipRegression'),
-        tasks.named('worldAdmissionPulseStartAtomicRegression')
+        tasks.named('worldAdmissionPulseStartAtomicRegression'),
+        tasks.named('localAuxHttpResponseRegression')
     )
 
     doLast {
@@ -4206,6 +4218,7 @@ tasks.register('chat1CurrentCumulativeCertification') {
             'worldPulseStartAtomic=true ' +
             'localSessionConstructionOwnership=true ' +
             'worldAdmissionPulseStartAtomic=true ' +
+            'localAuxHttpStreaming=true ' +
             'focused=175 ' +
             'exactV308=179 ' +
             'clientSha256=' + v308AcceptanceClientSha256 + ' ' +
