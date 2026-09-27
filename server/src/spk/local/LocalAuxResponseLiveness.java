@@ -19,6 +19,12 @@ final class LocalAuxResponseLiveness {
     static final long WATCHDOG_JOIN_MILLIS=
         1_000L;
 
+    interface TimeoutAuthority {
+        boolean claim(
+            BooleanSupplier commit
+        );
+    }
+
     interface Cancellable {
         void cancel();
     }
@@ -42,7 +48,7 @@ final class LocalAuxResponseLiveness {
         new Object();
     private final Socket socket;
     private final Scheduler scheduler;
-    private final BooleanSupplier terminalClosing;
+    private final TimeoutAuthority timeoutAuthority;
     private final Consumer<Throwable> fatalFailure;
 
     private Cancellable deadline;
@@ -56,7 +62,7 @@ final class LocalAuxResponseLiveness {
     ){
         return arm(
             socket,
-            ()->false,
+            commit->commit.getAsBoolean(),
             failure->{}
         );
     }
@@ -67,20 +73,20 @@ final class LocalAuxResponseLiveness {
     ){
         return arm(
             socket,
-            ()->false,
+            commit->commit.getAsBoolean(),
             fatalFailure
         );
     }
 
     static LocalAuxResponseLiveness arm(
         Socket socket,
-        BooleanSupplier terminalClosing,
+        TimeoutAuthority timeoutAuthority,
         Consumer<Throwable> fatalFailure
     ){
         return new LocalAuxResponseLiveness(
             socket,
             new ExecutorScheduler(),
-            terminalClosing,
+            timeoutAuthority,
             fatalFailure
         );
     }
@@ -92,7 +98,7 @@ final class LocalAuxResponseLiveness {
         return arm(
             socket,
             scheduler,
-            ()->false,
+            commit->commit.getAsBoolean(),
             failure->{}
         );
     }
@@ -105,7 +111,7 @@ final class LocalAuxResponseLiveness {
         return arm(
             socket,
             scheduler,
-            ()->false,
+            commit->commit.getAsBoolean(),
             fatalFailure
         );
     }
@@ -113,13 +119,13 @@ final class LocalAuxResponseLiveness {
     static LocalAuxResponseLiveness arm(
         Socket socket,
         Scheduler scheduler,
-        BooleanSupplier terminalClosing,
+        TimeoutAuthority timeoutAuthority,
         Consumer<Throwable> fatalFailure
     ){
         return new LocalAuxResponseLiveness(
             socket,
             scheduler,
-            terminalClosing,
+            timeoutAuthority,
             fatalFailure
         );
     }
@@ -127,7 +133,7 @@ final class LocalAuxResponseLiveness {
     private LocalAuxResponseLiveness(
         Socket socket,
         Scheduler scheduler,
-        BooleanSupplier terminalClosing,
+        TimeoutAuthority timeoutAuthority,
         Consumer<Throwable> fatalFailure
     ){
         this.socket=
@@ -140,10 +146,10 @@ final class LocalAuxResponseLiveness {
                 scheduler,
                 "scheduler"
             );
-        this.terminalClosing=
+        this.timeoutAuthority=
             Objects.requireNonNull(
-                terminalClosing,
-                "terminalClosing"
+                timeoutAuthority,
+                "timeoutAuthority"
             );
         this.fatalFailure=
             Objects.requireNonNull(
@@ -316,8 +322,6 @@ final class LocalAuxResponseLiveness {
     private void expire(
         long expected
     ){
-        SocketTimeoutException timeout;
-
         synchronized(lock){
             if(finished||
                expected!=generation)
@@ -325,18 +329,44 @@ final class LocalAuxResponseLiveness {
 
             deadline=null;
 
-            if(socket.isClosed()||
-               terminalClosing.getAsBoolean())
+            if(socket.isClosed())
                 return;
-
-            timedOut=true;
-            timeout=
-                new SocketTimeoutException(
-                    "auxiliary HTTP response made no progress before deadline"
-                );
-            timeoutFailure=
-                timeout;
         }
+
+        final SocketTimeoutException[] claimedTimeout=
+            new SocketTimeoutException[1];
+
+        boolean claimed=
+            timeoutAuthority.claim(
+                ()->{
+                    synchronized(lock){
+                        if(finished||
+                           expected!=generation||
+                           socket.isClosed())
+                            return false;
+
+                        timedOut=true;
+                        timeoutFailure=
+                            new SocketTimeoutException(
+                                "auxiliary HTTP response made no progress before deadline"
+                            );
+                        claimedTimeout[0]=
+                            timeoutFailure;
+                        return true;
+                    }
+                }
+            );
+
+        if(!claimed)
+            return;
+
+        SocketTimeoutException timeout=
+            claimedTimeout[0];
+
+        if(timeout==null)
+            throw new IllegalStateException(
+                "auxiliary response timeout authority committed without timeout evidence"
+            );
 
         Throwable first=
             closeSocketOnce();
