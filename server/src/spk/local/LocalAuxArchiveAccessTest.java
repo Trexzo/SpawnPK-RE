@@ -2,9 +2,12 @@ package spk.local;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.channels.SeekableByteChannel;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public final class LocalAuxArchiveAccessTest {
@@ -15,7 +18,8 @@ public final class LocalAuxArchiveAccessTest {
         assertNonRegularUnavailable();
         assertProbeSecurityUnavailable();
         assertOpenSecurityUnavailable();
-        assertIOExceptionPropagates();
+        assertOpenIOExceptionPropagates();
+        assertPostOpenIOExceptionPropagates();
         assertRuntimeUnswept();
         assertFatalUnswept();
 
@@ -25,7 +29,8 @@ public final class LocalAuxArchiveAccessTest {
             "nonRegularUnavailable=true "+
             "probeSecurityUnavailable=true "+
             "openSecurityUnavailable=true "+
-            "ioConnectionScoped=true "+
+            "openIoConnectionScoped=true "+
+            "postOpenIoConnectionScoped=true "+
             "runtimeUnswept=true "+
             "fatalUnswept=true "+
             "singleHandleInherited=true"
@@ -94,7 +99,7 @@ public final class LocalAuxArchiveAccessTest {
 
     private static void assertNonRegularUnavailable()
         throws Exception{
-        AtomicInteger writerCalls=
+        AtomicInteger openCalls=
             new AtomicInteger();
 
         Long result=
@@ -106,22 +111,22 @@ public final class LocalAuxArchiveAccessTest {
                     ),
                     false,
                     file->false,
-                    (out,file,head)->{
-                        writerCalls.incrementAndGet();
-                        return 1L;
+                    file->{
+                        openCalls.incrementAndGet();
+                        return new EmptyChannel();
                     }
                 );
 
         if(result!=null||
-           writerCalls.get()!=0)
+           openCalls.get()!=0)
             throw new AssertionError(
-                "non-regular archive reached writer"
+                "non-regular archive reached opener"
             );
     }
 
     private static void assertProbeSecurityUnavailable()
         throws Exception{
-        AtomicInteger writerCalls=
+        AtomicInteger openCalls=
             new AtomicInteger();
 
         Long result=
@@ -137,14 +142,14 @@ public final class LocalAuxArchiveAccessTest {
                             "fixture-probe-security"
                         );
                     },
-                    (out,file,head)->{
-                        writerCalls.incrementAndGet();
-                        return 1L;
+                    file->{
+                        openCalls.incrementAndGet();
+                        return new EmptyChannel();
                     }
                 );
 
         if(result!=null||
-           writerCalls.get()!=0)
+           openCalls.get()!=0)
             throw new AssertionError(
                 "probe SecurityException did not map to unavailable"
             );
@@ -161,7 +166,7 @@ public final class LocalAuxArchiveAccessTest {
                     ),
                     false,
                     file->true,
-                    (out,file,head)->{
+                    file->{
                         throw new SecurityException(
                             "fixture-open-security"
                         );
@@ -174,10 +179,10 @@ public final class LocalAuxArchiveAccessTest {
             );
     }
 
-    private static void assertIOExceptionPropagates(){
+    private static void assertOpenIOExceptionPropagates(){
         IOException expected=
             new IOException(
-                "fixture-stream-io"
+                "fixture-open-io"
             );
         Throwable observed=null;
 
@@ -186,11 +191,11 @@ public final class LocalAuxArchiveAccessTest {
                 .writeIfAvailable(
                     new ByteArrayOutputStream(),
                     Path.of(
-                        "fixture-io.zip"
+                        "fixture-open-io.zip"
                     ),
                     false,
                     file->true,
-                    (out,file,head)->{
+                    file->{
                         throw expected;
                     }
                 );
@@ -200,7 +205,39 @@ public final class LocalAuxArchiveAccessTest {
 
         if(observed!=expected)
             throw new AssertionError(
-                "archive IOException was normalized into unavailable",
+                "archive open IOException was normalized into unavailable",
+                observed
+            );
+    }
+
+    private static void assertPostOpenIOExceptionPropagates(){
+        IOException expected=
+            new IOException(
+                "fixture-post-open-io"
+            );
+        Throwable observed=null;
+
+        try{
+            LocalAuxArchiveAccess
+                .writeIfAvailable(
+                    new ByteArrayOutputStream(),
+                    Path.of(
+                        "fixture-stream-io.zip"
+                    ),
+                    false,
+                    file->true,
+                    file->
+                        new FailingReadChannel(
+                            expected
+                        )
+                );
+        }catch(Throwable failure){
+            observed=failure;
+        }
+
+        if(observed!=expected)
+            throw new AssertionError(
+                "post-open archive IOException was normalized into unavailable",
                 observed
             );
     }
@@ -223,7 +260,7 @@ public final class LocalAuxArchiveAccessTest {
                     file->{
                         throw expected;
                     },
-                    (out,file,head)->1L
+                    file->new EmptyChannel()
                 );
         }catch(Throwable failure){
             observed=failure;
@@ -252,7 +289,7 @@ public final class LocalAuxArchiveAccessTest {
                     ),
                     false,
                     file->true,
-                    (out,file,head)->{
+                    file->{
                         throw expected;
                     }
                 );
@@ -265,6 +302,76 @@ public final class LocalAuxArchiveAccessTest {
                 "unrelated Error was swallowed/wrapped",
                 observed
             );
+    }
+
+    private static class EmptyChannel
+        implements SeekableByteChannel {
+        boolean open=true;
+        long position;
+
+        @Override public int read(
+            ByteBuffer destination
+        )throws IOException{
+            return -1;
+        }
+
+        @Override public int write(
+            ByteBuffer source
+        ){
+            throw new java.nio.channels
+                .NonWritableChannelException();
+        }
+
+        @Override public long position(){
+            return position;
+        }
+
+        @Override public SeekableByteChannel position(
+            long newPosition
+        ){
+            position=newPosition;
+            return this;
+        }
+
+        @Override public long size(){
+            return 0L;
+        }
+
+        @Override public SeekableByteChannel truncate(
+            long size
+        ){
+            throw new java.nio.channels
+                .NonWritableChannelException();
+        }
+
+        @Override public boolean isOpen(){
+            return open;
+        }
+
+        @Override public void close(){
+            open=false;
+        }
+    }
+
+    private static final class FailingReadChannel
+        extends EmptyChannel {
+        private final IOException failure;
+
+        FailingReadChannel(
+            IOException failure
+        ){
+            this.failure=failure;
+        }
+
+        @Override public long size(){
+            return 1L;
+        }
+
+        @Override public int read(
+            ByteBuffer destination
+        )throws IOException{
+            throw failure;
+        }
     }
 
     private LocalAuxArchiveAccessTest(){}
