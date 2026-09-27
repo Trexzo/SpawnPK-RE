@@ -565,9 +565,14 @@ public final class KotlinPluginDirectoryTest {
            !handle.enabled()||
            !loader.id.equals(
                 handle.manifest().id()
-            ))
+            )||
+           !probe.toAbsolutePath()
+                .normalize()
+                .equals(
+                    loader.observedPath
+                ))
             throw new AssertionError(
-                "captured snapshot was not delivered to loader"
+                "captured snapshot/origin was not delivered to loader"
             );
 
         if(!world.plugins().disable(
@@ -1362,6 +1367,7 @@ public final class KotlinPluginDirectoryTest {
         private final String expectedText;
         final String id;
         int loads;
+        Path observedPath;
 
         SnapshotLoader(
             String expectedText,
@@ -1383,6 +1389,8 @@ public final class KotlinPluginDirectoryTest {
             PluginSource source
         ){
             loads++;
+            observedPath=
+                source.path();
 
             if(!source.hasScriptSnapshot())
                 throw new AssertionError(
