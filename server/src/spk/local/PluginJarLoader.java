@@ -84,6 +84,7 @@ final class PluginJarLoader implements PluginLoader {
             jar,
             entrypoint,
             parent,
+            (source,snapshot)->{},
             (source,snapshot)->{}
         );
     }
@@ -93,6 +94,22 @@ final class PluginJarLoader implements PluginLoader {
         String entrypoint,
         ClassLoader parent,
         ArchiveAdmissionHook admissionHook
+    )throws Exception{
+        return load(
+            jar,
+            entrypoint,
+            parent,
+            admissionHook,
+            (source,snapshot)->{}
+        );
+    }
+
+    static LoadedPlugin load(
+        Path jar,
+        String entrypoint,
+        ClassLoader parent,
+        ArchiveAdmissionHook admissionHook,
+        ArchiveSnapshotObserver snapshotObserver
     )throws Exception{
         Path path=
             Objects.requireNonNull(
@@ -112,6 +129,14 @@ final class PluginJarLoader implements PluginLoader {
         IsolatedPluginClassLoader loader=null;
 
         try{
+            Objects.requireNonNull(
+                snapshotObserver,
+                "snapshotObserver"
+            ).snapshotCreated(
+                path,
+                snapshot.path()
+            );
+
             validateArchive(
                 snapshot.path(),
                 main
@@ -216,6 +241,13 @@ final class PluginJarLoader implements PluginLoader {
         )throws Exception;
     }
 
+    interface ArchiveSnapshotObserver {
+        void snapshotCreated(
+            Path source,
+            Path snapshot
+        )throws Exception;
+    }
+
     static ClassLoader callbackClassLoader(
         Plugin plugin
     ){
@@ -258,6 +290,27 @@ final class PluginJarLoader implements PluginLoader {
                 new JarFile(
                     jar.toFile()
                 )){
+            java.util.jar.Manifest manifest=
+                file.getManifest();
+
+            if(manifest!=null){
+                String classPath=
+                    manifest
+                        .getMainAttributes()
+                        .getValue(
+                            java.util.jar.Attributes
+                                .Name.CLASS_PATH
+                        );
+
+                if(classPath!=null&&
+                   !classPath.trim()
+                        .isEmpty())
+                    throw new IllegalArgumentException(
+                        "plugin JAR manifest Class-Path is forbidden: "+
+                        classPath
+                    );
+            }
+
             Enumeration<JarEntry> entries=
                 file.entries();
 
