@@ -1186,12 +1186,14 @@ final class WorldPluginManager
 
         for(Entry entry:
                 enabled.values())
-            if(entry.plugin==plugin)
+            if(entry.runtimeClose.owns(
+                    plugin))
                 return true;
 
         for(Entry entry:
                 terminalizing.values())
-            if(entry.plugin==plugin)
+            if(entry.runtimeClose.owns(
+                    plugin))
                 return true;
 
         return false;
@@ -1905,6 +1907,12 @@ final class WorldPluginManager
             Plugin plugin
         ){
             this.plugin=plugin;
+        }
+
+        boolean owns(
+            Plugin candidate
+        ){
+            return plugin==candidate;
         }
 
         synchronized Throwable close(
