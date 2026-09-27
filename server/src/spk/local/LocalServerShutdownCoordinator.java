@@ -205,19 +205,24 @@ final class LocalServerShutdownCoordinator
             "factory"
         );
 
+        boolean rejectedBeforeFactory=false;
+
         synchronized(lifecycleLock){
-            if(closing){
-                activeGameSockets.remove(
+            if(closing)
+                rejectedBeforeFactory=true;
+            else{
+                activeGameSockets.add(
                     socket
                 );
-                closeQuietly(socket);
-                return false;
+                sessionFactoryHandoffs++;
             }
+        }
 
-            activeGameSockets.add(
+        if(rejectedBeforeFactory){
+            retireOwnedSocket(
                 socket
             );
-            sessionFactoryHandoffs++;
+            return false;
         }
 
         final Runnable session;
@@ -246,46 +251,48 @@ final class LocalServerShutdownCoordinator
             );
         }
 
+        boolean rejectedAfterFactory=false;
+        RuntimeException submissionFailure=null;
+
         synchronized(lifecycleLock){
             sessionFactoryHandoffs--;
             lifecycleLock.notifyAll();
 
-            if(closing){
-                activeGameSockets.remove(
-                    socket
-                );
-                closeQuietly(socket);
-                return false;
-            }
-
-            try{
-                pool.execute(
-                    ()->{
-                        try{
-                            session.run();
-                        }finally{
-                            synchronized(lifecycleLock){
-                                activeGameSockets.remove(
+            if(closing)
+                rejectedAfterFactory=true;
+            else
+                try{
+                    pool.execute(
+                        ()->{
+                            try{
+                                session.run();
+                            }finally{
+                                retireOwnedSocket(
                                     socket
                                 );
                             }
-
-                            closeQuietly(
-                                socket
-                            );
                         }
-                    }
-                );
-            }catch(RuntimeException error){
-                activeGameSockets.remove(
-                    socket
-                );
-                closeQuietly(socket);
-                throw error;
-            }
-
-            return true;
+                    );
+                }catch(RuntimeException error){
+                    submissionFailure=error;
+                }
         }
+
+        if(rejectedAfterFactory){
+            retireOwnedSocket(
+                socket
+            );
+            return false;
+        }
+
+        if(submissionFailure!=null){
+            retireOwnedSocket(
+                socket
+            );
+            throw submissionFailure;
+        }
+
+        return true;
     }
 
     private void retireOwnedSocket(
