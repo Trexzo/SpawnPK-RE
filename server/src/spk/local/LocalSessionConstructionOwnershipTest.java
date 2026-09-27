@@ -14,6 +14,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 public final class LocalSessionConstructionOwnershipTest {
@@ -41,6 +42,7 @@ public final class LocalSessionConstructionOwnershipTest {
             "handoffRejectCloses=true "+
             "retireOwnershipUntilClosed=true "+
             "executorRejectRetirement=true "+
+            "terminalCloseLockFree=true "+
             "successPath=true"
         );
     }
@@ -287,18 +289,41 @@ public final class LocalSessionConstructionOwnershipTest {
             );
         closer.start();
 
-        long deadline=
-            System.nanoTime()+
-                TimeUnit.SECONDS.toNanos(
-                    5
-                );
-        while(!shutdown.closing()&&
-              System.nanoTime()<deadline)
-            Thread.yield();
-
-        if(!shutdown.closing())
+        if(!socket.terminalCloseEntered.await(
+                5,
+                TimeUnit.SECONDS))
             throw new AssertionError(
-                "terminal fence did not publish for rejected socket"
+                "terminal close did not reach the owned socket"
+            );
+
+        AtomicReference<Boolean> closingObserved=
+            new AtomicReference<>();
+        Thread observer=
+            new Thread(
+                ()->closingObserved.set(
+                    shutdown.closing()
+                ),
+                "terminal-lock-observer-fixture"
+            );
+        observer.start();
+        observer.join(
+            1_000L
+        );
+
+        if(observer.isAlive()){
+            socket.releaseClose.countDown();
+            observer.join(
+                5_000L
+            );
+            throw new AssertionError(
+                "terminal socket close held lifecycle lock"
+            );
+        }
+
+        if(!Boolean.TRUE.equals(
+                closingObserved.get()))
+            throw new AssertionError(
+                "terminal fence was not observable while socket close was blocked"
             );
 
         if(terminalReturned.getCount()==0)
@@ -776,12 +801,22 @@ public final class LocalSessionConstructionOwnershipTest {
 
         final CountDownLatch closeEntered=
             new CountDownLatch(1);
+        final CountDownLatch terminalCloseEntered=
+            new CountDownLatch(1);
         final CountDownLatch releaseClose=
             new CountDownLatch(1);
+        final AtomicInteger closeCalls=
+            new AtomicInteger();
 
         @Override public void close()
             throws IOException{
+            int call=
+                closeCalls.incrementAndGet();
+
             closeEntered.countDown();
+
+            if(call>=2)
+                terminalCloseEntered.countDown();
 
             boolean interrupted=false;
 
