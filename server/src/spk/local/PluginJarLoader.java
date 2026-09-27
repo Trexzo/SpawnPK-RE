@@ -85,7 +85,8 @@ final class PluginJarLoader implements PluginLoader {
             entrypoint,
             parent,
             (source,snapshot)->{},
-            (source,snapshot)->{}
+            (source,snapshot)->{},
+            snapshot->{}
         );
     }
 
@@ -100,7 +101,8 @@ final class PluginJarLoader implements PluginLoader {
             entrypoint,
             parent,
             admissionHook,
-            (source,snapshot)->{}
+            (source,snapshot)->{},
+            snapshot->{}
         );
     }
 
@@ -110,6 +112,24 @@ final class PluginJarLoader implements PluginLoader {
         ClassLoader parent,
         ArchiveAdmissionHook admissionHook,
         ArchiveSnapshotObserver snapshotObserver
+    )throws Exception{
+        return load(
+            jar,
+            entrypoint,
+            parent,
+            admissionHook,
+            snapshotObserver,
+            snapshot->{}
+        );
+    }
+
+    static LoadedPlugin load(
+        Path jar,
+        String entrypoint,
+        ClassLoader parent,
+        ArchiveAdmissionHook admissionHook,
+        ArchiveSnapshotObserver snapshotObserver,
+        RuntimeCloseHook closeHook
     )throws Exception{
         Path path=
             Objects.requireNonNull(
@@ -205,7 +225,11 @@ final class PluginJarLoader implements PluginLoader {
                 loader,
                 path,
                 main,
-                snapshot
+                snapshot,
+                Objects.requireNonNull(
+                    closeHook,
+                    "closeHook"
+                )
             );
         }catch(Throwable failure){
             if(loader!=null)
@@ -244,6 +268,12 @@ final class PluginJarLoader implements PluginLoader {
     interface ArchiveSnapshotObserver {
         void snapshotCreated(
             Path source,
+            Path snapshot
+        )throws Exception;
+    }
+
+    interface RuntimeCloseHook {
+        void beforeSnapshotRetire(
             Path snapshot
         )throws Exception;
     }
@@ -428,6 +458,7 @@ final class PluginJarLoader implements PluginLoader {
         private final Path source;
         private final String entrypoint;
         private volatile ArchiveSnapshot snapshot;
+        private volatile RuntimeCloseHook closeHook;
         private volatile boolean closed;
 
         LoadedPlugin(
@@ -435,7 +466,8 @@ final class PluginJarLoader implements PluginLoader {
             IsolatedPluginClassLoader loader,
             Path source,
             String entrypoint,
-            ArchiveSnapshot snapshot
+            ArchiveSnapshot snapshot,
+            RuntimeCloseHook closeHook
         ){
             this.delegate=
                 Objects.requireNonNull(
@@ -455,6 +487,11 @@ final class PluginJarLoader implements PluginLoader {
                 Objects.requireNonNull(
                     snapshot,
                     "snapshot"
+                );
+            this.closeHook=
+                Objects.requireNonNull(
+                    closeHook,
+                    "closeHook"
                 );
         }
 
@@ -580,6 +617,8 @@ final class PluginJarLoader implements PluginLoader {
                 ownedLoader=loader;
             ArchiveSnapshot
                 ownedSnapshot=snapshot;
+            RuntimeCloseHook
+                ownedCloseHook=closeHook;
             Throwable failure=null;
 
             try{
@@ -587,6 +626,23 @@ final class PluginJarLoader implements PluginLoader {
                     ownedLoader.close();
             }catch(Throwable cleanup){
                 failure=cleanup;
+            }
+
+            try{
+                if(ownedSnapshot!=null&&
+                   ownedCloseHook!=null)
+                    ownedCloseHook
+                        .beforeSnapshotRetire(
+                            ownedSnapshot.path()
+                        );
+            }catch(Throwable cleanup){
+                if(failure==null)
+                    failure=cleanup;
+                else
+                    preserveFailure(
+                        failure,
+                        cleanup
+                    );
             }
 
             try{
@@ -604,6 +660,7 @@ final class PluginJarLoader implements PluginLoader {
                 delegate=null;
                 loader=null;
                 snapshot=null;
+                closeHook=null;
             }
 
             if(failure!=null)
