@@ -65,6 +65,10 @@ final class LocalServerShutdownCoordinator
         Runnable session
     ){
         Objects.requireNonNull(
+            socket,
+            "socket"
+        );
+        Objects.requireNonNull(
             session,
             "session"
         );
