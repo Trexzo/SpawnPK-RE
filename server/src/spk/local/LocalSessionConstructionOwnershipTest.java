@@ -38,6 +38,7 @@ public final class LocalSessionConstructionOwnershipTest {
         assertLateTerminalAcceptCloseFailureRetainsOwnership();
         assertAuxListenerCloseFailurePublished();
         assertUncheckedListenerCloseFailurePublished();
+        assertAuxiliaryAcceptedSocketOwnership();
         assertSuccessPath();
 
         System.out.println(
@@ -74,6 +75,10 @@ public final class LocalSessionConstructionOwnershipTest {
             "lateAcceptFailureRetained=true "+
             "auxListenerFailurePublished=true "+
             "uncheckedListenerFailurePublished=true "+
+            "auxSocketOwned=true "+
+            "auxSocketCloseFailureRetained=true "+
+            "auxSocketRetry=true "+
+            "auxSocketOwnershipZero=true "+
             "successPath=true"
         );
     }
@@ -2034,6 +2039,86 @@ public final class LocalSessionConstructionOwnershipTest {
         if(repeated!=observed)
             throw new AssertionError(
                 "repeated close did not observe same unchecked listener failure",
+                repeated
+            );
+    }
+
+    private static void
+        assertAuxiliaryAcceptedSocketOwnership()
+        throws Exception{
+        World world=
+            World.isolatedForTest(
+                25L
+            );
+        world.start();
+
+        TrackingExecutor pool=
+            new TrackingExecutor();
+        ServerSocket game=
+            new ServerSocket();
+        ServerSocket aux=
+            new ServerSocket();
+        FailOnceCloseSocket socket=
+            new FailOnceCloseSocket();
+
+        LocalServerShutdownCoordinator shutdown=
+            new LocalServerShutdownCoordinator(
+                world,
+                pool,
+                game,
+                aux
+            );
+
+        if(!shutdown.claimAuxiliarySocket(
+                socket))
+            throw new AssertionError(
+                "healthy auxiliary socket claim was rejected"
+            );
+
+        if(shutdown.activeAuxiliarySocketCount()!=1)
+            throw new AssertionError(
+                "accepted auxiliary socket was not coordinator-owned"
+            );
+
+        Throwable observed=null;
+
+        try{
+            shutdown.close();
+        }catch(Throwable failure){
+            observed=failure;
+        }
+
+        if(!(observed instanceof
+                IllegalStateException)||
+           observed.getCause()!=
+                socket.failure)
+            throw new AssertionError(
+                "auxiliary socket close failure was not terminal evidence",
+                observed
+            );
+
+        if(!socket.isClosed()||
+           socket.closeCalls.get()<2)
+            throw new AssertionError(
+                "terminal auxiliary retry did not physically close socket"
+            );
+
+        if(shutdown.activeAuxiliarySocketCount()!=0)
+            throw new AssertionError(
+                "terminal auxiliary ownership did not retire"
+            );
+
+        Throwable repeated=null;
+
+        try{
+            shutdown.close();
+        }catch(Throwable failure){
+            repeated=failure;
+        }
+
+        if(repeated!=observed)
+            throw new AssertionError(
+                "repeated close changed auxiliary terminal failure identity",
                 repeated
             );
     }
