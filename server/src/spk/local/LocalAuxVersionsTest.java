@@ -39,7 +39,10 @@ public final class LocalAuxVersionsTest {
         assertFallback(
             LocalAuxVersions.readUserHome(
                 FALLBACK,
-                ()->"bad\u0000home"
+                ()->
+                    "bad"+
+                    (char)0+
+                    "home"
             ),
             "invalid user.home path"
         );
