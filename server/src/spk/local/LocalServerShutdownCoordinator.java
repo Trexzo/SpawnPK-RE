@@ -14,6 +14,11 @@ import java.util.concurrent.TimeUnit;
 final class LocalServerShutdownCoordinator
     implements AutoCloseable {
 
+    interface SessionFactory {
+        Runnable create()
+            throws Exception;
+    }
+
     private final Object lifecycleLock=
         new Object();
     private final World world;
@@ -60,12 +65,38 @@ final class LocalServerShutdownCoordinator
         Runnable session
     ){
         Objects.requireNonNull(
+            session,
+            "session"
+        );
+
+        try{
+            return submitSession(
+                socket,
+                (SessionFactory)
+                    ()->session
+            );
+        }catch(RuntimeException error){
+            throw error;
+        }catch(Error error){
+            throw error;
+        }catch(Exception error){
+            throw new RuntimeException(
+                error
+            );
+        }
+    }
+
+    boolean submitSession(
+        Socket socket,
+        SessionFactory factory
+    )throws Exception{
+        Objects.requireNonNull(
             socket,
             "socket"
         );
         Objects.requireNonNull(
-            session,
-            "session"
+            factory,
+            "factory"
         );
 
         synchronized(lifecycleLock){
@@ -77,6 +108,40 @@ final class LocalServerShutdownCoordinator
             activeGameSockets.add(
                 socket
             );
+        }
+
+        final Runnable session;
+
+        try{
+            session=
+                Objects.requireNonNull(
+                    factory.create(),
+                    "session"
+                );
+        }catch(Throwable failure){
+            synchronized(lifecycleLock){
+                activeGameSockets.remove(
+                    socket
+                );
+            }
+
+            closeQuietly(socket);
+            rethrowFactoryFailure(
+                failure
+            );
+            throw new AssertionError(
+                "unreachable"
+            );
+        }
+
+        synchronized(lifecycleLock){
+            if(closing){
+                activeGameSockets.remove(
+                    socket
+                );
+                closeQuietly(socket);
+                return false;
+            }
 
             try{
                 pool.execute(
@@ -106,6 +171,19 @@ final class LocalServerShutdownCoordinator
 
             return true;
         }
+    }
+
+    private static void rethrowFactoryFailure(
+        Throwable failure
+    )throws Exception{
+        if(failure instanceof Exception)
+            throw (Exception)failure;
+        if(failure instanceof Error)
+            throw (Error)failure;
+
+        throw new RuntimeException(
+            failure
+        );
     }
 
     boolean submitAuxiliary(
