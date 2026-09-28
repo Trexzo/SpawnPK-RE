@@ -4062,8 +4062,11 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
         [
             'Select-LocalLabBuildJava.ps1',
             'Get-Sha256Hex',
+            'Get-FileHash',
             '[IO.File]::Open(',
+            '[IO.FileMode]::CreateNew',
             '[IO.FileShare]::Read',
+            '[IO.FileShare]::None',
             '$sourceGuard',
             '$snapshotRoot',
             '$snapshotClient',
@@ -4096,6 +4099,31 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
             if(!text.contains(required))
                 throw new GradleException(
                     "Chat 1 cumulative wrapper contract missing: ${required}"
+                )
+        }
+
+        [
+            '[IO.File]::Open(': 3,
+            '[IO.FileShare]::Read': 2,
+            '[IO.FileShare]::None': 1,
+            '[IO.FileMode]::CreateNew': 1
+        ].each { anchor, expectedCount ->
+            int count = 0
+            int from = 0
+            while(true) {
+                int found =
+                    text.indexOf(
+                        anchor,
+                        from
+                    )
+                if(found < 0)
+                    break
+                count++
+                from = found + anchor.length()
+            }
+            if(count != expectedCount)
+                throw new GradleException(
+                    "Chat 1 cumulative client-snapshot guard count drift: expected=${expectedCount} actual=${count} anchor=${anchor}"
                 )
         }
 
