@@ -1,6 +1,12 @@
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
-Set-Location $PSScriptRoot
+
+$hadCallerJavaHome = Test-Path Env:JAVA_HOME
+$callerJavaHome = $env:JAVA_HOME
+$callerPath = $env:Path
+
+try {
+    Set-Location $PSScriptRoot
 
 # R85 JAVA11+ AUTOSELECT BEGIN
 # Keep this marker for VERIFY_OFFLINE_READY.ps1 compatibility, but use the
@@ -31,15 +37,30 @@ $serverJar = Join-Path $root 'server\build\SpawnPKLocalServer.jar'
 function Get-LauncherOwnedProcessIds {
     param(
         [System.Diagnostics.Process[]]$Roots,
-        [string]$Label
+        [string]$Label,
+        [switch]$IncludeExitedRoots
     )
 
-    $rootPids = @(
+    $recordedRootPids = @(
+        $Roots |
+            Where-Object { $null -ne $_ -and $_.Id -gt 0 } |
+            ForEach-Object { [int]$_.Id } |
+            Select-Object -Unique
+    )
+
+    $liveRootPids = @(
         $Roots |
             Where-Object { $null -ne $_ -and $_.Id -gt 0 -and -not $_.HasExited } |
             ForEach-Object { [int]$_.Id } |
             Select-Object -Unique
     )
+
+    $rootPids = if ($IncludeExitedRoots) {
+        @($recordedRootPids)
+    }
+    else {
+        @($liveRootPids)
+    }
 
     if ($rootPids.Count -eq 0) {
         return @()
@@ -50,6 +71,22 @@ function Get-LauncherOwnedProcessIds {
     }
     catch {
         throw "$Label ownership enumeration failed: $($_.Exception.Message)"
+    }
+
+    if ($IncludeExitedRoots) {
+        $exitedRootPids = @(
+            $recordedRootPids |
+                Where-Object { $_ -notin $liveRootPids }
+        )
+        foreach ($exitedRootPid in $exitedRootPids) {
+            $reused = @(
+                $snapshot |
+                    Where-Object { [int]$_.ProcessId -eq $exitedRootPid }
+            )
+            if ($reused.Count -ne 0) {
+                throw "$Label refused ambiguous exited-root PID reuse: $exitedRootPid"
+            }
+        }
     }
 
     $depthByPid = @{}
@@ -78,6 +115,10 @@ function Get-LauncherOwnedProcessIds {
 
     return @(
         $depthByPid.GetEnumerator() |
+            Where-Object {
+                $_.Value -gt 0 -or
+                $_.Key -in $liveRootPids
+            } |
             Sort-Object Value -Descending |
             ForEach-Object { [int]$_.Key }
     )
@@ -89,7 +130,7 @@ function Stop-LauncherOwnedProcessTree {
         [string]$Label
     )
 
-    $ownedPids = @(Get-LauncherOwnedProcessIds -Roots $Roots -Label $Label)
+    $ownedPids = @(Get-LauncherOwnedProcessIds -Roots $Roots -Label $Label -IncludeExitedRoots)
     foreach ($ownedPid in $ownedPids) {
         $live = Get-Process -Id $ownedPid -ErrorAction SilentlyContinue
         if ($null -eq $live) {
@@ -293,4 +334,15 @@ catch {
         $cleanupFailure = $_
     }
     Throw-LauncherFailureWithCleanup -PrimaryFailure $primaryFailure -CleanupFailure $cleanupFailure -Label 'RUN_ALL_LOCAL_LAB'
+}
+
+}
+finally {
+    if ($hadCallerJavaHome) {
+        $env:JAVA_HOME = $callerJavaHome
+    }
+    else {
+        Remove-Item Env:JAVA_HOME -ErrorAction SilentlyContinue
+    }
+    $env:Path = $callerPath
 }
