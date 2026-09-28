@@ -4074,6 +4074,10 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
             '$sourceGuard.CopyTo($snapshotWriter)',
             '$privateClientSha',
             'EvidenceFileName',
+            '$gradleOutput = New-Object ''System.Collections.Generic.List[string]''',
+            '[void]$gradleOutput.Add($line)',
+            '$gradleOutput |',
+            "$_.Contains('SPAWNPK_CHAT1_CURRENT_CUMULATIVE_CERTIFICATION_PASS')",
             '$markerMatches = @(',
             'serverSha256=([0-9a-f]{64})',
             'certifiedServerJarSha256 = $certifiedServerSha',
@@ -4185,7 +4189,8 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
             'Write-Host $markerMatch',
             'Write-Output $markerMatch',
             'echo $markerMatch',
-            'return $markerMatch'
+            'return $markerMatch',
+            'Select-String -LiteralPath $log'
         ].each { forbiddenOutput ->
             if(text.contains(forbiddenOutput))
                 throw new GradleException(
@@ -4196,7 +4201,7 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
         [
             'function Get-ExactGitHead',
             '& $gradlew @gradleArgs',
-            "Select-String -LiteralPath \$log -SimpleMatch -Pattern 'SPAWNPK_CHAT1_CURRENT_CUMULATIVE_CERTIFICATION_PASS'",
+            "$_.Contains('SPAWNPK_CHAT1_CURRENT_CUMULATIVE_CERTIFICATION_PASS')",
             'ConvertTo-Json',
             'spawnpk-chat1-cumulative-result-v1',
             'Write-Output $completion',
@@ -4364,9 +4369,17 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
             text.indexOf(
                 '"-Pv308ClientPath=$snapshotClient"'
             )
+        int gradleOutputIndex =
+            text.indexOf(
+                "$gradleOutput = New-Object 'System.Collections.Generic.List[string]'"
+            )
         int invokeIndex =
             text.indexOf(
                 '& $gradlew @gradleArgs'
+            )
+        int outputAddIndex =
+            text.indexOf(
+                '[void]$gradleOutput.Add($line)'
             )
         int exitCaptureIndex =
             text.indexOf(
@@ -4378,7 +4391,7 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
             )
         int markerObservationIndex =
             text.indexOf(
-                "Select-String -LiteralPath \$log -SimpleMatch -Pattern 'SPAWNPK_CHAT1_CURRENT_CUMULATIVE_CERTIFICATION_PASS'"
+                "$_.Contains('SPAWNPK_CHAT1_CURRENT_CUMULATIVE_CERTIFICATION_PASS')"
             )
         int jsonIndex =
             text.indexOf(
@@ -4458,8 +4471,10 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
                 'Remove-Item -LiteralPath $snapshotRoot -Recurse -Force'
             )
 
-        if(invokeIndex < 0 ||
-           exitCaptureIndex <= invokeIndex ||
+        if(gradleOutputIndex < 0 ||
+           invokeIndex <= gradleOutputIndex ||
+           outputAddIndex <= invokeIndex ||
+           exitCaptureIndex <= outputAddIndex ||
            exitSuccessCheckIndex <= exitCaptureIndex ||
            markerObservationIndex <= exitSuccessCheckIndex ||
            markerServerShaParseIndex <= markerObservationIndex ||
@@ -4476,7 +4491,7 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
            completionIndex <= completionObjectIndex ||
            structuredResultIndex <= completionIndex)
             throw new GradleException(
-                'Wrapper evidence ordering drifted: expected Gradle invoke -> native exit capture -> zero-exit check -> Gradle marker observation -> Gradle-owned server SHA parse -> private guard release -> private-root cleanup -> JSON -> guarded evidence create/write/flush/same-stream hash -> evidence guard release -> completion object/marker -> structured in-memory result.'
+                'Wrapper evidence ordering drifted: expected invocation-owned output accumulator -> Gradle invoke/output capture -> native exit capture -> zero-exit check -> in-memory Gradle marker observation -> Gradle-owned server SHA parse -> private guard release -> private-root cleanup -> JSON -> guarded evidence create/write/flush/same-stream hash -> evidence guard release -> completion object/marker -> structured in-memory result.'
             )
 
         logger.lifecycle(

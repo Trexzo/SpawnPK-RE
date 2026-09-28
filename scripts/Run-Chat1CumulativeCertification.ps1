@@ -215,16 +215,27 @@ try {
 
     $gradleExit = $null
     $oldErrorActionPreference = $ErrorActionPreference
+    $gradleOutput = New-Object 'System.Collections.Generic.List[string]'
 
     Push-Location (Join-Path $repo 'server')
     try {
         # Windows PowerShell 5.1 may surface redirected native stderr as
         # NativeCommandError records. Keep those non-terminating here and
         # decide success only from the native Gradle exit code.
+        #
+        # Every output object from this exact native invocation is converted
+        # to text and retained in invocation-owned memory while the same text
+        # remains visible to the operator and is mirrored to the durable log.
+        # The mutable log path is audit evidence only and never marker authority.
         $ErrorActionPreference = 'Continue'
         try {
             & $gradlew @gradleArgs 2>&1 |
-                Tee-Object -FilePath $log
+                Tee-Object -FilePath $log |
+                ForEach-Object {
+                    $line = [string]$_
+                    [void]$gradleOutput.Add($line)
+                    Write-Host $line
+                }
             $gradleExit = $LASTEXITCODE
         }
         finally {
@@ -242,20 +253,23 @@ try {
         )
     }
 
-    # Observe the Gradle-owned authoritative marker after native exit 0.
-    # This wrapper never emits that release marker itself.
+    # Observe the Gradle-owned authoritative marker from the invocation-owned
+    # output accumulator only. The durable log is never reopened for authority.
     $markerMatches = @(
-        Select-String -LiteralPath $log -SimpleMatch -Pattern 'SPAWNPK_CHAT1_CURRENT_CUMULATIVE_CERTIFICATION_PASS'
+        $gradleOutput |
+            Where-Object {
+                $_.Contains('SPAWNPK_CHAT1_CURRENT_CUMULATIVE_CERTIFICATION_PASS')
+            }
     )
 
     if ($markerMatches.Count -ne 1) {
         throw (
-            'Expected exactly one Gradle-owned cumulative PASS marker in the captured log. ' +
+            'Expected exactly one Gradle-owned cumulative PASS marker in the exact invocation output. ' +
             "Observed: $($markerMatches.Count)"
         )
     }
 
-    $markerLine = [string]$markerMatches[0].Line
+    $markerLine = [string]$markerMatches[0]
     $serverShaMatch = [regex]::Match(
         $markerLine,
         '(?:^|\s)serverSha256=([0-9a-f]{64})(?=\s|$)'
