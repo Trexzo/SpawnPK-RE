@@ -275,21 +275,6 @@ try {
         hostedPromotionSatisfied = $false
         hostedPromotionBlocker = '#816'
     }
-
-    $json = $record | ConvertTo-Json -Depth 4
-    Set-Content -LiteralPath $evidence -Value $json -Encoding UTF8
-
-    Write-Host (
-        'CHAT1_CUMULATIVE_WRAPPER_COMPLETE ' +
-        "exactV308=true " +
-        "head=$headBefore " +
-        "clientSha256=$privateClientSha " +
-        "invocationOwnedClient=true " +
-        "logSha256=$logSha " +
-        "logBytes=$($logItem.Length) " +
-        "evidence=$([IO.Path]::GetFileName($evidence)) " +
-        'hostedPromotionSatisfied=false'
-    ) -ForegroundColor Green
 }
 finally {
     try {
@@ -312,3 +297,20 @@ finally {
         $env:Path = $oldPath
     }
 }
+
+# Durable success evidence is published only after the invocation-owned client
+# guard has been released and its private snapshot root was deleted cleanly.
+$json = $record | ConvertTo-Json -Depth 4
+Set-Content -LiteralPath $evidence -Value $json -Encoding UTF8
+
+Write-Host (
+    'CHAT1_CUMULATIVE_WRAPPER_COMPLETE ' +
+    "exactV308=true " +
+    "head=$headBefore " +
+    "clientSha256=$privateClientSha " +
+    "invocationOwnedClient=true " +
+    "logSha256=$logSha " +
+    "logBytes=$($logItem.Length) " +
+    "evidence=$([IO.Path]::GetFileName($evidence)) " +
+    'hostedPromotionSatisfied=false'
+) -ForegroundColor Green
