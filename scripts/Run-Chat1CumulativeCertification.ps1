@@ -120,7 +120,7 @@ try {
     New-Item -ItemType Directory -Path $snapshotRoot | Out-Null
 
     $sourceGuard =
-        New-Object System.IO.FileStream(
+        [IO.File]::Open(
             $client,
             [IO.FileMode]::Open,
             [IO.FileAccess]::Read,
@@ -138,7 +138,7 @@ try {
     }
 
     $snapshotWriter =
-        New-Object System.IO.FileStream(
+        [IO.File]::Open(
             $snapshotClient,
             [IO.FileMode]::CreateNew,
             [IO.FileAccess]::Write,
@@ -154,7 +154,7 @@ try {
     }
 
     $privateGuard =
-        New-Object System.IO.FileStream(
+        [IO.File]::Open(
             $snapshotClient,
             [IO.FileMode]::Open,
             [IO.FileAccess]::Read,
