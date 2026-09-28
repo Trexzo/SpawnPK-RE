@@ -4086,6 +4086,10 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
             'function Remove-CertificationEvidenceLeafSafely',
             '$snapshotClientOwned = $true',
             '$evidenceOwned = $true',
+            '$publishCleanupFailures = @()',
+            'evidence writer dispose:',
+            'evidence guard dispose:',
+            'evidence leaf cleanup:',
             'Remove-CertificationSnapshotSafely -SnapshotRoot $snapshotRoot -SnapshotClient $snapshotClient',
             'Remove-CertificationEvidenceLeafSafely -Path $evidence',
             'Remove-Item -LiteralPath $SnapshotClient -Force -ErrorAction Stop',
@@ -4530,6 +4534,25 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
                 'Remove-CertificationEvidenceLeafSafely -Path $evidence',
                 publishOwnedCleanupBranchIndex
             )
+        int publishCleanupAccumulatorIndex =
+            text.indexOf(
+                '$publishCleanupFailures = @()'
+            )
+        int publishWriterCleanupIndex =
+            text.indexOf(
+                'evidence writer dispose:',
+                publishCleanupAccumulatorIndex
+            )
+        int publishGuardCleanupIndex =
+            text.indexOf(
+                'evidence guard dispose:',
+                publishWriterCleanupIndex
+            )
+        int publishLeafCleanupEvidenceIndex =
+            text.indexOf(
+                'evidence leaf cleanup:',
+                publishGuardCleanupIndex
+            )
         int publishCleanupCompositeIndex =
             text.indexOf(
                 'Cumulative certification evidence publication failed and cleanup was unsafe/incomplete.',
@@ -4541,11 +4564,15 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
            failedEvidenceLeafCheckIndex <= failedEvidenceParentCheckIndex ||
            failedEvidenceRemoveIndex <= failedEvidenceLeafCheckIndex ||
            evidenceOwnedIndex <= evidenceOpenIndex ||
+           publishCleanupAccumulatorIndex < 0 ||
+           publishWriterCleanupIndex <= publishCleanupAccumulatorIndex ||
+           publishGuardCleanupIndex <= publishWriterCleanupIndex ||
            publishOwnedCleanupBranchIndex <= evidenceOwnedIndex ||
            publishCleanupInvokeIndex <= publishOwnedCleanupBranchIndex ||
+           publishLeafCleanupEvidenceIndex <= publishGuardCleanupIndex ||
            publishCleanupCompositeIndex <= publishCleanupInvokeIndex)
             throw new GradleException(
-                'Failed JSON evidence cleanup must require successful CreateNew ownership, revalidate ancestry/leaf identity, and preserve publication failure when cleanup also fails.'
+                'Failed JSON evidence cleanup must preserve the primary publication failure through writer/guard disposal, require successful CreateNew ownership, revalidate ancestry/leaf identity, and compose cleanup failures.'
             )
 
         if(!ignoreText.readLines().any {
