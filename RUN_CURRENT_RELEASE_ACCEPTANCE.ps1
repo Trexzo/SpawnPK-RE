@@ -207,7 +207,7 @@ function Invoke-CurrentServerLoopbackSmoke {
         ).Hash.ToLowerInvariant()
 
         $sourceGuard.Position = 0
-        $privateWriter = New-Object IO.FileStream(
+        $privateWriter = [IO.FileStream]::new(
             $privateJar,
             [IO.FileMode]::CreateNew,
             [IO.FileAccess]::Write,
