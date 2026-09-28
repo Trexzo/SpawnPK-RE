@@ -62,23 +62,34 @@ foreach($c in @((Join-Path $lab 'local-client\client-localhost.jar'),(Join-Path 
 if(-not(Test-Path -LiteralPath $ConfigDir -PathType Container)){throw "SpawnPK config directory missing: $ConfigDir"}
 $selector=Join-Path $lab 'tools\R85_SelectJava11Plus.ps1'
 if(-not(Test-Path -LiteralPath $selector -PathType Leaf)){throw 'Missing R8.5 Java selector'}
-. $selector
-$javaInfo=Set-R85Java11Plus
-$javaExe=$javaInfo.Path
-& $javaExe -cp $server spk.local.VoidglassR3ConfigPatchTool verify $ConfigDir
-if($LASTEXITCODE -ne 0){throw 'Voidglass R3 live config verification failed'}
-$runner=Join-Path $lab 'RUN_V5185_FULL_SELFTEST.ps1'
-if(-not(Test-Path -LiteralPath $runner -PathType Leaf)){throw 'Missing RUN_V5185_FULL_SELFTEST.ps1'}
-$launcher=Join-Path $lab 'RUN_ALL_LOCAL_LAB.ps1'
-if(-not(Test-Path -LiteralPath $launcher -PathType Leaf)){throw 'Missing RUN_ALL_LOCAL_LAB.ps1'}
-$launcherText=Get-Content -LiteralPath $launcher -Raw
-if($launcherText -notmatch 'R85 JAVA11\+ AUTOSELECT BEGIN'){throw 'Normal LocalLab launcher is missing the R8.5 Java 11+ auto-selector block'}
-Write-Host 'V5185_ENGINE_R85_OFFLINE_READY_PASS' -ForegroundColor Green
-Write-Host "Server: $expectedServer"
-Write-Host "Pinned evidence unchanged: $pinnedPath"
-Write-Host 'R8.5 STATIC/PROTOCOL: S2C250 43/43 operation-decoded; remaining generic C2S 8/8 promoted to exact normalized events; S2C126 generic publisher retained.'
-Write-Host 'R8.5 UI: typed application publishers + local/dev fixtures. Subtype20 emitter intentionally disabled because exact client behavior starts an external TCP receiver.'
-Write-Host 'VOIDGLASS R3: item29999 valid inside client table; legacy32760 retired; NPC12000..12003 native-asset compositor candidates; Hydra model/anims/GFX removed; proc GFX5042.'
-Write-Host 'BOUNDARY: native-asset composition is not a newly-authored raw 3D mesh. Production rewards/prices/RNG/eligibility/business rules and unknown interaction outcomes remain fail-closed.'
-Write-Host 'CLIENT PATCH: live i.bin/e.bin definition metadata only; LocalLab client JARs/model/animation/GFX archives untouched.'
-Write-Host 'JAVA COMPAT: 499/499 classes are Java 11 bytecode (major 55). Full selftest count is 179. Normal launcher auto-selects Java 11+.'
+
+$hadCallerJavaHome=Test-Path Env:JAVA_HOME
+$callerJavaHome=$env:JAVA_HOME
+$callerPath=$env:Path
+
+try{
+  . $selector
+  $javaInfo=Set-R85Java11Plus
+  $javaExe=$javaInfo.Path
+  & $javaExe -cp $server spk.local.VoidglassR3ConfigPatchTool verify $ConfigDir
+  if($LASTEXITCODE -ne 0){throw 'Voidglass R3 live config verification failed'}
+  $runner=Join-Path $lab 'RUN_V5185_FULL_SELFTEST.ps1'
+  if(-not(Test-Path -LiteralPath $runner -PathType Leaf)){throw 'Missing RUN_V5185_FULL_SELFTEST.ps1'}
+  $launcher=Join-Path $lab 'RUN_ALL_LOCAL_LAB.ps1'
+  if(-not(Test-Path -LiteralPath $launcher -PathType Leaf)){throw 'Missing RUN_ALL_LOCAL_LAB.ps1'}
+  $launcherText=Get-Content -LiteralPath $launcher -Raw
+  if($launcherText -notmatch 'R85 JAVA11\+ AUTOSELECT BEGIN'){throw 'Normal LocalLab launcher is missing the R8.5 Java 11+ auto-selector block'}
+  Write-Host 'V5185_ENGINE_R85_OFFLINE_READY_PASS' -ForegroundColor Green
+  Write-Host "Server: $expectedServer"
+  Write-Host "Pinned evidence unchanged: $pinnedPath"
+  Write-Host 'R8.5 STATIC/PROTOCOL: S2C250 43/43 operation-decoded; remaining generic C2S 8/8 promoted to exact normalized events; S2C126 generic publisher retained.'
+  Write-Host 'R8.5 UI: typed application publishers + local/dev fixtures. Subtype20 emitter intentionally disabled because exact client behavior starts an external TCP receiver.'
+  Write-Host 'VOIDGLASS R3: item29999 valid inside client table; legacy32760 retired; NPC12000..12003 native-asset compositor candidates; Hydra model/anims/GFX removed; proc GFX5042.'
+  Write-Host 'BOUNDARY: native-asset composition is not a newly-authored raw 3D mesh. Production rewards/prices/RNG/eligibility/business rules and unknown interaction outcomes remain fail-closed.'
+  Write-Host 'CLIENT PATCH: live i.bin/e.bin definition metadata only; LocalLab client JARs/model/animation/GFX archives untouched.'
+  Write-Host 'JAVA COMPAT: 499/499 classes are Java 11 bytecode (major 55). Full selftest count is 179. Normal launcher auto-selects Java 11+.'
+}
+finally{
+  if($hadCallerJavaHome){$env:JAVA_HOME=$callerJavaHome}else{Remove-Item Env:JAVA_HOME -ErrorAction SilentlyContinue}
+  $env:Path=$callerPath
+}
