@@ -772,6 +772,8 @@ foreach ($entry in @(
     @('function Assert-ReleaseSourceIdentity', 1),
     @('function Assert-ExactSmokeListenerOwnership', 1),
     @('function Invoke-CurrentServerLoopbackSmoke', 1),
+    @('$cumulativeEvidenceName = (', 1),
+    @('certifiedServerJarSha256', 1),
     @('CURRENT_RELEASE_SERVER_SNAPSHOT_VERIFIED', 1),
     @('CURRENT_RELEASE_SERVER_LOOPBACK_PASS', 1),
     @('CURRENT_RELEASE_ACCEPTANCE_PASS', 1),
@@ -788,9 +790,12 @@ $releaseLauncherInvokeIndex = $releaseAcceptance.IndexOf('& $launcherContract -S
 $releaseFirstGradleIndex = $releaseAcceptance.IndexOf('& $gradle clean build')
 $releasePostBuildIdentityIndex = $releaseAcceptance.IndexOf('Assert-ReleaseSourceIdentity -ExpectedHead $releaseHead -Phase "post-build"')
 $releaseCumulativeInvokeIndex = $releaseAcceptance.IndexOf('& $cumulativeWrapper -ClientJar $client')
+$releaseCumulativeEvidenceIndex = $releaseAcceptance.IndexOf('$cumulativeEvidence = (')
+$releaseCertifiedServerShaIndex = $releaseAcceptance.IndexOf('$certifiedServerSha = [string]$cumulativeEvidence.certifiedServerJarSha256')
 $releasePostCumulativeIdentityIndex = $releaseAcceptance.IndexOf('Assert-ReleaseSourceIdentity -ExpectedHead $releaseHead -Phase "post-cumulative"')
 $releaseCertifiedJarIndex = $releaseAcceptance.IndexOf('$certifiedJar = Join-Path $server "build\SpawnPKLocalServer.jar"')
 $releaseSmokeInvokeIndex = $releaseAcceptance.LastIndexOf('Invoke-CurrentServerLoopbackSmoke -CanonicalJar $certifiedJar')
+$releaseSmokeExpectedShaIndex = $releaseAcceptance.LastIndexOf('-ExpectedServerSha256 $certifiedServerSha')
 $releasePostSmokeIdentityIndex = $releaseAcceptance.IndexOf('Assert-ReleaseSourceIdentity -ExpectedHead $releaseHead -Phase "post-smoke"')
 $releaseFinalPassIndex = $releaseAcceptance.IndexOf('CURRENT_RELEASE_ACCEPTANCE_PASS')
 
@@ -800,9 +805,12 @@ Assert-True ($releaseLauncherInvokeIndex -gt $releasePreflightIdentityIndex) 'Cu
 Assert-True ($releaseFirstGradleIndex -gt $releaseLauncherInvokeIndex) 'Current release Gradle build ordering drifted before launcher regression.'
 Assert-True ($releasePostBuildIdentityIndex -gt $releaseFirstGradleIndex) 'Current release does not recheck source identity after ordinary build.'
 Assert-True ($releaseCumulativeInvokeIndex -gt $releasePostBuildIdentityIndex) 'Current cumulative certification does not follow post-build source recheck.'
-Assert-True ($releasePostCumulativeIdentityIndex -gt $releaseCumulativeInvokeIndex) 'Current release does not recheck source identity after cumulative certification.'
+Assert-True ($releaseCumulativeEvidenceIndex -gt $releaseCumulativeInvokeIndex) 'Current release does not parse the exact cumulative evidence created by this invocation.'
+Assert-True ($releaseCertifiedServerShaIndex -gt $releaseCumulativeEvidenceIndex) 'Current release does not derive server SHA authority from cumulative evidence.'
+Assert-True ($releasePostCumulativeIdentityIndex -gt $releaseCertifiedServerShaIndex) 'Current release does not recheck source identity after cumulative evidence validation.'
 Assert-True ($releaseCertifiedJarIndex -gt $releasePostCumulativeIdentityIndex) 'Current release selects cumulative-certified server JAR before post-cumulative source proof.'
 Assert-True ($releaseSmokeInvokeIndex -gt $releaseCertifiedJarIndex) 'Current release smoke invocation does not follow cumulative-certified JAR selection.'
+Assert-True ($releaseSmokeExpectedShaIndex -gt $releaseCertifiedJarIndex) 'Current release smoke does not receive the cumulative-certified server SHA.'
 Assert-True ($releasePostSmokeIdentityIndex -gt $releaseSmokeInvokeIndex) 'Current release final source identity check does not follow completed smoke invocation.'
 Assert-True ($releaseFinalPassIndex -gt $releasePostSmokeIdentityIndex) 'Current release whole-flow PASS precedes final clean exact-head proof.'
 
@@ -812,6 +820,8 @@ $releaseSourceGuardIndex = $releaseAcceptance.IndexOf('$sourceGuard = [IO.File]:
 $releaseSourceHashIndex = $releaseAcceptance.IndexOf('Get-FileHash -InputStream $sourceGuard', $releaseSmokeFunctionIndex)
 $releasePrivateGuardIndex = $releaseAcceptance.IndexOf('$privateGuard = [IO.File]::Open(', $releaseSmokeFunctionIndex)
 $releasePrivateHashIndex = $releaseAcceptance.IndexOf('Get-FileHash -InputStream $privateGuard', $releaseSmokeFunctionIndex)
+$releaseExpectedShaCompareIndex = $releaseAcceptance.IndexOf('$certifiedSha -ne $ExpectedServerSha256', $releaseSmokeFunctionIndex)
+$releasePrivateExpectedShaCompareIndex = $releaseAcceptance.IndexOf('$privateSha -ne $ExpectedServerSha256', $releaseSmokeFunctionIndex)
 $releasePrivateVerifyIndex = $releaseAcceptance.IndexOf('CURRENT_RELEASE_SERVER_SNAPSHOT_VERIFIED', $releaseSmokeFunctionIndex)
 $releaseProcessSpawnIndex = $releaseAcceptance.IndexOf('$process = Start-Process', $releaseSmokeFunctionIndex)
 $releaseFirstOwnershipIndex = $releaseAcceptance.IndexOf('Assert-ExactSmokeListenerOwnership', $releaseSmokeFunctionIndex)
@@ -826,7 +836,9 @@ Assert-True ($releaseSourceGuardIndex -gt $releaseSmokeFunctionIndex) 'Current r
 Assert-True ($releaseSourceHashIndex -gt $releaseSourceGuardIndex) 'Current release hashes cumulative-certified bytes before acquiring the source guard.'
 Assert-True ($releasePrivateGuardIndex -gt $releaseSourceHashIndex) 'Current release private guard is established before source identity is hashed/copied.'
 Assert-True ($releasePrivateHashIndex -gt $releasePrivateGuardIndex) 'Current release hashes private smoke bytes before acquiring the private guard.'
-Assert-True ($releasePrivateVerifyIndex -gt $releasePrivateHashIndex) 'Current release reports private snapshot verification before guarded hash proof.'
+Assert-True ($releaseExpectedShaCompareIndex -gt $releasePrivateHashIndex) 'Current release does not compare guarded build-path bytes to cumulative-certified server SHA.'
+Assert-True ($releasePrivateExpectedShaCompareIndex -gt $releaseExpectedShaCompareIndex) 'Current release does not compare private smoke bytes to cumulative-certified server SHA.'
+Assert-True ($releasePrivateVerifyIndex -gt $releasePrivateExpectedShaCompareIndex) 'Current release reports private snapshot verification before cumulative-certified SHA equality.'
 Assert-True ($releaseProcessSpawnIndex -gt $releasePrivateVerifyIndex) 'Current release server process starts before private artifact verification.'
 Assert-True ($releaseFirstOwnershipIndex -gt $releaseProcessSpawnIndex) 'Current release listener ownership is checked before exact process spawn.'
 Assert-True ($releaseAuxIndex -gt $releaseFirstOwnershipIndex) 'Current release AUX semantic check precedes exact spawned-PID listener ownership.'
