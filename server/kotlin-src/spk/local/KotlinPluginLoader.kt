@@ -226,7 +226,7 @@ internal class KotlinPluginLoader @JvmOverloads constructor(
     }
 
     private fun validateApiJar(path: Path) {
-        JarFile(path.toFile()).use { jar ->
+        JarFile(path.toFile(), false).use { jar ->
             validateManifestClasspath(
                 path,
                 jar
@@ -357,7 +357,7 @@ internal class KotlinPluginLoader @JvmOverloads constructor(
     }
 
     private fun validateDependencyJar(path: Path) {
-        JarFile(path.toFile()).use { jar ->
+        JarFile(path.toFile(), false).use { jar ->
             validateManifestClasspath(
                 path,
                 jar
