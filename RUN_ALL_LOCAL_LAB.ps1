@@ -22,6 +22,24 @@ if (-not (Test-Path -LiteralPath $runtimeCheck -PathType Leaf)) {
 & $runtimeCheck
 Write-Host 'CURRENT_LOCALLAB_RUNTIME_PRECHECK_PASS' -ForegroundColor Green
 
+$root = $PSScriptRoot
+$serverScript = Join-Path $root 'scripts\Run-Server.ps1'
+$watcherScript = Join-Path $root 'WATCH_CLIENT_NETWORK.ps1'
+$clientScript = Join-Path $root 'scripts\Run-Client-Airgap.ps1'
+$serverJar = Join-Path $root 'server\build\SpawnPKLocalServer.jar'
+
+if (-not (Test-Path -LiteralPath $serverJar -PathType Leaf)) {
+    throw "Missing current LocalLab server JAR: $serverJar. Run .\BOOTSTRAP.ps1 or .\scripts\Build-Server.ps1 first."
+}
+
+foreach ($required in @($serverScript,$watcherScript,$clientScript)) {
+    if (-not (Test-Path -LiteralPath $required -PathType Leaf)) {
+        throw "Missing LocalLab launcher component: $required"
+    }
+}
+
+Write-Host 'LOCAL_LAB_REPLACEMENT_PREFLIGHT_PASS serverJar=true launchers=3' -ForegroundColor Green
+
 $ports = 43594,43595
 $listeners = Get-NetTCPConnection -State Listen -ErrorAction SilentlyContinue |
     Where-Object { $_.LocalPort -in $ports } |
@@ -54,22 +72,6 @@ do {
 if ($busy) {
     $busy | Format-Table LocalAddress,LocalPort,OwningProcess
     throw 'Ports 43594/43595 are still occupied. SpawnPK LocalLab was not started.'
-}
-
-$root = $PSScriptRoot
-$serverScript = Join-Path $root 'scripts\Run-Server.ps1'
-$watcherScript = Join-Path $root 'WATCH_CLIENT_NETWORK.ps1'
-$clientScript = Join-Path $root 'scripts\Run-Client-Airgap.ps1'
-$serverJar = Join-Path $root 'server\build\SpawnPKLocalServer.jar'
-
-if (-not (Test-Path -LiteralPath $serverJar -PathType Leaf)) {
-    throw "Missing current LocalLab server JAR: $serverJar. Run .\BOOTSTRAP.ps1 or .\scripts\Build-Server.ps1 first."
-}
-
-foreach ($required in @($serverScript,$watcherScript,$clientScript)) {
-    if (-not (Test-Path -LiteralPath $required -PathType Leaf)) {
-        throw "Missing LocalLab launcher component: $required"
-    }
 }
 
 Write-Host 'Starting localhost server in a new PowerShell...' -ForegroundColor Green
