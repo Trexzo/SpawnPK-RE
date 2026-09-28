@@ -15,7 +15,7 @@ function Stop-LauncherOwnedProcessTree {
 
     $rootPids = @(
         $Roots |
-            Where-Object { $null -ne $_ -and $_.Id -gt 0 } |
+            Where-Object { $null -ne $_ -and $_.Id -gt 0 -and -not $_.HasExited } |
             ForEach-Object { [int]$_.Id } |
             Select-Object -Unique
     )
