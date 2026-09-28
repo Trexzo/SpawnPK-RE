@@ -361,15 +361,19 @@ final class PluginJarLoader implements PluginLoader {
 
         try(JarFile file=
                 new JarFile(
-                    jar.toFile()
+                    jar.toFile(),
+                    false
                 )){
-            java.util.jar.Manifest manifest=
-                file.getManifest();
+            java.util.jar.Attributes mainAttributes=
+                BoundedManifestMain
+                    .readMainAttributes(
+                        file,
+                        jar
+                    );
 
-            if(manifest!=null){
+            if(mainAttributes!=null){
                 String classPath=
-                    manifest
-                        .getMainAttributes()
+                    mainAttributes
                         .getValue(
                             java.util.jar.Attributes
                                 .Name.CLASS_PATH
