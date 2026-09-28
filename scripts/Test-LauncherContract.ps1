@@ -44,7 +44,8 @@ $launcherFiles = @(
     'scripts\Run-Server.ps1',
     'scripts\Run-Client-Airgap.ps1',
     'scripts\Select-LocalLabJava.ps1',
-    'scripts\Check-ExternalRuntime.ps1'
+    'scripts\Check-ExternalRuntime.ps1',
+    'scripts\Build-V308LocalClients.ps1'
 )
 
 foreach ($file in $launcherFiles) {
@@ -59,6 +60,7 @@ $selector = Read-RepoFile 'scripts\Select-LocalLabJava.ps1'
 $ignore = Read-RepoFile '.gitignore'
 $externalRuntime = Read-RepoFile 'scripts\Check-ExternalRuntime.ps1'
 $runtimeImport = Read-RepoFile 'IMPORT_EXISTING_RUNTIME.ps1'
+$runtimeBuilder = Read-RepoFile 'scripts\Build-V308LocalClients.ps1'
 
 Assert-True ($client -match [regex]::Escape('scripts\Select-LocalLabJava.ps1')) 'Standalone airgap launcher does not use canonical Java selector.'
 Assert-True ($client -match 'Set-LocalLabJava') 'Standalone airgap launcher does not invoke Set-LocalLabJava.'
@@ -80,6 +82,9 @@ Assert-True ($externalRuntime -match 'coherentTriplet=true') 'External runtime d
 Assert-True ($runtimeImport -match '854f26ff9f134b0317572e7ac1688e6f40a231d5a4c66f8db5d655b7f45ce7c6') 'Runtime importer no longer requires exact v308 evidence client.'
 Assert-True ($runtimeImport -match '46b7d7d35c38fdd2ea49c3c7b7bea1406787f5f188d9fe102faedd20c983554a') 'Runtime importer no longer requires exact v308 airgap client.'
 Assert-True ($runtimeImport -match 'b8bccc927de4599d2d7b3d93ad66d91087f504e4e5250b9140b5b942cdc737d4') 'Runtime importer no longer requires exact v308 localhost client.'
+Assert-True ($runtimeBuilder -match 'build_v308_local_clients\.py') 'PowerShell runtime builder does not invoke the deterministic v308 patcher.'
+Assert-True ($runtimeBuilder -match 'Check-ExternalRuntime\.ps1') 'PowerShell runtime builder does not verify the rebuilt exact-v308 triplet.'
+Assert-True ($runtimeBuilder -match 'V308_LOCAL_CLIENT_BUILD_AND_VERIFY_PASS') 'PowerShell runtime builder marker missing.'
 
 Assert-True ($all -match [regex]::Escape('scripts\Select-LocalLabJava.ps1')) 'Multi-client launcher does not use canonical Java selector.'
 Assert-True ($all -match [regex]::Escape('scripts\Run-Server.ps1')) 'Multi-client launcher does not target scripts/Run-Server.ps1.'
