@@ -85,6 +85,58 @@ function Assert-NoReparsePointAncestors(
     return $candidateFull
 }
 
+function Assert-DisjointDirectories(
+    [string]$Left,
+    [string]$Right
+) {
+    $leftFull = Get-NormalizedDirectoryPath $Left
+    $rightFull = Get-NormalizedDirectoryPath $Right
+    $separator = [IO.Path]::DirectorySeparatorChar
+    $leftPrefix = $leftFull + $separator
+    $rightPrefix = $rightFull + $separator
+
+    if ([StringComparer]::OrdinalIgnoreCase.Equals(
+            $leftFull,
+            $rightFull
+        ) -or
+        $leftFull.StartsWith(
+            $rightPrefix,
+            [StringComparison]::OrdinalIgnoreCase
+        ) -or
+        $rightFull.StartsWith(
+            $leftPrefix,
+            [StringComparison]::OrdinalIgnoreCase
+        )) {
+        throw "R13 BaseSpawnpk and OutputHome must be disjoint: base=$leftFull output=$rightFull"
+    }
+}
+
+function Assert-NoNestedReparsePoints([string]$Root) {
+    $rootFull = Get-NormalizedDirectoryPath $Root
+    if (-not (Test-Path -LiteralPath $rootFull -PathType Container)) {
+        return
+    }
+
+    $pending = New-Object 'System.Collections.Generic.Stack[string]'
+    $pending.Push($rootFull)
+
+    while ($pending.Count -gt 0) {
+        $directory = $pending.Pop()
+
+        foreach ($child in @(
+            Get-ChildItem -LiteralPath $directory -Force -ErrorAction Stop
+        )) {
+            if (($child.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+                throw "R13 output reset refuses nested reparse point: $($child.FullName)"
+            }
+
+            if ($child.PSIsContainer) {
+                $pending.Push($child.FullName)
+            }
+        }
+    }
+}
+
 $runtimeRoot = Join-Path $repo 'runtime\locallab-user-home'
 $output = Assert-NoReparsePointAncestors $OutputHome $runtimeRoot
 $base = Get-NormalizedDirectoryPath $BaseSpawnpk
@@ -97,12 +149,16 @@ if ((Split-Path -Leaf $base) -ne '.spawnpk') {
     throw "BaseSpawnpk must point to an exact .spawnpk directory: $base"
 }
 
+Assert-DisjointDirectories $base $output
+
 if (Test-Path -LiteralPath $output) {
     if (-not $ResetOutput) {
         throw "R13 output already exists: $output. Re-run with -ResetOutput to rebuild the canonical isolated runtime copy."
     }
 
     $null = Assert-NoReparsePointAncestors $output $runtimeRoot
+    Assert-NoNestedReparsePoints $output
+    Assert-DisjointDirectories $base $output
     Write-Host "Removing previous R13 isolated output: $output" -ForegroundColor Yellow
     Remove-Item -LiteralPath $output -Recurse -Force
 }
