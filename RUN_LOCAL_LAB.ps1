@@ -117,7 +117,7 @@ try {
         ('"' + $serverScript + '"')
     ) -PassThru
 
-    $ready = $false$ready = $false
+    $ready = $false
 $serverPid = $null
 $readyPorts = @()
 $readyOwnerPids = @()
