@@ -558,24 +558,47 @@ Assert-True ($v308Patcher -match 'V308_LOCAL_CLIENT_BACKUP_READY') 'v308 local-c
 Assert-True ($v308Patcher -match 'V308_LOCAL_CLIENT_FINAL_VERIFY_PASS') 'v308 local-client builder does not verify the complete published generated set under rollback ownership.'
 Assert-True ($v308Patcher -match 'V308_LOCAL_CLIENT_ROLLBACK_COMPLETE') 'v308 local-client builder has no explicit clean rollback marker.'
 Assert-True ($v308Patcher -match 'transactionalPublication') 'v308 local-client manifest no longer records transactional publication ownership.'
-Assert-True ($v308Patcher -match 'touched\.append\(record\)') 'v308 local-client builder does not acquire rollback ownership before canonical writes.'
+Assert-True ($v308Patcher -match 'touched\.append\(record\)') 'v308 local-client builder does not acquire rollback ownership before canonical mutation.'
 Assert-True ($v308Patcher -match 'for record in reversed\(touched\)') 'v308 local-client builder does not restore touched outputs in reverse publication order.'
-Assert-True ($v308Patcher -match 'shutil\.copyfile\(record\["stage"\], record\["destination"\]\)') 'v308 local-client builder publication no longer comes from verified staging.'
+Assert-True ($v308Patcher -match 'def new_same_directory_leaf_path') 'v308 local-client builder lacks same-directory private-leaf authority.'
+Assert-True ($v308Patcher -match 'def copy_verified_same_directory_leaf') 'v308 local-client builder lacks verified private publication leaves.'
+Assert-True ($v308Patcher -match 'tempfile\.mkstemp\(') 'v308 local-client builder private publication leaf is not exclusively created.'
+Assert-True ($v308Patcher -match 'os\.fsync\(') 'v308 local-client builder does not flush private publication bytes before verification.'
+Assert-True ($v308Patcher -match 'def assert_destination_snapshot_owned') 'v308 local-client builder does not revalidate canonical preimage ownership immediately before mutation.'
+Assert-True ($v308Patcher -match 'os\.link\(') 'v308 local-client builder lacks no-overwrite canonical directory-entry publication.'
+Assert-True ($v308Patcher -match 'os\.replace\(') 'v308 local-client builder lacks atomic same-directory preimage/quarantine transitions.'
+Assert-True ($v308Patcher -match 'record\["committed"\]\s*=\s*True') 'v308 local-client builder does not distinguish committed canonical publication.'
+Assert-True ($v308Patcher -match 'record\["published_sha"\]\s*=\s*record\["expected_sha"\]') 'v308 local-client builder does not retain exact published-byte rollback authority.'
+Assert-True ($v308Patcher -match 'rollback ownership lost') 'v308 local-client rollback does not refuse changed canonical bytes.'
+Assert-True ($v308Patcher -notmatch 'shutil\.copyfile\(record\["stage"\], record\["destination"\]\)') 'v308 local-client builder reintroduced direct staged copy into canonical output.'
+Assert-True ($v308Patcher -notmatch 'shutil\.copyfile\([\s\S]*record\["backup"\],[\s\S]*record\["destination"\]') 'v308 local-client builder reintroduced direct rollback copy into canonical output.'
 Assert-True ($v308Patcher -notmatch 'build_variant\(source, output / "client-localhost\.jar"') 'v308 local-client builder reintroduced direct localhost generation into canonical output.'
 Assert-True ($v308Patcher -notmatch 'build_variant\(source, output / "client-airgap\.jar"') 'v308 local-client builder reintroduced direct airgap generation into canonical output.'
 
 $v308StageIndex = $v308Patcher.IndexOf('V308_LOCAL_CLIENT_STAGE_VERIFY_PASS')
 $v308BackupIndex = $v308Patcher.IndexOf('V308_LOCAL_CLIENT_BACKUP_READY')
-$v308TouchIndex = $v308Patcher.IndexOf('touched.append(record)')
-$v308PublishIndex = $v308Patcher.IndexOf('shutil.copyfile(record["stage"], record["destination"])')
+$v308LeafIndex = $v308Patcher.IndexOf('record["publish_leaf"] = copy_verified_same_directory_leaf')
+$v308SnapshotRecheckIndex = $v308Patcher.IndexOf('assert_destination_snapshot_owned(record)', $v308LeafIndex)
+$v308LeafRecheckIndex = $v308Patcher.IndexOf('assert_verified_leaf(', $v308SnapshotRecheckIndex)
+$v308TouchIndex = $v308Patcher.IndexOf('touched.append(record)', $v308LeafRecheckIndex)
+$v308PreimageTransitionIndex = $v308Patcher.IndexOf('os.replace(', $v308TouchIndex)
+$v308PublishIndex = $v308Patcher.IndexOf('os.link(', $v308TouchIndex)
+$v308CommitIndex = $v308Patcher.IndexOf('record["committed"] = True', $v308PublishIndex)
+$v308PublishedShaIndex = $v308Patcher.IndexOf('record["published_sha"] = record["expected_sha"]', $v308CommitIndex)
 $v308FinalVerifyIndex = $v308Patcher.IndexOf('V308_LOCAL_CLIENT_FINAL_VERIFY_PASS')
-$v308ExceptIndex = $v308Patcher.IndexOf('except BaseException as publish_error', $v308PublishIndex)
+$v308ExceptIndex = $v308Patcher.IndexOf('except BaseException as publish_error', $v308FinalVerifyIndex)
 $v308SuccessIndex = $v308Patcher.IndexOf('V308_LOCAL_CLIENT_PATCH_PASS')
 Assert-True ($v308StageIndex -ge 0) 'v308 local-client staged verification marker not found.'
 Assert-True ($v308BackupIndex -gt $v308StageIndex) 'v308 local-client builder snapshots canonical outputs before staged verification.'
-Assert-True ($v308TouchIndex -gt $v308BackupIndex) 'v308 local-client builder acquires mutation ownership before all backups exist.'
-Assert-True ($v308PublishIndex -gt $v308TouchIndex) 'v308 local-client builder writes canonical output before rollback ownership.'
-Assert-True ($v308FinalVerifyIndex -gt $v308PublishIndex) 'v308 local-client final verification does not follow canonical publication.'
+Assert-True ($v308LeafIndex -gt $v308BackupIndex) 'v308 local-client builder creates a canonical-directory publication leaf before all backups exist.'
+Assert-True ($v308SnapshotRecheckIndex -gt $v308LeafIndex) 'v308 local-client builder does not revalidate canonical ownership after private leaf verification.'
+Assert-True ($v308LeafRecheckIndex -gt $v308SnapshotRecheckIndex) 'v308 local-client builder does not revalidate private publication bytes immediately before mutation.'
+Assert-True ($v308TouchIndex -gt $v308LeafRecheckIndex) 'v308 local-client builder acquires mutation ownership before both sides of publication are revalidated.'
+Assert-True ($v308PreimageTransitionIndex -gt $v308TouchIndex) 'v308 local-client builder can capture an existing canonical preimage before rollback ownership.'
+Assert-True ($v308PublishIndex -gt $v308TouchIndex) 'v308 local-client builder can publish a canonical directory entry before rollback ownership.'
+Assert-True ($v308CommitIndex -gt $v308PublishIndex) 'v308 local-client builder marks publication committed before no-overwrite canonical publication succeeds.'
+Assert-True ($v308PublishedShaIndex -gt $v308CommitIndex) 'v308 local-client builder records published-byte authority before commit state.'
+Assert-True ($v308FinalVerifyIndex -gt $v308PublishedShaIndex) 'v308 local-client final verification does not follow committed publication.'
 Assert-True ($v308ExceptIndex -gt $v308FinalVerifyIndex) 'v308 local-client final verification escaped rollback ownership.'
 Assert-True ($v308SuccessIndex -gt $v308FinalVerifyIndex) 'v308 local-client builder reports success before final published-set verification.'
 
