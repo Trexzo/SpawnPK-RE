@@ -45,7 +45,8 @@ $launcherFiles = @(
     'scripts\Run-Client-Airgap.ps1',
     'scripts\Select-LocalLabJava.ps1',
     'scripts\Check-ExternalRuntime.ps1',
-    'scripts\Build-V308LocalClients.ps1'
+    'scripts\Build-V308LocalClients.ps1',
+    'scripts\Run-LocalCumulativeCertification.ps1'
 )
 
 foreach ($file in $launcherFiles) {
@@ -62,6 +63,7 @@ $externalRuntime = Read-RepoFile 'scripts\Check-ExternalRuntime.ps1'
 $runtimeImport = Read-RepoFile 'IMPORT_EXISTING_RUNTIME.ps1'
 $runtimeBuilder = Read-RepoFile 'scripts\Build-V308LocalClients.ps1'
 $v308Patcher = Read-RepoFile 'tools\runtime\build_v308_local_clients.py'
+$localCertification = Read-RepoFile 'scripts\Run-LocalCumulativeCertification.ps1'
 
 Assert-True ($client -match [regex]::Escape('scripts\Select-LocalLabJava.ps1')) 'Standalone airgap launcher does not use canonical Java selector.'
 Assert-True ($client -match 'Set-LocalLabJava') 'Standalone airgap launcher does not invoke Set-LocalLabJava.'
@@ -95,6 +97,71 @@ Assert-True ($v308Patcher -notmatch 'ZIP_DEFLATED') 'v308 local-client patcher r
 Assert-True ($v308Patcher -match 'unchangedEntryPayloadIdentity') 'v308 local-client patcher no longer proves unrelated entry payload identity.'
 Assert-True ($v308Patcher -match 'entryInventoryAndOrderPreserved') 'v308 local-client patcher no longer proves entry inventory/order preservation.'
 Assert-True ($v308Patcher -match 'manifestPayloadPreserved') 'v308 local-client patcher no longer proves manifest preservation.'
+
+Assert-True ($localCertification -match 'chat1CurrentCumulativeCertification') 'Local certification runner no longer invokes the exact cumulative Gradle gate.'
+Assert-True ($localCertification -match 'SPAWNPK_CHAT1_CURRENT_CUMULATIVE_CERTIFICATION_PASS') 'Local certification runner no longer requires the exact cumulative PASS marker.'
+Assert-True ($localCertification -match 'Tee-Object\s+-FilePath\s+\$log') 'Local certification runner no longer captures an execution log while streaming output.'
+Assert-True ($localCertification -match 'Get-FileHash\s+-LiteralPath\s+\$log\s+-Algorithm\s+SHA256') 'Local certification runner no longer hashes the captured log.'
+Assert-True ($localCertification -match 'hostedPromotionSatisfied=false') 'Local certification runner no longer preserves the #816 hosted-promotion boundary.'
+Assert-True ($localCertification -notmatch 'hostedPromotionSatisfied=true') 'Local certification runner may falsely claim hosted promotion.'
+Assert-True ($ignore -match '(?m)^runtime/certification/\s*
+
+Assert-True ($all -match [regex]::Escape('scripts\Select-LocalLabJava.ps1')) 'Multi-client launcher does not use canonical Java selector.'
+Assert-True ($all -match [regex]::Escape('scripts\Run-Server.ps1')) 'Multi-client launcher does not target scripts/Run-Server.ps1.'
+Assert-True ($all -match [regex]::Escape('scripts\Run-Client-Airgap.ps1')) 'Multi-client launcher does not target scripts/Run-Client-Airgap.ps1.'
+Assert-True ($all -match [regex]::Escape('WATCH_CLIENT_NETWORK.ps1')) 'Multi-client launcher does not target WATCH_CLIENT_NETWORK.ps1.'
+Assert-True ($all -match [regex]::Escape('scripts\Check-ExternalRuntime.ps1')) 'Multi-client launcher does not use current external-runtime preflight.'
+$allTokens = $null
+$allParseErrors = $null
+[void][System.Management.Automation.Language.Parser]::ParseInput(
+    $all,
+    [ref]$allTokens,
+    [ref]$allParseErrors
+)
+$sealedVerifierTokens = @(
+    $allTokens | Where-Object {
+        ([string]$_.Kind) -ne 'Comment' -and
+        $_.Text -match 'VERIFY_OFFLINE_READY\.ps1'
+    }
+)
+Assert-True ($sealedVerifierTokens.Count -eq 0) 'Multi-client launcher still invokes the sealed historical R8.5 verifier.'
+Assert-True ($all -match [regex]::Escape('server\build\SpawnPKLocalServer.jar')) 'Multi-client launcher does not preflight the current built server JAR.'
+Assert-True ($all -match 'existingAirgapPids') 'Multi-client launcher does not distinguish a newly started airgap client from pre-existing clients.'
+Assert-True ($all -match 'AIRGAP_CLIENT_PROCESS_READY') 'Multi-client launcher does not prove a new airgap Java process started before reporting success.'
+Assert-True ($all -match 'SERVER_PORTS_READY game=43594 aux=43595') 'Multi-client launcher does not require both game and AUX listeners before client launch.'
+Assert-True ($all -match 'SERVER_PROCESS_READY') 'Multi-client launcher does not prove both listeners belong to an expected LocalLab Java process.'
+Assert-True ($all -match 'readyOwnerPids.Count -eq 1') 'Multi-client launcher does not require one server process to own both startup listeners.'
+Assert-True ($all -match 'stableOwnerPids.Count -ne 1') 'Multi-client launcher does not recheck singular server ownership after client startup.'
+Assert-True ($all -match 'expectedOwner=\$serverOwnerPid') 'Multi-client launcher does not retain expected server listener ownership through stabilization.'
+Assert-True ($all -match 'readyPortNumbers -contains 43595') 'Multi-client launcher does not gate client launch on AUX port 43595.'
+Assert-True ($all -match 'AIRGAP_CLIENT_PROCESS_STABLE') 'Multi-client launcher does not require the new airgap Java process to survive stabilization.'
+Assert-True ($all -match 'Start-Sleep -Seconds 2') 'Multi-client launcher does not retain the airgap client through the required stabilization dwell.'
+Assert-True ($all -match 'stablePorts -notcontains 43595') 'Multi-client launcher does not recheck AUX listener survival after client startup.'
+Assert-True ($all -match 'client-airgap\\\.jar') 'Multi-client launcher does not identify the airgap client process by client-airgap.jar.'
+Assert-True ($all -notmatch 'RUN_SERVER_LOCAL_WORLD\.ps1') 'Stale RUN_SERVER_LOCAL_WORLD.ps1 target remains.'
+Assert-True ($all -match "'-File'") 'Child launchers are not using explicit PowerShell -File execution.'
+Assert-True ($all -match 'AddSeconds\(30\)') 'Server-ready deadline is not the required 30-second window.'
+Assert-True ($all -match 'R85 JAVA11\+ AUTOSELECT BEGIN') 'Compatibility selector marker was removed.'
+
+Assert-True ($serverWrapper -match 'Select-LocalLabJava\.ps1') 'Server wrapper is not using the canonical Java selector.'
+Assert-True ($clientWrapper -match 'Select-LocalLabJava\.ps1') 'Client wrapper is not using the canonical Java selector.'
+Assert-True ($selector -match 'Major -eq 17') 'Canonical selector no longer prefers the proven Java 17 runtime.'
+
+Assert-True ($ignore -match '(?m)^\*\.log\s*$') '*.log is not ignored.'
+Assert-True ($ignore -match '(?m)^\*\.lock\s*$') '*.lock is not ignored.'
+Assert-True ($ignore -match '(?m)^\*\.pid\s*$') '*.pid is not ignored.'
+Assert-True ($ignore -match '(?m)^runtime/locallab-user-home/\s*$') 'LocalLab isolated user.home runtime tree is not ignored.'
+
+if (-not $SkipJavaProbe) {
+    . (Join-Path $repo 'scripts\Select-LocalLabJava.ps1')
+    $java = Set-LocalLabJava
+    Assert-True ($null -ne $java) 'Canonical selector returned no Java runtime.'
+    Assert-True ([int]$java.Major -ge 11) "Selected Java is below 11: $($java.Major)"
+    Assert-True (Test-Path -LiteralPath $java.Path -PathType Leaf) "Selected Java path is missing: $($java.Path)"
+}
+
+Write-Host 'LOCALLAB_LAUNCHER_CONTRACT_PASS' -ForegroundColor Green
+) 'Local cumulative certification log tree is not explicitly ignored.'
 
 Assert-True ($all -match [regex]::Escape('scripts\Select-LocalLabJava.ps1')) 'Multi-client launcher does not use canonical Java selector.'
 Assert-True ($all -match [regex]::Escape('scripts\Run-Server.ps1')) 'Multi-client launcher does not target scripts/Run-Server.ps1.'
