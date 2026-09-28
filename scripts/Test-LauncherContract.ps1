@@ -99,6 +99,8 @@ Assert-True ($v308Patcher -match 'entryInventoryAndOrderPreserved') 'v308 local-
 Assert-True ($v308Patcher -match 'manifestPayloadPreserved') 'v308 local-client patcher no longer proves manifest preservation.'
 
 Assert-True ($localCertification -match 'chat1CurrentCumulativeCertification') 'Local certification runner no longer invokes the exact cumulative Gradle gate.'
+Assert-True ($localCertification -match 'runtime\\certification') 'Local certification runner no longer writes to the canonical ignored runtime/certification tree.'
+Assert-True ($localCertification -notmatch '\$LogDirectory') 'Local certification runner reintroduced an arbitrary log-directory override.'
 Assert-True ($localCertification -match 'SPAWNPK_CHAT1_CURRENT_CUMULATIVE_CERTIFICATION_PASS') 'Local certification runner no longer requires the exact cumulative PASS marker.'
 Assert-True ($localCertification -match 'Tee-Object\s+-FilePath\s+\$log') 'Local certification runner no longer captures an execution log while streaming output.'
 Assert-True ($localCertification -match 'Get-FileHash\s+-LiteralPath\s+\$log\s+-Algorithm\s+SHA256') 'Local certification runner no longer hashes the captured log.'
