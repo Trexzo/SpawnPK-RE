@@ -22,6 +22,34 @@ $output = [IO.Path]::GetFullPath($OutputDirectory)
 $expectedClient =
     '854f26ff9f134b0317572e7ac1688e6f40a231d5a4c66f8db5d655b7f45ce7c6'
 
+function Get-Sha256Hex {
+    param(
+        [Parameter(Mandatory=$true)]
+        [System.IO.Stream]$Stream
+    )
+
+    if (-not $Stream.CanRead -or -not $Stream.CanSeek) {
+        throw 'SHA-256 input stream must be readable and seekable.'
+    }
+
+    $sha = [Security.Cryptography.SHA256]::Create()
+    try {
+        $Stream.Position = 0
+        $hash = $sha.ComputeHash($Stream)
+        return (
+            @(
+                $hash | ForEach-Object {
+                    $_.ToString('x2')
+                }
+            ) -join ''
+        )
+    }
+    finally {
+        $sha.Dispose()
+        $Stream.Position = 0
+    }
+}
+
 function Assert-CanonicalOutputPathSafe([string]$Path) {
     $repoRoot = [IO.Path]::GetFullPath($repo).TrimEnd('\','/')
     $full = [IO.Path]::GetFullPath($Path).TrimEnd('\','/')
@@ -87,13 +115,6 @@ if (-not (Test-Path -LiteralPath $client -PathType Leaf)) {
     throw "Exact v308 client missing: $client"
 }
 
-$actualClient =
-    (Get-FileHash -LiteralPath $client -Algorithm SHA256).Hash.ToLowerInvariant()
-
-if ($actualClient -ne $expectedClient) {
-    throw "Exact v308 client hash mismatch. Expected $expectedClient actual $actualClient"
-}
-
 if (-not [StringComparer]::OrdinalIgnoreCase.Equals(
         $output,
         $canonicalOutput
@@ -110,20 +131,117 @@ if ($null -eq $python) {
     throw 'Python is required to build the exact-v308 LocalLab client variants.'
 }
 
-Write-Host (
-    'V308_LOCAL_CLIENT_BUILD_PREFLIGHT_PASS ' +
-    "clientSha256=$actualClient canonicalClient=true canonicalOutput=true"
-) -ForegroundColor Green
+$snapshotRoot = Join-Path (
+    [IO.Path]::GetTempPath()
+) (
+    'spawnpk-v308-input-' + [Guid]::NewGuid().ToString('N')
+)
+$snapshotClient = Join-Path $snapshotRoot 'client-v308.jar'
+$sourceGuard = $null
+$privateGuard = $null
+$patcherFailure = $null
+$cleanupFailure = $null
 
-# The Python publication transaction owns creation of an absent canonical
-# local-client directory so rollback can distinguish transaction-created
-# directory state from pre-existing caller state. Re-prove path safety
-# immediately before crossing the process boundary, but do not create it here.
-$output = Assert-CanonicalOutputPathSafe $output
+try {
+    New-Item -ItemType Directory -Path $snapshotRoot | Out-Null
 
-& $python.Source $patcher $client $output
-if ($LASTEXITCODE -ne 0) {
-    throw "v308 local-client patcher exited with code $LASTEXITCODE"
+    $sourceGuard = [IO.File]::Open(
+        $client,
+        [IO.FileMode]::Open,
+        [IO.FileAccess]::Read,
+        [IO.FileShare]::Read
+    )
+
+    $actualClient = Get-Sha256Hex -Stream $sourceGuard
+    if ($actualClient -ne $expectedClient) {
+        throw "Exact v308 client hash mismatch. Expected $expectedClient actual $actualClient"
+    }
+
+    $snapshotWriter = [IO.File]::Open(
+        $snapshotClient,
+        [IO.FileMode]::CreateNew,
+        [IO.FileAccess]::Write,
+        [IO.FileShare]::None
+    )
+    try {
+        $sourceGuard.Position = 0
+        $sourceGuard.CopyTo($snapshotWriter)
+        $snapshotWriter.Flush($true)
+    }
+    finally {
+        $snapshotWriter.Dispose()
+    }
+
+    $privateGuard = [IO.File]::Open(
+        $snapshotClient,
+        [IO.FileMode]::Open,
+        [IO.FileAccess]::Read,
+        [IO.FileShare]::Read
+    )
+
+    $privateClientSha = Get-Sha256Hex -Stream $privateGuard
+    if ($privateClientSha -ne $expectedClient -or
+        $privateClientSha -ne $actualClient) {
+        throw (
+            'Invocation-owned exact-v308 input snapshot identity mismatch. ' +
+            "Expected: $expectedClient Source: $actualClient Snapshot: $privateClientSha"
+        )
+    }
+
+    $sourceGuard.Dispose()
+    $sourceGuard = $null
+
+    Write-Host (
+        'V308_LOCAL_CLIENT_BUILD_PREFLIGHT_PASS ' +
+        "clientSha256=$privateClientSha canonicalClient=true " +
+        'invocationOwnedClient=true canonicalOutput=true'
+    ) -ForegroundColor Green
+
+    # The Python publication transaction owns creation of an absent canonical
+    # local-client directory so rollback can distinguish transaction-created
+    # directory state from pre-existing caller state. Re-prove path safety
+    # immediately before crossing the process boundary, but do not create it here.
+    $output = Assert-CanonicalOutputPathSafe $output
+
+    & $python.Source $patcher $snapshotClient $output
+    if ($LASTEXITCODE -ne 0) {
+        throw "v308 local-client patcher exited with code $LASTEXITCODE"
+    }
+}
+catch {
+    $patcherFailure = $_
+}
+finally {
+    try {
+        if ($null -ne $privateGuard) {
+            $privateGuard.Dispose()
+            $privateGuard = $null
+        }
+
+        if ($null -ne $sourceGuard) {
+            $sourceGuard.Dispose()
+            $sourceGuard = $null
+        }
+
+        if (Test-Path -LiteralPath $snapshotRoot) {
+            Remove-Item -LiteralPath $snapshotRoot -Recurse -Force
+        }
+    }
+    catch {
+        $cleanupFailure = $_
+    }
+}
+
+if ($null -ne $patcherFailure) {
+    if ($null -ne $cleanupFailure) {
+        $patcherFailure.Exception.Data['V308InputSnapshotCleanupFailure'] =
+            $cleanupFailure.Exception.ToString()
+    }
+    throw $patcherFailure
+}
+
+if ($null -ne $cleanupFailure) {
+    throw $cleanupFailure
 }
 
 & (Join-Path $PSScriptRoot 'Check-ExternalRuntime.ps1')
