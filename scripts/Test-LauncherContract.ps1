@@ -44,6 +44,8 @@ $launcherFiles = @(
     'RUN_ALL_LOCAL_LAB.ps1',
     'RUN_LOCAL_LAB.ps1',
     'RUN_CURRENT_RELEASE_ACCEPTANCE.ps1',
+    'BOOTSTRAP.ps1',
+    'scripts\Patch-LocalConfigs.ps1',
     'WATCH_CLIENT_NETWORK.ps1',
     'scripts\Run-Server.ps1',
     'scripts\Run-Client-Airgap.ps1',
@@ -62,6 +64,8 @@ $secondClient = Read-RepoFile 'RUN_SECOND_LOCAL_CLIENT.ps1'
 $nonAirgap = Read-RepoFile 'RUN_CLIENT_LOCALHOST_NONAIRGAP.ps1'
 $all = Read-RepoFile 'RUN_ALL_LOCAL_LAB.ps1'
 $quick = Read-RepoFile 'RUN_LOCAL_LAB.ps1'
+$bootstrap = Read-RepoFile 'BOOTSTRAP.ps1'
+$configPatch = Read-RepoFile 'scripts\Patch-LocalConfigs.ps1'
 $serverWrapper = Read-RepoFile 'scripts\Run-Server.ps1'
 $clientWrapper = Read-RepoFile 'scripts\Run-Client-Airgap.ps1'
 $selector = Read-RepoFile 'scripts\Select-LocalLabJava.ps1'
@@ -276,6 +280,19 @@ Assert-True ($all -notmatch 'RUN_SERVER_LOCAL_WORLD\.ps1') 'Stale RUN_SERVER_LOC
 Assert-True ($all -match "'-File'") 'Child launchers are not using explicit PowerShell -File execution.'
 Assert-True ($all -match 'AddSeconds\(30\)') 'Server-ready deadline is not the required 30-second window.'
 Assert-True ($all -match 'R85 JAVA11\+ AUTOSELECT BEGIN') 'Compatibility selector marker was removed.'
+
+Assert-True ($bootstrap -match '\[switch\]\$SkipConfigPatch') 'Bootstrap no longer preserves the legacy -SkipConfigPatch compatibility switch.'
+Assert-True ($bootstrap -match 'BOOTSTRAP_CONFIG_PATCH_RETIRED') 'Bootstrap does not state that live config mutation is retired.'
+Assert-True ($bootstrap -match 'isolatedCachePipelineRequired=true') 'Bootstrap does not point custom-cache work to isolated authority.'
+Assert-True ($bootstrap -notmatch [regex]::Escape('scripts\Patch-LocalConfigs.ps1')) 'Bootstrap reintroduced the retired live config patch script.'
+
+Assert-True ($configPatch -match 'LOCALLAB_CONFIG_PATCH_RETIRED') 'Retired config-patch shim lost its fail-closed marker.'
+Assert-True ($configPatch -match 'isolatedCachePipelineRequired=true') 'Retired config-patch shim does not require isolated cache authority.'
+Assert-True ($configPatch -match [regex]::Escape('scripts\Run-R13AssetAcceptance.ps1')) 'Retired config-patch shim does not point to canonical R13 acceptance tooling.'
+Assert-True ($configPatch -match 'build_r13_isolated_profile\.py') 'Retired config-patch shim does not point to the isolated profile builder.'
+Assert-True ($configPatch -notmatch 'VoidglassR3ConfigPatchTool') 'Retired config-patch shim still invokes the obsolete Java mutator.'
+Assert-True ($configPatch -notmatch 'Copy-Item') 'Retired config-patch shim still copies live config bytes.'
+Assert-True ($configPatch -notmatch '&\s+\$java\.Path') 'Retired config-patch shim still launches Java mutation tooling.'
 
 Assert-True ($serverWrapper -match 'Select-LocalLabJava\.ps1') 'Server wrapper is not using the canonical Java selector.'
 Assert-True ($serverWrapper -match [regex]::Escape('server\build\SpawnPKLocalServer.jar')) 'Server wrapper does not target the current built server JAR.'
