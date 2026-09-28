@@ -4,8 +4,6 @@ param(
 
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
-Set-Location $PSScriptRoot
-
 if (-not $AllowExternalEndpoints) {
     throw 'Refusing NONAIRGAP diagnostic launch without explicit -AllowExternalEndpoints opt-in. Use the canonical airgap launcher by default.'
 }
@@ -23,8 +21,12 @@ foreach ($required in @($selector, $runtimeCheck, $jar)) {
 $hadCallerJavaHome = Test-Path Env:JAVA_HOME
 $callerJavaHome = $env:JAVA_HOME
 $callerPath = $env:Path
+$callerLocationPushed = $false
 
 try {
+    Push-Location -LiteralPath $PSScriptRoot
+    $callerLocationPushed = $true
+
     . $selector
     $java = Set-LocalLabJava
 
@@ -40,6 +42,10 @@ if ($LASTEXITCODE -ne 0) {
 }
 }
 finally {
+    if ($callerLocationPushed) {
+        Pop-Location
+    }
+
     if ($hadCallerJavaHome) {
         $env:JAVA_HOME = $callerJavaHome
     }
