@@ -361,7 +361,8 @@ final class PluginJarLoader implements PluginLoader {
 
         try(JarFile file=
                 new JarFile(
-                    jar.toFile()
+                    jar.toFile(),
+                    false
                 )){
             java.util.jar.Attributes mainAttributes=
                 BoundedManifestMain
