@@ -4512,7 +4512,7 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
             )
         int failedEvidenceLeafCheckIndex =
             text.indexOf(
-                "Assert-OrdinaryFile -Path $Path -Label 'Failed certification evidence cleanup leaf'",
+                "Assert-OrdinaryFile -Path \$Path -Label 'Failed certification evidence cleanup leaf'",
                 failedEvidenceParentCheckIndex
             )
         int failedEvidenceRemoveIndex =
