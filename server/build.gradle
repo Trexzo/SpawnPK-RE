@@ -4089,7 +4089,16 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
             'runtime\\certification',
             'git -C $repo rev-parse HEAD',
             'git -C $repo status --porcelain --untracked-files=normal',
-            'Tee-Object -FilePath $log',
+            "New-Object 'System.Collections.Generic.List[string]'",
+            '$gradleOutput.Add($line)',
+            '$logGuard',
+            '$logWriter',
+            '$logWriter.WriteLine($line)',
+            '$logGuard.Flush($true)',
+            'Write-Host $line',
+            'Get-FileHash -InputStream $logGuard -Algorithm SHA256',
+            '$authoritativeMarker = \'SPAWNPK_CHAT1_CURRENT_CUMULATIVE_CERTIFICATION_PASS\'',
+            '$gradleOutput |',
             '$gradleExit = $LASTEXITCODE',
             "\$ErrorActionPreference = 'Continue'",
             'spawnpk-chat1-local-certification-evidence-v1',
@@ -4118,11 +4127,12 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
         }
 
         [
-            '[IO.File]::Open(': 4,
-            '[IO.FileShare]::Read': 3,
+            '[IO.File]::Open(': 5,
+            '[IO.FileShare]::Read': 4,
             '[IO.FileShare]::None': 1,
-            '[IO.FileMode]::CreateNew': 2,
-            '[IO.FileAccess]::ReadWrite': 1
+            '[IO.FileMode]::CreateNew': 3,
+            '[IO.FileAccess]::ReadWrite': 2,
+            '[IO.StreamWriter]::new(': 2
         ].each { anchor, expectedCount ->
             int count = 0
             int from = 0
@@ -4150,11 +4160,15 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
 
         [
             'Set-Content -LiteralPath $evidence',
-            'Get-FileHash -LiteralPath $evidence -Algorithm SHA256'
-        ].each { staleEvidenceAuthority ->
-            if(text.contains(staleEvidenceAuthority))
+            'Get-FileHash -LiteralPath $evidence -Algorithm SHA256',
+            'Tee-Object -FilePath $log',
+            'Select-String -LiteralPath $log',
+            'Get-FileHash -LiteralPath $log',
+            'Get-Item -LiteralPath $log'
+        ].each { staleMutableAuthority ->
+            if(text.contains(staleMutableAuthority))
                 throw new GradleException(
-                    "Cumulative evidence publication must stay on one guarded file identity: ${staleEvidenceAuthority}"
+                    "Cumulative wrapper must not reacquire authority from a mutable path: ${staleMutableAuthority}"
                 )
         }
 
@@ -4169,10 +4183,10 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
 
         if(authoritativeMarkerLines.size() != 1 ||
            !authoritativeMarkerLines[0].contains(
-                "Select-String -LiteralPath \$log -SimpleMatch -Pattern '${authoritativeMarker}'"
+                "\$authoritativeMarker = '${authoritativeMarker}'"
             ))
             throw new GradleException(
-                'Wrapper must observe the exact Gradle-owned cumulative PASS marker exactly once.'
+                'Wrapper must define the exact Gradle-owned cumulative PASS marker exactly once for invocation-output matching.'
             )
 
         if(authoritativeMarkerLines[0] =~
@@ -4196,7 +4210,11 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
         [
             'function Get-ExactGitHead',
             '& $gradlew @gradleArgs',
-            "Select-String -LiteralPath \$log -SimpleMatch -Pattern 'SPAWNPK_CHAT1_CURRENT_CUMULATIVE_CERTIFICATION_PASS'",
+            '$authoritativeMarker = \'SPAWNPK_CHAT1_CURRENT_CUMULATIVE_CERTIFICATION_PASS\'',
+            'New-Object \'System.Collections.Generic.List[string]\'',
+            '[void]$gradleOutput.Add($line)',
+            '$logWriter.WriteLine($line)',
+            'Get-FileHash -InputStream $logGuard -Algorithm SHA256',
             'ConvertTo-Json',
             'spawnpk-chat1-cumulative-result-v1',
             'Write-Output $completion',
@@ -4376,9 +4394,44 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
             text.indexOf(
                 'if ($null -eq $gradleExit -or $gradleExit -ne 0)'
             )
+        int gradleOutputInitIndex =
+            text.indexOf(
+                "New-Object 'System.Collections.Generic.List[string]'"
+            )
+        int logGuardIndex =
+            text.indexOf(
+                '$logGuard =',
+                gradleOutputInitIndex
+            )
+        int logWriterIndex =
+            text.indexOf(
+                '[IO.StreamWriter]::new(',
+                logGuardIndex
+            )
+        int gradleOutputAddIndex =
+            text.indexOf(
+                '[void]$gradleOutput.Add($line)',
+                invokeIndex
+            )
+        int logLineWriteIndex =
+            text.indexOf(
+                '$logWriter.WriteLine($line)',
+                gradleOutputAddIndex
+            )
         int markerObservationIndex =
             text.indexOf(
-                "Select-String -LiteralPath \$log -SimpleMatch -Pattern 'SPAWNPK_CHAT1_CURRENT_CUMULATIVE_CERTIFICATION_PASS'"
+                '$gradleOutput |',
+                exitSuccessCheckIndex
+            )
+        int logHashIndex =
+            text.indexOf(
+                'Get-FileHash -InputStream $logGuard -Algorithm SHA256',
+                markerObservationIndex
+            )
+        int logGuardReleaseIndex =
+            text.indexOf(
+                '$logGuard.Dispose()',
+                logHashIndex
             )
         int jsonIndex =
             text.indexOf(
@@ -4458,12 +4511,19 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
                 'Remove-Item -LiteralPath $snapshotRoot -Recurse -Force'
             )
 
-        if(invokeIndex < 0 ||
-           exitCaptureIndex <= invokeIndex ||
+        if(gradleOutputInitIndex < 0 ||
+           logGuardIndex <= gradleOutputInitIndex ||
+           logWriterIndex <= logGuardIndex ||
+           invokeIndex <= logWriterIndex ||
+           gradleOutputAddIndex <= invokeIndex ||
+           logLineWriteIndex <= gradleOutputAddIndex ||
+           exitCaptureIndex <= logLineWriteIndex ||
            exitSuccessCheckIndex <= exitCaptureIndex ||
            markerObservationIndex <= exitSuccessCheckIndex ||
            markerServerShaParseIndex <= markerObservationIndex ||
-           privateReleaseIndex <= markerServerShaParseIndex ||
+           logHashIndex <= markerServerShaParseIndex ||
+           logGuardReleaseIndex <= logHashIndex ||
+           privateReleaseIndex <= logGuardReleaseIndex ||
            snapshotCleanupIndex <= privateReleaseIndex ||
            jsonIndex <= snapshotCleanupIndex ||
            evidenceGuardIndex <= jsonIndex ||
@@ -4476,7 +4536,7 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
            completionIndex <= completionObjectIndex ||
            structuredResultIndex <= completionIndex)
             throw new GradleException(
-                'Wrapper evidence ordering drifted: expected Gradle invoke -> native exit capture -> zero-exit check -> Gradle marker observation -> Gradle-owned server SHA parse -> private guard release -> private-root cleanup -> JSON -> guarded evidence create/write/flush/same-stream hash -> evidence guard release -> completion object/marker -> structured in-memory result.'
+                'Wrapper evidence ordering drifted: expected invocation-owned output/log guards -> Gradle invoke -> in-memory output/log write -> native exit capture -> zero-exit check -> in-memory marker/server SHA -> same-stream log hash -> log guard release -> private guard release -> private-root cleanup -> guarded JSON evidence -> completion/result.'
             )
 
         logger.lifecycle(
@@ -4489,6 +4549,8 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
             'cleanHeadBound=true ' +
             'durableEvidence=true ' +
             'durableEvidenceIdentityGuarded=true ' +
+            'gradleOutputAuthorityInvocationOwned=true ' +
+            'durableLogIdentityGuarded=true ' +
             'certifiedServerShaBound=true ' +
             'inMemoryReleaseHandoff=true ' +
             'hostedPromotionSatisfied=false ' +

@@ -130,6 +130,8 @@ $oldJavaHome = $env:JAVA_HOME
 $oldPath = $env:Path
 $sourceGuard = $null
 $privateGuard = $null
+$logGuard = $null
+$logWriter = $null
 $certifiedServerSha = $null
 
 try {
@@ -214,7 +216,24 @@ try {
     )
 
     $gradleExit = $null
+    $gradleOutput =
+        New-Object 'System.Collections.Generic.List[string]'
     $oldErrorActionPreference = $ErrorActionPreference
+
+    $logGuard =
+        [IO.File]::Open(
+            $log,
+            [IO.FileMode]::CreateNew,
+            [IO.FileAccess]::ReadWrite,
+            [IO.FileShare]::Read
+        )
+    $logWriter =
+        [IO.StreamWriter]::new(
+            $logGuard,
+            [Text.UTF8Encoding]::new($true),
+            4096,
+            $true
+        )
 
     Push-Location (Join-Path $repo 'server')
     try {
@@ -224,8 +243,15 @@ try {
         $ErrorActionPreference = 'Continue'
         try {
             & $gradlew @gradleArgs 2>&1 |
-                Tee-Object -FilePath $log
+                ForEach-Object {
+                    $line = [string]$_
+                    [void]$gradleOutput.Add($line)
+                    $logWriter.WriteLine($line)
+                    Write-Host $line
+                }
             $gradleExit = $LASTEXITCODE
+            $logWriter.Flush()
+            $logGuard.Flush($true)
         }
         finally {
             $ErrorActionPreference = $oldErrorActionPreference
@@ -242,20 +268,24 @@ try {
         )
     }
 
-    # Observe the Gradle-owned authoritative marker after native exit 0.
-    # This wrapper never emits that release marker itself.
+    # Observe the Gradle-owned authoritative marker from the invocation-owned
+    # output objects after native exit 0. The mutable log path is audit-only.
+    $authoritativeMarker = 'SPAWNPK_CHAT1_CURRENT_CUMULATIVE_CERTIFICATION_PASS'
     $markerMatches = @(
-        Select-String -LiteralPath $log -SimpleMatch -Pattern 'SPAWNPK_CHAT1_CURRENT_CUMULATIVE_CERTIFICATION_PASS'
+        $gradleOutput |
+            Where-Object {
+                $_.Contains($authoritativeMarker)
+            }
     )
 
     if ($markerMatches.Count -ne 1) {
         throw (
-            'Expected exactly one Gradle-owned cumulative PASS marker in the captured log. ' +
+            'Expected exactly one Gradle-owned cumulative PASS marker in invocation output. ' +
             "Observed: $($markerMatches.Count)"
         )
     }
 
-    $markerLine = [string]$markerMatches[0].Line
+    $markerLine = [string]$markerMatches[0]
     $serverShaMatch = [regex]::Match(
         $markerLine,
         '(?:^|\s)serverSha256=([0-9a-f]{64})(?=\s|$)'
@@ -281,9 +311,17 @@ try {
         )
     }
 
-    $logItem = Get-Item -LiteralPath $log
+    $logWriter.Dispose()
+    $logWriter = $null
+
+    $logBytes = [long]$logGuard.Length
+    $logGuard.Position = 0
     $logSha =
-        (Get-FileHash -LiteralPath $log -Algorithm SHA256).Hash.ToLowerInvariant()
+        (Get-FileHash -InputStream $logGuard -Algorithm SHA256).Hash.ToLowerInvariant()
+    $logLeaf = [IO.Path]::GetFileName($log)
+
+    $logGuard.Dispose()
+    $logGuard = $null
 
     $record = [ordered]@{
         format = 'spawnpk-chat1-local-certification-evidence-v1'
@@ -296,9 +334,9 @@ try {
         gradleTask = 'chat1CurrentCumulativeCertification'
         gradleExitCode = [int]$gradleExit
         authoritativeMarkerObserved = $true
-        logFile = $logItem.Name
+        logFile = $logLeaf
         logSha256 = $logSha
-        logBytes = [long]$logItem.Length
+        logBytes = $logBytes
         certifiedServerJarSha256 = $certifiedServerSha
         hostedPromotionSatisfied = $false
         hostedEvidenceSeparate = $true
@@ -306,6 +344,16 @@ try {
 }
 finally {
     try {
+        if ($null -ne $logWriter) {
+            $logWriter.Dispose()
+            $logWriter = $null
+        }
+
+        if ($null -ne $logGuard) {
+            $logGuard.Dispose()
+            $logGuard = $null
+        }
+
         if ($null -ne $privateGuard) {
             $privateGuard.Dispose()
             $privateGuard = $null
@@ -402,7 +450,7 @@ Write-Host (
     "invocationOwnedClient=true " +
     "serverSha256=$certifiedServerSha " +
     "logSha256=$logSha " +
-    "logBytes=$($logItem.Length) " +
+    "logBytes=$logBytes " +
     "evidence=$evidenceLeaf " +
     "evidenceSha256=$evidenceSha " +
     'hostedPromotionSatisfied=false'
