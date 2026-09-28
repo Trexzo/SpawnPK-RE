@@ -919,17 +919,49 @@ public final class KotlinPluginLoaderTest {
             root.resolve(
                 "continued.jar"
             );
-        Path hugeNamed=
-            root.resolve(
-                "huge-named.jar"
-            );
-        Path hugeNamedApi=
-            root.resolve(
-                "huge-named-api.jar"
-            );
         Path alias=
             root.resolve(
                 "alias.jar"
+            );
+        Path aliasHealthy=
+            root.resolve(
+                "alias-healthy.jar"
+            );
+        Path ambiguous=
+            root.resolve(
+                "ambiguous.jar"
+            );
+        Path nearSpec=
+            root.resolve(
+                "near-spec.jar"
+            );
+        Path nearSpecApi=
+            root.resolve(
+                "near-spec-api.jar"
+            );
+        Path namedHealthy=
+            root.resolve(
+                "named-healthy.jar"
+            );
+        Path namedHealthyApi=
+            root.resolve(
+                "named-healthy-api.jar"
+            );
+        Path oversizedTotal=
+            root.resolve(
+                "oversized-total.jar"
+            );
+        Path oversizedTotalApi=
+            root.resolve(
+                "oversized-total-api.jar"
+            );
+        Path signedLooking=
+            root.resolve(
+                "signed-looking.jar"
+            );
+        Path signedLookingApi=
+            root.resolve(
+                "signed-looking-api.jar"
             );
 
         try{
@@ -1016,35 +1048,13 @@ public final class KotlinPluginLoaderTest {
                     java.nio.charset.StandardCharsets.UTF_8
                 )
             );
-
-            boolean continuedRejected=false;
-
-            try{
-                constructor.newInstance(
-                    apiJar,
-                    java.util.Collections
-                        .singletonList(
-                            continued
-                        )
-                );
-            }catch(InvocationTargetException expected){
-                Throwable cause=
-                    expected.getCause();
-
-                continuedRejected=
-                    cause instanceof
-                        IllegalArgumentException&&
-                    cause.getMessage()!=null&&
-                    cause.getMessage()
-                        .contains(
-                            "manifest Class-Path is forbidden"
-                        );
-            }
-
-            if(!continuedRejected)
-                throw new AssertionError(
-                    "continued Kotlin manifest Class-Path was accepted"
-                );
+            assertKotlinConstructorRejected(
+                constructor,
+                apiJar,
+                continued,
+                "manifest Class-Path is forbidden",
+                "continued Kotlin manifest Class-Path was accepted"
+            );
 
             writeJarWithRawManifest(
                 healthyClasspath.get(0),
@@ -1058,69 +1068,201 @@ public final class KotlinPluginLoaderTest {
                     java.nio.charset.StandardCharsets.UTF_8
                 )
             );
-
-            boolean aliasRejected=false;
-
-            try{
-                constructor.newInstance(
-                    apiJar,
-                    java.util.Collections
-                        .singletonList(
-                            alias
-                        )
-                );
-            }catch(InvocationTargetException expected){
-                Throwable cause=
-                    expected.getCause();
-
-                aliasRejected=
-                    cause instanceof
-                        IllegalArgumentException&&
-                    cause.getMessage()!=null&&
-                    cause.getMessage()
-                        .contains(
-                            "manifest entry name is non-canonical"
-                        );
-            }
-
-            if(!aliasRejected)
-                throw new AssertionError(
-                    "case-aliased Kotlin dependency manifest was accepted"
-                );
+            assertKotlinConstructorRejected(
+                constructor,
+                apiJar,
+                alias,
+                "manifest Class-Path is forbidden",
+                "case-insensitive Kotlin manifest Class-Path was accepted"
+            );
 
             writeJarWithRawManifest(
                 healthyClasspath.get(0),
-                hugeNamed,
-                hugeNamedManifest()
+                aliasHealthy,
+                "Meta-Inf/Manifest.Mf",
+                (
+                    "Manifest-Version: 1.0\r\n"+
+                    "\r\n"
+                ).getBytes(
+                    java.nio.charset.StandardCharsets.UTF_8
+                )
             );
-
             constructor.newInstance(
                 apiJar,
                 java.util.Collections
                     .singletonList(
-                        hugeNamed
+                        aliasHealthy
+                    )
+            );
+
+            writeJarWithAmbiguousManifest(
+                healthyClasspath.get(0),
+                ambiguous
+            );
+            assertKotlinConstructorRejected(
+                constructor,
+                apiJar,
+                ambiguous,
+                "ambiguous manifest authority",
+                "ambiguous Kotlin manifest candidates were accepted"
+            );
+
+            writeJarWithRawManifest(
+                healthyClasspath.get(0),
+                nearSpec,
+                nearSpecManifestMain()
+            );
+            constructor.newInstance(
+                apiJar,
+                java.util.Collections
+                    .singletonList(
+                        nearSpec
                     )
             );
 
             writeJarWithRawManifest(
                 apiJar,
-                hugeNamedApi,
-                hugeNamedManifest()
+                nearSpecApi,
+                nearSpecManifestMain()
+            );
+            constructor.newInstance(
+                nearSpecApi,
+                healthyClasspath
             );
 
+            writeJarWithRawManifest(
+                healthyClasspath.get(0),
+                namedHealthy,
+                namedSectionManifest(
+                    BoundedManifestMain
+                        .MAX_MANIFEST_BYTES/2
+                )
+            );
             constructor.newInstance(
-                hugeNamedApi,
+                apiJar,
+                java.util.Collections
+                    .singletonList(
+                        namedHealthy
+                    )
+            );
+
+            writeJarWithRawManifest(
+                apiJar,
+                namedHealthyApi,
+                namedSectionManifest(
+                    BoundedManifestMain
+                        .MAX_MANIFEST_BYTES/2
+                )
+            );
+            constructor.newInstance(
+                namedHealthyApi,
                 healthyClasspath
+            );
+
+            writeJarWithRawManifest(
+                healthyClasspath.get(0),
+                oversizedTotal,
+                namedSectionManifest(
+                    BoundedManifestMain
+                        .MAX_MANIFEST_BYTES+
+                    1024
+                )
+            );
+            assertKotlinConstructorRejected(
+                constructor,
+                apiJar,
+                oversizedTotal,
+                "plugin manifest exceeds",
+                "oversized total Kotlin dependency manifest was accepted"
+            );
+
+            writeJarWithRawManifest(
+                apiJar,
+                oversizedTotalApi,
+                namedSectionManifest(
+                    BoundedManifestMain
+                        .MAX_MANIFEST_BYTES+
+                    1024
+                )
+            );
+            assertKotlinApiConstructorRejected(
+                constructor,
+                oversizedTotalApi,
+                healthyClasspath,
+                "plugin manifest exceeds",
+                "oversized total Kotlin API manifest was accepted"
+            );
+
+            writeJarWithRawManifest(
+                healthyClasspath.get(0),
+                signedLooking,
+                "META-INF/MANIFEST.MF",
+                oversizedManifestMain(),
+                "META-INF/TEST.SF",
+                "Signature-Version: 1.0\r\n\r\n"
+                    .getBytes(
+                        java.nio.charset.StandardCharsets.UTF_8
+                    )
+            );
+            assertKotlinConstructorRejected(
+                constructor,
+                apiJar,
+                signedLooking,
+                "manifest main section exceeds",
+                "signed-looking Kotlin dependency bypassed project manifest bound"
+            );
+
+            writeJarWithRawManifest(
+                apiJar,
+                signedLookingApi,
+                "META-INF/MANIFEST.MF",
+                oversizedManifestMain(),
+                "META-INF/TEST.SF",
+                "Signature-Version: 1.0\r\n\r\n"
+                    .getBytes(
+                        java.nio.charset.StandardCharsets.UTF_8
+                    )
+            );
+            assertKotlinApiConstructorRejected(
+                constructor,
+                signedLookingApi,
+                healthyClasspath,
+                "manifest main section exceeds",
+                "signed-looking Kotlin API bypassed project manifest bound"
             );
         }finally{
             Files.deleteIfExists(
+                signedLookingApi
+            );
+            Files.deleteIfExists(
+                signedLooking
+            );
+            Files.deleteIfExists(
+                oversizedTotalApi
+            );
+            Files.deleteIfExists(
+                oversizedTotal
+            );
+            Files.deleteIfExists(
+                namedHealthyApi
+            );
+            Files.deleteIfExists(
+                namedHealthy
+            );
+            Files.deleteIfExists(
+                nearSpecApi
+            );
+            Files.deleteIfExists(
+                nearSpec
+            );
+            Files.deleteIfExists(
+                ambiguous
+            );
+            Files.deleteIfExists(
+                aliasHealthy
+            );
+            Files.deleteIfExists(
                 alias
-            );
-            Files.deleteIfExists(
-                hugeNamedApi
-            );
-            Files.deleteIfExists(
-                hugeNamed
             );
             Files.deleteIfExists(
                 continued
@@ -1138,6 +1280,173 @@ public final class KotlinPluginLoaderTest {
                 root
             );
         }
+    }
+
+    private static void assertKotlinConstructorRejected(
+        Constructor<?> constructor,
+        Path apiJar,
+        Path dependency,
+        String expected,
+        String failureMessage
+    )throws Exception{
+        boolean rejected=false;
+
+        try{
+            constructor.newInstance(
+                apiJar,
+                java.util.Collections
+                    .singletonList(
+                        dependency
+                    )
+            );
+        }catch(InvocationTargetException failure){
+            Throwable cause=
+                failure.getCause();
+
+            rejected=
+                cause instanceof
+                    IllegalArgumentException&&
+                cause.getMessage()!=null&&
+                cause.getMessage()
+                    .contains(
+                        expected
+                    );
+        }
+
+        if(!rejected)
+            throw new AssertionError(
+                failureMessage
+            );
+    }
+
+    private static void assertKotlinApiConstructorRejected(
+        Constructor<?> constructor,
+        Path apiJar,
+        List<Path> healthyClasspath,
+        String expected,
+        String failureMessage
+    )throws Exception{
+        boolean rejected=false;
+
+        try{
+            constructor.newInstance(
+                apiJar,
+                healthyClasspath
+            );
+        }catch(InvocationTargetException failure){
+            Throwable cause=
+                failure.getCause();
+
+            rejected=
+                cause instanceof
+                    IllegalArgumentException&&
+                cause.getMessage()!=null&&
+                cause.getMessage()
+                    .contains(
+                        expected
+                    );
+        }
+
+        if(!rejected)
+            throw new AssertionError(
+                failureMessage
+            );
+    }
+
+    private static byte[] nearSpecManifestMain()
+        throws Exception{
+        java.io.ByteArrayOutputStream out=
+            new java.io.ByteArrayOutputStream();
+
+        out.write(
+            "Manifest-Version: 1.0\r\n"
+                .getBytes(
+                    java.nio.charset.StandardCharsets.UTF_8
+                )
+        );
+        writeFoldedManifestHeader(
+            out,
+            "X-Near",
+            65535
+        );
+        out.write(
+            "\r\n".getBytes(
+                java.nio.charset.StandardCharsets.UTF_8
+            )
+        );
+
+        if(out.size()>=
+                BoundedManifestMain
+                    .MAX_MAIN_SECTION_BYTES)
+            throw new AssertionError(
+                "near-spec manifest fixture exceeds project main cap"
+            );
+
+        return out.toByteArray();
+    }
+
+    private static void writeFoldedManifestHeader(
+        java.io.ByteArrayOutputStream out,
+        String name,
+        int valueBytes
+    )throws Exception{
+        int remaining=valueBytes;
+        int first=
+            Math.min(
+                60,
+                remaining
+            );
+
+        out.write(
+            (
+                name+
+                ": "+
+                repeatAscii(
+                    'v',
+                    first
+                )+
+                "\r\n"
+            ).getBytes(
+                java.nio.charset.StandardCharsets.UTF_8
+            )
+        );
+        remaining-=first;
+
+        while(remaining>0){
+            int take=
+                Math.min(
+                    68,
+                    remaining
+                );
+            out.write(
+                (
+                    " "+
+                    repeatAscii(
+                        'v',
+                        take
+                    )+
+                    "\r\n"
+                ).getBytes(
+                    java.nio.charset.StandardCharsets.UTF_8
+                )
+            );
+            remaining-=take;
+        }
+    }
+
+    private static String repeatAscii(
+        char value,
+        int count
+    ){
+        char[] chars=
+            new char[count];
+        java.util.Arrays.fill(
+            chars,
+            value
+        );
+        return new String(
+            chars
+        );
     }
 
     private static byte[] oversizedManifestMain()
@@ -1166,8 +1475,9 @@ public final class KotlinPluginLoaderTest {
         return out.toByteArray();
     }
 
-    private static byte[] hugeNamedManifest()
-        throws Exception{
+    private static byte[] namedSectionManifest(
+        int namedBytes
+    )throws Exception{
         java.io.ByteArrayOutputStream out=
             new java.io.ByteArrayOutputStream();
 
@@ -1183,8 +1493,7 @@ public final class KotlinPluginLoaderTest {
         );
 
         for(int i=0;
-            i<BoundedManifestMain
-                .MAX_MAIN_SECTION_BYTES*8;
+            i<namedBytes;
             i++)
             out.write(
                 'b'
@@ -1199,6 +1508,55 @@ public final class KotlinPluginLoaderTest {
         return out.toByteArray();
     }
 
+    private static void writeJarWithAmbiguousManifest(
+        Path source,
+        Path target
+    )throws Exception{
+        try(java.util.jar.JarFile input=
+                new java.util.jar.JarFile(
+                    source.toFile()
+                );
+            JarOutputStream output=
+                new JarOutputStream(
+                    Files.newOutputStream(
+                        target
+                    )
+                )){
+            byte[] manifest=
+                (
+                    "Manifest-Version: 1.0\r\n"+
+                    "\r\n"
+                ).getBytes(
+                    java.nio.charset.StandardCharsets.UTF_8
+                );
+
+            output.putNextEntry(
+                new JarEntry(
+                    "META-INF/MANIFEST.MF"
+                )
+            );
+            output.write(
+                manifest
+            );
+            output.closeEntry();
+
+            output.putNextEntry(
+                new JarEntry(
+                    "meta-inf/manifest.mf"
+                )
+            );
+            output.write(
+                manifest
+            );
+            output.closeEntry();
+
+            copyJarEntriesWithoutManifest(
+                input,
+                output
+            );
+        }
+    }
+
     private static void writeJarWithRawManifest(
         Path source,
         Path target,
@@ -1208,7 +1566,9 @@ public final class KotlinPluginLoaderTest {
             source,
             target,
             "META-INF/MANIFEST.MF",
-            manifestBytes
+            manifestBytes,
+            null,
+            null
         );
     }
 
@@ -1217,6 +1577,24 @@ public final class KotlinPluginLoaderTest {
         Path target,
         String manifestEntry,
         byte[] manifestBytes
+    )throws Exception{
+        writeJarWithRawManifest(
+            source,
+            target,
+            manifestEntry,
+            manifestBytes,
+            null,
+            null
+        );
+    }
+
+    private static void writeJarWithRawManifest(
+        Path source,
+        Path target,
+        String manifestEntry,
+        byte[] manifestBytes,
+        String extraEntry,
+        byte[] extraBytes
     )throws Exception{
         try(java.util.jar.JarFile input=
                 new java.util.jar.JarFile(
@@ -1238,49 +1616,72 @@ public final class KotlinPluginLoaderTest {
             );
             output.closeEntry();
 
-            java.util.Enumeration<java.util.jar.JarEntry> entries=
-                input.entries();
-            byte[] buffer=
-                new byte[8192];
-
-            while(entries.hasMoreElements()){
-                java.util.jar.JarEntry entry=
-                    entries.nextElement();
-
-                if("META-INF/MANIFEST.MF"
-                        .equalsIgnoreCase(
-                            entry.getName()
-                        ))
-                    continue;
-
-                JarEntry copy=
-                    new JarEntry(
-                        entry.getName()
-                    );
+            if(extraEntry!=null){
                 output.putNextEntry(
-                    copy
+                    new JarEntry(
+                        extraEntry
+                    )
                 );
-
-                if(!entry.isDirectory())
-                    try(java.io.InputStream in=
-                            input.getInputStream(
-                                entry
-                            )){
-                        int read;
-
-                        while((read=
-                                in.read(
-                                    buffer
-                                ))!=-1)
-                            output.write(
-                                buffer,
-                                0,
-                                read
-                            );
-                    }
-
+                if(extraBytes!=null)
+                    output.write(
+                        extraBytes
+                    );
                 output.closeEntry();
             }
+
+            copyJarEntriesWithoutManifest(
+                input,
+                output
+            );
+        }
+    }
+
+    private static void copyJarEntriesWithoutManifest(
+        java.util.jar.JarFile input,
+        JarOutputStream output
+    )throws Exception{
+        java.util.Enumeration<java.util.jar.JarEntry> entries=
+            input.entries();
+        byte[] buffer=
+            new byte[8192];
+
+        while(entries.hasMoreElements()){
+            java.util.jar.JarEntry entry=
+                entries.nextElement();
+
+            if("META-INF/MANIFEST.MF"
+                    .equalsIgnoreCase(
+                        entry.getName()
+                    ))
+                continue;
+
+            JarEntry copy=
+                new JarEntry(
+                    entry.getName()
+                );
+            output.putNextEntry(
+                copy
+            );
+
+            if(!entry.isDirectory())
+                try(java.io.InputStream in=
+                        input.getInputStream(
+                            entry
+                        )){
+                    int read;
+
+                    while((read=
+                            in.read(
+                                buffer
+                            ))!=-1)
+                        output.write(
+                            buffer,
+                            0,
+                            read
+                        );
+                }
+
+            output.closeEntry();
         }
     }
 
