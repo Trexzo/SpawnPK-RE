@@ -17,6 +17,7 @@ import spk.content.api.ContentResult;
 import spk.event.DomainEventBus;
 import spk.plugin.api.Plugin;
 import spk.plugin.api.PluginHandle;
+import spk.plugin.api.PluginManifest;
 import spk.plugin.api.PluginManager;
 
 public final class PluginClassLoaderIsolationTest {

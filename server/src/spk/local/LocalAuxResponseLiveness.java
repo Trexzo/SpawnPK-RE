@@ -515,5 +515,4 @@ final class LocalAuxResponseLiveness {
         }
     }
 
-    private LocalAuxResponseLiveness(){}
 }

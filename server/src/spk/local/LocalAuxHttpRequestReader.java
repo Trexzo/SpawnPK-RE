@@ -252,5 +252,4 @@ final class LocalAuxHttpRequestReader {
         );
     }
 
-    private LocalAuxHttpRequestReader(){}
 }

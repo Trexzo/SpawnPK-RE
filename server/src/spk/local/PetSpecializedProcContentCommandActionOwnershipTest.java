@@ -4,7 +4,6 @@ import java.io.ByteArrayOutputStream;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import spk.content.api.ContentProvenance;
-import spk.content.api.ContentRegistry;
 import spk.content.api.ContentResult;
 import spk.content.builtin.LocalLabCoreContentModule;
 
