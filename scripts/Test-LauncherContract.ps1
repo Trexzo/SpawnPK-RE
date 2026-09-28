@@ -436,6 +436,21 @@ Assert-True ($releaseAcceptance -match '-FilePath\s+\$runtimeJava\.Path') 'Curre
 Assert-True ($releaseAcceptance -notmatch 'Get-Command\s+java(?:\.exe)?') 'Current release acceptance reintroduced arbitrary PATH Java selection.'
 Assert-True ($releaseAcceptance -match 'Run-Chat1CumulativeCertification\.ps1') 'Current release acceptance lost canonical cumulative certification wrapper.'
 Assert-True ($releaseAcceptance -match 'CURRENT_RELEASE_CUMULATIVE_CERTIFICATION_PASS') 'Current release acceptance lost cumulative certification success boundary.'
+Assert-True ($releaseAcceptance -match '\$hadCallerJavaHome\s*=\s*Test-Path Env:JAVA_HOME') 'Current release acceptance does not record whether caller JAVA_HOME existed.'
+Assert-True ($releaseAcceptance -match '\$callerJavaHome\s*=\s*\$env:JAVA_HOME') 'Current release acceptance does not snapshot caller JAVA_HOME.'
+Assert-True ($releaseAcceptance -match '\$callerPath\s*=\s*\$env:Path') 'Current release acceptance does not snapshot caller PATH.'
+Assert-True ($releaseAcceptance -match 'finally\s*\{[\s\S]*\$env:Path\s*=\s*\$callerPath') 'Current release acceptance does not restore caller PATH in outer finally.'
+Assert-True ($releaseAcceptance -match 'Remove-Item Env:JAVA_HOME -ErrorAction SilentlyContinue') 'Current release acceptance does not restore an originally absent JAVA_HOME.'
+
+foreach ($entry in @(
+    @('$hadCallerJavaHome = Test-Path Env:JAVA_HOME', 1),
+    @('$callerJavaHome = $env:JAVA_HOME', 1),
+    @('$callerPath = $env:Path', 1),
+    @('$env:Path = $callerPath', 1),
+    @('Remove-Item Env:JAVA_HOME -ErrorAction SilentlyContinue', 1)
+)) {
+    Assert-ExactTextCount $releaseAcceptance $entry[0] ([int]$entry[1]) 'Current release Java-environment ownership count drift.'
+}
 
 $releaseSelectorIndex = $releaseAcceptance.IndexOf('$runtimeJavaSelector = Join-Path')
 $releaseJavaIndex = $releaseAcceptance.IndexOf('$runtimeJava = Set-LocalLabJava')
@@ -447,6 +462,10 @@ Assert-True ($releaseJavaIndex -gt $releaseSelectorIndex) 'Current release resol
 Assert-True ($releaseCumulativeIndex -gt $releaseJavaIndex) 'Current release cumulative certification does not follow canonical Java selection.'
 Assert-True ($releaseSmokeIndex -gt $releaseCumulativeIndex) 'Current release loopback smoke starts before cumulative certification.'
 Assert-True ($releaseStartProcessIndex -gt $releaseJavaIndex) 'Current release smoke process does not use Java selected by canonical policy.'
+$releaseEnvCaptureIndex = $releaseAcceptance.IndexOf('$callerPath = $env:Path')
+$releaseEnvRestoreIndex = $releaseAcceptance.LastIndexOf('$env:Path = $callerPath')
+Assert-True ($releaseEnvCaptureIndex -gt $releaseSelectorIndex -and $releaseEnvCaptureIndex -lt $releaseJavaIndex) 'Current release caller Java environment is not captured after selector-path admission and before selector mutation.'
+Assert-True ($releaseEnvRestoreIndex -gt $releaseSmokeIndex) 'Current release caller Java environment is restored before the final loopback smoke completes.'
 
 Assert-True ($r13Acceptance -match 'runtime\\locallab-user-home\\r13') 'R13 acceptance launcher default output is outside the ignored LocalLab runtime subtree.'
 Assert-True ($r13Acceptance -match 'Assert-UnderRuntimeRoot') 'R13 acceptance launcher lacks a reusable destructive-cleanup containment fence.'
