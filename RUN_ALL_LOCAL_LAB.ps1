@@ -198,7 +198,7 @@ Write-Host 'SERVER_PORTS_READY game=43594 aux=43595' -ForegroundColor Green
     ) -PassThru
     $ownedChildren += $watcherWindow
 
-    $existingAirgapPids = @($existingAirgapPids = @(
+    $existingAirgapPids = @(
     Get-CimInstance Win32_Process -ErrorAction SilentlyContinue |
         Where-Object {
             $_.Name -match '^javaw?\.exe$' -and
@@ -213,7 +213,7 @@ Write-Host 'SERVER_PORTS_READY game=43594 aux=43595' -ForegroundColor Green
     ) -PassThru
     $ownedChildren += $clientWindow
 
-    $airgapClient = $null$airgapClient = $null
+    $airgapClient = $null
 $clientDeadline = (Get-Date).AddSeconds(30)
 while ((Get-Date) -lt $clientDeadline) {
     Start-Sleep -Milliseconds 250
