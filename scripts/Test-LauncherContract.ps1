@@ -358,10 +358,32 @@ Assert-True ($runtimeImport -match '\[IO\.Path\]::GetTempPath\(\)') 'Runtime imp
 Assert-True ($runtimeImport -match '\$touched\.Add\(\$record\)') 'Runtime importer does not acquire rollback ownership before destination writes.'
 Assert-True ($runtimeImport -match '\[array\]::Reverse\(\$rollbackTargets\)') 'Runtime importer does not restore touched destinations in reverse publication order.'
 Assert-True ($runtimeImport -match 'Get-ExactSha256') 'Runtime importer lost exact SHA-256 verification helpers.'
+Assert-True ($runtimeImport -match 'function Assert-NoReparsePathComponents') 'Runtime importer does not reject reparse-point destination ancestry.'
+Assert-True ($runtimeImport -match 'function Assert-RegularDestinationOrMissing') 'Runtime importer does not reject non-file/reparse destination collisions.'
+Assert-True ($runtimeImport -match '\\$destinationDirectories\\s*=\\s*@\\(\\)') 'Runtime importer does not own a unique destination-directory set.'
+Assert-True ($runtimeImport -match 'RUNTIME_IMPORT_DESTINATION_DIRECTORIES_READY') 'Runtime importer does not prove destination-directory ownership before publication.'
+Assert-True ($runtimeImport -match 'restored destination hash mismatch') 'Runtime importer does not verify restored destination bytes against rollback backup.'
+Assert-True ($runtimeImport -match 'Sort-Object \\{ \\$_\\.Path\\.Length \\} -Descending') 'Runtime importer does not clean transaction-created destination directories deepest-first.'
+Assert-True ($runtimeImport -match 'Rollback-owned destination directory is not empty') 'Runtime importer does not fail closed instead of deleting unrelated destination-directory material.'
+Assert-True ($runtimeImport -notmatch 'Remove-Item[^\\r\\n]*(evidence|local-client)[^\\r\\n]*-Recurse') 'Runtime importer reintroduced recursive deletion authority over canonical destination directories.'
+Assert-True ($runtimeImport -match 'pathConfinement=true') 'Runtime importer success/preflight markers do not expose path-confinement authority.'
+
+foreach ($entry in @(
+    @('function Assert-NoReparsePathComponents', 1),
+    @('function Assert-RegularDestinationOrMissing', 1),
+    @('$destinationDirectories = @()', 1),
+    @('RUNTIME_IMPORT_DESTINATION_DIRECTORIES_READY', 1),
+    @('restored destination hash mismatch', 1),
+    @('Rollback-owned destination directory is not empty', 1)
+)) {
+    Assert-ExactTextCount $runtimeImport $entry[0] ([int]$entry[1]) 'Runtime importer rollback/path-safety structural count drift.'
+}
+
 
 $runtimeImportPreflightIndex = $runtimeImport.IndexOf('EXTERNAL_RUNTIME_IMPORT_PREFLIGHT_PASS')
 $runtimeImportStageIndex = $runtimeImport.IndexOf('RUNTIME_IMPORT_STAGE_VERIFIED')
 $runtimeImportBackupIndex = $runtimeImport.IndexOf('RUNTIME_IMPORT_BACKUP_READY')
+$runtimeImportDirectoryReadyIndex = $runtimeImport.IndexOf('RUNTIME_IMPORT_DESTINATION_DIRECTORIES_READY')
 $runtimeImportTouchIndex = $runtimeImport.IndexOf('$touched.Add($record)')
 $runtimeImportPublishIndex = $runtimeImport.IndexOf('Copy-Item -LiteralPath $record.Stage -Destination $record.Destination -Force')
 $runtimeImportVerifyIndex = $runtimeImport.IndexOf('RUNTIME_IMPORT_FINAL_VERIFY_PASS')
@@ -370,7 +392,8 @@ $runtimeImportFinalIndex = $runtimeImport.IndexOf('EXTERNAL_RUNTIME_IMPORT_PASS'
 Assert-True ($runtimeImportPreflightIndex -ge 0) 'Runtime importer source preflight marker not found.'
 Assert-True ($runtimeImportStageIndex -gt $runtimeImportPreflightIndex) 'Runtime importer stages before proving the complete source triplet.'
 Assert-True ($runtimeImportBackupIndex -gt $runtimeImportStageIndex) 'Runtime importer snapshots destinations before all staged artifacts are verified.'
-Assert-True ($runtimeImportTouchIndex -gt $runtimeImportBackupIndex) 'Runtime importer acquires destination mutation ownership before all backups exist.'
+Assert-True ($runtimeImportDirectoryReadyIndex -gt $runtimeImportBackupIndex) 'Runtime importer creates/adopts destination directories before backup authority is frozen.'
+Assert-True ($runtimeImportTouchIndex -gt $runtimeImportDirectoryReadyIndex) 'Runtime importer acquires file mutation ownership before destination-directory ownership is proven.'
 Assert-True ($runtimeImportPublishIndex -gt $runtimeImportTouchIndex) 'Runtime importer writes a destination before rollback ownership is recorded.'
 Assert-True ($runtimeImportVerifyIndex -gt $runtimeImportPublishIndex) 'Runtime importer final verification does not follow destination publication.'
 Assert-True ($runtimeImportCatchIndex -gt $runtimeImportVerifyIndex) 'Runtime importer final verification escaped rollback ownership.'
