@@ -514,7 +514,6 @@ Assert-True ($runtimeBuilder -match 'V308_LOCAL_CLIENT_BUILD_AND_VERIFY_PASS') '
 Assert-True ($runtimeBuilder -match 'OutputDirectory must be the canonical LocalLab runtime directory') 'PowerShell runtime builder accepts an unverifiable noncanonical output directory.'
 Assert-True ($runtimeBuilder -match 'ClientJar must be the canonical evidence path') 'PowerShell runtime builder accepts a client path that permanent runtime verification cannot prove.'
 Assert-True ($runtimeBuilder -match '854f26ff9f134b0317572e7ac1688e6f40a231d5a4c66f8db5d655b7f45ce7c6') 'PowerShell runtime builder no longer independently gates the exact v308 input SHA.'
-
 Assert-True ($runtimeBuilder -match 'V308_LOCAL_CLIENT_BUILD_PREFLIGHT_PASS') 'PowerShell runtime builder does not report complete fail-before-mutation admission.'
 Assert-True ($runtimeBuilder -match '\$canonicalEvidence') 'PowerShell runtime builder no longer resolves canonical evidence-client authority before mutation.'
 Assert-True ($runtimeBuilder -match '\$canonicalOutput') 'PowerShell runtime builder no longer resolves canonical output authority before mutation.'
@@ -522,8 +521,8 @@ Assert-True ($runtimeBuilder -match 'function Assert-CanonicalOutputPathSafe') '
 Assert-True ($runtimeBuilder -match 'Canonical local-client path must not traverse a reparse point') 'PowerShell runtime builder has no existing-component reparse rejection.'
 Assert-True ($runtimeBuilder -match 'Canonical local-client output exists but is not a directory') 'PowerShell runtime builder does not reject non-directory canonical output collisions.'
 Assert-True ($runtimeBuilder -match 'Canonical local-client output must not be a reparse point') 'PowerShell runtime builder does not recheck the final output directory for reparse aliasing.'
-Assert-True ($runtimeBuilder -notmatch 'New-Item -ItemType Directory -Force -Path \\$output') 'PowerShell runtime builder reintroduced forceful canonical output creation before exact path ownership is proven.'
-Assert-ExactTextCount $runtimeBuilder 'Assert-CanonicalOutputPathSafe $output' 2 'PowerShell runtime builder must prove canonical output path safety before and after optional directory creation.'
+Assert-True ($runtimeBuilder -notmatch 'New-Item -ItemType Directory[^\r\n]*\$output') 'PowerShell runtime builder must not create canonical local-client; Python owns absent-directory transaction state.'
+Assert-ExactTextCount $runtimeBuilder 'Assert-CanonicalOutputPathSafe $output' 2 'PowerShell runtime builder must prove canonical output path safety at admission and immediately before the Python boundary.'
 
 $runtimeBuilderCanonicalClientIndex = $runtimeBuilder.IndexOf('ClientJar must be the canonical evidence path')
 $runtimeBuilderHashIndex = $runtimeBuilder.IndexOf('Exact v308 client hash mismatch')
@@ -531,7 +530,6 @@ $runtimeBuilderOutputIndex = $runtimeBuilder.IndexOf('OutputDirectory must be th
 $runtimeBuilderPathFenceIndex = $runtimeBuilder.IndexOf('$output = Assert-CanonicalOutputPathSafe $output')
 $runtimeBuilderPythonIndex = $runtimeBuilder.IndexOf("Get-Command python")
 $runtimeBuilderPreflightPassIndex = $runtimeBuilder.IndexOf('V308_LOCAL_CLIENT_BUILD_PREFLIGHT_PASS')
-$runtimeBuilderOutputCreateIndex = $runtimeBuilder.IndexOf('New-Item -ItemType Directory -Path $output')
 $runtimeBuilderPathRecheckIndex = $runtimeBuilder.LastIndexOf('$output = Assert-CanonicalOutputPathSafe $output')
 $runtimeBuilderPatchIndex = $runtimeBuilder.IndexOf('& $python.Source $patcher $client $output')
 $runtimeBuilderFinalVerifyIndex = $runtimeBuilder.IndexOf("& (Join-Path $PSScriptRoot 'Check-ExternalRuntime.ps1')")
@@ -541,9 +539,8 @@ Assert-True ($runtimeBuilderOutputIndex -gt $runtimeBuilderHashIndex) 'PowerShel
 Assert-True ($runtimeBuilderPathFenceIndex -gt $runtimeBuilderOutputIndex) 'PowerShell runtime builder checks path confinement before canonical lexical admission completes.'
 Assert-True ($runtimeBuilderPythonIndex -gt $runtimeBuilderPathFenceIndex) 'PowerShell runtime builder probes Python before canonical output reparse admission.'
 Assert-True ($runtimeBuilderPreflightPassIndex -gt $runtimeBuilderPythonIndex) 'PowerShell runtime builder reports preflight before Python availability is proven.'
-Assert-True ($runtimeBuilderOutputCreateIndex -gt $runtimeBuilderPreflightPassIndex) 'PowerShell runtime builder creates canonical output before all admission preflights pass.'
-Assert-True ($runtimeBuilderPathRecheckIndex -gt $runtimeBuilderOutputCreateIndex) 'PowerShell runtime builder does not recheck created/adopted canonical output before publication.'
-Assert-True ($runtimeBuilderPatchIndex -gt $runtimeBuilderPathRecheckIndex) 'PowerShell runtime builder invokes patcher before post-creation reparse proof.'
+Assert-True ($runtimeBuilderPathRecheckIndex -gt $runtimeBuilderPreflightPassIndex) 'PowerShell runtime builder does not re-prove canonical path safety immediately before the Python boundary.'
+Assert-True ($runtimeBuilderPatchIndex -gt $runtimeBuilderPathRecheckIndex) 'PowerShell runtime builder invokes patcher before final wrapper-side reparse proof.'
 Assert-True ($runtimeBuilderFinalVerifyIndex -gt $runtimeBuilderPatchIndex) 'PowerShell runtime builder final triplet verification does not follow patcher publication.'
 Assert-True ($v308Patcher -match 'ZIP_STORED') 'v308 local-client patcher no longer uses compression-independent deterministic JAR entries.'
 Assert-True ($v308Patcher -match 'wholeJarDeterminismIndependentOfZlib') 'v308 local-client manifest no longer records zlib-independent whole-JAR determinism.'
@@ -552,6 +549,31 @@ Assert-True ($v308Patcher -match 'unchangedEntryPayloadIdentity') 'v308 local-cl
 Assert-True ($v308Patcher -match 'entryInventoryAndOrderPreserved') 'v308 local-client patcher no longer proves entry inventory/order preservation.'
 Assert-True ($v308Patcher -match 'manifestPayloadPreserved') 'v308 local-client patcher no longer proves manifest preservation.'
 
+Assert-True ($v308Patcher -match '(?m)^import stat$') 'v308 local-client publisher lacks stat-mode authority for non-following path checks.'
+Assert-True ($v308Patcher -match 'def lexical_absolute') 'v308 local-client publisher does not preserve lexical output identity.'
+Assert-True ($v308Patcher -match 'def lstat_or_none') 'v308 local-client publisher does not use non-following lstat path inspection.'
+Assert-True ($v308Patcher -match 'def is_reparse_or_symlink') 'v308 local-client publisher does not classify Windows reparse/symlink entries.'
+Assert-True ($v308Patcher -match 'FILE_ATTRIBUTE_REPARSE_POINT') 'v308 local-client publisher does not test Windows reparse-point file attributes.'
+Assert-True ($v308Patcher -match 'def assert_ordinary_directory') 'v308 local-client publisher does not require ordinary canonical directories.'
+Assert-True ($v308Patcher -match 'def assert_regular_file_or_absent') 'v308 local-client publisher does not require ordinary canonical destination leaves or absence.'
+Assert-True ($v308Patcher -match 'def assert_canonical_output_path') 'v308 local-client publisher lacks independent canonical output path authority.'
+Assert-True ($v308Patcher -match 'output = assert_canonical_output_path\(args\.output_directory\)') 'v308 local-client publisher does not apply its own canonical lexical path proof.'
+Assert-True ($v308Patcher -notmatch 'output = args\.output_directory\.resolve\(\)') 'v308 local-client publisher reintroduced path-following resolve() as canonical output authority.'
+Assert-True ($v308Patcher -match 'output_created = False') 'v308 local-client publisher does not explicitly own absent canonical directory creation.'
+Assert-True ($v308Patcher -match 'os\.mkdir\(output\)') 'v308 local-client publisher does not create an absent canonical directory inside transaction ownership.'
+Assert-True ($v308Patcher -match 'transaction-created canonical local-client') 'v308 local-client publisher does not re-prove the directory it created.'
+Assert-True ($v308Patcher -match 'snapshot_identity') 'v308 local-client publisher does not retain non-following canonical destination identity.'
+Assert-True ($v308Patcher -match 'file_identity\(destination_state\)') 'v308 local-client publisher does not freeze canonical destination lifetime identity at backup snapshot.'
+Assert-True ($v308Patcher -match 'canonical destination identity changed during backup') 'v308 local-client publisher does not detect destination replacement during backup.'
+Assert-True ($v308Patcher -match 'def restore_moved_entry_without_follow') 'v308 local-client publisher cannot compensate an atomically moved ambiguous entry without following it.'
+Assert-True ($v308Patcher -match 'moved_identity != record\["snapshot_identity"\]') 'v308 local-client publisher does not revalidate moved commit preimage identity before hashing.'
+Assert-True ($v308Patcher -match 'rollback quarantine identity drift') 'v308 local-client publisher does not revalidate moved rollback quarantine identity before hashing.'
+Assert-True ($v308Patcher -match 'os\.path\.lexists\(record\["destination"\]\)') 'v308 local-client rollback still uses path-following existence for canonical destination preservation.'
+Assert-True ($v308Patcher -notmatch 'destination\.is_file\(\)') 'v308 local-client publisher reintroduced path-following destination.is_file() canonical authority.'
+Assert-True ($v308Patcher -notmatch 'destination\.exists\(\)') 'v308 local-client publisher reintroduced path-following destination.exists() canonical authority.'
+Assert-True ($v308Patcher -notmatch 'record\["destination"\]\.exists\(\)') 'v308 local-client publisher reintroduced path-following record destination exists authority.'
+Assert-True ($v308Patcher -match 'os\.rmdir\(output\)') 'v308 local-client rollback does not remove transaction-created canonical output directory.'
+Assert-True ($v308Patcher -match 'canonical local-client directory cleanup') 'v308 local-client rollback hides failure to retire its transaction-created directory.'
 Assert-True ($v308Patcher -match 'tempfile\.TemporaryDirectory') 'v308 local-client builder does not use transaction-owned staging.'
 Assert-True ($v308Patcher -match 'V308_LOCAL_CLIENT_STAGE_VERIFY_PASS') 'v308 local-client builder does not prove staged artifacts before publication.'
 Assert-True ($v308Patcher -match 'V308_LOCAL_CLIENT_BACKUP_READY') 'v308 local-client builder does not snapshot canonical generated outputs before publication.'
@@ -576,8 +598,28 @@ Assert-True ($v308Patcher -notmatch 'shutil\.copyfile\(\s*record\["backup"\],\s*
 Assert-True ($v308Patcher -notmatch 'build_variant\(source, output / "client-localhost\.jar"') 'v308 local-client builder reintroduced direct localhost generation into canonical output.'
 Assert-True ($v308Patcher -notmatch 'build_variant\(source, output / "client-airgap\.jar"') 'v308 local-client builder reintroduced direct airgap generation into canonical output.'
 
+foreach ($entry in @(
+    @('def lexical_absolute', 1),
+    @('def lstat_or_none', 1),
+    @('def is_reparse_or_symlink', 1),
+    @('def assert_ordinary_directory', 1),
+    @('def assert_regular_file_or_absent', 1),
+    @('def assert_canonical_output_path', 1),
+    @('def restore_moved_entry_without_follow', 1),
+    @('output = assert_canonical_output_path(args.output_directory)', 1),
+    @('output_created = False', 1),
+    @('os.mkdir(output)', 1),
+    @('os.rmdir(output)', 1),
+    @('canonical destination identity changed during backup', 1),
+    @('moved commit preimage identity drift', 1),
+    @('rollback quarantine identity drift', 1)
+)) {
+    Assert-ExactTextCount $v308Patcher $entry[0] ([int]$entry[1]) 'v308 publisher path-confinement structural count drift.'
+}
 $v308StageIndex = $v308Patcher.IndexOf('V308_LOCAL_CLIENT_STAGE_VERIFY_PASS')
 $v308BackupIndex = $v308Patcher.IndexOf('V308_LOCAL_CLIENT_BACKUP_READY')
+$v308OutputCreateIndex = $v308Patcher.IndexOf('os.mkdir(output)')
+$v308DestinationSnapshotIndex = $v308Patcher.IndexOf('destination_state = assert_regular_file_or_absent(')
 $v308LeafIndex = $v308Patcher.IndexOf('record["publish_leaf"] = copy_verified_same_directory_leaf')
 $v308SnapshotRecheckIndex = $v308Patcher.IndexOf('assert_destination_snapshot_owned(record)', $v308LeafIndex)
 $v308LeafRecheckIndex = $v308Patcher.IndexOf('assert_verified_leaf(', $v308SnapshotRecheckIndex)
@@ -591,6 +633,8 @@ $v308ExceptIndex = $v308Patcher.IndexOf('except BaseException as publish_error',
 $v308SuccessIndex = $v308Patcher.IndexOf('V308_LOCAL_CLIENT_PATCH_PASS')
 Assert-True ($v308StageIndex -ge 0) 'v308 local-client staged verification marker not found.'
 Assert-True ($v308BackupIndex -gt $v308StageIndex) 'v308 local-client builder snapshots canonical outputs before staged verification.'
+Assert-True ($v308OutputCreateIndex -gt $v308StageIndex) 'v308 local-client publisher creates canonical output before all staged bytes are verified.'
+Assert-True ($v308DestinationSnapshotIndex -gt $v308OutputCreateIndex) 'v308 local-client publisher snapshots canonical destination leaves before transaction-owned output directory admission completes.'
 Assert-True ($v308LeafIndex -gt $v308BackupIndex) 'v308 local-client builder creates a canonical-directory publication leaf before all backups exist.'
 Assert-True ($v308SnapshotRecheckIndex -gt $v308LeafIndex) 'v308 local-client builder does not revalidate canonical ownership after private leaf verification.'
 Assert-True ($v308LeafRecheckIndex -gt $v308SnapshotRecheckIndex) 'v308 local-client builder does not revalidate private publication bytes immediately before mutation.'
