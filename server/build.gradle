@@ -4087,6 +4087,14 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
             '--no-daemon',
             '--console=plain',
             'runtime\\certification',
+            "$runtimeRoot = Join-Path $repo 'runtime'",
+            "function Assert-OrdinaryDirectory",
+            "function Initialize-CertificationEvidenceRoot",
+            "[IO.FileAttributes]::ReparsePoint",
+            "Assert-OrdinaryDirectory -Path $runtimeRoot",
+            "Assert-OrdinaryDirectory -Path $evidenceRoot",
+            "Assert-OrdinaryDirectory -Path $snapshotRoot",
+            "Initialize-CertificationEvidenceRoot",
             'git -C $repo rev-parse HEAD',
             'git -C $repo status --porcelain --untracked-files=normal',
             "New-Object 'System.Collections.Generic.List[string]'",
@@ -4164,7 +4172,8 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
             'Tee-Object -FilePath $log',
             'Select-String -LiteralPath $log',
             'Get-FileHash -LiteralPath $log',
-            'Get-Item -LiteralPath $log'
+            'Get-Item -LiteralPath $log',
+            'New-Item -ItemType Directory -Force -Path $evidenceRoot'
         ].each { staleMutableAuthority ->
             if(text.contains(staleMutableAuthority))
                 throw new GradleException(
@@ -4238,6 +4247,46 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
                     "Chat 1 cumulative wrapper structural anchor count drift: expected=1 actual=${count} anchor=${anchor}"
                 )
         }
+
+        [
+            'function Assert-OrdinaryDirectory': 1,
+            'function Initialize-CertificationEvidenceRoot': 1,
+            "Assert-OrdinaryDirectory -Path $snapshotRoot": 1
+        ].each { anchor, expectedCount ->
+            int count = 0
+            int from = 0
+            while(true) {
+                int found =
+                    text.indexOf(
+                        anchor,
+                        from
+                    )
+                if(found < 0)
+                    break
+                count++
+                from = found + anchor.length()
+            }
+            if(count != expectedCount)
+                throw new GradleException(
+                    "Chat 1 cumulative evidence-root guard count drift: expected=${expectedCount} actual=${count} anchor=${anchor}"
+                )
+        }
+
+        int evidenceRootInitIndex =
+            text.lastIndexOf(
+                'Initialize-CertificationEvidenceRoot'
+            )
+        int snapshotRootCreateIndex =
+            text.indexOf(
+                'New-Item -ItemType Directory -Path $snapshotRoot'
+            )
+
+        if(evidenceRootInitIndex < 0 ||
+           snapshotRootCreateIndex < 0 ||
+           evidenceRootInitIndex >= snapshotRootCreateIndex)
+            throw new GradleException(
+                'Certification evidence-root validation must complete before invocation snapshot creation.'
+            )
 
         if(!ignoreText.readLines().any {
                 it.trim() == 'runtime/certification/'
