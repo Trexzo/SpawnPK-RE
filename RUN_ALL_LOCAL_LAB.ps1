@@ -36,7 +36,15 @@ $watcherScript = Join-Path $root 'WATCH_CLIENT_NETWORK.ps1'
 $clientScript = Join-Path $root 'scripts\Run-Client-Airgap.ps1'
 $serverJar = Join-Path $root 'server\build\SpawnPKLocalServer.jar'
 
-function Get-LauncherOwnedProcessIds {
+function Get-NormalizedProcessLifetimeStamp {
+    param([DateTime]$Timestamp)
+
+    $utc = $Timestamp.ToUniversalTime()
+    $ticks = [long]$utc.Ticks
+    return $ticks - ($ticks % [TimeSpan]::TicksPerMillisecond)
+}
+
+function Get-LauncherOwnedProcessRecords {
     param(
         [System.Diagnostics.Process[]]$Roots,
         [string]$Label,
@@ -56,12 +64,6 @@ function Get-LauncherOwnedProcessIds {
         $recordedRoots |
             Where-Object { -not $_.HasExited }
     )
-    $liveRootPids = @(
-        $liveRoots |
-            ForEach-Object { [int]$_.Id } |
-            Select-Object -Unique
-    )
-
     if ($recordedRootPids.Count -eq 0) {
         return @()
     }
@@ -74,6 +76,7 @@ function Get-LauncherOwnedProcessIds {
     }
 
     $depthByPid = @{}
+    $lifetimeStampByPid = @{}
 
     foreach ($liveRoot in $liveRoots) {
         $liveRootPid = [int]$liveRoot.Id
@@ -104,21 +107,24 @@ function Get-LauncherOwnedProcessIds {
             throw "$Label cannot prove current live-root creation time for PID $liveRootPid : $($_.Exception.Message)"
         }
 
-        $liveRootStartDeltaSeconds = [Math]::Abs(
-            ($currentCreatedUtc - $recordedStartUtc).TotalSeconds
-        )
+        $recordedStartStamp =
+            Get-NormalizedProcessLifetimeStamp -Timestamp $recordedStartUtc
+        $currentCreatedStamp =
+            Get-NormalizedProcessLifetimeStamp -Timestamp $currentCreatedUtc
 
-        if ($liveRootStartDeltaSeconds -gt 2.0) {
+        if ($recordedStartStamp -ne $currentCreatedStamp) {
             throw (
                 "$Label refused live-root PID lifetime mismatch. " +
                 "pid=$liveRootPid " +
                 "recordedStart=$($recordedStartUtc.ToString('o')) " +
                 "currentCreated=$($currentCreatedUtc.ToString('o')) " +
-                "deltaSeconds=$liveRootStartDeltaSeconds"
+                "normalizedRecorded=$recordedStartStamp " +
+                "normalizedCurrent=$currentCreatedStamp"
             )
         }
 
         $depthByPid[$liveRootPid] = 0
+        $lifetimeStampByPid[$liveRootPid] = [long]$currentCreatedStamp
     }
 
     if ($IncludeExitedRoots) {
@@ -183,6 +189,8 @@ function Get-LauncherOwnedProcessIds {
                 }
 
                 $depthByPid[$childPid] = 1
+                $lifetimeStampByPid[$childPid] =
+                    Get-NormalizedProcessLifetimeStamp -Timestamp $childCreated
             }
         }
     }
@@ -202,15 +210,54 @@ function Get-LauncherOwnedProcessIds {
                 -not $depthByPid.ContainsKey($parentId)) {
                 continue
             }
+            try {
+                $processCreated = [DateTime]$process.CreationDate
+            }
+            catch {
+                throw "$Label cannot prove creation time for descendant PID $processId : $($_.Exception.Message)"
+            }
+
             $depthByPid[$processId] = [int]$depthByPid[$parentId] + 1
+            $lifetimeStampByPid[$processId] =
+                Get-NormalizedProcessLifetimeStamp -Timestamp $processCreated
             $changed = $true
         }
     }
 
+    $owned = @(
+        foreach ($entry in $depthByPid.GetEnumerator()) {
+            $ownedPid = [int]$entry.Key
+            if (-not $lifetimeStampByPid.ContainsKey($ownedPid)) {
+                throw "$Label has no lifetime identity for owned PID $ownedPid"
+            }
+
+            [pscustomobject]@{
+                Pid = $ownedPid
+                Depth = [int]$entry.Value
+                LifetimeStamp = [long]$lifetimeStampByPid[$ownedPid]
+            }
+        }
+    )
+
     return @(
-        $depthByPid.GetEnumerator() |
-            Sort-Object Value -Descending |
-            ForEach-Object { [int]$_.Key }
+        $owned |
+            Sort-Object -Property @(
+                @{ Expression = 'Depth'; Descending = $true },
+                @{ Expression = 'Pid'; Descending = $true }
+            )
+    )
+}
+
+function Get-LauncherOwnedProcessIds {
+    param(
+        [System.Diagnostics.Process[]]$Roots,
+        [string]$Label,
+        [switch]$IncludeExitedRoots
+    )
+
+    return @(
+        Get-LauncherOwnedProcessRecords @PSBoundParameters |
+            ForEach-Object { [int]$_.Pid }
     )
 }
 
@@ -229,19 +276,11 @@ function Stop-LauncherOwnedProcessTree {
         (Get-Date) -lt $cleanupDeadline) {
         $cleanupPass++
 
-        $ownedPids = @(
-            Get-LauncherOwnedProcessIds -Roots $Roots -Label $Label -IncludeExitedRoots
-        )
-        $liveOwnedPids = @(
-            $ownedPids |
-                Where-Object {
-                    $null -ne (
-                        Get-Process -Id $_ -ErrorAction SilentlyContinue
-                    )
-                }
+        $ownedProcesses = @(
+            Get-LauncherOwnedProcessRecords -Roots $Roots -Label $Label -IncludeExitedRoots
         )
 
-        if ($liveOwnedPids.Count -eq 0) {
+        if ($ownedProcesses.Count -eq 0) {
             Write-Host (
                 'LOCALLAB_OWNED_PROCESS_CLEANUP_COMPLETE ' +
                 "label=$Label passes=$cleanupPass " +
@@ -250,34 +289,77 @@ function Stop-LauncherOwnedProcessTree {
             return
         }
 
-        # Get-LauncherOwnedProcessIds returns descendants deepest-first and
-        # roots last, so each bounded pass preserves descendant-first teardown.
-        foreach ($ownedPid in $liveOwnedPids) {
+        # Ownership records are descendants deepest-first and roots last.
+        # Revalidate exact lifetime immediately before destructive termination.
+        foreach ($ownedProcess in $ownedProcesses) {
+            $ownedPid = [int]$ownedProcess.Pid
+            if ($ownedPid -eq $PID) {
+                throw "$Label refused current launcher PID during cleanup termination: $ownedPid"
+            }
+
             $live = Get-Process -Id $ownedPid -ErrorAction SilentlyContinue
             if ($null -eq $live) {
                 continue
             }
 
-            Stop-Process -Id $ownedPid -Force -ErrorAction Stop
-            $stoppedPidSet[[int]$ownedPid] = $true
+            try {
+                $liveStartStamp =
+                    Get-NormalizedProcessLifetimeStamp -Timestamp ([DateTime]$live.StartTime)
+            }
+            catch {
+                throw "$Label cannot revalidate cleanup lifetime for PID $ownedPid : $($_.Exception.Message)"
+            }
+
+            if ($liveStartStamp -ne [long]$ownedProcess.LifetimeStamp) {
+                throw (
+                    "$Label refused cleanup PID lifetime mismatch. " +
+                    "pid=$ownedPid " +
+                    "ownedStamp=$($ownedProcess.LifetimeStamp) " +
+                    "currentStamp=$liveStartStamp"
+                )
+            }
+
+            Stop-Process -InputObject $live -Force -ErrorAction Stop
+            $stoppedPidSet[$ownedPid] = $true
         }
 
         Start-Sleep -Milliseconds 100
     }
 
-    $remainingOwnedPids = @(
-        Get-LauncherOwnedProcessIds -Roots $Roots -Label $Label -IncludeExitedRoots |
-            Where-Object {
-                $null -ne (
-                    Get-Process -Id $_ -ErrorAction SilentlyContinue
-                )
-            }
+    $remainingOwnedProcesses = @(
+        Get-LauncherOwnedProcessRecords -Roots $Roots -Label $Label -IncludeExitedRoots
     )
 
-    if ($remainingOwnedPids.Count -ne 0) {
+    $remainingLive = New-Object 'System.Collections.Generic.List[object]'
+    foreach ($ownedProcess in $remainingOwnedProcesses) {
+        $ownedPid = [int]$ownedProcess.Pid
+        $live = Get-Process -Id $ownedPid -ErrorAction SilentlyContinue
+        if ($null -eq $live) {
+            continue
+        }
+
+        $liveStartStamp =
+            Get-NormalizedProcessLifetimeStamp -Timestamp ([DateTime]$live.StartTime)
+        if ($liveStartStamp -ne [long]$ownedProcess.LifetimeStamp) {
+            throw (
+                "$Label refused final cleanup PID lifetime mismatch. " +
+                "pid=$ownedPid " +
+                "ownedStamp=$($ownedProcess.LifetimeStamp) " +
+                "currentStamp=$liveStartStamp"
+            )
+        }
+
+        $remainingLive.Add($ownedProcess)
+    }
+
+    if ($remainingLive.Count -ne 0) {
+        $remainingPids = @(
+            $remainingLive |
+                ForEach-Object { [int]$_.Pid }
+        )
         throw (
             "$Label launcher-owned cleanup did not converge. " +
-            "passes=$cleanupPass remaining=$($remainingOwnedPids -join ',')"
+            "passes=$cleanupPass remaining=$($remainingPids -join ',')"
         )
     }
 
