@@ -4095,8 +4095,14 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
             'spawnpk-chat1-local-certification-evidence-v1',
             'hostedPromotionSatisfied = $false',
             'hostedEvidenceSeparate = $true',
-            'Set-Content -LiteralPath $evidence',
-            'Get-FileHash -LiteralPath $evidence -Algorithm SHA256',
+            '$evidenceGuard',
+            '$evidenceWriter',
+            '[IO.FileAccess]::ReadWrite',
+            '[IO.StreamWriter]::new(',
+            '$evidenceWriter.WriteLine($json)',
+            '$evidenceGuard.Flush($true)',
+            'Get-FileHash -InputStream $evidenceGuard -Algorithm SHA256',
+            'Remove-Item -LiteralPath $evidence -Force -ErrorAction SilentlyContinue',
             'spawnpk-chat1-cumulative-result-v1',
             'evidenceSha256 = $evidenceSha',
             'Write-Output $completion',
@@ -4112,10 +4118,11 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
         }
 
         [
-            '[IO.File]::Open(': 3,
-            '[IO.FileShare]::Read': 2,
+            '[IO.File]::Open(': 4,
+            '[IO.FileShare]::Read': 3,
             '[IO.FileShare]::None': 1,
-            '[IO.FileMode]::CreateNew': 1
+            '[IO.FileMode]::CreateNew': 2,
+            '[IO.FileAccess]::ReadWrite': 1
         ].each { anchor, expectedCount ->
             int count = 0
             int from = 0
@@ -4140,6 +4147,16 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
             throw new GradleException(
                 'Local cumulative evidence must not name resolved infrastructure issue #816 as a current promotion blocker.'
             )
+
+        [
+            'Set-Content -LiteralPath $evidence',
+            'Get-FileHash -LiteralPath $evidence -Algorithm SHA256'
+        ].each { staleEvidenceAuthority ->
+            if(text.contains(staleEvidenceAuthority))
+                throw new GradleException(
+                    "Cumulative evidence publication must stay on one guarded file identity: ${staleEvidenceAuthority}"
+                )
+        }
 
         String authoritativeMarker =
             'SPAWNPK_CHAT1_CURRENT_CUMULATIVE_CERTIFICATION_PASS'
@@ -4367,13 +4384,38 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
             text.indexOf(
                 'ConvertTo-Json'
             )
+        int evidenceGuardIndex =
+            text.indexOf(
+                '$evidenceGuard =',
+                jsonIndex
+            )
+        int evidenceWriterIndex =
+            text.indexOf(
+                '[IO.StreamWriter]::new(',
+                evidenceGuardIndex
+            )
         int evidenceWriteIndex =
             text.indexOf(
-                'Set-Content -LiteralPath $evidence'
+                '$evidenceWriter.WriteLine($json)',
+                evidenceWriterIndex
+            )
+        int evidenceFlushIndex =
+            text.indexOf(
+                '$evidenceGuard.Flush($true)',
+                evidenceWriteIndex
             )
         int evidenceHashIndex =
             text.indexOf(
-                'Get-FileHash -LiteralPath $evidence -Algorithm SHA256'
+                'Get-FileHash -InputStream $evidenceGuard -Algorithm SHA256',
+                evidenceFlushIndex
+            )
+        int evidenceGuardReleaseIndex =
+            text.lastIndexOf(
+                '$evidenceGuard.Dispose()'
+            )
+        int completionObjectIndex =
+            text.indexOf(
+                '$completion = [pscustomobject]@{'
             )
         int completionIndex =
             text.indexOf(
@@ -4424,12 +4466,17 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
            privateReleaseIndex <= markerServerShaParseIndex ||
            snapshotCleanupIndex <= privateReleaseIndex ||
            jsonIndex <= snapshotCleanupIndex ||
-           evidenceWriteIndex <= jsonIndex ||
-           evidenceHashIndex <= evidenceWriteIndex ||
-           completionIndex <= evidenceHashIndex ||
+           evidenceGuardIndex <= jsonIndex ||
+           evidenceWriterIndex <= evidenceGuardIndex ||
+           evidenceWriteIndex <= evidenceWriterIndex ||
+           evidenceFlushIndex <= evidenceWriteIndex ||
+           evidenceHashIndex <= evidenceFlushIndex ||
+           evidenceGuardReleaseIndex <= evidenceHashIndex ||
+           completionObjectIndex <= evidenceGuardReleaseIndex ||
+           completionIndex <= completionObjectIndex ||
            structuredResultIndex <= completionIndex)
             throw new GradleException(
-                'Wrapper evidence ordering drifted: expected Gradle invoke -> native exit capture -> zero-exit check -> Gradle marker observation -> Gradle-owned server SHA parse -> private guard release -> private-root cleanup -> JSON write/hash -> wrapper completion -> structured in-memory result.'
+                'Wrapper evidence ordering drifted: expected Gradle invoke -> native exit capture -> zero-exit check -> Gradle marker observation -> Gradle-owned server SHA parse -> private guard release -> private-root cleanup -> JSON -> guarded evidence create/write/flush/same-stream hash -> evidence guard release -> completion object/marker -> structured in-memory result.'
             )
 
         logger.lifecycle(
@@ -4441,6 +4488,7 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
             'canonicalGate=true ' +
             'cleanHeadBound=true ' +
             'durableEvidence=true ' +
+            'durableEvidenceIdentityGuarded=true ' +
             'certifiedServerShaBound=true ' +
             'inMemoryReleaseHandoff=true ' +
             'hostedPromotionSatisfied=false ' +
