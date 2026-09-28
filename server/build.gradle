@@ -3994,6 +3994,11 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
                 repoRoot,
                 '.gitignore'
             )
+        File currentRelease =
+            new File(
+                repoRoot,
+                'RUN_CURRENT_RELEASE_ACCEPTANCE.ps1'
+            )
 
         if(!wrapper.isFile())
             throw new GradleException(
@@ -4003,11 +4008,17 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
             throw new GradleException(
                 "Missing repository ignore policy: ${gitignore}"
             )
+        if(!currentRelease.isFile())
+            throw new GradleException(
+                "Missing current release acceptance entry point: ${currentRelease}"
+            )
 
         String text =
             wrapper.getText('UTF-8')
         String ignoreText =
             gitignore.getText('UTF-8')
+        String currentReleaseText =
+            currentRelease.getText('UTF-8')
 
         [
             'Select-LocalLabBuildJava.ps1',
@@ -4104,6 +4115,69 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
             })
             throw new GradleException(
                 'Local cumulative certification evidence directory is not ignored.'
+            )
+
+        [
+            'scripts\\Run-Chat1CumulativeCertification.ps1',
+            '& $cumulativeWrapper -ClientJar $client',
+            'CURRENT_RELEASE_CUMULATIVE_CERTIFICATION_PASS',
+            'hostedPromotionSatisfied=false'
+        ].each { required ->
+            if(!currentReleaseText.contains(required))
+                throw new GradleException(
+                    "Current release acceptance contract missing: ${required}"
+                )
+        }
+
+        [
+            '& $gradle r85V308Acceptance',
+            'CURRENT_RELEASE_V308_ACCEPTANCE_PASS'
+        ].each { forbidden ->
+            if(currentReleaseText.contains(forbidden))
+                throw new GradleException(
+                    "Current release acceptance still uses stale inherited-only path: ${forbidden}"
+                )
+        }
+
+        int currentBuildIndex =
+            currentReleaseText.indexOf(
+                '& $gradle clean build'
+            )
+        int currentLoopbackIndex =
+            currentReleaseText.lastIndexOf(
+                'Invoke-CurrentServerLoopbackSmoke'
+            )
+        int currentCumulativeIndex =
+            currentReleaseText.indexOf(
+                '& $cumulativeWrapper -ClientJar $client'
+            )
+
+        if(currentBuildIndex < 0 ||
+           currentLoopbackIndex <= currentBuildIndex ||
+           currentCumulativeIndex <= currentLoopbackIndex)
+            throw new GradleException(
+                'Current release acceptance ordering drifted: expected clean build -> loopback smoke -> canonical cumulative wrapper.'
+            )
+
+        int currentCumulativeCount = 0
+        int currentCumulativeFrom = 0
+        String currentCumulativeAnchor =
+            '& $cumulativeWrapper -ClientJar $client'
+        while(true) {
+            int found =
+                currentReleaseText.indexOf(
+                    currentCumulativeAnchor,
+                    currentCumulativeFrom
+                )
+            if(found < 0)
+                break
+            currentCumulativeCount++
+            currentCumulativeFrom =
+                found + currentCumulativeAnchor.length()
+        }
+        if(currentCumulativeCount != 1)
+            throw new GradleException(
+                "Current release acceptance cumulative-wrapper invocation count drift: expected=1 actual=${currentCumulativeCount}"
             )
 
         int cleanIndex =
