@@ -4061,7 +4061,21 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
 
         [
             'Select-LocalLabBuildJava.ps1',
+            'Get-Sha256Hex',
             'Get-FileHash',
+            '[IO.File]::Open(',
+            '[IO.FileMode]::CreateNew',
+            '[IO.FileShare]::Read',
+            '[IO.FileShare]::None',
+            '$sourceGuard',
+            '$snapshotRoot',
+            '$snapshotClient',
+            '$privateGuard',
+            '$sourceGuard.CopyTo($snapshotWriter)',
+            '$privateClientSha',
+            'invocationOwnedClient = $true',
+            'invocationOwnedClient=true',
+            'Remove-Item -LiteralPath $snapshotRoot -Recurse -Force',
             v308AcceptanceClientSha256,
             'chat1CurrentCumulativeCertification',
             '-Pv308ClientPath=',
@@ -4085,6 +4099,31 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
             if(!text.contains(required))
                 throw new GradleException(
                     "Chat 1 cumulative wrapper contract missing: ${required}"
+                )
+        }
+
+        [
+            '[IO.File]::Open(': 3,
+            '[IO.FileShare]::Read': 2,
+            '[IO.FileShare]::None': 1,
+            '[IO.FileMode]::CreateNew': 1
+        ].each { anchor, expectedCount ->
+            int count = 0
+            int from = 0
+            while(true) {
+                int found =
+                    text.indexOf(
+                        anchor,
+                        from
+                    )
+                if(found < 0)
+                    break
+                count++
+                from = found + anchor.length()
+            }
+            if(count != expectedCount)
+                throw new GradleException(
+                    "Chat 1 cumulative client-snapshot guard count drift: expected=${expectedCount} actual=${count} anchor=${anchor}"
                 )
         }
 
@@ -4227,9 +4266,39 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
             text.indexOf(
                 "'chat1CurrentCumulativeCertification'"
             )
+        int sourceOpenIndex =
+            text.indexOf(
+                '[IO.File]::Open('
+            )
+        int writerOpenIndex =
+            text.indexOf(
+                '[IO.File]::Open(',
+                sourceOpenIndex + 1
+            )
+        int privateOpenIndex =
+            text.indexOf(
+                '[IO.File]::Open(',
+                writerOpenIndex + 1
+            )
+        int sourceHashIndex =
+            text.indexOf(
+                '$actualClientSha = Get-Sha256Hex -Stream $sourceGuard'
+            )
+        int copyIndex =
+            text.indexOf(
+                '$sourceGuard.CopyTo($snapshotWriter)'
+            )
+        int privateHashIndex =
+            text.indexOf(
+                '$privateClientSha = Get-Sha256Hex -Stream $privateGuard'
+            )
+        int sourceReleaseIndex =
+            text.indexOf(
+                '$sourceGuard.Dispose()'
+            )
         int clientIndex =
             text.indexOf(
-                '"-Pv308ClientPath=$client"'
+                '"-Pv308ClientPath=$snapshotClient"'
             )
         int invokeIndex =
             text.indexOf(
@@ -4256,26 +4325,56 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
                 'CHAT1_CUMULATIVE_WRAPPER_COMPLETE'
             )
 
+        if(sourceOpenIndex < 0 ||
+           sourceHashIndex <= sourceOpenIndex ||
+           writerOpenIndex <= sourceHashIndex ||
+           copyIndex <= writerOpenIndex ||
+           privateOpenIndex <= copyIndex ||
+           privateHashIndex <= privateOpenIndex ||
+           sourceReleaseIndex <= privateHashIndex)
+            throw new GradleException(
+                'Wrapper exact-v308 client admission ordering drifted: expected guarded source open -> source hash -> private writer open/copy -> private guard open -> private hash -> source release.'
+            )
+
+        if(text.contains('"-Pv308ClientPath=$client"'))
+            throw new GradleException(
+                'Wrapper must never pass the mutable external client path into Gradle.'
+            )
+
         if(cleanIndex < 0 ||
            gateIndex <= cleanIndex ||
            clientIndex <= gateIndex)
             throw new GradleException(
-                'Wrapper Gradle invocation ordering drifted: expected clean -> cumulative gate -> exact client property.'
+                'Wrapper Gradle invocation ordering drifted: expected clean -> cumulative gate -> invocation-owned exact client snapshot.'
+            )
+
+        int privateReleaseIndex =
+            text.lastIndexOf(
+                '$privateGuard.Dispose()'
+            )
+        int snapshotCleanupIndex =
+            text.lastIndexOf(
+                'Remove-Item -LiteralPath $snapshotRoot -Recurse -Force'
             )
 
         if(invokeIndex < 0 ||
            exitCaptureIndex <= invokeIndex ||
            exitSuccessCheckIndex <= exitCaptureIndex ||
            markerObservationIndex <= exitSuccessCheckIndex ||
-           jsonIndex <= markerObservationIndex ||
+           privateReleaseIndex <= markerObservationIndex ||
+           snapshotCleanupIndex <= privateReleaseIndex ||
+           jsonIndex <= snapshotCleanupIndex ||
            completionIndex <= jsonIndex)
             throw new GradleException(
-                'Wrapper evidence ordering drifted: expected Gradle invoke -> native exit capture -> zero-exit check -> Gradle marker observation -> JSON evidence -> wrapper completion.'
+                'Wrapper evidence ordering drifted: expected Gradle invoke -> native exit capture -> zero-exit check -> Gradle marker observation -> private guard release -> private-root cleanup -> JSON evidence -> wrapper completion.'
             )
 
         logger.lifecycle(
             'CHAT1_CUMULATIVE_WRAPPER_CONTRACT_PASS ' +
             'exactV308HashPinned=true ' +
+            'invocationOwnedClient=true ' +
+            'sourceReadGuard=true ' +
+            'privateReadGuard=true ' +
             'canonicalGate=true ' +
             'cleanHeadBound=true ' +
             'durableEvidence=true ' +
