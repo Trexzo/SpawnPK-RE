@@ -175,7 +175,7 @@ $r13PythonInvokeIndex = $r13Acceptance.IndexOf('& $python.Source @profileArgs', 
 $r13PrivateReleaseIndex = $r13Acceptance.LastIndexOf('$r13PrivateGuard.Dispose()')
 $r13SnapshotCleanupIndex = $r13Acceptance.LastIndexOf('Remove-Item -LiteralPath $r13SnapshotRoot -Recurse -Force -ErrorAction Stop')
 $r13FailureReplayIndex = $r13Acceptance.IndexOf('throw $r13ProfileFailure')
-$r13ManifestIndex = $r13Acceptance.IndexOf("$manifest = Join-Path $output 'R13_PROFILE_MANIFEST.json'")
+$r13ManifestIndex = $r13Acceptance.IndexOf("`$manifest = Join-Path `$output 'R13_PROFILE_MANIFEST.json'")
 
 Assert-True ($r13SnapshotRootIndex -gt $r13ProfileBuildIndex) 'R13 profile input snapshot is not invocation-owned by the profile build.'
 Assert-True ($r13SourceOpenIndex -gt $r13SnapshotRootIndex) 'R13 acceptance opens canonical client before private snapshot ownership exists.'
