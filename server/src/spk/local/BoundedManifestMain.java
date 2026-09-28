@@ -16,10 +16,10 @@ import java.util.jar.Manifest;
  * Admission uses a verification-disabled JarFile so signature verifier setup
  * cannot parse the full manifest before these project resource caps run.
  *
- * The main section is retained only through its terminating blank line and is
- * parsed with java.util.jar.Manifest for normal continuation semantics. The
- * remainder is streamed/discarded under a separate total expanded-byte cap
- * because the later URLClassLoader may parse the complete manifest.
+ * The complete expanded manifest is retained only up to MAX_MANIFEST_BYTES and
+ * parsed once with java.util.jar.Manifest, preserving fail-fast syntax
+ * validation for both main and named sections. The main-section byte count is
+ * tracked independently and capped at MAX_MAIN_SECTION_BYTES.
  */
 final class BoundedManifestMain {
     /**
@@ -52,13 +52,13 @@ final class BoundedManifestMain {
         if(entry==null)
             return null;
 
-        byte[] main;
+        byte[] bytes;
 
         try(InputStream input=
                 jar.getInputStream(
                     entry
                 )){
-            main=
+            bytes=
                 readBoundedManifest(
                     input,
                     archive
@@ -68,7 +68,7 @@ final class BoundedManifestMain {
         Manifest manifest=
             new Manifest(
                 new ByteArrayInputStream(
-                    main
+                    bytes
                 )
             );
 
@@ -118,13 +118,14 @@ final class BoundedManifestMain {
         InputStream input,
         Path archive
     )throws IOException{
-        ByteArrayOutputStream main=
+        ByteArrayOutputStream full=
             new ByteArrayOutputStream(
                 8192
             );
         byte[] buffer=
             new byte[8192];
         int total=0;
+        int mainBytes=0;
         boolean mainComplete=false;
         boolean lineHasContent=false;
         boolean pendingCr=false;
@@ -136,7 +137,7 @@ final class BoundedManifestMain {
                 );
 
             if(read<0)
-                return main
+                return full
                     .toByteArray();
 
             for(int index=0;
@@ -156,16 +157,26 @@ final class BoundedManifestMain {
                         archive
                     );
 
+                full.write(
+                    value
+                );
+
                 if(mainComplete)
                     continue;
 
+                mainBytes++;
+
+                if(mainBytes>
+                        MAX_MAIN_SECTION_BYTES)
+                    throw new IllegalArgumentException(
+                        "plugin manifest main section exceeds "+
+                        MAX_MAIN_SECTION_BYTES+
+                        " bytes: "+
+                        archive
+                    );
+
                 if(pendingCr){
                     if(value=='\n'){
-                        appendMain(
-                            main,
-                            value,
-                            archive
-                        );
                         pendingCr=false;
 
                         if(!lineHasContent)
@@ -186,12 +197,6 @@ final class BoundedManifestMain {
                     lineHasContent=false;
                 }
 
-                appendMain(
-                    main,
-                    value,
-                    archive
-                );
-
                 if(value=='\r'){
                     pendingCr=true;
                 }else if(value=='\n'){
@@ -204,25 +209,6 @@ final class BoundedManifestMain {
                 }
             }
         }
-    }
-
-    private static void appendMain(
-        ByteArrayOutputStream main,
-        int value,
-        Path archive
-    ){
-        if(main.size()>=
-                MAX_MAIN_SECTION_BYTES)
-            throw new IllegalArgumentException(
-                "plugin manifest main section exceeds "+
-                MAX_MAIN_SECTION_BYTES+
-                " bytes: "+
-                archive
-            );
-
-        main.write(
-            value
-        );
     }
 
     private BoundedManifestMain(){}
