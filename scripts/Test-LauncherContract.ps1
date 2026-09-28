@@ -126,6 +126,34 @@ Assert-True ($client -match 'Refusing LocalLab isolated user\.home because it re
 Assert-True ($client -match 'missing cache root') 'Standalone airgap launcher does not fail closed on an unseeded isolated cache root.'
 Assert-True ($client -match 'LOCAL_LAB_CLIENT_HOME_DEFAULT') 'Standalone airgap launcher no longer preserves the ordinary non-isolated launch path.'
 Assert-True ($clientWrapper -match 'LocalLabUserHome') 'Canonical airgap wrapper does not forward isolated client-home authority.'
+Assert-True ($client -match '\$hadCallerJavaHome\s*=\s*Test-Path Env:JAVA_HOME') 'Standalone airgap launcher does not record whether caller JAVA_HOME existed.'
+Assert-True ($client -match '\$callerJavaHome\s*=\s*\$env:JAVA_HOME') 'Standalone airgap launcher does not snapshot caller JAVA_HOME.'
+Assert-True ($client -match '\$callerPath\s*=\s*\$env:Path') 'Standalone airgap launcher does not snapshot caller PATH.'
+Assert-True ($client -match 'finally\s*\{[\s\S]*\$env:Path\s*=\s*\$callerPath') 'Standalone airgap launcher does not restore caller PATH in finally.'
+Assert-True ($client -match 'Remove-Item Env:JAVA_HOME -ErrorAction SilentlyContinue') 'Standalone airgap launcher does not restore an originally absent JAVA_HOME.'
+Assert-True ($clientWrapper -match '\$hadCallerJavaHome\s*=\s*Test-Path Env:JAVA_HOME') 'Canonical airgap wrapper does not record caller JAVA_HOME ownership.'
+Assert-True ($clientWrapper -match 'finally\s*\{[\s\S]*\$env:Path\s*=\s*\$callerPath') 'Canonical airgap wrapper does not restore caller PATH in finally.'
+Assert-True ($clientWrapper -match 'Remove-Item Env:JAVA_HOME -ErrorAction SilentlyContinue') 'Canonical airgap wrapper does not restore an originally absent JAVA_HOME.'
+
+foreach ($entry in @(
+    @('$hadCallerJavaHome = Test-Path Env:JAVA_HOME', 1),
+    @('$callerJavaHome = $env:JAVA_HOME', 1),
+    @('$callerPath = $env:Path', 1),
+    @('$env:Path = $callerPath', 1),
+    @('Remove-Item Env:JAVA_HOME -ErrorAction SilentlyContinue', 1)
+)) {
+    Assert-ExactTextCount $client $entry[0] ([int]$entry[1]) 'Standalone airgap Java-environment ownership count drift.'
+}
+
+foreach ($entry in @(
+    @('$hadCallerJavaHome = Test-Path Env:JAVA_HOME', 1),
+    @('$callerJavaHome = $env:JAVA_HOME', 1),
+    @('$callerPath = $env:Path', 1),
+    @('$env:Path = $callerPath', 1),
+    @('Remove-Item Env:JAVA_HOME -ErrorAction SilentlyContinue', 1)
+)) {
+    Assert-ExactTextCount $clientWrapper $entry[0] ([int]$entry[1]) 'Canonical airgap wrapper Java-environment ownership count drift.'
+}
 
 $standaloneRuntimeCheckIndex = $client.IndexOf('& $runtimeCheck')
 $standaloneJarIndex = $client.IndexOf('$jar = Join-Path $PSScriptRoot ''local-client\client-airgap.jar''')
@@ -133,6 +161,11 @@ $standaloneLaunchIndex = $client.IndexOf('& $java.Path @javaArgs -jar $jar')
 Assert-True ($standaloneRuntimeCheckIndex -ge 0) 'Standalone airgap external-runtime verification invocation not found.'
 Assert-True ($standaloneJarIndex -gt $standaloneRuntimeCheckIndex) 'Standalone airgap client path is admitted before external-runtime verification.'
 Assert-True ($standaloneLaunchIndex -gt $standaloneRuntimeCheckIndex) 'Standalone airgap client launches before exact-v308 external-runtime verification.'
+$standaloneEnvCaptureIndex = $client.IndexOf('$callerPath = $env:Path')
+$standaloneSelectorCallIndex = $client.IndexOf('$java = Set-LocalLabJava')
+$standaloneEnvRestoreIndex = $client.LastIndexOf('$env:Path = $callerPath')
+Assert-True ($standaloneEnvCaptureIndex -ge 0 -and $standaloneEnvCaptureIndex -lt $standaloneSelectorCallIndex) 'Standalone airgap caller environment is not captured before Java selection.'
+Assert-True ($standaloneEnvRestoreIndex -gt $standaloneLaunchIndex) 'Standalone airgap caller environment is restored before the synchronous Java client finishes.'
 
 Assert-True ($secondClient -match '\[switch\]\$AllowNonAirgap') 'Second-client launcher does not require the explicit -AllowNonAirgap switch.'
 Assert-True ($secondClient -match [regex]::Escape('scripts\Run-Client-Airgap.ps1')) 'Second-client default does not target the canonical airgap wrapper.'
@@ -157,6 +190,9 @@ Assert-True ($secondDefaultIndex -ge 0) 'Second-client launcher has no explicit 
 Assert-True ($secondOptInIndex -gt $secondDefaultIndex) 'Second-client nonairgap opt-in is not applied after the airgap default.'
 Assert-True ($secondNonAirgapAssignIndex -gt $secondOptInIndex) 'Second-client nonairgap launcher is not confined to the explicit opt-in branch.'
 Assert-True ($secondChildOptInIndex -gt $secondOptInIndex) 'Second-client parent does not pass child nonairgap consent only after explicit opt-in.'
+Assert-True ($secondClient -notmatch 'Set-LocalLabJava') 'Second-client wrapper should not add an independent Java-selector mutation.'
+Assert-True ($clientWrapper -match '\$env:Path\s*=\s*\$callerPath') 'Second-client airgap target does not restore caller Java PATH after inline execution.'
+Assert-True ($nonAirgap -match '\$env:Path\s*=\s*\$callerPath') 'Second-client nonairgap target does not restore caller Java PATH after inline execution.'
 
 Assert-True ($nonAirgap -match '\[switch\]\$AllowExternalEndpoints') 'Direct nonairgap launcher does not require explicit -AllowExternalEndpoints consent.'
 Assert-True ($nonAirgap -match 'if\s*\(\s*-not\s+\$AllowExternalEndpoints\s*\)') 'Direct nonairgap launcher does not fail closed without external-endpoint consent.'
@@ -167,6 +203,21 @@ Assert-True ($nonAirgap -match '&\s+\$java\.Path\s+-jar\s+\$jar') 'Explicit nona
 Assert-True ($nonAirgap -match '\$LASTEXITCODE\s+-ne\s+0') 'Explicit nonairgap launcher does not fail on a nonzero client exit.'
 Assert-True ($nonAirgap -match 'NONAIRGAP_DIAGNOSTIC_EXPLICIT') 'Explicit nonairgap launcher lost its external-endpoint warning marker.'
 Assert-True ($nonAirgap -notmatch '&\s+java\s+-jar') 'Explicit nonairgap launcher reintroduced bare PATH Java execution.'
+Assert-True ($nonAirgap -match '\$hadCallerJavaHome\s*=\s*Test-Path Env:JAVA_HOME') 'Explicit nonairgap launcher does not record caller JAVA_HOME ownership.'
+Assert-True ($nonAirgap -match '\$callerJavaHome\s*=\s*\$env:JAVA_HOME') 'Explicit nonairgap launcher does not snapshot caller JAVA_HOME.'
+Assert-True ($nonAirgap -match '\$callerPath\s*=\s*\$env:Path') 'Explicit nonairgap launcher does not snapshot caller PATH.'
+Assert-True ($nonAirgap -match 'finally\s*\{[\s\S]*\$env:Path\s*=\s*\$callerPath') 'Explicit nonairgap launcher does not restore caller PATH in finally.'
+Assert-True ($nonAirgap -match 'Remove-Item Env:JAVA_HOME -ErrorAction SilentlyContinue') 'Explicit nonairgap launcher does not restore an originally absent JAVA_HOME.'
+
+foreach ($entry in @(
+    @('$hadCallerJavaHome = Test-Path Env:JAVA_HOME', 1),
+    @('$callerJavaHome = $env:JAVA_HOME', 1),
+    @('$callerPath = $env:Path', 1),
+    @('$env:Path = $callerPath', 1),
+    @('Remove-Item Env:JAVA_HOME -ErrorAction SilentlyContinue', 1)
+)) {
+    Assert-ExactTextCount $nonAirgap $entry[0] ([int]$entry[1]) 'Nonairgap Java-environment ownership count drift.'
+}
 
 $nonAirgapConsentIndex = $nonAirgap.IndexOf('if (-not $AllowExternalEndpoints)')
 $nonAirgapSelectorIndex = $nonAirgap.IndexOf('$selector = Join-Path')
@@ -174,6 +225,11 @@ $nonAirgapLaunchIndex = $nonAirgap.IndexOf('& $java.Path -jar $jar')
 Assert-True ($nonAirgapConsentIndex -ge 0) 'Direct nonairgap consent gate not found.'
 Assert-True ($nonAirgapSelectorIndex -gt $nonAirgapConsentIndex) 'Direct nonairgap launcher performs setup before explicit consent.'
 Assert-True ($nonAirgapLaunchIndex -gt $nonAirgapSelectorIndex) 'Direct nonairgap launch ordering is malformed.'
+$nonAirgapEnvCaptureIndex = $nonAirgap.IndexOf('$callerPath = $env:Path')
+$nonAirgapJavaIndex = $nonAirgap.IndexOf('$java = Set-LocalLabJava')
+$nonAirgapEnvRestoreIndex = $nonAirgap.LastIndexOf('$env:Path = $callerPath')
+Assert-True ($nonAirgapEnvCaptureIndex -gt $nonAirgapSelectorIndex -and $nonAirgapEnvCaptureIndex -lt $nonAirgapJavaIndex) 'Direct nonairgap caller environment is not captured before Java selection.'
+Assert-True ($nonAirgapEnvRestoreIndex -gt $nonAirgapLaunchIndex) 'Direct nonairgap caller environment is restored before the synchronous Java client finishes.'
 
 Assert-True ($quick -match [regex]::Escape('scripts\Check-ExternalRuntime.ps1')) 'Quick-start launcher does not use current external-runtime preflight.'
 Assert-True ($quick -match [regex]::Escape('server\build\SpawnPKLocalServer.jar')) 'Quick-start launcher does not preflight the current built server JAR.'
@@ -442,6 +498,11 @@ Assert-True ($all -notmatch 'RUN_SERVER_LOCAL_WORLD\.ps1') 'Stale RUN_SERVER_LOC
 Assert-True ($all -match "'-File'") 'Child launchers are not using explicit PowerShell -File execution.'
 Assert-True ($all -match 'AddSeconds\(30\)') 'Server-ready deadline is not the required 30-second window.'
 Assert-True ($all -match 'R85 JAVA11\+ AUTOSELECT BEGIN') 'Compatibility selector marker was removed.'
+Assert-True ($all -match '\$hadCallerJavaHome\s*=\s*Test-Path Env:JAVA_HOME') 'Multi-client launcher does not record caller JAVA_HOME ownership before selector mutation.'
+Assert-True ($all -match '\$callerJavaHome\s*=\s*\$env:JAVA_HOME') 'Multi-client launcher does not snapshot caller JAVA_HOME.'
+Assert-True ($all -match '\$callerPath\s*=\s*\$env:Path') 'Multi-client launcher does not snapshot caller PATH.'
+Assert-True ($all -match 'finally\s*\{[\s\S]*\$env:Path\s*=\s*\$callerPath') 'Multi-client launcher does not restore caller PATH in outer finally.'
+Assert-True ($all -match 'Remove-Item Env:JAVA_HOME -ErrorAction SilentlyContinue') 'Multi-client launcher does not restore an originally absent JAVA_HOME.'
 
 foreach ($entry in @(
     @('function Get-LauncherOwnedProcessIds', 1),
@@ -453,6 +514,11 @@ foreach ($entry in @(
     @('$liveRootPids = @(', 1),
     @('$exitedRootPids = @(', 1),
     @('refused ambiguous exited-root PID reuse', 1),
+    @('$hadCallerJavaHome = Test-Path Env:JAVA_HOME', 1),
+    @('$callerJavaHome = $env:JAVA_HOME', 1),
+    @('$callerPath = $env:Path', 1),
+    @('$env:Path = $callerPath', 1),
+    @('Remove-Item Env:JAVA_HOME -ErrorAction SilentlyContinue', 1),
     @('$ready = $false', 1),
     @('$airgapClient = $null', 1),
     @('$ownedChildren = @()', 1),
@@ -492,6 +558,11 @@ Assert-True ($allClientOwnedIndex -gt $allClientSpawnIndex) 'Multi-client client
 Assert-True ($allHealthyIndex -gt $allClientOwnedIndex) 'Multi-client healthy marker precedes owned client proof.'
 Assert-True ($allCleanupIndex -gt $allHealthyIndex) 'Multi-client cleanup catch is not structurally after the healthy-path body.'
 Assert-True ($allCombinedThrowIndex -gt $allCleanupIndex) 'Multi-client does not surface cleanup outcome after cleanup attempt.'
+$allEnvCaptureIndex = $all.IndexOf('$callerPath = $env:Path')
+$allJavaSelectIndex = $all.IndexOf('$__r85JavaInfo = Set-LocalLabJava')
+$allEnvRestoreIndex = $all.LastIndexOf('$env:Path = $callerPath')
+Assert-True ($allEnvCaptureIndex -ge 0 -and $allEnvCaptureIndex -lt $allJavaSelectIndex) 'Multi-client caller environment is not captured before canonical Java selection.'
+Assert-True ($allEnvRestoreIndex -gt $allCombinedThrowIndex) 'Multi-client caller environment restoration does not structurally cover the full launcher flow.'
 Assert-True ($bootstrap -match '\[switch\]\$SkipConfigPatch') 'Bootstrap no longer preserves the legacy -SkipConfigPatch compatibility switch.'
 Assert-True ($bootstrap -match 'BOOTSTRAP_CONFIG_PATCH_RETIRED') 'Bootstrap does not state that live config mutation is retired.'
 Assert-True ($bootstrap -match 'isolatedCachePipelineRequired=true') 'Bootstrap does not point custom-cache work to isolated authority.'
