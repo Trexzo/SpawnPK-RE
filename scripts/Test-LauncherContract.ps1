@@ -431,6 +431,8 @@ Assert-True ($runtimeImport -match 'function New-SameDirectoryLeafPath') 'Runtim
 Assert-True ($runtimeImport -match 'function New-VerifiedSameDirectoryLeaf') 'Runtime importer lacks verified same-directory publication/restore leaves.'
 Assert-True ($runtimeImport -match '\[IO\.FileMode\]::CreateNew') 'Runtime importer publication leaf is not create-new/no-overwrite.'
 Assert-True ($runtimeImport -match '\$leafStream\.Flush\(\$true\)') 'Runtime importer does not durably flush a private leaf before hash verification.'
+Assert-True ($runtimeImport -match '\$leafComplete\s*=\s*\$false') 'Runtime importer does not track private-leaf completion before exposing the leaf path.'
+Assert-True ($runtimeImport -match 'if \(-not \$leafComplete\)') 'Runtime importer does not clean failed/partial create-new leaves before returning control.'
 Assert-True ($runtimeImport -match '\[IO\.File\]::Replace\(') 'Runtime importer does not use an atomic replace primitive for existing canonical destinations.'
 Assert-True ($runtimeImport -match '\[IO\.File\]::Move\(') 'Runtime importer does not use same-directory move for absent canonical destinations.'
 Assert-True ($runtimeImport -match '\$record\.Committed\s*=\s*\$true') 'Runtime importer does not distinguish a completed discrete canonical transition.'
@@ -457,8 +459,8 @@ foreach ($entry in @(
     @('$leafStream.Flush($true)', 1),
     @('[IO.File]::Replace(', 4),
     @('[IO.File]::Move(', 3),
-    @('$record.Committed = $true', 1),
-    @('$record.PublishedSha256 = $record.ExpectedSha256', 1),
+    @('$record.Committed = $true', 2),
+    @('$record.PublishedSha256 = $record.ExpectedSha256', 2),
     @('destination changed during atomic commit', 1),
     @('rollback ownership changed during atomic restore', 1)
 )) {
@@ -474,9 +476,11 @@ $runtimeImportLeafBuildIndex = $runtimeImport.IndexOf('$record.PublishLeaf =')
 $runtimeImportSnapshotRecheckIndex = $runtimeImport.IndexOf('Assert-DestinationSnapshotStillOwned $record', $runtimeImportLeafBuildIndex)
 $runtimeImportTouchIndex = $runtimeImport.IndexOf('$touched.Add($record)', $runtimeImportSnapshotRecheckIndex)
 $runtimeImportReplaceIndex = $runtimeImport.IndexOf('[IO.File]::Replace(', $runtimeImportTouchIndex)
-$runtimeImportMoveIndex = $runtimeImport.IndexOf('[IO.File]::Move(', $runtimeImportTouchIndex)
-$runtimeImportCommitIndex = $runtimeImport.IndexOf('$record.Committed = $true', $runtimeImportTouchIndex)
-$runtimeImportPublishedShaIndex = $runtimeImport.IndexOf('$record.PublishedSha256 = $record.ExpectedSha256', $runtimeImportCommitIndex)
+$runtimeImportExistingCommitIndex = $runtimeImport.IndexOf('$record.Committed = $true', $runtimeImportReplaceIndex)
+$runtimeImportExistingPublishedShaIndex = $runtimeImport.IndexOf('$record.PublishedSha256 = $record.ExpectedSha256', $runtimeImportExistingCommitIndex)
+$runtimeImportMoveIndex = $runtimeImport.IndexOf('[IO.File]::Move(', $runtimeImportExistingPublishedShaIndex)
+$runtimeImportAbsentCommitIndex = $runtimeImport.IndexOf('$record.Committed = $true', $runtimeImportMoveIndex)
+$runtimeImportAbsentPublishedShaIndex = $runtimeImport.IndexOf('$record.PublishedSha256 = $record.ExpectedSha256', $runtimeImportAbsentCommitIndex)
 $runtimeImportVerifyIndex = $runtimeImport.IndexOf('RUNTIME_IMPORT_FINAL_VERIFY_PASS')
 $runtimeImportCatchIndex = $runtimeImport.IndexOf('catch {', $runtimeImportVerifyIndex)
 $runtimeImportFinalIndex = $runtimeImport.IndexOf('EXTERNAL_RUNTIME_IMPORT_PASS')
@@ -488,10 +492,12 @@ Assert-True ($runtimeImportLeafBuildIndex -gt $runtimeImportDirectoryReadyIndex)
 Assert-True ($runtimeImportSnapshotRecheckIndex -gt $runtimeImportLeafBuildIndex) 'Runtime importer does not revalidate the exact canonical snapshot after the private publication leaf is fully verified.'
 Assert-True ($runtimeImportTouchIndex -gt $runtimeImportSnapshotRecheckIndex) 'Runtime importer acquires rollback tracking before exact canonical snapshot revalidation.'
 Assert-True ($runtimeImportReplaceIndex -gt $runtimeImportTouchIndex) 'Runtime importer can atomically replace an existing destination before rollback tracking.'
-Assert-True ($runtimeImportMoveIndex -gt $runtimeImportTouchIndex) 'Runtime importer can atomically publish an absent destination before rollback tracking.'
-Assert-True ($runtimeImportCommitIndex -gt $runtimeImportTouchIndex -and $runtimeImportCommitIndex -gt $runtimeImportReplaceIndex -and $runtimeImportCommitIndex -gt $runtimeImportMoveIndex) 'Runtime importer marks canonical publication committed before the discrete replace/move transition.'
-Assert-True ($runtimeImportPublishedShaIndex -gt $runtimeImportCommitIndex) 'Runtime importer records published byte authority before the discrete commit is marked complete.'
-Assert-True ($runtimeImportVerifyIndex -gt $runtimeImportPublishedShaIndex) 'Runtime importer final verification does not follow committed canonical publication.'
+Assert-True ($runtimeImportExistingCommitIndex -gt $runtimeImportReplaceIndex) 'Runtime importer marks existing-destination publication committed before File.Replace completes.'
+Assert-True ($runtimeImportExistingPublishedShaIndex -gt $runtimeImportExistingCommitIndex) 'Runtime importer records existing-destination published bytes before commit state.'
+Assert-True ($runtimeImportMoveIndex -gt $runtimeImportExistingPublishedShaIndex) 'Runtime importer absent-destination branch ordering no longer follows the existing-destination transition.'
+Assert-True ($runtimeImportAbsentCommitIndex -gt $runtimeImportMoveIndex) 'Runtime importer marks absent-destination publication committed before File.Move completes.'
+Assert-True ($runtimeImportAbsentPublishedShaIndex -gt $runtimeImportAbsentCommitIndex) 'Runtime importer records absent-destination published bytes before commit state.'
+Assert-True ($runtimeImportVerifyIndex -gt $runtimeImportAbsentPublishedShaIndex) 'Runtime importer final verification does not follow both committed canonical publication paths.'
 Assert-True ($runtimeImportCatchIndex -gt $runtimeImportVerifyIndex) 'Runtime importer final verification escaped rollback ownership.'
 Assert-True ($runtimeImportFinalIndex -gt $runtimeImportVerifyIndex) 'Runtime importer reports success before final whole-triplet verification.'
 Assert-True ($runtimeBuilder -match 'build_v308_local_clients\.py') 'PowerShell runtime builder does not invoke the deterministic v308 patcher.'
