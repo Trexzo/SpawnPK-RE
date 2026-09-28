@@ -59,13 +59,13 @@ Assert-True ($bootstrap -match 'LOCALLAB_GRADLE_DISTRIBUTION_VERIFIED') 'Gradle 
 Assert-True ($bootstrap -match 'invocationOwned=true') 'Gradle bootstrap success evidence does not identify invocation-owned distribution authority.'
 Assert-True ($bootstrap -match 'Remove-Item\s+-LiteralPath\s+\$invocationRoot\s+-Recurse') 'Gradle bootstrap does not clean invocation-owned extraction.'
 Assert-True ($bootstrap -notmatch '\$gradleHome\s*=\s*Join-Path\s+\$cacheRoot') 'Gradle bootstrap reintroduced persistent extracted-home execution authority.'
-Assert-True ($bootstrap -notmatch 'if\s*\(\s*-not\s*\(Test-Path\s+-LiteralPath\s+\$gradleBat') 'Gradle bootstrap reintroduced launcher-exists bypass around distribution verification.'
 
 foreach ($entry in @(
     @('Get-ExactSha256 $invocationZip', 1),
     @('Expand-Archive -LiteralPath $invocationZip', 1),
     @('& $gradleBat @GradleArgs', 1),
     @('LOCALLAB_GRADLE_DISTRIBUTION_VERIFIED', 1),
+    @('Test-Path -LiteralPath $gradleBat -PathType Leaf', 1),
     @('Remove-Item -LiteralPath $invocationRoot -Recurse', 1)
 )) {
     Assert-ExactTextCount $bootstrap $entry[0] ([int]$entry[1]) 'Gradle bootstrap structural anchor count drift.'
@@ -77,6 +77,7 @@ $invocationHashIndex = $bootstrap.IndexOf('Get-ExactSha256 $invocationZip')
 $verifyMarkerIndex = $bootstrap.IndexOf('LOCALLAB_GRADLE_DISTRIBUTION_VERIFIED')
 $extractIndex = $bootstrap.IndexOf('Expand-Archive -LiteralPath $invocationZip')
 $gradleResolveIndex = $bootstrap.IndexOf('$gradleBat = Join-Path $gradleHome')
+$launcherExistsIndex = $bootstrap.IndexOf('Test-Path -LiteralPath $gradleBat -PathType Leaf')
 $executeIndex = $bootstrap.IndexOf('& $gradleBat @GradleArgs')
 $cleanupIndex = $bootstrap.IndexOf('Remove-Item -LiteralPath $invocationRoot -Recurse')
 
@@ -86,7 +87,8 @@ Assert-True ($invocationHashIndex -gt $invocationCopyIndex) 'Invocation ZIP is n
 Assert-True ($verifyMarkerIndex -gt $invocationHashIndex) 'Verified marker precedes invocation SHA proof.'
 Assert-True ($extractIndex -gt $verifyMarkerIndex) 'Gradle extraction occurs before exact invocation verification.'
 Assert-True ($gradleResolveIndex -gt $extractIndex) 'Gradle executable is resolved before verified extraction.'
-Assert-True ($executeIndex -gt $gradleResolveIndex) 'Gradle executes before its invocation-owned path is established.'
+Assert-True ($launcherExistsIndex -gt $gradleResolveIndex) 'Gradle launcher existence check occurs before invocation-owned Gradle path resolution.'
+Assert-True ($executeIndex -gt $launcherExistsIndex) 'Gradle executes before the verified extracted launcher existence check.'
 Assert-True ($cleanupIndex -gt $executeIndex) 'Invocation-owned Gradle extraction cleanup is not structurally after execution.'
 
 Write-Host 'LOCALLAB_GRADLE_BOOTSTRAP_CONTRACT_PASS pinnedDistributionEveryBuild=true' -ForegroundColor Green
