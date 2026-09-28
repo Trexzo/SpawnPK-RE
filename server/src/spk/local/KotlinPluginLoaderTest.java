@@ -936,7 +936,7 @@ public final class KotlinPluginLoaderTest {
                     cause.getMessage()!=null&&
                     cause.getMessage()
                         .contains(
-                            "non-public SpawnPK namespace"
+                            "outside the DSL allowlist"
                         );
             }
 
@@ -1048,7 +1048,7 @@ public final class KotlinPluginLoaderTest {
                     cause.getMessage()!=null&&
                     cause.getMessage()
                         .contains(
-                            "forbidden multi-release class entry"
+                            "non-public SpawnPK namespace"
                         );
             }
 
