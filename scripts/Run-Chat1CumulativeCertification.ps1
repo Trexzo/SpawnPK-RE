@@ -313,6 +313,12 @@ try {
             [IO.FileAccess]::ReadWrite,
             [IO.FileShare]::Read
         )
+
+    # The exact empty log file handle is owned before final parent validation.
+    # Build output is written only after both parent roots are revalidated.
+    Assert-OrdinaryDirectory -Path $runtimeRoot -Label 'Certification runtime root before log write'
+    Assert-OrdinaryDirectory -Path $evidenceRoot -Label 'Certification evidence root before log write'
+
     $logWriter =
         [IO.StreamWriter]::new(
             $logGuard,
@@ -475,6 +481,11 @@ try {
             [IO.FileAccess]::ReadWrite,
             [IO.FileShare]::Read
         )
+
+    # The exact empty JSON evidence handle is owned before final parent
+    # validation. Durable evidence is written only after both roots revalidate.
+    Assert-OrdinaryDirectory -Path $runtimeRoot -Label 'Certification runtime root before JSON evidence write'
+    Assert-OrdinaryDirectory -Path $evidenceRoot -Label 'Certification evidence root before JSON evidence write'
 
     $evidenceWriter =
         [IO.StreamWriter]::new(
