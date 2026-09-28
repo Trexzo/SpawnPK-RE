@@ -173,6 +173,7 @@ function New-VerifiedSameDirectoryLeaf(
 
     $sourceStream = $null
     $leafStream = $null
+    $leafCreated = $false
     $leafComplete = $false
     $leafFailure = $null
 
@@ -189,6 +190,7 @@ function New-VerifiedSameDirectoryLeaf(
             [IO.FileAccess]::Write,
             [IO.FileShare]::None
         )
+        $leafCreated = $true
 
         $sourceStream.CopyTo($leafStream)
         $leafStream.Flush($true)
@@ -225,7 +227,7 @@ function New-VerifiedSameDirectoryLeaf(
     }
 
     if (-not $leafComplete) {
-        if (Test-Path -LiteralPath $leaf) {
+        if ($leafCreated -and (Test-Path -LiteralPath $leaf)) {
             Remove-Item -LiteralPath $leaf -Force -ErrorAction SilentlyContinue
         }
 
