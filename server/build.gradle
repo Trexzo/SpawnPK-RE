@@ -4061,7 +4061,18 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
 
         [
             'Select-LocalLabBuildJava.ps1',
-            'Get-FileHash',
+            'Get-Sha256Hex',
+            'New-Object System.IO.FileStream',
+            '[IO.FileShare]::Read',
+            '$sourceGuard',
+            '$snapshotRoot',
+            '$snapshotClient',
+            '$privateGuard',
+            '$sourceGuard.CopyTo($snapshotWriter)',
+            '$privateClientSha',
+            'invocationOwnedClient = $true',
+            'invocationOwnedClient=true',
+            'Remove-Item -LiteralPath $snapshotRoot -Recurse -Force',
             v308AcceptanceClientSha256,
             'chat1CurrentCumulativeCertification',
             '-Pv308ClientPath=',
@@ -4227,9 +4238,33 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
             text.indexOf(
                 "'chat1CurrentCumulativeCertification'"
             )
+        int sourceGuardIndex =
+            text.indexOf(
+                '$sourceGuard ='
+            )
+        int sourceHashIndex =
+            text.indexOf(
+                '$actualClientSha = Get-Sha256Hex -Stream $sourceGuard'
+            )
+        int copyIndex =
+            text.indexOf(
+                '$sourceGuard.CopyTo($snapshotWriter)'
+            )
+        int privateGuardIndex =
+            text.indexOf(
+                '$privateGuard ='
+            )
+        int privateHashIndex =
+            text.indexOf(
+                '$privateClientSha = Get-Sha256Hex -Stream $privateGuard'
+            )
+        int sourceReleaseIndex =
+            text.indexOf(
+                '$sourceGuard.Dispose()'
+            )
         int clientIndex =
             text.indexOf(
-                '"-Pv308ClientPath=$client"'
+                '"-Pv308ClientPath=$snapshotClient"'
             )
         int invokeIndex =
             text.indexOf(
@@ -4256,11 +4291,26 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
                 'CHAT1_CUMULATIVE_WRAPPER_COMPLETE'
             )
 
+        if(sourceGuardIndex < 0 ||
+           sourceHashIndex <= sourceGuardIndex ||
+           copyIndex <= sourceHashIndex ||
+           privateGuardIndex <= copyIndex ||
+           privateHashIndex <= privateGuardIndex ||
+           sourceReleaseIndex <= privateHashIndex)
+            throw new GradleException(
+                'Wrapper exact-v308 client admission ordering drifted: expected guarded source -> source hash -> private copy -> private guard -> private hash -> source release.'
+            )
+
+        if(text.contains('"-Pv308ClientPath=$client"'))
+            throw new GradleException(
+                'Wrapper must never pass the mutable external client path into Gradle.'
+            )
+
         if(cleanIndex < 0 ||
            gateIndex <= cleanIndex ||
            clientIndex <= gateIndex)
             throw new GradleException(
-                'Wrapper Gradle invocation ordering drifted: expected clean -> cumulative gate -> exact client property.'
+                'Wrapper Gradle invocation ordering drifted: expected clean -> cumulative gate -> invocation-owned exact client snapshot.'
             )
 
         if(invokeIndex < 0 ||
@@ -4273,9 +4323,27 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
                 'Wrapper evidence ordering drifted: expected Gradle invoke -> native exit capture -> zero-exit check -> Gradle marker observation -> JSON evidence -> wrapper completion.'
             )
 
+        int privateReleaseIndex =
+            text.lastIndexOf(
+                '$privateGuard.Dispose()'
+            )
+        int snapshotCleanupIndex =
+            text.lastIndexOf(
+                'Remove-Item -LiteralPath $snapshotRoot -Recurse -Force'
+            )
+
+        if(privateReleaseIndex <= markerObservationIndex ||
+           snapshotCleanupIndex <= privateReleaseIndex)
+            throw new GradleException(
+                'Wrapper private exact-v308 guard/cleanup ordering drifted: guard must span Gradle + marker observation, then release before private-root deletion.'
+            )
+
         logger.lifecycle(
             'CHAT1_CUMULATIVE_WRAPPER_CONTRACT_PASS ' +
             'exactV308HashPinned=true ' +
+            'invocationOwnedClient=true ' +
+            'sourceReadGuard=true ' +
+            'privateReadGuard=true ' +
             'canonicalGate=true ' +
             'cleanHeadBound=true ' +
             'durableEvidence=true ' +
