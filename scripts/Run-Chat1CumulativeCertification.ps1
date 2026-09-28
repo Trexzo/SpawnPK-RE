@@ -150,6 +150,32 @@ function Assert-OrdinaryFile {
     return $item
 }
 
+function Remove-EmptyCertificationSnapshotRootSafely {
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$SnapshotRoot
+    )
+
+    Assert-OrdinaryDirectory -Path $runtimeRoot -Label 'Certification runtime root before empty snapshot-root cleanup'
+    Assert-OrdinaryDirectory -Path $evidenceRoot -Label 'Certification evidence root before empty snapshot-root cleanup'
+    Assert-OrdinaryDirectory -Path $SnapshotRoot -Label 'Certification client snapshot root before empty cleanup'
+
+    $remaining = @(
+        Get-ChildItem -LiteralPath $SnapshotRoot -Force -ErrorAction Stop
+    )
+    if ($remaining.Count -ne 0) {
+        throw (
+            'Certification snapshot root is not empty; refusing cleanup of unowned or unexpected contents.'
+        )
+    }
+
+    Assert-OrdinaryDirectory -Path $runtimeRoot -Label 'Certification runtime root immediately before snapshot-root removal'
+    Assert-OrdinaryDirectory -Path $evidenceRoot -Label 'Certification evidence root immediately before snapshot-root removal'
+    Assert-OrdinaryDirectory -Path $SnapshotRoot -Label 'Certification client snapshot root immediately before removal'
+
+    Remove-Item -LiteralPath $SnapshotRoot -Force -ErrorAction Stop
+}
+
 function Remove-CertificationSnapshotSafely {
     param(
         [Parameter(Mandatory=$true)]
@@ -169,7 +195,7 @@ function Remove-CertificationSnapshotSafely {
         $entries[0].Name -ne 'client-v308.jar') {
         throw (
             'Certification snapshot cleanup refused unexpected contents. ' +
-            "Expected one client-v308.jar leaf; observed=$($entries.Count)"
+            "Expected one owned client-v308.jar leaf; observed=$($entries.Count)"
         )
     }
 
@@ -190,25 +216,7 @@ function Remove-CertificationSnapshotSafely {
 
     Remove-Item -LiteralPath $SnapshotClient -Force -ErrorAction Stop
 
-    Assert-OrdinaryDirectory -Path $runtimeRoot -Label 'Certification runtime root before empty snapshot-root cleanup'
-    Assert-OrdinaryDirectory -Path $evidenceRoot -Label 'Certification evidence root before empty snapshot-root cleanup'
-    Assert-OrdinaryDirectory -Path $SnapshotRoot -Label 'Certification client snapshot root before empty cleanup'
-
-    $remaining = @(
-        Get-ChildItem -LiteralPath $SnapshotRoot -Force -ErrorAction Stop
-    )
-    if ($remaining.Count -ne 0) {
-        throw (
-            'Certification snapshot root is not empty after owned leaf cleanup; ' +
-            'refusing recursive deletion.'
-        )
-    }
-
-    Assert-OrdinaryDirectory -Path $runtimeRoot -Label 'Certification runtime root immediately before snapshot-root removal'
-    Assert-OrdinaryDirectory -Path $evidenceRoot -Label 'Certification evidence root immediately before snapshot-root removal'
-    Assert-OrdinaryDirectory -Path $SnapshotRoot -Label 'Certification client snapshot root immediately before removal'
-
-    Remove-Item -LiteralPath $SnapshotRoot -Force -ErrorAction Stop
+    Remove-EmptyCertificationSnapshotRootSafely -SnapshotRoot $SnapshotRoot
 }
 
 function Remove-CertificationEvidenceLeafSafely {
@@ -327,6 +335,7 @@ $oldPath = $env:Path
 $sourceGuard = $null
 $privateGuard = $null
 $snapshotRootOwned = $false
+$snapshotClientOwned = $false
 $logGuard = $null
 $logWriter = $null
 $certifiedServerSha = $null
@@ -361,6 +370,7 @@ try {
             [IO.FileAccess]::Write,
             [IO.FileShare]::None
         )
+    $snapshotClientOwned = $true
     try {
         # Own the exact empty destination file before the final ancestry
         # revalidation. Sensitive client bytes are copied only while this
@@ -577,7 +587,15 @@ finally {
         }
 
         if ($snapshotRootOwned) {
-            Remove-CertificationSnapshotSafely -SnapshotRoot $snapshotRoot -SnapshotClient $snapshotClient
+            if ($snapshotClientOwned) {
+                Remove-CertificationSnapshotSafely -SnapshotRoot $snapshotRoot -SnapshotClient $snapshotClient
+                $snapshotClientOwned = $false
+            }
+            else {
+                # CreateNew never returned an owned client leaf. Remove only an
+                # invocation-owned snapshot root that is still provably empty.
+                Remove-EmptyCertificationSnapshotRootSafely -SnapshotRoot $snapshotRoot
+            }
             $snapshotRootOwned = $false
         }
     }
@@ -593,6 +611,7 @@ $json = $record | ConvertTo-Json -Depth 4
 $evidenceGuard = $null
 $evidenceWriter = $null
 $evidenceSha = $null
+$evidenceOwned = $false
 
 try {
     $evidenceGuard =
@@ -602,6 +621,7 @@ try {
             [IO.FileAccess]::ReadWrite,
             [IO.FileShare]::Read
         )
+    $evidenceOwned = $true
 
     # The exact empty JSON evidence handle is owned before final parent
     # validation. Durable evidence is written only after both roots revalidate.
@@ -639,11 +659,14 @@ catch {
     }
 
     $publishCleanupFailure = $null
-    try {
-        Remove-CertificationEvidenceLeafSafely -Path $evidence
-    }
-    catch {
-        $publishCleanupFailure = $_
+    if ($evidenceOwned) {
+        try {
+            Remove-CertificationEvidenceLeafSafely -Path $evidence
+            $evidenceOwned = $false
+        }
+        catch {
+            $publishCleanupFailure = $_
+        }
     }
 
     if ($null -ne $publishCleanupFailure) {
