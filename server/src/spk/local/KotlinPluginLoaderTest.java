@@ -1290,6 +1290,14 @@ public final class KotlinPluginLoaderTest {
             root.resolve(
                 "third-party-api.jar"
             );
+        Path arbitraryResource=
+            root.resolve(
+                "arbitrary-resource-api.jar"
+            );
+        Path versionedManifest=
+            root.resolve(
+                "versioned-manifest-api.jar"
+            );
         Path modified=
             root.resolve(
                 "modified-api.jar"
@@ -1395,6 +1403,42 @@ public final class KotlinPluginLoaderTest {
 
             rewriteApiJar(
                 apiJar,
+                arbitraryResource,
+                "injected-resource.txt",
+                "fixture".getBytes(
+                    java.nio.charset.StandardCharsets.UTF_8
+                ),
+                false,
+                false
+            );
+            assertApiConstructorRejected(
+                constructor,
+                arbitraryResource,
+                healthyClasspath,
+                "unsupported non-class resource",
+                "arbitrary non-class API resource was accepted"
+            );
+
+            rewriteApiJar(
+                apiJar,
+                versionedManifest,
+                "META-INF/versions/9/META-INF/MANIFEST.MF",
+                "Manifest-Version: 1.0\n".getBytes(
+                    java.nio.charset.StandardCharsets.UTF_8
+                ),
+                false,
+                true
+            );
+            assertApiConstructorRejected(
+                constructor,
+                versionedManifest,
+                healthyClasspath,
+                "unsupported non-class resource",
+                "versioned manifest alias was accepted"
+            );
+
+            rewriteApiJar(
+                apiJar,
                 modified,
                 "spk/plugin/api/Plugin.class",
                 manifestBytes,
@@ -1492,6 +1536,12 @@ public final class KotlinPluginLoaderTest {
             );
             Files.deleteIfExists(
                 modified
+            );
+            Files.deleteIfExists(
+                versionedManifest
+            );
+            Files.deleteIfExists(
+                arbitraryResource
             );
             Files.deleteIfExists(
                 thirdParty
