@@ -517,14 +517,7 @@ $releasePostBuildIdentityIndex = $releaseAcceptance.IndexOf('Assert-ReleaseSourc
 $releaseCumulativeInvokeIndex = $releaseAcceptance.IndexOf('& $cumulativeWrapper -ClientJar $client')
 $releasePostCumulativeIdentityIndex = $releaseAcceptance.IndexOf('Assert-ReleaseSourceIdentity -ExpectedHead $releaseHead -Phase "post-cumulative"')
 $releaseCertifiedJarIndex = $releaseAcceptance.IndexOf('$certifiedJar = Join-Path $server "build\SpawnPKLocalServer.jar"')
-$releasePrivateVerifyIndex = $releaseAcceptance.IndexOf('CURRENT_RELEASE_SERVER_SNAPSHOT_VERIFIED')
-$releaseProcessSpawnIndex = $releaseAcceptance.IndexOf('$process = Start-Process')
-$releaseFirstOwnershipIndex = $releaseAcceptance.IndexOf('Assert-ExactSmokeListenerOwnership')
-$releaseAuxIndex = $releaseAcceptance.IndexOf('Invoke-WebRequest')
-$releaseFinalOwnershipIndex = $releaseAcceptance.LastIndexOf('Assert-ExactSmokeListenerOwnership')
-$releaseKillIndex = $releaseAcceptance.IndexOf('$process.Kill()')
-$releaseWaitExitIndex = $releaseAcceptance.IndexOf('$process.WaitForExit(5000)')
-$releaseSmokePassIndex = $releaseAcceptance.IndexOf('CURRENT_RELEASE_SERVER_LOOPBACK_PASS')
+$releaseSmokeInvokeIndex = $releaseAcceptance.LastIndexOf('Invoke-CurrentServerLoopbackSmoke -CanonicalJar $certifiedJar')
 $releasePostSmokeIdentityIndex = $releaseAcceptance.IndexOf('Assert-ReleaseSourceIdentity -ExpectedHead $releaseHead -Phase "post-smoke"')
 $releaseFinalPassIndex = $releaseAcceptance.IndexOf('CURRENT_RELEASE_ACCEPTANCE_PASS')
 
@@ -535,8 +528,32 @@ Assert-True ($releaseFirstGradleIndex -gt $releaseLauncherInvokeIndex) 'Current 
 Assert-True ($releasePostBuildIdentityIndex -gt $releaseFirstGradleIndex) 'Current release does not recheck source identity after ordinary build.'
 Assert-True ($releaseCumulativeInvokeIndex -gt $releasePostBuildIdentityIndex) 'Current cumulative certification does not follow post-build source recheck.'
 Assert-True ($releasePostCumulativeIdentityIndex -gt $releaseCumulativeInvokeIndex) 'Current release does not recheck source identity after cumulative certification.'
-Assert-True ($releaseCertifiedJarIndex -gt $releasePostCumulativeIdentityIndex) 'Current release captures server artifact before cumulative certification/source recheck.'
-Assert-True ($releasePrivateVerifyIndex -gt $releaseCertifiedJarIndex) 'Current release private smoke artifact is not verified after cumulative-certified JAR selection.'
+Assert-True ($releaseCertifiedJarIndex -gt $releasePostCumulativeIdentityIndex) 'Current release selects cumulative-certified server JAR before post-cumulative source proof.'
+Assert-True ($releaseSmokeInvokeIndex -gt $releaseCertifiedJarIndex) 'Current release smoke invocation does not follow cumulative-certified JAR selection.'
+Assert-True ($releasePostSmokeIdentityIndex -gt $releaseSmokeInvokeIndex) 'Current release final source identity check does not follow completed smoke invocation.'
+Assert-True ($releaseFinalPassIndex -gt $releasePostSmokeIdentityIndex) 'Current release whole-flow PASS precedes final clean exact-head proof.'
+
+# Validate ordering inside the smoke function independently from top-level flow.
+$releaseSmokeFunctionIndex = $releaseAcceptance.IndexOf('function Invoke-CurrentServerLoopbackSmoke')
+$releaseSourceGuardIndex = $releaseAcceptance.IndexOf('$sourceGuard = [IO.File]::Open(', $releaseSmokeFunctionIndex)
+$releaseSourceHashIndex = $releaseAcceptance.IndexOf('Get-FileHash -InputStream $sourceGuard', $releaseSmokeFunctionIndex)
+$releasePrivateGuardIndex = $releaseAcceptance.IndexOf('$privateGuard = [IO.File]::Open(', $releaseSmokeFunctionIndex)
+$releasePrivateHashIndex = $releaseAcceptance.IndexOf('Get-FileHash -InputStream $privateGuard', $releaseSmokeFunctionIndex)
+$releasePrivateVerifyIndex = $releaseAcceptance.IndexOf('CURRENT_RELEASE_SERVER_SNAPSHOT_VERIFIED', $releaseSmokeFunctionIndex)
+$releaseProcessSpawnIndex = $releaseAcceptance.IndexOf('$process = Start-Process', $releaseSmokeFunctionIndex)
+$releaseFirstOwnershipIndex = $releaseAcceptance.IndexOf('Assert-ExactSmokeListenerOwnership', $releaseSmokeFunctionIndex)
+$releaseAuxIndex = $releaseAcceptance.IndexOf('Invoke-WebRequest', $releaseSmokeFunctionIndex)
+$releaseFinalOwnershipIndex = $releaseAcceptance.LastIndexOf('Assert-ExactSmokeListenerOwnership')
+$releaseKillIndex = $releaseAcceptance.IndexOf('$process.Kill()', $releaseSmokeFunctionIndex)
+$releaseWaitExitIndex = $releaseAcceptance.IndexOf('$process.WaitForExit(5000)', $releaseSmokeFunctionIndex)
+$releaseSmokePassIndex = $releaseAcceptance.IndexOf('CURRENT_RELEASE_SERVER_LOOPBACK_PASS', $releaseSmokeFunctionIndex)
+
+Assert-True ($releaseSmokeFunctionIndex -ge 0) 'Current release smoke function not found.'
+Assert-True ($releaseSourceGuardIndex -gt $releaseSmokeFunctionIndex) 'Current release does not acquire certified-JAR guard inside smoke ownership.'
+Assert-True ($releaseSourceHashIndex -gt $releaseSourceGuardIndex) 'Current release hashes cumulative-certified bytes before acquiring the source guard.'
+Assert-True ($releasePrivateGuardIndex -gt $releaseSourceHashIndex) 'Current release private guard is established before source identity is hashed/copied.'
+Assert-True ($releasePrivateHashIndex -gt $releasePrivateGuardIndex) 'Current release hashes private smoke bytes before acquiring the private guard.'
+Assert-True ($releasePrivateVerifyIndex -gt $releasePrivateHashIndex) 'Current release reports private snapshot verification before guarded hash proof.'
 Assert-True ($releaseProcessSpawnIndex -gt $releasePrivateVerifyIndex) 'Current release server process starts before private artifact verification.'
 Assert-True ($releaseFirstOwnershipIndex -gt $releaseProcessSpawnIndex) 'Current release listener ownership is checked before exact process spawn.'
 Assert-True ($releaseAuxIndex -gt $releaseFirstOwnershipIndex) 'Current release AUX semantic check precedes exact spawned-PID listener ownership.'
@@ -544,8 +561,6 @@ Assert-True ($releaseFinalOwnershipIndex -gt $releaseAuxIndex) 'Current release 
 Assert-True ($releaseKillIndex -gt $releaseFinalOwnershipIndex) 'Current release cleanup begins before final listener ownership proof.'
 Assert-True ($releaseWaitExitIndex -gt $releaseKillIndex) 'Current release does not wait for exact process after termination request.'
 Assert-True ($releaseSmokePassIndex -gt $releaseWaitExitIndex) 'Current release smoke PASS can precede authoritative process cleanup.'
-Assert-True ($releasePostSmokeIdentityIndex -gt $releaseSmokePassIndex) 'Current release final source identity check does not follow completed smoke cleanup.'
-Assert-True ($releaseFinalPassIndex -gt $releasePostSmokeIdentityIndex) 'Current release whole-flow PASS precedes final clean exact-head proof.'
 
 
 Assert-True ($r13Acceptance -match 'runtime\\locallab-user-home\\r13') 'R13 acceptance launcher default output is outside the ignored LocalLab runtime subtree.'
