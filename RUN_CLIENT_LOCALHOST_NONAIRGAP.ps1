@@ -20,8 +20,13 @@ foreach ($required in @($selector, $runtimeCheck, $jar)) {
     }
 }
 
-. $selector
-$java = Set-LocalLabJava
+$hadCallerJavaHome = Test-Path Env:JAVA_HOME
+$callerJavaHome = $env:JAVA_HOME
+$callerPath = $env:Path
+
+try {
+    . $selector
+    $java = Set-LocalLabJava
 
 & $runtimeCheck
 
@@ -32,4 +37,14 @@ Write-Host 'Use RUN_SECOND_LOCAL_CLIENT.ps1 without -AllowNonAirgap for the cano
 & $java.Path -jar $jar
 if ($LASTEXITCODE -ne 0) {
     throw "NONAIRGAP diagnostic client exited with code $LASTEXITCODE using $($java.Path)"
+}
+}
+finally {
+    if ($hadCallerJavaHome) {
+        $env:JAVA_HOME = $callerJavaHome
+    }
+    else {
+        Remove-Item Env:JAVA_HOME -ErrorAction SilentlyContinue
+    }
+    $env:Path = $callerPath
 }
