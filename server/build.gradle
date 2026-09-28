@@ -2472,6 +2472,46 @@ tasks.register(
     }
 }
 
+tasks.register(
+    'gradleBootstrapContractRegression',
+    Exec
+) {
+    group = 'verification'
+    description = 'Proves every repository Gradle execution is derived from the pinned distribution bytes in invocation-owned extraction.'
+    workingDir repoRoot
+
+    doFirst {
+        List<String> arguments =
+            [
+                '-NoProfile'
+            ]
+
+        if(issue9WindowsHost)
+            arguments.addAll(
+                [
+                    '-ExecutionPolicy',
+                    'Bypass'
+                ]
+            )
+
+        arguments.addAll(
+            [
+                '-File',
+                new File(
+                    repoRoot,
+                    'scripts/Test-GradleBootstrapContract.ps1'
+                ).absolutePath
+            ]
+        )
+
+        commandLine(
+            [issue9PowerShellExecutable]+
+                arguments
+        )
+    }
+}
+
+
 tasks.register('issue9R13SourceCertification') {
     group = 'verification'
     description = 'Runs source-only Issue #9 R13 writer/profile/launcher coverage plus the existing custom-asset pipeline gates.'
@@ -4248,6 +4288,7 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
 
 tasks.named('check') {
     dependsOn tasks.named('chat1CumulativeWrapperContractRegression')
+    dependsOn tasks.named('gradleBootstrapContractRegression')
     dependsOn tasks.named('customAssetPipelineRegression')
     dependsOn tasks.named('customAssetPipelineHardeningRegression')
     dependsOn tasks.named('playerAppearanceRoleRegression')
@@ -4651,6 +4692,7 @@ tasks.register('chat1CurrentCumulativeCertification') {
 
     dependsOn(
         tasks.named('chat1CumulativeWrapperContractRegression'),
+        tasks.named('gradleBootstrapContractRegression'),
         tasks.named('issue5KotlinScriptingCertification'),
         tasks.named('issue9R13SourceCertification'),
         tasks.named('staffPartyhatAppearanceGateRegression'),
@@ -4683,6 +4725,7 @@ tasks.register('chat1CurrentCumulativeCertification') {
             'SPAWNPK_CHAT1_CURRENT_CUMULATIVE_CERTIFICATION_PASS ' +
             'issue5=true ' +
             'issue9R13Source=true ' +
+            'gradleBootstrapPinned=true ' +
             'staffPartyhat=true ' +
             'tournament=true ' +
             'normalDuel=true ' +
