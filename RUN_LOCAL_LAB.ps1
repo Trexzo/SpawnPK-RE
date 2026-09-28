@@ -12,7 +12,10 @@ function Get-NormalizedProcessLifetimeStamp {
 
     $utc = $Timestamp.ToUniversalTime()
     $ticks = [long]$utc.Ticks
-    return $ticks - ($ticks % [TimeSpan]::TicksPerMillisecond)
+    # Win32_Process.CreationDate is CIM_DATETIME microsecond precision.
+    # Process.StartTime can be finer, so compare at the common 1 us precision.
+    $ticksPerMicrosecond = 10L
+    return $ticks - ($ticks % $ticksPerMicrosecond)
 }
 
 function Get-LauncherOwnedProcessRecords {
