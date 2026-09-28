@@ -49,15 +49,23 @@ $required = @(
     "server\build.ps1",
     "server\build.gradle",
     "server\gradlew.bat",
+    "server\gradle\bootstrap-gradle.ps1",
     "server\certified\README.md",
     "server\certified\SpawnPKLocalServer-R8.5-certified.jar",
     "server\src\spk\local\LocalSession.java",
     "server\src\spk\local\Main.java",
+    "tools\R85_SelectJava11Plus.ps1",
 
     "tools\runtime\build_v308_local_clients.py",
     "tools\custom-assets\compile_spawnpk_legacy_textured_skinned.py",
     "tools\custom-assets\build_r13_isolated_profile.py",
     "tools\custom-assets\build_r13_texture_archive.py",
+    "tools\custom-assets\R13ConfigBuilder.java",
+    "tools\custom-assets\R13CacheArchiveTool.java",
+    "tools\custom-assets\VerifyR13Profile.java",
+    "tools\custom-assets\fixtures\r13-probe.obj",
+    "tools\custom-assets\fixtures\r13-probe.skins.json",
+    "tools\custom-assets\fixtures\r13-material.json",
     "tools\custom-assets\test_legacy_textured_skinned_writer.py",
     "tools\custom-assets\test_r13_profile_path_guards.py"
 )
