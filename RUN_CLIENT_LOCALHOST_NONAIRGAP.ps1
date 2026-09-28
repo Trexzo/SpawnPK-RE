@@ -4,6 +4,7 @@ param(
 
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
+
 if (-not $AllowExternalEndpoints) {
     throw 'Refusing NONAIRGAP diagnostic launch without explicit -AllowExternalEndpoints opt-in. Use the canonical airgap launcher by default.'
 }
@@ -23,6 +24,12 @@ $callerJavaHome = $env:JAVA_HOME
 $callerPath = $env:Path
 $callerLocationPushed = $false
 
+$primaryFailure = $null
+$cleanupFailures = @()
+$launchRoot = $null
+$launchSnapshot = $null
+$snapshotGuard = $null
+
 try {
     Push-Location -LiteralPath $PSScriptRoot
     $callerLocationPushed = $true
@@ -30,27 +37,129 @@ try {
     . $selector
     $java = Set-LocalLabJava
 
-& $runtimeCheck
+    & $runtimeCheck
 
-Write-Host 'NONAIRGAP_DIAGNOSTIC_EXPLICIT externalEndpointsMayRemain=true' -ForegroundColor Red
-Write-Host 'This localhost client keeps game/AUX sockets local but may still contain external web/CDN endpoints.' -ForegroundColor Yellow
-Write-Host 'Use RUN_SECOND_LOCAL_CLIENT.ps1 without -AllowNonAirgap for the canonical airgap default.' -ForegroundColor Yellow
+    $expectedLocalhostSha256 =
+        '01c878a56ee25fb112dfe8b459dbd11ea26cfa8a92a7f287a4e5ee53f673cdbd'
 
-& $java.Path -jar $jar
-if ($LASTEXITCODE -ne 0) {
-    throw "NONAIRGAP diagnostic client exited with code $LASTEXITCODE using $($java.Path)"
+    Write-Host 'NONAIRGAP_DIAGNOSTIC_EXPLICIT externalEndpointsMayRemain=true' -ForegroundColor Red
+    Write-Host 'This localhost client keeps game/AUX sockets local but may still contain external web/CDN endpoints.' -ForegroundColor Yellow
+    Write-Host 'Use RUN_SECOND_LOCAL_CLIENT.ps1 without -AllowNonAirgap for the canonical airgap default.' -ForegroundColor Yellow
+
+    $launchRoot = Join-Path (
+        [IO.Path]::GetTempPath()
+    ) (
+        'SpawnPK-localhost-' + [Guid]::NewGuid().ToString('N')
+    )
+    [void](New-Item -ItemType Directory -Path $launchRoot)
+
+    $launchSnapshot = Join-Path $launchRoot 'client-localhost.jar'
+    [IO.File]::Copy($jar, $launchSnapshot, $false)
+
+    $snapshotGuard = [IO.File]::Open(
+        $launchSnapshot,
+        [IO.FileMode]::Open,
+        [IO.FileAccess]::Read,
+        [IO.FileShare]::Read
+    )
+
+    $snapshotSha256 = (
+        Get-FileHash -InputStream $snapshotGuard -Algorithm SHA256
+    ).Hash.ToLowerInvariant()
+
+    if ($snapshotSha256 -ne $expectedLocalhostSha256) {
+        throw (
+            'NONAIRGAP private launch snapshot SHA-256 mismatch. ' +
+            "Expected: $expectedLocalhostSha256 Actual: $snapshotSha256"
+        )
+    }
+
+    Write-Host (
+        'NONAIRGAP_CLIENT_LAUNCH_SNAPSHOT_VERIFIED ' +
+        "sha256=$snapshotSha256 basename=client-localhost.jar guard=no-write-no-delete"
+    ) -ForegroundColor Green
+
+    & $java.Path -jar $launchSnapshot
+    $clientExit = $LASTEXITCODE
+    if ($clientExit -ne 0) {
+        throw "NONAIRGAP diagnostic client exited with code $clientExit using $($java.Path)"
+    }
 }
+catch {
+    $primaryFailure = $_
 }
 finally {
-    if ($callerLocationPushed) {
-        Pop-Location
+    if ($null -ne $snapshotGuard) {
+        try {
+            $snapshotGuard.Dispose()
+        }
+        catch {
+            $cleanupFailures += "snapshot guard dispose: $($_.Exception.Message)"
+        }
     }
 
-    if ($hadCallerJavaHome) {
-        $env:JAVA_HOME = $callerJavaHome
+    if ($null -ne $launchSnapshot -and
+        (Test-Path -LiteralPath $launchSnapshot)) {
+        try {
+            Remove-Item -LiteralPath $launchSnapshot -Force -ErrorAction Stop
+        }
+        catch {
+            $cleanupFailures += "snapshot leaf cleanup: $($_.Exception.Message)"
+        }
     }
-    else {
-        Remove-Item Env:JAVA_HOME -ErrorAction SilentlyContinue
+
+    if ($null -ne $launchRoot -and
+        (Test-Path -LiteralPath $launchRoot)) {
+        try {
+            Remove-Item -LiteralPath $launchRoot -ErrorAction Stop
+        }
+        catch {
+            $cleanupFailures += "snapshot directory cleanup: $($_.Exception.Message)"
+        }
     }
-    $env:Path = $callerPath
+
+    if ($callerLocationPushed) {
+        try {
+            Pop-Location
+        }
+        catch {
+            $cleanupFailures += "caller location restore: $($_.Exception.Message)"
+        }
+    }
+
+    try {
+        if ($hadCallerJavaHome) {
+            $env:JAVA_HOME = $callerJavaHome
+        }
+        else {
+            Remove-Item Env:JAVA_HOME -ErrorAction SilentlyContinue
+        }
+        $env:Path = $callerPath
+    }
+    catch {
+        $cleanupFailures += "caller Java environment restore: $($_.Exception.Message)"
+    }
+}
+
+if ($null -ne $primaryFailure) {
+    if ($cleanupFailures.Count -ne 0) {
+        $message = (
+            'NONAIRGAP diagnostic client launch failed; cleanup was also incomplete. ' +
+            "Primary: $($primaryFailure.Exception.Message) " +
+            "Cleanup: $($cleanupFailures -join ' | ')"
+        )
+        throw [System.Exception]::new(
+            $message,
+            $primaryFailure.Exception
+        )
+    }
+
+    throw $primaryFailure
+}
+
+if ($cleanupFailures.Count -ne 0) {
+    throw (
+        'NONAIRGAP launcher cleanup was incomplete after caller-state restoration. ' +
+        ($cleanupFailures -join ' | ')
+    )
 }
