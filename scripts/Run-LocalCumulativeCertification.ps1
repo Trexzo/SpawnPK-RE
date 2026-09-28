@@ -1,15 +1,7 @@
-param(
-    [string]$LogDirectory
-)
-
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
 
 $repo = Split-Path -Parent $PSScriptRoot
-
-if ([string]::IsNullOrWhiteSpace($LogDirectory)) {
-    $LogDirectory = Join-Path $repo 'runtime\certification'
-}
 
 $selector = Join-Path $PSScriptRoot 'Select-LocalLabJava.ps1'
 $serverRoot = Join-Path $repo 'server'
@@ -24,7 +16,9 @@ foreach ($required in @($selector,$gradlew)) {
 . $selector
 $java = Set-LocalLabJava
 
-$logRoot = [IO.Path]::GetFullPath($LogDirectory)
+$logRoot = [IO.Path]::GetFullPath(
+    (Join-Path $repo 'runtime\certification')
+)
 New-Item -ItemType Directory -Path $logRoot -Force | Out-Null
 
 $timestamp = (Get-Date).ToUniversalTime().ToString('yyyyMMdd-HHmmssZ')
