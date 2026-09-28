@@ -285,6 +285,49 @@ Assert-True ($v308FinalVerifyIndex -gt $v308PublishIndex) 'v308 local-client fin
 Assert-True ($v308ExceptIndex -gt $v308FinalVerifyIndex) 'v308 local-client final verification escaped rollback ownership.'
 Assert-True ($v308SuccessIndex -gt $v308FinalVerifyIndex) 'v308 local-client builder reports success before final published-set verification.'
 
+# Owned-child cleanup must be rooted only in Start-Process -PassThru identities
+# from the current launcher invocation and Windows parent-process relationships.
+foreach ($ownedLauncher in @($quick, $all)) {
+    Assert-True ($ownedLauncher -match 'function\s+Stop-LauncherOwnedProcessTree') 'Launcher-owned failure cleanup helper is missing.'
+    Assert-True ($ownedLauncher -match 'ParentProcessId') 'Launcher-owned cleanup no longer derives descendants from Windows parent-process identity.'
+    Assert-True ($ownedLauncher -match '\-not\s+\$_\.HasExited') 'Launcher-owned cleanup no longer fences exited root PID reuse.'
+    Assert-True ($ownedLauncher -match 'Stop-Process\s+-Id\s+\$ownedPid\s+-Force') 'Launcher-owned cleanup does not stop only enumerated owned PIDs.'
+    Assert-True ($ownedLauncher -notmatch 'Stop-Process\s+-Name') 'Launcher-owned cleanup reintroduced broad name-based process termination.'
+    Assert-True ($ownedLauncher -notmatch 'Stop-Process\s+.*(?:java|powershell)\*') 'Launcher-owned cleanup reintroduced wildcard Java/PowerShell termination.'
+    Assert-True ($ownedLauncher -match 'throw\s+\$primaryFailure') 'Launcher failure path does not preserve the original failure after cleanup.'
+}
+
+Assert-True ($quick -match '\$serverWindow\s*=\s*Start-Process[\s\S]*?-PassThru') 'Quick launcher does not retain its spawned server PowerShell identity.'
+Assert-True ($quick -match 'Stop-LauncherOwnedProcessTree\s+-Roots\s+@\(\$serverWindow\)') 'Quick launcher does not clean only its recorded server child tree on failure.'
+
+$quickSpawnIndex = $quick.IndexOf('$serverWindow = Start-Process powershell.exe')
+$quickCleanupIndex = $quick.IndexOf('Stop-LauncherOwnedProcessTree -Roots @($serverWindow)')
+$quickRethrowIndex = $quick.LastIndexOf('throw $primaryFailure')
+Assert-True ($quickSpawnIndex -ge 0) 'Quick launcher owned server spawn not found.'
+Assert-True ($quickCleanupIndex -gt $quickSpawnIndex) 'Quick launcher cleanup is not downstream of its owned spawn.'
+Assert-True ($quickRethrowIndex -gt $quickCleanupIndex) 'Quick launcher rethrows before owned cleanup completes.'
+
+Assert-True ($all -match '\$ownedChildren\s*=\s*@\(\)') 'Multi-client launcher does not initialize explicit owned-child tracking.'
+Assert-True ($all -match '\$serverWindow\s*=\s*Start-Process[\s\S]*?-PassThru') 'Multi-client launcher does not retain server-window identity.'
+Assert-True ($all -match '\$watcherWindow\s*=\s*Start-Process[\s\S]*?-PassThru') 'Multi-client launcher does not retain watcher-window identity.'
+Assert-True ($all -match '\$clientWindow\s*=\s*Start-Process[\s\S]*?-PassThru') 'Multi-client launcher does not retain client-window identity.'
+Assert-True ($all -match '\$ownedChildren\s*\+=\s*\$serverWindow') 'Multi-client launcher does not register the owned server window.'
+Assert-True ($all -match '\$ownedChildren\s*\+=\s*\$watcherWindow') 'Multi-client launcher does not register the owned watcher window.'
+Assert-True ($all -match '\$ownedChildren\s*\+=\s*\$clientWindow') 'Multi-client launcher does not register the owned client window.'
+Assert-True ($all -match 'Stop-LauncherOwnedProcessTree\s+-Roots\s+\$ownedChildren') 'Multi-client launcher does not clean only recorded child trees on failure.'
+
+$allServerOwnedSpawnIndex = $all.IndexOf('$serverWindow = Start-Process powershell.exe')
+$allWatcherOwnedSpawnIndex = $all.IndexOf('$watcherWindow = Start-Process powershell.exe')
+$allClientOwnedSpawnIndex = $all.IndexOf('$clientWindow = Start-Process powershell.exe')
+$allCleanupIndex = $all.IndexOf('Stop-LauncherOwnedProcessTree -Roots $ownedChildren')
+$allHealthyIndex = $all.IndexOf('LOCAL_LAB_WINDOWS_STARTED_V521')
+$allRethrowIndex = $all.LastIndexOf('throw $primaryFailure')
+Assert-True ($allServerOwnedSpawnIndex -ge 0) 'Multi-client owned server spawn not found.'
+Assert-True ($allWatcherOwnedSpawnIndex -gt $allServerOwnedSpawnIndex) 'Multi-client watcher is not tracked after server spawn.'
+Assert-True ($allClientOwnedSpawnIndex -gt $allWatcherOwnedSpawnIndex) 'Multi-client client is not tracked after watcher spawn.'
+Assert-True ($allHealthyIndex -gt $allClientOwnedSpawnIndex) 'Multi-client healthy marker precedes owned client spawn.'
+Assert-True ($allCleanupIndex -gt $allHealthyIndex) 'Multi-client failure cleanup is not structurally after the healthy-path body.'
+Assert-True ($allRethrowIndex -gt $allCleanupIndex) 'Multi-client launcher rethrows before owned cleanup completes.'
 Assert-True ($releaseAcceptance -match [regex]::Escape('scripts\Select-LocalLabJava.ps1')) 'Current release acceptance does not use canonical runtime Java selector.'
 Assert-True ($releaseAcceptance -match 'Set-LocalLabJava') 'Current release acceptance does not resolve canonical LocalLab runtime Java.'
 Assert-True ($releaseAcceptance -match '-FilePath\s+\$runtimeJava\.Path') 'Current release loopback smoke does not launch with selected canonical Java path.'
