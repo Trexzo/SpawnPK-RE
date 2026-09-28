@@ -19,8 +19,8 @@ $java = Set-LocalLabJava
 $jar = Join-Path $PSScriptRoot 'local-client\client-airgap.jar'
 if (-not (Test-Path -LiteralPath $jar -PathType Leaf)) { throw "Missing $jar" }
 
-Write-Host 'Launching AIRGAP client (client binary unchanged since v0.3).' -ForegroundColor Cyan
-Write-Host 'Known SpawnPK game/cache/CDN/forum/API application endpoints are rewritten to 127.0.0.1.' -ForegroundColor Cyan
+Write-Host 'Launching the locally supplied AIRGAP client verified by scripts\Check-ExternalRuntime.ps1.' -ForegroundColor Cyan
+Write-Host 'The certified airgap runtime routes LocalLab socket/update/web authority to loopback.' -ForegroundColor Cyan
 Write-Host 'Use fake local credentials only.' -ForegroundColor Yellow
 
 $javaArgs = @()
