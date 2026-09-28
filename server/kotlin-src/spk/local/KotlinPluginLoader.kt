@@ -262,6 +262,32 @@ internal class KotlinPluginLoader @JvmOverloads constructor(
                     "plugin API JAR exposes non-public SpawnPK namespace: " +
                         effectiveName + " archiveEntry=" + name
                 }
+
+                val expected =
+                    Plugin::class.java.classLoader
+                        .getResourceAsStream(
+                            effectiveName
+                        )
+                        ?: throw IllegalArgumentException(
+                            "Kotlin API server resource missing: " +
+                                effectiveName + " archiveEntry=" + name
+                        )
+
+                expected.use { trusted ->
+                    jar.getInputStream(entry)
+                        .use { candidate ->
+                            require(
+                                streamsEqual(
+                                    trusted,
+                                    candidate
+                                )
+                            ) {
+                                "Kotlin API class does not match server API: " +
+                                    path + " entry=" + name +
+                                    " effective=" + effectiveName
+                            }
+                        }
+                }
             }
         }
     }
