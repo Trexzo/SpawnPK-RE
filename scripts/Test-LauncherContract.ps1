@@ -39,6 +39,8 @@ function Assert-Parses([string]$RelativePath) {
 
 $launcherFiles = @(
     'RUN_CLIENT_AIRGAP.ps1',
+    'RUN_SECOND_LOCAL_CLIENT.ps1',
+    'RUN_CLIENT_LOCALHOST_NONAIRGAP.ps1',
     'RUN_ALL_LOCAL_LAB.ps1',
     'RUN_CURRENT_RELEASE_ACCEPTANCE.ps1',
     'WATCH_CLIENT_NETWORK.ps1',
@@ -55,6 +57,8 @@ foreach ($file in $launcherFiles) {
 }
 
 $client = Read-RepoFile 'RUN_CLIENT_AIRGAP.ps1'
+$secondClient = Read-RepoFile 'RUN_SECOND_LOCAL_CLIENT.ps1'
+$nonAirgap = Read-RepoFile 'RUN_CLIENT_LOCALHOST_NONAIRGAP.ps1'
 $all = Read-RepoFile 'RUN_ALL_LOCAL_LAB.ps1'
 $serverWrapper = Read-RepoFile 'scripts\Run-Server.ps1'
 $clientWrapper = Read-RepoFile 'scripts\Run-Client-Airgap.ps1'
@@ -103,6 +107,31 @@ Assert-True ($client -match 'Refusing LocalLab isolated user\.home because it re
 Assert-True ($client -match 'missing cache root') 'Standalone airgap launcher does not fail closed on an unseeded isolated cache root.'
 Assert-True ($client -match 'LOCAL_LAB_CLIENT_HOME_DEFAULT') 'Standalone airgap launcher no longer preserves the ordinary non-isolated launch path.'
 Assert-True ($clientWrapper -match 'LocalLabUserHome') 'Canonical airgap wrapper does not forward isolated client-home authority.'
+
+Assert-True ($secondClient -match '\[switch\]\$NonAirgap') 'Second-client launcher does not require an explicit nonairgap opt-in switch.'
+Assert-True ($secondClient -match [regex]::Escape('scripts\Run-Client-Airgap.ps1')) 'Second-client default does not target the canonical airgap wrapper.'
+Assert-True ($secondClient -match [regex]::Escape('RUN_CLIENT_LOCALHOST_NONAIRGAP.ps1')) 'Second-client explicit diagnostic path is missing.'
+Assert-True ($secondClient -match [regex]::Escape('scripts\Check-ExternalRuntime.ps1')) 'Second-client launcher does not preflight the exact-v308 external runtime.'
+Assert-True ($secondClient -match 'Get-CimInstance\s+Win32_Process') 'Second-client launcher does not verify the port owner process.'
+Assert-True ($secondClient -match 'SpawnPKLocalServer\|spk\\\.local\\\.Main\|SpawnPK-LocalLab') 'Second-client launcher does not require an expected SpawnPK LocalLab server owner.'
+Assert-True ($secondClient -match 'SECOND_CLIENT_AIRGAP_DEFAULT') 'Second-client launcher does not report the canonical airgap default.'
+Assert-True ($secondClient -match 'SECOND_CLIENT_NONAIRGAP_EXPLICIT') 'Second-client launcher does not visibly mark explicit nonairgap mode.'
+Assert-True ($secondClient -notmatch 'foreach\s*\(\$candidate\s+in') 'Second-client launcher reintroduced first-existing-launcher fallback selection.'
+
+$secondDefaultIndex = $secondClient.IndexOf('$launcher = $airgapLauncher')
+$secondOptInIndex = $secondClient.IndexOf('if ($NonAirgap)')
+$secondNonAirgapAssignIndex = $secondClient.IndexOf('$launcher = $nonAirgapLauncher')
+Assert-True ($secondDefaultIndex -ge 0) 'Second-client launcher has no explicit airgap default assignment.'
+Assert-True ($secondOptInIndex -gt $secondDefaultIndex) 'Second-client nonairgap opt-in is not applied after the airgap default.'
+Assert-True ($secondNonAirgapAssignIndex -gt $secondOptInIndex) 'Second-client nonairgap launcher is not confined to the explicit opt-in branch.'
+
+Assert-True ($nonAirgap -match [regex]::Escape('scripts\Select-LocalLabJava.ps1')) 'Explicit nonairgap launcher does not use the canonical Java selector.'
+Assert-True ($nonAirgap -match [regex]::Escape('scripts\Check-ExternalRuntime.ps1')) 'Explicit nonairgap launcher does not verify current external-runtime authority.'
+Assert-True ($nonAirgap -match 'Set-LocalLabJava') 'Explicit nonairgap launcher does not invoke canonical Java selection.'
+Assert-True ($nonAirgap -match '&\s+\$java\.Path\s+-jar\s+\$jar') 'Explicit nonairgap launcher does not invoke the selected Java executable.'
+Assert-True ($nonAirgap -match '\$LASTEXITCODE\s+-ne\s+0') 'Explicit nonairgap launcher does not fail on a nonzero client exit.'
+Assert-True ($nonAirgap -match 'NONAIRGAP_DIAGNOSTIC_EXPLICIT') 'Explicit nonairgap launcher lost its external-endpoint warning marker.'
+Assert-True ($nonAirgap -notmatch '&\s+java\s+-jar') 'Explicit nonairgap launcher reintroduced bare PATH Java execution.'
 
 Assert-True ($externalRuntime -match '854f26ff9f134b0317572e7ac1688e6f40a231d5a4c66f8db5d655b7f45ce7c6') 'External runtime no longer pins exact v308 evidence client.'
 Assert-True ($externalRuntime -match '83b3e27e2aae50512d044ae4c74d84afb36df8b8a8051b5eb0c9275427363c33') 'External runtime no longer pins exact v308 airgap client.'
