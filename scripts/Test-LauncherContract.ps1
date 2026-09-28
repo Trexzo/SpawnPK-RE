@@ -57,6 +57,8 @@ $serverWrapper = Read-RepoFile 'scripts\Run-Server.ps1'
 $clientWrapper = Read-RepoFile 'scripts\Run-Client-Airgap.ps1'
 $selector = Read-RepoFile 'scripts\Select-LocalLabJava.ps1'
 $ignore = Read-RepoFile '.gitignore'
+$externalRuntime = Read-RepoFile 'scripts\Check-ExternalRuntime.ps1'
+$runtimeImport = Read-RepoFile 'IMPORT_EXISTING_RUNTIME.ps1'
 
 Assert-True ($client -match [regex]::Escape('scripts\Select-LocalLabJava.ps1')) 'Standalone airgap launcher does not use canonical Java selector.'
 Assert-True ($client -match 'Set-LocalLabJava') 'Standalone airgap launcher does not invoke Set-LocalLabJava.'
@@ -70,6 +72,14 @@ Assert-True ($client -match 'Refusing LocalLab isolated user\.home because it re
 Assert-True ($client -match 'missing cache root') 'Standalone airgap launcher does not fail closed on an unseeded isolated cache root.'
 Assert-True ($client -match 'LOCAL_LAB_CLIENT_HOME_DEFAULT') 'Standalone airgap launcher no longer preserves the ordinary non-isolated launch path.'
 Assert-True ($clientWrapper -match 'LocalLabUserHome') 'Canonical airgap wrapper does not forward isolated client-home authority.'
+
+Assert-True ($externalRuntime -match '854f26ff9f134b0317572e7ac1688e6f40a231d5a4c66f8db5d655b7f45ce7c6') 'External runtime no longer pins exact v308 evidence client.'
+Assert-True ($externalRuntime -match '46b7d7d35c38fdd2ea49c3c7b7bea1406787f5f188d9fe102faedd20c983554a') 'External runtime no longer pins exact v308 airgap client.'
+Assert-True ($externalRuntime -match 'b8bccc927de4599d2d7b3d93ad66d91087f504e4e5250b9140b5b942cdc737d4') 'External runtime no longer pins exact v308 localhost client.'
+Assert-True ($externalRuntime -match 'coherentTriplet=true') 'External runtime does not report coherent v308 triplet authority.'
+Assert-True ($runtimeImport -match '854f26ff9f134b0317572e7ac1688e6f40a231d5a4c66f8db5d655b7f45ce7c6') 'Runtime importer no longer requires exact v308 evidence client.'
+Assert-True ($runtimeImport -match '46b7d7d35c38fdd2ea49c3c7b7bea1406787f5f188d9fe102faedd20c983554a') 'Runtime importer no longer requires exact v308 airgap client.'
+Assert-True ($runtimeImport -match 'b8bccc927de4599d2d7b3d93ad66d91087f504e4e5250b9140b5b942cdc737d4') 'Runtime importer no longer requires exact v308 localhost client.'
 
 Assert-True ($all -match [regex]::Escape('scripts\Select-LocalLabJava.ps1')) 'Multi-client launcher does not use canonical Java selector.'
 Assert-True ($all -match [regex]::Escape('scripts\Run-Server.ps1')) 'Multi-client launcher does not target scripts/Run-Server.ps1.'
