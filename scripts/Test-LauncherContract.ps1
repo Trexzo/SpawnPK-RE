@@ -131,6 +131,11 @@ Assert-True ($client -match '\$callerJavaHome\s*=\s*\$env:JAVA_HOME') 'Standalon
 Assert-True ($client -match '\$callerPath\s*=\s*\$env:Path') 'Standalone airgap launcher does not snapshot caller PATH.'
 Assert-True ($client -match 'finally\s*\{[\s\S]*\$env:Path\s*=\s*\$callerPath') 'Standalone airgap launcher does not restore caller PATH in finally.'
 Assert-True ($client -match 'Remove-Item Env:JAVA_HOME -ErrorAction SilentlyContinue') 'Standalone airgap launcher does not restore an originally absent JAVA_HOME.'
+Assert-True ($client -notmatch '(?m)^Set-Location \$PSScriptRoot\s*$') 'Standalone airgap launcher retains an unowned top-level Set-Location.'
+Assert-True ($client -match '\$callerLocationPushed\s*=\s*\$false') 'Standalone airgap launcher does not initialize caller-location ownership.'
+Assert-True ($client -match 'Push-Location -LiteralPath \$PSScriptRoot') 'Standalone airgap launcher does not push repository working directory.'
+Assert-True ($client -match '\$callerLocationPushed\s*=\s*\$true') 'Standalone airgap launcher does not record successful location push.'
+Assert-True ($client -match 'if \(\$callerLocationPushed\)\s*\{\s*Pop-Location') 'Standalone airgap launcher does not guarantee caller-location restoration.'
 Assert-True ($clientWrapper -match '\$hadCallerJavaHome\s*=\s*Test-Path Env:JAVA_HOME') 'Canonical airgap wrapper does not record caller JAVA_HOME ownership.'
 Assert-True ($clientWrapper -match 'finally\s*\{[\s\S]*\$env:Path\s*=\s*\$callerPath') 'Canonical airgap wrapper does not restore caller PATH in finally.'
 Assert-True ($clientWrapper -match 'Remove-Item Env:JAVA_HOME -ErrorAction SilentlyContinue') 'Canonical airgap wrapper does not restore an originally absent JAVA_HOME.'
@@ -140,7 +145,11 @@ foreach ($entry in @(
     @('$callerJavaHome = $env:JAVA_HOME', 1),
     @('$callerPath = $env:Path', 1),
     @('$env:Path = $callerPath', 1),
-    @('Remove-Item Env:JAVA_HOME -ErrorAction SilentlyContinue', 1)
+    @('Remove-Item Env:JAVA_HOME -ErrorAction SilentlyContinue', 1),
+    @('$callerLocationPushed = $false', 1),
+    @('Push-Location -LiteralPath $PSScriptRoot', 1),
+    @('$callerLocationPushed = $true', 1),
+    @('Pop-Location', 1)
 )) {
     Assert-ExactTextCount $client $entry[0] ([int]$entry[1]) 'Standalone airgap Java-environment ownership count drift.'
 }
@@ -166,6 +175,10 @@ $standaloneSelectorCallIndex = $client.IndexOf('$java = Set-LocalLabJava')
 $standaloneEnvRestoreIndex = $client.LastIndexOf('$env:Path = $callerPath')
 Assert-True ($standaloneEnvCaptureIndex -ge 0 -and $standaloneEnvCaptureIndex -lt $standaloneSelectorCallIndex) 'Standalone airgap caller environment is not captured before Java selection.'
 Assert-True ($standaloneEnvRestoreIndex -gt $standaloneLaunchIndex) 'Standalone airgap caller environment is restored before the synchronous Java client finishes.'
+$standaloneLocationPushIndex = $client.IndexOf('Push-Location -LiteralPath $PSScriptRoot')
+$standaloneLocationPopIndex = $client.LastIndexOf('Pop-Location')
+Assert-True ($standaloneLocationPushIndex -ge 0 -and $standaloneLocationPushIndex -lt $standaloneRuntimeCheckIndex) 'Standalone airgap repository location is not established before launcher work.'
+Assert-True ($standaloneLocationPopIndex -gt $standaloneLaunchIndex) 'Standalone airgap caller location is restored before synchronous client completion.'
 
 Assert-True ($secondClient -match '\[switch\]\$AllowNonAirgap') 'Second-client launcher does not require the explicit -AllowNonAirgap switch.'
 Assert-True ($secondClient -match [regex]::Escape('scripts\Run-Client-Airgap.ps1')) 'Second-client default does not target the canonical airgap wrapper.'
@@ -208,13 +221,22 @@ Assert-True ($nonAirgap -match '\$callerJavaHome\s*=\s*\$env:JAVA_HOME') 'Explic
 Assert-True ($nonAirgap -match '\$callerPath\s*=\s*\$env:Path') 'Explicit nonairgap launcher does not snapshot caller PATH.'
 Assert-True ($nonAirgap -match 'finally\s*\{[\s\S]*\$env:Path\s*=\s*\$callerPath') 'Explicit nonairgap launcher does not restore caller PATH in finally.'
 Assert-True ($nonAirgap -match 'Remove-Item Env:JAVA_HOME -ErrorAction SilentlyContinue') 'Explicit nonairgap launcher does not restore an originally absent JAVA_HOME.'
+Assert-True ($nonAirgap -notmatch '(?m)^Set-Location \$PSScriptRoot\s*$') 'Explicit nonairgap launcher retains an unowned top-level Set-Location.'
+Assert-True ($nonAirgap -match '\$callerLocationPushed\s*=\s*\$false') 'Explicit nonairgap launcher does not initialize caller-location ownership.'
+Assert-True ($nonAirgap -match 'Push-Location -LiteralPath \$PSScriptRoot') 'Explicit nonairgap launcher does not push repository working directory.'
+Assert-True ($nonAirgap -match '\$callerLocationPushed\s*=\s*\$true') 'Explicit nonairgap launcher does not record successful location push.'
+Assert-True ($nonAirgap -match 'if \(\$callerLocationPushed\)\s*\{\s*Pop-Location') 'Explicit nonairgap launcher does not guarantee caller-location restoration.'
 
 foreach ($entry in @(
     @('$hadCallerJavaHome = Test-Path Env:JAVA_HOME', 1),
     @('$callerJavaHome = $env:JAVA_HOME', 1),
     @('$callerPath = $env:Path', 1),
     @('$env:Path = $callerPath', 1),
-    @('Remove-Item Env:JAVA_HOME -ErrorAction SilentlyContinue', 1)
+    @('Remove-Item Env:JAVA_HOME -ErrorAction SilentlyContinue', 1),
+    @('$callerLocationPushed = $false', 1),
+    @('Push-Location -LiteralPath $PSScriptRoot', 1),
+    @('$callerLocationPushed = $true', 1),
+    @('Pop-Location', 1)
 )) {
     Assert-ExactTextCount $nonAirgap $entry[0] ([int]$entry[1]) 'Nonairgap Java-environment ownership count drift.'
 }
@@ -230,6 +252,10 @@ $nonAirgapJavaIndex = $nonAirgap.IndexOf('$java = Set-LocalLabJava')
 $nonAirgapEnvRestoreIndex = $nonAirgap.LastIndexOf('$env:Path = $callerPath')
 Assert-True ($nonAirgapEnvCaptureIndex -gt $nonAirgapSelectorIndex -and $nonAirgapEnvCaptureIndex -lt $nonAirgapJavaIndex) 'Direct nonairgap caller environment is not captured before Java selection.'
 Assert-True ($nonAirgapEnvRestoreIndex -gt $nonAirgapLaunchIndex) 'Direct nonairgap caller environment is restored before the synchronous Java client finishes.'
+$nonAirgapLocationPushIndex = $nonAirgap.IndexOf('Push-Location -LiteralPath $PSScriptRoot')
+$nonAirgapLocationPopIndex = $nonAirgap.LastIndexOf('Pop-Location')
+Assert-True ($nonAirgapLocationPushIndex -gt $nonAirgapConsentIndex -and $nonAirgapLocationPushIndex -lt $nonAirgapJavaIndex) 'Direct nonairgap repository location is not established inside the consented owned flow.'
+Assert-True ($nonAirgapLocationPopIndex -gt $nonAirgapLaunchIndex) 'Direct nonairgap caller location is restored before synchronous client completion.'
 
 Assert-True ($quick -match [regex]::Escape('scripts\Check-ExternalRuntime.ps1')) 'Quick-start launcher does not use current external-runtime preflight.'
 Assert-True ($quick -match [regex]::Escape('server\build\SpawnPKLocalServer.jar')) 'Quick-start launcher does not preflight the current built server JAR.'
@@ -518,6 +544,11 @@ Assert-True ($all -match '\$callerJavaHome\s*=\s*\$env:JAVA_HOME') 'Multi-client
 Assert-True ($all -match '\$callerPath\s*=\s*\$env:Path') 'Multi-client launcher does not snapshot caller PATH.'
 Assert-True ($all -match 'finally\s*\{[\s\S]*\$env:Path\s*=\s*\$callerPath') 'Multi-client launcher does not restore caller PATH in outer finally.'
 Assert-True ($all -match 'Remove-Item Env:JAVA_HOME -ErrorAction SilentlyContinue') 'Multi-client launcher does not restore an originally absent JAVA_HOME.'
+Assert-True ($all -notmatch '(?m)^Set-Location \$PSScriptRoot\s*$') 'Multi-client launcher retains an unowned top-level Set-Location.'
+Assert-True ($all -match '\$callerLocationPushed\s*=\s*\$false') 'Multi-client launcher does not initialize caller-location ownership.'
+Assert-True ($all -match 'Push-Location -LiteralPath \$PSScriptRoot') 'Multi-client launcher does not push repository working directory.'
+Assert-True ($all -match '\$callerLocationPushed\s*=\s*\$true') 'Multi-client launcher does not record successful location push.'
+Assert-True ($all -match 'if \(\$callerLocationPushed\)\s*\{\s*Pop-Location') 'Multi-client launcher does not guarantee caller-location restoration.'
 
 foreach ($entry in @(
     @('function Get-LauncherOwnedProcessIds', 1),
@@ -549,7 +580,11 @@ foreach ($entry in @(
     @('$ownedChildren += $watcherWindow', 1),
     @('$ownedChildren += $clientWindow', 1),
     @('LOCAL_LAB_WINDOWS_STARTED_V521', 1),
-    @('Stop-LauncherOwnedProcessTree -Roots $ownedChildren', 1)
+    @('Stop-LauncherOwnedProcessTree -Roots $ownedChildren', 1),
+    @('$callerLocationPushed = $false', 1),
+    @('Push-Location -LiteralPath $PSScriptRoot', 1),
+    @('$callerLocationPushed = $true', 1),
+    @('Pop-Location', 1)
 )) {
     Assert-ExactTextCount $all $entry[0] ([int]$entry[1]) 'Multi-client structural anchor count drift.'
 }
@@ -583,6 +618,10 @@ $allJavaSelectIndex = $all.IndexOf('$__r85JavaInfo = Set-LocalLabJava')
 $allEnvRestoreIndex = $all.LastIndexOf('$env:Path = $callerPath')
 Assert-True ($allEnvCaptureIndex -ge 0 -and $allEnvCaptureIndex -lt $allJavaSelectIndex) 'Multi-client caller environment is not captured before canonical Java selection.'
 Assert-True ($allEnvRestoreIndex -gt $allCombinedThrowIndex) 'Multi-client caller environment restoration does not structurally cover the full launcher flow.'
+$allLocationPushIndex = $all.IndexOf('Push-Location -LiteralPath $PSScriptRoot')
+$allLocationPopIndex = $all.LastIndexOf('Pop-Location')
+Assert-True ($allLocationPushIndex -ge 0 -and $allLocationPushIndex -lt $allJavaSelectIndex) 'Multi-client repository location is not established before canonical Java selection.'
+Assert-True ($allLocationPopIndex -gt $allCombinedThrowIndex) 'Multi-client caller location restoration does not structurally cover the complete launcher flow.'
 Assert-True ($bootstrap -match '\[switch\]\$SkipConfigPatch') 'Bootstrap no longer preserves the legacy -SkipConfigPatch compatibility switch.'
 Assert-True ($bootstrap -match 'BOOTSTRAP_CONFIG_PATCH_RETIRED') 'Bootstrap does not state that live config mutation is retired.'
 Assert-True ($bootstrap -match 'isolatedCachePipelineRequired=true') 'Bootstrap does not point custom-cache work to isolated authority.'
