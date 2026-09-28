@@ -4181,6 +4181,7 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
             '& $gradlew @gradleArgs',
             "Select-String -LiteralPath \$log -SimpleMatch -Pattern 'SPAWNPK_CHAT1_CURRENT_CUMULATIVE_CERTIFICATION_PASS'",
             'ConvertTo-Json',
+            'Write-Output -NoEnumerate $result',
             'CHAT1_CUMULATIVE_WRAPPER_COMPLETE'
         ].each { anchor ->
             int count = 0
@@ -4277,6 +4278,27 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
         if(currentCumulativeCount != 1)
             throw new GradleException(
                 "Current release acceptance cumulative-wrapper invocation count drift: expected=1 actual=${currentCumulativeCount}"
+            )
+
+        String directServerAuthorityAnchor =
+            '$certifiedServerSha = [string]$cumulativeResult.CertifiedServerJarSha256'
+        int directServerAuthorityCount = 0
+        int directServerAuthorityFrom = 0
+        while(true) {
+            int found =
+                currentReleaseText.indexOf(
+                    directServerAuthorityAnchor,
+                    directServerAuthorityFrom
+                )
+            if(found < 0)
+                break
+            directServerAuthorityCount++
+            directServerAuthorityFrom =
+                found + directServerAuthorityAnchor.length()
+        }
+        if(directServerAuthorityCount != 1)
+            throw new GradleException(
+                "Current release direct server authority count drift: expected=1 actual=${directServerAuthorityCount}"
             )
 
         int directResultIndex =
