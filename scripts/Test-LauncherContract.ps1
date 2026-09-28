@@ -150,8 +150,8 @@ foreach ($entry in @(
     @('[IO.FileShare]::Read', 2),
     @('[IO.FileShare]::None', 1),
     @('[IO.FileMode]::CreateNew', 1),
-    @("'--client-jar', $r13SnapshotClient", 1),
-    @("'--client-jar', $clientJar", 0),
+    @("'--client-jar', `$r13SnapshotClient", 1),
+    @("'--client-jar', `$clientJar", 0),
     @('$r13ProfileFailure = $_', 1),
     @('R13ClientSnapshotCleanupFailure', 1),
     @('Remove-Item -LiteralPath $r13SnapshotRoot -Recurse -Force -ErrorAction Stop', 1)
@@ -170,12 +170,12 @@ $r13CopyIndex = $r13Acceptance.IndexOf('$r13SourceGuard.CopyTo($r13SnapshotWrite
 $r13PrivateOpenIndex = $r13Acceptance.IndexOf('[IO.File]::Open(', $r13WriterOpenIndex + 1)
 $r13PrivateHashIndex = $r13Acceptance.IndexOf('$r13PrivateSha = Get-Sha256Hex -Stream $r13PrivateGuard', $r13PrivateOpenIndex)
 $r13SourceReleaseIndex = $r13Acceptance.IndexOf('$r13SourceGuard.Dispose()', $r13PrivateHashIndex)
-$r13PrivateArgIndex = $r13Acceptance.IndexOf("'--client-jar', $r13SnapshotClient", $r13SourceReleaseIndex)
+$r13PrivateArgIndex = $r13Acceptance.IndexOf("'--client-jar', `$r13SnapshotClient", $r13SourceReleaseIndex)
 $r13PythonInvokeIndex = $r13Acceptance.IndexOf('& $python.Source @profileArgs', $r13PrivateArgIndex)
 $r13PrivateReleaseIndex = $r13Acceptance.LastIndexOf('$r13PrivateGuard.Dispose()')
 $r13SnapshotCleanupIndex = $r13Acceptance.LastIndexOf('Remove-Item -LiteralPath $r13SnapshotRoot -Recurse -Force -ErrorAction Stop')
 $r13FailureReplayIndex = $r13Acceptance.IndexOf('throw $r13ProfileFailure')
-$r13ManifestIndex = $r13Acceptance.IndexOf("$manifest = Join-Path $output 'R13_PROFILE_MANIFEST.json'")
+$r13ManifestIndex = $r13Acceptance.IndexOf("`$manifest = Join-Path `$output 'R13_PROFILE_MANIFEST.json'")
 
 Assert-True ($r13SnapshotRootIndex -gt $r13ProfileBuildIndex) 'R13 profile input snapshot is not invocation-owned by the profile build.'
 Assert-True ($r13SourceOpenIndex -gt $r13SnapshotRootIndex) 'R13 acceptance opens canonical client before private snapshot ownership exists.'
@@ -198,7 +198,7 @@ Assert-True ($client -match 'Set-LocalLabJava') 'Standalone airgap launcher does
 Assert-True ($client -match '&\s+\$java\.Path\s+@javaArgs\s+-jar\s+\$launchSnapshot') 'Standalone airgap launcher does not invoke selected Java with the guarded private snapshot.'
 Assert-True ($client -notmatch '&\s+\$java\.Path\s+@javaArgs\s+-jar\s+\$jar') 'Standalone airgap launcher still executes the mutable canonical airgap JAR directly.'
 Assert-True ($client -match '83b3e27e2aae50512d044ae4c74d84afb36df8b8a8051b5eb0c9275427363c33') 'Standalone airgap launcher no longer independently pins exact airgap snapshot SHA-256.'
-Assert-True ($client -match [regex]::Escape("$launchSnapshot = Join-Path $launchRoot 'client-airgap.jar'")) 'Standalone airgap private snapshot does not preserve semantic client-airgap.jar basename.'
+Assert-True ($client -match [regex]::Escape("`$launchSnapshot = Join-Path `$launchRoot 'client-airgap.jar'")) 'Standalone airgap private snapshot does not preserve semantic client-airgap.jar basename.'
 Assert-True ($client -match [regex]::Escape('[IO.File]::Copy($jar, $launchSnapshot, $false)')) 'Standalone airgap launcher does not create a no-overwrite private snapshot.'
 Assert-True ($client -match '\[IO\.File\]::Open\([\s\S]*\$launchSnapshot[\s\S]*\[IO\.FileAccess\]::Read[\s\S]*\[IO\.FileShare\]::Read') 'Standalone airgap launcher does not hold a read-only no-write/no-delete guard on the private snapshot.'
 Assert-True ($client -match [regex]::Escape('Get-FileHash -InputStream $snapshotGuard -Algorithm SHA256')) 'Standalone airgap launcher does not hash the guarded snapshot identity.'
@@ -227,7 +227,7 @@ Assert-True ($client -notmatch '(?m)^Set-Location \$PSScriptRoot\s*$') 'Standalo
 Assert-True ($client -match '\$callerLocationPushed\s*=\s*\$false') 'Standalone airgap launcher does not initialize caller-location ownership.'
 Assert-True ($client -match 'Push-Location -LiteralPath \$PSScriptRoot') 'Standalone airgap launcher does not push repository working directory.'
 Assert-True ($client -match '\$callerLocationPushed\s*=\s*\$true') 'Standalone airgap launcher does not record successful location push.'
-Assert-True ($client -match 'if \(\$callerLocationPushed\)\s*\{\s*Pop-Location') 'Standalone airgap launcher does not guarantee caller-location restoration.'
+Assert-True ($client -match 'if \(\$callerLocationPushed\)\s*\{\s*try\s*\{\s*Pop-Location') 'Standalone airgap launcher does not guarantee caller-location restoration through guarded cleanup.'
 Assert-True ($clientWrapper -match '\$hadCallerJavaHome\s*=\s*Test-Path Env:JAVA_HOME') 'Canonical airgap wrapper does not record caller JAVA_HOME ownership.'
 Assert-True ($clientWrapper -match 'finally\s*\{[\s\S]*\$env:Path\s*=\s*\$callerPath') 'Canonical airgap wrapper does not restore caller PATH in finally.'
 Assert-True ($clientWrapper -match 'Remove-Item Env:JAVA_HOME -ErrorAction SilentlyContinue') 'Canonical airgap wrapper does not restore an originally absent JAVA_HOME.'
@@ -242,7 +242,7 @@ foreach ($entry in @(
     @('Push-Location -LiteralPath $PSScriptRoot', 1),
     @('$callerLocationPushed = $true', 1),
     @('Pop-Location', 1),
-    @("$launchSnapshot = Join-Path $launchRoot 'client-airgap.jar'", 1),
+    @("`$launchSnapshot = Join-Path `$launchRoot 'client-airgap.jar'", 1),
     @('[IO.File]::Copy($jar, $launchSnapshot, $false)', 1),
     @('[IO.FileShare]::Read', 1),
     @('Get-FileHash -InputStream $snapshotGuard -Algorithm SHA256', 1),
@@ -269,7 +269,7 @@ foreach ($entry in @(
 $standaloneRuntimeCheckIndex = $client.IndexOf('& $runtimeCheck')
 $standaloneJarIndex = $client.IndexOf('$jar = Join-Path $PSScriptRoot ''local-client\client-airgap.jar''')
 $standaloneSnapshotRootIndex = $client.IndexOf("'SpawnPK-airgap-' + [Guid]::NewGuid().ToString('N')")
-$standaloneSnapshotLeafIndex = $client.IndexOf("$launchSnapshot = Join-Path $launchRoot 'client-airgap.jar'")
+$standaloneSnapshotLeafIndex = $client.IndexOf("`$launchSnapshot = Join-Path `$launchRoot 'client-airgap.jar'")
 $standaloneGuardIndex = $client.IndexOf('$snapshotGuard = [IO.File]::Open(')
 $standaloneHashIndex = $client.IndexOf('Get-FileHash -InputStream $snapshotGuard -Algorithm SHA256')
 $standaloneLaunchIndex = $client.IndexOf('& $java.Path @javaArgs -jar $launchSnapshot')
@@ -335,7 +335,7 @@ Assert-True ($nonAirgap -match 'Set-LocalLabJava') 'Explicit nonairgap launcher 
 Assert-True ($nonAirgap -match '&\s+\$java\.Path\s+-jar\s+\$launchSnapshot') 'Explicit nonairgap launcher does not invoke selected Java with the guarded private snapshot.'
 Assert-True ($nonAirgap -notmatch '&\s+\$java\.Path\s+-jar\s+\$jar') 'Explicit nonairgap launcher still executes the mutable canonical localhost JAR directly.'
 Assert-True ($nonAirgap -match '01c878a56ee25fb112dfe8b459dbd11ea26cfa8a92a7f287a4e5ee53f673cdbd') 'Explicit nonairgap launcher no longer independently pins exact localhost snapshot SHA-256.'
-Assert-True ($nonAirgap -match [regex]::Escape("$launchSnapshot = Join-Path $launchRoot 'client-localhost.jar'")) 'Explicit nonairgap private snapshot does not preserve semantic client-localhost.jar basename.'
+Assert-True ($nonAirgap -match [regex]::Escape("`$launchSnapshot = Join-Path `$launchRoot 'client-localhost.jar'")) 'Explicit nonairgap private snapshot does not preserve semantic client-localhost.jar basename.'
 Assert-True ($nonAirgap -match [regex]::Escape('[IO.File]::Copy($jar, $launchSnapshot, $false)')) 'Explicit nonairgap launcher does not create a no-overwrite private snapshot.'
 Assert-True ($nonAirgap -match '\[IO\.File\]::Open\([\s\S]*\$launchSnapshot[\s\S]*\[IO\.FileAccess\]::Read[\s\S]*\[IO\.FileShare\]::Read') 'Explicit nonairgap launcher does not hold a read-only no-write/no-delete guard on the private snapshot.'
 Assert-True ($nonAirgap -match [regex]::Escape('Get-FileHash -InputStream $snapshotGuard -Algorithm SHA256')) 'Explicit nonairgap launcher does not hash the guarded snapshot identity.'
@@ -346,7 +346,8 @@ Assert-True ($nonAirgap -match [regex]::Escape('$snapshotGuard.Dispose()')) 'Exp
 Assert-True ($nonAirgap -match [regex]::Escape('Remove-Item -LiteralPath $launchSnapshot -Force -ErrorAction Stop')) 'Explicit nonairgap launcher does not clean the exact snapshot leaf.'
 Assert-True ($nonAirgap -match [regex]::Escape('Remove-Item -LiteralPath $launchRoot -ErrorAction Stop')) 'Explicit nonairgap launcher does not non-recursively clean the invocation-owned snapshot directory.'
 Assert-True ($nonAirgap -notmatch 'Remove-Item\s+-LiteralPath\s+\$launchRoot[^\r\n]*-Recurse') 'Explicit nonairgap launcher reintroduced recursive snapshot-directory cleanup.'
-Assert-True ($nonAirgap -match '\$LASTEXITCODE\s+-ne\s+0') 'Explicit nonairgap launcher does not fail on a nonzero client exit.'
+Assert-True ($nonAirgap -match '\$clientExit\s*=\s*\$LASTEXITCODE') 'Explicit nonairgap launcher does not capture the native client exit code.'
+Assert-True ($nonAirgap -match 'if\s*\(\s*\$clientExit\s+-ne\s+0\s*\)') 'Explicit nonairgap launcher does not fail on a captured nonzero client exit.'
 Assert-True ($nonAirgap -match 'NONAIRGAP_DIAGNOSTIC_EXPLICIT') 'Explicit nonairgap launcher lost its external-endpoint warning marker.'
 Assert-True ($nonAirgap -notmatch '&\s+java\s+-jar') 'Explicit nonairgap launcher reintroduced bare PATH Java execution.'
 Assert-True ($nonAirgap -match '\$hadCallerJavaHome\s*=\s*Test-Path Env:JAVA_HOME') 'Explicit nonairgap launcher does not record caller JAVA_HOME ownership.'
@@ -358,7 +359,7 @@ Assert-True ($nonAirgap -notmatch '(?m)^Set-Location \$PSScriptRoot\s*$') 'Expli
 Assert-True ($nonAirgap -match '\$callerLocationPushed\s*=\s*\$false') 'Explicit nonairgap launcher does not initialize caller-location ownership.'
 Assert-True ($nonAirgap -match 'Push-Location -LiteralPath \$PSScriptRoot') 'Explicit nonairgap launcher does not push repository working directory.'
 Assert-True ($nonAirgap -match '\$callerLocationPushed\s*=\s*\$true') 'Explicit nonairgap launcher does not record successful location push.'
-Assert-True ($nonAirgap -match 'if \(\$callerLocationPushed\)\s*\{\s*Pop-Location') 'Explicit nonairgap launcher does not guarantee caller-location restoration.'
+Assert-True ($nonAirgap -match 'if \(\$callerLocationPushed\)\s*\{\s*try\s*\{\s*Pop-Location') 'Explicit nonairgap launcher does not guarantee caller-location restoration through guarded cleanup.'
 
 foreach ($entry in @(
     @('$hadCallerJavaHome = Test-Path Env:JAVA_HOME', 1),
@@ -370,12 +371,14 @@ foreach ($entry in @(
     @('Push-Location -LiteralPath $PSScriptRoot', 1),
     @('$callerLocationPushed = $true', 1),
     @('Pop-Location', 1),
-    @("$launchSnapshot = Join-Path $launchRoot 'client-localhost.jar'", 1),
+    @("`$launchSnapshot = Join-Path `$launchRoot 'client-localhost.jar'", 1),
     @('[IO.File]::Copy($jar, $launchSnapshot, $false)', 1),
     @('[IO.FileShare]::Read', 1),
     @('Get-FileHash -InputStream $snapshotGuard -Algorithm SHA256', 1),
     @('NONAIRGAP_CLIENT_LAUNCH_SNAPSHOT_VERIFIED', 1),
     @('& $java.Path -jar $launchSnapshot', 1),
+    @('$clientExit = $LASTEXITCODE', 1),
+    @('if ($clientExit -ne 0)', 1),
     @('$snapshotGuard.Dispose()', 1),
     @('Remove-Item -LiteralPath $launchSnapshot -Force -ErrorAction Stop', 1),
     @('Remove-Item -LiteralPath $launchRoot -ErrorAction Stop', 1),
@@ -388,7 +391,7 @@ $nonAirgapConsentIndex = $nonAirgap.IndexOf('if (-not $AllowExternalEndpoints)')
 $nonAirgapSelectorIndex = $nonAirgap.IndexOf('$selector = Join-Path')
 $nonAirgapRuntimeCheckIndex = $nonAirgap.IndexOf('& $runtimeCheck')
 $nonAirgapSnapshotRootIndex = $nonAirgap.IndexOf("'SpawnPK-localhost-' + [Guid]::NewGuid().ToString('N')")
-$nonAirgapSnapshotLeafIndex = $nonAirgap.IndexOf("$launchSnapshot = Join-Path $launchRoot 'client-localhost.jar'")
+$nonAirgapSnapshotLeafIndex = $nonAirgap.IndexOf("`$launchSnapshot = Join-Path `$launchRoot 'client-localhost.jar'")
 $nonAirgapGuardIndex = $nonAirgap.IndexOf('$snapshotGuard = [IO.File]::Open(')
 $nonAirgapHashIndex = $nonAirgap.IndexOf('Get-FileHash -InputStream $snapshotGuard -Algorithm SHA256')
 $nonAirgapLaunchIndex = $nonAirgap.IndexOf('& $java.Path -jar $launchSnapshot')
@@ -455,7 +458,7 @@ foreach ($entry in @(
     @('function Get-LauncherOwnedProcessIds', 1),
     @('function Stop-LauncherOwnedProcessTree', 1),
     @('function Throw-LauncherFailureWithCleanup', 1),
-    @('[switch]$IncludeExitedRoots', 1),
+    @('[switch]$IncludeExitedRoots', 2),
     @('Get-LauncherOwnedProcessRecords -Roots $Roots -Label $Label -IncludeExitedRoots', 2),
     @('$recordedRoots = @(', 1),
     @('$recordedRootPids = @(', 1),
@@ -517,10 +520,10 @@ Assert-True ($runtimeImport -match 'function Assert-RegularDestinationOrMissing'
 Assert-True ($runtimeImport -match 'function Assert-DestinationSnapshotStillOwned') 'Runtime importer does not revalidate exact destination ownership immediately before publication.'
 Assert-True ($runtimeImport -match 'destination appeared after rollback snapshot') 'Runtime importer can overwrite a newly appeared destination outside transaction ownership.'
 Assert-True ($runtimeImport -match 'destination changed after rollback snapshot') 'Runtime importer can overwrite an existing destination changed after backup ownership was frozen.'
-Assert-True ($runtimeImport -match '\\$destinationDirectories\\s*=\\s*@\\(\\)') 'Runtime importer does not own a unique destination-directory set.'
+Assert-True ($runtimeImport -match '\$destinationDirectories\s*=\s*@\(\)') 'Runtime importer does not own a unique destination-directory set.'
 Assert-True ($runtimeImport -match 'RUNTIME_IMPORT_DESTINATION_DIRECTORIES_READY') 'Runtime importer does not prove destination-directory ownership before publication.'
 Assert-True ($runtimeImport -match 'restored destination hash mismatch') 'Runtime importer does not verify restored destination bytes against rollback backup.'
-Assert-True ($runtimeImport -match 'Sort-Object \\{ \\$_\\.Path\\.Length \\} -Descending') 'Runtime importer does not clean transaction-created destination directories deepest-first.'
+Assert-True ($runtimeImport -match 'Sort-Object \{ \$_.Path\.Length \} -Descending') 'Runtime importer does not clean transaction-created destination directories deepest-first.'
 Assert-True ($runtimeImport -match 'Rollback-owned destination directory is not empty') 'Runtime importer does not fail closed instead of deleting unrelated destination-directory material.'
 Assert-True ($runtimeImport -notmatch 'Remove-Item[^\\r\\n]*(evidence|local-client)[^\\r\\n]*-Recurse') 'Runtime importer reintroduced recursive deletion authority over canonical destination directories.'
 Assert-True ($runtimeImport -match 'pathConfinement=true') 'Runtime importer success/preflight markers do not expose path-confinement authority.'
@@ -791,7 +794,7 @@ Assert-True ($v308SuccessIndex -gt $v308FinalVerifyIndex) 'v308 local-client bui
 
 Assert-True ($releaseAcceptance -match [regex]::Escape('scripts\Select-LocalLabJava.ps1')) 'Current release acceptance does not use canonical runtime Java selector.'
 Assert-True ($releaseAcceptance -match 'Set-LocalLabJava') 'Current release acceptance does not resolve canonical LocalLab runtime Java.'
-Assert-True ($releaseAcceptance -match '-FilePath\s+\$runtimeJava\.Path') 'Current release loopback smoke does not launch with selected canonical Java path.'
+Assert-True ($releaseAcceptance -match '\$processInfo\.FileName\s*=\s*\$runtimeJava\.Path') 'Current release loopback smoke does not launch with selected canonical Java path.'
 Assert-True ($releaseAcceptance -notmatch 'Get-Command\s+java(?:\.exe)?') 'Current release acceptance reintroduced arbitrary PATH Java selection.'
 Assert-True ($releaseAcceptance -match 'Run-Chat1CumulativeCertification\.ps1') 'Current release acceptance lost canonical cumulative certification wrapper.'
 Assert-True ($releaseAcceptance -match 'CURRENT_RELEASE_CUMULATIVE_CERTIFICATION_PASS') 'Current release acceptance lost cumulative certification success boundary.'
@@ -815,7 +818,7 @@ $releaseSelectorIndex = $releaseAcceptance.IndexOf('$runtimeJavaSelector = Join-
 $releaseJavaIndex = $releaseAcceptance.IndexOf('$runtimeJava = Set-LocalLabJava')
 $releaseCumulativeIndex = $releaseAcceptance.IndexOf('& $cumulativeWrapper -ClientJar $client')
 $releaseSmokeIndex = $releaseAcceptance.LastIndexOf('Invoke-CurrentServerLoopbackSmoke')
-$releaseStartProcessIndex = $releaseAcceptance.IndexOf('-FilePath $runtimeJava.Path')
+$releaseStartProcessIndex = $releaseAcceptance.IndexOf('$processInfo.FileName = $runtimeJava.Path')
 Assert-True ($releaseSelectorIndex -ge 0) 'Current release runtime Java selector path not found.'
 Assert-True ($releaseJavaIndex -gt $releaseSelectorIndex) 'Current release resolves runtime Java before selector authority is established.'
 Assert-True ($releaseCumulativeIndex -gt $releaseJavaIndex) 'Current release cumulative certification does not follow canonical Java selection.'
@@ -849,6 +852,37 @@ Assert-True ($releaseAcceptance -notmatch 'Stop-Process\s+-Name') 'Current relea
 Assert-True ($releaseAcceptance -notmatch 'Stop-Process -Id \$process\.Id -Force -ErrorAction SilentlyContinue') 'Current release smoke still suppresses authoritative process cleanup failure.'
 Assert-True ($releaseAcceptance -match 'Current release smoke failed and cleanup was incomplete') 'Current release smoke does not combine primary and cleanup failure authority.'
 
+# Current release smoke evidence must remain inside one ordinary repository
+# build/release-smoke ancestry and bind every published leaf to an owned
+# CreateNew handle. Child stdout/stderr authority must come from process pipes,
+# never mutable redirect paths.
+Assert-True ($releaseAcceptance -match 'function Assert-ReleaseOrdinaryDirectory') 'Current release smoke lacks ordinary-directory validation.'
+Assert-True ($releaseAcceptance -match 'function Assert-ReleaseSmokeAncestry') 'Current release smoke lacks exact ancestry validation.'
+Assert-True ($releaseAcceptance -match 'function Initialize-ReleaseSmokeDirectory') 'Current release smoke lacks guarded one-level directory initialization.'
+Assert-True ($releaseAcceptance -match 'function Remove-ReleaseSmokeEvidenceLeafSafely') 'Current release smoke lacks bounded ordinary-file cleanup.'
+Assert-True ($releaseAcceptance -match 'function Write-ReleaseSmokeEvidenceTextOwned') 'Current release smoke lacks owned evidence publication.'
+Assert-True ($releaseAcceptance -match '\$smokeBuildRoot\s*=\s*Join-Path\s+\$server\s+"build"') 'Current release smoke build authority is not derived directly from server root.'
+Assert-True ($releaseAcceptance -match '\$smokeDir\s*=\s*Join-Path\s+\$smokeBuildRoot\s+"release-smoke"') 'Current release smoke evidence authority is not derived from exact build root.'
+Assert-True ($releaseAcceptance -match '\[IO\.FileAttributes\]::ReparsePoint') 'Current release smoke does not reject reparse roots/leaves.'
+Assert-True ($releaseAcceptance -match '\[IO\.FileMode\]::CreateNew') 'Current release smoke evidence publication is not fail-closed on pre-existing leaves.'
+Assert-True ($releaseAcceptance -match '\[IO\.FileShare\]::None') 'Current release smoke evidence publication does not retain exclusive leaf ownership while writing.'
+Assert-True ($releaseAcceptance -match '\$processInfo\.RedirectStandardOutput\s*=\s*\$true') 'Current release smoke stdout is not process-pipe owned.'
+Assert-True ($releaseAcceptance -match '\$processInfo\.RedirectStandardError\s*=\s*\$true') 'Current release smoke stderr is not process-pipe owned.'
+Assert-True ($releaseAcceptance -match '\$process\.StandardOutput\.ReadToEndAsync\(\)') 'Current release smoke does not asynchronously drain stdout pipe.'
+Assert-True ($releaseAcceptance -match '\$process\.StandardError\.ReadToEndAsync\(\)') 'Current release smoke does not asynchronously drain stderr pipe.'
+Assert-True ($releaseAcceptance -match '\$stdoutTask\.GetAwaiter\(\)\.GetResult\(\)') 'Current release smoke does not consume invocation-owned stdout pipe bytes.'
+Assert-True ($releaseAcceptance -match '\$stderrTask\.GetAwaiter\(\)\.GetResult\(\)') 'Current release smoke does not consume invocation-owned stderr pipe bytes.'
+Assert-True ($releaseAcceptance -match 'Current release smoke evidence cleanup refuses directory/reparse substitution') 'Current release smoke cleanup does not reject directory/reparse leaf substitution.'
+Assert-True ($releaseAcceptance -notmatch 'New-Item\s+-ItemType\s+Directory\s+-Force\s+-Path\s+\$smokeDir') 'Current release smoke reintroduced force-creating the evidence directory.'
+Assert-True ($releaseAcceptance -notmatch 'Remove-Item\s+-LiteralPath\s+\$stdout,\s*\$stderr,\s*\$versionsPath,\s*\$shaPath[^\r\n]*SilentlyContinue') 'Current release smoke reintroduced silent multi-path evidence cleanup.'
+Assert-True ($releaseAcceptance -notmatch 'Remove-Item[^\r\n]*-Recurse[^\r\n]*\$smoke') 'Current release smoke introduced recursive evidence cleanup.'
+Assert-True ($releaseAcceptance -notmatch 'Set-Content\s+-LiteralPath\s+\$shaPath') 'Current release smoke reintroduced path-open server-SHA evidence publication.'
+Assert-True ($releaseAcceptance -notmatch 'Set-Content\s+-LiteralPath\s+\$versionsPath') 'Current release smoke reintroduced path-open versions evidence publication.'
+Assert-True ($releaseAcceptance -notmatch '-RedirectStandardOutput\s+\$stdout') 'Current release smoke reintroduced mutable stdout redirect path authority.'
+Assert-True ($releaseAcceptance -notmatch '-RedirectStandardError\s+\$stderr') 'Current release smoke reintroduced mutable stderr redirect path authority.'
+Assert-True ($releaseAcceptance -notmatch 'Get-Content\s+-LiteralPath\s+\$stdout') 'Current release smoke reintroduced mutable stdout path read authority.'
+Assert-True ($releaseAcceptance -notmatch 'Get-Content\s+-LiteralPath\s+\$stderr') 'Current release smoke reintroduced mutable stderr path read authority.'
+
 foreach ($entry in @(
     @('function Get-ReleaseExactGitHead', 1),
     @('function Get-ReleaseWorktreeChanges', 1),
@@ -868,11 +902,44 @@ foreach ($entry in @(
     @('CURRENT_RELEASE_SERVER_LOOPBACK_PASS', 1),
     @('CURRENT_RELEASE_ACCEPTANCE_PASS', 1),
     @('$process.Kill()', 1),
-    @('$process.WaitForExit(5000)', 1)
+    @('$process.WaitForExit(5000)', 1),
+    @('function Assert-ReleaseOrdinaryDirectory', 1),
+    @('function Assert-ReleaseSmokeAncestry', 1),
+    @('function Initialize-ReleaseSmokeDirectory', 1),
+    @('function Remove-ReleaseSmokeEvidenceLeafSafely', 1),
+    @('function Write-ReleaseSmokeEvidenceTextOwned', 1),
+    @('$smokeBuildRoot = Join-Path $server "build"', 1),
+    @('$smokeDir = Join-Path $smokeBuildRoot "release-smoke"', 1),
+    @('Initialize-ReleaseSmokeDirectory -BuildRoot $smokeBuildRoot -SmokeRoot $smokeDir', 1),
+    @('Remove-ReleaseSmokeEvidenceLeafSafely -BuildRoot $smokeBuildRoot -SmokeRoot $smokeDir -Path $evidenceLeaf', 1),
+    @('$processInfo.RedirectStandardOutput = $true', 1),
+    @('$processInfo.RedirectStandardError = $true', 1),
+    @('$stdoutTask = $process.StandardOutput.ReadToEndAsync()', 1),
+    @('$stderrTask = $process.StandardError.ReadToEndAsync()', 1),
+    @('$outText = [string]$stdoutTask.GetAwaiter().GetResult()', 1),
+    @('$errText = [string]$stderrTask.GetAwaiter().GetResult()', 1),
+    @("-Label 'server-sha'", 1),
+    @("-Label 'versions'", 1),
+    @("-Label 'stdout'", 1),
+    @("-Label 'stderr'", 1)
 )) {
     Assert-ExactTextCount $releaseAcceptance $entry[0] ([int]$entry[1]) 'Current release identity/smoke structural count drift.'
 }
 
+$releaseSmokeBuildIndex = $releaseAcceptance.IndexOf('$smokeBuildRoot = Join-Path $server "build"')
+$releaseSmokeRootIndex = $releaseAcceptance.IndexOf('$smokeDir = Join-Path $smokeBuildRoot "release-smoke"')
+$releaseSmokeInitializeIndex = $releaseAcceptance.IndexOf('Initialize-ReleaseSmokeDirectory -BuildRoot $smokeBuildRoot -SmokeRoot $smokeDir')
+$releaseSmokeCleanupIndex = $releaseAcceptance.IndexOf('Remove-ReleaseSmokeEvidenceLeafSafely -BuildRoot $smokeBuildRoot -SmokeRoot $smokeDir -Path $evidenceLeaf')
+$releaseSmokeShaPublishIndex = $releaseAcceptance.IndexOf("-Label 'server-sha'", $releaseSmokeCleanupIndex)
+$releaseSmokeProcessInfoIndex = $releaseAcceptance.IndexOf('$processInfo = New-Object System.Diagnostics.ProcessStartInfo', $releaseSmokeShaPublishIndex)
+$releaseSmokeProcessStartIndex = $releaseAcceptance.IndexOf('if (-not $process.Start())', $releaseSmokeProcessInfoIndex)
+$releaseSmokeStdoutPipeIndex = $releaseAcceptance.IndexOf('$stdoutTask = $process.StandardOutput.ReadToEndAsync()', $releaseSmokeProcessStartIndex)
+$releaseSmokeStderrPipeIndex = $releaseAcceptance.IndexOf('$stderrTask = $process.StandardError.ReadToEndAsync()', $releaseSmokeStdoutPipeIndex)
+$releaseSmokeVersionsPublishIndex = $releaseAcceptance.IndexOf("-Label 'versions'", $releaseSmokeStderrPipeIndex)
+$releaseSmokePipeResultIndex = $releaseAcceptance.IndexOf('$outText = [string]$stdoutTask.GetAwaiter().GetResult()', $releaseSmokeVersionsPublishIndex)
+$releaseSmokeStdoutPublishIndex = $releaseAcceptance.IndexOf("-Label 'stdout'", $releaseSmokePipeResultIndex)
+$releaseSmokeStderrPublishIndex = $releaseAcceptance.IndexOf("-Label 'stderr'", $releaseSmokeStdoutPublishIndex)
+$releaseSmokeCombinedLogIndex = $releaseAcceptance.IndexOf('$combinedLog = $outText + "`n" + $errText', $releaseSmokeStderrPublishIndex)
 $releaseHeadCaptureIndex = $releaseAcceptance.IndexOf('$releaseHead = Get-ReleaseExactGitHead')
 $releasePreflightIdentityIndex = $releaseAcceptance.IndexOf('Assert-ReleaseSourceIdentity -ExpectedHead $releaseHead -Phase "preflight"')
 $releaseSelectorInvokeIndex = $releaseAcceptance.IndexOf('. $runtimeJavaSelector')
@@ -894,6 +961,16 @@ $releaseSmokeExpectedShaIndex = $releaseAcceptance.LastIndexOf('-ExpectedServerS
 $releasePostSmokeIdentityIndex = $releaseAcceptance.IndexOf('Assert-ReleaseSourceIdentity -ExpectedHead $releaseHead -Phase "post-smoke"')
 $releaseFinalPassIndex = $releaseAcceptance.IndexOf('CURRENT_RELEASE_ACCEPTANCE_PASS')
 
+Assert-True ($releaseSmokeBuildIndex -ge 0 -and $releaseSmokeRootIndex -gt $releaseSmokeBuildIndex) 'Current release smoke root is not derived from exact build authority.'
+Assert-True ($releaseSmokeInitializeIndex -gt $releaseSmokeRootIndex) 'Current release smoke ancestry is not initialized after exact lexical authority is derived.'
+Assert-True ($releaseSmokeCleanupIndex -gt $releaseSmokeInitializeIndex) 'Current release smoke evidence cleanup can run before guarded ancestry initialization.'
+Assert-True ($releaseSmokeShaPublishIndex -gt $releaseSmokeCleanupIndex) 'Current release server-SHA evidence is published before bounded stale-leaf cleanup.'
+Assert-True ($releaseSmokeProcessInfoIndex -gt $releaseSmokeShaPublishIndex -and $releaseSmokeProcessStartIndex -gt $releaseSmokeProcessInfoIndex) 'Current release exact server process setup does not follow owned SHA evidence publication.'
+Assert-True ($releaseSmokeStdoutPipeIndex -gt $releaseSmokeProcessStartIndex -and $releaseSmokeStderrPipeIndex -gt $releaseSmokeStdoutPipeIndex) 'Current release stdout/stderr pipes are not acquired after exact process start.'
+Assert-True ($releaseSmokeVersionsPublishIndex -gt $releaseSmokeStderrPipeIndex) 'Current release versions evidence publication precedes invocation-owned process output capture.'
+Assert-True ($releaseSmokePipeResultIndex -gt $releaseSmokeVersionsPublishIndex) 'Current release consumes child pipe output before AUX/version semantics complete.'
+Assert-True ($releaseSmokeStdoutPublishIndex -gt $releaseSmokePipeResultIndex -and $releaseSmokeStderrPublishIndex -gt $releaseSmokeStdoutPublishIndex) 'Current release durable stdout/stderr evidence is not published from captured process-pipe bytes.'
+Assert-True ($releaseSmokeCombinedLogIndex -gt $releaseSmokeStderrPublishIndex) 'Current release log assertions do not operate on invocation-owned in-memory pipe bytes.'
 Assert-True ($releaseHeadCaptureIndex -ge 0 -and $releasePreflightIdentityIndex -gt $releaseHeadCaptureIndex) 'Current release does not bind one exact Git head at preflight.'
 Assert-True ($releaseSelectorInvokeIndex -gt $releasePreflightIdentityIndex) 'Current release executes repository Java-selector code before source identity preflight.'
 Assert-True ($releaseLauncherInvokeIndex -gt $releasePreflightIdentityIndex) 'Current release executes launcher regression before source identity preflight.'
@@ -936,7 +1013,7 @@ $releasePrivateHashIndex = $releaseAcceptance.IndexOf('Get-FileHash -InputStream
 $releaseExpectedShaCompareIndex = $releaseAcceptance.IndexOf('$certifiedSha -ne $ExpectedServerSha256', $releaseSmokeFunctionIndex)
 $releasePrivateExpectedShaCompareIndex = $releaseAcceptance.IndexOf('$privateSha -ne $ExpectedServerSha256', $releaseSmokeFunctionIndex)
 $releasePrivateVerifyIndex = $releaseAcceptance.IndexOf('CURRENT_RELEASE_SERVER_SNAPSHOT_VERIFIED', $releaseSmokeFunctionIndex)
-$releaseProcessSpawnIndex = $releaseAcceptance.IndexOf('$process = Start-Process', $releaseSmokeFunctionIndex)
+$releaseProcessSpawnIndex = $releaseAcceptance.IndexOf('if (-not $process.Start())', $releaseSmokeFunctionIndex)
 $releaseFirstOwnershipIndex = $releaseAcceptance.IndexOf('Assert-ExactSmokeListenerOwnership', $releaseSmokeFunctionIndex)
 $releaseAuxIndex = $releaseAcceptance.IndexOf('Invoke-WebRequest', $releaseSmokeFunctionIndex)
 $releaseFinalOwnershipIndex = $releaseAcceptance.LastIndexOf('Assert-ExactSmokeListenerOwnership')
@@ -1076,7 +1153,7 @@ foreach ($entry in @(
     @('function Get-LauncherOwnedProcessIds', 1),
     @('function Stop-LauncherOwnedProcessTree', 1),
     @('function Throw-LauncherFailureWithCleanup', 1),
-    @('[switch]$IncludeExitedRoots', 1),
+    @('[switch]$IncludeExitedRoots', 2),
     @('Get-LauncherOwnedProcessRecords -Roots $Roots -Label $Label -IncludeExitedRoots', 2),
     @('$recordedRoots = @(', 1),
     @('$recordedRootPids = @(', 1),

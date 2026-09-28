@@ -74,6 +74,188 @@ function Assert-ReleaseSourceIdentity {
     ) -ForegroundColor Green
 }
 
+function Assert-ReleaseOrdinaryDirectory {
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$Path,
+        [Parameter(Mandatory=$true)]
+        [string]$Label
+    )
+
+    try {
+        $item = Get-Item -LiteralPath $Path -Force -ErrorAction Stop
+    }
+    catch {
+        throw "$Label is not an ordinary directory: $Path"
+    }
+
+    if (-not $item.PSIsContainer) {
+        throw "$Label is not an ordinary directory: $Path"
+    }
+
+    if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+        throw "$Label must not be a reparse point: $Path"
+    }
+}
+
+function Assert-ReleaseSmokeAncestry {
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$BuildRoot,
+        [Parameter(Mandatory=$true)]
+        [string]$SmokeRoot,
+        [Parameter(Mandatory=$true)]
+        [string]$Phase
+    )
+
+    $trimChars = [char[]]@(
+        [IO.Path]::DirectorySeparatorChar,
+        [IO.Path]::AltDirectorySeparatorChar
+    )
+    $serverFull = [IO.Path]::GetFullPath($server).TrimEnd($trimChars)
+    $buildFull = [IO.Path]::GetFullPath($BuildRoot).TrimEnd($trimChars)
+    $smokeFull = [IO.Path]::GetFullPath($SmokeRoot).TrimEnd($trimChars)
+    $expectedBuild = [IO.Path]::GetFullPath((Join-Path $serverFull 'build')).TrimEnd($trimChars)
+    $expectedSmoke = [IO.Path]::GetFullPath((Join-Path $expectedBuild 'release-smoke')).TrimEnd($trimChars)
+
+    if (-not [StringComparer]::OrdinalIgnoreCase.Equals($buildFull, $expectedBuild)) {
+        throw "Current release smoke build root escaped repository authority at phase '$Phase': $buildFull"
+    }
+
+    if (-not [StringComparer]::OrdinalIgnoreCase.Equals($smokeFull, $expectedSmoke)) {
+        throw "Current release smoke evidence root escaped repository authority at phase '$Phase': $smokeFull"
+    }
+
+    Assert-ReleaseOrdinaryDirectory -Path $BuildRoot -Label "Current release smoke build root at phase '$Phase'"
+    Assert-ReleaseOrdinaryDirectory -Path $SmokeRoot -Label "Current release smoke evidence root at phase '$Phase'"
+}
+
+function Initialize-ReleaseSmokeDirectory {
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$BuildRoot,
+        [Parameter(Mandatory=$true)]
+        [string]$SmokeRoot
+    )
+
+    $trimChars = [char[]]@(
+        [IO.Path]::DirectorySeparatorChar,
+        [IO.Path]::AltDirectorySeparatorChar
+    )
+    $serverFull = [IO.Path]::GetFullPath($server).TrimEnd($trimChars)
+    $buildFull = [IO.Path]::GetFullPath($BuildRoot).TrimEnd($trimChars)
+    $smokeFull = [IO.Path]::GetFullPath($SmokeRoot).TrimEnd($trimChars)
+    $expectedBuild = [IO.Path]::GetFullPath((Join-Path $serverFull 'build')).TrimEnd($trimChars)
+    $expectedSmoke = [IO.Path]::GetFullPath((Join-Path $expectedBuild 'release-smoke')).TrimEnd($trimChars)
+
+    if (-not [StringComparer]::OrdinalIgnoreCase.Equals($buildFull, $expectedBuild)) {
+        throw "Current release smoke build root escaped repository authority: $buildFull"
+    }
+
+    if (-not [StringComparer]::OrdinalIgnoreCase.Equals($smokeFull, $expectedSmoke)) {
+        throw "Current release smoke evidence root escaped repository authority: $smokeFull"
+    }
+
+    if (Test-Path -LiteralPath $BuildRoot) {
+        Assert-ReleaseOrdinaryDirectory -Path $BuildRoot -Label 'Current release smoke build root'
+    }
+    else {
+        New-Item -ItemType Directory -Path $BuildRoot | Out-Null
+        Assert-ReleaseOrdinaryDirectory -Path $BuildRoot -Label 'Current release smoke build root'
+    }
+
+    if (Test-Path -LiteralPath $SmokeRoot) {
+        Assert-ReleaseOrdinaryDirectory -Path $SmokeRoot -Label 'Current release smoke evidence root'
+    }
+    else {
+        New-Item -ItemType Directory -Path $SmokeRoot | Out-Null
+        Assert-ReleaseOrdinaryDirectory -Path $SmokeRoot -Label 'Current release smoke evidence root'
+    }
+
+    Assert-ReleaseSmokeAncestry -BuildRoot $BuildRoot -SmokeRoot $SmokeRoot -Phase 'initialized'
+}
+
+function Remove-ReleaseSmokeEvidenceLeafSafely {
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$BuildRoot,
+        [Parameter(Mandatory=$true)]
+        [string]$SmokeRoot,
+        [Parameter(Mandatory=$true)]
+        [string]$Path
+    )
+
+    if (-not (Test-Path -LiteralPath $Path)) {
+        return
+    }
+
+    Assert-ReleaseSmokeAncestry -BuildRoot $BuildRoot -SmokeRoot $SmokeRoot -Phase 'before-evidence-leaf-cleanup'
+
+    try {
+        $item = Get-Item -LiteralPath $Path -Force -ErrorAction Stop
+    }
+    catch {
+        throw "Current release smoke evidence cleanup leaf is not an ordinary file: $Path"
+    }
+
+    if ($item.PSIsContainer -or (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0)) {
+        throw "Current release smoke evidence cleanup refuses directory/reparse substitution: $Path"
+    }
+
+    $expected = [IO.Path]::GetFullPath($Path)
+    if (-not [StringComparer]::OrdinalIgnoreCase.Equals($item.FullName, $expected)) {
+        throw "Current release smoke evidence cleanup leaf identity drifted: $($item.FullName)"
+    }
+
+    Assert-ReleaseSmokeAncestry -BuildRoot $BuildRoot -SmokeRoot $SmokeRoot -Phase 'immediately-before-evidence-leaf-removal'
+    Remove-Item -LiteralPath $Path -Force -ErrorAction Stop
+}
+
+function Write-ReleaseSmokeEvidenceTextOwned {
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$BuildRoot,
+        [Parameter(Mandatory=$true)]
+        [string]$SmokeRoot,
+        [Parameter(Mandatory=$true)]
+        [string]$Path,
+        [Parameter(Mandatory=$true)]
+        [AllowEmptyString()]
+        [string]$Text,
+        [Parameter(Mandatory=$true)]
+        [string]$Label
+    )
+
+    Assert-ReleaseSmokeAncestry -BuildRoot $BuildRoot -SmokeRoot $SmokeRoot -Phase ("before-" + $Label + "-create")
+
+    $writer = $null
+    try {
+        $writer = [IO.FileStream]::new(
+            $Path,
+            [IO.FileMode]::CreateNew,
+            [IO.FileAccess]::Write,
+            [IO.FileShare]::None
+        )
+
+        # The leaf identity is now invocation-owned. Revalidate its parent
+        # ancestry after acquisition so a concurrent parent substitution
+        # cannot redirect the subsequent write.
+        Assert-ReleaseSmokeAncestry -BuildRoot $BuildRoot -SmokeRoot $SmokeRoot -Phase ("after-" + $Label + "-create")
+
+        $encoding = [Text.UTF8Encoding]::new($false)
+        $bytes = $encoding.GetBytes($Text)
+        if ($bytes.Length -ne 0) {
+            $writer.Write($bytes, 0, $bytes.Length)
+        }
+        $writer.Flush()
+    }
+    finally {
+        if ($null -ne $writer) {
+            $writer.Dispose()
+        }
+    }
+}
+
 function Get-ReleasePortListeners {
     return @(
         Get-NetTCPConnection -State Listen -ErrorAction Stop |
@@ -177,14 +359,22 @@ function Invoke-CurrentServerLoopbackSmoke {
         throw "Current release smoke requires vacant ports 43594/43595 before exact server spawn."
     }
 
-    $smokeDir = Join-Path $server "build\release-smoke"
+    $smokeBuildRoot = Join-Path $server "build"
+    $smokeDir = Join-Path $smokeBuildRoot "release-smoke"
     $stdout = Join-Path $smokeDir "server.stdout.log"
     $stderr = Join-Path $smokeDir "server.stderr.log"
     $versionsPath = Join-Path $smokeDir "versions.txt"
     $shaPath = Join-Path $smokeDir "server-sha256.txt"
 
-    New-Item -ItemType Directory -Force -Path $smokeDir | Out-Null
-    Remove-Item -LiteralPath $stdout, $stderr, $versionsPath, $shaPath -Force -ErrorAction SilentlyContinue
+    Initialize-ReleaseSmokeDirectory -BuildRoot $smokeBuildRoot -SmokeRoot $smokeDir
+    foreach ($evidenceLeaf in @(
+        $stdout,
+        $stderr,
+        $versionsPath,
+        $shaPath
+    )) {
+        Remove-ReleaseSmokeEvidenceLeafSafely -BuildRoot $smokeBuildRoot -SmokeRoot $smokeDir -Path $evidenceLeaf
+    }
 
     $artifactRoot = Join-Path (
         [IO.Path]::GetTempPath()
@@ -198,8 +388,11 @@ function Invoke-CurrentServerLoopbackSmoke {
     $privateWriter = $null
     $privateGuard = $null
     $process = $null
+    $stdoutTask = $null
+    $stderrTask = $null
     $primaryFailure = $null
     $cleanupFailures = New-Object 'System.Collections.Generic.List[string]'
+    $semanticSmokeSucceeded = $false
     $smokeSucceeded = $false
     $certifiedSha = $null
     $spawnedPid = $null
@@ -262,9 +455,12 @@ function Invoke-CurrentServerLoopbackSmoke {
             )
         }
 
-        Set-Content -LiteralPath $shaPath -Value (
-            "$certifiedSha  SpawnPKLocalServer.jar"
-        ) -Encoding ASCII
+        Write-ReleaseSmokeEvidenceTextOwned `
+            -BuildRoot $smokeBuildRoot `
+            -SmokeRoot $smokeDir `
+            -Path $shaPath `
+            -Text ("$certifiedSha  SpawnPKLocalServer.jar" + [Environment]::NewLine) `
+            -Label 'server-sha'
 
         Write-Host (
             "CURRENT_RELEASE_SERVER_SNAPSHOT_VERIFIED " +
@@ -277,13 +473,26 @@ function Invoke-CurrentServerLoopbackSmoke {
             throw "Current release smoke ports became occupied before exact server spawn."
         }
 
-        $process = Start-Process `
-            -FilePath $runtimeJava.Path `
-            -ArgumentList @("-jar", "`"$privateJar`"", "--bootstrap", "--movement") `
-            -WorkingDirectory $repo `
-            -RedirectStandardOutput $stdout `
-            -RedirectStandardError $stderr `
-            -PassThru
+        $processInfo = New-Object System.Diagnostics.ProcessStartInfo
+        $processInfo.FileName = $runtimeJava.Path
+        $processInfo.Arguments = '-jar "' + $privateJar + '" --bootstrap --movement'
+        $processInfo.WorkingDirectory = $repo
+        $processInfo.UseShellExecute = $false
+        $processInfo.RedirectStandardOutput = $true
+        $processInfo.RedirectStandardError = $true
+        $processInfo.CreateNoWindow = $true
+
+        $process = New-Object System.Diagnostics.Process
+        $process.StartInfo = $processInfo
+        if (-not $process.Start()) {
+            throw 'Current release exact server process did not start.'
+        }
+
+        # Drain both child pipes asynchronously for the entire process
+        # lifetime. No mutable filesystem path participates in stdout/stderr
+        # authority.
+        $stdoutTask = $process.StandardOutput.ReadToEndAsync()
+        $stderrTask = $process.StandardError.ReadToEndAsync()
         $spawnedPid = [int]$process.Id
 
         $ready = $false
@@ -366,28 +575,18 @@ function Invoke-CurrentServerLoopbackSmoke {
             }
         }
 
-        Set-Content -LiteralPath $versionsPath -Value $body -Encoding ASCII
-
-        Start-Sleep -Milliseconds 100
-
-        $outText = Get-Content -LiteralPath $stdout -Raw -ErrorAction SilentlyContinue
-        $errText = Get-Content -LiteralPath $stderr -Raw -ErrorAction SilentlyContinue
-        $combinedLog = ([string]$outText) + "`n" + ([string]$errText)
-
-        foreach ($requiredLog in @(
-            "GAME  : /127.0.0.1:43594",
-            "AUX   : /127.0.0.1:43595"
-        )) {
-            if (-not $combinedLog.Contains($requiredLog)) {
-                throw "Current LocalLab server log is missing '$requiredLog'"
-            }
-        }
+        Write-ReleaseSmokeEvidenceTextOwned `
+            -BuildRoot $smokeBuildRoot `
+            -SmokeRoot $smokeDir `
+            -Path $versionsPath `
+            -Text ($body + [Environment]::NewLine) `
+            -Label 'versions'
 
         Assert-ExactSmokeListenerOwnership `
             -ExpectedProcess $process `
             -Phase "before-cleanup"
 
-        $smokeSucceeded = $true
+        $semanticSmokeSucceeded = $true
     }
     catch {
         $primaryFailure = $_
@@ -478,6 +677,47 @@ function Invoke-CurrentServerLoopbackSmoke {
             $cleanupFailures.Add(
                 "artifact=$($_.Exception.Message)"
             )
+        }
+    }
+
+    if ($null -eq $primaryFailure -and
+        $cleanupFailures.Count -eq 0 -and
+        $semanticSmokeSucceeded) {
+        try {
+            if ($null -eq $stdoutTask -or $null -eq $stderrTask) {
+                throw 'Current release smoke process output pipes were not captured.'
+            }
+
+            $outText = [string]$stdoutTask.GetAwaiter().GetResult()
+            $errText = [string]$stderrTask.GetAwaiter().GetResult()
+
+            Write-ReleaseSmokeEvidenceTextOwned `
+                -BuildRoot $smokeBuildRoot `
+                -SmokeRoot $smokeDir `
+                -Path $stdout `
+                -Text $outText `
+                -Label 'stdout'
+            Write-ReleaseSmokeEvidenceTextOwned `
+                -BuildRoot $smokeBuildRoot `
+                -SmokeRoot $smokeDir `
+                -Path $stderr `
+                -Text $errText `
+                -Label 'stderr'
+
+            $combinedLog = $outText + "`n" + $errText
+            foreach ($requiredLog in @(
+                "GAME  : /127.0.0.1:43594",
+                "AUX   : /127.0.0.1:43595"
+            )) {
+                if (-not $combinedLog.Contains($requiredLog)) {
+                    throw "Current LocalLab server output pipes are missing '$requiredLog'"
+                }
+            }
+
+            $smokeSucceeded = $true
+        }
+        catch {
+            $primaryFailure = $_
         }
     }
 
