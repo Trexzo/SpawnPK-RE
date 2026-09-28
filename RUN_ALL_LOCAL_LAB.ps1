@@ -67,6 +67,22 @@ function Get-LauncherOwnedProcessIds {
         throw "$Label ownership enumeration failed: $($_.Exception.Message)"
     }
 
+    if ($IncludeExitedRoots) {
+        $exitedRootPids = @(
+            $recordedRootPids |
+                Where-Object { $_ -notin $liveRootPids }
+        )
+        foreach ($exitedRootPid in $exitedRootPids) {
+            $reused = @(
+                $snapshot |
+                    Where-Object { [int]$_.ProcessId -eq $exitedRootPid }
+            )
+            if ($reused.Count -ne 0) {
+                throw "$Label refused ambiguous exited-root PID reuse: $exitedRootPid"
+            }
+        }
+    }
+
     $depthByPid = @{}
     foreach ($rootPid in $rootPids) {
         if ($rootPid -eq $PID) {
