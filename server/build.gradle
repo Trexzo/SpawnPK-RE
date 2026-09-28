@@ -4094,6 +4094,9 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
             'Assert-OrdinaryDirectory -Path $runtimeRoot',
             'Assert-OrdinaryDirectory -Path $evidenceRoot',
             'Assert-OrdinaryDirectory -Path $snapshotRoot',
+            "Assert-OrdinaryDirectory -Path \$runtimeRoot -Label 'Certification runtime root before client snapshot copy'",
+            "Assert-OrdinaryDirectory -Path \$evidenceRoot -Label 'Certification evidence root before client snapshot copy'",
+            "Assert-OrdinaryDirectory -Path \$snapshotRoot -Label 'Certification client snapshot root before client snapshot copy'",
             'Initialize-CertificationEvidenceRoot',
             'git -C $repo rev-parse HEAD',
             'git -C $repo status --porcelain --untracked-files=normal',
@@ -4251,7 +4254,9 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
         [
             'function Assert-OrdinaryDirectory': 1,
             'function Initialize-CertificationEvidenceRoot': 1,
-            'Assert-OrdinaryDirectory -Path $snapshotRoot': 1
+            'Assert-OrdinaryDirectory -Path $runtimeRoot': 3,
+            'Assert-OrdinaryDirectory -Path $evidenceRoot': 3,
+            'Assert-OrdinaryDirectory -Path $snapshotRoot': 2
         ].each { anchor, expectedCount ->
             int count = 0
             int from = 0
@@ -4286,6 +4291,40 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
            evidenceRootInitIndex >= snapshotRootCreateIndex)
             throw new GradleException(
                 'Certification evidence-root validation must complete before invocation snapshot creation.'
+            )
+
+        int snapshotWriterIndex =
+            text.indexOf(
+                '\$snapshotWriter ='
+            )
+        int runtimeRevalidateIndex =
+            text.indexOf(
+                "Assert-OrdinaryDirectory -Path \$runtimeRoot -Label 'Certification runtime root before client snapshot copy'",
+                snapshotWriterIndex
+            )
+        int evidenceRevalidateIndex =
+            text.indexOf(
+                "Assert-OrdinaryDirectory -Path \$evidenceRoot -Label 'Certification evidence root before client snapshot copy'",
+                runtimeRevalidateIndex
+            )
+        int snapshotRevalidateIndex =
+            text.indexOf(
+                "Assert-OrdinaryDirectory -Path \$snapshotRoot -Label 'Certification client snapshot root before client snapshot copy'",
+                evidenceRevalidateIndex
+            )
+        int snapshotCopyIndex =
+            text.indexOf(
+                '\$sourceGuard.CopyTo(\$snapshotWriter)',
+                snapshotRevalidateIndex
+            )
+
+        if(snapshotWriterIndex < 0 ||
+           runtimeRevalidateIndex <= snapshotWriterIndex ||
+           evidenceRevalidateIndex <= runtimeRevalidateIndex ||
+           snapshotRevalidateIndex <= evidenceRevalidateIndex ||
+           snapshotCopyIndex <= snapshotRevalidateIndex)
+            throw new GradleException(
+                'Client snapshot authority ordering drifted: expected destination CreateNew -> runtime/evidence/snapshot parent revalidation -> guarded source copy.'
             )
 
         if(!ignoreText.readLines().any {
