@@ -346,7 +346,8 @@ Assert-True ($nonAirgap -match [regex]::Escape('$snapshotGuard.Dispose()')) 'Exp
 Assert-True ($nonAirgap -match [regex]::Escape('Remove-Item -LiteralPath $launchSnapshot -Force -ErrorAction Stop')) 'Explicit nonairgap launcher does not clean the exact snapshot leaf.'
 Assert-True ($nonAirgap -match [regex]::Escape('Remove-Item -LiteralPath $launchRoot -ErrorAction Stop')) 'Explicit nonairgap launcher does not non-recursively clean the invocation-owned snapshot directory.'
 Assert-True ($nonAirgap -notmatch 'Remove-Item\s+-LiteralPath\s+\$launchRoot[^\r\n]*-Recurse') 'Explicit nonairgap launcher reintroduced recursive snapshot-directory cleanup.'
-Assert-True ($nonAirgap -match '\$LASTEXITCODE\s+-ne\s+0') 'Explicit nonairgap launcher does not fail on a nonzero client exit.'
+Assert-True ($nonAirgap -match '\$clientExit\s*=\s*\$LASTEXITCODE') 'Explicit nonairgap launcher does not capture the native client exit code.'
+Assert-True ($nonAirgap -match 'if\s*\(\s*\$clientExit\s+-ne\s+0\s*\)') 'Explicit nonairgap launcher does not fail on a captured nonzero client exit.'
 Assert-True ($nonAirgap -match 'NONAIRGAP_DIAGNOSTIC_EXPLICIT') 'Explicit nonairgap launcher lost its external-endpoint warning marker.'
 Assert-True ($nonAirgap -notmatch '&\s+java\s+-jar') 'Explicit nonairgap launcher reintroduced bare PATH Java execution.'
 Assert-True ($nonAirgap -match '\$hadCallerJavaHome\s*=\s*Test-Path Env:JAVA_HOME') 'Explicit nonairgap launcher does not record caller JAVA_HOME ownership.'
@@ -376,6 +377,8 @@ foreach ($entry in @(
     @('Get-FileHash -InputStream $snapshotGuard -Algorithm SHA256', 1),
     @('NONAIRGAP_CLIENT_LAUNCH_SNAPSHOT_VERIFIED', 1),
     @('& $java.Path -jar $launchSnapshot', 1),
+    @('$clientExit = $LASTEXITCODE', 1),
+    @('if ($clientExit -ne 0)', 1),
     @('$snapshotGuard.Dispose()', 1),
     @('Remove-Item -LiteralPath $launchSnapshot -Force -ErrorAction Stop', 1),
     @('Remove-Item -LiteralPath $launchRoot -ErrorAction Stop', 1),
