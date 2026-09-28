@@ -9,7 +9,8 @@ $ErrorActionPreference = 'Stop'
 $repo = Split-Path -Parent $PSScriptRoot
 $selector = Join-Path $PSScriptRoot 'Select-LocalLabBuildJava.ps1'
 $gradlew = Join-Path $repo 'server\gradlew.bat'
-$evidenceRoot = Join-Path $repo 'runtime\certification'
+$runtimeRoot = Join-Path $repo 'runtime'
+$evidenceRoot = Join-Path $runtimeRoot 'certification'
 $expectedClientSha =
     '854f26ff9f134b0317572e7ac1688e6f40a231d5a4c66f8db5d655b7f45ce7c6'
 
@@ -43,6 +44,83 @@ function Get-TrackedWorktreeChanges {
                 )
             }
     )
+}
+
+function Assert-OrdinaryDirectory {
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$Path,
+        [Parameter(Mandatory=$true)]
+        [string]$Label
+    )
+
+    try {
+        $item = Get-Item -LiteralPath $Path -Force -ErrorAction Stop
+    }
+    catch {
+        throw "$Label is not an ordinary directory: $Path"
+    }
+
+    if (-not $item.PSIsContainer) {
+        throw "$Label is not an ordinary directory: $Path"
+    }
+
+    if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+        throw "$Label must not be a reparse point: $Path"
+    }
+}
+
+function Initialize-CertificationEvidenceRoot {
+    $trimChars = [char[]]@(
+        [IO.Path]::DirectorySeparatorChar,
+        [IO.Path]::AltDirectorySeparatorChar
+    )
+
+    $repoFull =
+        [IO.Path]::GetFullPath($repo).TrimEnd($trimChars)
+    $runtimeFull =
+        [IO.Path]::GetFullPath($runtimeRoot).TrimEnd($trimChars)
+    $evidenceFull =
+        [IO.Path]::GetFullPath($evidenceRoot).TrimEnd($trimChars)
+
+    $expectedRuntime =
+        [IO.Path]::GetFullPath(
+            (Join-Path $repoFull 'runtime')
+        ).TrimEnd($trimChars)
+    $expectedEvidence =
+        [IO.Path]::GetFullPath(
+            (Join-Path $expectedRuntime 'certification')
+        ).TrimEnd($trimChars)
+
+    if (-not [StringComparer]::OrdinalIgnoreCase.Equals(
+            $runtimeFull,
+            $expectedRuntime
+        )) {
+        throw "Certification runtime root escaped repository authority: $runtimeFull"
+    }
+
+    if (-not [StringComparer]::OrdinalIgnoreCase.Equals(
+            $evidenceFull,
+            $expectedEvidence
+        )) {
+        throw "Certification evidence root escaped repository runtime authority: $evidenceFull"
+    }
+
+    if (Test-Path -LiteralPath $runtimeRoot) {
+        Assert-OrdinaryDirectory -Path $runtimeRoot -Label 'Certification runtime root'
+    }
+    else {
+        New-Item -ItemType Directory -Path $runtimeRoot | Out-Null
+        Assert-OrdinaryDirectory -Path $runtimeRoot -Label 'Certification runtime root'
+    }
+
+    if (Test-Path -LiteralPath $evidenceRoot) {
+        Assert-OrdinaryDirectory -Path $evidenceRoot -Label 'Certification evidence root'
+    }
+    else {
+        New-Item -ItemType Directory -Path $evidenceRoot | Out-Null
+        Assert-OrdinaryDirectory -Path $evidenceRoot -Label 'Certification evidence root'
+    }
 }
 
 function Get-Sha256Hex {
@@ -97,7 +175,7 @@ if (-not (Test-Path -LiteralPath $client -PathType Leaf)) {
     throw "Exact-v308 certification client is missing: $client"
 }
 
-New-Item -ItemType Directory -Force -Path $evidenceRoot | Out-Null
+Initialize-CertificationEvidenceRoot
 
 $stamp = (Get-Date).ToUniversalTime().ToString('yyyyMMddTHHmmssfffZ')
 $headPrefix = $headBefore.Substring(0, 12)
@@ -136,6 +214,7 @@ $certifiedServerSha = $null
 
 try {
     New-Item -ItemType Directory -Path $snapshotRoot | Out-Null
+    Assert-OrdinaryDirectory -Path $snapshotRoot -Label 'Certification client snapshot root'
 
     $sourceGuard =
         [IO.File]::Open(
@@ -163,6 +242,13 @@ try {
             [IO.FileShare]::None
         )
     try {
+        # Own the exact empty destination file before the final ancestry
+        # revalidation. Sensitive client bytes are copied only while this
+        # already-open non-sharing file handle remains authoritative.
+        Assert-OrdinaryDirectory -Path $runtimeRoot -Label 'Certification runtime root before client snapshot copy'
+        Assert-OrdinaryDirectory -Path $evidenceRoot -Label 'Certification evidence root before client snapshot copy'
+        Assert-OrdinaryDirectory -Path $snapshotRoot -Label 'Certification client snapshot root before client snapshot copy'
+
         $sourceGuard.Position = 0
         $sourceGuard.CopyTo($snapshotWriter)
         $snapshotWriter.Flush($true)
@@ -227,6 +313,12 @@ try {
             [IO.FileAccess]::ReadWrite,
             [IO.FileShare]::Read
         )
+
+    # The exact empty log file handle is owned before final parent validation.
+    # Build output is written only after both parent roots are revalidated.
+    Assert-OrdinaryDirectory -Path $runtimeRoot -Label 'Certification runtime root before log write'
+    Assert-OrdinaryDirectory -Path $evidenceRoot -Label 'Certification evidence root before log write'
+
     $logWriter =
         [IO.StreamWriter]::new(
             $logGuard,
@@ -389,6 +481,11 @@ try {
             [IO.FileAccess]::ReadWrite,
             [IO.FileShare]::Read
         )
+
+    # The exact empty JSON evidence handle is owned before final parent
+    # validation. Durable evidence is written only after both roots revalidate.
+    Assert-OrdinaryDirectory -Path $runtimeRoot -Label 'Certification runtime root before JSON evidence write'
+    Assert-OrdinaryDirectory -Path $evidenceRoot -Label 'Certification evidence root before JSON evidence write'
 
     $evidenceWriter =
         [IO.StreamWriter]::new(
