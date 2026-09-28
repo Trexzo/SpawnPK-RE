@@ -227,7 +227,7 @@ Assert-True ($client -notmatch '(?m)^Set-Location \$PSScriptRoot\s*$') 'Standalo
 Assert-True ($client -match '\$callerLocationPushed\s*=\s*\$false') 'Standalone airgap launcher does not initialize caller-location ownership.'
 Assert-True ($client -match 'Push-Location -LiteralPath \$PSScriptRoot') 'Standalone airgap launcher does not push repository working directory.'
 Assert-True ($client -match '\$callerLocationPushed\s*=\s*\$true') 'Standalone airgap launcher does not record successful location push.'
-Assert-True ($client -match 'if \(\$callerLocationPushed\)\s*\{\s*Pop-Location') 'Standalone airgap launcher does not guarantee caller-location restoration.'
+Assert-True ($client -match 'if \(\$callerLocationPushed\)\s*\{\s*try\s*\{\s*Pop-Location') 'Standalone airgap launcher does not guarantee caller-location restoration through guarded cleanup.'
 Assert-True ($clientWrapper -match '\$hadCallerJavaHome\s*=\s*Test-Path Env:JAVA_HOME') 'Canonical airgap wrapper does not record caller JAVA_HOME ownership.'
 Assert-True ($clientWrapper -match 'finally\s*\{[\s\S]*\$env:Path\s*=\s*\$callerPath') 'Canonical airgap wrapper does not restore caller PATH in finally.'
 Assert-True ($clientWrapper -match 'Remove-Item Env:JAVA_HOME -ErrorAction SilentlyContinue') 'Canonical airgap wrapper does not restore an originally absent JAVA_HOME.'
@@ -358,7 +358,7 @@ Assert-True ($nonAirgap -notmatch '(?m)^Set-Location \$PSScriptRoot\s*$') 'Expli
 Assert-True ($nonAirgap -match '\$callerLocationPushed\s*=\s*\$false') 'Explicit nonairgap launcher does not initialize caller-location ownership.'
 Assert-True ($nonAirgap -match 'Push-Location -LiteralPath \$PSScriptRoot') 'Explicit nonairgap launcher does not push repository working directory.'
 Assert-True ($nonAirgap -match '\$callerLocationPushed\s*=\s*\$true') 'Explicit nonairgap launcher does not record successful location push.'
-Assert-True ($nonAirgap -match 'if \(\$callerLocationPushed\)\s*\{\s*Pop-Location') 'Explicit nonairgap launcher does not guarantee caller-location restoration.'
+Assert-True ($nonAirgap -match 'if \(\$callerLocationPushed\)\s*\{\s*try\s*\{\s*Pop-Location') 'Explicit nonairgap launcher does not guarantee caller-location restoration through guarded cleanup.'
 
 foreach ($entry in @(
     @('$hadCallerJavaHome = Test-Path Env:JAVA_HOME', 1),
