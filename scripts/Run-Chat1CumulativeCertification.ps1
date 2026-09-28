@@ -123,6 +123,124 @@ function Initialize-CertificationEvidenceRoot {
     }
 }
 
+
+function Assert-OrdinaryFile {
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$Path,
+        [Parameter(Mandatory=$true)]
+        [string]$Label
+    )
+
+    try {
+        $item = Get-Item -LiteralPath $Path -Force -ErrorAction Stop
+    }
+    catch {
+        throw "$Label is not an ordinary file: $Path"
+    }
+
+    if ($item.PSIsContainer) {
+        throw "$Label is not an ordinary file: $Path"
+    }
+
+    if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+        throw "$Label must not be a reparse point: $Path"
+    }
+
+    return $item
+}
+
+function Remove-CertificationSnapshotSafely {
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$SnapshotRoot,
+        [Parameter(Mandatory=$true)]
+        [string]$SnapshotClient
+    )
+
+    Assert-OrdinaryDirectory -Path $runtimeRoot -Label 'Certification runtime root before snapshot cleanup'
+    Assert-OrdinaryDirectory -Path $evidenceRoot -Label 'Certification evidence root before snapshot cleanup'
+    Assert-OrdinaryDirectory -Path $SnapshotRoot -Label 'Certification client snapshot root before cleanup'
+
+    $entries = @(
+        Get-ChildItem -LiteralPath $SnapshotRoot -Force -ErrorAction Stop
+    )
+    if ($entries.Count -ne 1 -or
+        $entries[0].Name -ne 'client-v308.jar') {
+        throw (
+            'Certification snapshot cleanup refused unexpected contents. ' +
+            "Expected one client-v308.jar leaf; observed=$($entries.Count)"
+        )
+    }
+
+    $snapshotItem =
+        Assert-OrdinaryFile -Path $SnapshotClient -Label 'Certification client snapshot cleanup leaf'
+    $expectedSnapshot =
+        [IO.Path]::GetFullPath($SnapshotClient)
+    if (-not [StringComparer]::OrdinalIgnoreCase.Equals(
+            $snapshotItem.FullName,
+            $expectedSnapshot
+        )) {
+        throw "Certification snapshot cleanup leaf identity drifted: $($snapshotItem.FullName)"
+    }
+
+    Assert-OrdinaryDirectory -Path $runtimeRoot -Label 'Certification runtime root immediately before snapshot leaf cleanup'
+    Assert-OrdinaryDirectory -Path $evidenceRoot -Label 'Certification evidence root immediately before snapshot leaf cleanup'
+    Assert-OrdinaryDirectory -Path $SnapshotRoot -Label 'Certification client snapshot root immediately before leaf cleanup'
+
+    Remove-Item -LiteralPath $SnapshotClient -Force -ErrorAction Stop
+
+    Assert-OrdinaryDirectory -Path $runtimeRoot -Label 'Certification runtime root before empty snapshot-root cleanup'
+    Assert-OrdinaryDirectory -Path $evidenceRoot -Label 'Certification evidence root before empty snapshot-root cleanup'
+    Assert-OrdinaryDirectory -Path $SnapshotRoot -Label 'Certification client snapshot root before empty cleanup'
+
+    $remaining = @(
+        Get-ChildItem -LiteralPath $SnapshotRoot -Force -ErrorAction Stop
+    )
+    if ($remaining.Count -ne 0) {
+        throw (
+            'Certification snapshot root is not empty after owned leaf cleanup; ' +
+            'refusing recursive deletion.'
+        )
+    }
+
+    Assert-OrdinaryDirectory -Path $runtimeRoot -Label 'Certification runtime root immediately before snapshot-root removal'
+    Assert-OrdinaryDirectory -Path $evidenceRoot -Label 'Certification evidence root immediately before snapshot-root removal'
+    Assert-OrdinaryDirectory -Path $SnapshotRoot -Label 'Certification client snapshot root immediately before removal'
+
+    Remove-Item -LiteralPath $SnapshotRoot -Force -ErrorAction Stop
+}
+
+function Remove-CertificationEvidenceLeafSafely {
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$Path
+    )
+
+    if (-not (Test-Path -LiteralPath $Path)) {
+        return
+    }
+
+    Assert-OrdinaryDirectory -Path $runtimeRoot -Label 'Certification runtime root before failed-evidence cleanup'
+    Assert-OrdinaryDirectory -Path $evidenceRoot -Label 'Certification evidence root before failed-evidence cleanup'
+
+    $item =
+        Assert-OrdinaryFile -Path $Path -Label 'Failed certification evidence cleanup leaf'
+    $expected =
+        [IO.Path]::GetFullPath($Path)
+    if (-not [StringComparer]::OrdinalIgnoreCase.Equals(
+            $item.FullName,
+            $expected
+        )) {
+        throw "Failed certification evidence cleanup leaf identity drifted: $($item.FullName)"
+    }
+
+    Assert-OrdinaryDirectory -Path $runtimeRoot -Label 'Certification runtime root immediately before failed-evidence removal'
+    Assert-OrdinaryDirectory -Path $evidenceRoot -Label 'Certification evidence root immediately before failed-evidence removal'
+
+    Remove-Item -LiteralPath $Path -Force -ErrorAction Stop
+}
+
 function Get-Sha256Hex {
     param(
         [Parameter(Mandatory=$true)]
@@ -208,6 +326,7 @@ $oldJavaHome = $env:JAVA_HOME
 $oldPath = $env:Path
 $sourceGuard = $null
 $privateGuard = $null
+$snapshotRootOwned = $false
 $logGuard = $null
 $logWriter = $null
 $certifiedServerSha = $null
@@ -215,6 +334,7 @@ $certifiedServerSha = $null
 try {
     New-Item -ItemType Directory -Path $snapshotRoot | Out-Null
     Assert-OrdinaryDirectory -Path $snapshotRoot -Label 'Certification client snapshot root'
+    $snapshotRootOwned = $true
 
     $sourceGuard =
         [IO.File]::Open(
@@ -456,8 +576,9 @@ finally {
             $sourceGuard = $null
         }
 
-        if (Test-Path -LiteralPath $snapshotRoot) {
-            Remove-Item -LiteralPath $snapshotRoot -Recurse -Force
+        if ($snapshotRootOwned) {
+            Remove-CertificationSnapshotSafely -SnapshotRoot $snapshotRoot -SnapshotClient $snapshotClient
+            $snapshotRootOwned = $false
         }
     }
     finally {
@@ -517,7 +638,25 @@ catch {
         $evidenceGuard = $null
     }
 
-    Remove-Item -LiteralPath $evidence -Force -ErrorAction SilentlyContinue
+    $publishCleanupFailure = $null
+    try {
+        Remove-CertificationEvidenceLeafSafely -Path $evidence
+    }
+    catch {
+        $publishCleanupFailure = $_
+    }
+
+    if ($null -ne $publishCleanupFailure) {
+        throw [System.Exception]::new(
+            (
+                'Cumulative certification evidence publication failed and cleanup was unsafe/incomplete. ' +
+                "Primary: $($publishFailure.Exception.Message) " +
+                "Cleanup: $($publishCleanupFailure.Exception.Message)"
+            ),
+            $publishFailure.Exception
+        )
+    }
+
     throw $publishFailure
 }
 finally {
