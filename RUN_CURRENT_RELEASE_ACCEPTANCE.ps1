@@ -152,11 +152,16 @@ function Test-LoopbackPort {
 function Invoke-CurrentServerLoopbackSmoke {
     param(
         [Parameter(Mandatory=$true)]
-        [string]$CanonicalJar
+        [string]$CanonicalJar,
+        [Parameter(Mandatory=$true)]
+        [string]$ExpectedServerSha256
     )
 
     if (-not (Test-Path -LiteralPath $CanonicalJar -PathType Leaf)) {
         throw "Missing cumulative-certified LocalLab server JAR: $CanonicalJar"
+    }
+    if ($ExpectedServerSha256 -notmatch '^[0-9a-f]{64}$') {
+        throw "Invalid cumulative-certified expected server SHA-256: $ExpectedServerSha256"
     }
 
     $busyBefore = @(Get-ReleasePortListeners)
@@ -236,10 +241,17 @@ function Invoke-CurrentServerLoopbackSmoke {
             Get-FileHash -InputStream $privateGuard -Algorithm SHA256
         ).Hash.ToLowerInvariant()
 
-        if ($privateSha -ne $certifiedSha) {
+        if ($certifiedSha -ne $ExpectedServerSha256) {
+            throw (
+                "Current release build-path server SHA does not match cumulative certification. " +
+                "Cumulative: $ExpectedServerSha256 BuildPath: $certifiedSha"
+            )
+        }
+
+        if ($privateSha -ne $ExpectedServerSha256) {
             throw (
                 "Current release private server snapshot SHA mismatch. " +
-                "Certified: $certifiedSha Private: $privateSha"
+                "Cumulative: $ExpectedServerSha256 Private: $privateSha"
             )
         }
 
@@ -568,22 +580,58 @@ try {
 
     Assert-ReleaseSourceIdentity -ExpectedHead $releaseHead -Phase "post-build"
 
+    $cumulativeEvidenceName = (
+        "chat1-cumulative-release-" +
+        [Guid]::NewGuid().ToString("N") +
+        ".json"
+    )
+    $cumulativeEvidencePath = Join-Path (
+        Join-Path $repo "runtime\certification"
+    ) $cumulativeEvidenceName
+
     try {
-        & $cumulativeWrapper -ClientJar $client
+        & $cumulativeWrapper -ClientJar $client -EvidenceFileName $cumulativeEvidenceName
     }
     catch {
         throw "Canonical current cumulative certification failed: $($_.Exception.Message)"
     }
 
+    if (-not (Test-Path -LiteralPath $cumulativeEvidencePath -PathType Leaf)) {
+        throw "Canonical cumulative certification evidence is missing: $cumulativeEvidencePath"
+    }
+
+    try {
+        $cumulativeEvidence = (
+            Get-Content -LiteralPath $cumulativeEvidencePath -Raw -Encoding UTF8 |
+                ConvertFrom-Json
+        )
+    }
+    catch {
+        throw "Unable to parse canonical cumulative certification evidence: $($_.Exception.Message)"
+    }
+
+    if ($cumulativeEvidence.format -ne 'spawnpk-chat1-local-certification-evidence-v1' -or
+        $cumulativeEvidence.gitHead -ne $releaseHead -or
+        $cumulativeEvidence.exactV308ClientSha256 -ne $actual -or
+        $cumulativeEvidence.authoritativeMarkerObserved -ne $true) {
+        throw "Canonical cumulative certification evidence identity does not match this release invocation."
+    }
+
+    $certifiedServerSha = [string]$cumulativeEvidence.certifiedServerJarSha256
+    if ($certifiedServerSha -notmatch '^[0-9a-f]{64}$') {
+        throw "Canonical cumulative certification evidence lacks a valid server SHA-256."
+    }
+
     Write-Host (
         "CURRENT_RELEASE_CUMULATIVE_CERTIFICATION_PASS " +
-        "head=$releaseHead clientSha256=$actual hostedPromotionSatisfied=false"
+        "head=$releaseHead clientSha256=$actual " +
+        "serverSha256=$certifiedServerSha hostedPromotionSatisfied=false"
     ) -ForegroundColor Green
 
     Assert-ReleaseSourceIdentity -ExpectedHead $releaseHead -Phase "post-cumulative"
 
     $certifiedJar = Join-Path $server "build\SpawnPKLocalServer.jar"
-    $smokeEvidence = Invoke-CurrentServerLoopbackSmoke -CanonicalJar $certifiedJar
+    $smokeEvidence = Invoke-CurrentServerLoopbackSmoke -CanonicalJar $certifiedJar -ExpectedServerSha256 $certifiedServerSha
 
     Assert-ReleaseSourceIdentity -ExpectedHead $releaseHead -Phase "post-smoke"
 
