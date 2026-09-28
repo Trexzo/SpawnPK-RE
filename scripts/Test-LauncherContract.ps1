@@ -416,22 +416,32 @@ Assert-True ($runtimeBuilder -match '854f26ff9f134b0317572e7ac1688e6f40a231d5a4c
 Assert-True ($runtimeBuilder -match 'V308_LOCAL_CLIENT_BUILD_PREFLIGHT_PASS') 'PowerShell runtime builder does not report complete fail-before-mutation admission.'
 Assert-True ($runtimeBuilder -match '\$canonicalEvidence') 'PowerShell runtime builder no longer resolves canonical evidence-client authority before mutation.'
 Assert-True ($runtimeBuilder -match '\$canonicalOutput') 'PowerShell runtime builder no longer resolves canonical output authority before mutation.'
+Assert-True ($runtimeBuilder -match 'function Assert-CanonicalOutputPathSafe') 'PowerShell runtime builder does not reject reparse aliases on canonical local-client publication path.'
+Assert-True ($runtimeBuilder -match 'Canonical local-client path must not traverse a reparse point') 'PowerShell runtime builder has no existing-component reparse rejection.'
+Assert-True ($runtimeBuilder -match 'Canonical local-client output exists but is not a directory') 'PowerShell runtime builder does not reject non-directory canonical output collisions.'
+Assert-True ($runtimeBuilder -match 'Canonical local-client output must not be a reparse point') 'PowerShell runtime builder does not recheck the final output directory for reparse aliasing.'
+Assert-True ($runtimeBuilder -notmatch 'New-Item -ItemType Directory -Force -Path \\$output') 'PowerShell runtime builder reintroduced forceful canonical output creation before exact path ownership is proven.'
+Assert-ExactTextCount $runtimeBuilder 'Assert-CanonicalOutputPathSafe $output' 2 'PowerShell runtime builder must prove canonical output path safety before and after optional directory creation.'
 
 $runtimeBuilderCanonicalClientIndex = $runtimeBuilder.IndexOf('ClientJar must be the canonical evidence path')
 $runtimeBuilderHashIndex = $runtimeBuilder.IndexOf('Exact v308 client hash mismatch')
 $runtimeBuilderOutputIndex = $runtimeBuilder.IndexOf('OutputDirectory must be the canonical LocalLab runtime directory')
+$runtimeBuilderPathFenceIndex = $runtimeBuilder.IndexOf('$output = Assert-CanonicalOutputPathSafe $output')
 $runtimeBuilderPythonIndex = $runtimeBuilder.IndexOf("Get-Command python")
 $runtimeBuilderPreflightPassIndex = $runtimeBuilder.IndexOf('V308_LOCAL_CLIENT_BUILD_PREFLIGHT_PASS')
-$runtimeBuilderOutputCreateIndex = $runtimeBuilder.IndexOf('New-Item -ItemType Directory -Force -Path $output')
+$runtimeBuilderOutputCreateIndex = $runtimeBuilder.IndexOf('New-Item -ItemType Directory -Path $output')
+$runtimeBuilderPathRecheckIndex = $runtimeBuilder.LastIndexOf('$output = Assert-CanonicalOutputPathSafe $output')
 $runtimeBuilderPatchIndex = $runtimeBuilder.IndexOf('& $python.Source $patcher $client $output')
 $runtimeBuilderFinalVerifyIndex = $runtimeBuilder.IndexOf("& (Join-Path $PSScriptRoot 'Check-ExternalRuntime.ps1')")
 Assert-True ($runtimeBuilderCanonicalClientIndex -ge 0) 'PowerShell runtime builder canonical-client admission check not found.'
 Assert-True ($runtimeBuilderHashIndex -gt $runtimeBuilderCanonicalClientIndex) 'PowerShell runtime builder hashes the client before canonical-path admission.'
 Assert-True ($runtimeBuilderOutputIndex -gt $runtimeBuilderHashIndex) 'PowerShell runtime builder validates canonical output before exact client hash admission completes.'
-Assert-True ($runtimeBuilderPythonIndex -gt $runtimeBuilderOutputIndex) 'PowerShell runtime builder probes Python before canonical output admission.'
+Assert-True ($runtimeBuilderPathFenceIndex -gt $runtimeBuilderOutputIndex) 'PowerShell runtime builder checks path confinement before canonical lexical admission completes.'
+Assert-True ($runtimeBuilderPythonIndex -gt $runtimeBuilderPathFenceIndex) 'PowerShell runtime builder probes Python before canonical output reparse admission.'
 Assert-True ($runtimeBuilderPreflightPassIndex -gt $runtimeBuilderPythonIndex) 'PowerShell runtime builder reports preflight before Python availability is proven.'
 Assert-True ($runtimeBuilderOutputCreateIndex -gt $runtimeBuilderPreflightPassIndex) 'PowerShell runtime builder creates canonical output before all admission preflights pass.'
-Assert-True ($runtimeBuilderPatchIndex -gt $runtimeBuilderOutputCreateIndex) 'PowerShell runtime builder invokes patcher before bounded canonical output setup.'
+Assert-True ($runtimeBuilderPathRecheckIndex -gt $runtimeBuilderOutputCreateIndex) 'PowerShell runtime builder does not recheck created/adopted canonical output before publication.'
+Assert-True ($runtimeBuilderPatchIndex -gt $runtimeBuilderPathRecheckIndex) 'PowerShell runtime builder invokes patcher before post-creation reparse proof.'
 Assert-True ($runtimeBuilderFinalVerifyIndex -gt $runtimeBuilderPatchIndex) 'PowerShell runtime builder final triplet verification does not follow patcher publication.'
 Assert-True ($v308Patcher -match 'ZIP_STORED') 'v308 local-client patcher no longer uses compression-independent deterministic JAR entries.'
 Assert-True ($v308Patcher -match 'wholeJarDeterminismIndependentOfZlib') 'v308 local-client manifest no longer records zlib-independent whole-JAR determinism.'
