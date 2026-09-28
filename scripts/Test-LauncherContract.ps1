@@ -16,6 +16,15 @@ function Assert-True(
     }
 }
 
+function Assert-ExactTextCount(
+    [string]$Text,
+    [string]$Needle,
+    [int]$Expected,
+    [string]$Message
+) {
+    $actual = ([regex]::Matches($Text, [regex]::Escape($Needle))).Count
+    Assert-True ($actual -eq $Expected) "$Message expected=$Expected actual=$actual needle=$Needle"
+}
 function Read-RepoFile([string]$RelativePath) {
     $path = Join-Path $repo $RelativePath
     Assert-True (Test-Path -LiteralPath $path -PathType Leaf) "Missing required launcher file: $RelativePath"
@@ -174,21 +183,49 @@ Assert-True ($quick -match [regex]::Escape('$ports = 43594, 43595')) 'Quick-star
 Assert-True ($quick -match [regex]::Escape('$readyPorts -contains 43594')) 'Quick-start launcher does not require game-port readiness.'
 Assert-True ($quick -match [regex]::Escape('$readyPorts -contains 43595')) 'Quick-start launcher does not require AUX-port readiness.'
 Assert-True ($quick -match [regex]::Escape('$readyOwnerPids.Count -gt 1')) 'Quick-start launcher does not fail closed on multiple listener owners.'
-Assert-True ($quick -match 'Get-CimInstance\s+Win32_Process') 'Quick-start launcher does not inspect listener process identity.'
+Assert-True ($quick -match 'Get-CimInstance\s+Win32_Process') 'Quick-start launcher does not inspect process identity.'
 Assert-True ($quick -match 'SpawnPKLocalServer\|spk\\\.local\\\.Main\|SpawnPK-LocalLab') 'Quick-start launcher does not require expected SpawnPK LocalLab server identity.'
-Assert-True ($quick -match 'AddSeconds\(30\)') 'Quick-start launcher lost the bounded 30-second server readiness window.'
-Assert-True ($quick -match 'QUICKSTART_SERVER_PROCESS_READY') 'Quick-start launcher does not report proven server process readiness.'
-Assert-True ($quick -match 'QUICKSTART_SERVER_PORTS_READY game=43594 aux=43595') 'Quick-start launcher does not report dual-port readiness.'
+Assert-True ($quick -match 'function\s+Get-LauncherOwnedProcessIds') 'Quick-start launcher lacks deterministic descendant ownership resolution.'
+Assert-True ($quick -match 'ParentProcessId') 'Quick-start launcher does not derive owned descendants from Windows parent-process identity.'
+Assert-True ($quick -match '\$candidatePid\s+-notin\s+\$serverOwnedPids') 'Quick-start launcher does not bind ready server PID to the recorded server window.'
+Assert-True ($quick -match '\$_\.ProcessId\s+-in\s+\$clientOwnedPids') 'Quick-start launcher does not bind airgap Java discovery to the recorded client window.'
+Assert-True ($quick -match '\$stableClient\.ProcessId\s+-notin\s+\$stableClientOwnedPids') 'Quick-start client stability does not retain recorded client-window ancestry.'
+Assert-True ($quick -match 'QUICKSTART_LOCAL_LAB_HEALTHY') 'Quick-start launcher lacks an explicit final healthy commit marker.'
+Assert-True ($quick -match 'Throw-LauncherFailureWithCleanup') 'Quick-start launcher does not surface combined launch/cleanup failure.'
+Assert-True ($quick -match 'cleanup was incomplete') 'Quick-start launcher does not report incomplete owned cleanup in the thrown result.'
+Assert-True ($quick -notmatch 'Write-Warning.*owned-process cleanup') 'Quick-start launcher still downgrades owned cleanup failure to a warning.'
+Assert-True ($quick -notmatch 'Stop-Process\s+-Name') 'Quick-start launcher reintroduced broad name-based process cleanup.'
+
+foreach ($entry in @(
+    @('$ready = $false', 1),
+    @('$airgapClient = $null', 1),
+    @('$ownedChildren = @()', 1),
+    @('$serverWindow = Start-Process powershell.exe', 1),
+    @('$clientWindow = Start-Process powershell.exe', 1),
+    @('$ownedChildren += $serverWindow', 1),
+    @('$ownedChildren += $clientWindow', 1),
+    @('QUICKSTART_LOCAL_LAB_HEALTHY', 1),
+    @('Stop-LauncherOwnedProcessTree -Roots $ownedChildren', 1)
+)) {
+    Assert-ExactTextCount $quick $entry[0] ([int]$entry[1]) 'Quick-start structural anchor count drift.'
+}
 
 $quickServerJarIndex = $quick.IndexOf('$serverJar = Join-Path')
-$quickStartIndex = $quick.IndexOf('Start-Process powershell.exe')
+$quickServerSpawnIndex = $quick.IndexOf('$serverWindow = Start-Process powershell.exe')
 $quickDualReadyIndex = $quick.IndexOf('$readyPorts -contains 43595')
-$quickClientLaunchIndex = $quick.IndexOf('& $clientScript')
-Assert-True ($quickServerJarIndex -ge 0 -and $quickServerJarIndex -lt $quickStartIndex) 'Quick-start server-JAR preflight is not established before child launch.'
-Assert-True ($quickStartIndex -ge 0) 'Quick-start child server launch not found.'
-Assert-True ($quickDualReadyIndex -gt $quickStartIndex) 'Quick-start dual-port proof does not occur after server launch.'
-Assert-True ($quickClientLaunchIndex -gt $quickDualReadyIndex) 'Quick-start launches the airgap client before dual-port server readiness is proven.'
-
+$quickClientSpawnIndex = $quick.IndexOf('$clientWindow = Start-Process powershell.exe')
+$quickClientOwnedIndex = $quick.IndexOf('Get-LauncherOwnedProcessIds -Roots @($clientWindow)')
+$quickHealthyIndex = $quick.IndexOf('QUICKSTART_LOCAL_LAB_HEALTHY')
+$quickCleanupIndex = $quick.IndexOf('Stop-LauncherOwnedProcessTree -Roots $ownedChildren')
+$quickCombinedThrowIndex = $quick.LastIndexOf('Throw-LauncherFailureWithCleanup -PrimaryFailure')
+Assert-True ($quickServerJarIndex -ge 0 -and $quickServerJarIndex -lt $quickServerSpawnIndex) 'Quick-start server-JAR preflight is not established before child launch.'
+Assert-True ($quickServerSpawnIndex -ge 0) 'Quick-start owned server launch not found.'
+Assert-True ($quickDualReadyIndex -gt $quickServerSpawnIndex) 'Quick-start dual-port proof does not follow server launch.'
+Assert-True ($quickClientSpawnIndex -gt $quickDualReadyIndex) 'Quick-start client starts before dual-port server readiness.'
+Assert-True ($quickClientOwnedIndex -gt $quickClientSpawnIndex) 'Quick-start client ancestry is checked before its exact root is recorded.'
+Assert-True ($quickHealthyIndex -gt $quickClientOwnedIndex) 'Quick-start healthy marker precedes owned client proof.'
+Assert-True ($quickCleanupIndex -gt $quickHealthyIndex) 'Quick-start cleanup catch is not structurally after the healthy-path body.'
+Assert-True ($quickCombinedThrowIndex -gt $quickCleanupIndex) 'Quick-start does not surface cleanup outcome after cleanup attempt.'
 Assert-True ($externalRuntime -match '854f26ff9f134b0317572e7ac1688e6f40a231d5a4c66f8db5d655b7f45ce7c6') 'External runtime no longer pins exact v308 evidence client.'
 Assert-True ($externalRuntime -match '83b3e27e2aae50512d044ae4c74d84afb36df8b8a8051b5eb0c9275427363c33') 'External runtime no longer pins exact v308 airgap client.'
 Assert-True ($externalRuntime -match '01c878a56ee25fb112dfe8b459dbd11ea26cfa8a92a7f287a4e5ee53f673cdbd') 'External runtime no longer pins exact v308 localhost client.'
@@ -356,48 +393,73 @@ Assert-True ($all -match [regex]::Escape('WATCH_CLIENT_NETWORK.ps1')) 'Multi-cli
 Assert-True ($all -match [regex]::Escape('scripts\Check-ExternalRuntime.ps1')) 'Multi-client launcher does not use current external-runtime preflight.'
 $allTokens = $null
 $allParseErrors = $null
-[void][System.Management.Automation.Language.Parser]::ParseInput(
-    $all,
-    [ref]$allTokens,
-    [ref]$allParseErrors
-)
-$sealedVerifierTokens = @(
-    $allTokens | Where-Object {
-        ([string]$_.Kind) -ne 'Comment' -and
-        $_.Text -match 'VERIFY_OFFLINE_READY\.ps1'
-    }
-)
+[void][System.Management.Automation.Language.Parser]::ParseInput($all,[ref]$allTokens,[ref]$allParseErrors)
+$sealedVerifierTokens = @($allTokens | Where-Object { ([string]$_.Kind) -ne 'Comment' -and $_.Text -match 'VERIFY_OFFLINE_READY\.ps1' })
 Assert-True ($sealedVerifierTokens.Count -eq 0) 'Multi-client launcher still invokes the sealed historical R8.5 verifier.'
 Assert-True ($all -match [regex]::Escape('server\build\SpawnPKLocalServer.jar')) 'Multi-client launcher does not preflight the current built server JAR.'
 Assert-True ($all -match 'LOCAL_LAB_REPLACEMENT_PREFLIGHT_PASS') 'Multi-client launcher does not report complete replacement preflight before process termination.'
-Assert-True ($all -match 'existingAirgapPids') 'Multi-client launcher does not distinguish a newly started airgap client from pre-existing clients.'
-Assert-True ($all -match 'AIRGAP_CLIENT_PROCESS_READY') 'Multi-client launcher does not prove a new airgap Java process started before reporting success.'
+Assert-True ($all -match 'function\s+Get-LauncherOwnedProcessIds') 'Multi-client launcher lacks deterministic descendant ownership resolution.'
+Assert-True ($all -match 'ParentProcessId') 'Multi-client launcher does not derive child authority from parent-process identity.'
+Assert-True ($all -match '\$candidateServerPid\s+-in\s+\$serverOwnedPids') 'Multi-client launcher does not bind server readiness to the recorded server window.'
+Assert-True ($all -match '\$_\.ProcessId\s+-in\s+\$clientOwnedPids') 'Multi-client launcher does not bind client discovery to the recorded client window.'
+Assert-True ($all -match '\$stableAirgapClient\.ProcessId\s+-notin\s+\$stableClientOwnedPids') 'Multi-client client stability does not retain recorded client-window ancestry.'
+Assert-True ($all -match '\$serverOwnerPid\s+-notin\s+\$stableServerOwnedPids') 'Multi-client server stability does not retain recorded server-window ancestry.'
+Assert-True ($all -notmatch 'existingAirgapPids') 'Multi-client launcher still relies on PID-not-preexisting inference instead of exact client-root ancestry.'
+Assert-True ($all -match 'AIRGAP_CLIENT_PROCESS_READY') 'Multi-client launcher does not prove the owned airgap Java process started.'
 Assert-True ($all -match 'SERVER_PORTS_READY game=43594 aux=43595') 'Multi-client launcher does not require both game and AUX listeners before client launch.'
-Assert-True ($all -match 'SERVER_PROCESS_READY') 'Multi-client launcher does not prove both listeners belong to an expected LocalLab Java process.'
-Assert-True ($all -match 'readyOwnerPids.Count -eq 1') 'Multi-client launcher does not require one server process to own both startup listeners.'
-Assert-True ($all -match 'stableOwnerPids.Count -ne 1') 'Multi-client launcher does not recheck singular server ownership after client startup.'
-Assert-True ($all -match 'expectedOwner=\$serverOwnerPid') 'Multi-client launcher does not retain expected server listener ownership through stabilization.'
-Assert-True ($all -match 'readyPortNumbers -contains 43595') 'Multi-client launcher does not gate client launch on AUX port 43595.'
-Assert-True ($all -match 'AIRGAP_CLIENT_PROCESS_STABLE') 'Multi-client launcher does not require the new airgap Java process to survive stabilization.'
-Assert-True ($all -match 'Start-Sleep -Seconds 2') 'Multi-client launcher does not retain the airgap client through the required stabilization dwell.'
-Assert-True ($all -match 'stablePorts -notcontains 43595') 'Multi-client launcher does not recheck AUX listener survival after client startup.'
-Assert-True ($all -match 'client-airgap\\\.jar') 'Multi-client launcher does not identify the airgap client process by client-airgap.jar.'
+Assert-True ($all -match 'SERVER_PROCESS_READY') 'Multi-client launcher does not prove both listeners belong to the launcher-owned LocalLab server.'
+Assert-True ($all -match 'AIRGAP_CLIENT_PROCESS_STABLE') 'Multi-client launcher does not require owned client stabilization.'
+Assert-True ($all -match 'Start-Sleep -Seconds 2') 'Multi-client launcher lost the stabilization dwell.'
+Assert-True ($all -match 'LOCAL_LAB_WINDOWS_STARTED_V521') 'Multi-client launcher lost its final healthy commit marker.'
+Assert-True ($all -match 'Throw-LauncherFailureWithCleanup') 'Multi-client launcher does not surface combined launch/cleanup failure.'
+Assert-True ($all -match 'cleanup was incomplete') 'Multi-client launcher does not report incomplete owned cleanup in the thrown result.'
+Assert-True ($all -notmatch 'Write-Warning.*owned-process cleanup') 'Multi-client launcher still downgrades owned cleanup failure to a warning.'
+Assert-True ($all -notmatch 'Stop-Process\s+-Name') 'Multi-client launcher reintroduced broad name-based process cleanup.'
 Assert-True ($all -notmatch 'RUN_SERVER_LOCAL_WORLD\.ps1') 'Stale RUN_SERVER_LOCAL_WORLD.ps1 target remains.'
 Assert-True ($all -match "'-File'") 'Child launchers are not using explicit PowerShell -File execution.'
 Assert-True ($all -match 'AddSeconds\(30\)') 'Server-ready deadline is not the required 30-second window.'
 Assert-True ($all -match 'R85 JAVA11\+ AUTOSELECT BEGIN') 'Compatibility selector marker was removed.'
+
+foreach ($entry in @(
+    @('$ready = $false', 1),
+    @('$airgapClient = $null', 1),
+    @('$ownedChildren = @()', 1),
+    @('$serverWindow = Start-Process powershell.exe', 1),
+    @('$watcherWindow = Start-Process powershell.exe', 1),
+    @('$clientWindow = Start-Process powershell.exe', 1),
+    @('$ownedChildren += $serverWindow', 1),
+    @('$ownedChildren += $watcherWindow', 1),
+    @('$ownedChildren += $clientWindow', 1),
+    @('LOCAL_LAB_WINDOWS_STARTED_V521', 1),
+    @('Stop-LauncherOwnedProcessTree -Roots $ownedChildren', 1)
+)) {
+    Assert-ExactTextCount $all $entry[0] ([int]$entry[1]) 'Multi-client structural anchor count drift.'
+}
 
 $allRuntimeCheckIndex = $all.IndexOf('& $runtimeCheck')
 $allServerJarPreflightIndex = $all.IndexOf('if (-not (Test-Path -LiteralPath $serverJar -PathType Leaf))')
 $allLauncherPreflightIndex = $all.IndexOf('foreach ($required in @($serverScript,$watcherScript,$clientScript))')
 $allReplacementPreflightPassIndex = $all.IndexOf('LOCAL_LAB_REPLACEMENT_PREFLIGHT_PASS')
 $allStopIndex = $all.IndexOf('Stop-Process -Id $ownerPid -Force')
+$allServerSpawnIndex = $all.IndexOf('$serverWindow = Start-Process powershell.exe')
+$allWatcherSpawnIndex = $all.IndexOf('$watcherWindow = Start-Process powershell.exe')
+$allClientSpawnIndex = $all.IndexOf('$clientWindow = Start-Process powershell.exe')
+$allClientOwnedIndex = $all.IndexOf('Get-LauncherOwnedProcessIds -Roots @($clientWindow)')
+$allHealthyIndex = $all.IndexOf('LOCAL_LAB_WINDOWS_STARTED_V521')
+$allCleanupIndex = $all.IndexOf('Stop-LauncherOwnedProcessTree -Roots $ownedChildren')
+$allCombinedThrowIndex = $all.LastIndexOf('Throw-LauncherFailureWithCleanup -PrimaryFailure')
 Assert-True ($allRuntimeCheckIndex -ge 0) 'Multi-client external-runtime preflight invocation not found.'
 Assert-True ($allServerJarPreflightIndex -gt $allRuntimeCheckIndex) 'Multi-client replacement server JAR is checked before external-runtime authority.'
 Assert-True ($allLauncherPreflightIndex -gt $allServerJarPreflightIndex) 'Multi-client launcher components are not checked after server-JAR preflight.'
 Assert-True ($allReplacementPreflightPassIndex -gt $allLauncherPreflightIndex) 'Multi-client replacement preflight marker is emitted before required launcher checks.'
 Assert-True ($allStopIndex -gt $allReplacementPreflightPassIndex) 'Multi-client launcher may terminate an existing LocalLab before replacement preflight completes.'
-
+Assert-True ($allServerSpawnIndex -gt $allStopIndex) 'Multi-client owned server starts before replacement conflict cleanup completes.'
+Assert-True ($allWatcherSpawnIndex -gt $allServerSpawnIndex) 'Multi-client watcher spawn ordering is malformed.'
+Assert-True ($allClientSpawnIndex -gt $allWatcherSpawnIndex) 'Multi-client client spawn ordering is malformed.'
+Assert-True ($allClientOwnedIndex -gt $allClientSpawnIndex) 'Multi-client client ancestry is checked before its exact root is recorded.'
+Assert-True ($allHealthyIndex -gt $allClientOwnedIndex) 'Multi-client healthy marker precedes owned client proof.'
+Assert-True ($allCleanupIndex -gt $allHealthyIndex) 'Multi-client cleanup catch is not structurally after the healthy-path body.'
+Assert-True ($allCombinedThrowIndex -gt $allCleanupIndex) 'Multi-client does not surface cleanup outcome after cleanup attempt.'
 Assert-True ($bootstrap -match '\[switch\]\$SkipConfigPatch') 'Bootstrap no longer preserves the legacy -SkipConfigPatch compatibility switch.'
 Assert-True ($bootstrap -match 'BOOTSTRAP_CONFIG_PATCH_RETIRED') 'Bootstrap does not state that live config mutation is retired.'
 Assert-True ($bootstrap -match 'isolatedCachePipelineRequired=true') 'Bootstrap does not point custom-cache work to isolated authority.'
