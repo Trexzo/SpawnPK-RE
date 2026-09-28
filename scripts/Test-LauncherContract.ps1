@@ -129,7 +129,9 @@ foreach ($entry in @(
     @('$callerJavaHome = $env:JAVA_HOME', 1),
     @('$callerPath = $env:Path', 1),
     @('$env:Path = $callerPath', 1),
-    @('Remove-Item Env:JAVA_HOME -ErrorAction SilentlyContinue', 1)
+    @('Remove-Item Env:JAVA_HOME -ErrorAction SilentlyContinue', 1),
+    @('Stop-Process -InputObject $process -Force -ErrorAction SilentlyContinue', 1),
+    @('$process.WaitForExit(5000)', 1)
 )) {
     Assert-ExactTextCount $r13Acceptance $entry[0] ([int]$entry[1]) 'R13 acceptance Java-environment ownership count drift.'
 }
@@ -543,6 +545,11 @@ Assert-True ($releaseAcceptance -match '\$callerJavaHome\s*=\s*\$env:JAVA_HOME')
 Assert-True ($releaseAcceptance -match '\$callerPath\s*=\s*\$env:Path') 'Current release acceptance does not snapshot caller PATH.'
 Assert-True ($releaseAcceptance -match 'finally\s*\{[\s\S]*\$env:Path\s*=\s*\$callerPath') 'Current release acceptance does not restore caller PATH in outer finally.'
 Assert-True ($releaseAcceptance -match 'Remove-Item Env:JAVA_HOME -ErrorAction SilentlyContinue') 'Current release acceptance does not restore an originally absent JAVA_HOME.'
+Assert-True ($releaseAcceptance -match 'Stop-Process -InputObject \$process -Force') 'Current release smoke teardown does not terminate the exact retained process object.'
+Assert-True ($releaseAcceptance -match '\$process\.WaitForExit\(5000\)') 'Current release smoke teardown does not use a finite object-bound exit wait.'
+Assert-True ($releaseAcceptance -notmatch 'Stop-Process -Id \$process\.Id') 'Current release smoke teardown reintroduced PID-only termination authority.'
+Assert-True ($releaseAcceptance -notmatch 'Wait-Process -Id \$process\.Id') 'Current release smoke teardown reintroduced PID-only wait authority.'
+Assert-True ($releaseAcceptance -match 'finally\s*\{[\s\S]*Stop-Process -InputObject \$process -Force[\s\S]*\$process\.WaitForExit\(5000\)') 'Current release smoke object-bound teardown is not structurally owned by finally.'
 
 foreach ($entry in @(
     @('$hadCallerJavaHome = Test-Path Env:JAVA_HOME', 1),
@@ -559,11 +566,19 @@ $releaseJavaIndex = $releaseAcceptance.IndexOf('$runtimeJava = Set-LocalLabJava'
 $releaseCumulativeIndex = $releaseAcceptance.IndexOf('& $cumulativeWrapper -ClientJar $client')
 $releaseSmokeIndex = $releaseAcceptance.LastIndexOf('Invoke-CurrentServerLoopbackSmoke')
 $releaseStartProcessIndex = $releaseAcceptance.IndexOf('-FilePath $runtimeJava.Path')
+$releaseSmokePassIndex = $releaseAcceptance.IndexOf('CURRENT_RELEASE_SERVER_LOOPBACK_PASS')
+$releaseSmokeFinallyIndex = $releaseAcceptance.IndexOf('finally {', $releaseSmokePassIndex)
+$releaseSmokeStopIndex = $releaseAcceptance.IndexOf('Stop-Process -InputObject $process -Force -ErrorAction SilentlyContinue', $releaseSmokeFinallyIndex)
+$releaseSmokeWaitIndex = $releaseAcceptance.IndexOf('$process.WaitForExit(5000)', $releaseSmokeStopIndex)
 Assert-True ($releaseSelectorIndex -ge 0) 'Current release runtime Java selector path not found.'
 Assert-True ($releaseJavaIndex -gt $releaseSelectorIndex) 'Current release resolves runtime Java before selector authority is established.'
 Assert-True ($releaseCumulativeIndex -gt $releaseJavaIndex) 'Current release cumulative certification does not follow canonical Java selection.'
 Assert-True ($releaseSmokeIndex -gt $releaseCumulativeIndex) 'Current release loopback smoke starts before cumulative certification.'
 Assert-True ($releaseStartProcessIndex -gt $releaseJavaIndex) 'Current release smoke process does not use Java selected by canonical policy.'
+Assert-True ($releaseSmokePassIndex -gt $releaseStartProcessIndex) 'Current release loopback PASS marker precedes smoke process launch.'
+Assert-True ($releaseSmokeFinallyIndex -gt $releaseSmokePassIndex) 'Current release smoke teardown finally does not follow smoke body.'
+Assert-True ($releaseSmokeStopIndex -gt $releaseSmokeFinallyIndex) 'Current release smoke teardown stop is not inside the finalization region.'
+Assert-True ($releaseSmokeWaitIndex -gt $releaseSmokeStopIndex) 'Current release smoke object-bound wait does not follow object-bound stop.'
 $releaseEnvCaptureIndex = $releaseAcceptance.IndexOf('$callerPath = $env:Path')
 $releaseEnvRestoreIndex = $releaseAcceptance.LastIndexOf('$env:Path = $callerPath')
 Assert-True ($releaseEnvCaptureIndex -gt $releaseSelectorIndex -and $releaseEnvCaptureIndex -lt $releaseJavaIndex) 'Current release caller Java environment is not captured after selector-path admission and before selector mutation.'
