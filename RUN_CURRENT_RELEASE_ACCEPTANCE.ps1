@@ -622,59 +622,7 @@ try {
     }
 
     $certifiedServerSha = [string]$cumulativeResult.CertifiedServerJarSha256
-    if ($certifiedServerSha -notmatch '^[0-9a-f]{64}
-
-    try {
-        $cumulativeEvidence = (
-            Get-Content -LiteralPath $cumulativeEvidencePath -Raw -Encoding UTF8 |
-                ConvertFrom-Json
-        )
-    }
-    catch {
-        throw "Unable to parse canonical cumulative certification evidence: $($_.Exception.Message)"
-    }
-
-    if ($cumulativeEvidence.format -ne 'spawnpk-chat1-local-certification-evidence-v1' -or
-        $cumulativeEvidence.gitHead -ne $releaseHead -or
-        $cumulativeEvidence.exactV308ClientSha256 -ne $actual -or
-        $cumulativeEvidence.authoritativeMarkerObserved -ne $true -or
-        [string]$cumulativeEvidence.certifiedServerJarSha256 -ne $certifiedServerSha) {
-        throw (
-            "Canonical cumulative certification evidence does not match the direct " +
-            "in-process certification result."
-        )
-    }
-
-    Write-Host (
-        "CURRENT_RELEASE_CUMULATIVE_CERTIFICATION_PASS " +
-        "head=$releaseHead clientSha256=$actual " +
-        "serverSha256=$certifiedServerSha hostedPromotionSatisfied=false"
-    ) -ForegroundColor Green
-
-    Assert-ReleaseSourceIdentity -ExpectedHead $releaseHead -Phase "post-cumulative"
-
-    $certifiedJar = Join-Path $server "build\SpawnPKLocalServer.jar"
-    $smokeEvidence = Invoke-CurrentServerLoopbackSmoke -CanonicalJar $certifiedJar -ExpectedServerSha256 $certifiedServerSha
-
-    Assert-ReleaseSourceIdentity -ExpectedHead $releaseHead -Phase "post-smoke"
-
-    Write-Host (
-        "CURRENT_RELEASE_ACCEPTANCE_PASS " +
-        "head=$releaseHead clientSha256=$actual " +
-        "serverSha256=$($smokeEvidence.ServerSha256) " +
-        "hostedPromotionSatisfied=false"
-    ) -ForegroundColor Green
-}
-finally {
-    if ($hadCallerJavaHome) {
-        $env:JAVA_HOME = $callerJavaHome
-    }
-    else {
-        Remove-Item Env:JAVA_HOME -ErrorAction SilentlyContinue
-    }
-    $env:Path = $callerPath
-}
-) {
+    if ($certifiedServerSha -notmatch '^[0-9a-f]{64}$') {
         throw "Canonical cumulative certification direct result lacks a valid server SHA-256."
     }
 
@@ -695,13 +643,12 @@ finally {
     if ($cumulativeEvidence.format -ne 'spawnpk-chat1-local-certification-evidence-v1' -or
         $cumulativeEvidence.gitHead -ne $releaseHead -or
         $cumulativeEvidence.exactV308ClientSha256 -ne $actual -or
-        $cumulativeEvidence.authoritativeMarkerObserved -ne $true) {
-        throw "Canonical cumulative certification evidence identity does not match this release invocation."
-    }
-
-    $certifiedServerSha = [string]$cumulativeEvidence.certifiedServerJarSha256
-    if ($certifiedServerSha -notmatch '^[0-9a-f]{64}$') {
-        throw "Canonical cumulative certification evidence lacks a valid server SHA-256."
+        $cumulativeEvidence.authoritativeMarkerObserved -ne $true -or
+        [string]$cumulativeEvidence.certifiedServerJarSha256 -ne $certifiedServerSha) {
+        throw (
+            "Canonical cumulative certification evidence does not match the direct " +
+            "in-process certification result."
+        )
     }
 
     Write-Host (
