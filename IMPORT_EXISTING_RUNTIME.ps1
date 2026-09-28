@@ -138,6 +138,101 @@ function Assert-DestinationSnapshotStillOwned([object]$Record) {
     }
 }
 
+function New-SameDirectoryLeafPath(
+    [object]$Record,
+    [string]$Purpose
+) {
+    $directory = Split-Path -Parent $Record.Destination
+    [void](Assert-NoReparsePathComponents $directory "$($Record.Label) $Purpose directory")
+
+    $leafName = (
+        '.' +
+        [IO.Path]::GetFileName($Record.Destination) +
+        '.spawnpk-import-' +
+        $Purpose +
+        '-' +
+        [Guid]::NewGuid().ToString('N') +
+        '.tmp'
+    )
+
+    return Assert-PathInsideRepository (
+        Join-Path $directory $leafName
+    ) "$($Record.Label) $Purpose leaf"
+}
+
+function New-VerifiedSameDirectoryLeaf(
+    [object]$Record,
+    [string]$Source,
+    [string]$ExpectedSha256,
+    [string]$Purpose
+) {
+    $leaf = New-SameDirectoryLeafPath $Record $Purpose
+
+    $sourceStream = $null
+    $leafStream = $null
+
+    try {
+        $sourceStream = [IO.File]::Open(
+            $Source,
+            [IO.FileMode]::Open,
+            [IO.FileAccess]::Read,
+            [IO.FileShare]::Read
+        )
+        $leafStream = [IO.File]::Open(
+            $leaf,
+            [IO.FileMode]::CreateNew,
+            [IO.FileAccess]::Write,
+            [IO.FileShare]::None
+        )
+
+        $sourceStream.CopyTo($leafStream)
+        $leafStream.Flush($true)
+    }
+    finally {
+        if ($null -ne $leafStream) {
+            $leafStream.Dispose()
+        }
+        if ($null -ne $sourceStream) {
+            $sourceStream.Dispose()
+        }
+    }
+
+    [void](Assert-RegularDestinationOrMissing $leaf "$($Record.Label) $Purpose leaf")
+
+    $leafSha = Get-ExactSha256 $leaf
+    if ($leafSha -ne $ExpectedSha256) {
+        throw (
+            "$($Record.Label) $Purpose leaf hash mismatch. " +
+            "Expected: $ExpectedSha256 Actual: $leafSha Path: $leaf"
+        )
+    }
+
+    return $leaf
+}
+
+function Remove-VerifiedOwnedLeaf(
+    [string]$Path,
+    [string]$ExpectedSha256,
+    [string]$Label
+) {
+    if ([string]::IsNullOrWhiteSpace($Path) -or
+        -not (Test-Path -LiteralPath $Path)) {
+        return
+    }
+
+    [void](Assert-RegularDestinationOrMissing $Path $Label)
+    $actual = Get-ExactSha256 $Path
+
+    if ($actual -ne $ExpectedSha256) {
+        throw (
+            "$Label ownership lost before leaf cleanup. " +
+            "Expected: $ExpectedSha256 Actual: $actual Path: $Path"
+        )
+    }
+
+    Remove-Item -LiteralPath $Path -Force -ErrorAction Stop
+}
+
 $records = @()
 
 # Prove the complete source triplet before creating any destination state.
@@ -167,6 +262,9 @@ foreach ($item in $items) {
         Stage = $null
         Backup = $null
         Existed = $false
+        PublishLeaf = $null
+        Committed = $false
+        PublishedSha256 = $null
     }
 }
 
@@ -282,23 +380,82 @@ try {
 
     try {
         foreach ($record in $records) {
-            # Revalidate the exact file snapshot immediately before ownership.
-            # This prevents overwriting a concurrent file that appeared/changed
-            # after backup state was frozen.
+            # Build the publication bytes beside the canonical destination.
+            # Any streaming/copy failure can mutate only this create-new,
+            # transaction-owned leaf, never the canonical path.
+            $record.PublishLeaf =
+                New-VerifiedSameDirectoryLeaf `
+                    $record `
+                    $record.Stage `
+                    $record.ExpectedSha256 `
+                    'publish'
+
+            # Freeze canonical preimage ownership immediately before the
+            # discrete same-directory commit.
             Assert-DestinationSnapshotStillOwned $record
 
-            # Add rollback ownership before the first destination write.
+            # Rollback tracking begins before the atomic transition. A failed
+            # File.Replace/File.Move leaves Committed=false and therefore has
+            # no canonical rollback mutation to reverse.
             $touched.Add($record)
 
-            Copy-Item -LiteralPath $record.Stage -Destination $record.Destination -Force
+            if ($record.Existed) {
+                $backupSha = Get-ExactSha256 $record.Backup
+                $displacedLeaf =
+                    New-SameDirectoryLeafPath $record 'commit-preimage'
 
-            $publishedSha = Get-ExactSha256 $record.Destination
-            if ($publishedSha -ne $record.ExpectedSha256) {
-                throw (
-                    "$($record.Label) published hash mismatch. " +
-                    "Expected: $($record.ExpectedSha256) Actual: $publishedSha"
+                [IO.File]::Replace(
+                    $record.PublishLeaf,
+                    $record.Destination,
+                    $displacedLeaf,
+                    $true
                 )
+                $record.PublishLeaf = $null
+
+                # File.Replace atomically captures the actual destination
+                # preimage. This closes the race between snapshot revalidation
+                # and commit: only the exact frozen preimage may be displaced.
+                $displacedSha = Get-ExactSha256 $displacedLeaf
+                if ($displacedSha -ne $backupSha) {
+                    $failedCommitLeaf =
+                        New-SameDirectoryLeafPath $record 'failed-commit'
+
+                    [IO.File]::Replace(
+                        $displacedLeaf,
+                        $record.Destination,
+                        $failedCommitLeaf,
+                        $true
+                    )
+
+                    Remove-VerifiedOwnedLeaf `
+                        $failedCommitLeaf `
+                        $record.ExpectedSha256 `
+                        "$($record.Label) failed commit leaf"
+
+                    throw (
+                        "$($record.Label) destination changed during atomic commit. " +
+                        "Snapshot: $backupSha Displaced: $displacedSha"
+                    )
+                }
+
+                Remove-VerifiedOwnedLeaf `
+                    $displacedLeaf `
+                    $backupSha `
+                    "$($record.Label) displaced preimage"
             }
+            else {
+                # Same-directory File.Move is a discrete no-overwrite publish:
+                # if a destination appeared after the ownership recheck, the
+                # move fails instead of replacing concurrent state.
+                [IO.File]::Move(
+                    $record.PublishLeaf,
+                    $record.Destination
+                )
+                $record.PublishLeaf = $null
+            }
+
+            $record.Committed = $true
+            $record.PublishedSha256 = $record.ExpectedSha256
         }
 
         # Keep final whole-triplet verification inside rollback ownership.
@@ -328,11 +485,85 @@ try {
 
         foreach ($record in $rollbackTargets) {
             try {
-                if ($record.Existed) {
-                    [void](Assert-RegularDestinationOrMissing $record.Destination $record.Label)
-                    Copy-Item -LiteralPath $record.Backup -Destination $record.Destination -Force
+                # A failed atomic commit has not streamed bytes into the
+                # canonical path. Clean only its still-owned private leaf.
+                if (-not $record.Committed) {
+                    Remove-VerifiedOwnedLeaf `
+                        $record.PublishLeaf `
+                        $record.ExpectedSha256 `
+                        "$($record.Label) uncommitted publish leaf"
+                    $record.PublishLeaf = $null
+                    continue
+                }
 
+                [void](Assert-RegularDestinationOrMissing $record.Destination $record.Label)
+
+                if (-not (Test-Path -LiteralPath $record.Destination -PathType Leaf)) {
+                    throw "$($record.Label) committed destination disappeared before rollback"
+                }
+
+                $currentPublishedSha = Get-ExactSha256 $record.Destination
+                if ($currentPublishedSha -ne $record.PublishedSha256) {
+                    throw (
+                        "$($record.Label) rollback ownership lost after publication. " +
+                        "Published: $($record.PublishedSha256) Current: $currentPublishedSha"
+                    )
+                }
+
+                if ($record.Existed) {
                     $backupSha = Get-ExactSha256 $record.Backup
+                    $restoreLeaf =
+                        New-VerifiedSameDirectoryLeaf `
+                            $record `
+                            $record.Backup `
+                            $backupSha `
+                            'rollback-restore'
+                    $displacedPublishedLeaf =
+                        New-SameDirectoryLeafPath $record 'rollback-published'
+
+                    # Restore the frozen preimage atomically while capturing
+                    # the exact canonical bytes displaced by rollback.
+                    [IO.File]::Replace(
+                        $restoreLeaf,
+                        $record.Destination,
+                        $displacedPublishedLeaf,
+                        $true
+                    )
+
+                    $displacedPublishedSha =
+                        Get-ExactSha256 $displacedPublishedLeaf
+
+                    if ($displacedPublishedSha -ne $record.PublishedSha256) {
+                        # A concurrent replacement won the race after the
+                        # ownership check. Put that exact displaced state back
+                        # instead of clobbering it with our rollback preimage.
+                        $failedRollbackLeaf =
+                            New-SameDirectoryLeafPath $record 'failed-rollback'
+
+                        [IO.File]::Replace(
+                            $displacedPublishedLeaf,
+                            $record.Destination,
+                            $failedRollbackLeaf,
+                            $true
+                        )
+
+                        Remove-VerifiedOwnedLeaf `
+                            $failedRollbackLeaf `
+                            $backupSha `
+                            "$($record.Label) failed rollback leaf"
+
+                        throw (
+                            "$($record.Label) rollback ownership changed during atomic restore. " +
+                            "Published: $($record.PublishedSha256) " +
+                            "Displaced: $displacedPublishedSha"
+                        )
+                    }
+
+                    Remove-VerifiedOwnedLeaf `
+                        $displacedPublishedLeaf `
+                        $record.PublishedSha256 `
+                        "$($record.Label) rollback displaced publication"
+
                     $restoredSha = Get-ExactSha256 $record.Destination
                     if ($restoredSha -ne $backupSha) {
                         throw (
@@ -341,14 +572,65 @@ try {
                         )
                     }
                 }
-                elseif (Test-Path -LiteralPath $record.Destination) {
-                    [void](Assert-RegularDestinationOrMissing $record.Destination $record.Label)
-                    Remove-Item -LiteralPath $record.Destination -Force
+                else {
+                    # Atomically transfer the canonical file to a private
+                    # quarantine leaf first. Only exact transaction-published
+                    # bytes are then deleted. If a concurrent replacement won
+                    # the race, restore that quarantined file immediately.
+                    $rollbackRemoveLeaf =
+                        New-SameDirectoryLeafPath $record 'rollback-remove'
+
+                    [IO.File]::Move(
+                        $record.Destination,
+                        $rollbackRemoveLeaf
+                    )
+
+                    $removedSha = Get-ExactSha256 $rollbackRemoveLeaf
+                    if ($removedSha -ne $record.PublishedSha256) {
+                        if (Test-Path -LiteralPath $record.Destination) {
+                            throw (
+                                "$($record.Label) rollback ownership changed and " +
+                                "canonical path was concurrently recreated; " +
+                                "quarantined state preserved at $rollbackRemoveLeaf"
+                            )
+                        }
+
+                        [IO.File]::Move(
+                            $rollbackRemoveLeaf,
+                            $record.Destination
+                        )
+
+                        throw (
+                            "$($record.Label) rollback ownership changed before remove. " +
+                            "Published: $($record.PublishedSha256) Moved: $removedSha"
+                        )
+                    }
+
+                    Remove-VerifiedOwnedLeaf `
+                        $rollbackRemoveLeaf `
+                        $record.PublishedSha256 `
+                        "$($record.Label) rollback removal leaf"
                 }
             }
             catch {
                 $rollbackFailures += (
                     "$($record.Label): $($_.Exception.Message)"
+                )
+            }
+        }
+
+        # Clean any create-new publication leaf left behind by a commit failure.
+        foreach ($record in $records) {
+            try {
+                Remove-VerifiedOwnedLeaf `
+                    $record.PublishLeaf `
+                    $record.ExpectedSha256 `
+                    "$($record.Label) residual publish leaf"
+                $record.PublishLeaf = $null
+            }
+            catch {
+                $rollbackFailures += (
+                    "$($record.Label) LEAF: $($_.Exception.Message)"
                 )
             }
         }
