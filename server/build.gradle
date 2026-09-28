@@ -4031,6 +4031,8 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
             'authoritativeMarkerObserved=true',
             'hostedPromotionSatisfied=false',
             'sourceHead=',
+            '$sourceHeadAfter = Get-ExactGitHead',
+            'source HEAD changed during execution',
             'logSha256=',
             'CHAT1_CUMULATIVE_WRAPPER_COMPLETE',
             'exactV308=true'
@@ -4098,6 +4100,10 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
             text.indexOf(
                 '$dirtyAfter = @(Get-TrackedWorktreeChanges)'
             )
+        int headAfterIndex =
+            text.indexOf(
+                '$sourceHeadAfter = Get-ExactGitHead'
+            )
         int evidenceIndex =
             text.indexOf(
                 '$evidenceRecord = [ordered]@{'
@@ -4120,9 +4126,10 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
 
         if(markerObservationIndex <= gradleIndex ||
            statusAfterIndex <= markerObservationIndex ||
-           evidenceIndex <= statusAfterIndex)
+           headAfterIndex <= statusAfterIndex ||
+           evidenceIndex <= headAfterIndex)
             throw new GradleException(
-                'Wrapper evidence ordering drifted: Gradle -> marker observation -> clean postcheck -> structured evidence.'
+                'Wrapper evidence ordering drifted: Gradle -> marker observation -> clean postcheck -> stable HEAD -> structured evidence.'
             )
 
         logger.lifecycle(
@@ -4131,6 +4138,7 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
             'canonicalGate=true ' +
             'authoritativeMarkerNotSynthesized=true ' +
             'cleanHeadBound=true ' +
+            'headStableThroughExecution=true ' +
             'durableEvidence=true ' +
             'hostedPromotionSatisfied=false'
         )
