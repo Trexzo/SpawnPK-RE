@@ -28,6 +28,81 @@ $watcherScript = Join-Path $root 'WATCH_CLIENT_NETWORK.ps1'
 $clientScript = Join-Path $root 'scripts\Run-Client-Airgap.ps1'
 $serverJar = Join-Path $root 'server\build\SpawnPKLocalServer.jar'
 
+function Stop-LauncherOwnedProcessTree {
+    param(
+        [System.Diagnostics.Process[]]$Roots,
+        [string]$Label
+    )
+
+    $rootPids = @(
+        $Roots |
+            Where-Object { $null -ne $_ -and $_.Id -gt 0 } |
+            ForEach-Object { [int]$_.Id } |
+            Select-Object -Unique
+    )
+
+    if ($rootPids.Count -eq 0) {
+        return
+    }
+
+    try {
+        $snapshot = @(
+            Get-CimInstance Win32_Process -ErrorAction Stop
+        )
+    }
+    catch {
+        throw "$Label cleanup cannot prove launcher-owned descendants because Win32_Process enumeration failed: $($_.Exception.Message)"
+    }
+
+    $depthByPid = @{}
+    foreach ($rootPid in $rootPids) {
+        if ($rootPid -eq $PID) {
+            throw "$Label cleanup refused to treat the current launcher PID as an owned child: $rootPid"
+        }
+        $depthByPid[$rootPid] = 0
+    }
+
+    $changed = $true
+    while ($changed) {
+        $changed = $false
+
+        foreach ($process in $snapshot) {
+            $processId = [int]$process.ProcessId
+            $parentId = [int]$process.ParentProcessId
+
+            if ($processId -eq $PID -or
+                $depthByPid.ContainsKey($processId) -or
+                -not $depthByPid.ContainsKey($parentId)) {
+                continue
+            }
+
+            $depthByPid[$processId] = [int]$depthByPid[$parentId] + 1
+            $changed = $true
+        }
+    }
+
+    $ownedPids = @(
+        $depthByPid.GetEnumerator() |
+            Sort-Object Value -Descending |
+            ForEach-Object { [int]$_.Key }
+    )
+
+    foreach ($ownedPid in $ownedPids) {
+        Stop-Process -Id $ownedPid -Force -ErrorAction SilentlyContinue
+    }
+
+    foreach ($rootPid in $rootPids) {
+        Wait-Process -Id $rootPid -Timeout 5 -ErrorAction SilentlyContinue
+    }
+
+    Write-Host (
+        'LOCALLAB_OWNED_PROCESS_CLEANUP_COMPLETE ' +
+        "label=$Label roots=$($rootPids -join ',') " +
+        "owned=$($ownedPids -join ',')"
+    ) -ForegroundColor Yellow
+}
+
+
 if (-not (Test-Path -LiteralPath $serverJar -PathType Leaf)) {
     throw "Missing current LocalLab server JAR: $serverJar. Run .\BOOTSTRAP.ps1 or .\scripts\Build-Server.ps1 first."
 }
@@ -74,12 +149,16 @@ if ($busy) {
     throw 'Ports 43594/43595 are still occupied. SpawnPK LocalLab was not started.'
 }
 
-Write-Host 'Starting localhost server in a new PowerShell...' -ForegroundColor Green
-Start-Process powershell.exe -WorkingDirectory $root -ArgumentList @(
-    '-NoExit','-ExecutionPolicy','Bypass','-File',"`"$serverScript`""
-)
+$ownedChildren = @()
 
-$ready = $false
+try {
+    Write-Host 'Starting localhost server in a new PowerShell...' -ForegroundColor Green
+    $serverWindow = Start-Process powershell.exe -WorkingDirectory $root -ArgumentList @(
+        '-NoExit','-ExecutionPolicy','Bypass','-File',"`"$serverScript`""
+    ) -PassThru
+    $ownedChildren += $serverWindow
+
+    $ready = $false$ready = $false
 $serverOwnerPid = $null
 $readyDeadline = (Get-Date).AddSeconds(30)
 $readyPortNumbers = @()
@@ -113,12 +192,13 @@ if (-not $ready) {
 Write-Host "SERVER_PROCESS_READY pid=$serverOwnerPid game=43594 aux=43595" -ForegroundColor Green
 Write-Host 'SERVER_PORTS_READY game=43594 aux=43595' -ForegroundColor Green
 
-Write-Host 'Starting loopback network watcher...' -ForegroundColor Green
-Start-Process powershell.exe -WorkingDirectory $root -ArgumentList @(
-    '-NoExit','-ExecutionPolicy','Bypass','-File',"`"$watcherScript`""
-)
+    Write-Host 'Starting loopback network watcher...' -ForegroundColor Green
+    $watcherWindow = Start-Process powershell.exe -WorkingDirectory $root -ArgumentList @(
+        '-NoExit','-ExecutionPolicy','Bypass','-File',"`"$watcherScript`""
+    ) -PassThru
+    $ownedChildren += $watcherWindow
 
-$existingAirgapPids = @(
+    $existingAirgapPids = @($existingAirgapPids = @(
     Get-CimInstance Win32_Process -ErrorAction SilentlyContinue |
         Where-Object {
             $_.Name -match '^javaw?\.exe$' -and
@@ -127,12 +207,13 @@ $existingAirgapPids = @(
         Select-Object -ExpandProperty ProcessId
 )
 
-Write-Host 'Starting airgap client...' -ForegroundColor Green
-Start-Process powershell.exe -WorkingDirectory $root -ArgumentList @(
-    '-NoExit','-ExecutionPolicy','Bypass','-File',"`"$clientScript`""
-)
+    Write-Host 'Starting airgap client...' -ForegroundColor Green
+    $clientWindow = Start-Process powershell.exe -WorkingDirectory $root -ArgumentList @(
+        '-NoExit','-ExecutionPolicy','Bypass','-File',"`"$clientScript`""
+    ) -PassThru
+    $ownedChildren += $clientWindow
 
-$airgapClient = $null
+    $airgapClient = $null$airgapClient = $null
 $clientDeadline = (Get-Date).AddSeconds(30)
 while ((Get-Date) -lt $clientDeadline) {
     Start-Sleep -Milliseconds 250
@@ -176,5 +257,18 @@ if (($stablePorts -notcontains 43594) -or
     throw "Local server listener ownership changed after client startup. Ports: $($stablePorts -join ',') owners: $($stableOwnerPids -join ',') expectedOwner=$serverOwnerPid"
 }
 
-Write-Host "AIRGAP_CLIENT_PROCESS_STABLE pid=$($stableAirgapClient.ProcessId) dwellSeconds=2" -ForegroundColor Green
-Write-Host 'LOCAL_LAB_WINDOWS_STARTED_V521' -ForegroundColor Cyan
+    Write-Host "AIRGAP_CLIENT_PROCESS_STABLE pid=$($stableAirgapClient.ProcessId) dwellSeconds=2" -ForegroundColor Green
+    Write-Host 'LOCAL_LAB_WINDOWS_STARTED_V521' -ForegroundColor Cyan
+}
+catch {
+    $primaryFailure = $_
+
+    try {
+        Stop-LauncherOwnedProcessTree -Roots $ownedChildren -Label 'RUN_ALL_LOCAL_LAB'
+    }
+    catch {
+        Write-Warning "RUN_ALL_LOCAL_LAB owned-process cleanup also failed: $($_.Exception.Message)"
+    }
+
+    throw $primaryFailure
+}
