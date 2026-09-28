@@ -270,8 +270,7 @@ try {
 
     # Observe the Gradle-owned authoritative marker from the invocation-owned
     # output objects after native exit 0. The mutable log path is audit-only.
-    $authoritativeMarker =
-        'SPAWNPK_CHAT1_CURRENT_CUMULATIVE_CERTIFICATION_PASS'
+    $authoritativeMarker = 'SPAWNPK_CHAT1_CURRENT_CUMULATIVE_CERTIFICATION_PASS'
     $markerMatches = @(
         $gradleOutput |
             Where-Object {
