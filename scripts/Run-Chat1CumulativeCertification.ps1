@@ -648,33 +648,51 @@ try {
 }
 catch {
     $publishFailure = $_
+    $publishCleanupFailures = @()
 
     if ($null -ne $evidenceWriter) {
-        $evidenceWriter.Dispose()
-        $evidenceWriter = $null
-    }
-    if ($null -ne $evidenceGuard) {
-        $evidenceGuard.Dispose()
-        $evidenceGuard = $null
+        try {
+            $evidenceWriter.Dispose()
+        }
+        catch {
+            $publishCleanupFailures +=
+                "evidence writer dispose: $($_.Exception.Message)"
+        }
+        finally {
+            $evidenceWriter = $null
+        }
     }
 
-    $publishCleanupFailure = $null
+    if ($null -ne $evidenceGuard) {
+        try {
+            $evidenceGuard.Dispose()
+        }
+        catch {
+            $publishCleanupFailures +=
+                "evidence guard dispose: $($_.Exception.Message)"
+        }
+        finally {
+            $evidenceGuard = $null
+        }
+    }
+
     if ($evidenceOwned) {
         try {
             Remove-CertificationEvidenceLeafSafely -Path $evidence
             $evidenceOwned = $false
         }
         catch {
-            $publishCleanupFailure = $_
+            $publishCleanupFailures +=
+                "evidence leaf cleanup: $($_.Exception.Message)"
         }
     }
 
-    if ($null -ne $publishCleanupFailure) {
+    if ($publishCleanupFailures.Count -ne 0) {
         throw [System.Exception]::new(
             (
                 'Cumulative certification evidence publication failed and cleanup was unsafe/incomplete. ' +
                 "Primary: $($publishFailure.Exception.Message) " +
-                "Cleanup: $($publishCleanupFailure.Exception.Message)"
+                "Cleanup: $($publishCleanupFailures -join ' | ')"
             ),
             $publishFailure.Exception
         )
