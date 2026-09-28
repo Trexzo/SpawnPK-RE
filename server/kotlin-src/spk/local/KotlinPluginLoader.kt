@@ -263,7 +263,7 @@ internal class KotlinPluginLoader @JvmOverloads constructor(
 
                 if (!effectiveName.endsWith(".class")) {
                     require(
-                        effectiveName ==
+                        name ==
                             "META-INF/MANIFEST.MF"
                     ) {
                         "plugin API JAR contains unsupported non-class resource: " +
