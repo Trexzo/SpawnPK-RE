@@ -4351,7 +4351,7 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
                 "Assert-OrdinaryDirectory -Path \$evidenceRoot -Label 'Certification evidence root before log write'",
                 logRuntimeRevalidateIndex
             )
-        int logWriterIndex =
+        int logWriterAfterParentValidationIndex =
             text.indexOf(
                 '\$logWriter =',
                 logEvidenceRevalidateIndex
@@ -4360,7 +4360,7 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
         if(logOpenIndex < 0 ||
            logRuntimeRevalidateIndex <= logOpenIndex ||
            logEvidenceRevalidateIndex <= logRuntimeRevalidateIndex ||
-           logWriterIndex <= logEvidenceRevalidateIndex)
+           logWriterAfterParentValidationIndex <= logEvidenceRevalidateIndex)
             throw new GradleException(
                 'Certification log authority ordering drifted: expected log CreateNew -> runtime/evidence revalidation -> log writer.'
             )
@@ -4384,7 +4384,7 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
                 "Assert-OrdinaryDirectory -Path \$evidenceRoot -Label 'Certification evidence root before JSON evidence write'",
                 jsonRuntimeRevalidateIndex
             )
-        int evidenceWriterIndex =
+        int evidenceWriterAfterParentValidationIndex =
             text.indexOf(
                 '\$evidenceWriter =',
                 jsonEvidenceRevalidateIndex
@@ -4394,7 +4394,7 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
            evidenceOpenIndex <= evidenceOpenSearchStart ||
            jsonRuntimeRevalidateIndex <= evidenceOpenIndex ||
            jsonEvidenceRevalidateIndex <= jsonRuntimeRevalidateIndex ||
-           evidenceWriterIndex <= jsonEvidenceRevalidateIndex)
+           evidenceWriterAfterParentValidationIndex <= jsonEvidenceRevalidateIndex)
             throw new GradleException(
                 'Certification JSON evidence authority ordering drifted: expected evidence CreateNew -> runtime/evidence revalidation -> JSON writer.'
             )
