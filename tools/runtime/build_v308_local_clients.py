@@ -870,7 +870,7 @@ def main() -> int:
 
                         if record["preimage_leaf"] is not None:
                             preimage_sha = sha256_file(record["preimage_leaf"])
-                            if destination.exists():
+                            if os.path.lexists(destination):
                                 raise RuntimeError(
                                     f"{record['name']} cannot restore uncommitted "
                                     "preimage because destination was recreated"
@@ -1025,7 +1025,7 @@ def main() -> int:
                         if (
                             record["existed"]
                             and not record["committed"]
-                            and record["destination"].exists()
+                            and os.path.lexists(record["destination"])
                         ):
                             rollback_errors.append(
                                 f"{record['name']} preimage preserved after "
