@@ -4049,7 +4049,7 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
 
         if(authoritativeMarkerLines.size() != 1 ||
            !authoritativeMarkerLines[0].contains(
-                "Select-String -LiteralPath \\$log -SimpleMatch -Pattern '${authoritativeMarker}'"
+                "Select-String -LiteralPath \$log -SimpleMatch -Pattern '${authoritativeMarker}'"
             ))
             throw new GradleException(
                 'Wrapper must observe the exact Gradle-owned cumulative PASS marker exactly once.'
@@ -4076,7 +4076,7 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
         [
             'function Get-ExactGitHead',
             '& $gradlew @gradleArgs',
-            "Select-String -LiteralPath \\$log -SimpleMatch -Pattern 'SPAWNPK_CHAT1_CURRENT_CUMULATIVE_CERTIFICATION_PASS'",
+            "Select-String -LiteralPath \$log -SimpleMatch -Pattern 'SPAWNPK_CHAT1_CURRENT_CUMULATIVE_CERTIFICATION_PASS'",
             'ConvertTo-Json',
             'CHAT1_CUMULATIVE_WRAPPER_COMPLETE'
         ].each { anchor ->
@@ -4132,7 +4132,7 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
             )
         int markerObservationIndex =
             text.indexOf(
-                "Select-String -LiteralPath \\$log -SimpleMatch -Pattern 'SPAWNPK_CHAT1_CURRENT_CUMULATIVE_CERTIFICATION_PASS'"
+                "Select-String -LiteralPath \$log -SimpleMatch -Pattern 'SPAWNPK_CHAT1_CURRENT_CUMULATIVE_CERTIFICATION_PASS'"
             )
         int jsonIndex =
             text.indexOf(
