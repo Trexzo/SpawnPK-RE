@@ -4071,8 +4071,12 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
             '$snapshotRoot',
             '$snapshotClient',
             '$privateGuard',
+            '$serverGuard',
             '$sourceGuard.CopyTo($snapshotWriter)',
             '$privateClientSha',
+            'EvidenceFileName',
+            'certifiedServerJarSha256 = $certifiedServerSha',
+            'serverSha256=$certifiedServerSha',
             'invocationOwnedClient = $true',
             'invocationOwnedClient=true',
             'Remove-Item -LiteralPath $snapshotRoot -Recurse -Force',
@@ -4103,8 +4107,8 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
         }
 
         [
-            '[IO.File]::Open(': 3,
-            '[IO.FileShare]::Read': 2,
+            '[IO.File]::Open(': 4,
+            '[IO.FileShare]::Read': 3,
             '[IO.FileShare]::None': 1,
             '[IO.FileMode]::CreateNew': 1
         ].each { anchor, expectedCount ->
@@ -4202,7 +4206,9 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
 
         [
             'scripts\\Run-Chat1CumulativeCertification.ps1',
-            '& $cumulativeWrapper -ClientJar $client',
+            '& $cumulativeWrapper -ClientJar $client -EvidenceFileName $cumulativeEvidenceName',
+            'certifiedServerJarSha256',
+            '-ExpectedServerSha256 $certifiedServerSha',
             'CURRENT_RELEASE_CUMULATIVE_CERTIFICATION_PASS',
             'hostedPromotionSatisfied=false'
         ].each { required ->
@@ -4285,6 +4291,11 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
                 '[IO.File]::Open(',
                 writerOpenIndex + 1
             )
+        int serverOpenIndex =
+            text.indexOf(
+                '[IO.File]::Open(',
+                privateOpenIndex + 1
+            )
         int sourceHashIndex =
             text.indexOf(
                 '$actualClientSha = Get-Sha256Hex -Stream $sourceGuard'
@@ -4296,6 +4307,10 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
         int privateHashIndex =
             text.indexOf(
                 '$privateClientSha = Get-Sha256Hex -Stream $privateGuard'
+            )
+        int serverHashIndex =
+            text.indexOf(
+                '$certifiedServerSha = Get-Sha256Hex -Stream $serverGuard'
             )
         int sourceReleaseIndex =
             text.indexOf(
@@ -4353,6 +4368,10 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
                 'Wrapper Gradle invocation ordering drifted: expected clean -> cumulative gate -> invocation-owned exact client snapshot.'
             )
 
+        int serverReleaseIndex =
+            text.lastIndexOf(
+                '$serverGuard.Dispose()'
+            )
         int privateReleaseIndex =
             text.lastIndexOf(
                 '$privateGuard.Dispose()'
@@ -4366,12 +4385,15 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
            exitCaptureIndex <= invokeIndex ||
            exitSuccessCheckIndex <= exitCaptureIndex ||
            markerObservationIndex <= exitSuccessCheckIndex ||
-           privateReleaseIndex <= markerObservationIndex ||
+           serverOpenIndex <= markerObservationIndex ||
+           serverHashIndex <= serverOpenIndex ||
+           serverReleaseIndex <= serverHashIndex ||
+           privateReleaseIndex <= serverReleaseIndex ||
            snapshotCleanupIndex <= privateReleaseIndex ||
            jsonIndex <= snapshotCleanupIndex ||
            completionIndex <= jsonIndex)
             throw new GradleException(
-                'Wrapper evidence ordering drifted: expected Gradle invoke -> native exit capture -> zero-exit check -> Gradle marker observation -> private guard release -> private-root cleanup -> JSON evidence -> wrapper completion.'
+                'Wrapper evidence ordering drifted: expected Gradle invoke -> native exit capture -> zero-exit check -> Gradle marker observation -> guarded certified-server hash -> server/client guard release -> private-root cleanup -> JSON evidence -> wrapper completion.'
             )
 
         logger.lifecycle(
@@ -4383,6 +4405,7 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
             'canonicalGate=true ' +
             'cleanHeadBound=true ' +
             'durableEvidence=true ' +
+            'certifiedServerShaBound=true ' +
             'hostedPromotionSatisfied=false ' +
             'authoritativeMarkerObservedOnly=true'
         )

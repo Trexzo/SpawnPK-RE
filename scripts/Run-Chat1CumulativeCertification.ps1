@@ -1,5 +1,6 @@
 param(
-    [string]$ClientJar = (Join-Path $PSScriptRoot '..\evidence\client(6).jar')
+    [string]$ClientJar = (Join-Path $PSScriptRoot '..\evidence\client(6).jar'),
+    [string]$EvidenceFileName = ''
 )
 
 Set-StrictMode -Version 2.0
@@ -103,9 +104,23 @@ $headPrefix = $headBefore.Substring(0, 12)
 $log = Join-Path $evidenceRoot (
     "chat1-cumulative-$stamp-$headPrefix.log"
 )
-$evidence = Join-Path $evidenceRoot (
-    "chat1-cumulative-$stamp-$headPrefix.json"
-)
+if ([string]::IsNullOrWhiteSpace($EvidenceFileName)) {
+    $evidence = Join-Path $evidenceRoot (
+        "chat1-cumulative-$stamp-$headPrefix.json"
+    )
+}
+else {
+    $evidenceLeaf = [IO.Path]::GetFileName($EvidenceFileName)
+    if ($evidenceLeaf -ne $EvidenceFileName -or
+        $evidenceLeaf -notmatch '^chat1-cumulative-[A-Za-z0-9._-]+\.json$') {
+        throw "EvidenceFileName must be one safe chat1-cumulative-*.json leaf name."
+    }
+
+    $evidence = Join-Path $evidenceRoot $evidenceLeaf
+    if (Test-Path -LiteralPath $evidence) {
+        throw "Cumulative certification evidence already exists: $evidence"
+    }
+}
 $snapshotRoot = Join-Path $evidenceRoot (
     "client-snapshot-$stamp-$headPrefix"
 )
@@ -115,6 +130,8 @@ $oldJavaHome = $env:JAVA_HOME
 $oldPath = $env:Path
 $sourceGuard = $null
 $privateGuard = $null
+$serverGuard = $null
+$certifiedServerSha = $null
 
 try {
     New-Item -ItemType Directory -Path $snapshotRoot | Out-Null
@@ -254,6 +271,25 @@ try {
         )
     }
 
+    # Bind durable cumulative evidence to the exact generated server JAR
+    # identity produced by this successful certification invocation.
+    $certifiedServerJar = Join-Path $repo 'server\build\SpawnPKLocalServer.jar'
+    if (-not (Test-Path -LiteralPath $certifiedServerJar -PathType Leaf)) {
+        throw "Cumulative certification produced no server JAR: $certifiedServerJar"
+    }
+
+    $serverGuard =
+        [IO.File]::Open(
+            $certifiedServerJar,
+            [IO.FileMode]::Open,
+            [IO.FileAccess]::Read,
+            [IO.FileShare]::Read
+        )
+    $certifiedServerSha = Get-Sha256Hex -Stream $serverGuard
+    if ($certifiedServerSha -notmatch '^[0-9a-f]{64}$') {
+        throw "Invalid cumulative-certified server SHA-256: $certifiedServerSha"
+    }
+
     $logItem = Get-Item -LiteralPath $log
     $logSha =
         (Get-FileHash -LiteralPath $log -Algorithm SHA256).Hash.ToLowerInvariant()
@@ -272,12 +308,18 @@ try {
         logFile = $logItem.Name
         logSha256 = $logSha
         logBytes = [long]$logItem.Length
+        certifiedServerJarSha256 = $certifiedServerSha
         hostedPromotionSatisfied = $false
         hostedEvidenceSeparate = $true
     }
 }
 finally {
     try {
+        if ($null -ne $serverGuard) {
+            $serverGuard.Dispose()
+            $serverGuard = $null
+        }
+
         if ($null -ne $privateGuard) {
             $privateGuard.Dispose()
             $privateGuard = $null
@@ -309,6 +351,7 @@ Write-Host (
     "head=$headBefore " +
     "clientSha256=$privateClientSha " +
     "invocationOwnedClient=true " +
+    "serverSha256=$certifiedServerSha " +
     "logSha256=$logSha " +
     "logBytes=$($logItem.Length) " +
     "evidence=$([IO.Path]::GetFileName($evidence)) " +
