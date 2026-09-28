@@ -236,10 +236,15 @@ foreach ($required in @(
     }
 }
 
-. $selector
-$java = Set-LocalLabJava
+$hadCallerJavaHome = Test-Path Env:JAVA_HOME
+$callerJavaHome = $env:JAVA_HOME
+$callerPath = $env:Path
 
-$javaBin = Split-Path -Parent $java.Path
+try {
+    . $selector
+    $java = Set-LocalLabJava
+
+    $javaBin = Split-Path -Parent $java.Path
 $javac = Join-Path $javaBin 'javac.exe'
 if (-not (Test-Path -LiteralPath $javac -PathType Leaf)) {
     throw "Selected LocalLab Java runtime has no javac beside java.exe: $javac. Use a JDK 11+ (Java 17 preferred)."
@@ -340,4 +345,14 @@ Write-Host '  [ ] Magenta/cyan checkerboard texture 278 is visible on the model.
 Write-Host '  [ ] Client remains stable while previewing/rotating the item model.'
 Write-Host '  [ ] If world/equipment placement is exercised, it uses the same custom model rather than stock fallback.'
 Write-Host ''
-Write-Host 'Do not record R13 visual PASS until those observations are made on the real GUI session.' -ForegroundColor Yellow
+    Write-Host 'Do not record R13 visual PASS until those observations are made on the real GUI session.' -ForegroundColor Yellow
+}
+finally {
+    if ($hadCallerJavaHome) {
+        $env:JAVA_HOME = $callerJavaHome
+    }
+    else {
+        Remove-Item Env:JAVA_HOME -ErrorAction SilentlyContinue
+    }
+    $env:Path = $callerPath
+}
