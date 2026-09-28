@@ -323,6 +323,10 @@ def restore_private_leaf_without_overwrite(
     label: str,
 ) -> None:
     assert_verified_leaf(source_leaf, expected_sha, label)
+    source_state = assert_regular_file_or_absent(source_leaf, label)
+    if source_state is None:
+        raise RuntimeError(f"{label} source leaf disappeared")
+    source_identity = file_identity(source_state)
 
     try:
         os.link(source_leaf, destination)
@@ -330,6 +334,18 @@ def restore_private_leaf_without_overwrite(
         raise RuntimeError(
             f"{label} destination appeared before no-overwrite restore: {destination}"
         ) from error
+
+    restored_state = assert_regular_file_or_absent(
+        destination,
+        f"{label} restored destination",
+    )
+    if (
+        restored_state is None
+        or file_identity(restored_state) != source_identity
+    ):
+        raise RuntimeError(
+            f"{label} restored destination identity does not match source leaf"
+        )
 
     restored_sha = sha256_file(destination)
     if restored_sha != expected_sha:
@@ -699,6 +715,7 @@ def main() -> int:
                     "preimage_leaf": None,
                     "committed": False,
                     "published_sha": None,
+                    "published_identity": None,
                 }
             )
 
@@ -790,6 +807,16 @@ def main() -> int:
                 # It creates the canonical directory entry only if the name is
                 # still absent; the verified private leaf remains available
                 # until that discrete transition succeeds.
+                publish_leaf_state = assert_regular_file_or_absent(
+                    record["publish_leaf"],
+                    f"{record['name']} publish leaf before link",
+                )
+                if publish_leaf_state is None:
+                    raise RuntimeError(
+                        f"{record['name']} publish leaf disappeared before link"
+                    )
+                publish_identity = file_identity(publish_leaf_state)
+
                 try:
                     os.link(
                         record["publish_leaf"],
@@ -811,8 +838,21 @@ def main() -> int:
                         f"{record['name']} destination appeared before atomic publish"
                     ) from error
 
+                published_state = assert_regular_file_or_absent(
+                    destination,
+                    f"{record['name']} canonical published destination",
+                )
+                if (
+                    published_state is None
+                    or file_identity(published_state) != publish_identity
+                ):
+                    raise RuntimeError(
+                        f"{record['name']} canonical publish identity drift"
+                    )
+
                 record["committed"] = True
                 record["published_sha"] = record["expected_sha"]
+                record["published_identity"] = publish_identity
 
                 # Canonical and private leaf now refer to the same exact inode.
                 # Drop only the transaction-owned private name.
@@ -826,6 +866,18 @@ def main() -> int:
             # Re-verify the complete generated set while rollback ownership is
             # still active. No success output is emitted before this finishes.
             for record in publication:
+                final_state = assert_regular_file_or_absent(
+                    record["destination"],
+                    f"{record['name']} final canonical destination",
+                )
+                if (
+                    final_state is None
+                    or file_identity(final_state) != record["published_identity"]
+                ):
+                    raise RuntimeError(
+                        f"{record['name']} final canonical identity drift"
+                    )
+
                 final_sha = sha256_file(record["destination"])
                 if final_sha != record["expected_sha"]:
                     raise RuntimeError(
@@ -895,6 +947,13 @@ def main() -> int:
                         )
 
                     current_identity = file_identity(current_state)
+                    if current_identity != record["published_identity"]:
+                        raise RuntimeError(
+                            f"{record['name']} rollback lifetime identity lost "
+                            f"published={record['published_identity']} "
+                            f"current={current_identity}"
+                        )
+
                     current_sha = sha256_file(destination)
                     if current_sha != record["published_sha"]:
                         raise RuntimeError(
