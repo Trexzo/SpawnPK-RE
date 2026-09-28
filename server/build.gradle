@@ -4080,7 +4080,13 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
             'serverSha256=$certifiedServerSha',
             'invocationOwnedClient = $true',
             'invocationOwnedClient=true',
-            'Remove-Item -LiteralPath $snapshotRoot -Recurse -Force',
+            'function Assert-OrdinaryFile',
+            'function Remove-CertificationSnapshotSafely',
+            'function Remove-CertificationEvidenceLeafSafely',
+            'Remove-CertificationSnapshotSafely -SnapshotRoot $snapshotRoot -SnapshotClient $snapshotClient',
+            'Remove-CertificationEvidenceLeafSafely -Path $evidence',
+            'Remove-Item -LiteralPath $SnapshotClient -Force -ErrorAction Stop',
+            'Remove-Item -LiteralPath $SnapshotRoot -Force -ErrorAction Stop',
             v308AcceptanceClientSha256,
             'chat1CurrentCumulativeCertification',
             '-Pv308ClientPath=',
@@ -4128,7 +4134,7 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
             '$evidenceWriter.WriteLine($json)',
             '$evidenceGuard.Flush($true)',
             'Get-FileHash -InputStream $evidenceGuard -Algorithm SHA256',
-            'Remove-Item -LiteralPath $evidence -Force -ErrorAction SilentlyContinue',
+            'Cumulative certification evidence publication failed and cleanup was unsafe/incomplete.',
             'spawnpk-chat1-cumulative-result-v1',
             'evidenceSha256 = $evidenceSha',
             'Write-Output $completion',
@@ -4183,7 +4189,9 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
             'Get-FileHash -LiteralPath $log',
             'Get-Item -LiteralPath $log',
             'New-Item -ItemType Directory -Force -Path $evidenceRoot',
-            'Test-Path -LiteralPath $Path -PathType Container'
+            'Test-Path -LiteralPath $Path -PathType Container',
+            'Remove-Item -LiteralPath $snapshotRoot -Recurse -Force',
+            'Remove-Item -LiteralPath $evidence -Force -ErrorAction SilentlyContinue'
         ].each { staleMutableAuthority ->
             if(text.contains(staleMutableAuthority))
                 throw new GradleException(
@@ -4260,10 +4268,18 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
 
         [
             'function Assert-OrdinaryDirectory': 1,
+            'function Assert-OrdinaryFile': 1,
             'function Initialize-CertificationEvidenceRoot': 1,
-            'Assert-OrdinaryDirectory -Path $runtimeRoot': 5,
-            'Assert-OrdinaryDirectory -Path $evidenceRoot': 5,
-            'Assert-OrdinaryDirectory -Path $snapshotRoot': 2
+            'function Remove-CertificationSnapshotSafely': 1,
+            'function Remove-CertificationEvidenceLeafSafely': 1,
+            'Assert-OrdinaryDirectory -Path $runtimeRoot': 11,
+            'Assert-OrdinaryDirectory -Path $evidenceRoot': 11,
+            'Assert-OrdinaryDirectory -Path $snapshotRoot': 2,
+            'Assert-OrdinaryDirectory -Path $SnapshotRoot': 4,
+            'Remove-CertificationSnapshotSafely -SnapshotRoot $snapshotRoot -SnapshotClient $snapshotClient': 1,
+            'Remove-CertificationEvidenceLeafSafely -Path $evidence': 1,
+            'Remove-Item -LiteralPath $SnapshotClient -Force -ErrorAction Stop': 1,
+            'Remove-Item -LiteralPath $SnapshotRoot -Force -ErrorAction Stop': 1
         ].each { anchor, expectedCount ->
             int count = 0
             int from = 0
@@ -4397,6 +4413,79 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
            evidenceWriterAfterParentValidationIndex <= jsonEvidenceRevalidateIndex)
             throw new GradleException(
                 'Certification JSON evidence authority ordering drifted: expected evidence CreateNew -> runtime/evidence revalidation -> JSON writer.'
+            )
+
+        int snapshotCleanupFunctionIndex =
+            text.indexOf(
+                'function Remove-CertificationSnapshotSafely'
+            )
+        int snapshotCleanupContentsIndex =
+            text.indexOf(
+                'Get-ChildItem -LiteralPath $SnapshotRoot -Force -ErrorAction Stop',
+                snapshotCleanupFunctionIndex
+            )
+        int snapshotLeafRemoveIndex =
+            text.indexOf(
+                'Remove-Item -LiteralPath $SnapshotClient -Force -ErrorAction Stop',
+                snapshotCleanupContentsIndex
+            )
+        int snapshotEmptyProofIndex =
+            text.indexOf(
+                'Certification snapshot root is not empty after owned leaf cleanup',
+                snapshotLeafRemoveIndex
+            )
+        int snapshotRootRemoveIndex =
+            text.indexOf(
+                'Remove-Item -LiteralPath $SnapshotRoot -Force -ErrorAction Stop',
+                snapshotEmptyProofIndex
+            )
+
+        if(snapshotCleanupFunctionIndex < 0 ||
+           snapshotCleanupContentsIndex <= snapshotCleanupFunctionIndex ||
+           snapshotLeafRemoveIndex <= snapshotCleanupContentsIndex ||
+           snapshotEmptyProofIndex <= snapshotLeafRemoveIndex ||
+           snapshotRootRemoveIndex <= snapshotEmptyProofIndex)
+            throw new GradleException(
+                'Certification snapshot cleanup must prove bounded contents, remove the owned leaf, prove empty, then remove only the empty root.'
+            )
+
+        int failedEvidenceCleanupFunctionIndex =
+            text.indexOf(
+                'function Remove-CertificationEvidenceLeafSafely'
+            )
+        int failedEvidenceParentCheckIndex =
+            text.indexOf(
+                "Certification runtime root before failed-evidence cleanup",
+                failedEvidenceCleanupFunctionIndex
+            )
+        int failedEvidenceLeafCheckIndex =
+            text.indexOf(
+                "Assert-OrdinaryFile -Path $Path -Label 'Failed certification evidence cleanup leaf'",
+                failedEvidenceParentCheckIndex
+            )
+        int failedEvidenceRemoveIndex =
+            text.indexOf(
+                'Remove-Item -LiteralPath $Path -Force -ErrorAction Stop',
+                failedEvidenceLeafCheckIndex
+            )
+        int publishCleanupInvokeIndex =
+            text.indexOf(
+                'Remove-CertificationEvidenceLeafSafely -Path $evidence'
+            )
+        int publishCleanupCompositeIndex =
+            text.indexOf(
+                'Cumulative certification evidence publication failed and cleanup was unsafe/incomplete.',
+                publishCleanupInvokeIndex
+            )
+
+        if(failedEvidenceCleanupFunctionIndex < 0 ||
+           failedEvidenceParentCheckIndex <= failedEvidenceCleanupFunctionIndex ||
+           failedEvidenceLeafCheckIndex <= failedEvidenceParentCheckIndex ||
+           failedEvidenceRemoveIndex <= failedEvidenceLeafCheckIndex ||
+           publishCleanupInvokeIndex <= failedEvidenceRemoveIndex ||
+           publishCleanupCompositeIndex <= publishCleanupInvokeIndex)
+            throw new GradleException(
+                'Failed JSON evidence cleanup must revalidate ancestry/leaf identity and preserve publication failure when cleanup also fails.'
             )
 
         if(!ignoreText.readLines().any {
@@ -4668,7 +4757,7 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
             )
         int snapshotCleanupIndex =
             text.lastIndexOf(
-                'Remove-Item -LiteralPath $snapshotRoot -Recurse -Force'
+                'Remove-CertificationSnapshotSafely -SnapshotRoot $snapshotRoot -SnapshotClient $snapshotClient'
             )
 
         if(gradleOutputInitIndex < 0 ||
