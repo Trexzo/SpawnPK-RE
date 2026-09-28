@@ -473,8 +473,11 @@ internal class KotlinPluginLoader @JvmOverloads constructor(
         jar: JarFile
     ) {
         val classPath =
-            jar.manifest
-                ?.mainAttributes
+            BoundedManifestMain
+                .readMainAttributes(
+                    jar,
+                    path
+                )
                 ?.getValue(
                     Attributes.Name.CLASS_PATH
                 )
