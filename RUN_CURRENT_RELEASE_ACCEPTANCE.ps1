@@ -84,11 +84,17 @@ function Get-ReleasePortListeners {
 function Assert-ExactSmokeListenerOwnership {
     param(
         [Parameter(Mandatory=$true)]
-        [int]$ExpectedPid,
+        [System.Diagnostics.Process]$ExpectedProcess,
         [Parameter(Mandatory=$true)]
         [string]$Phase
     )
 
+    $ExpectedProcess.Refresh()
+    if ($ExpectedProcess.HasExited) {
+        throw "Current release exact smoke process exited before listener proof at phase '$Phase'."
+    }
+
+    $expectedPid = [int]$ExpectedProcess.Id
     $connections = @(Get-ReleasePortListeners)
     $ports = @(
         $connections |
@@ -102,10 +108,10 @@ function Assert-ExactSmokeListenerOwnership {
     if (($ports -notcontains 43594) -or
         ($ports -notcontains 43595) -or
         $owners.Count -ne 1 -or
-        [int]$owners[0] -ne $ExpectedPid) {
+        [int]$owners[0] -ne $expectedPid) {
         throw (
             "Current release smoke listener ownership mismatch at phase '$Phase'. " +
-            "expectedPid=$ExpectedPid ports=$($ports -join ',') " +
+            "expectedPid=$expectedPid ports=$($ports -join ',') " +
             "owners=$($owners -join ',')"
         )
     }
@@ -305,7 +311,7 @@ function Invoke-CurrentServerLoopbackSmoke {
         }
 
         Assert-ExactSmokeListenerOwnership `
-            -ExpectedPid $spawnedPid `
+            -ExpectedProcess $process `
             -Phase "before-aux-semantic-check"
 
         $body = $null
@@ -359,7 +365,7 @@ function Invoke-CurrentServerLoopbackSmoke {
         }
 
         Assert-ExactSmokeListenerOwnership `
-            -ExpectedPid $spawnedPid `
+            -ExpectedProcess $process `
             -Phase "before-cleanup"
 
         $smokeSucceeded = $true
