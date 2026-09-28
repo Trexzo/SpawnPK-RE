@@ -562,7 +562,13 @@ Assert-True ($runtimeBuilder -match 'V308_LOCAL_CLIENT_BUILD_AND_VERIFY_PASS') '
 Assert-True ($runtimeBuilder -match 'OutputDirectory must be the canonical LocalLab runtime directory') 'PowerShell runtime builder accepts an unverifiable noncanonical output directory.'
 Assert-True ($runtimeBuilder -match 'ClientJar must be the canonical evidence path') 'PowerShell runtime builder accepts a client path that permanent runtime verification cannot prove.'
 Assert-True ($runtimeBuilder -match '854f26ff9f134b0317572e7ac1688e6f40a231d5a4c66f8db5d655b7f45ce7c6') 'PowerShell runtime builder no longer independently gates the exact v308 input SHA.'
-Assert-True ($runtimeBuilder -match 'V308_LOCAL_CLIENT_BUILD_PREFLIGHT_PASS') 'PowerShell runtime builder does not report complete fail-before-mutation admission.'
+Assert-True ($runtimeBuilder -match 'function Get-Sha256Hex') 'PowerShell runtime builder lacks opened-stream SHA authority.'
+Assert-True ($runtimeBuilder -match '\[IO\.File\]::Open\(') 'PowerShell runtime builder lacks guarded exact-v308 input admission.'
+Assert-True ($runtimeBuilder -match '\$sourceGuard\.CopyTo\(\$snapshotWriter\)') 'PowerShell runtime builder does not copy from the admitted opened source identity.'
+Assert-True ($runtimeBuilder -match '\$privateClientSha\s*=\s*Get-Sha256Hex -Stream \$privateGuard') 'PowerShell runtime builder does not independently hash the guarded private input snapshot.'
+Assert-True ($runtimeBuilder -match 'invocationOwnedClient=true') 'PowerShell runtime builder preflight does not declare invocation-owned client authority.'
+Assert-True ($runtimeBuilder -match 'V308InputSnapshotCleanupFailure') 'PowerShell runtime builder does not preserve subordinate snapshot-cleanup evidence on primary patcher failure.'
+Assert-True ($runtimeBuilder -match 'V308_LOCAL_CLIENT_BUILD_PREFLIGHT_PASS') 'PowerShell runtime builder does not report complete fail-before-canonical-mutation admission.'
 Assert-True ($runtimeBuilder -match '\$canonicalEvidence') 'PowerShell runtime builder no longer resolves canonical evidence-client authority before mutation.'
 Assert-True ($runtimeBuilder -match '\$canonicalOutput') 'PowerShell runtime builder no longer resolves canonical output authority before mutation.'
 Assert-True ($runtimeBuilder -match 'function Assert-CanonicalOutputPathSafe') 'PowerShell runtime builder does not reject reparse aliases on canonical local-client publication path.'
@@ -571,25 +577,49 @@ Assert-True ($runtimeBuilder -match 'Canonical local-client output exists but is
 Assert-True ($runtimeBuilder -match 'Canonical local-client output must not be a reparse point') 'PowerShell runtime builder does not recheck the final output directory for reparse aliasing.'
 Assert-True ($runtimeBuilder -notmatch 'New-Item -ItemType Directory[^\r\n]*\$output') 'PowerShell runtime builder must not create canonical local-client; Python owns absent-directory transaction state.'
 Assert-ExactTextCount $runtimeBuilder 'Assert-CanonicalOutputPathSafe $output' 2 'PowerShell runtime builder must prove canonical output path safety at admission and immediately before the Python boundary.'
+Assert-ExactTextCount $runtimeBuilder '[IO.File]::Open(' 3 'PowerShell runtime builder guarded input open count drift.'
+Assert-ExactTextCount $runtimeBuilder '[IO.FileShare]::Read' 2 'PowerShell runtime builder read-guard share count drift.'
+Assert-ExactTextCount $runtimeBuilder '[IO.FileShare]::None' 1 'PowerShell runtime builder private-writer share count drift.'
+Assert-ExactTextCount $runtimeBuilder '[IO.FileMode]::CreateNew' 1 'PowerShell runtime builder private-writer creation mode drift.'
+Assert-ExactTextCount $runtimeBuilder '& $python.Source $patcher $snapshotClient $output' 1 'PowerShell runtime builder must invoke the patcher exactly once with the guarded private snapshot.'
+Assert-ExactTextCount $runtimeBuilder '& $python.Source $patcher $client $output' 0 'PowerShell runtime builder must never pass the mutable canonical evidence path to Python.'
 
 $runtimeBuilderCanonicalClientIndex = $runtimeBuilder.IndexOf('ClientJar must be the canonical evidence path')
-$runtimeBuilderHashIndex = $runtimeBuilder.IndexOf('Exact v308 client hash mismatch')
 $runtimeBuilderOutputIndex = $runtimeBuilder.IndexOf('OutputDirectory must be the canonical LocalLab runtime directory')
 $runtimeBuilderPathFenceIndex = $runtimeBuilder.IndexOf('$output = Assert-CanonicalOutputPathSafe $output')
 $runtimeBuilderPythonIndex = $runtimeBuilder.IndexOf("Get-Command python")
+$runtimeBuilderSourceOpenIndex = $runtimeBuilder.IndexOf('[IO.File]::Open(')
+$runtimeBuilderSourceHashIndex = $runtimeBuilder.IndexOf('$actualClient = Get-Sha256Hex -Stream $sourceGuard')
+$runtimeBuilderWriterOpenIndex = $runtimeBuilder.IndexOf('[IO.File]::Open(', $runtimeBuilderSourceOpenIndex + 1)
+$runtimeBuilderCopyIndex = $runtimeBuilder.IndexOf('$sourceGuard.CopyTo($snapshotWriter)')
+$runtimeBuilderPrivateOpenIndex = $runtimeBuilder.IndexOf('[IO.File]::Open(', $runtimeBuilderWriterOpenIndex + 1)
+$runtimeBuilderPrivateHashIndex = $runtimeBuilder.IndexOf('$privateClientSha = Get-Sha256Hex -Stream $privateGuard')
+$runtimeBuilderSourceReleaseIndex = $runtimeBuilder.IndexOf('$sourceGuard.Dispose()')
 $runtimeBuilderPreflightPassIndex = $runtimeBuilder.IndexOf('V308_LOCAL_CLIENT_BUILD_PREFLIGHT_PASS')
 $runtimeBuilderPathRecheckIndex = $runtimeBuilder.LastIndexOf('$output = Assert-CanonicalOutputPathSafe $output')
-$runtimeBuilderPatchIndex = $runtimeBuilder.IndexOf('& $python.Source $patcher $client $output')
+$runtimeBuilderPatchIndex = $runtimeBuilder.IndexOf('& $python.Source $patcher $snapshotClient $output')
+$runtimeBuilderPrivateReleaseIndex = $runtimeBuilder.LastIndexOf('$privateGuard.Dispose()')
+$runtimeBuilderSnapshotCleanupIndex = $runtimeBuilder.LastIndexOf('Remove-Item -LiteralPath $snapshotRoot -Recurse -Force')
+$runtimeBuilderFailureReplayIndex = $runtimeBuilder.IndexOf('throw $patcherFailure')
 $runtimeBuilderFinalVerifyIndex = $runtimeBuilder.IndexOf("& (Join-Path $PSScriptRoot 'Check-ExternalRuntime.ps1')")
 Assert-True ($runtimeBuilderCanonicalClientIndex -ge 0) 'PowerShell runtime builder canonical-client admission check not found.'
-Assert-True ($runtimeBuilderHashIndex -gt $runtimeBuilderCanonicalClientIndex) 'PowerShell runtime builder hashes the client before canonical-path admission.'
-Assert-True ($runtimeBuilderOutputIndex -gt $runtimeBuilderHashIndex) 'PowerShell runtime builder validates canonical output before exact client hash admission completes.'
+Assert-True ($runtimeBuilderOutputIndex -gt $runtimeBuilderCanonicalClientIndex) 'PowerShell runtime builder validates canonical output before canonical client admission.'
 Assert-True ($runtimeBuilderPathFenceIndex -gt $runtimeBuilderOutputIndex) 'PowerShell runtime builder checks path confinement before canonical lexical admission completes.'
 Assert-True ($runtimeBuilderPythonIndex -gt $runtimeBuilderPathFenceIndex) 'PowerShell runtime builder probes Python before canonical output reparse admission.'
-Assert-True ($runtimeBuilderPreflightPassIndex -gt $runtimeBuilderPythonIndex) 'PowerShell runtime builder reports preflight before Python availability is proven.'
+Assert-True ($runtimeBuilderSourceOpenIndex -gt $runtimeBuilderPythonIndex) 'PowerShell runtime builder opens exact-v308 source before static prerequisites are proven.'
+Assert-True ($runtimeBuilderSourceHashIndex -gt $runtimeBuilderSourceOpenIndex) 'PowerShell runtime builder does not hash the already-open source identity.'
+Assert-True ($runtimeBuilderWriterOpenIndex -gt $runtimeBuilderSourceHashIndex) 'PowerShell runtime builder opens private writer before source SHA admission.'
+Assert-True ($runtimeBuilderCopyIndex -gt $runtimeBuilderWriterOpenIndex) 'PowerShell runtime builder copies before private writer creation.'
+Assert-True ($runtimeBuilderPrivateOpenIndex -gt $runtimeBuilderCopyIndex) 'PowerShell runtime builder opens private read guard before snapshot copy completes.'
+Assert-True ($runtimeBuilderPrivateHashIndex -gt $runtimeBuilderPrivateOpenIndex) 'PowerShell runtime builder does not hash the already-open private snapshot.'
+Assert-True ($runtimeBuilderSourceReleaseIndex -gt $runtimeBuilderPrivateHashIndex) 'PowerShell runtime builder releases source guard before private snapshot identity is proven.'
+Assert-True ($runtimeBuilderPreflightPassIndex -gt $runtimeBuilderSourceReleaseIndex) 'PowerShell runtime builder reports preflight before invocation-owned identity is complete.'
 Assert-True ($runtimeBuilderPathRecheckIndex -gt $runtimeBuilderPreflightPassIndex) 'PowerShell runtime builder does not re-prove canonical path safety immediately before the Python boundary.'
 Assert-True ($runtimeBuilderPatchIndex -gt $runtimeBuilderPathRecheckIndex) 'PowerShell runtime builder invokes patcher before final wrapper-side reparse proof.'
-Assert-True ($runtimeBuilderFinalVerifyIndex -gt $runtimeBuilderPatchIndex) 'PowerShell runtime builder final triplet verification does not follow patcher publication.'
+Assert-True ($runtimeBuilderPrivateReleaseIndex -gt $runtimeBuilderPatchIndex) 'PowerShell runtime builder releases private input guard before Python patcher completes.'
+Assert-True ($runtimeBuilderSnapshotCleanupIndex -gt $runtimeBuilderPrivateReleaseIndex) 'PowerShell runtime builder removes private input snapshot before releasing its guard.'
+Assert-True ($runtimeBuilderFailureReplayIndex -gt $runtimeBuilderSnapshotCleanupIndex) 'PowerShell runtime builder may replay primary patcher failure before private input cleanup finishes.'
+Assert-True ($runtimeBuilderFinalVerifyIndex -gt $runtimeBuilderFailureReplayIndex) 'PowerShell runtime builder final triplet verification does not follow successful guarded patcher cleanup.'
 Assert-True ($v308Patcher -match 'ZIP_STORED') 'v308 local-client patcher no longer uses compression-independent deterministic JAR entries.'
 Assert-True ($v308Patcher -match 'wholeJarDeterminismIndependentOfZlib') 'v308 local-client manifest no longer records zlib-independent whole-JAR determinism.'
 Assert-True ($v308Patcher -notmatch 'ZIP_DEFLATED') 'v308 local-client patcher reintroduced zlib-dependent output compression.'
