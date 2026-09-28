@@ -150,8 +150,8 @@ foreach ($entry in @(
     @('[IO.FileShare]::Read', 2),
     @('[IO.FileShare]::None', 1),
     @('[IO.FileMode]::CreateNew', 1),
-    @("'--client-jar', $r13SnapshotClient", 1),
-    @("'--client-jar', $clientJar", 0),
+    @("'--client-jar', `$r13SnapshotClient", 1),
+    @("'--client-jar', `$clientJar", 0),
     @('$r13ProfileFailure = $_', 1),
     @('R13ClientSnapshotCleanupFailure', 1),
     @('Remove-Item -LiteralPath $r13SnapshotRoot -Recurse -Force -ErrorAction Stop', 1)
@@ -170,7 +170,7 @@ $r13CopyIndex = $r13Acceptance.IndexOf('$r13SourceGuard.CopyTo($r13SnapshotWrite
 $r13PrivateOpenIndex = $r13Acceptance.IndexOf('[IO.File]::Open(', $r13WriterOpenIndex + 1)
 $r13PrivateHashIndex = $r13Acceptance.IndexOf('$r13PrivateSha = Get-Sha256Hex -Stream $r13PrivateGuard', $r13PrivateOpenIndex)
 $r13SourceReleaseIndex = $r13Acceptance.IndexOf('$r13SourceGuard.Dispose()', $r13PrivateHashIndex)
-$r13PrivateArgIndex = $r13Acceptance.IndexOf("'--client-jar', $r13SnapshotClient", $r13SourceReleaseIndex)
+$r13PrivateArgIndex = $r13Acceptance.IndexOf("'--client-jar', `$r13SnapshotClient", $r13SourceReleaseIndex)
 $r13PythonInvokeIndex = $r13Acceptance.IndexOf('& $python.Source @profileArgs', $r13PrivateArgIndex)
 $r13PrivateReleaseIndex = $r13Acceptance.LastIndexOf('$r13PrivateGuard.Dispose()')
 $r13SnapshotCleanupIndex = $r13Acceptance.LastIndexOf('Remove-Item -LiteralPath $r13SnapshotRoot -Recurse -Force -ErrorAction Stop')
@@ -198,7 +198,7 @@ Assert-True ($client -match 'Set-LocalLabJava') 'Standalone airgap launcher does
 Assert-True ($client -match '&\s+\$java\.Path\s+@javaArgs\s+-jar\s+\$launchSnapshot') 'Standalone airgap launcher does not invoke selected Java with the guarded private snapshot.'
 Assert-True ($client -notmatch '&\s+\$java\.Path\s+@javaArgs\s+-jar\s+\$jar') 'Standalone airgap launcher still executes the mutable canonical airgap JAR directly.'
 Assert-True ($client -match '83b3e27e2aae50512d044ae4c74d84afb36df8b8a8051b5eb0c9275427363c33') 'Standalone airgap launcher no longer independently pins exact airgap snapshot SHA-256.'
-Assert-True ($client -match [regex]::Escape("$launchSnapshot = Join-Path $launchRoot 'client-airgap.jar'")) 'Standalone airgap private snapshot does not preserve semantic client-airgap.jar basename.'
+Assert-True ($client -match [regex]::Escape("`$launchSnapshot = Join-Path `$launchRoot 'client-airgap.jar'")) 'Standalone airgap private snapshot does not preserve semantic client-airgap.jar basename.'
 Assert-True ($client -match [regex]::Escape('[IO.File]::Copy($jar, $launchSnapshot, $false)')) 'Standalone airgap launcher does not create a no-overwrite private snapshot.'
 Assert-True ($client -match '\[IO\.File\]::Open\([\s\S]*\$launchSnapshot[\s\S]*\[IO\.FileAccess\]::Read[\s\S]*\[IO\.FileShare\]::Read') 'Standalone airgap launcher does not hold a read-only no-write/no-delete guard on the private snapshot.'
 Assert-True ($client -match [regex]::Escape('Get-FileHash -InputStream $snapshotGuard -Algorithm SHA256')) 'Standalone airgap launcher does not hash the guarded snapshot identity.'
@@ -242,7 +242,7 @@ foreach ($entry in @(
     @('Push-Location -LiteralPath $PSScriptRoot', 1),
     @('$callerLocationPushed = $true', 1),
     @('Pop-Location', 1),
-    @("$launchSnapshot = Join-Path $launchRoot 'client-airgap.jar'", 1),
+    @("`$launchSnapshot = Join-Path `$launchRoot 'client-airgap.jar'", 1),
     @('[IO.File]::Copy($jar, $launchSnapshot, $false)', 1),
     @('[IO.FileShare]::Read', 1),
     @('Get-FileHash -InputStream $snapshotGuard -Algorithm SHA256', 1),
@@ -269,7 +269,7 @@ foreach ($entry in @(
 $standaloneRuntimeCheckIndex = $client.IndexOf('& $runtimeCheck')
 $standaloneJarIndex = $client.IndexOf('$jar = Join-Path $PSScriptRoot ''local-client\client-airgap.jar''')
 $standaloneSnapshotRootIndex = $client.IndexOf("'SpawnPK-airgap-' + [Guid]::NewGuid().ToString('N')")
-$standaloneSnapshotLeafIndex = $client.IndexOf("$launchSnapshot = Join-Path $launchRoot 'client-airgap.jar'")
+$standaloneSnapshotLeafIndex = $client.IndexOf("`$launchSnapshot = Join-Path `$launchRoot 'client-airgap.jar'")
 $standaloneGuardIndex = $client.IndexOf('$snapshotGuard = [IO.File]::Open(')
 $standaloneHashIndex = $client.IndexOf('Get-FileHash -InputStream $snapshotGuard -Algorithm SHA256')
 $standaloneLaunchIndex = $client.IndexOf('& $java.Path @javaArgs -jar $launchSnapshot')
@@ -335,7 +335,7 @@ Assert-True ($nonAirgap -match 'Set-LocalLabJava') 'Explicit nonairgap launcher 
 Assert-True ($nonAirgap -match '&\s+\$java\.Path\s+-jar\s+\$launchSnapshot') 'Explicit nonairgap launcher does not invoke selected Java with the guarded private snapshot.'
 Assert-True ($nonAirgap -notmatch '&\s+\$java\.Path\s+-jar\s+\$jar') 'Explicit nonairgap launcher still executes the mutable canonical localhost JAR directly.'
 Assert-True ($nonAirgap -match '01c878a56ee25fb112dfe8b459dbd11ea26cfa8a92a7f287a4e5ee53f673cdbd') 'Explicit nonairgap launcher no longer independently pins exact localhost snapshot SHA-256.'
-Assert-True ($nonAirgap -match [regex]::Escape("$launchSnapshot = Join-Path $launchRoot 'client-localhost.jar'")) 'Explicit nonairgap private snapshot does not preserve semantic client-localhost.jar basename.'
+Assert-True ($nonAirgap -match [regex]::Escape("`$launchSnapshot = Join-Path `$launchRoot 'client-localhost.jar'")) 'Explicit nonairgap private snapshot does not preserve semantic client-localhost.jar basename.'
 Assert-True ($nonAirgap -match [regex]::Escape('[IO.File]::Copy($jar, $launchSnapshot, $false)')) 'Explicit nonairgap launcher does not create a no-overwrite private snapshot.'
 Assert-True ($nonAirgap -match '\[IO\.File\]::Open\([\s\S]*\$launchSnapshot[\s\S]*\[IO\.FileAccess\]::Read[\s\S]*\[IO\.FileShare\]::Read') 'Explicit nonairgap launcher does not hold a read-only no-write/no-delete guard on the private snapshot.'
 Assert-True ($nonAirgap -match [regex]::Escape('Get-FileHash -InputStream $snapshotGuard -Algorithm SHA256')) 'Explicit nonairgap launcher does not hash the guarded snapshot identity.'
@@ -370,7 +370,7 @@ foreach ($entry in @(
     @('Push-Location -LiteralPath $PSScriptRoot', 1),
     @('$callerLocationPushed = $true', 1),
     @('Pop-Location', 1),
-    @("$launchSnapshot = Join-Path $launchRoot 'client-localhost.jar'", 1),
+    @("`$launchSnapshot = Join-Path `$launchRoot 'client-localhost.jar'", 1),
     @('[IO.File]::Copy($jar, $launchSnapshot, $false)', 1),
     @('[IO.FileShare]::Read', 1),
     @('Get-FileHash -InputStream $snapshotGuard -Algorithm SHA256', 1),
@@ -388,7 +388,7 @@ $nonAirgapConsentIndex = $nonAirgap.IndexOf('if (-not $AllowExternalEndpoints)')
 $nonAirgapSelectorIndex = $nonAirgap.IndexOf('$selector = Join-Path')
 $nonAirgapRuntimeCheckIndex = $nonAirgap.IndexOf('& $runtimeCheck')
 $nonAirgapSnapshotRootIndex = $nonAirgap.IndexOf("'SpawnPK-localhost-' + [Guid]::NewGuid().ToString('N')")
-$nonAirgapSnapshotLeafIndex = $nonAirgap.IndexOf("$launchSnapshot = Join-Path $launchRoot 'client-localhost.jar'")
+$nonAirgapSnapshotLeafIndex = $nonAirgap.IndexOf("`$launchSnapshot = Join-Path `$launchRoot 'client-localhost.jar'")
 $nonAirgapGuardIndex = $nonAirgap.IndexOf('$snapshotGuard = [IO.File]::Open(')
 $nonAirgapHashIndex = $nonAirgap.IndexOf('Get-FileHash -InputStream $snapshotGuard -Algorithm SHA256')
 $nonAirgapLaunchIndex = $nonAirgap.IndexOf('& $java.Path -jar $launchSnapshot')
