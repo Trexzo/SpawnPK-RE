@@ -1,3 +1,7 @@
+param(
+    [string]$LocalLabUserHome = $env:SPAWNPK_LOCALLAB_USER_HOME
+)
+
 Set-StrictMode -Version 2.0
 $ErrorActionPreference="Stop"
 $repo=Split-Path -Parent $PSScriptRoot
@@ -5,4 +9,8 @@ $repo=Split-Path -Parent $PSScriptRoot
 $java=Set-LocalLabJava
 & (Join-Path $PSScriptRoot "Check-ExternalRuntime.ps1")
 Push-Location $repo
-try { & (Join-Path $repo "RUN_CLIENT_AIRGAP.ps1") } finally { Pop-Location }
+try {
+    & (Join-Path $repo "RUN_CLIENT_AIRGAP.ps1") -LocalLabUserHome $LocalLabUserHome
+} finally {
+    Pop-Location
+}
