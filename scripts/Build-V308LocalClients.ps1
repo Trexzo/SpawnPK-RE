@@ -22,6 +22,54 @@ $output = [IO.Path]::GetFullPath($OutputDirectory)
 $expectedClient =
     '854f26ff9f134b0317572e7ac1688e6f40a231d5a4c66f8db5d655b7f45ce7c6'
 
+function Assert-CanonicalOutputPathSafe([string]$Path) {
+    $repoRoot = [IO.Path]::GetFullPath($repo).TrimEnd('\','/')
+    $full = [IO.Path]::GetFullPath($Path).TrimEnd('\','/')
+
+    if (-not [StringComparer]::OrdinalIgnoreCase.Equals(
+            $full,
+            $canonicalOutput
+        )) {
+        throw "OutputDirectory must remain the canonical LocalLab runtime directory: $canonicalOutput"
+    }
+
+    $repoItem = Get-Item -LiteralPath $repoRoot -Force
+    if (($repoItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+        throw "Repository root must not be a reparse point: $repoRoot"
+    }
+
+    $relative = $full.Substring($repoRoot.Length).TrimStart('\','/')
+    $cursor = $repoRoot
+
+    foreach ($segment in @($relative -split '[\\/]')) {
+        if ([string]::IsNullOrWhiteSpace($segment)) {
+            continue
+        }
+
+        $cursor = Join-Path $cursor $segment
+        if (-not (Test-Path -LiteralPath $cursor)) {
+            break
+        }
+
+        $item = Get-Item -LiteralPath $cursor -Force
+        if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+            throw "Canonical local-client path must not traverse a reparse point: $cursor"
+        }
+    }
+
+    if (Test-Path -LiteralPath $full) {
+        $outputItem = Get-Item -LiteralPath $full -Force
+        if (-not $outputItem.PSIsContainer) {
+            throw "Canonical local-client output exists but is not a directory: $full"
+        }
+        if (($outputItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+            throw "Canonical local-client output must not be a reparse point: $full"
+        }
+    }
+
+    return $full
+}
+
 foreach ($required in @($patcher, $runtimeCheck)) {
     if (-not (Test-Path -LiteralPath $required -PathType Leaf)) {
         throw "Missing v308 local-client build component: $required"
@@ -53,6 +101,10 @@ if (-not [StringComparer]::OrdinalIgnoreCase.Equals(
     throw "OutputDirectory must be the canonical LocalLab runtime directory: $canonicalOutput"
 }
 
+# Lexical equality alone is not enough: reject junction/symlink aliases before
+# creating or publishing anything below the canonical local-client directory.
+$output = Assert-CanonicalOutputPathSafe $output
+
 $python = Get-Command python -ErrorAction SilentlyContinue
 if ($null -eq $python) {
     throw 'Python is required to build the exact-v308 LocalLab client variants.'
@@ -63,8 +115,11 @@ Write-Host (
     "clientSha256=$actualClient canonicalClient=true canonicalOutput=true"
 ) -ForegroundColor Green
 
-# No canonical output state is created before every admission preflight above passes.
-New-Item -ItemType Directory -Force -Path $output | Out-Null
+# The Python publication transaction owns creation of an absent canonical
+# local-client directory so rollback can distinguish transaction-created
+# directory state from pre-existing caller state. Re-prove path safety
+# immediately before crossing the process boundary, but do not create it here.
+$output = Assert-CanonicalOutputPathSafe $output
 
 & $python.Source $patcher $client $output
 if ($LASTEXITCODE -ne 0) {
