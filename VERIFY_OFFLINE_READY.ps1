@@ -8,7 +8,7 @@ Add-Type -AssemblyName System.IO.Compression.FileSystem
 $lab=(Resolve-Path -LiteralPath $Target).Path
 $server=Join-Path $lab 'server\build\SpawnPKLocalServer.jar'
 $expectedServer='589635cef6244f1282aee487fdb0649150ded5b60bdc7e3fefd28bba8a86372c'
-$expectedPinned='6232bae206846a4ba8d09766a2dee886b69016066a3f50f83b201bf705f93662'
+$expectedPinned='854f26ff9f134b0317572e7ac1688e6f40a231d5a4c66f8db5d655b7f45ce7c6'
 if(-not(Test-Path -LiteralPath $server -PathType Leaf)){throw "Missing server JAR: $server"}
 $actual=(Get-FileHash -LiteralPath $server -Algorithm SHA256).Hash.ToLowerInvariant()
 if($actual -ne $expectedServer){throw "v5.18.5 server hash mismatch expected=$expectedServer actual=$actual"}
@@ -42,17 +42,9 @@ try{
 $pinnedPath=$null
 foreach($p in @((Join-Path $lab 'evidence\client(6).jar'),(Join-Path $lab 'evidence\client(4).jar'),(Join-Path $lab 'evidence\client.jar'),(Join-Path $lab 'client.jar'))){if(Test-Path -LiteralPath $p -PathType Leaf){if((Get-FileHash -LiteralPath $p -Algorithm SHA256).Hash.ToLowerInvariant() -eq $expectedPinned){$pinnedPath=$p;break}}}
 if(-not $pinnedPath){throw 'Pinned exact client missing/changed'}
-$variantManifest=Join-Path $lab 'tools\v5131-client-hook\INSTALLED_CLIENT_VARIANTS.txt'
-if(-not(Test-Path -LiteralPath $variantManifest -PathType Leaf)){throw 'Missing client variant manifest'}
-$variantLines=@(Get-Content -LiteralPath $variantManifest)
-foreach($c in @((Join-Path $lab 'local-client\client-localhost.jar'),(Join-Path $lab 'local-client\client-airgap.jar'))){
-  if(-not(Test-Path -LiteralPath $c -PathType Leaf)){throw "Missing LocalLab client: $c"}
-  $name=[IO.Path]::GetFileName($c);$row=@($variantLines|Where-Object {$_ -like "$name|*"})
-  if($row.Count -ne 1){throw "Missing/ambiguous variant manifest row for $name"}
-  if($row[0] -notmatch '\|jar=([0-9a-fA-F]{64})$'){throw "Malformed JAR hash row for $name"}
-  $expectedJar=$Matches[1].ToLowerInvariant();$actualJar=(Get-FileHash -LiteralPath $c -Algorithm SHA256).Hash.ToLowerInvariant()
-  if($actualJar -ne $expectedJar){throw "Client JAR changed: $name expected=$expectedJar actual=$actualJar"}
-}
+$runtimeVerifier=Join-Path $lab 'scripts\Check-ExternalRuntime.ps1'
+if(-not(Test-Path -LiteralPath $runtimeVerifier -PathType Leaf)){throw 'Missing canonical exact-v308 external runtime verifier'}
+& $runtimeVerifier
 if(-not(Test-Path -LiteralPath $ConfigDir -PathType Container)){throw "SpawnPK config directory missing: $ConfigDir"}
 $selector=Join-Path $lab 'tools\R85_SelectJava11Plus.ps1'
 if(-not(Test-Path -LiteralPath $selector -PathType Leaf)){throw 'Missing R8.5 Java selector'}
@@ -69,7 +61,7 @@ $launcherText=Get-Content -LiteralPath $launcher -Raw
 if($launcherText -notmatch 'R85 JAVA11\+ AUTOSELECT BEGIN'){throw 'Normal LocalLab launcher is missing the R8.5 Java 11+ auto-selector block'}
 Write-Host 'V5185_ENGINE_R85_OFFLINE_READY_PASS' -ForegroundColor Green
 Write-Host "Server: $expectedServer"
-Write-Host "Pinned evidence unchanged: $pinnedPath"
+Write-Host "Pinned exact-v308 evidence unchanged: $pinnedPath"
 Write-Host 'R8.5 STATIC/PROTOCOL: S2C250 43/43 operation-decoded; remaining generic C2S 8/8 promoted to exact normalized events; S2C126 generic publisher retained.'
 Write-Host 'R8.5 UI: typed application publishers + local/dev fixtures. Subtype20 emitter intentionally disabled because exact client behavior starts an external TCP receiver.'
 Write-Host 'VOIDGLASS R3: item29999 valid inside client table; legacy32760 retired; NPC12000..12003 native-asset compositor candidates; Hydra model/anims/GFX removed; proc GFX5042.'
