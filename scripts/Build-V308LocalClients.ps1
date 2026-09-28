@@ -1,0 +1,40 @@
+param(
+    [string]$ClientJar = (Join-Path $PSScriptRoot '..\evidence\client(6).jar'),
+    [string]$OutputDirectory = (Join-Path $PSScriptRoot '..\local-client')
+)
+
+Set-StrictMode -Version 2.0
+$ErrorActionPreference = 'Stop'
+
+$repo = Split-Path -Parent $PSScriptRoot
+$patcher = Join-Path $repo 'tools\runtime\build_v308_local_clients.py'
+
+if (-not (Test-Path -LiteralPath $patcher -PathType Leaf)) {
+    throw "Missing v308 local-client patcher: $patcher"
+}
+
+$python = Get-Command python -ErrorAction SilentlyContinue
+if ($null -eq $python) {
+    throw 'Python is required to build the exact-v308 LocalLab client variants.'
+}
+
+$client = [IO.Path]::GetFullPath($ClientJar)
+$output = [IO.Path]::GetFullPath($OutputDirectory)
+
+if (-not (Test-Path -LiteralPath $client -PathType Leaf)) {
+    throw "Exact v308 client missing: $client"
+}
+
+New-Item -ItemType Directory -Force -Path $output | Out-Null
+
+& $python.Source $patcher $client $output
+if ($LASTEXITCODE -ne 0) {
+    throw "v308 local-client patcher exited with code $LASTEXITCODE"
+}
+
+& (Join-Path $PSScriptRoot 'Check-ExternalRuntime.ps1')
+if ($LASTEXITCODE -ne 0) {
+    throw "External runtime verification exited with code $LASTEXITCODE"
+}
+
+Write-Host 'V308_LOCAL_CLIENT_BUILD_AND_VERIFY_PASS' -ForegroundColor Green
