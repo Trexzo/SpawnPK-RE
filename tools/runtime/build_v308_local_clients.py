@@ -173,7 +173,7 @@ def assert_verified_leaf(path: Path, expected_sha: str, label: str) -> None:
         )
 
 
-def remove_verified_leaf(path: Path | None, expected_sha: str, label: str) -> None:
+def remove_verified_leaf(path, expected_sha: str, label: str) -> None:
     if path is None or not path.exists():
         return
     assert_verified_leaf(path, expected_sha, label)
