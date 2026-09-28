@@ -627,6 +627,13 @@ $sealedVerifierTokens = @($allTokens | Where-Object { ([string]$_.Kind) -ne 'Com
 Assert-True ($sealedVerifierTokens.Count -eq 0) 'Multi-client launcher still invokes the sealed historical R8.5 verifier.'
 Assert-True ($all -match [regex]::Escape('server\build\SpawnPKLocalServer.jar')) 'Multi-client launcher does not preflight the current built server JAR.'
 Assert-True ($all -match 'LOCAL_LAB_REPLACEMENT_PREFLIGHT_PASS') 'Multi-client launcher does not report complete replacement preflight before process termination.'
+Assert-True ($all -match '\$admittedConflictStamp\s*=') 'Multi-client replacement does not retain admitted conflicting-process lifetime identity.'
+Assert-True ($all -match 'Get-NormalizedProcessLifetimeStamp -Timestamp \(\[DateTime\]\$p\.CreationDate\)') 'Multi-client replacement does not normalize admitted CIM CreationDate.'
+Assert-True ($all -match '\$currentConflict\s*=\s*Get-Process -Id \$ownerPid') 'Multi-client replacement does not re-resolve the current conflict process immediately before termination.'
+Assert-True ($all -match 'Get-NormalizedProcessLifetimeStamp -Timestamp \(\[DateTime\]\$currentConflict\.StartTime\)') 'Multi-client replacement does not normalize the current conflict Process.StartTime.'
+Assert-True ($all -match '\$currentConflictStamp\s+-ne\s+\$admittedConflictStamp') 'Multi-client replacement does not reject PID lifetime reuse.'
+Assert-True ($all -match 'Stop-Process -InputObject \$currentConflict -Force') 'Multi-client replacement does not terminate the exact revalidated process object.'
+Assert-True ($all -notmatch 'Stop-Process -Id \$ownerPid') 'Multi-client replacement still grants destructive authority to a bare listener PID.'
 Assert-True ($all -match 'function\s+Get-LauncherOwnedProcessIds') 'Multi-client launcher lacks deterministic descendant ownership resolution.'
 Assert-True ($all -match 'ParentProcessId') 'Multi-client launcher does not derive child authority from parent-process identity.'
 Assert-True ($all -match '\[switch\]\$IncludeExitedRoots') 'Multi-client ownership helper cannot preserve proven ancestry after a child root exits.'
@@ -702,6 +709,11 @@ foreach ($entry in @(
     @('$ownedChildren += $watcherWindow', 1),
     @('$ownedChildren += $clientWindow', 1),
     @('LOCAL_LAB_WINDOWS_STARTED_V521', 1),
+    @('$admittedConflictStamp =', 1),
+    @('$currentConflict = Get-Process -Id $ownerPid -ErrorAction SilentlyContinue', 1),
+    @('$currentConflictStamp =', 1),
+    @('$currentConflictStamp -ne $admittedConflictStamp', 1),
+    @('Stop-Process -InputObject $currentConflict -Force -ErrorAction Stop', 1),
     @('Stop-LauncherOwnedProcessTree -Roots $ownedChildren', 1),
     @('$callerLocationPushed = $false', 1),
     @('Push-Location -LiteralPath $PSScriptRoot', 1),
@@ -715,7 +727,10 @@ $allRuntimeCheckIndex = $all.IndexOf('& $runtimeCheck')
 $allServerJarPreflightIndex = $all.IndexOf('if (-not (Test-Path -LiteralPath $serverJar -PathType Leaf))')
 $allLauncherPreflightIndex = $all.IndexOf('foreach ($required in @($serverScript,$watcherScript,$clientScript))')
 $allReplacementPreflightPassIndex = $all.IndexOf('LOCAL_LAB_REPLACEMENT_PREFLIGHT_PASS')
-$allStopIndex = $all.IndexOf('Stop-Process -Id $ownerPid -Force')
+$allConflictAdmittedIndex = $all.IndexOf('$admittedConflictStamp =')
+$allConflictCurrentIndex = $all.IndexOf('$currentConflict = Get-Process -Id $ownerPid -ErrorAction SilentlyContinue')
+$allConflictMismatchIndex = $all.IndexOf('if ($currentConflictStamp -ne $admittedConflictStamp)')
+$allStopIndex = $all.IndexOf('Stop-Process -InputObject $currentConflict -Force -ErrorAction Stop')
 $allServerSpawnIndex = $all.IndexOf('$serverWindow = Start-Process powershell.exe')
 $allWatcherSpawnIndex = $all.IndexOf('$watcherWindow = Start-Process powershell.exe')
 $allClientSpawnIndex = $all.IndexOf('$clientWindow = Start-Process powershell.exe')
@@ -727,7 +742,10 @@ Assert-True ($allRuntimeCheckIndex -ge 0) 'Multi-client external-runtime preflig
 Assert-True ($allServerJarPreflightIndex -gt $allRuntimeCheckIndex) 'Multi-client replacement server JAR is checked before external-runtime authority.'
 Assert-True ($allLauncherPreflightIndex -gt $allServerJarPreflightIndex) 'Multi-client launcher components are not checked after server-JAR preflight.'
 Assert-True ($allReplacementPreflightPassIndex -gt $allLauncherPreflightIndex) 'Multi-client replacement preflight marker is emitted before required launcher checks.'
-Assert-True ($allStopIndex -gt $allReplacementPreflightPassIndex) 'Multi-client launcher may terminate an existing LocalLab before replacement preflight completes.'
+Assert-True ($allConflictAdmittedIndex -gt $allReplacementPreflightPassIndex) 'Multi-client replacement admits conflicting-process lifetime before complete replacement preflight.'
+Assert-True ($allConflictCurrentIndex -gt $allConflictAdmittedIndex) 'Multi-client replacement resolves current conflict process before admitted lifetime authority.'
+Assert-True ($allConflictMismatchIndex -gt $allConflictCurrentIndex) 'Multi-client replacement lifetime mismatch fence precedes current process resolution.'
+Assert-True ($allStopIndex -gt $allConflictMismatchIndex) 'Multi-client launcher may terminate a conflicting LocalLab before exact lifetime revalidation.'
 Assert-True ($allServerSpawnIndex -gt $allStopIndex) 'Multi-client owned server starts before replacement conflict cleanup completes.'
 Assert-True ($allWatcherSpawnIndex -gt $allServerSpawnIndex) 'Multi-client watcher spawn ordering is malformed.'
 Assert-True ($allClientSpawnIndex -gt $allWatcherSpawnIndex) 'Multi-client client spawn ordering is malformed.'
