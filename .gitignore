@@ -72,7 +72,8 @@ server/data/dev_pet_visual.properties
 
 # LocalLab-owned sealed baseline server artifact is intentionally tracked.
 !server/certified/
-!server/certified/*.jar# SpawnPK LocalLab generated/runtime state
+!server/certified/*.jar
+# SpawnPK LocalLab generated/runtime state
 *.tmp
 *.bak
 *~
