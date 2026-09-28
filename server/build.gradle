@@ -4086,7 +4086,24 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
             '-Pv308ClientPath=',
             '--no-daemon',
             '--console=plain',
-            'runtime\\certification',
+            '$evidenceRoot = Join-Path $runtimeRoot \'certification\'',
+            '$runtimeRoot = Join-Path $repo \'runtime\'',
+            'function Assert-OrdinaryDirectory',
+            'Get-Item -LiteralPath $Path -Force -ErrorAction Stop',
+            '$item.PSIsContainer',
+            'function Initialize-CertificationEvidenceRoot',
+            '[IO.FileAttributes]::ReparsePoint',
+            'Assert-OrdinaryDirectory -Path $runtimeRoot',
+            'Assert-OrdinaryDirectory -Path $evidenceRoot',
+            'Assert-OrdinaryDirectory -Path $snapshotRoot',
+            "Assert-OrdinaryDirectory -Path \$runtimeRoot -Label 'Certification runtime root before client snapshot copy'",
+            "Assert-OrdinaryDirectory -Path \$evidenceRoot -Label 'Certification evidence root before client snapshot copy'",
+            "Assert-OrdinaryDirectory -Path \$snapshotRoot -Label 'Certification client snapshot root before client snapshot copy'",
+            "Assert-OrdinaryDirectory -Path \$runtimeRoot -Label 'Certification runtime root before log write'",
+            "Assert-OrdinaryDirectory -Path \$evidenceRoot -Label 'Certification evidence root before log write'",
+            "Assert-OrdinaryDirectory -Path \$runtimeRoot -Label 'Certification runtime root before JSON evidence write'",
+            "Assert-OrdinaryDirectory -Path \$evidenceRoot -Label 'Certification evidence root before JSON evidence write'",
+            'Initialize-CertificationEvidenceRoot',
             'git -C $repo rev-parse HEAD',
             'git -C $repo status --porcelain --untracked-files=normal',
             "New-Object 'System.Collections.Generic.List[string]'",
@@ -4164,7 +4181,9 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
             'Tee-Object -FilePath $log',
             'Select-String -LiteralPath $log',
             'Get-FileHash -LiteralPath $log',
-            'Get-Item -LiteralPath $log'
+            'Get-Item -LiteralPath $log',
+            'New-Item -ItemType Directory -Force -Path $evidenceRoot',
+            'Test-Path -LiteralPath $Path -PathType Container'
         ].each { staleMutableAuthority ->
             if(text.contains(staleMutableAuthority))
                 throw new GradleException(
@@ -4238,6 +4257,147 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
                     "Chat 1 cumulative wrapper structural anchor count drift: expected=1 actual=${count} anchor=${anchor}"
                 )
         }
+
+        [
+            'function Assert-OrdinaryDirectory': 1,
+            'function Initialize-CertificationEvidenceRoot': 1,
+            'Assert-OrdinaryDirectory -Path $runtimeRoot': 5,
+            'Assert-OrdinaryDirectory -Path $evidenceRoot': 5,
+            'Assert-OrdinaryDirectory -Path $snapshotRoot': 2
+        ].each { anchor, expectedCount ->
+            int count = 0
+            int from = 0
+            while(true) {
+                int found =
+                    text.indexOf(
+                        anchor,
+                        from
+                    )
+                if(found < 0)
+                    break
+                count++
+                from = found + anchor.length()
+            }
+            if(count != expectedCount)
+                throw new GradleException(
+                    "Chat 1 cumulative evidence-root guard count drift: expected=${expectedCount} actual=${count} anchor=${anchor}"
+                )
+        }
+
+        int evidenceRootInitIndex =
+            text.lastIndexOf(
+                'Initialize-CertificationEvidenceRoot'
+            )
+        int snapshotRootCreateIndex =
+            text.indexOf(
+                'New-Item -ItemType Directory -Path $snapshotRoot'
+            )
+
+        if(evidenceRootInitIndex < 0 ||
+           snapshotRootCreateIndex < 0 ||
+           evidenceRootInitIndex >= snapshotRootCreateIndex)
+            throw new GradleException(
+                'Certification evidence-root validation must complete before invocation snapshot creation.'
+            )
+
+        int snapshotWriterIndex =
+            text.indexOf(
+                '\$snapshotWriter ='
+            )
+        int runtimeRevalidateIndex =
+            text.indexOf(
+                "Assert-OrdinaryDirectory -Path \$runtimeRoot -Label 'Certification runtime root before client snapshot copy'",
+                snapshotWriterIndex
+            )
+        int evidenceRevalidateIndex =
+            text.indexOf(
+                "Assert-OrdinaryDirectory -Path \$evidenceRoot -Label 'Certification evidence root before client snapshot copy'",
+                runtimeRevalidateIndex
+            )
+        int snapshotRevalidateIndex =
+            text.indexOf(
+                "Assert-OrdinaryDirectory -Path \$snapshotRoot -Label 'Certification client snapshot root before client snapshot copy'",
+                evidenceRevalidateIndex
+            )
+        int snapshotCopyIndex =
+            text.indexOf(
+                '\$sourceGuard.CopyTo(\$snapshotWriter)',
+                snapshotRevalidateIndex
+            )
+
+        if(snapshotWriterIndex < 0 ||
+           runtimeRevalidateIndex <= snapshotWriterIndex ||
+           evidenceRevalidateIndex <= runtimeRevalidateIndex ||
+           snapshotRevalidateIndex <= evidenceRevalidateIndex ||
+           snapshotCopyIndex <= snapshotRevalidateIndex)
+            throw new GradleException(
+                'Client snapshot authority ordering drifted: expected destination CreateNew -> runtime/evidence/snapshot parent revalidation -> guarded source copy.'
+            )
+
+        int logOpenIndex =
+            text.indexOf(
+                '\$logGuard =',
+                text.indexOf(
+                    "\$gradleOutput ="
+                )
+            )
+        int logRuntimeRevalidateIndex =
+            text.indexOf(
+                "Assert-OrdinaryDirectory -Path \$runtimeRoot -Label 'Certification runtime root before log write'",
+                logOpenIndex
+            )
+        int logEvidenceRevalidateIndex =
+            text.indexOf(
+                "Assert-OrdinaryDirectory -Path \$evidenceRoot -Label 'Certification evidence root before log write'",
+                logRuntimeRevalidateIndex
+            )
+        int logWriterAfterParentValidationIndex =
+            text.indexOf(
+                '\$logWriter =',
+                logEvidenceRevalidateIndex
+            )
+
+        if(logOpenIndex < 0 ||
+           logRuntimeRevalidateIndex <= logOpenIndex ||
+           logEvidenceRevalidateIndex <= logRuntimeRevalidateIndex ||
+           logWriterAfterParentValidationIndex <= logEvidenceRevalidateIndex)
+            throw new GradleException(
+                'Certification log authority ordering drifted: expected log CreateNew -> runtime/evidence revalidation -> log writer.'
+            )
+
+        int evidenceOpenSearchStart =
+            text.indexOf(
+                "\$evidenceSha = \$null"
+            )
+        int evidenceOpenIndex =
+            text.indexOf(
+                '\$evidenceGuard =',
+                evidenceOpenSearchStart
+            )
+        int jsonRuntimeRevalidateIndex =
+            text.indexOf(
+                "Assert-OrdinaryDirectory -Path \$runtimeRoot -Label 'Certification runtime root before JSON evidence write'",
+                evidenceOpenIndex
+            )
+        int jsonEvidenceRevalidateIndex =
+            text.indexOf(
+                "Assert-OrdinaryDirectory -Path \$evidenceRoot -Label 'Certification evidence root before JSON evidence write'",
+                jsonRuntimeRevalidateIndex
+            )
+        int evidenceWriterAfterParentValidationIndex =
+            text.indexOf(
+                '\$evidenceWriter =',
+                jsonEvidenceRevalidateIndex
+            )
+
+        if(evidenceOpenSearchStart < 0 ||
+           evidenceOpenIndex <= evidenceOpenSearchStart ||
+           jsonRuntimeRevalidateIndex <= evidenceOpenIndex ||
+           jsonEvidenceRevalidateIndex <= jsonRuntimeRevalidateIndex ||
+           evidenceWriterAfterParentValidationIndex <= jsonEvidenceRevalidateIndex)
+            throw new GradleException(
+                'Certification JSON evidence authority ordering drifted: expected evidence CreateNew -> runtime/evidence revalidation -> JSON writer.'
+            )
 
         if(!ignoreText.readLines().any {
                 it.trim() == 'runtime/certification/'
