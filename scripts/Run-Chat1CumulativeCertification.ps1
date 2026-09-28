@@ -224,7 +224,8 @@ try {
         $ErrorActionPreference = 'Continue'
         try {
             & $gradlew @gradleArgs 2>&1 |
-                Tee-Object -FilePath $log
+                Tee-Object -FilePath $log |
+                ForEach-Object { Write-Host $_ }
             $gradleExit = $LASTEXITCODE
         }
         finally {
@@ -331,6 +332,14 @@ finally {
 $json = $record | ConvertTo-Json -Depth 4
 Set-Content -LiteralPath $evidence -Value $json -Encoding UTF8
 
+$result = [pscustomobject]@{
+    Format = 'spawnpk-chat1-cumulative-result-v1'
+    GitHead = $headBefore
+    ExactV308ClientSha256 = $privateClientSha
+    CertifiedServerJarSha256 = $certifiedServerSha
+    EvidenceFileName = [IO.Path]::GetFileName($evidence)
+}
+
 Write-Host (
     'CHAT1_CUMULATIVE_WRAPPER_COMPLETE ' +
     "exactV308=true " +
@@ -343,3 +352,8 @@ Write-Host (
     "evidence=$([IO.Path]::GetFileName($evidence)) " +
     'hostedPromotionSatisfied=false'
 ) -ForegroundColor Green
+
+# This is the only success-pipeline value emitted by the wrapper. It carries
+# the Gradle-owned server identity directly to an in-process caller; durable
+# JSON remains audit evidence and is not release authority.
+Write-Output -NoEnumerate $result

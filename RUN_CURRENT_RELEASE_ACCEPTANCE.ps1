@@ -597,10 +597,85 @@ try {
     ) $cumulativeEvidenceName
 
     try {
-        & $cumulativeWrapper -ClientJar $client -EvidenceFileName $cumulativeEvidenceName
+        $cumulativeResults = @(
+            & $cumulativeWrapper -ClientJar $client -EvidenceFileName $cumulativeEvidenceName
+        )
     }
     catch {
         throw "Canonical current cumulative certification failed: $($_.Exception.Message)"
+    }
+
+    if ($cumulativeResults.Count -ne 1) {
+        throw (
+            "Canonical cumulative certification returned an unexpected result count. " +
+            "Expected: 1 Actual: $($cumulativeResults.Count)"
+        )
+    }
+
+    $cumulativeResult = $cumulativeResults[0]
+    if ($null -eq $cumulativeResult -or
+        $cumulativeResult.Format -ne 'spawnpk-chat1-cumulative-result-v1' -or
+        $cumulativeResult.GitHead -ne $releaseHead -or
+        $cumulativeResult.ExactV308ClientSha256 -ne $actual -or
+        $cumulativeResult.EvidenceFileName -ne $cumulativeEvidenceName) {
+        throw "Canonical cumulative certification direct result does not match this release invocation."
+    }
+
+    $certifiedServerSha = [string]$cumulativeResult.CertifiedServerJarSha256
+    if ($certifiedServerSha -notmatch '^[0-9a-f]{64}
+
+    try {
+        $cumulativeEvidence = (
+            Get-Content -LiteralPath $cumulativeEvidencePath -Raw -Encoding UTF8 |
+                ConvertFrom-Json
+        )
+    }
+    catch {
+        throw "Unable to parse canonical cumulative certification evidence: $($_.Exception.Message)"
+    }
+
+    if ($cumulativeEvidence.format -ne 'spawnpk-chat1-local-certification-evidence-v1' -or
+        $cumulativeEvidence.gitHead -ne $releaseHead -or
+        $cumulativeEvidence.exactV308ClientSha256 -ne $actual -or
+        $cumulativeEvidence.authoritativeMarkerObserved -ne $true -or
+        [string]$cumulativeEvidence.certifiedServerJarSha256 -ne $certifiedServerSha) {
+        throw (
+            "Canonical cumulative certification evidence does not match the direct " +
+            "in-process certification result."
+        )
+    }
+
+    Write-Host (
+        "CURRENT_RELEASE_CUMULATIVE_CERTIFICATION_PASS " +
+        "head=$releaseHead clientSha256=$actual " +
+        "serverSha256=$certifiedServerSha hostedPromotionSatisfied=false"
+    ) -ForegroundColor Green
+
+    Assert-ReleaseSourceIdentity -ExpectedHead $releaseHead -Phase "post-cumulative"
+
+    $certifiedJar = Join-Path $server "build\SpawnPKLocalServer.jar"
+    $smokeEvidence = Invoke-CurrentServerLoopbackSmoke -CanonicalJar $certifiedJar -ExpectedServerSha256 $certifiedServerSha
+
+    Assert-ReleaseSourceIdentity -ExpectedHead $releaseHead -Phase "post-smoke"
+
+    Write-Host (
+        "CURRENT_RELEASE_ACCEPTANCE_PASS " +
+        "head=$releaseHead clientSha256=$actual " +
+        "serverSha256=$($smokeEvidence.ServerSha256) " +
+        "hostedPromotionSatisfied=false"
+    ) -ForegroundColor Green
+}
+finally {
+    if ($hadCallerJavaHome) {
+        $env:JAVA_HOME = $callerJavaHome
+    }
+    else {
+        Remove-Item Env:JAVA_HOME -ErrorAction SilentlyContinue
+    }
+    $env:Path = $callerPath
+}
+) {
+        throw "Canonical cumulative certification direct result lacks a valid server SHA-256."
     }
 
     if (-not (Test-Path -LiteralPath $cumulativeEvidencePath -PathType Leaf)) {

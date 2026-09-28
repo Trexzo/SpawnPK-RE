@@ -4090,9 +4090,13 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
             'git -C $repo rev-parse HEAD',
             'git -C $repo status --porcelain --untracked-files=normal',
             'Tee-Object -FilePath $log',
+            'ForEach-Object { Write-Host $_ }',
             '$gradleExit = $LASTEXITCODE',
             "\$ErrorActionPreference = 'Continue'",
             'spawnpk-chat1-local-certification-evidence-v1',
+            'spawnpk-chat1-cumulative-result-v1',
+            'CertifiedServerJarSha256 = $certifiedServerSha',
+            'Write-Output -NoEnumerate $result',
             'hostedPromotionSatisfied = $false',
             'hostedEvidenceSeparate = $true',
             'Set-Content -LiteralPath $evidence',
@@ -4208,6 +4212,10 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
         [
             'scripts\\Run-Chat1CumulativeCertification.ps1',
             '& $cumulativeWrapper -ClientJar $client -EvidenceFileName $cumulativeEvidenceName',
+            '$cumulativeResults = @(',
+            'spawnpk-chat1-cumulative-result-v1',
+            '$certifiedServerSha = [string]$cumulativeResult.CertifiedServerJarSha256',
+            '[string]$cumulativeEvidence.certifiedServerJarSha256 -ne $certifiedServerSha',
             'certifiedServerJarSha256',
             '-ExpectedServerSha256 $certifiedServerSha',
             'CURRENT_RELEASE_CUMULATIVE_CERTIFICATION_PASS',
@@ -4221,7 +4229,8 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
 
         [
             '& $gradle r85V308Acceptance',
-            'CURRENT_RELEASE_V308_ACCEPTANCE_PASS'
+            'CURRENT_RELEASE_V308_ACCEPTANCE_PASS',
+            '$certifiedServerSha = [string]$cumulativeEvidence.certifiedServerJarSha256'
         ].each { forbidden ->
             if(currentReleaseText.contains(forbidden))
                 throw new GradleException(
@@ -4268,6 +4277,27 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
         if(currentCumulativeCount != 1)
             throw new GradleException(
                 "Current release acceptance cumulative-wrapper invocation count drift: expected=1 actual=${currentCumulativeCount}"
+            )
+
+        int directResultIndex =
+            currentReleaseText.indexOf(
+                '$certifiedServerSha = [string]$cumulativeResult.CertifiedServerJarSha256'
+            )
+        int evidenceReadIndex =
+            currentReleaseText.indexOf(
+                'Get-Content -LiteralPath $cumulativeEvidencePath'
+            )
+        int evidenceCrossCheckIndex =
+            currentReleaseText.indexOf(
+                '[string]$cumulativeEvidence.certifiedServerJarSha256 -ne $certifiedServerSha'
+            )
+
+        if(directResultIndex <= currentCumulativeIndex ||
+           evidenceReadIndex <= directResultIndex ||
+           evidenceCrossCheckIndex <= evidenceReadIndex ||
+           currentLoopbackIndex <= evidenceCrossCheckIndex)
+            throw new GradleException(
+                'Current release certification handoff ordering drifted: expected wrapper -> direct result authority -> durable evidence cross-check -> loopback smoke.'
             )
 
         int cleanIndex =
