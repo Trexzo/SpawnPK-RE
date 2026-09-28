@@ -420,8 +420,39 @@ foreach ($ownerPid in $listeners) {
 
     if ($isJava -and ($isSpawnLab -or $isRoatLab)) {
         $label = if ($isRoatLab) { 'RoatPKZ LocalLab' } else { 'previous SpawnPK LocalLab' }
+
+        try {
+            $admittedConflictStamp =
+                Get-NormalizedProcessLifetimeStamp -Timestamp ([DateTime]$p.CreationDate)
+        }
+        catch {
+            throw "Cannot prove admitted conflicting $label lifetime for PID $ownerPid : $($_.Exception.Message)"
+        }
+
+        $currentConflict = Get-Process -Id $ownerPid -ErrorAction SilentlyContinue
+        if ($null -eq $currentConflict) {
+            continue
+        }
+
+        try {
+            $currentConflictStamp =
+                Get-NormalizedProcessLifetimeStamp -Timestamp ([DateTime]$currentConflict.StartTime)
+        }
+        catch {
+            throw "Cannot revalidate conflicting $label lifetime for PID $ownerPid : $($_.Exception.Message)"
+        }
+
+        if ($currentConflictStamp -ne $admittedConflictStamp) {
+            throw (
+                "Refused conflicting $label PID lifetime mismatch. " +
+                "pid=$ownerPid " +
+                "admittedStamp=$admittedConflictStamp " +
+                "currentStamp=$currentConflictStamp"
+            )
+        }
+
         Write-Host "Stopping conflicting $label server PID $ownerPid..." -ForegroundColor Yellow
-        Stop-Process -Id $ownerPid -Force
+        Stop-Process -InputObject $currentConflict -Force -ErrorAction Stop
     } else {
         throw "SpawnPK port conflict: PID $ownerPid ($($p.Name)) does not look like a known LocalLab server. Command: $($p.CommandLine)"
     }
