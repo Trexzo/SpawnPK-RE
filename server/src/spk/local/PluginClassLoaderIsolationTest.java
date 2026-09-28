@@ -68,6 +68,9 @@ public final class PluginClassLoaderIsolationTest {
             jarA,
             jarB
         );
+        assertManifestParsingBounded(
+            jarA
+        );
         assertJarIndexRejected(
             jarA,
             jarB
@@ -504,6 +507,7 @@ public final class PluginClassLoaderIsolationTest {
             "reservedNamespaceRejected=true "+
             "javaPluginArchiveIdentityPinned=true "+
             "javaPluginManifestClasspathFenced=true "+
+            "javaPluginManifestSizeBounded=true "+
             "javaPluginJarIndexFenced=true "+
             "javaPluginSnapshotFailureRetired=true "+
             "constructorTccl=true "+
@@ -790,6 +794,262 @@ public final class PluginClassLoaderIsolationTest {
             label+
                 " manifest Class-Path rejection"
         );
+    }
+
+    private static void assertManifestParsingBounded(
+        Path jarA
+    )throws Exception{
+        Path directory=
+            Files.createTempDirectory(
+                "plugin-manifest-bounded-"
+            );
+        Path oversized=
+            directory.resolve(
+                "oversized.jar"
+            );
+        Path continued=
+            directory.resolve(
+                "continued.jar"
+            );
+        Path hugeNamed=
+            directory.resolve(
+                "huge-named.jar"
+            );
+
+        try{
+            writeJarWithRawManifest(
+                jarA,
+                oversized,
+                oversizedManifestMain()
+            );
+            assertJavaManifestRejected(
+                oversized,
+                "manifest main section exceeds",
+                "oversized main section"
+            );
+
+            writeJarWithRawManifest(
+                jarA,
+                continued,
+                (
+                    "Manifest-Version: 1.0\r\n"+
+                    "Class-Path: sibling-\r\n"+
+                    " continued.jar\r\n"+
+                    "\r\n"
+                ).getBytes(
+                    java.nio.charset.StandardCharsets.UTF_8
+                )
+            );
+            assertJavaManifestRejected(
+                continued,
+                "manifest Class-Path is forbidden",
+                "continued Class-Path"
+            );
+
+            writeJarWithRawManifest(
+                jarA,
+                hugeNamed,
+                hugeNamedManifest()
+            );
+
+            PluginJarLoader.LoadedPlugin loaded=
+                PluginJarLoader.load(
+                    hugeNamed,
+                    ENTRYPOINT
+                );
+
+            loaded.close();
+
+            if(!loaded.closed())
+                throw new AssertionError(
+                    "huge named manifest section healthy load did not close"
+                );
+        }finally{
+            Files.deleteIfExists(
+                hugeNamed
+            );
+            Files.deleteIfExists(
+                continued
+            );
+            Files.deleteIfExists(
+                oversized
+            );
+            Files.deleteIfExists(
+                directory
+            );
+        }
+    }
+
+    private static void assertJavaManifestRejected(
+        Path jar,
+        String expected,
+        String label
+    )throws Exception{
+        final Path[] snapshot=
+            new Path[1];
+        boolean rejected=false;
+
+        try{
+            PluginJarLoader.load(
+                jar,
+                ENTRYPOINT,
+                Plugin.class.getClassLoader(),
+                (source,admitted)->{},
+                (source,admitted)->
+                    snapshot[0]=admitted
+            );
+        }catch(IllegalArgumentException failure){
+            rejected=
+                failure.getMessage()!=null&&
+                failure.getMessage()
+                    .contains(
+                        expected
+                    );
+        }
+
+        if(!rejected)
+            throw new AssertionError(
+                "Java plugin manifest "+
+                label+
+                " was accepted"
+            );
+
+        assertSnapshotRetired(
+            snapshot[0],
+            label+
+                " rejection"
+        );
+    }
+
+    private static byte[] oversizedManifestMain()
+        throws Exception{
+        java.io.ByteArrayOutputStream out=
+            new java.io.ByteArrayOutputStream();
+
+        out.write(
+            (
+                "Manifest-Version: 1.0\r\n"+
+                "X-Fill: "
+            ).getBytes(
+                java.nio.charset.StandardCharsets.UTF_8
+            )
+        );
+
+        for(int i=0;
+            i<BoundedManifestMain
+                .MAX_MAIN_SECTION_BYTES+
+                1024;
+            i++)
+            out.write(
+                'a'
+            );
+
+        return out.toByteArray();
+    }
+
+    private static byte[] hugeNamedManifest()
+        throws Exception{
+        java.io.ByteArrayOutputStream out=
+            new java.io.ByteArrayOutputStream();
+
+        out.write(
+            (
+                "Manifest-Version: 1.0\r\n"+
+                "\r\n"+
+                "Name: ignored/section\r\n"+
+                "X-Fill: "
+            ).getBytes(
+                java.nio.charset.StandardCharsets.UTF_8
+            )
+        );
+
+        for(int i=0;
+            i<BoundedManifestMain
+                .MAX_MAIN_SECTION_BYTES*8;
+            i++)
+            out.write(
+                'b'
+            );
+
+        out.write(
+            "\r\n\r\n".getBytes(
+                java.nio.charset.StandardCharsets.UTF_8
+            )
+        );
+
+        return out.toByteArray();
+    }
+
+    private static void writeJarWithRawManifest(
+        Path source,
+        Path target,
+        byte[] manifestBytes
+    )throws Exception{
+        try(JarFile input=
+                new JarFile(
+                    source.toFile()
+                );
+            JarOutputStream output=
+                new JarOutputStream(
+                    Files.newOutputStream(
+                        target
+                    )
+                )){
+            output.putNextEntry(
+                new JarEntry(
+                    "META-INF/MANIFEST.MF"
+                )
+            );
+            output.write(
+                manifestBytes
+            );
+            output.closeEntry();
+
+            java.util.Enumeration<JarEntry>
+                entries=
+                    input.entries();
+            byte[] buffer=
+                new byte[8192];
+
+            while(entries.hasMoreElements()){
+                JarEntry entry=
+                    entries.nextElement();
+
+                if("META-INF/MANIFEST.MF"
+                        .equalsIgnoreCase(
+                            entry.getName()
+                        ))
+                    continue;
+
+                JarEntry copy=
+                    new JarEntry(
+                        entry.getName()
+                    );
+                output.putNextEntry(
+                    copy
+                );
+
+                if(!entry.isDirectory())
+                    try(java.io.InputStream in=
+                            input.getInputStream(
+                                entry
+                            )){
+                        int read;
+
+                        while((read=
+                                in.read(
+                                    buffer
+                                ))!=-1)
+                            output.write(
+                                buffer,
+                                0,
+                                read
+                            );
+                    }
+
+                output.closeEntry();
+            }
+        }
     }
 
     private static void assertJarIndexRejected(
