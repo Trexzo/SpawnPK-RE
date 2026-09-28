@@ -66,7 +66,8 @@ $launcherFiles = @(
     'scripts\Select-LocalLabJava.ps1',
     'scripts\Check-ExternalRuntime.ps1',
     'scripts\Build-V308LocalClients.ps1',
-    'scripts\Run-R13AssetAcceptance.ps1'
+    'scripts\Run-R13AssetAcceptance.ps1',
+    'scripts\Run-Chat1CumulativeCertification.ps1'
 )
 
 foreach ($file in $launcherFiles) {
