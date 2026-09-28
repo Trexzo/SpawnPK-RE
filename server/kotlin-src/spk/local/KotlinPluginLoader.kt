@@ -231,36 +231,81 @@ internal class KotlinPluginLoader @JvmOverloads constructor(
                 path,
                 jar
             )
-            val entries = jar.entries()
+
+            val required =
+                PluginApiExportContract
+                    .resources()
+            val seen =
+                LinkedHashSet<String>()
+            val entries =
+                jar.entries()
 
             while (entries.hasMoreElements()) {
-                val entry = entries.nextElement()
+                val entry =
+                    entries.nextElement()
 
                 if (entry.isDirectory) {
                     continue
                 }
 
-                val name = entry.name.replace('\\', '/')
+                val name =
+                    entry.name
+                        .replace('\\', '/')
                 validateJarIndexEntry(
                     path,
                     name
                 )
+
                 val effectiveName =
                     effectiveVersionedResource(
                         name
                     ) ?: name
 
-                if (!effectiveName.startsWith("spk/")) {
+                if (!effectiveName.endsWith(".class")) {
+                    require(
+                        effectiveName ==
+                            "META-INF/MANIFEST.MF"
+                    ) {
+                        "plugin API JAR contains unsupported non-class resource: " +
+                            effectiveName +
+                            " archiveEntry=" + name
+                    }
                     continue
                 }
 
+                if (effectiveName.startsWith("spk/")) {
+                    require(
+                        effectiveName.startsWith("spk/plugin/api/") ||
+                            effectiveName.startsWith("spk/content/api/") ||
+                            exportedEventResource(
+                                effectiveName
+                            )
+                    ) {
+                        "plugin API JAR exposes non-public SpawnPK namespace: " +
+                            effectiveName +
+                            " archiveEntry=" + name
+                    }
+                }
+
                 require(
-                    effectiveName.startsWith("spk/plugin/api/") ||
-                        effectiveName.startsWith("spk/content/api/") ||
-                        exportedEventResource(effectiveName)
+                    PluginApiExportContract
+                        .contains(
+                            effectiveName
+                        )
                 ) {
-                    "plugin API JAR exposes non-public SpawnPK namespace: " +
-                        effectiveName + " archiveEntry=" + name
+                    "plugin API JAR class is outside the official exported API set: " +
+                        effectiveName +
+                        " archiveEntry=" + name
+                }
+
+                require(
+                    seen.add(
+                        effectiveName
+                    )
+                ) {
+                    "plugin API JAR contains duplicate effective API class authority: " +
+                        effectiveName +
+                        " archiveEntry=" + name
                 }
 
                 val expected =
@@ -270,7 +315,8 @@ internal class KotlinPluginLoader @JvmOverloads constructor(
                         )
                         ?: throw IllegalArgumentException(
                             "Kotlin API server resource missing: " +
-                                effectiveName + " archiveEntry=" + name
+                                effectiveName +
+                                " archiveEntry=" + name
                         )
 
                 expected.use { trusted ->
@@ -283,11 +329,29 @@ internal class KotlinPluginLoader @JvmOverloads constructor(
                                 )
                             ) {
                                 "Kotlin API class does not match server API: " +
-                                    path + " entry=" + name +
+                                    path +
+                                    " entry=" + name +
                                     " effective=" + effectiveName
                             }
                         }
                 }
+            }
+
+            val missing =
+                LinkedHashSet<String>(
+                    required
+                )
+            missing.removeAll(
+                seen
+            )
+
+            require(
+                missing.isEmpty()
+            ) {
+                "plugin API JAR is missing required exported API classes: " +
+                    missing.joinToString(
+                        ","
+                    )
             }
         }
     }
