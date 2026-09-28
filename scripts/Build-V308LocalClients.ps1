@@ -140,7 +140,7 @@ $snapshotClient = Join-Path $snapshotRoot 'client-v308.jar'
 $sourceGuard = $null
 $privateGuard = $null
 $patcherFailure = $null
-$cleanupFailure = $null
+$cleanupFailures = @()
 
 try {
     New-Item -ItemType Directory -Path $snapshotRoot | Out-Null
@@ -212,36 +212,52 @@ catch {
     $patcherFailure = $_
 }
 finally {
-    try {
-        if ($null -ne $privateGuard) {
+    if ($null -ne $privateGuard) {
+        try {
             $privateGuard.Dispose()
             $privateGuard = $null
         }
+        catch {
+            $cleanupFailures +=
+                "private guard dispose: $($_.Exception.Message)"
+        }
+    }
 
-        if ($null -ne $sourceGuard) {
+    if ($null -ne $sourceGuard) {
+        try {
             $sourceGuard.Dispose()
             $sourceGuard = $null
         }
-
-        if (Test-Path -LiteralPath $snapshotRoot) {
-            Remove-Item -LiteralPath $snapshotRoot -Recurse -Force
+        catch {
+            $cleanupFailures +=
+                "source guard dispose: $($_.Exception.Message)"
         }
     }
-    catch {
-        $cleanupFailure = $_
+
+    if (Test-Path -LiteralPath $snapshotRoot) {
+        try {
+            Remove-Item -LiteralPath $snapshotRoot -Recurse -Force -ErrorAction Stop
+        }
+        catch {
+            $cleanupFailures +=
+                "snapshot root cleanup: $($_.Exception.Message)"
+        }
     }
 }
 
 if ($null -ne $patcherFailure) {
-    if ($null -ne $cleanupFailure) {
+    if ($cleanupFailures.Count -ne 0) {
         $patcherFailure.Exception.Data['V308InputSnapshotCleanupFailure'] =
-            $cleanupFailure.Exception.ToString()
+            ($cleanupFailures -join ' | ')
     }
     throw $patcherFailure
 }
 
-if ($null -ne $cleanupFailure) {
-    throw $cleanupFailure
+if ($cleanupFailures.Count -ne 0) {
+    throw (
+        'v308 local-client input snapshot cleanup failed: ' +
+        ($cleanupFailures -join ' | ')
+    )
 }
 
 & (Join-Path $PSScriptRoot 'Check-ExternalRuntime.ps1')
