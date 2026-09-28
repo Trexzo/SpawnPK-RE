@@ -1,16 +1,19 @@
 #!/usr/bin/env python3
 """Verify the exact preserved research inputs behind the Issue #9 v308 asset pipeline.
 
-This verifier does not consume production cache/client bytes. It pins the safe R10
-compiler source, the successful R11 Blender Actions artifact, and the R12 texture /
-render research kit. The R11 standalone legacy textured+skinned *model writer* was
-proven in the research run but was not preserved in these packages, so the verifier
-reports that boundary explicitly instead of reconstructing it.
+This verifier consumes only safe research packages supplied by the caller. It pins
+the R10 compiler sources, successful R11 authored-source artifact, R12 texture/render
+kit, and the source-controlled legacy textured+skinned model writer.
+
+The model-writer proof is exact: the committed writer recompiles the preserved R11
+OBJ/skin/material inputs from the R12 safe kit and must produce bytes identical to the
+certified R11 generated model.
 """
 from __future__ import annotations
 
 import argparse
 import hashlib
+import importlib.util
 import sys
 import zipfile
 from pathlib import Path
@@ -22,6 +25,8 @@ EXPECTED_ZIPS = {
 }
 
 R10_FILES = {
+    "tools/core/obj_to_spawnpk_ffff_skin.py":
+        "a37f135cd8cd8eb4c41c3c2a17212ea63244ed6afd654d7b682a551c88514bf0",
     "tools/core/compile_spawnpk_rig_v1.py":
         "338d0c7da4f74dc54919ca702c5c0579a1e43e278a483a0e67ed621ccae332ad",
     "tools/core/make_v308_frame_group_json.py":
@@ -105,11 +110,76 @@ def verify_zip(label: str, path: Path, expected_files: dict[str, str]) -> dict[s
     return verified
 
 
+def load_model_writer(path: Path):
+    if not path.is_file():
+        raise ValueError(f"model writer not found: {path}")
+    spec = importlib.util.spec_from_file_location(
+        "spawnpk_legacy_textured_skinned_writer",
+        path,
+    )
+    if spec is None or spec.loader is None:
+        raise ValueError(f"cannot import model writer: {path}")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    compiler = getattr(module, "compile_legacy_textured_skinned", None)
+    if compiler is None:
+        raise ValueError("model writer lacks compile_legacy_textured_skinned")
+    return compiler
+
+
+def verify_model_writer(writer_path: Path, r12_path: Path) -> str:
+    compiler = load_model_writer(writer_path)
+
+    with zipfile.ZipFile(r12_path, "r") as zf:
+        names = zf.namelist()
+        obj = zf.read(
+            resolve_entry(names, "blender/r11-authored-rest.obj")
+        ).decode("utf-8")
+        skins = zf.read(
+            resolve_entry(names, "blender/r11-authored-rest.obj.skins.json")
+        ).decode("utf-8")
+        material = zf.read(
+            resolve_entry(names, "blender/r11-material.json")
+        ).decode("utf-8")
+        expected = zf.read(
+            resolve_entry(
+                names,
+                "generated/r11-blender-textured-skinned-model-79999.dat",
+            )
+        )
+
+    rebuilt = compiler(obj, skins, material)
+    expected_sha = R12_FILES[
+        "generated/r11-blender-textured-skinned-model-79999.dat"
+    ]
+    rebuilt_sha = sha256_bytes(rebuilt)
+
+    if rebuilt_sha != expected_sha:
+        raise ValueError(
+            "legacy model writer SHA mismatch "
+            f"expected={expected_sha} actual={rebuilt_sha}"
+        )
+    if rebuilt != expected:
+        raise ValueError(
+            "legacy model writer output differs from certified R12 model bytes"
+        )
+
+    return rebuilt_sha
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--r10-kit", required=True, type=Path)
     ap.add_argument("--r11-artifact", required=True, type=Path)
     ap.add_argument("--r12-kit", required=True, type=Path)
+    ap.add_argument(
+        "--model-writer",
+        type=Path,
+        default=Path(__file__).with_name(
+            "compile_spawnpk_legacy_textured_skinned.py"
+        ),
+    )
     args = ap.parse_args()
 
     r10 = verify_zip("r10", args.r10_kit, R10_FILES)
@@ -121,17 +191,24 @@ def main() -> int:
         if r11[name] != r12[r12_name] or r11[name] != expected_sha:
             raise ValueError(f"R11/R12 authored-source drift: {name}")
 
+    legacy_model_sha = verify_model_writer(
+        args.model_writer,
+        args.r12_kit,
+    )
+
     print(
         "ISSUE9_RESEARCH_EVIDENCE_PASS "
         f"r10={EXPECTED_ZIPS['r10']} "
         f"r11={EXPECTED_ZIPS['r11']} "
         f"r12={EXPECTED_ZIPS['r12']} "
         "r11SourceMatchesR12=true "
+        "modelGeometryEncoderSourcePreserved=true "
         "rigCompilerSourcePreserved=true "
         "textureBuilderSourcePreserved=true "
-        "modelWriterSourcePreserved=false "
+        "modelWriterSourcePreserved=true "
+        "modelWriterByteIdentity=true "
         "legacyModelSha256="
-        + R12_FILES["generated/r11-blender-textured-skinned-model-79999.dat"]
+        + legacy_model_sha
     )
     return 0
 
