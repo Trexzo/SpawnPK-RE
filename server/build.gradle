@@ -4089,6 +4089,8 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
             '$evidenceRoot = Join-Path $runtimeRoot \'certification\'',
             '$runtimeRoot = Join-Path $repo \'runtime\'',
             'function Assert-OrdinaryDirectory',
+            'Get-Item -LiteralPath $Path -Force -ErrorAction Stop',
+            '$item.PSIsContainer',
             'function Initialize-CertificationEvidenceRoot',
             '[IO.FileAttributes]::ReparsePoint',
             'Assert-OrdinaryDirectory -Path $runtimeRoot',
@@ -4176,7 +4178,8 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
             'Select-String -LiteralPath $log',
             'Get-FileHash -LiteralPath $log',
             'Get-Item -LiteralPath $log',
-            'New-Item -ItemType Directory -Force -Path $evidenceRoot'
+            'New-Item -ItemType Directory -Force -Path $evidenceRoot',
+            'Test-Path -LiteralPath $Path -PathType Container'
         ].each { staleMutableAuthority ->
             if(text.contains(staleMutableAuthority))
                 throw new GradleException(
