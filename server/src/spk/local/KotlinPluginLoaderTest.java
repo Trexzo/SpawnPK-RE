@@ -901,6 +901,10 @@ public final class KotlinPluginLoaderTest {
             root.resolve(
                 "multi-release-unrelated.jar"
             );
+        Path forgedDsl=
+            root.resolve(
+                "multi-release-forged-dsl.jar"
+            );
         Path api=
             root.resolve(
                 "multi-release-api.jar"
@@ -932,7 +936,7 @@ public final class KotlinPluginLoaderTest {
                     cause.getMessage()!=null&&
                     cause.getMessage()
                         .contains(
-                            "forbidden multi-release class entry"
+                            "non-public SpawnPK namespace"
                         );
             }
 
@@ -989,6 +993,40 @@ public final class KotlinPluginLoaderTest {
             );
 
             createMultiReleaseClassJar(
+                forgedDsl,
+                "META-INF/versions/9/spk/plugin/kotlin/KotlinPluginDslKt.class"
+            );
+
+            boolean forgedDslRejected=false;
+
+            try{
+                constructor.newInstance(
+                    apiJar,
+                    java.util.Collections
+                        .singletonList(
+                            forgedDsl
+                        )
+                );
+            }catch(InvocationTargetException expected){
+                Throwable cause=
+                    expected.getCause();
+
+                forgedDslRejected=
+                    cause instanceof
+                        IllegalArgumentException&&
+                    cause.getMessage()!=null&&
+                    cause.getMessage()
+                        .contains(
+                            "does not match server SDK"
+                        );
+            }
+
+            if(!forgedDslRejected)
+                throw new AssertionError(
+                    "Kotlin versioned forged DSL class was accepted"
+                );
+
+            createMultiReleaseClassJar(
                 api,
                 "META-INF/versions/9/spk/local/HiddenApi.class"
             );
@@ -1021,6 +1059,9 @@ public final class KotlinPluginLoaderTest {
         }finally{
             Files.deleteIfExists(
                 api
+            );
+            Files.deleteIfExists(
+                forgedDsl
             );
             Files.deleteIfExists(
                 unrelated
