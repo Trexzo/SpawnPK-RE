@@ -898,7 +898,7 @@ foreach ($entry in @(
     @("Phase 'before-server-sha-evidence-write'", 1),
     @("Phase 'before-stdout-stderr-redirection'", 1),
     @("Phase 'before-versions-evidence-write'", 1),
-    @("Phase 'before-smoke-log-read'", 1),
+    @("Phase 'before-smoke-log-read'", 1)
 )) {
     Assert-ExactTextCount $releaseAcceptance $entry[0] ([int]$entry[1]) 'Current release identity/smoke structural count drift.'
 }
