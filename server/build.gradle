@@ -4087,13 +4087,13 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
             '--no-daemon',
             '--console=plain',
             'runtime\\certification',
-            '\$runtimeRoot = Join-Path \$repo \'runtime\'',
+            '$runtimeRoot = Join-Path $repo \'runtime\'',
             'function Assert-OrdinaryDirectory',
             'function Initialize-CertificationEvidenceRoot',
             '[IO.FileAttributes]::ReparsePoint',
-            'Assert-OrdinaryDirectory -Path \$runtimeRoot',
-            'Assert-OrdinaryDirectory -Path \$evidenceRoot',
-            'Assert-OrdinaryDirectory -Path \$snapshotRoot',
+            'Assert-OrdinaryDirectory -Path $runtimeRoot',
+            'Assert-OrdinaryDirectory -Path $evidenceRoot',
+            'Assert-OrdinaryDirectory -Path $snapshotRoot',
             'Initialize-CertificationEvidenceRoot',
             'git -C $repo rev-parse HEAD',
             'git -C $repo status --porcelain --untracked-files=normal',
@@ -4251,7 +4251,7 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
         [
             'function Assert-OrdinaryDirectory': 1,
             'function Initialize-CertificationEvidenceRoot': 1,
-            'Assert-OrdinaryDirectory -Path \$snapshotRoot': 1
+            'Assert-OrdinaryDirectory -Path $snapshotRoot': 1
         ].each { anchor, expectedCount ->
             int count = 0
             int from = 0
