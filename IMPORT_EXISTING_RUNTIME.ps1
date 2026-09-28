@@ -235,6 +235,29 @@ function New-VerifiedSameDirectoryLeaf(
     return $leaf
 }
 
+function Assert-VerifiedOwnedLeaf(
+    [string]$Path,
+    [string]$ExpectedSha256,
+    [string]$Label
+) {
+    if ([string]::IsNullOrWhiteSpace($Path) -or
+        -not (Test-Path -LiteralPath $Path -PathType Leaf)) {
+        throw "$Label owned leaf is missing: $Path"
+    }
+
+    [void](Assert-RegularDestinationOrMissing $Path $Label)
+    $actual = Get-ExactSha256 $Path
+
+    if ($actual -ne $ExpectedSha256) {
+        throw (
+            "$Label ownership lost. " +
+            "Expected: $ExpectedSha256 Actual: $actual Path: $Path"
+        )
+    }
+
+    return $Path
+}
+
 function Remove-VerifiedOwnedLeaf(
     [string]$Path,
     [string]$ExpectedSha256,
@@ -245,16 +268,7 @@ function Remove-VerifiedOwnedLeaf(
         return
     }
 
-    [void](Assert-RegularDestinationOrMissing $Path $Label)
-    $actual = Get-ExactSha256 $Path
-
-    if ($actual -ne $ExpectedSha256) {
-        throw (
-            "$Label ownership lost before leaf cleanup. " +
-            "Expected: $ExpectedSha256 Actual: $actual Path: $Path"
-        )
-    }
-
+    [void](Assert-VerifiedOwnedLeaf $Path $ExpectedSha256 $Label)
     Remove-Item -LiteralPath $Path -Force -ErrorAction Stop
 }
 
@@ -418,6 +432,14 @@ try {
             # Freeze canonical preimage ownership immediately before the
             # discrete same-directory commit.
             Assert-DestinationSnapshotStillOwned $record
+
+            # Re-prove that the create-new private leaf still contains the
+            # exact admitted bytes after canonical snapshot revalidation and
+            # immediately before the discrete commit.
+            [void](Assert-VerifiedOwnedLeaf `
+                $record.PublishLeaf `
+                $record.ExpectedSha256 `
+                "$($record.Label) publish leaf before commit")
 
             # Rollback tracking begins before the atomic transition. A failed
             # File.Replace/File.Move leaves Committed=false and therefore has
