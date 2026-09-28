@@ -44,6 +44,34 @@ function Get-TrackedWorktreeChanges {
     )
 }
 
+function Get-Sha256Hex {
+    param(
+        [Parameter(Mandatory=$true)]
+        [System.IO.Stream]$Stream
+    )
+
+    if (-not $Stream.CanRead -or -not $Stream.CanSeek) {
+        throw 'SHA-256 input stream must be readable and seekable.'
+    }
+
+    $sha = [Security.Cryptography.SHA256]::Create()
+    try {
+        $Stream.Position = 0
+        $hash = $sha.ComputeHash($Stream)
+        return (
+            @(
+                $hash | ForEach-Object {
+                    $_.ToString('x2')
+                }
+            ) -join ''
+        )
+    }
+    finally {
+        $sha.Dispose()
+        $Stream.Position = 0
+    }
+}
+
 foreach ($required in @(
     $selector,
     $gradlew
@@ -68,18 +96,6 @@ if (-not (Test-Path -LiteralPath $client -PathType Leaf)) {
     throw "Exact-v308 certification client is missing: $client"
 }
 
-$actualClientSha =
-    (Get-FileHash -LiteralPath $client -Algorithm SHA256).Hash.ToLowerInvariant()
-
-if ($actualClientSha -ne $expectedClientSha) {
-    throw (
-        'Exact-v308 certification client SHA-256 mismatch. ' +
-        "Expected: $expectedClientSha " +
-        "Actual: $actualClientSha " +
-        "Path: $client"
-    )
-}
-
 New-Item -ItemType Directory -Force -Path $evidenceRoot | Out-Null
 
 $stamp = (Get-Date).ToUniversalTime().ToString('yyyyMMddTHHmmssfffZ')
@@ -90,18 +106,86 @@ $log = Join-Path $evidenceRoot (
 $evidence = Join-Path $evidenceRoot (
     "chat1-cumulative-$stamp-$headPrefix.json"
 )
+$snapshotRoot = Join-Path $evidenceRoot (
+    "client-snapshot-$stamp-$headPrefix"
+)
+$snapshotClient = Join-Path $snapshotRoot 'client-v308.jar'
 
 $oldJavaHome = $env:JAVA_HOME
 $oldPath = $env:Path
+$sourceGuard = $null
+$privateGuard = $null
 
 try {
+    New-Item -ItemType Directory -Path $snapshotRoot | Out-Null
+
+    $sourceGuard =
+        New-Object System.IO.FileStream(
+            $client,
+            [IO.FileMode]::Open,
+            [IO.FileAccess]::Read,
+            [IO.FileShare]::Read
+        )
+
+    $actualClientSha = Get-Sha256Hex -Stream $sourceGuard
+    if ($actualClientSha -ne $expectedClientSha) {
+        throw (
+            'Exact-v308 certification client SHA-256 mismatch. ' +
+            "Expected: $expectedClientSha " +
+            "Actual: $actualClientSha " +
+            "Path: $client"
+        )
+    }
+
+    $snapshotWriter =
+        New-Object System.IO.FileStream(
+            $snapshotClient,
+            [IO.FileMode]::CreateNew,
+            [IO.FileAccess]::Write,
+            [IO.FileShare]::None
+        )
+    try {
+        $sourceGuard.Position = 0
+        $sourceGuard.CopyTo($snapshotWriter)
+        $snapshotWriter.Flush($true)
+    }
+    finally {
+        $snapshotWriter.Dispose()
+    }
+
+    $privateGuard =
+        New-Object System.IO.FileStream(
+            $snapshotClient,
+            [IO.FileMode]::Open,
+            [IO.FileAccess]::Read,
+            [IO.FileShare]::Read
+        )
+
+    $privateClientSha = Get-Sha256Hex -Stream $privateGuard
+    if ($privateClientSha -ne $expectedClientSha -or
+        $privateClientSha -ne $actualClientSha) {
+        throw (
+            'Invocation-owned exact-v308 client snapshot identity mismatch. ' +
+            "Expected: $expectedClientSha " +
+            "Source: $actualClientSha " +
+            "Snapshot: $privateClientSha"
+        )
+    }
+
+    # The external caller path is no longer certification authority after this
+    # point. Gradle receives only the invocation-owned snapshot, whose read
+    # guard denies write/delete sharing until certification has completed.
+    $sourceGuard.Dispose()
+    $sourceGuard = $null
+
     . $selector
     $buildJava = Set-LocalLabBuildJava
 
     Write-Host (
         'CHAT1_CUMULATIVE_PREFLIGHT_PASS ' +
         "head=$headBefore " +
-        "clientSha256=$actualClientSha " +
+        "clientSha256=$privateClientSha " +
+        "invocationOwnedClient=true " +
         "buildJdk=$($buildJava.Version)"
     ) -ForegroundColor Green
 
@@ -110,7 +194,7 @@ try {
         '--console=plain',
         'clean',
         'chat1CurrentCumulativeCertification',
-        "-Pv308ClientPath=$client"
+        "-Pv308ClientPath=$snapshotClient"
     )
 
     $gradleExit = $null
@@ -180,7 +264,8 @@ try {
         gitHead = $headBefore
         cleanWorktreeBefore = $true
         cleanWorktreeAfter = $true
-        exactV308ClientSha256 = $actualClientSha
+        exactV308ClientSha256 = $privateClientSha
+        invocationOwnedClient = $true
         gradleTask = 'chat1CurrentCumulativeCertification'
         gradleExitCode = [int]$gradleExit
         authoritativeMarkerObserved = $true
@@ -198,7 +283,8 @@ try {
         'CHAT1_CUMULATIVE_WRAPPER_COMPLETE ' +
         "exactV308=true " +
         "head=$headBefore " +
-        "clientSha256=$actualClientSha " +
+        "clientSha256=$privateClientSha " +
+        "invocationOwnedClient=true " +
         "logSha256=$logSha " +
         "logBytes=$($logItem.Length) " +
         "evidence=$([IO.Path]::GetFileName($evidence)) " +
@@ -206,6 +292,23 @@ try {
     ) -ForegroundColor Green
 }
 finally {
-    $env:JAVA_HOME = $oldJavaHome
-    $env:Path = $oldPath
+    try {
+        if ($null -ne $privateGuard) {
+            $privateGuard.Dispose()
+            $privateGuard = $null
+        }
+
+        if ($null -ne $sourceGuard) {
+            $sourceGuard.Dispose()
+            $sourceGuard = $null
+        }
+
+        if (Test-Path -LiteralPath $snapshotRoot) {
+            Remove-Item -LiteralPath $snapshotRoot -Recurse -Force
+        }
+    }
+    finally {
+        $env:JAVA_HOME = $oldJavaHome
+        $env:Path = $oldPath
+    }
 }
