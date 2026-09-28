@@ -191,18 +191,71 @@ function Stop-LauncherOwnedProcessTree {
         [string]$Label
     )
 
-    $ownedPids = @(Get-LauncherOwnedProcessIds -Roots $Roots -Label $Label -IncludeExitedRoots)
-    foreach ($ownedPid in $ownedPids) {
-        $live = Get-Process -Id $ownedPid -ErrorAction SilentlyContinue
-        if ($null -eq $live) {
-            continue
+    $cleanupDeadline = (Get-Date).AddSeconds(5)
+    $cleanupMaxPasses = 8
+    $cleanupPass = 0
+    $stoppedPidSet = @{}
+
+    while ($cleanupPass -lt $cleanupMaxPasses -and
+        (Get-Date) -lt $cleanupDeadline) {
+        $cleanupPass++
+
+        $ownedPids = @(
+            Get-LauncherOwnedProcessIds -Roots $Roots -Label $Label -IncludeExitedRoots
+        )
+        $liveOwnedPids = @(
+            $ownedPids |
+                Where-Object {
+                    $null -ne (
+                        Get-Process -Id $_ -ErrorAction SilentlyContinue
+                    )
+                }
+        )
+
+        if ($liveOwnedPids.Count -eq 0) {
+            Write-Host (
+                'LOCALLAB_OWNED_PROCESS_CLEANUP_COMPLETE ' +
+                "label=$Label passes=$cleanupPass " +
+                "stopped=$((@($stoppedPidSet.Keys) | Sort-Object) -join ',')"
+            ) -ForegroundColor Yellow
+            return
         }
-        Stop-Process -Id $ownedPid -Force -ErrorAction Stop
+
+        # Get-LauncherOwnedProcessIds returns descendants deepest-first and
+        # roots last, so each bounded pass preserves descendant-first teardown.
+        foreach ($ownedPid in $liveOwnedPids) {
+            $live = Get-Process -Id $ownedPid -ErrorAction SilentlyContinue
+            if ($null -eq $live) {
+                continue
+            }
+
+            Stop-Process -Id $ownedPid -Force -ErrorAction Stop
+            $stoppedPidSet[[int]$ownedPid] = $true
+        }
+
+        Start-Sleep -Milliseconds 100
+    }
+
+    $remainingOwnedPids = @(
+        Get-LauncherOwnedProcessIds -Roots $Roots -Label $Label -IncludeExitedRoots |
+            Where-Object {
+                $null -ne (
+                    Get-Process -Id $_ -ErrorAction SilentlyContinue
+                )
+            }
+    )
+
+    if ($remainingOwnedPids.Count -ne 0) {
+        throw (
+            "$Label launcher-owned cleanup did not converge. " +
+            "passes=$cleanupPass remaining=$($remainingOwnedPids -join ',')"
+        )
     }
 
     Write-Host (
         'LOCALLAB_OWNED_PROCESS_CLEANUP_COMPLETE ' +
-        "label=$Label owned=$($ownedPids -join ',')"
+        "label=$Label passes=$cleanupPass " +
+        "stopped=$((@($stoppedPidSet.Keys) | Sort-Object) -join ',')"
     ) -ForegroundColor Yellow
 }
 
