@@ -3,8 +3,13 @@ $ErrorActionPreference = "Stop"
 
 $repo = Split-Path -Parent $PSScriptRoot
 
-. (Join-Path $PSScriptRoot "Select-LocalLabBuildJava.ps1")
-$buildJava = Set-LocalLabBuildJava
+$hadCallerJavaHome = Test-Path Env:JAVA_HOME
+$callerJavaHome = $env:JAVA_HOME
+$callerPath = $env:Path
+
+try {
+    . (Join-Path $PSScriptRoot "Select-LocalLabBuildJava.ps1")
+    $buildJava = Set-LocalLabBuildJava
 
 $build = Join-Path $repo "server\build.ps1"
 $gradleBuild = Join-Path $repo "server\build.gradle"
@@ -36,3 +41,14 @@ if (-not (Test-Path -LiteralPath $jar -PathType Leaf)) {
 
 $sha = (Get-FileHash -LiteralPath $jar -Algorithm SHA256).Hash.ToLowerInvariant()
 Write-Host "SERVER_BUILD_OK $sha gradle=true bytecodeMajor=55" -ForegroundColor Green
+
+}
+finally {
+    if ($hadCallerJavaHome) {
+        $env:JAVA_HOME = $callerJavaHome
+    }
+    else {
+        Remove-Item Env:JAVA_HOME -ErrorAction SilentlyContinue
+    }
+    $env:Path = $callerPath
+}
