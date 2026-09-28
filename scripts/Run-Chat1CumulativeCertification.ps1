@@ -236,6 +236,13 @@ try {
             [IO.FileShare]::None
         )
     try {
+        # Own the exact empty destination file before the final ancestry
+        # revalidation. Sensitive client bytes are copied only while this
+        # already-open non-sharing file handle remains authoritative.
+        Assert-OrdinaryDirectory -Path $runtimeRoot -Label 'Certification runtime root before client snapshot copy'
+        Assert-OrdinaryDirectory -Path $evidenceRoot -Label 'Certification evidence root before client snapshot copy'
+        Assert-OrdinaryDirectory -Path $snapshotRoot -Label 'Certification client snapshot root before client snapshot copy'
+
         $sourceGuard.Position = 0
         $sourceGuard.CopyTo($snapshotWriter)
         $snapshotWriter.Flush($true)
