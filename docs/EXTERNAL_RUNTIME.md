@@ -71,3 +71,11 @@ For LocalLab custom-asset work, use the isolated profile root:
 ```
 
 Do not write generated LocalLab assets into the real OS user profile.
+
+## Existing R8.5 definition patching
+
+R8.5 modifies only local definition metadata in:
+- `.spawnpk\configs\i.bin`;
+- `.spawnpk\configs\e.bin`.
+
+The existing bootstrap path backs those files up before patching. The v308 external-runtime rebuild in this issue does not broaden that cache-mutation authority.
