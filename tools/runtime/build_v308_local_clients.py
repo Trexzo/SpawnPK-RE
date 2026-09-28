@@ -234,6 +234,57 @@ def build_variant(source: Path, output: Path, airgap: bool) -> dict:
     return changed
 
 
+def assert_container_invariants(
+    source: Path,
+    output: Path,
+    changed_entries: set[str],
+) -> None:
+    with zipfile.ZipFile(source, "r") as original, zipfile.ZipFile(
+        output,
+        "r",
+    ) as rebuilt:
+        original_names = original.namelist()
+        rebuilt_names = rebuilt.namelist()
+
+        if len(original_names) != len(set(original_names)):
+            raise ValueError("exact v308 input JAR contains duplicate entry names")
+
+        if original_names != rebuilt_names:
+            raise ValueError("rebuilt JAR entry order/name inventory drift")
+
+        signatures = [
+            name
+            for name in original_names
+            if name.upper().startswith("META-INF/")
+            and name.upper().endswith((".SF", ".RSA", ".DSA", ".EC"))
+        ]
+        if signatures:
+            raise ValueError(
+                "signed exact-client JAR is outside this patch authority: "
+                + repr(signatures)
+            )
+
+        manifest_name = "META-INF/MANIFEST.MF"
+        if manifest_name not in original_names:
+            raise ValueError("exact v308 JAR manifest missing")
+
+        manifest = original.read(manifest_name)
+        if b"Main-Class: rs.gui.Launcher" not in manifest:
+            raise ValueError("exact v308 JAR main-class authority drift")
+
+        if rebuilt.read(manifest_name) != manifest:
+            raise ValueError("rebuilt JAR manifest bytes changed")
+
+        for name in original_names:
+            if name in changed_entries:
+                continue
+
+            if rebuilt.read(name) != original.read(name):
+                raise ValueError(
+                    "unrelated JAR entry payload changed: " + name
+                )
+
+
 def assert_airgap_no_external_authority(path: Path) -> None:
     remaining = []
 
@@ -282,6 +333,16 @@ def main() -> int:
     localhost_changed = build_variant(source, localhost, airgap=False)
     airgap_changed = build_variant(source, airgap, airgap=True)
 
+    assert_container_invariants(
+        source,
+        localhost,
+        set(localhost_changed),
+    )
+    assert_container_invariants(
+        source,
+        airgap,
+        set(airgap_changed),
+    )
     assert_airgap_no_external_authority(airgap)
 
     localhost_sha = sha256_file(localhost)
@@ -310,6 +371,9 @@ def main() -> int:
         "updaterBase": "http://127.0.0.1:43595/spk_live/",
         "jarEntryCompression": "stored",
         "wholeJarDeterminismIndependentOfZlib": True,
+        "unchangedEntryPayloadIdentity": True,
+        "entryInventoryAndOrderPreserved": True,
+        "manifestPayloadPreserved": True,
     }
 
     (output / "v308-local-client-patch-manifest.json").write_text(
@@ -324,7 +388,8 @@ def main() -> int:
         f"airgap={airgap_sha} "
         f"localhostChanged={len(localhost_changed)} "
         f"airgapChanged={len(airgap_changed)} "
-        "externalEndpointAuthority=false"
+        "externalEndpointAuthority=false "
+        "unchangedEntryPayloadIdentity=true"
     )
     return 0
 
