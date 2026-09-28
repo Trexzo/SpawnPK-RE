@@ -329,7 +329,70 @@ finally {
 # Durable success evidence is published only after the invocation-owned client
 # guard has been released and its private snapshot root was deleted cleanly.
 $json = $record | ConvertTo-Json -Depth 4
-Set-Content -LiteralPath $evidence -Value $json -Encoding UTF8
+$evidenceGuard = $null
+$evidenceWriter = $null
+$evidenceSha = $null
+
+try {
+    $evidenceGuard =
+        [IO.File]::Open(
+            $evidence,
+            [IO.FileMode]::CreateNew,
+            [IO.FileAccess]::ReadWrite,
+            [IO.FileShare]::Read
+        )
+
+    $evidenceWriter =
+        [IO.StreamWriter]::new(
+            $evidenceGuard,
+            [Text.UTF8Encoding]::new($true),
+            4096,
+            $true
+        )
+    $evidenceWriter.WriteLine($json)
+    $evidenceWriter.Flush()
+    $evidenceGuard.Flush($true)
+
+    $evidenceWriter.Dispose()
+    $evidenceWriter = $null
+
+    $evidenceGuard.Position = 0
+    $evidenceSha =
+        (Get-FileHash -InputStream $evidenceGuard -Algorithm SHA256).Hash.ToLowerInvariant()
+}
+catch {
+    $publishFailure = $_
+
+    if ($null -ne $evidenceWriter) {
+        $evidenceWriter.Dispose()
+        $evidenceWriter = $null
+    }
+    if ($null -ne $evidenceGuard) {
+        $evidenceGuard.Dispose()
+        $evidenceGuard = $null
+    }
+
+    Remove-Item -LiteralPath $evidence -Force -ErrorAction SilentlyContinue
+    throw $publishFailure
+}
+finally {
+    if ($null -ne $evidenceWriter) {
+        $evidenceWriter.Dispose()
+    }
+    if ($null -ne $evidenceGuard) {
+        $evidenceGuard.Dispose()
+    }
+}
+
+$evidenceLeaf = [IO.Path]::GetFileName($evidence)
+$completion = [pscustomobject]@{
+    format = 'spawnpk-chat1-cumulative-result-v1'
+    gitHead = $headBefore
+    exactV308ClientSha256 = $privateClientSha
+    certifiedServerJarSha256 = $certifiedServerSha
+    evidenceFile = $evidenceLeaf
+    evidenceSha256 = $evidenceSha
+}
 
 Write-Host (
     'CHAT1_CUMULATIVE_WRAPPER_COMPLETE ' +
@@ -340,6 +403,9 @@ Write-Host (
     "serverSha256=$certifiedServerSha " +
     "logSha256=$logSha " +
     "logBytes=$($logItem.Length) " +
-    "evidence=$([IO.Path]::GetFileName($evidence)) " +
+    "evidence=$evidenceLeaf " +
+    "evidenceSha256=$evidenceSha " +
     'hostedPromotionSatisfied=false'
 ) -ForegroundColor Green
+
+Write-Output $completion

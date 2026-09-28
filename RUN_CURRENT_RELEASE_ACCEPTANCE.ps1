@@ -596,37 +596,99 @@ try {
         Join-Path $repo "runtime\certification"
     ) $cumulativeEvidenceName
 
+    $cumulativeOutput = $null
     try {
-        & $cumulativeWrapper -ClientJar $client -EvidenceFileName $cumulativeEvidenceName
+        & $cumulativeWrapper -ClientJar $client -EvidenceFileName $cumulativeEvidenceName |
+            Tee-Object -Variable cumulativeOutput
     }
     catch {
         throw "Canonical current cumulative certification failed: $($_.Exception.Message)"
+    }
+
+    $cumulativeResults = @(
+        @($cumulativeOutput) |
+            Where-Object {
+                $null -ne $_ -and
+                $null -ne $_.PSObject.Properties['format'] -and
+                $_.format -eq 'spawnpk-chat1-cumulative-result-v1'
+            }
+    )
+    if ($cumulativeResults.Count -ne 1) {
+        throw (
+            'Canonical cumulative wrapper did not publish exactly one structured result. ' +
+            "Observed: $($cumulativeResults.Count)"
+        )
+    }
+
+    $cumulativeResult = $cumulativeResults[0]
+    if ($cumulativeResult.gitHead -ne $releaseHead -or
+        $cumulativeResult.exactV308ClientSha256 -ne $actual -or
+        $cumulativeResult.evidenceFile -ne $cumulativeEvidenceName) {
+        throw "Canonical cumulative wrapper result identity does not match this release invocation."
+    }
+
+    $certifiedServerSha = [string]$cumulativeResult.certifiedServerJarSha256
+    $expectedEvidenceSha = [string]$cumulativeResult.evidenceSha256
+    if ($certifiedServerSha -notmatch '^[0-9a-f]{64}$' -or
+        $expectedEvidenceSha -notmatch '^[0-9a-f]{64}$') {
+        throw "Canonical cumulative wrapper result lacks valid SHA-256 identity."
     }
 
     if (-not (Test-Path -LiteralPath $cumulativeEvidencePath -PathType Leaf)) {
         throw "Canonical cumulative certification evidence is missing: $cumulativeEvidencePath"
     }
 
+    $cumulativeEvidenceGuard = $null
+    $cumulativeEvidenceReader = $null
     try {
-        $cumulativeEvidence = (
-            Get-Content -LiteralPath $cumulativeEvidencePath -Raw -Encoding UTF8 |
-                ConvertFrom-Json
-        )
+        $cumulativeEvidenceGuard =
+            [IO.File]::Open(
+                $cumulativeEvidencePath,
+                [IO.FileMode]::Open,
+                [IO.FileAccess]::Read,
+                [IO.FileShare]::Read
+            )
+
+        $actualEvidenceSha = (
+            Get-FileHash -InputStream $cumulativeEvidenceGuard -Algorithm SHA256
+        ).Hash.ToLowerInvariant()
+        if ($actualEvidenceSha -ne $expectedEvidenceSha) {
+            throw (
+                'Canonical cumulative certification evidence SHA mismatch. ' +
+                "Wrapper: $expectedEvidenceSha Evidence: $actualEvidenceSha"
+            )
+        }
+
+        $cumulativeEvidenceGuard.Position = 0
+        $cumulativeEvidenceReader =
+            [IO.StreamReader]::new(
+                $cumulativeEvidenceGuard,
+                [Text.Encoding]::UTF8,
+                $true,
+                4096,
+                $true
+            )
+        $cumulativeEvidenceText = $cumulativeEvidenceReader.ReadToEnd()
+        $cumulativeEvidence = $cumulativeEvidenceText | ConvertFrom-Json
     }
     catch {
-        throw "Unable to parse canonical cumulative certification evidence: $($_.Exception.Message)"
+        throw "Unable to verify canonical cumulative certification evidence: $($_.Exception.Message)"
+    }
+    finally {
+        if ($null -ne $cumulativeEvidenceReader) {
+            $cumulativeEvidenceReader.Dispose()
+        }
+        if ($null -ne $cumulativeEvidenceGuard) {
+            $cumulativeEvidenceGuard.Dispose()
+        }
     }
 
     if ($cumulativeEvidence.format -ne 'spawnpk-chat1-local-certification-evidence-v1' -or
         $cumulativeEvidence.gitHead -ne $releaseHead -or
         $cumulativeEvidence.exactV308ClientSha256 -ne $actual -or
-        $cumulativeEvidence.authoritativeMarkerObserved -ne $true) {
-        throw "Canonical cumulative certification evidence identity does not match this release invocation."
-    }
-
-    $certifiedServerSha = [string]$cumulativeEvidence.certifiedServerJarSha256
-    if ($certifiedServerSha -notmatch '^[0-9a-f]{64}$') {
-        throw "Canonical cumulative certification evidence lacks a valid server SHA-256."
+        $cumulativeEvidence.authoritativeMarkerObserved -ne $true -or
+        $cumulativeEvidence.certifiedServerJarSha256 -ne $certifiedServerSha) {
+        throw "Canonical cumulative certification evidence does not match the in-memory wrapper result."
     }
 
     Write-Host (

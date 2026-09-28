@@ -856,7 +856,13 @@ foreach ($entry in @(
     @('Current release exact smoke process exited after listener snapshot', 1),
     @('function Invoke-CurrentServerLoopbackSmoke', 1),
     @('$cumulativeEvidenceName = (', 1),
-    @('certifiedServerJarSha256', 1),
+    @('Tee-Object -Variable cumulativeOutput', 1),
+    @('spawnpk-chat1-cumulative-result-v1', 1),
+    @('$cumulativeResult = $cumulativeResults[0]', 1),
+    @('certifiedServerJarSha256', 2),
+    @('evidenceSha256', 1),
+    @('Get-FileHash -InputStream $cumulativeEvidenceGuard -Algorithm SHA256', 1),
+    @('Canonical cumulative certification evidence does not match the in-memory wrapper result.', 1),
     @('CURRENT_RELEASE_SERVER_SNAPSHOT_VERIFIED', 1),
     @('CURRENT_RELEASE_SERVER_LOOPBACK_PASS', 1),
     @('CURRENT_RELEASE_ACCEPTANCE_PASS', 1),
@@ -873,8 +879,13 @@ $releaseLauncherInvokeIndex = $releaseAcceptance.IndexOf('& $launcherContract -S
 $releaseFirstGradleIndex = $releaseAcceptance.IndexOf('& $gradle clean build')
 $releasePostBuildIdentityIndex = $releaseAcceptance.IndexOf('Assert-ReleaseSourceIdentity -ExpectedHead $releaseHead -Phase "post-build"')
 $releaseCumulativeInvokeIndex = $releaseAcceptance.IndexOf('& $cumulativeWrapper -ClientJar $client')
-$releaseCumulativeEvidenceIndex = $releaseAcceptance.IndexOf('$cumulativeEvidence = (')
-$releaseCertifiedServerShaIndex = $releaseAcceptance.IndexOf('$certifiedServerSha = [string]$cumulativeEvidence.certifiedServerJarSha256')
+$releaseCumulativeResultIndex = $releaseAcceptance.IndexOf('$cumulativeResult = $cumulativeResults[0]')
+$releaseCertifiedServerShaIndex = $releaseAcceptance.IndexOf('$certifiedServerSha = [string]$cumulativeResult.certifiedServerJarSha256')
+$releaseExpectedEvidenceShaIndex = $releaseAcceptance.IndexOf('$expectedEvidenceSha = [string]$cumulativeResult.evidenceSha256')
+$releaseEvidenceGuardIndex = $releaseAcceptance.IndexOf('$cumulativeEvidenceGuard =', $releaseExpectedEvidenceShaIndex)
+$releaseEvidenceHashIndex = $releaseAcceptance.IndexOf('Get-FileHash -InputStream $cumulativeEvidenceGuard -Algorithm SHA256')
+$releaseEvidenceParseIndex = $releaseAcceptance.IndexOf('$cumulativeEvidence = $cumulativeEvidenceText | ConvertFrom-Json')
+$releaseEvidenceServerMatchIndex = $releaseAcceptance.IndexOf('$cumulativeEvidence.certifiedServerJarSha256 -ne $certifiedServerSha')
 $releasePostCumulativeIdentityIndex = $releaseAcceptance.IndexOf('Assert-ReleaseSourceIdentity -ExpectedHead $releaseHead -Phase "post-cumulative"')
 $releaseCertifiedJarIndex = $releaseAcceptance.IndexOf('$certifiedJar = Join-Path $server "build\SpawnPKLocalServer.jar"')
 $releaseSmokeInvokeIndex = $releaseAcceptance.LastIndexOf('Invoke-CurrentServerLoopbackSmoke -CanonicalJar $certifiedJar')
@@ -888,9 +899,14 @@ Assert-True ($releaseLauncherInvokeIndex -gt $releasePreflightIdentityIndex) 'Cu
 Assert-True ($releaseFirstGradleIndex -gt $releaseLauncherInvokeIndex) 'Current release Gradle build ordering drifted before launcher regression.'
 Assert-True ($releasePostBuildIdentityIndex -gt $releaseFirstGradleIndex) 'Current release does not recheck source identity after ordinary build.'
 Assert-True ($releaseCumulativeInvokeIndex -gt $releasePostBuildIdentityIndex) 'Current cumulative certification does not follow post-build source recheck.'
-Assert-True ($releaseCumulativeEvidenceIndex -gt $releaseCumulativeInvokeIndex) 'Current release does not parse the exact cumulative evidence created by this invocation.'
-Assert-True ($releaseCertifiedServerShaIndex -gt $releaseCumulativeEvidenceIndex) 'Current release does not derive server SHA authority from cumulative evidence.'
-Assert-True ($releasePostCumulativeIdentityIndex -gt $releaseCertifiedServerShaIndex) 'Current release does not recheck source identity after cumulative evidence validation.'
+Assert-True ($releaseCumulativeResultIndex -gt $releaseCumulativeInvokeIndex) 'Current release does not consume the structured result from the exact wrapper invocation.'
+Assert-True ($releaseCertifiedServerShaIndex -gt $releaseCumulativeResultIndex) 'Current release does not derive server SHA authority from the in-memory wrapper result.'
+Assert-True ($releaseExpectedEvidenceShaIndex -gt $releaseCertifiedServerShaIndex) 'Current release does not bind durable evidence identity to the in-memory wrapper result.'
+Assert-True ($releaseEvidenceGuardIndex -gt $releaseExpectedEvidenceShaIndex) 'Current release opens durable evidence before in-memory authority is established.'
+Assert-True ($releaseEvidenceHashIndex -gt $releaseEvidenceGuardIndex) 'Current release does not hash the guarded durable evidence identity.'
+Assert-True ($releaseEvidenceParseIndex -gt $releaseEvidenceHashIndex) 'Current release parses durable evidence before verifying its in-memory-bound SHA.'
+Assert-True ($releaseEvidenceServerMatchIndex -gt $releaseEvidenceParseIndex) 'Current release does not cross-check durable JSON server SHA against in-memory authority.'
+Assert-True ($releasePostCumulativeIdentityIndex -gt $releaseEvidenceServerMatchIndex) 'Current release does not recheck source identity after cumulative evidence cross-check.'
 Assert-True ($releaseCertifiedJarIndex -gt $releasePostCumulativeIdentityIndex) 'Current release selects cumulative-certified server JAR before post-cumulative source proof.'
 Assert-True ($releaseSmokeInvokeIndex -gt $releaseCertifiedJarIndex) 'Current release smoke invocation does not follow cumulative-certified JAR selection.'
 Assert-True ($releaseSmokeExpectedShaIndex -gt $releaseCertifiedJarIndex) 'Current release smoke does not receive the cumulative-certified server SHA.'
