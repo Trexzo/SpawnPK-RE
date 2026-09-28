@@ -187,6 +187,11 @@ Assert-True ($quick -match 'Get-CimInstance\s+Win32_Process') 'Quick-start launc
 Assert-True ($quick -match 'SpawnPKLocalServer\|spk\\\.local\\\.Main\|SpawnPK-LocalLab') 'Quick-start launcher does not require expected SpawnPK LocalLab server identity.'
 Assert-True ($quick -match 'function\s+Get-LauncherOwnedProcessIds') 'Quick-start launcher lacks deterministic descendant ownership resolution.'
 Assert-True ($quick -match 'ParentProcessId') 'Quick-start launcher does not derive owned descendants from Windows parent-process identity.'
+Assert-True ($quick -match '\[switch\]\$IncludeExitedRoots') 'Quick-start ownership helper cannot preserve recorded ancestry after a child root exits.'
+Assert-True ($quick -match '\$recordedRootPids') 'Quick-start ownership helper does not retain recorded root PID authority.'
+Assert-True ($quick -match '\$liveRootPids') 'Quick-start ownership helper no longer distinguishes live roots from recorded roots.'
+Assert-True ($quick -match 'Get-LauncherOwnedProcessIds -Roots \$Roots -Label \$Label -IncludeExitedRoots') 'Quick-start failure cleanup does not opt into exited-root descendant traversal.'
+Assert-True ($quick -match '\$_\.Value -gt 0 -or\s+\$_\.Key -in \$liveRootPids') 'Quick-start cleanup may treat an exited recorded root PID as a live kill target.'
 Assert-True ($quick -match '\$candidatePid\s+-notin\s+\$serverOwnedPids') 'Quick-start launcher does not bind ready server PID to the recorded server window.'
 Assert-True ($quick -match '\$_\.ProcessId\s+-in\s+\$clientOwnedPids') 'Quick-start launcher does not bind airgap Java discovery to the recorded client window.'
 Assert-True ($quick -match '\$stableClient\.ProcessId\s+-notin\s+\$stableClientOwnedPids') 'Quick-start client stability does not retain recorded client-window ancestry.'
@@ -200,6 +205,10 @@ foreach ($entry in @(
     @('function Get-LauncherOwnedProcessIds', 1),
     @('function Stop-LauncherOwnedProcessTree', 1),
     @('function Throw-LauncherFailureWithCleanup', 1),
+    @('[switch]$IncludeExitedRoots', 1),
+    @('Get-LauncherOwnedProcessIds -Roots $Roots -Label $Label -IncludeExitedRoots', 1),
+    @('$recordedRootPids = @(', 1),
+    @('$liveRootPids = @(', 1),
     @('$ready = $false', 1),
     @('$airgapClient = $null', 1),
     @('$ownedChildren = @()', 1),
@@ -403,6 +412,11 @@ Assert-True ($all -match [regex]::Escape('server\build\SpawnPKLocalServer.jar'))
 Assert-True ($all -match 'LOCAL_LAB_REPLACEMENT_PREFLIGHT_PASS') 'Multi-client launcher does not report complete replacement preflight before process termination.'
 Assert-True ($all -match 'function\s+Get-LauncherOwnedProcessIds') 'Multi-client launcher lacks deterministic descendant ownership resolution.'
 Assert-True ($all -match 'ParentProcessId') 'Multi-client launcher does not derive child authority from parent-process identity.'
+Assert-True ($all -match '\[switch\]\$IncludeExitedRoots') 'Multi-client ownership helper cannot preserve recorded ancestry after a child root exits.'
+Assert-True ($all -match '\$recordedRootPids') 'Multi-client ownership helper does not retain recorded root PID authority.'
+Assert-True ($all -match '\$liveRootPids') 'Multi-client ownership helper no longer distinguishes live roots from recorded roots.'
+Assert-True ($all -match 'Get-LauncherOwnedProcessIds -Roots \$Roots -Label \$Label -IncludeExitedRoots') 'Multi-client failure cleanup does not opt into exited-root descendant traversal.'
+Assert-True ($all -match '\$_\.Value -gt 0 -or\s+\$_\.Key -in \$liveRootPids') 'Multi-client cleanup may treat an exited recorded root PID as a live kill target.'
 Assert-True ($all -match '\$candidateServerPid\s+-in\s+\$serverOwnedPids') 'Multi-client launcher does not bind server readiness to the recorded server window.'
 Assert-True ($all -match '\$_\.ProcessId\s+-in\s+\$clientOwnedPids') 'Multi-client launcher does not bind client discovery to the recorded client window.'
 Assert-True ($all -match '\$stableAirgapClient\.ProcessId\s+-notin\s+\$stableClientOwnedPids') 'Multi-client client stability does not retain recorded client-window ancestry.'
@@ -427,6 +441,10 @@ foreach ($entry in @(
     @('function Get-LauncherOwnedProcessIds', 1),
     @('function Stop-LauncherOwnedProcessTree', 1),
     @('function Throw-LauncherFailureWithCleanup', 1),
+    @('[switch]$IncludeExitedRoots', 1),
+    @('Get-LauncherOwnedProcessIds -Roots $Roots -Label $Label -IncludeExitedRoots', 1),
+    @('$recordedRootPids = @(', 1),
+    @('$liveRootPids = @(', 1),
     @('$ready = $false', 1),
     @('$airgapClient = $null', 1),
     @('$ownedChildren = @()', 1),
