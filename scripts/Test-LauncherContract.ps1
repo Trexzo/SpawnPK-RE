@@ -76,6 +76,7 @@ $runtimeImport = Read-RepoFile 'IMPORT_EXISTING_RUNTIME.ps1'
 $runtimeBuilder = Read-RepoFile 'scripts\Build-V308LocalClients.ps1'
 $v308Patcher = Read-RepoFile 'tools\runtime\build_v308_local_clients.py'
 $r13Acceptance = Read-RepoFile 'scripts\Run-R13AssetAcceptance.ps1'
+$releaseAcceptance = Read-RepoFile 'RUN_CURRENT_RELEASE_ACCEPTANCE.ps1'
 
 $r13UniqueAnchors = @(
     '$runtimeRoot = Join-Path $repo ''runtime\locallab-user-home''',
@@ -283,6 +284,24 @@ Assert-True ($v308PublishIndex -gt $v308TouchIndex) 'v308 local-client builder w
 Assert-True ($v308FinalVerifyIndex -gt $v308PublishIndex) 'v308 local-client final verification does not follow canonical publication.'
 Assert-True ($v308ExceptIndex -gt $v308FinalVerifyIndex) 'v308 local-client final verification escaped rollback ownership.'
 Assert-True ($v308SuccessIndex -gt $v308FinalVerifyIndex) 'v308 local-client builder reports success before final published-set verification.'
+
+Assert-True ($releaseAcceptance -match [regex]::Escape('scripts\Select-LocalLabJava.ps1')) 'Current release acceptance does not use canonical runtime Java selector.'
+Assert-True ($releaseAcceptance -match 'Set-LocalLabJava') 'Current release acceptance does not resolve canonical LocalLab runtime Java.'
+Assert-True ($releaseAcceptance -match '-FilePath\s+\$runtimeJava\.Path') 'Current release loopback smoke does not launch with selected canonical Java path.'
+Assert-True ($releaseAcceptance -notmatch 'Get-Command\s+java(?:\.exe)?') 'Current release acceptance reintroduced arbitrary PATH Java selection.'
+Assert-True ($releaseAcceptance -match 'Run-Chat1CumulativeCertification\.ps1') 'Current release acceptance lost canonical cumulative certification wrapper.'
+Assert-True ($releaseAcceptance -match 'CURRENT_RELEASE_CUMULATIVE_CERTIFICATION_PASS') 'Current release acceptance lost cumulative certification success boundary.'
+
+$releaseSelectorIndex = $releaseAcceptance.IndexOf('$runtimeJavaSelector = Join-Path')
+$releaseJavaIndex = $releaseAcceptance.IndexOf('$runtimeJava = Set-LocalLabJava')
+$releaseCumulativeIndex = $releaseAcceptance.IndexOf('& $cumulativeWrapper -ClientJar $client')
+$releaseSmokeIndex = $releaseAcceptance.LastIndexOf('Invoke-CurrentServerLoopbackSmoke')
+$releaseStartProcessIndex = $releaseAcceptance.IndexOf('-FilePath $runtimeJava.Path')
+Assert-True ($releaseSelectorIndex -ge 0) 'Current release runtime Java selector path not found.'
+Assert-True ($releaseJavaIndex -gt $releaseSelectorIndex) 'Current release resolves runtime Java before selector authority is established.'
+Assert-True ($releaseCumulativeIndex -gt $releaseJavaIndex) 'Current release cumulative certification does not follow canonical Java selection.'
+Assert-True ($releaseSmokeIndex -gt $releaseCumulativeIndex) 'Current release loopback smoke starts before cumulative certification.'
+Assert-True ($releaseStartProcessIndex -gt $releaseJavaIndex) 'Current release smoke process does not use Java selected by canonical policy.'
 
 Assert-True ($r13Acceptance -match 'runtime\\locallab-user-home\\r13') 'R13 acceptance launcher default output is outside the ignored LocalLab runtime subtree.'
 Assert-True ($r13Acceptance -match 'Assert-UnderRuntimeRoot') 'R13 acceptance launcher lacks a reusable destructive-cleanup containment fence.'
