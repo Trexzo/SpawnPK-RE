@@ -780,6 +780,42 @@ foreach ($launcherSource in @($quick, $all)) {
     Assert-True ($liveRootSeedIndex -gt $liveRootMismatchIndex) 'Launcher grants depth-0 ancestry authority before live-root lifetime identity is proven.'
 }
 
+foreach ($launcherSource in @($quick, $all)) {
+    Assert-True ($launcherSource -match '\$cleanupDeadline\s*=\s*\(Get-Date\)\.AddSeconds\(5\)') 'Launcher cleanup lost bounded five-second convergence deadline.'
+    Assert-True ($launcherSource -match '\$cleanupMaxPasses\s*=\s*8') 'Launcher cleanup lost bounded eight-pass convergence limit.'
+    Assert-True ($launcherSource -match 'while \(\$cleanupPass -lt \$cleanupMaxPasses') 'Launcher cleanup does not repeatedly rescan owned process authority.'
+    Assert-True ($launcherSource -match 'Get-LauncherOwnedProcessIds -Roots \$Roots -Label \$Label -IncludeExitedRoots') 'Launcher cleanup rescan is not rooted in lifetime-bound ownership authority.'
+    Assert-True ($launcherSource -match '\$liveOwnedPids\.Count\s+-eq\s+0') 'Launcher cleanup has no zero-live-owned convergence condition.'
+    Assert-True ($launcherSource -match '\$remainingOwnedPids\.Count\s+-ne\s+0') 'Launcher cleanup does not fail after bounded exhaustion with remaining owned processes.'
+    Assert-True ($launcherSource -match 'launcher-owned cleanup did not converge') 'Launcher cleanup does not surface bounded convergence failure.'
+    Assert-True ($launcherSource -notmatch 'Stop-Process\s+-Name') 'Launcher convergent cleanup reintroduced broad name-based termination.'
+
+    foreach ($entry in @(
+        @('$cleanupDeadline = (Get-Date).AddSeconds(5)', 1),
+        @('$cleanupMaxPasses = 8', 1),
+        @('$cleanupPass++', 1),
+        @('$liveOwnedPids = @(', 1),
+        @('$remainingOwnedPids = @(', 1),
+        @('launcher-owned cleanup did not converge', 1),
+        @('Start-Sleep -Milliseconds 100', 1)
+    )) {
+        Assert-ExactTextCount $launcherSource $entry[0] ([int]$entry[1]) 'Launcher cleanup convergence structural count drift.'
+    }
+
+    $cleanupLoopIndex = $launcherSource.IndexOf('while ($cleanupPass -lt $cleanupMaxPasses')
+    $cleanupRescanIndex = $launcherSource.IndexOf('Get-LauncherOwnedProcessIds -Roots $Roots -Label $Label -IncludeExitedRoots', $cleanupLoopIndex)
+    $cleanupStopIndex = $launcherSource.IndexOf('Stop-Process -Id $ownedPid -Force -ErrorAction Stop', $cleanupRescanIndex)
+    $cleanupFinalRescanIndex = $launcherSource.LastIndexOf('Get-LauncherOwnedProcessIds -Roots $Roots -Label $Label -IncludeExitedRoots')
+    $cleanupRemainingCheckIndex = $launcherSource.IndexOf('if ($remainingOwnedPids.Count -ne 0)')
+    $cleanupCompleteIndex = $launcherSource.LastIndexOf('LOCALLAB_OWNED_PROCESS_CLEANUP_COMPLETE')
+    Assert-True ($cleanupLoopIndex -ge 0) 'Launcher cleanup convergence loop not found.'
+    Assert-True ($cleanupRescanIndex -gt $cleanupLoopIndex) 'Launcher cleanup does not rescan ownership inside bounded loop.'
+    Assert-True ($cleanupStopIndex -gt $cleanupRescanIndex) 'Launcher cleanup terminates processes before lifetime-bound ownership discovery.'
+    Assert-True ($cleanupFinalRescanIndex -gt $cleanupStopIndex) 'Launcher cleanup has no final ownership rescan after bounded termination passes.'
+    Assert-True ($cleanupRemainingCheckIndex -gt $cleanupFinalRescanIndex) 'Launcher cleanup checks exhaustion before final ownership rescan.'
+    Assert-True ($cleanupCompleteIndex -gt $cleanupRemainingCheckIndex) 'Launcher cleanup can emit final completion before zero-owned exhaustion proof.'
+}
+
 Assert-True ($bootstrap -match '\[switch\]\$SkipConfigPatch') 'Bootstrap no longer preserves the legacy -SkipConfigPatch compatibility switch.'
 Assert-True ($bootstrap -match 'BOOTSTRAP_CONFIG_PATCH_RETIRED') 'Bootstrap does not state that live config mutation is retired.'
 Assert-True ($bootstrap -match 'isolatedCachePipelineRequired=true') 'Bootstrap does not point custom-cache work to isolated authority.'
