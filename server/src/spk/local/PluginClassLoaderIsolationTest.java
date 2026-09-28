@@ -827,6 +827,10 @@ public final class PluginClassLoaderIsolationTest {
             directory.resolve(
                 "named-healthy.jar"
             );
+        Path malformedNamed=
+            directory.resolve(
+                "malformed-named.jar"
+            );
         Path oversizedTotal=
             directory.resolve(
                 "oversized-total.jar"
@@ -919,6 +923,17 @@ public final class PluginClassLoaderIsolationTest {
 
             writeJarWithRawManifest(
                 jarA,
+                malformedNamed,
+                malformedNamedManifest()
+            );
+            assertJavaManifestRejected(
+                malformedNamed,
+                "manifest syntax is invalid",
+                "malformed named manifest section"
+            );
+
+            writeJarWithRawManifest(
+                jarA,
                 oversizedTotal,
                 namedSectionManifest(
                     BoundedManifestMain
@@ -954,6 +969,9 @@ public final class PluginClassLoaderIsolationTest {
             );
             Files.deleteIfExists(
                 oversizedTotal
+            );
+            Files.deleteIfExists(
+                malformedNamed
             );
             Files.deleteIfExists(
                 namedHealthy
@@ -1162,7 +1180,7 @@ public final class PluginClassLoaderIsolationTest {
     }
 
     private static byte[] namedSectionManifest(
-        int namedBytes
+        int targetBytes
     )throws Exception{
         java.io.ByteArrayOutputStream out=
             new java.io.ByteArrayOutputStream();
@@ -1170,28 +1188,51 @@ public final class PluginClassLoaderIsolationTest {
         out.write(
             (
                 "Manifest-Version: 1.0\r\n"+
-                "\r\n"+
-                "Name: ignored/section\r\n"+
-                "X-Fill: "
+                "\r\n"
             ).getBytes(
                 java.nio.charset.StandardCharsets.UTF_8
             )
         );
 
-        for(int i=0;
-            i<namedBytes;
-            i++)
-            out.write(
-                'b'
-            );
+        int section=0;
 
-        out.write(
-            "\r\n\r\n".getBytes(
-                java.nio.charset.StandardCharsets.UTF_8
-            )
-        );
+        while(out.size()<targetBytes){
+            out.write(
+                (
+                    "Name: ignored/section/"+
+                    section+
+                    "\r\n"
+                ).getBytes(
+                    java.nio.charset.StandardCharsets.UTF_8
+                )
+            );
+            writeFoldedManifestHeader(
+                out,
+                "X-Fill",
+                1024
+            );
+            out.write(
+                "\r\n".getBytes(
+                    java.nio.charset.StandardCharsets.UTF_8
+                )
+            );
+            section++;
+        }
 
         return out.toByteArray();
+    }
+
+    private static byte[] malformedNamedManifest()
+        throws Exception{
+        return (
+            "Manifest-Version: 1.0\r\n"+
+            "\r\n"+
+            "Name: broken/section\r\n"+
+            "This line has no manifest attribute separator\r\n"+
+            "\r\n"
+        ).getBytes(
+            java.nio.charset.StandardCharsets.UTF_8
+        );
     }
 
     private static void writeJarWithAmbiguousManifest(
