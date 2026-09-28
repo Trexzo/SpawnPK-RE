@@ -19,7 +19,9 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import shutil
+import stat
 import struct
 import tempfile
 import zipfile
@@ -113,6 +115,85 @@ def sha256_file(path: Path) -> str:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def lexical_absolute(path: Path) -> Path:
+    """Normalize an absolute path without following symlinks/reparse targets."""
+    return Path(os.path.abspath(os.fspath(path)))
+
+
+def same_lexical_path(left: Path, right: Path) -> bool:
+    return os.path.normcase(os.fspath(left)) == os.path.normcase(os.fspath(right))
+
+
+def is_reparse_or_symlink(path: Path) -> bool:
+    info = os.lstat(path)
+    if stat.S_ISLNK(info.st_mode):
+        return True
+    attrs = getattr(info, "st_file_attributes", 0)
+    reparse_flag = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400)
+    return bool(attrs & reparse_flag)
+
+
+def assert_canonical_output_path(output: Path, repo_root: Path) -> None:
+    """Fail closed unless lexical repo/local-client is an ordinary path."""
+    output = lexical_absolute(output)
+    repo_root = lexical_absolute(repo_root)
+    expected_output = lexical_absolute(repo_root / "local-client")
+
+    if not same_lexical_path(output, expected_output):
+        raise RuntimeError(
+            "output directory is not canonical lexical LocalLab runtime path: "
+            f"expected={expected_output} actual={output}"
+        )
+
+    try:
+        common = Path(os.path.commonpath((os.fspath(repo_root), os.fspath(output))))
+    except ValueError as error:
+        raise RuntimeError("canonical output is not on repository path authority") from error
+
+    if not same_lexical_path(lexical_absolute(common), repo_root):
+        raise RuntimeError(
+            f"canonical output escapes lexical repository root: {output}"
+        )
+
+    relative = output.relative_to(repo_root)
+    cursor = repo_root
+
+    # Repository root and every existing path component through local-client
+    # must be ordinary directories. lstat/Windows reparse attributes deliberately
+    # do not follow symlink/junction authority.
+    for component in (Path("."), *relative.parts):
+        if component != Path("."):
+            cursor = cursor / component
+
+        if not os.path.lexists(cursor):
+            if same_lexical_path(cursor, output):
+                break
+            raise RuntimeError(
+                f"canonical output ancestor is missing: {cursor}"
+            )
+
+        if is_reparse_or_symlink(cursor):
+            raise RuntimeError(
+                f"canonical output path traverses reparse/symlink authority: {cursor}"
+            )
+
+        info = os.lstat(cursor)
+        if not stat.S_ISDIR(info.st_mode):
+            raise RuntimeError(
+                f"canonical output path component is not a directory: {cursor}"
+            )
+
+    if os.path.lexists(output):
+        if is_reparse_or_symlink(output):
+            raise RuntimeError(
+                f"canonical local-client output is reparse/symlink authority: {output}"
+            )
+        if not stat.S_ISDIR(os.lstat(output).st_mode):
+            raise RuntimeError(
+                f"canonical local-client output is not a directory: {output}"
+            )
 
 
 def patch_utf8_constants(data: bytes) -> bytes:
@@ -316,7 +397,10 @@ def main() -> int:
     args = parser.parse_args()
 
     source = args.exact_v308_jar.resolve()
-    output = args.output_directory.resolve()
+    repo_root = lexical_absolute(Path(__file__).parent.parent.parent)
+    output = lexical_absolute(args.output_directory)
+
+    assert_canonical_output_path(output, repo_root)
 
     if not source.is_file():
         raise SystemExit(f"exact v308 JAR missing: {source}")
@@ -409,11 +493,18 @@ def main() -> int:
             f"localhost={localhost_sha} airgap={airgap_sha} count={len(staged)}"
         )
 
-        output_existed = output.exists()
-        output.mkdir(parents=True, exist_ok=True)
+        output_existed = os.path.lexists(output)
+        assert_canonical_output_path(output, repo_root)
+
+        if not output_existed:
+            # repo_root is already proven ordinary; create only the exact leaf.
+            output.mkdir()
+
+        assert_canonical_output_path(output, repo_root)
 
         publication = []
         for index, (name, staged_path, expected_sha) in enumerate(staged):
+            assert_canonical_output_path(output, repo_root)
             destination = output / name
             backup_path = backup / f"{index}-{name}"
             existed = destination.is_file()
@@ -438,6 +529,9 @@ def main() -> int:
                     "expected_sha": expected_sha,
                     "backup": backup_path,
                     "existed": existed,
+                    "write_started": False,
+                    "published_verified": False,
+                    "published_sha": None,
                 }
             )
 
@@ -449,8 +543,15 @@ def main() -> int:
         touched = []
         try:
             for record in publication:
-                # Record rollback ownership before the first canonical write.
+                # Re-prove path authority at the publisher boundary immediately
+                # before the first canonical mutation.
+                assert_canonical_output_path(output, repo_root)
+
+                # Record rollback tracking before the first destination write.
+                # Destructive rollback authority is granted only after exact
+                # transaction-published bytes have been verified.
                 touched.append(record)
+                record["write_started"] = True
                 shutil.copyfile(record["stage"], record["destination"])
 
                 published_sha = sha256_file(record["destination"])
@@ -461,6 +562,9 @@ def main() -> int:
                         f"expected={record['expected_sha']} "
                         f"actual={published_sha}"
                     )
+
+                record["published_sha"] = published_sha
+                record["published_verified"] = True
 
             # Re-verify the complete generated set while rollback ownership is
             # still active. No success output is emitted before this finishes.
@@ -483,19 +587,56 @@ def main() -> int:
 
             for record in reversed(touched):
                 try:
-                    if record["existed"]:
-                        shutil.copyfile(
-                            record["backup"],
-                            record["destination"],
+                    assert_canonical_output_path(output, repo_root)
+
+                    if not record["write_started"]:
+                        raise RuntimeError(
+                            f"{record['name']} touched without write_started"
                         )
-                        restored_sha = sha256_file(record["destination"])
+
+                    if (
+                        not record["published_verified"]
+                        or not record["published_sha"]
+                    ):
+                        raise RuntimeError(
+                            f"{record['name']} rollback ownership cannot be proven "
+                            "after incomplete publication; destination left untouched"
+                        )
+
+                    destination = record["destination"]
+                    if not os.path.lexists(destination):
+                        raise RuntimeError(
+                            f"{record['name']} rollback ownership lost: "
+                            "published destination is missing"
+                        )
+                    if is_reparse_or_symlink(destination):
+                        raise RuntimeError(
+                            f"{record['name']} rollback ownership lost: "
+                            "destination became reparse/symlink authority"
+                        )
+                    if not stat.S_ISREG(os.lstat(destination).st_mode):
+                        raise RuntimeError(
+                            f"{record['name']} rollback ownership lost: "
+                            "destination is not a regular file"
+                        )
+
+                    current_sha = sha256_file(destination)
+                    if current_sha != record["published_sha"]:
+                        raise RuntimeError(
+                            f"{record['name']} rollback ownership lost after publication "
+                            f"published={record['published_sha']} current={current_sha}"
+                        )
+
+                    if record["existed"]:
+                        shutil.copyfile(record["backup"], destination)
+                        restored_sha = sha256_file(destination)
                         backup_sha = sha256_file(record["backup"])
                         if restored_sha != backup_sha:
                             raise RuntimeError(
                                 "restored destination does not match rollback backup"
                             )
-                    elif record["destination"].exists():
-                        record["destination"].unlink()
+                    else:
+                        destination.unlink()
                 except BaseException as rollback_error:
                     rollback_errors.append(
                         f"{record['name']}: {rollback_error}"
@@ -503,9 +644,12 @@ def main() -> int:
 
             if not output_existed:
                 try:
+                    assert_canonical_output_path(output, repo_root)
                     output.rmdir()
-                except OSError:
-                    pass
+                except OSError as rollback_error:
+                    rollback_errors.append(
+                        f"output-directory: {rollback_error}"
+                    )
 
             if rollback_errors:
                 raise RuntimeError(
