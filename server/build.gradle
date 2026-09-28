@@ -4081,8 +4081,11 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
             'invocationOwnedClient = $true',
             'invocationOwnedClient=true',
             'function Assert-OrdinaryFile',
+            'function Remove-EmptyCertificationSnapshotRootSafely',
             'function Remove-CertificationSnapshotSafely',
             'function Remove-CertificationEvidenceLeafSafely',
+            '$snapshotClientOwned = $true',
+            '$evidenceOwned = $true',
             'Remove-CertificationSnapshotSafely -SnapshotRoot $snapshotRoot -SnapshotClient $snapshotClient',
             'Remove-CertificationEvidenceLeafSafely -Path $evidence',
             'Remove-Item -LiteralPath $SnapshotClient -Force -ErrorAction Stop',
@@ -4270,14 +4273,21 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
             'function Assert-OrdinaryDirectory': 1,
             'function Assert-OrdinaryFile': 1,
             'function Initialize-CertificationEvidenceRoot': 1,
+            'function Remove-EmptyCertificationSnapshotRootSafely': 1,
             'function Remove-CertificationSnapshotSafely': 1,
             'function Remove-CertificationEvidenceLeafSafely': 1,
             'Assert-OrdinaryDirectory -Path $runtimeRoot': 11,
             'Assert-OrdinaryDirectory -Path $evidenceRoot': 11,
             'Assert-OrdinaryDirectory -Path $snapshotRoot': 2,
             'Assert-OrdinaryDirectory -Path $SnapshotRoot': 4,
+            'Remove-EmptyCertificationSnapshotRootSafely -SnapshotRoot $snapshotRoot': 1,
+            'Remove-EmptyCertificationSnapshotRootSafely -SnapshotRoot $SnapshotRoot': 1,
             'Remove-CertificationSnapshotSafely -SnapshotRoot $snapshotRoot -SnapshotClient $snapshotClient': 1,
             'Remove-CertificationEvidenceLeafSafely -Path $evidence': 1,
+            '$snapshotClientOwned = $false': 2,
+            '$snapshotClientOwned = $true': 1,
+            '$evidenceOwned = $false': 2,
+            '$evidenceOwned = $true': 1,
             'Remove-Item -LiteralPath $SnapshotClient -Force -ErrorAction Stop': 1,
             'Remove-Item -LiteralPath $SnapshotRoot -Force -ErrorAction Stop': 1
         ].each { anchor, expectedCount ->
@@ -4415,6 +4425,28 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
                 'Certification JSON evidence authority ordering drifted: expected evidence CreateNew -> runtime/evidence revalidation -> JSON writer.'
             )
 
+        int emptySnapshotCleanupFunctionIndex =
+            text.indexOf(
+                'function Remove-EmptyCertificationSnapshotRootSafely'
+            )
+        int emptySnapshotProofIndex =
+            text.indexOf(
+                'Certification snapshot root is not empty; refusing cleanup of unowned or unexpected contents.',
+                emptySnapshotCleanupFunctionIndex
+            )
+        int snapshotRootRemoveIndex =
+            text.indexOf(
+                'Remove-Item -LiteralPath $SnapshotRoot -Force -ErrorAction Stop',
+                emptySnapshotProofIndex
+            )
+
+        if(emptySnapshotCleanupFunctionIndex < 0 ||
+           emptySnapshotProofIndex <= emptySnapshotCleanupFunctionIndex ||
+           snapshotRootRemoveIndex <= emptySnapshotProofIndex)
+            throw new GradleException(
+                'Empty snapshot-root cleanup must prove no entries before non-recursive root removal.'
+            )
+
         int snapshotCleanupFunctionIndex =
             text.indexOf(
                 'function Remove-CertificationSnapshotSafely'
@@ -4429,24 +4461,40 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
                 'Remove-Item -LiteralPath $SnapshotClient -Force -ErrorAction Stop',
                 snapshotCleanupContentsIndex
             )
-        int snapshotEmptyProofIndex =
+        int snapshotEmptyCleanupInvokeIndex =
             text.indexOf(
-                'Certification snapshot root is not empty after owned leaf cleanup',
+                'Remove-EmptyCertificationSnapshotRootSafely -SnapshotRoot $SnapshotRoot',
                 snapshotLeafRemoveIndex
-            )
-        int snapshotRootRemoveIndex =
-            text.indexOf(
-                'Remove-Item -LiteralPath $SnapshotRoot -Force -ErrorAction Stop',
-                snapshotEmptyProofIndex
             )
 
         if(snapshotCleanupFunctionIndex < 0 ||
            snapshotCleanupContentsIndex <= snapshotCleanupFunctionIndex ||
            snapshotLeafRemoveIndex <= snapshotCleanupContentsIndex ||
-           snapshotEmptyProofIndex <= snapshotLeafRemoveIndex ||
-           snapshotRootRemoveIndex <= snapshotEmptyProofIndex)
+           snapshotEmptyCleanupInvokeIndex <= snapshotLeafRemoveIndex)
             throw new GradleException(
-                'Certification snapshot cleanup must prove bounded contents, remove the owned leaf, prove empty, then remove only the empty root.'
+                'Owned snapshot cleanup must prove the exact leaf, remove only that leaf, then delegate to empty-root cleanup.'
+            )
+
+        int snapshotWriterOwnedIndex =
+            text.indexOf(
+                '$snapshotClientOwned = $true',
+                snapshotWriterIndex
+            )
+        int snapshotOwnedCleanupBranchIndex =
+            text.indexOf(
+                'if ($snapshotClientOwned)'
+            )
+        int snapshotUnownedEmptyCleanupIndex =
+            text.indexOf(
+                'Remove-EmptyCertificationSnapshotRootSafely -SnapshotRoot $snapshotRoot',
+                snapshotOwnedCleanupBranchIndex
+            )
+
+        if(snapshotWriterOwnedIndex <= snapshotWriterIndex ||
+           snapshotOwnedCleanupBranchIndex <= snapshotWriterOwnedIndex ||
+           snapshotUnownedEmptyCleanupIndex <= snapshotOwnedCleanupBranchIndex)
+            throw new GradleException(
+                'Snapshot destructive cleanup must be gated by successful CreateNew ownership; unowned-client failure may remove only a proven-empty invocation root.'
             )
 
         int failedEvidenceCleanupFunctionIndex =
@@ -4468,9 +4516,19 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
                 'Remove-Item -LiteralPath $Path -Force -ErrorAction Stop',
                 failedEvidenceLeafCheckIndex
             )
+        int evidenceOwnedIndex =
+            text.indexOf(
+                '$evidenceOwned = $true',
+                evidenceOpenIndex
+            )
+        int publishOwnedCleanupBranchIndex =
+            text.indexOf(
+                'if ($evidenceOwned)'
+            )
         int publishCleanupInvokeIndex =
             text.indexOf(
-                'Remove-CertificationEvidenceLeafSafely -Path $evidence'
+                'Remove-CertificationEvidenceLeafSafely -Path $evidence',
+                publishOwnedCleanupBranchIndex
             )
         int publishCleanupCompositeIndex =
             text.indexOf(
@@ -4482,10 +4540,12 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
            failedEvidenceParentCheckIndex <= failedEvidenceCleanupFunctionIndex ||
            failedEvidenceLeafCheckIndex <= failedEvidenceParentCheckIndex ||
            failedEvidenceRemoveIndex <= failedEvidenceLeafCheckIndex ||
-           publishCleanupInvokeIndex <= failedEvidenceRemoveIndex ||
+           evidenceOwnedIndex <= evidenceOpenIndex ||
+           publishOwnedCleanupBranchIndex <= evidenceOwnedIndex ||
+           publishCleanupInvokeIndex <= publishOwnedCleanupBranchIndex ||
            publishCleanupCompositeIndex <= publishCleanupInvokeIndex)
             throw new GradleException(
-                'Failed JSON evidence cleanup must revalidate ancestry/leaf identity and preserve publication failure when cleanup also fails.'
+                'Failed JSON evidence cleanup must require successful CreateNew ownership, revalidate ancestry/leaf identity, and preserve publication failure when cleanup also fails.'
             )
 
         if(!ignoreText.readLines().any {
