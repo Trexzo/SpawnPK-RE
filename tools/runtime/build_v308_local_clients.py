@@ -604,16 +604,13 @@ def main() -> int:
 
                     displaced_sha = sha256_file(record["preimage_leaf"])
                     if displaced_sha != backup_sha:
-                        try:
-                            restore_private_leaf_without_overwrite(
-                                record["preimage_leaf"],
-                                destination,
-                                displaced_sha,
-                                f"{record['name']} changed commit preimage",
-                            )
-                            record["preimage_leaf"] = None
-                        finally:
-                            pass
+                        restore_private_leaf_without_overwrite(
+                            record["preimage_leaf"],
+                            destination,
+                            displaced_sha,
+                            f"{record['name']} changed commit preimage",
+                        )
+                        record["preimage_leaf"] = None
 
                         raise RuntimeError(
                             f"{record['name']} destination changed during commit "
@@ -823,6 +820,23 @@ def main() -> int:
 
                 try:
                     if record["preimage_leaf"] is not None:
+                        # If an originally existing destination cannot be
+                        # restored because another process recreated the
+                        # canonical name, preserve the exact pre-transaction
+                        # bytes rather than deleting the only same-directory
+                        # recovery copy.
+                        if (
+                            record["existed"]
+                            and not record["committed"]
+                            and record["destination"].exists()
+                        ):
+                            rollback_errors.append(
+                                f"{record['name']} preimage preserved after "
+                                "rollback ownership loss: "
+                                f"{record['preimage_leaf']}"
+                            )
+                            continue
+
                         expected_preimage_sha = (
                             sha256_file(record["backup"])
                             if record["existed"]
