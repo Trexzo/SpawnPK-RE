@@ -19,7 +19,9 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import shutil
 import struct
+import tempfile
 import zipfile
 from pathlib import Path
 
@@ -325,73 +327,211 @@ def main() -> int:
             f"exact v308 SHA mismatch expected={INPUT_SHA} actual={actual_input}"
         )
 
-    output.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(
+        prefix="spawnpk-v308-local-client-build-"
+    ) as transaction_dir_text:
+        transaction_dir = Path(transaction_dir_text)
+        stage = transaction_dir / "stage"
+        backup = transaction_dir / "backup"
+        stage.mkdir()
+        backup.mkdir()
 
-    localhost = output / "client-localhost.jar"
-    airgap = output / "client-airgap.jar"
+        localhost = stage / "client-localhost.jar"
+        airgap = stage / "client-airgap.jar"
+        staged_manifest = stage / "v308-local-client-patch-manifest.json"
 
-    localhost_changed = build_variant(source, localhost, airgap=False)
-    airgap_changed = build_variant(source, airgap, airgap=True)
+        # Generate only into transaction-owned staging. Canonical runtime paths
+        # remain untouched until every existing deterministic check has passed.
+        localhost_changed = build_variant(source, localhost, airgap=False)
+        airgap_changed = build_variant(source, airgap, airgap=True)
 
-    assert_container_invariants(
-        source,
-        localhost,
-        set(localhost_changed),
-    )
-    assert_container_invariants(
-        source,
-        airgap,
-        set(airgap_changed),
-    )
-    assert_airgap_no_external_authority(airgap)
-
-    localhost_sha = sha256_file(localhost)
-    airgap_sha = sha256_file(airgap)
-
-    if localhost_sha != LOCALHOST_SHA:
-        raise SystemExit(
-            f"localhost JAR SHA mismatch expected={LOCALHOST_SHA} actual={localhost_sha}"
+        assert_container_invariants(
+            source,
+            localhost,
+            set(localhost_changed),
         )
-    if airgap_sha != AIRGAP_SHA:
-        raise SystemExit(
-            f"airgap JAR SHA mismatch expected={AIRGAP_SHA} actual={airgap_sha}"
+        assert_container_invariants(
+            source,
+            airgap,
+            set(airgap_changed),
+        )
+        assert_airgap_no_external_authority(airgap)
+
+        localhost_sha = sha256_file(localhost)
+        airgap_sha = sha256_file(airgap)
+
+        if localhost_sha != LOCALHOST_SHA:
+            raise SystemExit(
+                f"localhost JAR SHA mismatch expected={LOCALHOST_SHA} actual={localhost_sha}"
+            )
+        if airgap_sha != AIRGAP_SHA:
+            raise SystemExit(
+                f"airgap JAR SHA mismatch expected={AIRGAP_SHA} actual={airgap_sha}"
+            )
+
+        manifest = {
+            "format": "spawnpk-v308-local-client-patch-v1",
+            "inputSha256": INPUT_SHA,
+            "localhostSha256": localhost_sha,
+            "airgapSha256": airgap_sha,
+            "localhostChangedEntries": localhost_changed,
+            "airgapChangedEntries": airgap_changed,
+            "airgapExternalEndpointAuthority": False,
+            "gamePort": 43594,
+            "auxPort": 43595,
+            "loopbackHost": "127.0.0.1",
+            "updaterBase": "http://127.0.0.1:43595/spk_live/",
+            "jarEntryCompression": "stored",
+            "wholeJarDeterminismIndependentOfZlib": True,
+            "unchangedEntryPayloadIdentity": True,
+            "entryInventoryAndOrderPreserved": True,
+            "manifestPayloadPreserved": True,
+            "transactionalPublication": True,
+        }
+
+        staged_manifest.write_text(
+            json.dumps(manifest, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
         )
 
-    manifest = {
-        "format": "spawnpk-v308-local-client-patch-v1",
-        "inputSha256": INPUT_SHA,
-        "localhostSha256": localhost_sha,
-        "airgapSha256": airgap_sha,
-        "localhostChangedEntries": localhost_changed,
-        "airgapChangedEntries": airgap_changed,
-        "airgapExternalEndpointAuthority": False,
-        "gamePort": 43594,
-        "auxPort": 43595,
-        "loopbackHost": "127.0.0.1",
-        "updaterBase": "http://127.0.0.1:43595/spk_live/",
-        "jarEntryCompression": "stored",
-        "wholeJarDeterminismIndependentOfZlib": True,
-        "unchangedEntryPayloadIdentity": True,
-        "entryInventoryAndOrderPreserved": True,
-        "manifestPayloadPreserved": True,
-    }
+        staged = (
+            ("client-localhost.jar", localhost, LOCALHOST_SHA),
+            ("client-airgap.jar", airgap, AIRGAP_SHA),
+            (
+                "v308-local-client-patch-manifest.json",
+                staged_manifest,
+                sha256_file(staged_manifest),
+            ),
+        )
 
-    (output / "v308-local-client-patch-manifest.json").write_text(
-        json.dumps(manifest, indent=2, sort_keys=True) + "\n",
-        encoding="utf-8",
-    )
+        print(
+            "V308_LOCAL_CLIENT_STAGE_VERIFY_PASS "
+            f"localhost={localhost_sha} airgap={airgap_sha} count={len(staged)}"
+        )
 
-    print(
-        "V308_LOCAL_CLIENT_PATCH_PASS "
-        f"input={INPUT_SHA} "
-        f"localhost={localhost_sha} "
-        f"airgap={airgap_sha} "
-        f"localhostChanged={len(localhost_changed)} "
-        f"airgapChanged={len(airgap_changed)} "
-        "externalEndpointAuthority=false "
-        "unchangedEntryPayloadIdentity=true"
-    )
-    return 0
+        output_existed = output.exists()
+        output.mkdir(parents=True, exist_ok=True)
+
+        publication = []
+        for index, (name, staged_path, expected_sha) in enumerate(staged):
+            destination = output / name
+            backup_path = backup / f"{index}-{name}"
+            existed = destination.is_file()
+
+            if destination.exists() and not existed:
+                raise SystemExit(
+                    f"canonical generated output is not a regular file: {destination}"
+                )
+
+            if existed:
+                shutil.copyfile(destination, backup_path)
+                if sha256_file(backup_path) != sha256_file(destination):
+                    raise SystemExit(
+                        f"rollback backup verification failed: {destination}"
+                    )
+
+            publication.append(
+                {
+                    "name": name,
+                    "stage": staged_path,
+                    "destination": destination,
+                    "expected_sha": expected_sha,
+                    "backup": backup_path,
+                    "existed": existed,
+                }
+            )
+
+        print(
+            "V308_LOCAL_CLIENT_BACKUP_READY "
+            f"count={len(publication)}"
+        )
+
+        touched = []
+        try:
+            for record in publication:
+                # Record rollback ownership before the first canonical write.
+                touched.append(record)
+                shutil.copyfile(record["stage"], record["destination"])
+
+                published_sha = sha256_file(record["destination"])
+                if published_sha != record["expected_sha"]:
+                    raise RuntimeError(
+                        "published artifact hash mismatch "
+                        f"name={record['name']} "
+                        f"expected={record['expected_sha']} "
+                        f"actual={published_sha}"
+                    )
+
+            # Re-verify the complete generated set while rollback ownership is
+            # still active. No success output is emitted before this finishes.
+            for record in publication:
+                final_sha = sha256_file(record["destination"])
+                if final_sha != record["expected_sha"]:
+                    raise RuntimeError(
+                        "final generated artifact hash mismatch "
+                        f"name={record['name']} "
+                        f"expected={record['expected_sha']} "
+                        f"actual={final_sha}"
+                    )
+
+            print(
+                "V308_LOCAL_CLIENT_FINAL_VERIFY_PASS "
+                f"count={len(publication)} rollbackOwned=true"
+            )
+        except BaseException as publish_error:
+            rollback_errors = []
+
+            for record in reversed(touched):
+                try:
+                    if record["existed"]:
+                        shutil.copyfile(
+                            record["backup"],
+                            record["destination"],
+                        )
+                        restored_sha = sha256_file(record["destination"])
+                        backup_sha = sha256_file(record["backup"])
+                        if restored_sha != backup_sha:
+                            raise RuntimeError(
+                                "restored destination does not match rollback backup"
+                            )
+                    elif record["destination"].exists():
+                        record["destination"].unlink()
+                except BaseException as rollback_error:
+                    rollback_errors.append(
+                        f"{record['name']}: {rollback_error}"
+                    )
+
+            if not output_existed:
+                try:
+                    output.rmdir()
+                except OSError:
+                    pass
+
+            if rollback_errors:
+                raise RuntimeError(
+                    "v308 local-client publication failed and rollback was incomplete; "
+                    f"publish={publish_error}; "
+                    f"rollback={' | '.join(rollback_errors)}"
+                ) from publish_error
+
+            print(
+                "V308_LOCAL_CLIENT_ROLLBACK_COMPLETE "
+                f"restored={len(touched)}"
+            )
+            raise
+
+        print(
+            "V308_LOCAL_CLIENT_PATCH_PASS "
+            f"input={INPUT_SHA} "
+            f"localhost={localhost_sha} "
+            f"airgap={airgap_sha} "
+            f"localhostChanged={len(localhost_changed)} "
+            f"airgapChanged={len(airgap_changed)} "
+            "externalEndpointAuthority=false "
+            "unchangedEntryPayloadIdentity=true "
+            "transactionalPublication=true"
+        )
+        return 0
 
 
 if __name__ == "__main__":
