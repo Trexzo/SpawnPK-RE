@@ -960,9 +960,8 @@ def mergeKotlinScriptingServices =
 
             project.delete(output)
 
-            Map<String,LinkedHashSet<String>>
-                providers =
-                    new TreeMap<>()
+            Map<String,LinkedHashSet<String>> providers =
+                new TreeMap<>()
 
             def dependencies =
                 kotlinScriptingRuntime
