@@ -803,31 +803,47 @@ public final class PluginClassLoaderIsolationTest {
             Files.createTempDirectory(
                 "plugin-manifest-bounded-"
             );
-        Path oversized=
+        Path oversizedMain=
             directory.resolve(
-                "oversized.jar"
+                "oversized-main.jar"
             );
         Path continued=
             directory.resolve(
                 "continued.jar"
             );
-        Path hugeNamed=
-            directory.resolve(
-                "huge-named.jar"
-            );
         Path alias=
             directory.resolve(
                 "alias.jar"
+            );
+        Path ambiguous=
+            directory.resolve(
+                "ambiguous.jar"
+            );
+        Path nearSpec=
+            directory.resolve(
+                "near-spec.jar"
+            );
+        Path namedHealthy=
+            directory.resolve(
+                "named-healthy.jar"
+            );
+        Path oversizedTotal=
+            directory.resolve(
+                "oversized-total.jar"
+            );
+        Path signedLooking=
+            directory.resolve(
+                "signed-looking.jar"
             );
 
         try{
             writeJarWithRawManifest(
                 jarA,
-                oversized,
+                oversizedMain,
                 oversizedManifestMain()
             );
             assertJavaManifestRejected(
-                oversized,
+                oversizedMain,
                 "manifest main section exceeds",
                 "oversized main section"
             );
@@ -864,45 +880,122 @@ public final class PluginClassLoaderIsolationTest {
             );
             assertJavaManifestRejected(
                 alias,
-                "manifest entry name is non-canonical",
-                "case-aliased manifest"
+                "manifest Class-Path is forbidden",
+                "case-insensitive manifest Class-Path"
+            );
+
+            writeJarWithAmbiguousManifest(
+                jarA,
+                ambiguous
+            );
+            assertJavaManifestRejected(
+                ambiguous,
+                "ambiguous manifest authority",
+                "ambiguous manifest candidates"
             );
 
             writeJarWithRawManifest(
                 jarA,
-                hugeNamed,
-                hugeNamedManifest()
+                nearSpec,
+                nearSpecManifestMain()
+            );
+            loadAndCloseJavaPlugin(
+                nearSpec,
+                "near-spec manifest"
             );
 
-            PluginJarLoader.LoadedPlugin loaded=
-                PluginJarLoader.load(
-                    hugeNamed,
-                    ENTRYPOINT
-                );
+            writeJarWithRawManifest(
+                jarA,
+                namedHealthy,
+                namedSectionManifest(
+                    BoundedManifestMain
+                        .MAX_MANIFEST_BYTES/2
+                )
+            );
+            loadAndCloseJavaPlugin(
+                namedHealthy,
+                "bounded named sections"
+            );
 
-            loaded.close();
+            writeJarWithRawManifest(
+                jarA,
+                oversizedTotal,
+                namedSectionManifest(
+                    BoundedManifestMain
+                        .MAX_MANIFEST_BYTES+
+                    1024
+                )
+            );
+            assertJavaManifestRejected(
+                oversizedTotal,
+                "plugin manifest exceeds",
+                "oversized total manifest"
+            );
 
-            if(!loaded.closed())
-                throw new AssertionError(
-                    "huge named manifest section healthy load did not close"
-                );
+            writeJarWithRawManifest(
+                jarA,
+                signedLooking,
+                "META-INF/MANIFEST.MF",
+                oversizedManifestMain(),
+                "META-INF/TEST.SF",
+                "Signature-Version: 1.0\r\n\r\n"
+                    .getBytes(
+                        java.nio.charset.StandardCharsets.UTF_8
+                    )
+            );
+            assertJavaManifestRejected(
+                signedLooking,
+                "manifest main section exceeds",
+                "signed-looking oversized manifest"
+            );
         }finally{
             Files.deleteIfExists(
-                alias
+                signedLooking
             );
             Files.deleteIfExists(
-                hugeNamed
+                oversizedTotal
+            );
+            Files.deleteIfExists(
+                namedHealthy
+            );
+            Files.deleteIfExists(
+                nearSpec
+            );
+            Files.deleteIfExists(
+                ambiguous
+            );
+            Files.deleteIfExists(
+                alias
             );
             Files.deleteIfExists(
                 continued
             );
             Files.deleteIfExists(
-                oversized
+                oversizedMain
             );
             Files.deleteIfExists(
                 directory
             );
         }
+    }
+
+    private static void loadAndCloseJavaPlugin(
+        Path jar,
+        String label
+    )throws Exception{
+        PluginJarLoader.LoadedPlugin loaded=
+            PluginJarLoader.load(
+                jar,
+                ENTRYPOINT
+            );
+
+        loaded.close();
+
+        if(!loaded.closed())
+            throw new AssertionError(
+                label+
+                " healthy load did not close"
+            );
     }
 
     private static void assertJavaManifestRejected(
@@ -946,6 +1039,102 @@ public final class PluginClassLoaderIsolationTest {
         );
     }
 
+    private static byte[] nearSpecManifestMain()
+        throws Exception{
+        java.io.ByteArrayOutputStream out=
+            new java.io.ByteArrayOutputStream();
+
+        out.write(
+            "Manifest-Version: 1.0\r\n"
+                .getBytes(
+                    java.nio.charset.StandardCharsets.UTF_8
+                )
+        );
+        writeFoldedManifestHeader(
+            out,
+            "X-Near",
+            65535
+        );
+        out.write(
+            "\r\n".getBytes(
+                java.nio.charset.StandardCharsets.UTF_8
+            )
+        );
+
+        if(out.size()>=
+                BoundedManifestMain
+                    .MAX_MAIN_SECTION_BYTES)
+            throw new AssertionError(
+                "near-spec manifest fixture exceeds project main cap"
+            );
+
+        return out.toByteArray();
+    }
+
+    private static void writeFoldedManifestHeader(
+        java.io.ByteArrayOutputStream out,
+        String name,
+        int valueBytes
+    )throws Exception{
+        int remaining=valueBytes;
+        int first=
+            Math.min(
+                60,
+                remaining
+            );
+
+        out.write(
+            (
+                name+
+                ": "+
+                repeatAscii(
+                    'v',
+                    first
+                )+
+                "\r\n"
+            ).getBytes(
+                java.nio.charset.StandardCharsets.UTF_8
+            )
+        );
+        remaining-=first;
+
+        while(remaining>0){
+            int take=
+                Math.min(
+                    68,
+                    remaining
+                );
+            out.write(
+                (
+                    " "+
+                    repeatAscii(
+                        'v',
+                        take
+                    )+
+                    "\r\n"
+                ).getBytes(
+                    java.nio.charset.StandardCharsets.UTF_8
+                )
+            );
+            remaining-=take;
+        }
+    }
+
+    private static String repeatAscii(
+        char value,
+        int count
+    ){
+        char[] chars=
+            new char[count];
+        java.util.Arrays.fill(
+            chars,
+            value
+        );
+        return new String(
+            chars
+        );
+    }
+
     private static byte[] oversizedManifestMain()
         throws Exception{
         java.io.ByteArrayOutputStream out=
@@ -972,8 +1161,9 @@ public final class PluginClassLoaderIsolationTest {
         return out.toByteArray();
     }
 
-    private static byte[] hugeNamedManifest()
-        throws Exception{
+    private static byte[] namedSectionManifest(
+        int namedBytes
+    )throws Exception{
         java.io.ByteArrayOutputStream out=
             new java.io.ByteArrayOutputStream();
 
@@ -989,8 +1179,7 @@ public final class PluginClassLoaderIsolationTest {
         );
 
         for(int i=0;
-            i<BoundedManifestMain
-                .MAX_MAIN_SECTION_BYTES*8;
+            i<namedBytes;
             i++)
             out.write(
                 'b'
@@ -1005,6 +1194,55 @@ public final class PluginClassLoaderIsolationTest {
         return out.toByteArray();
     }
 
+    private static void writeJarWithAmbiguousManifest(
+        Path source,
+        Path target
+    )throws Exception{
+        try(JarFile input=
+                new JarFile(
+                    source.toFile()
+                );
+            JarOutputStream output=
+                new JarOutputStream(
+                    Files.newOutputStream(
+                        target
+                    )
+                )){
+            byte[] manifest=
+                (
+                    "Manifest-Version: 1.0\r\n"+
+                    "\r\n"
+                ).getBytes(
+                    java.nio.charset.StandardCharsets.UTF_8
+                );
+
+            output.putNextEntry(
+                new JarEntry(
+                    "META-INF/MANIFEST.MF"
+                )
+            );
+            output.write(
+                manifest
+            );
+            output.closeEntry();
+
+            output.putNextEntry(
+                new JarEntry(
+                    "meta-inf/manifest.mf"
+                )
+            );
+            output.write(
+                manifest
+            );
+            output.closeEntry();
+
+            copyJarEntriesWithoutManifest(
+                input,
+                output
+            );
+        }
+    }
+
     private static void writeJarWithRawManifest(
         Path source,
         Path target,
@@ -1014,7 +1252,9 @@ public final class PluginClassLoaderIsolationTest {
             source,
             target,
             "META-INF/MANIFEST.MF",
-            manifestBytes
+            manifestBytes,
+            null,
+            null
         );
     }
 
@@ -1023,6 +1263,24 @@ public final class PluginClassLoaderIsolationTest {
         Path target,
         String manifestEntry,
         byte[] manifestBytes
+    )throws Exception{
+        writeJarWithRawManifest(
+            source,
+            target,
+            manifestEntry,
+            manifestBytes,
+            null,
+            null
+        );
+    }
+
+    private static void writeJarWithRawManifest(
+        Path source,
+        Path target,
+        String manifestEntry,
+        byte[] manifestBytes,
+        String extraEntry,
+        byte[] extraBytes
     )throws Exception{
         try(JarFile input=
                 new JarFile(
@@ -1044,50 +1302,73 @@ public final class PluginClassLoaderIsolationTest {
             );
             output.closeEntry();
 
-            java.util.Enumeration<JarEntry>
-                entries=
-                    input.entries();
-            byte[] buffer=
-                new byte[8192];
-
-            while(entries.hasMoreElements()){
-                JarEntry entry=
-                    entries.nextElement();
-
-                if("META-INF/MANIFEST.MF"
-                        .equalsIgnoreCase(
-                            entry.getName()
-                        ))
-                    continue;
-
-                JarEntry copy=
-                    new JarEntry(
-                        entry.getName()
-                    );
+            if(extraEntry!=null){
                 output.putNextEntry(
-                    copy
+                    new JarEntry(
+                        extraEntry
+                    )
                 );
-
-                if(!entry.isDirectory())
-                    try(java.io.InputStream in=
-                            input.getInputStream(
-                                entry
-                            )){
-                        int read;
-
-                        while((read=
-                                in.read(
-                                    buffer
-                                ))!=-1)
-                            output.write(
-                                buffer,
-                                0,
-                                read
-                            );
-                    }
-
+                if(extraBytes!=null)
+                    output.write(
+                        extraBytes
+                    );
                 output.closeEntry();
             }
+
+            copyJarEntriesWithoutManifest(
+                input,
+                output
+            );
+        }
+    }
+
+    private static void copyJarEntriesWithoutManifest(
+        JarFile input,
+        JarOutputStream output
+    )throws Exception{
+        java.util.Enumeration<JarEntry>
+            entries=
+                input.entries();
+        byte[] buffer=
+            new byte[8192];
+
+        while(entries.hasMoreElements()){
+            JarEntry entry=
+                entries.nextElement();
+
+            if("META-INF/MANIFEST.MF"
+                    .equalsIgnoreCase(
+                        entry.getName()
+                    ))
+                continue;
+
+            JarEntry copy=
+                new JarEntry(
+                    entry.getName()
+                );
+            output.putNextEntry(
+                copy
+            );
+
+            if(!entry.isDirectory())
+                try(java.io.InputStream in=
+                        input.getInputStream(
+                            entry
+                        )){
+                    int read;
+
+                    while((read=
+                            in.read(
+                                buffer
+                            ))!=-1)
+                        output.write(
+                            buffer,
+                            0,
+                            read
+                        );
+                }
+
+            output.closeEntry();
         }
     }
 
