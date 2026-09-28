@@ -24,8 +24,8 @@ import zipfile
 from pathlib import Path
 
 INPUT_SHA = "854f26ff9f134b0317572e7ac1688e6f40a231d5a4c66f8db5d655b7f45ce7c6"
-LOCALHOST_SHA = "b8bccc927de4599d2d7b3d93ad66d91087f504e4e5250b9140b5b942cdc737d4"
-AIRGAP_SHA = "46b7d7d35c38fdd2ea49c3c7b7bea1406787f5f188d9fe102faedd20c983554a"
+LOCALHOST_SHA = "01c878a56ee25fb112dfe8b459dbd11ea26cfa8a92a7f287a4e5ee53f673cdbd"
+AIRGAP_SHA = "83b3e27e2aae50512d044ae4c74d84afb36df8b8a8051b5eb0c9275427363c33"
 
 PREIMAGE_SHA = {
     "rs/cache/b/e.class": "e21c305dd2ac52c16508e560f1770ea859f509670dced089424c274e8693638c",
@@ -172,7 +172,9 @@ def toggle_local_mode(data: bytes) -> bytes:
 
 def deterministic_info(source: zipfile.ZipInfo) -> zipfile.ZipInfo:
     info = zipfile.ZipInfo(source.filename, (1980, 1, 1, 0, 0, 0))
-    info.compress_type = zipfile.ZIP_DEFLATED
+    # Store entries without deflate so whole-JAR bytes do not depend on the
+    # caller's Python/zlib version. Class/resource payload bytes remain exact.
+    info.compress_type = zipfile.ZIP_STORED
     info.external_attr = source.external_attr
     info.create_system = source.create_system
     info.flag_bits = source.flag_bits & ~0x08
@@ -186,8 +188,7 @@ def build_variant(source: Path, output: Path, airgap: bool) -> dict:
     with zipfile.ZipFile(source, "r") as zin, zipfile.ZipFile(
         output,
         "w",
-        compression=zipfile.ZIP_DEFLATED,
-        compresslevel=9,
+        compression=zipfile.ZIP_STORED,
     ) as zout:
         for source_info in zin.infolist():
             raw = zin.read(source_info.filename)
@@ -307,6 +308,8 @@ def main() -> int:
         "auxPort": 43595,
         "loopbackHost": "127.0.0.1",
         "updaterBase": "http://127.0.0.1:43595/spk_live/",
+        "jarEntryCompression": "stored",
+        "wholeJarDeterminismIndependentOfZlib": True,
     }
 
     (output / "v308-local-client-patch-manifest.json").write_text(
