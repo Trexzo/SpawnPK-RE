@@ -2387,6 +2387,117 @@ tasks.register('customAssetPipelineHardeningRegression', JavaExec) {
     mainClass.set('spk.local.CustomAssetPipelineHardeningTest')
 }
 
+
+def issue9HostOs =
+    System.getProperty('os.name')
+        .toLowerCase(java.util.Locale.ROOT)
+def issue9WindowsHost =
+    issue9HostOs.contains('windows')
+def issue9PythonExecutable =
+    System.getenv('PYTHON') ?:
+        (issue9WindowsHost ? 'python' : 'python3')
+def issue9PowerShellExecutable =
+    System.getenv('POWERSHELL') ?:
+        (issue9WindowsHost ? 'powershell.exe' : 'pwsh')
+
+tasks.register(
+    'issue9LegacyTexturedSkinnedWriterRegression',
+    Exec
+) {
+    group = 'verification'
+    description = 'Runs the source-only exact-R11 legacy textured+skinned writer byte-identity and fail-closed regression.'
+    workingDir repoRoot
+    commandLine(
+        issue9PythonExecutable,
+        new File(
+            repoRoot,
+            'tools/custom-assets/test_legacy_textured_skinned_writer.py'
+        ).absolutePath
+    )
+}
+
+tasks.register(
+    'issue9R13ProfilePathGuardRegression',
+    Exec
+) {
+    group = 'verification'
+    description = 'Runs the source-only R13 isolated-profile path-containment regression.'
+    workingDir repoRoot
+    commandLine(
+        issue9PythonExecutable,
+        new File(
+            repoRoot,
+            'tools/custom-assets/test_r13_profile_path_guards.py'
+        ).absolutePath
+    )
+}
+
+tasks.register(
+    'issue9LauncherContractRegression',
+    Exec
+) {
+    group = 'verification'
+    description = 'Runs the static LocalLab launcher/exact-v308 runtime contract without requiring external JARs.'
+    workingDir repoRoot
+
+    doFirst {
+        List<String> arguments =
+            [
+                '-NoProfile'
+            ]
+
+        if(issue9WindowsHost)
+            arguments.addAll(
+                [
+                    '-ExecutionPolicy',
+                    'Bypass'
+                ]
+            )
+
+        arguments.addAll(
+            [
+                '-File',
+                new File(
+                    repoRoot,
+                    'scripts/Test-LauncherContract.ps1'
+                ).absolutePath,
+                '-SkipJavaProbe'
+            ]
+        )
+
+        commandLine(
+            [issue9PowerShellExecutable]+
+                arguments
+        )
+    }
+}
+
+tasks.register('issue9R13SourceCertification') {
+    group = 'verification'
+    description = 'Runs source-only Issue #9 R13 writer/profile/launcher coverage plus the existing custom-asset pipeline gates.'
+
+    dependsOn(
+        tasks.named('customAssetPipelineRegression'),
+        tasks.named('customAssetPipelineHardeningRegression'),
+        tasks.named('issue9LegacyTexturedSkinnedWriterRegression'),
+        tasks.named('issue9R13ProfilePathGuardRegression'),
+        tasks.named('issue9LauncherContractRegression')
+    )
+
+    doLast {
+        logger.lifecycle(
+            'SPAWNPK_ISSUE9_R13_SOURCE_CERTIFICATION_PASS ' +
+            'writer=true ' +
+            'profilePathGuard=true ' +
+            'launcherContract=true ' +
+            'pipeline=true ' +
+            'hardening=true ' +
+            'exactV308ExternalRequired=true ' +
+            'visualGateExternal=true'
+        )
+    }
+}
+
 tasks.register('bossTeleportPresentationRegression') {
     group = 'verification'
     description = 'Validates exact-v308 Boss Teleport rows/actions and 12-slot preview projection without owning destination or drop policy.'
@@ -4268,10 +4379,11 @@ tasks.register('localAuxArchiveAccessRegression', JavaExec) {
 
 tasks.register('chat1CurrentCumulativeCertification') {
     group = 'verification'
-    description = 'Runs the complete current Chat 1 release candidate: Issue #5 Kotlin scripting, #271/#427 presentation/application gates, Issue #7 pet-damage ownership, focused 175 and canonical exact-v308 179.'
+    description = 'Runs the complete current Chat 1 release candidate: Issue #5 Kotlin scripting, Issue #9 R13 source gates, #271/#427 presentation/application gates, Issue #7 pet-damage ownership, focused 175 and canonical exact-v308 179.'
 
     dependsOn(
         tasks.named('issue5KotlinScriptingCertification'),
+        tasks.named('issue9R13SourceCertification'),
         tasks.named('staffPartyhatAppearanceGateRegression'),
         tasks.named('tournamentPresentationRegression'),
         tasks.named('normalDuelPresentationRegression'),
@@ -4301,6 +4413,7 @@ tasks.register('chat1CurrentCumulativeCertification') {
         logger.lifecycle(
             'SPAWNPK_CHAT1_CURRENT_CUMULATIVE_CERTIFICATION_PASS ' +
             'issue5=true ' +
+            'issue9R13Source=true ' +
             'staffPartyhat=true ' +
             'tournament=true ' +
             'normalDuel=true ' +
