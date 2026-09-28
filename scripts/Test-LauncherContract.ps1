@@ -98,6 +98,26 @@ Assert-True ($v308Patcher -match 'unchangedEntryPayloadIdentity') 'v308 local-cl
 Assert-True ($v308Patcher -match 'entryInventoryAndOrderPreserved') 'v308 local-client patcher no longer proves entry inventory/order preservation.'
 Assert-True ($v308Patcher -match 'manifestPayloadPreserved') 'v308 local-client patcher no longer proves manifest preservation.'
 
+$r13SingleCopyAnchors = @(
+    '$runtimeRoot = Join-Path $repo ''runtime\locallab-user-home''',
+    'Remove-Item -LiteralPath $output -Recurse -Force',
+    'R13_RUNTIME_ACCEPTANCE_READY automaticVisualPass=false',
+    'function Assert-OutputNotOwnedByRunningAirgapClient',
+    '=== R13 isolated profile build ==='
+)
+foreach ($singleCopyAnchor in $r13SingleCopyAnchors) {
+    $singleCopyCount = [regex]::Matches(
+        $r13Acceptance,
+        [regex]::Escape($singleCopyAnchor)
+    ).Count
+    Assert-True (
+        $singleCopyCount -eq 1
+    ) (
+        "R13 acceptance launcher structural anchor count drifted: " +
+        "$singleCopyAnchor count=$singleCopyCount"
+    )
+}
+
 Assert-True ($r13Acceptance -match 'runtime\\locallab-user-home\\r13') 'R13 acceptance launcher default output is outside the ignored LocalLab runtime subtree.'
 Assert-True ($r13Acceptance -match 'Assert-UnderRuntimeRoot') 'R13 acceptance launcher lacks a reusable destructive-cleanup containment fence.'
 Assert-True ($r13Acceptance -match 'Assert-NoReparsePointAncestors') 'R13 acceptance launcher does not reject junction/symlink traversal in the output path.'
