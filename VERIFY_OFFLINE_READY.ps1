@@ -62,6 +62,11 @@ foreach($c in @((Join-Path $lab 'local-client\client-localhost.jar'),(Join-Path 
 if(-not(Test-Path -LiteralPath $ConfigDir -PathType Container)){throw "SpawnPK config directory missing: $ConfigDir"}
 $selector=Join-Path $lab 'tools\R85_SelectJava11Plus.ps1'
 if(-not(Test-Path -LiteralPath $selector -PathType Leaf)){throw 'Missing R8.5 Java selector'}
+$hadCallerJavaHome=Test-Path Env:JAVA_HOME
+$callerJavaHome=$env:JAVA_HOME
+$callerPath=$env:Path
+
+try{
 . $selector
 $javaInfo=Set-R85Java11Plus
 $javaExe=$javaInfo.Path
@@ -82,3 +87,8 @@ Write-Host 'VOIDGLASS R3: item29999 valid inside client table; legacy32760 retir
 Write-Host 'BOUNDARY: native-asset composition is not a newly-authored raw 3D mesh. Production rewards/prices/RNG/eligibility/business rules and unknown interaction outcomes remain fail-closed.'
 Write-Host 'CLIENT PATCH: live i.bin/e.bin definition metadata only; LocalLab client JARs/model/animation/GFX archives untouched.'
 Write-Host 'JAVA COMPAT: 499/499 classes are Java 11 bytecode (major 55). Full selftest count is 179. Normal launcher auto-selects Java 11+.'
+}
+finally{
+  if($hadCallerJavaHome){$env:JAVA_HOME=$callerJavaHome}else{Remove-Item Env:JAVA_HOME -ErrorAction SilentlyContinue}
+  $env:Path=$callerPath
+}
