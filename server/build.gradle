@@ -4811,7 +4811,7 @@ tasks.register('chat1CurrentCumulativeServerIdentityRegression') {
         File buildFile = new File(repoRoot, 'server/build.gradle')
         String buildText = buildFile.getText('UTF-8')
         String taskAnchor = "tasks.register('chat1CurrentCumulativeCertification')"
-        int taskIndex = buildText.indexOf(taskAnchor)
+        int taskIndex = buildText.lastIndexOf(taskAnchor)
         if(taskIndex < 0)
             throw new GradleException('Current cumulative certification task not found.')
 
