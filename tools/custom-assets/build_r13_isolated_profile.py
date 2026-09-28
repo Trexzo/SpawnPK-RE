@@ -28,7 +28,10 @@ CLIENT_SHA = (
 MODEL_SHA = (
     "6cf617b5e14e60b5bc58d4f1c72e11476f09382d40a72f49be122009157c7fad"
 )
-TEXTURE_ARCHIVE_SHA = (
+TEXTURE_ARCHIVE_SEMANTIC_SHA = (
+    "596f6e438a2f3dd8141d1d5c757a50ff38ad30dbee361921b163ae73d599b4f8"
+)
+CERTIFIED_R12_TEXTURE_ARCHIVE_SHA = (
     "8d5ca9da0d629960a41401fa873cbfd1a0c61727214588f87578f045e98afc14"
 )
 
@@ -248,11 +251,18 @@ def main() -> int:
             texture_id=TEXTURE_ID,
         )
 
+        texture_semantic_sha =
+            texture_builder.semantic_sha256(
+                texture_blob
+            )
+
         if (
-            hashlib.sha256(texture_blob).hexdigest()
-            != TEXTURE_ARCHIVE_SHA
+            texture_semantic_sha
+            != TEXTURE_ARCHIVE_SEMANTIC_SHA
         ):
-            raise RuntimeError("texture archive SHA mismatch")
+            raise RuntimeError(
+                "texture archive semantic-body SHA mismatch"
+            )
 
         new_archive.write_bytes(texture_blob)
 
@@ -313,7 +323,11 @@ def main() -> int:
             "modelId": MODEL_ID,
             "modelSha256": MODEL_SHA,
             "textureId": TEXTURE_ID,
-            "textureArchiveSha256": TEXTURE_ARCHIVE_SHA,
+            "textureArchiveSemanticSha256": TEXTURE_ARCHIVE_SEMANTIC_SHA,
+            "textureArchiveTransportSha256": hashlib.sha256(
+                texture_blob
+            ).hexdigest(),
+            "certifiedR12TextureArchiveSha256": CERTIFIED_R12_TEXTURE_ARCHIVE_SHA,
             "outputConfigSha256": sha256_file(
                 cache / "configs/i.bin"
             ),
@@ -336,7 +350,7 @@ def main() -> int:
             f"output={output_home} "
             f"configSha256={manifest['outputConfigSha256']} "
             f"modelSha256={MODEL_SHA} "
-            f"textureArchiveSha256={TEXTURE_ARCHIVE_SHA} "
+            f"textureArchiveSemanticSha256={TEXTURE_ARCHIVE_SEMANTIC_SHA} "
             "sourceUnchanged=true"
         )
         return 0
