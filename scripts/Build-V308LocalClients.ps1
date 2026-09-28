@@ -115,13 +115,10 @@ Write-Host (
     "clientSha256=$actualClient canonicalClient=true canonicalOutput=true"
 ) -ForegroundColor Green
 
-# No canonical output state is created before every admission preflight above passes.
-if (-not (Test-Path -LiteralPath $output)) {
-    New-Item -ItemType Directory -Path $output | Out-Null
-}
-
-# Re-prove the just-created/adopted directory before the Python transaction is
-# given publication authority.
+# The Python publication transaction owns creation of an absent canonical
+# local-client directory so rollback can distinguish transaction-created
+# directory state from pre-existing caller state. Re-prove path safety
+# immediately before crossing the process boundary, but do not create it here.
 $output = Assert-CanonicalOutputPathSafe $output
 
 & $python.Source $patcher $client $output
