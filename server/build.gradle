@@ -3981,7 +3981,7 @@ tasks.register('issue4FinalCertification') {
 
 tasks.register('chat1CumulativeWrapperContractRegression') {
     group = 'verification'
-    description = 'Locks the canonical exact-v308 cumulative-certification wrapper without requiring proprietary client bytes.'
+    description = 'Locks the canonical exact-v308 cumulative-certification wrapper and local evidence boundary without requiring proprietary client bytes.'
 
     doLast {
         File wrapper =
@@ -3989,14 +3989,25 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
                 repoRoot,
                 'scripts/Run-Chat1CumulativeCertification.ps1'
             )
+        File gitignore =
+            new File(
+                repoRoot,
+                '.gitignore'
+            )
 
         if(!wrapper.isFile())
             throw new GradleException(
                 "Missing Chat 1 cumulative certification wrapper: ${wrapper}"
             )
+        if(!gitignore.isFile())
+            throw new GradleException(
+                "Missing repository ignore policy: ${gitignore}"
+            )
 
         String text =
             wrapper.getText('UTF-8')
+        String ignoreText =
+            gitignore.getText('UTF-8')
 
         [
             'Select-LocalLabBuildJava.ps1',
@@ -4006,7 +4017,18 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
             '-Pv308ClientPath=',
             '--no-daemon',
             '--console=plain',
+            'runtime\\certification',
+            'git -C $repo rev-parse HEAD',
+            'git -C $repo status --porcelain --untracked-files=normal',
+            'Tee-Object -FilePath $log',
+            '$gradleExit = $LASTEXITCODE',
+            "\$ErrorActionPreference = 'Continue'",
+            'spawnpk-chat1-local-certification-evidence-v1',
+            'hostedPromotionSatisfied = $false',
+            'hostedPromotionBlocker = ''#816''',
+            'Set-Content -LiteralPath $evidence',
             'CHAT1_CUMULATIVE_WRAPPER_COMPLETE',
+            'hostedPromotionSatisfied=false',
             'exactV308=true'
         ].each { required ->
             if(!text.contains(required))
@@ -4021,6 +4043,39 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
                 'Wrapper must not synthesize the authoritative cumulative PASS marker.'
             )
 
+        [
+            'function Get-ExactGitHead',
+            '& $gradlew @gradleArgs',
+            'Select-String -LiteralPath $log',
+            'ConvertTo-Json',
+            'CHAT1_CUMULATIVE_WRAPPER_COMPLETE'
+        ].each { anchor ->
+            int count = 0
+            int from = 0
+            while(true) {
+                int found =
+                    text.indexOf(
+                        anchor,
+                        from
+                    )
+                if(found < 0)
+                    break
+                count++
+                from = found + anchor.length()
+            }
+            if(count != 1)
+                throw new GradleException(
+                    "Chat 1 cumulative wrapper structural anchor count drift: expected=1 actual=${count} anchor=${anchor}"
+                )
+        }
+
+        if(!ignoreText.readLines().any {
+                it.trim() == 'runtime/certification/'
+            })
+            throw new GradleException(
+                'Local cumulative certification evidence directory is not ignored.'
+            )
+
         int cleanIndex =
             text.indexOf(
                 "'clean'"
@@ -4033,6 +4088,26 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
             text.indexOf(
                 '"-Pv308ClientPath=$client"'
             )
+        int invokeIndex =
+            text.indexOf(
+                '& $gradlew @gradleArgs'
+            )
+        int exitCaptureIndex =
+            text.indexOf(
+                '$gradleExit = $LASTEXITCODE'
+            )
+        int markerObservationIndex =
+            text.indexOf(
+                'Select-String -LiteralPath $log'
+            )
+        int jsonIndex =
+            text.indexOf(
+                'ConvertTo-Json'
+            )
+        int completionIndex =
+            text.indexOf(
+                'CHAT1_CUMULATIVE_WRAPPER_COMPLETE'
+            )
 
         if(cleanIndex < 0 ||
            gateIndex <= cleanIndex ||
@@ -4041,10 +4116,22 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
                 'Wrapper Gradle invocation ordering drifted: expected clean -> cumulative gate -> exact client property.'
             )
 
+        if(invokeIndex < 0 ||
+           exitCaptureIndex <= invokeIndex ||
+           markerObservationIndex <= exitCaptureIndex ||
+           jsonIndex <= markerObservationIndex ||
+           completionIndex <= jsonIndex)
+            throw new GradleException(
+                'Wrapper evidence ordering drifted: expected Gradle invoke -> native exit capture -> Gradle marker observation -> JSON evidence -> wrapper completion.'
+            )
+
         logger.lifecycle(
             'CHAT1_CUMULATIVE_WRAPPER_CONTRACT_PASS ' +
             'exactV308HashPinned=true ' +
             'canonicalGate=true ' +
+            'cleanHeadBound=true ' +
+            'durableEvidence=true ' +
+            'hostedPromotionSatisfied=false ' +
             'authoritativeMarkerNotSynthesized=true'
         )
     }
