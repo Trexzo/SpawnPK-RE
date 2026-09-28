@@ -9,6 +9,8 @@ $hadCallerJavaHome = Test-Path Env:JAVA_HOME
 $callerJavaHome = $env:JAVA_HOME
 $callerPath = $env:Path
 $callerLocationPushed = $false
+$launchSnapshot = $null
+$expectedAirgapSha256 = '83b3e27e2aae50512d044ae4c74d84afb36df8b8a8051b5eb0c9275427363c33'
 
 try {
     Push-Location -LiteralPath $PSScriptRoot
@@ -32,6 +34,27 @@ $java = Set-LocalLabJava
 
 $jar = Join-Path $PSScriptRoot 'local-client\client-airgap.jar'
 if (-not (Test-Path -LiteralPath $jar -PathType Leaf)) { throw "Missing $jar" }
+
+# Bind this launch to invocation-owned bytes rather than reopening the mutable
+# canonical JAR after its coherent-triplet verification.
+$launchSnapshot = [IO.Path]::GetTempFileName()
+Copy-Item -LiteralPath $jar -Destination $launchSnapshot -Force
+
+$snapshotSha256 = (
+    Get-FileHash -LiteralPath $launchSnapshot -Algorithm SHA256
+).Hash.ToLowerInvariant()
+
+if ($snapshotSha256 -ne $expectedAirgapSha256) {
+    throw (
+        'Invocation-owned AIRGAP client SHA-256 mismatch. ' +
+        "Expected: $expectedAirgapSha256 Actual: $snapshotSha256"
+    )
+}
+
+Write-Host (
+    'AIRGAP_CLIENT_LAUNCH_SNAPSHOT_VERIFIED ' +
+    "sha256=$snapshotSha256"
+) -ForegroundColor Green
 
 Write-Host 'Launching the locally supplied AIRGAP client verified by scripts\Check-ExternalRuntime.ps1.' -ForegroundColor Cyan
 Write-Host 'The certified airgap runtime routes LocalLab socket/update/web authority to loopback.' -ForegroundColor Cyan
@@ -79,13 +102,18 @@ if (-not [string]::IsNullOrWhiteSpace($LocalLabUserHome)) {
     Write-Host 'LOCAL_LAB_CLIENT_HOME_DEFAULT no isolated user.home requested' -ForegroundColor DarkGray
 }
 
-& $java.Path @javaArgs -jar $jar
+& $java.Path @javaArgs -jar $launchSnapshot
 if ($LASTEXITCODE -ne 0) {
     throw "AIRGAP client exited with code $LASTEXITCODE using $($java.Path)"
 }
 
 }
 finally {
+    if ($null -ne $launchSnapshot -and
+        (Test-Path -LiteralPath $launchSnapshot -PathType Leaf)) {
+        Remove-Item -LiteralPath $launchSnapshot -Force -ErrorAction SilentlyContinue
+    }
+
     if ($callerLocationPushed) {
         Pop-Location
     }
