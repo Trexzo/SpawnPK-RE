@@ -353,6 +353,11 @@ final class WorldPluginManager
                 .retryArchiveCleanupDebtOnce(
                     failure
                 );
+        failure=
+            KotlinClasspathCleanupDebt
+                .retryOnce(
+                    failure
+                );
 
         rethrowUnchecked(
             failure

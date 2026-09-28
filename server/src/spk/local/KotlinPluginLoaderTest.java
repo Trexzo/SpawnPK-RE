@@ -3,6 +3,8 @@ package spk.local;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Field;
+import javax.tools.JavaCompiler;
+import javax.tools.ToolProvider;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.Files;
@@ -10,6 +12,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.jar.JarEntry;
 import java.util.jar.JarOutputStream;
+import java.util.jar.Attributes;
+import java.util.jar.Manifest;
+import java.io.IOException;
 import spk.content.api.ContentActionResult;
 import spk.content.api.ContentInteractionResult;
 import spk.content.api.ContentNpcOptionResult;
@@ -93,6 +98,58 @@ public final class KotlinPluginLoaderTest {
         );
         assertForgedDslDependencyRejected(
             constructor,
+            apiJar,
+            compileClasspath
+        );
+        assertDependencyExtensionFence(
+            constructor,
+            apiJar,
+            compileClasspath
+        );
+        assertManifestClasspathFenced(
+            constructor,
+            apiJar,
+            compileClasspath
+        );
+        assertMultiReleaseClasspathFenced(
+            constructor,
+            apiJar,
+            compileClasspath
+        );
+        assertJarIndexFenced(
+            constructor,
+            apiJar,
+            compileClasspath
+        );
+        assertClasspathIdentityPinned(
+            constructor,
+            healthy,
+            apiJar,
+            compileClasspath
+        );
+        assertClasspathRuntimeOwned(
+            loader,
+            healthy
+        );
+        assertPrivateSnapshotNames(
+            constructor,
+            healthy,
+            apiJar,
+            compileClasspath
+        );
+        assertClasspathCleanupDebt(
+            loader,
+            healthy
+        );
+        assertClasspathCaptureFailureDebt(
+            loaderType,
+            healthy,
+            apiJar,
+            compileClasspath
+        );
+        assertLazyDependencySnapshot(
+            constructor,
+            healthy,
             apiJar,
             compileClasspath
         );
@@ -519,11 +576,21 @@ public final class KotlinPluginLoaderTest {
             "kts=true "+
             "apiOnlyCompile=true "+
             "dependencyNamespaceFence=true "+
+            "kotlinClasspathExtensionBypassFenced=true "+
+            "kotlinManifestClasspathFenced=true "+
+            "kotlinMultiReleaseClasspathFenced=true "+
+            "kotlinJarIndexFenced=true "+
             "serverInternalDenied=true "+
             "pluginApiIdentity=true "+
             "scriptSdkIdentity=true "+
             "sourceSnapshot=true "+
             "pathOnlyExecutionDenied=true "+
+            "kotlinClasspathIdentityPinned=true "+
+            "kotlinClasspathRuntimeOwned=true "+
+            "kotlinClasspathCleanupDebt=true "+
+            "kotlinClasspathCaptureFailureDebt=true "+
+            "kotlinClasspathPrivateNames=true "+
+            "kotlinClasspathLazyResolution=true "+
             "eventCallback=true "+
             "commandDsl=true "+
             "commandPlayerArgsDsl=true "+
@@ -556,6 +623,1541 @@ public final class KotlinPluginLoaderTest {
                 java.nio.charset.StandardCharsets.UTF_8
             )
         );
+    }
+
+
+    private static void assertDependencyExtensionFence(
+        Constructor<?> constructor,
+        Path apiJar,
+        List<Path> healthyClasspath
+    )throws Exception{
+        if(healthyClasspath.isEmpty())
+            return;
+
+        Path root=
+            Files.createTempDirectory(
+                "kotlin-extension-fence-"
+            );
+        Path healthyBin=
+            root.resolve(
+                "runtime.bin"
+            );
+        Path forbiddenBin=
+            root.resolve(
+                "forbidden.dat"
+            );
+        Path plain=
+            root.resolve(
+                "plain.classpath"
+            );
+
+        try{
+            Files.copy(
+                healthyClasspath.get(0),
+                healthyBin
+            );
+
+            constructor.newInstance(
+                apiJar,
+                java.util.Collections
+                    .singletonList(
+                        healthyBin
+                    )
+            );
+
+            replaceWithForbiddenJar(
+                forbiddenBin,
+                "spk/local/ExtensionBypass.class"
+            );
+
+            boolean forbiddenRejected=false;
+
+            try{
+                constructor.newInstance(
+                    apiJar,
+                    java.util.Collections
+                        .singletonList(
+                            forbiddenBin
+                        )
+                );
+            }catch(InvocationTargetException expected){
+                Throwable cause=
+                    expected.getCause();
+
+                forbiddenRejected=
+                    cause instanceof
+                        IllegalArgumentException&&
+                    cause.getMessage()!=null&&
+                    cause.getMessage()
+                        .contains(
+                            "outside the DSL allowlist"
+                        );
+            }
+
+            if(!forbiddenRejected)
+                throw new AssertionError(
+                    "Kotlin dependency archive bypassed policy through non-.jar filename"
+                );
+
+            Files.write(
+                plain,
+                new byte[]{
+                    1,2,3,4
+                }
+            );
+
+            boolean plainRejected=false;
+
+            try{
+                constructor.newInstance(
+                    apiJar,
+                    java.util.Collections
+                        .singletonList(
+                            plain
+                        )
+                );
+            }catch(InvocationTargetException expected){
+                Throwable cause=
+                    expected.getCause();
+
+                plainRejected=
+                    cause instanceof
+                        java.util.zip.ZipException||
+                    cause instanceof
+                        java.io.IOException||
+                    cause instanceof
+                        IllegalArgumentException;
+            }
+
+            if(!plainRejected)
+                throw new AssertionError(
+                    "Kotlin loader accepted regular non-archive classpath file"
+                );
+        }finally{
+            Files.deleteIfExists(
+                plain
+            );
+            Files.deleteIfExists(
+                forbiddenBin
+            );
+            Files.deleteIfExists(
+                healthyBin
+            );
+            Files.deleteIfExists(
+                root
+            );
+        }
+    }
+
+
+    private static void assertManifestClasspathFenced(
+        Constructor<?> constructor,
+        Path apiJar,
+        List<Path> healthyClasspath
+    )throws Exception{
+        if(healthyClasspath.isEmpty())
+            return;
+
+        Path root=
+            Files.createTempDirectory(
+                "kotlin-manifest-classpath-"
+            );
+        Path dependency=
+            root.resolve(
+                "manifest-dependency.jar"
+            );
+        Path api=
+            root.resolve(
+                "manifest-api.jar"
+            );
+
+        try{
+            createManifestClasspathJar(
+                dependency,
+                "sibling-unvalidated.jar"
+            );
+
+            boolean dependencyRejected=false;
+
+            try{
+                constructor.newInstance(
+                    apiJar,
+                    java.util.Collections
+                        .singletonList(
+                            dependency
+                        )
+                );
+            }catch(InvocationTargetException expected){
+                Throwable cause=
+                    expected.getCause();
+
+                dependencyRejected=
+                    cause instanceof
+                        IllegalArgumentException&&
+                    cause.getMessage()!=null&&
+                    cause.getMessage()
+                        .contains(
+                            "manifest Class-Path is forbidden"
+                        );
+            }
+
+            if(!dependencyRejected)
+                throw new AssertionError(
+                    "Kotlin dependency manifest Class-Path was accepted"
+                );
+
+            createManifestClasspathJar(
+                api,
+                "file:/tmp/absolute-unvalidated.jar"
+            );
+
+            boolean apiRejected=false;
+
+            try{
+                constructor.newInstance(
+                    api,
+                    healthyClasspath
+                );
+            }catch(InvocationTargetException expected){
+                Throwable cause=
+                    expected.getCause();
+
+                apiRejected=
+                    cause instanceof
+                        IllegalArgumentException&&
+                    cause.getMessage()!=null&&
+                    cause.getMessage()
+                        .contains(
+                            "manifest Class-Path is forbidden"
+                        );
+            }
+
+            if(!apiRejected)
+                throw new AssertionError(
+                    "Kotlin API manifest Class-Path was accepted"
+                );
+        }finally{
+            Files.deleteIfExists(
+                api
+            );
+            Files.deleteIfExists(
+                dependency
+            );
+            Files.deleteIfExists(
+                root
+            );
+        }
+    }
+
+    private static void createManifestClasspathJar(
+        Path target,
+        String classPath
+    )throws Exception{
+        Manifest manifest=
+            new Manifest();
+        Attributes attributes=
+            manifest.getMainAttributes();
+        attributes.put(
+            Attributes.Name.MANIFEST_VERSION,
+            "1.0"
+        );
+        attributes.put(
+            Attributes.Name.CLASS_PATH,
+            classPath
+        );
+
+        try(JarOutputStream out=
+                new JarOutputStream(
+                    Files.newOutputStream(
+                        target
+                    ),
+                    manifest
+                )){
+        }
+    }
+
+
+    private static void assertMultiReleaseClasspathFenced(
+        Constructor<?> constructor,
+        Path apiJar,
+        List<Path> healthyClasspath
+    )throws Exception{
+        if(healthyClasspath.isEmpty())
+            return;
+
+        Path root=
+            Files.createTempDirectory(
+                "kotlin-multi-release-"
+            );
+        Path dependency=
+            root.resolve(
+                "multi-release-dependency.jar"
+            );
+        Path resource=
+            root.resolve(
+                "multi-release-resource.jar"
+            );
+        Path unrelated=
+            root.resolve(
+                "multi-release-unrelated.jar"
+            );
+        Path forgedDsl=
+            root.resolve(
+                "multi-release-forged-dsl.jar"
+            );
+        Path api=
+            root.resolve(
+                "multi-release-api.jar"
+            );
+
+        try{
+            createMultiReleaseClassJar(
+                dependency,
+                "META-INF/versions/9/spk/local/HiddenDependency.class"
+            );
+
+            boolean dependencyRejected=false;
+
+            try{
+                constructor.newInstance(
+                    apiJar,
+                    java.util.Collections
+                        .singletonList(
+                            dependency
+                        )
+                );
+            }catch(InvocationTargetException expected){
+                Throwable cause=
+                    expected.getCause();
+
+                dependencyRejected=
+                    cause instanceof
+                        IllegalArgumentException&&
+                    cause.getMessage()!=null&&
+                    cause.getMessage()
+                        .contains(
+                            "outside the DSL allowlist"
+                        );
+            }
+
+            if(!dependencyRejected)
+                throw new AssertionError(
+                    "Kotlin dependency multi-release class was accepted"
+                );
+
+            createMultiReleaseClassJar(
+                resource,
+                "META-INF/versions/9/spk/local/hidden.txt"
+            );
+
+            boolean resourceRejected=false;
+
+            try{
+                constructor.newInstance(
+                    apiJar,
+                    java.util.Collections
+                        .singletonList(
+                            resource
+                        )
+                );
+            }catch(InvocationTargetException expected){
+                Throwable cause=
+                    expected.getCause();
+
+                resourceRejected=
+                    cause instanceof
+                        IllegalArgumentException&&
+                    cause.getMessage()!=null&&
+                    cause.getMessage()
+                        .contains(
+                            "outside the DSL allowlist"
+                        );
+            }
+
+            if(!resourceRejected)
+                throw new AssertionError(
+                    "Kotlin dependency versioned SpawnPK resource was accepted"
+                );
+
+            createMultiReleaseClassJar(
+                unrelated,
+                "META-INF/versions/9/module-info.class"
+            );
+
+            constructor.newInstance(
+                apiJar,
+                java.util.Collections
+                    .singletonList(
+                        unrelated
+                    )
+            );
+
+            createMultiReleaseClassJar(
+                forgedDsl,
+                "META-INF/versions/9/spk/plugin/kotlin/KotlinPluginDslKt.class"
+            );
+
+            boolean forgedDslRejected=false;
+
+            try{
+                constructor.newInstance(
+                    apiJar,
+                    java.util.Collections
+                        .singletonList(
+                            forgedDsl
+                        )
+                );
+            }catch(InvocationTargetException expected){
+                Throwable cause=
+                    expected.getCause();
+
+                forgedDslRejected=
+                    cause instanceof
+                        IllegalArgumentException&&
+                    cause.getMessage()!=null&&
+                    cause.getMessage()
+                        .contains(
+                            "does not match server SDK"
+                        );
+            }
+
+            if(!forgedDslRejected)
+                throw new AssertionError(
+                    "Kotlin versioned forged DSL class was accepted"
+                );
+
+            createMultiReleaseClassJar(
+                api,
+                "META-INF/versions/9/spk/local/HiddenApi.class"
+            );
+
+            boolean apiRejected=false;
+
+            try{
+                constructor.newInstance(
+                    api,
+                    healthyClasspath
+                );
+            }catch(InvocationTargetException expected){
+                Throwable cause=
+                    expected.getCause();
+
+                apiRejected=
+                    cause instanceof
+                        IllegalArgumentException&&
+                    cause.getMessage()!=null&&
+                    cause.getMessage()
+                        .contains(
+                            "non-public SpawnPK namespace"
+                        );
+            }
+
+            if(!apiRejected)
+                throw new AssertionError(
+                    "Kotlin API multi-release class was accepted"
+                );
+        }finally{
+            Files.deleteIfExists(
+                api
+            );
+            Files.deleteIfExists(
+                forgedDsl
+            );
+            Files.deleteIfExists(
+                unrelated
+            );
+            Files.deleteIfExists(
+                resource
+            );
+            Files.deleteIfExists(
+                dependency
+            );
+            Files.deleteIfExists(
+                root
+            );
+        }
+    }
+
+    private static void createMultiReleaseClassJar(
+        Path target,
+        String entryName
+    )throws Exception{
+        Manifest manifest=
+            new Manifest();
+        Attributes attributes=
+            manifest.getMainAttributes();
+        attributes.put(
+            Attributes.Name.MANIFEST_VERSION,
+            "1.0"
+        );
+        attributes.putValue(
+            "Multi-Release",
+            "true"
+        );
+
+        try(JarOutputStream out=
+                new JarOutputStream(
+                    Files.newOutputStream(
+                        target
+                    ),
+                    manifest
+                )){
+            out.putNextEntry(
+                new JarEntry(
+                    entryName
+                )
+            );
+            out.write(
+                new byte[]{0}
+            );
+            out.closeEntry();
+        }
+    }
+
+
+    private static void assertJarIndexFenced(
+        Constructor<?> constructor,
+        Path apiJar,
+        List<Path> healthyClasspath
+    )throws Exception{
+        if(healthyClasspath.isEmpty())
+            return;
+
+        Path root=
+            Files.createTempDirectory(
+                "kotlin-jar-index-"
+            );
+        Path sibling=
+            root.resolve(
+                "indexed-sibling.jar"
+            );
+        Path dependency=
+            root.resolve(
+                "indexed-dependency.jar"
+            );
+        Path api=
+            root.resolve(
+                "indexed-api.jar"
+            );
+
+        try{
+            replaceWithForbiddenJar(
+                sibling,
+                "spk/local/IndexedLeak.class"
+            );
+            createJarIndexArchive(
+                dependency,
+                sibling.getFileName()
+                    .toString()
+            );
+
+            boolean dependencyRejected=false;
+
+            try{
+                constructor.newInstance(
+                    apiJar,
+                    java.util.Collections
+                        .singletonList(
+                            dependency
+                        )
+                );
+            }catch(InvocationTargetException expected){
+                Throwable cause=
+                    expected.getCause();
+
+                dependencyRejected=
+                    cause instanceof
+                        IllegalArgumentException&&
+                    cause.getMessage()!=null&&
+                    cause.getMessage()
+                        .contains(
+                            "JAR Index is forbidden"
+                        );
+            }
+
+            if(!dependencyRejected)
+                throw new AssertionError(
+                    "Kotlin dependency JAR Index was accepted"
+                );
+
+            createJarIndexArchive(
+                api,
+                sibling.getFileName()
+                    .toString()
+            );
+
+            boolean apiRejected=false;
+
+            try{
+                constructor.newInstance(
+                    api,
+                    healthyClasspath
+                );
+            }catch(InvocationTargetException expected){
+                Throwable cause=
+                    expected.getCause();
+
+                apiRejected=
+                    cause instanceof
+                        IllegalArgumentException&&
+                    cause.getMessage()!=null&&
+                    cause.getMessage()
+                        .contains(
+                            "JAR Index is forbidden"
+                        );
+            }
+
+            if(!apiRejected)
+                throw new AssertionError(
+                    "Kotlin API JAR Index was accepted"
+                );
+        }finally{
+            Files.deleteIfExists(
+                api
+            );
+            Files.deleteIfExists(
+                dependency
+            );
+            Files.deleteIfExists(
+                sibling
+            );
+            Files.deleteIfExists(
+                root
+            );
+        }
+    }
+
+    private static void createJarIndexArchive(
+        Path target,
+        String siblingName
+    )throws Exception{
+        try(JarOutputStream out=
+                new JarOutputStream(
+                    Files.newOutputStream(
+                        target
+                    )
+                )){
+            out.putNextEntry(
+                new JarEntry(
+                    "META-INF/INDEX.LIST"
+                )
+            );
+            String index=
+                "JarIndex-Version: 1.0\n\n"+
+                siblingName+
+                "\nspk/local\n";
+            out.write(
+                index.getBytes(
+                    java.nio.charset.StandardCharsets.UTF_8
+                )
+            );
+            out.closeEntry();
+        }
+    }
+
+    private static void assertClasspathIdentityPinned(
+        Constructor<?> constructor,
+        Path healthy,
+        Path apiJar,
+        List<Path> healthyClasspath
+    )throws Exception{
+        if(healthyClasspath.isEmpty())
+            throw new AssertionError(
+                "Kotlin classpath identity regression requires at least one runtime dependency"
+            );
+
+        Path root=
+            Files.createTempDirectory(
+                "kotlin-classpath-identity-"
+            );
+        Path api=
+            root.resolve(
+                "api.jar"
+            );
+        Path runtime=
+            root.resolve(
+                "runtime.jar"
+            );
+
+        try{
+            Files.copy(
+                apiJar,
+                api
+            );
+            Files.copy(
+                healthyClasspath.get(0),
+                runtime
+            );
+
+            PluginLoader apiLoader=
+                (PluginLoader)
+                    constructor.newInstance(
+                        api,
+                        java.util.Collections
+                            .singletonList(
+                                runtime
+                            )
+                    );
+
+            replaceWithForbiddenJar(
+                api,
+                "spk/local/ClasspathSwap.class"
+            );
+
+            assertLoadRejected(
+                apiLoader,
+                healthy,
+                "non-public SpawnPK namespace",
+                "replaced API artifact entered compiler authority"
+            );
+
+            Files.copy(
+                apiJar,
+                api,
+                java.nio.file.StandardCopyOption.REPLACE_EXISTING
+            );
+            Files.copy(
+                healthyClasspath.get(0),
+                runtime,
+                java.nio.file.StandardCopyOption.REPLACE_EXISTING
+            );
+
+            PluginLoader runtimeLoader=
+                (PluginLoader)
+                    constructor.newInstance(
+                        api,
+                        java.util.Collections
+                            .singletonList(
+                                runtime
+                            )
+                    );
+
+            replaceWithForbiddenJar(
+                runtime,
+                "spk/local/RuntimeSwap.class"
+            );
+
+            assertLoadRejected(
+                runtimeLoader,
+                healthy,
+                "outside the DSL allowlist",
+                "replaced runtime artifact entered compiler authority"
+            );
+
+            Files.copy(
+                healthyClasspath.get(0),
+                runtime,
+                java.nio.file.StandardCopyOption.REPLACE_EXISTING
+            );
+
+            PluginLoader forgedLoader=
+                (PluginLoader)
+                    constructor.newInstance(
+                        api,
+                        java.util.Collections
+                            .singletonList(
+                                runtime
+                            )
+                    );
+
+            replaceWithForbiddenJar(
+                runtime,
+                "spk/plugin/kotlin/KotlinPluginDslKt.class"
+            );
+
+            assertLoadRejected(
+                forgedLoader,
+                healthy,
+                "does not match server SDK",
+                "forged DSL artifact entered compiler authority"
+            );
+        }finally{
+            Files.deleteIfExists(
+                runtime
+            );
+            Files.deleteIfExists(
+                api
+            );
+            Files.deleteIfExists(
+                root
+            );
+        }
+    }
+
+    private static void assertClasspathRuntimeOwned(
+        PluginLoader loader,
+        Path healthy
+    )throws Exception{
+        int debtBefore=
+            KotlinClasspathCleanupDebt
+                .count();
+        PluginRuntime runtime=
+            loader.load(
+                snapshotSource(
+                    healthy
+                )
+            );
+
+        Field snapshotField=
+            runtime.getClass()
+                .getDeclaredField(
+                    "classpathSnapshot"
+                );
+        snapshotField.setAccessible(
+            true
+        );
+        Object snapshot=
+            snapshotField.get(
+                runtime
+            );
+
+        if(snapshot==null)
+            throw new AssertionError(
+                "live Kotlin runtime did not own classpath snapshot"
+            );
+
+        Field rootField=
+            snapshot.getClass()
+                .getDeclaredField(
+                    "root"
+                );
+        rootField.setAccessible(
+            true
+        );
+        Path root=
+            (Path)
+                rootField.get(
+                    snapshot
+                );
+
+        Field filesField=
+            snapshot.getClass()
+                .getDeclaredField(
+                    "files"
+                );
+        filesField.setAccessible(
+            true
+        );
+
+        @SuppressWarnings("unchecked")
+        List<java.io.File> files=
+            (List<java.io.File>)
+                filesField.get(
+                    snapshot
+                );
+
+        if(root==null||
+           !Files.isDirectory(
+                root
+           )||
+           files.isEmpty())
+            throw new AssertionError(
+                "live Kotlin classpath snapshot missing"
+            );
+
+        for(java.io.File file:files)
+            if(!file.isFile())
+                throw new AssertionError(
+                    "live Kotlin classpath artifact missing: "+
+                    file
+                );
+
+        runtime.close();
+        runtime.close();
+
+        if(Files.exists(
+                root))
+            throw new AssertionError(
+                "closed Kotlin runtime retained classpath snapshot root"
+            );
+
+        if(KotlinClasspathCleanupDebt
+                .count()!=debtBefore)
+            throw new AssertionError(
+                "healthy Kotlin runtime close created cleanup debt"
+            );
+
+        assertRuntimeReleased(
+            runtime,
+            "classpath runtime ownership"
+        );
+    }
+
+
+    private static Object classpathSnapshot(
+        PluginRuntime runtime
+    )throws Exception{
+        Field snapshotField=
+            runtime.getClass()
+                .getDeclaredField(
+                    "classpathSnapshot"
+                );
+        snapshotField.setAccessible(
+            true
+        );
+        return snapshotField.get(
+            runtime
+        );
+    }
+
+    private static Path snapshotRoot(
+        Object snapshot
+    )throws Exception{
+        Field rootField=
+            snapshot.getClass()
+                .getDeclaredField(
+                    "root"
+                );
+        rootField.setAccessible(
+            true
+        );
+        return (Path)rootField.get(
+            snapshot
+        );
+    }
+
+    @SuppressWarnings("unchecked")
+    private static List<java.io.File> snapshotFiles(
+        Object snapshot
+    )throws Exception{
+        Field filesField=
+            snapshot.getClass()
+                .getDeclaredField(
+                    "files"
+                );
+        filesField.setAccessible(
+            true
+        );
+        return (List<java.io.File>)
+            filesField.get(
+                snapshot
+            );
+    }
+
+    private static void assertPrivateSnapshotNames(
+        Constructor<?> constructor,
+        Path healthy,
+        Path apiJar,
+        List<Path> healthyClasspath
+    )throws Exception{
+        if(healthyClasspath.isEmpty())
+            return;
+
+        Path root=
+            Files.createTempDirectory(
+                "kotlin-private-name-"
+            );
+        String callerName=
+            "caller-controlled-dependency-name-that-must-not-be-copied-"+
+            "abcdefghijklmnopqrstuvwxyz0123456789.jar";
+        Path dependency=
+            root.resolve(
+                callerName
+            );
+
+        PluginRuntime runtime=null;
+
+        try{
+            Files.copy(
+                healthyClasspath.get(0),
+                dependency
+            );
+
+            PluginLoader loader=
+                (PluginLoader)
+                    constructor.newInstance(
+                        apiJar,
+                        java.util.Collections
+                            .singletonList(
+                                dependency
+                            )
+                    );
+
+            runtime=
+                loader.load(
+                    snapshotSource(
+                        healthy
+                    )
+                );
+
+            Object snapshot=
+                classpathSnapshot(
+                    runtime
+                );
+            List<java.io.File> files=
+                snapshotFiles(
+                    snapshot
+                );
+
+            if(files.size()!=2||
+               !"000-api.jar".equals(
+                    files.get(0).getName()
+               )||
+               !"001-dependency.jar".equals(
+                    files.get(1).getName()
+               ))
+                throw new AssertionError(
+                    "Kotlin private classpath names are not fixed ordinal authority: "+
+                    files
+                );
+
+            for(java.io.File file:files)
+                if(file.getName()
+                        .contains(
+                            callerName
+                        ))
+                    throw new AssertionError(
+                        "private classpath name retained caller basename: "+
+                        file
+                    );
+        }finally{
+            if(runtime!=null)
+                runtime.close();
+
+            Files.deleteIfExists(
+                dependency
+            );
+            Files.deleteIfExists(
+                root
+            );
+        }
+    }
+
+    private static void assertClasspathCleanupDebt(
+        PluginLoader loader,
+        Path healthy
+    )throws Exception{
+        int debtBefore=
+            KotlinClasspathCleanupDebt
+                .count();
+        PluginRuntime runtime=
+            loader.load(
+                snapshotSource(
+                    healthy
+                )
+            );
+        Object snapshot=
+            classpathSnapshot(
+                runtime
+            );
+        Path root=
+            snapshotRoot(
+                snapshot
+            );
+        Path sentinel=
+            root.resolve(
+                "retirement-blocker.sentinel"
+            );
+
+        Files.write(
+            sentinel,
+            new byte[]{1}
+        );
+
+        Throwable closeFailure=null;
+
+        try{
+            runtime.close();
+        }catch(Throwable failure){
+            closeFailure=failure;
+        }
+
+        if(closeFailure==null)
+            throw new AssertionError(
+                "Kotlin classpath retirement blocker did not surface"
+            );
+
+        assertRuntimeReleased(
+            runtime,
+            "classpath cleanup debt"
+        );
+
+        if(KotlinClasspathCleanupDebt
+                .count()!=debtBefore+1)
+            throw new AssertionError(
+                "failed Kotlin classpath retirement did not register exactly one debt"
+            );
+
+        Throwable retryFailure=
+            KotlinClasspathCleanupDebt
+                .retryOnce(
+                    null
+                );
+
+        if(retryFailure==null||
+           KotlinClasspathCleanupDebt
+                .count()!=debtBefore+1)
+            throw new AssertionError(
+                "Kotlin cleanup debt retry spun through or lost blocked debt"
+            );
+
+        runtime.close();
+
+        if(KotlinClasspathCleanupDebt
+                .count()!=debtBefore+1)
+            throw new AssertionError(
+                "duplicate runtime close changed Kotlin cleanup debt"
+            );
+
+        Files.delete(
+            sentinel
+        );
+
+        Throwable drained=
+            KotlinClasspathCleanupDebt
+                .retryOnce(
+                    null
+                );
+
+        if(drained!=null||
+           KotlinClasspathCleanupDebt
+                .count()!=debtBefore||
+           Files.exists(
+                root
+           ))
+            throw new AssertionError(
+                "Kotlin cleanup debt did not retire after blocker removal"
+            );
+    }
+
+
+    private static void assertClasspathCaptureFailureDebt(
+        Class<?> loaderType,
+        Path healthy,
+        Path apiJar,
+        List<Path> healthyClasspath
+    )throws Exception{
+        if(healthyClasspath.isEmpty())
+            return;
+
+        Constructor<?> constructor=
+            loaderType.getConstructor(
+                Path.class,
+                List.class,
+                KotlinClasspathCaptureHook.class
+            );
+        final Path[] blockedRoot=
+            new Path[1];
+        final Path[] sentinel=
+            new Path[1];
+
+        KotlinClasspathCaptureHook hook=
+            (root,target,index)->{
+                if(index!=0)
+                    return;
+
+                blockedRoot[0]=root;
+                sentinel[0]=
+                    root.resolve(
+                        "capture-blocker.sentinel"
+                    );
+                Files.write(
+                    sentinel[0],
+                    new byte[]{1}
+                );
+                throw new IOException(
+                    "fixture-kotlin-capture-primary"
+                );
+            };
+
+        PluginLoader loader=
+            (PluginLoader)
+                constructor.newInstance(
+                    apiJar,
+                    healthyClasspath,
+                    hook
+                );
+        int debtBefore=
+            KotlinClasspathCleanupDebt
+                .count();
+        Throwable failure=null;
+
+        try{
+            loader.load(
+                snapshotSource(
+                    healthy
+                )
+            );
+        }catch(Throwable expected){
+            failure=expected;
+        }
+
+        if(failure==null||
+           !containsMessage(
+                failure,
+                "fixture-kotlin-capture-primary"
+           ))
+            throw new AssertionError(
+                "Kotlin classpath capture primary failure was not preserved"
+            );
+
+        if(failure.getSuppressed().length==0)
+            throw new AssertionError(
+                "Kotlin classpath capture cleanup failure was not suppressed"
+            );
+
+        if(blockedRoot[0]==null||
+           sentinel[0]==null||
+           !Files.exists(
+               blockedRoot[0]
+           )||
+           KotlinClasspathCleanupDebt
+                .count()!=debtBefore+1)
+            throw new AssertionError(
+                "pre-runtime Kotlin classpath capture failure did not transfer path-only debt"
+            );
+
+        Throwable retry=
+            KotlinClasspathCleanupDebt
+                .retryOnce(
+                    null
+                );
+
+        if(retry==null||
+           KotlinClasspathCleanupDebt
+                .count()!=debtBefore+1)
+            throw new AssertionError(
+                "blocked pre-runtime Kotlin cleanup debt was not retained for one bounded retry"
+            );
+
+        Files.delete(
+            sentinel[0]
+        );
+
+        Throwable drained=
+            KotlinClasspathCleanupDebt
+                .retryOnce(
+                    null
+                );
+
+        if(drained!=null||
+           KotlinClasspathCleanupDebt
+                .count()!=debtBefore||
+           Files.exists(
+               blockedRoot[0]
+           ))
+            throw new AssertionError(
+                "pre-runtime Kotlin cleanup debt did not drain after blocker removal"
+            );
+    }
+
+    private static void assertLazyDependencySnapshot(
+        Constructor<?> constructor,
+        Path healthy,
+        Path apiJar,
+        List<Path> healthyClasspath
+    )throws Exception{
+        if(healthyClasspath.isEmpty())
+            return;
+
+        Path root=
+            Files.createTempDirectory(
+                "kotlin-lazy-dependency-"
+            );
+        Path helperJar=
+            root.resolve(
+                "lazy-helper.jar"
+            );
+        Path script=
+            root.resolve(
+                "lazy.kts"
+            );
+        PluginRuntime runtime=null;
+
+        try{
+            createLazyHelperJar(
+                root,
+                helperJar
+            );
+
+            Files.write(
+                script,
+                java.util.Arrays.asList(
+                    "import lazy.fixture.LazyHelper",
+                    "import spk.plugin.api.Plugin",
+                    "import spk.plugin.api.PluginApiVersion",
+                    "import spk.plugin.api.PluginContext",
+                    "import spk.plugin.api.PluginManifest",
+                    "",
+                    "object : Plugin {",
+                    "    override fun manifest(): PluginManifest =",
+                    "        PluginManifest(",
+                    "            LazyHelper.id(),",
+                    "            \"1.0\",",
+                    "            PluginApiVersion.CURRENT,",
+                    "            emptyList<String>()",
+                    "        )",
+                    "    override fun enable(context: PluginContext) {}",
+                    "}"
+                ),
+                java.nio.charset.StandardCharsets.UTF_8
+            );
+
+            ArrayList<Path> dependencies=
+                new ArrayList<>(
+                    healthyClasspath
+                );
+            dependencies.add(
+                helperJar
+            );
+
+            PluginLoader lazyLoader=
+                (PluginLoader)
+                    constructor.newInstance(
+                        apiJar,
+                        dependencies
+                    );
+
+            runtime=
+                lazyLoader.load(
+                    snapshotSource(
+                        script
+                    )
+                );
+
+            Field dependencyLoaderField=
+                runtime.getClass()
+                    .getDeclaredField(
+                        "dependencyLoader"
+                    );
+            dependencyLoaderField
+                .setAccessible(
+                    true
+                );
+            ClassLoader owned=
+                (ClassLoader)
+                    dependencyLoaderField
+                        .get(
+                            runtime
+                        );
+
+            Files.delete(
+                helperJar
+            );
+
+            if(!"fixture.kotlin.lazy"
+                    .equals(
+                        runtime.manifest()
+                            .id()
+                    ))
+                throw new AssertionError(
+                    "lazy Kotlin dependency did not resolve from private snapshot"
+                );
+
+            Class<?> helper=
+                Class.forName(
+                    "lazy.fixture.LazyHelper",
+                    false,
+                    runtime.callbackClassLoader()
+                );
+
+            if(helper.getClassLoader()!=
+                    owned)
+                throw new AssertionError(
+                    "lazy dependency resolved outside owned Kotlin dependency loader"
+                );
+        }finally{
+            if(runtime!=null)
+                runtime.close();
+
+            Files.deleteIfExists(
+                helperJar
+            );
+            Files.deleteIfExists(
+                script
+            );
+            deleteTree(
+                root.resolve(
+                    "lazy-src"
+                )
+            );
+            deleteTree(
+                root.resolve(
+                    "lazy-classes"
+                )
+            );
+            Files.deleteIfExists(
+                root
+            );
+        }
+    }
+
+    private static void createLazyHelperJar(
+        Path root,
+        Path jar
+    )throws Exception{
+        JavaCompiler compiler=
+            ToolProvider.getSystemJavaCompiler();
+
+        if(compiler==null)
+            throw new AssertionError(
+                "system Java compiler unavailable"
+            );
+
+        Path sourceRoot=
+            root.resolve(
+                "lazy-src"
+            );
+        Path packageDir=
+            sourceRoot.resolve(
+                "lazy/fixture"
+            );
+        Path classes=
+            root.resolve(
+                "lazy-classes"
+            );
+        Files.createDirectories(
+            packageDir
+        );
+        Files.createDirectories(
+            classes
+        );
+
+        Path source=
+            packageDir.resolve(
+                "LazyHelper.java"
+            );
+        Files.write(
+            source,
+            java.util.Arrays.asList(
+                "package lazy.fixture;",
+                "public final class LazyHelper {",
+                "  public static String id(){ return \"fixture.kotlin.lazy\"; }",
+                "  private LazyHelper(){}",
+                "}"
+            ),
+            java.nio.charset.StandardCharsets.UTF_8
+        );
+
+        int result=
+            compiler.run(
+                null,
+                null,
+                null,
+                "-d",
+                classes.toString(),
+                source.toString()
+            );
+
+        if(result!=0)
+            throw new AssertionError(
+                "lazy dependency fixture javac failed: "+
+                result
+            );
+
+        Path classFile=
+            classes.resolve(
+                "lazy/fixture/LazyHelper.class"
+            );
+
+        try(JarOutputStream out=
+                new JarOutputStream(
+                    Files.newOutputStream(
+                        jar
+                    )
+                )){
+            out.putNextEntry(
+                new JarEntry(
+                    "lazy/fixture/LazyHelper.class"
+                )
+            );
+            Files.copy(
+                classFile,
+                out
+            );
+            out.closeEntry();
+        }
+    }
+
+    private static void deleteTree(
+        Path root
+    )throws IOException{
+        if(root==null||
+           !Files.exists(
+               root
+           ))
+            return;
+
+        try(java.util.stream.Stream<Path> stream=
+                Files.walk(
+                    root
+                )){
+            java.util.List<Path> paths=
+                stream.sorted(
+                    java.util.Comparator.reverseOrder()
+                ).collect(
+                    java.util.stream.Collectors.toList()
+                );
+
+            for(Path path:paths)
+                Files.deleteIfExists(
+                    path
+                );
+        }
+    }
+
+    private static void assertLoadRejected(
+        PluginLoader loader,
+        Path healthy,
+        String expected,
+        String failureMessage
+    )throws Exception{
+        int debtBefore=
+            KotlinClasspathCleanupDebt
+                .count();
+        boolean rejected=false;
+
+        try{
+            loader.load(
+                snapshotSource(
+                    healthy
+                )
+            );
+        }catch(IllegalArgumentException failure){
+            rejected=
+                failure.getMessage()!=null&&
+                failure.getMessage()
+                    .contains(
+                        expected
+                    );
+        }
+
+        if(!rejected)
+            throw new AssertionError(
+                failureMessage
+            );
+
+        if(KotlinClasspathCleanupDebt
+                .count()!=debtBefore)
+            throw new AssertionError(
+                "rejected Kotlin classpath snapshot leaked cleanup debt"
+            );
+    }
+
+    private static void replaceWithForbiddenJar(
+        Path target,
+        String entry
+    )throws Exception{
+        Files.deleteIfExists(
+            target
+        );
+
+        try(JarOutputStream out=
+                new JarOutputStream(
+                    Files.newOutputStream(
+                        target
+                    )
+                )){
+            out.putNextEntry(
+                new JarEntry(
+                    entry
+                )
+            );
+            out.write(
+                new byte[]{0}
+            );
+            out.closeEntry();
+        }
     }
 
     private static void assertPathOnlyExecutionDenied(
@@ -751,7 +2353,9 @@ public final class KotlinPluginLoaderTest {
                 new String[]{
                     "delegate",
                     "callbackLoader",
-                    "baseLoader"
+                    "baseLoader",
+                    "dependencyLoader",
+                    "classpathSnapshot"
                 }){
             Field field=
                 runtime.getClass()
@@ -1049,9 +2653,18 @@ public final class KotlinPluginLoaderTest {
                         "spk/plugin/kotlin/KotlinPluginDslKt.class"
                     )
                 );
-                out.write(
-                    new byte[]{0}
+                byte[] hostile=
+                    new byte[8192];
+                java.util.Arrays.fill(
+                    hostile,
+                    (byte)0x5a
                 );
+
+                for(int i=0;i<128;i++)
+                    out.write(
+                        hostile
+                    );
+
                 out.closeEntry();
             }
 
