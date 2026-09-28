@@ -65,7 +65,27 @@ if (-not $cachedValid) {
             )
         }
 
-        Move-Item -LiteralPath $download -Destination $zip
+        try {
+            Move-Item -LiteralPath $download -Destination $zip
+        }
+        catch {
+            # A concurrent bootstrap may have won the cache publication race.
+            # Accept that winner only when it is byte-identical to the same
+            # pinned distribution; otherwise preserve the publication failure.
+            if (-not (Test-Path -LiteralPath $zip -PathType Leaf)) {
+                throw
+            }
+
+            $winnerSha = Get-ExactSha256 $zip
+            if ($winnerSha -ne $expectedSha256) {
+                throw
+            }
+
+            Write-Host (
+                'LOCALLAB_GRADLE_CACHE_RACE_ACCEPTED ' +
+                "sha256=$winnerSha"
+            ) -ForegroundColor DarkGray
+        }
     }
     finally {
         if (Test-Path -LiteralPath $download -PathType Leaf) {
