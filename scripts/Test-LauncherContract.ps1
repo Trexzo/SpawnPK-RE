@@ -742,6 +742,44 @@ $allLocationPushIndex = $all.IndexOf('Push-Location -LiteralPath $PSScriptRoot')
 $allLocationPopIndex = $all.LastIndexOf('Pop-Location')
 Assert-True ($allLocationPushIndex -ge 0 -and $allLocationPushIndex -lt $allJavaSelectIndex) 'Multi-client repository location is not established before canonical Java selection.'
 Assert-True ($allLocationPopIndex -gt $allCombinedThrowIndex) 'Multi-client caller location restoration does not structurally cover the complete launcher flow.'
+
+foreach ($launcherSource in @($quick, $all)) {
+    Assert-True ($launcherSource -match '\$recordedStartUtc\s*=\s*\(\[DateTime\]\$liveRoot\.StartTime\)\.ToUniversalTime\(\)') 'Launcher live-root ownership does not bind to recorded Process.StartTime.'
+    Assert-True ($launcherSource -match '\$currentMatches\s*=\s*@\(') 'Launcher live-root ownership does not resolve current CIM PID identity.'
+    Assert-True ($launcherSource -match '\$currentMatches\.Count\s+-ne\s+1') 'Launcher live-root ownership does not require exactly one current PID match.'
+    Assert-True ($launcherSource -match '\$currentCreatedUtc\s*=\s*\(\[DateTime\]\$currentMatches\[0\]\.CreationDate\)\.ToUniversalTime\(\)') 'Launcher live-root ownership does not bind current CIM CreationDate.'
+    Assert-True ($launcherSource -match '\$liveRootStartDeltaSeconds\s*=\s*\[Math\]::Abs') 'Launcher live-root ownership does not compute deterministic start-time delta.'
+    Assert-True ($launcherSource -match '\$liveRootStartDeltaSeconds\s+-gt\s+2\.0') 'Launcher live-root ownership lost fixed two-second API normalization tolerance.'
+    Assert-True ($launcherSource -match 'refused live-root PID lifetime mismatch') 'Launcher live-root ownership does not fail closed on PID lifetime mismatch.'
+    Assert-True ($launcherSource -match 'cannot prove unique current live-root identity') 'Launcher live-root ownership does not fail closed when current PID identity is missing/ambiguous.'
+
+    foreach ($entry in @(
+        @('$recordedStartUtc = ([DateTime]$liveRoot.StartTime).ToUniversalTime()', 1),
+        @('$currentMatches = @(', 1),
+        @('$currentMatches.Count -ne 1', 1),
+        @('$currentCreatedUtc = ([DateTime]$currentMatches[0].CreationDate).ToUniversalTime()', 1),
+        @('$liveRootStartDeltaSeconds = [Math]::Abs(', 1),
+        @('$liveRootStartDeltaSeconds -gt 2.0', 1),
+        @('refused live-root PID lifetime mismatch', 1),
+        @('$depthByPid[$liveRootPid] = 0', 1)
+    )) {
+        Assert-ExactTextCount $launcherSource $entry[0] ([int]$entry[1]) 'Launcher live-root lifetime structural count drift.'
+    }
+
+    $liveRootStartIndex = $launcherSource.IndexOf('$recordedStartUtc = ([DateTime]$liveRoot.StartTime).ToUniversalTime()')
+    $liveRootCurrentIndex = $launcherSource.IndexOf('$currentMatches = @(')
+    $liveRootCreationIndex = $launcherSource.IndexOf('$currentCreatedUtc = ([DateTime]$currentMatches[0].CreationDate).ToUniversalTime()')
+    $liveRootDeltaIndex = $launcherSource.IndexOf('$liveRootStartDeltaSeconds = [Math]::Abs(')
+    $liveRootMismatchIndex = $launcherSource.IndexOf('if ($liveRootStartDeltaSeconds -gt 2.0)')
+    $liveRootSeedIndex = $launcherSource.IndexOf('$depthByPid[$liveRootPid] = 0')
+    Assert-True ($liveRootStartIndex -ge 0) 'Launcher recorded live-root start-time proof not found.'
+    Assert-True ($liveRootCurrentIndex -gt $liveRootStartIndex) 'Launcher queries current live-root PID before recorded start identity.'
+    Assert-True ($liveRootCreationIndex -gt $liveRootCurrentIndex) 'Launcher reads current CreationDate before unique current PID proof.'
+    Assert-True ($liveRootDeltaIndex -gt $liveRootCreationIndex) 'Launcher computes live-root identity delta before both timestamps are proven.'
+    Assert-True ($liveRootMismatchIndex -gt $liveRootDeltaIndex) 'Launcher lifetime mismatch fence precedes deterministic delta computation.'
+    Assert-True ($liveRootSeedIndex -gt $liveRootMismatchIndex) 'Launcher grants depth-0 ancestry authority before live-root lifetime identity is proven.'
+}
+
 Assert-True ($bootstrap -match '\[switch\]\$SkipConfigPatch') 'Bootstrap no longer preserves the legacy -SkipConfigPatch compatibility switch.'
 Assert-True ($bootstrap -match 'BOOTSTRAP_CONFIG_PATCH_RETIRED') 'Bootstrap does not state that live config mutation is retired.'
 Assert-True ($bootstrap -match 'isolatedCachePipelineRequired=true') 'Bootstrap does not point custom-cache work to isolated authority.'
