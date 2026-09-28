@@ -1266,6 +1266,10 @@ public final class KotlinPluginLoaderTest {
         Path apiJar,
         List<Path> healthyClasspath
     )throws Exception{
+        assertOfficialApiExportSet(
+            apiJar
+        );
+
         Path root=
             Files.createTempDirectory(
                 "kotlin-api-identity-"
@@ -1278,9 +1282,25 @@ public final class KotlinPluginLoaderTest {
             root.resolve(
                 "invented-content-api.jar"
             );
+        Path testOnly=
+            root.resolve(
+                "test-only-api.jar"
+            );
+        Path thirdParty=
+            root.resolve(
+                "third-party-api.jar"
+            );
         Path modified=
             root.resolve(
                 "modified-api.jar"
+            );
+        Path missing=
+            root.resolve(
+                "missing-api.jar"
+            );
+        Path duplicateEffective=
+            root.resolve(
+                "duplicate-effective-api.jar"
             );
         Path versionedInvented=
             root.resolve(
@@ -1299,6 +1319,10 @@ public final class KotlinPluginLoaderTest {
             serverResourceBytes(
                 "spk/plugin/api/PluginManifest.class"
             );
+        byte[] testOnlyBytes=
+            serverResourceBytes(
+                "spk/plugin/api/PluginPublicApiBoundaryTest.class"
+            );
 
         try{
             rewriteApiJar(
@@ -1313,7 +1337,7 @@ public final class KotlinPluginLoaderTest {
                 constructor,
                 invented,
                 healthyClasspath,
-                "Kotlin API server resource missing: spk/plugin/api/InjectedApi.class",
+                "outside the official exported API set",
                 "invented reserved Kotlin API class was accepted"
             );
 
@@ -1329,8 +1353,40 @@ public final class KotlinPluginLoaderTest {
                 constructor,
                 inventedContent,
                 healthyClasspath,
-                "Kotlin API server resource missing: spk/content/api/InjectedContentApi.class",
+                "outside the official exported API set",
                 "invented reserved Kotlin content API class was accepted"
+            );
+
+            rewriteApiJar(
+                apiJar,
+                testOnly,
+                "spk/plugin/api/PluginPublicApiBoundaryTest.class",
+                testOnlyBytes,
+                false,
+                false
+            );
+            assertApiConstructorRejected(
+                constructor,
+                testOnly,
+                healthyClasspath,
+                "outside the official exported API set",
+                "server-resolvable test-only API class was accepted"
+            );
+
+            rewriteApiJar(
+                apiJar,
+                thirdParty,
+                "third/party/Injected.class",
+                pluginBytes,
+                false,
+                false
+            );
+            assertApiConstructorRejected(
+                constructor,
+                thirdParty,
+                healthyClasspath,
+                "outside the official exported API set",
+                "third-party class hidden inside API JAR was accepted"
             );
 
             rewriteApiJar(
@@ -1349,6 +1405,35 @@ public final class KotlinPluginLoaderTest {
                 "modified reserved Kotlin API class was accepted"
             );
 
+            omitApiEntry(
+                apiJar,
+                missing,
+                "spk/plugin/api/Plugin.class"
+            );
+            assertApiConstructorRejected(
+                constructor,
+                missing,
+                healthyClasspath,
+                "missing required exported API classes",
+                "truncated Kotlin API artifact was accepted"
+            );
+
+            rewriteApiJar(
+                apiJar,
+                duplicateEffective,
+                "META-INF/versions/9/spk/plugin/api/Plugin.class",
+                pluginBytes,
+                false,
+                true
+            );
+            assertApiConstructorRejected(
+                constructor,
+                duplicateEffective,
+                healthyClasspath,
+                "duplicate effective API class authority",
+                "duplicate effective Kotlin API class was accepted"
+            );
+
             rewriteApiJar(
                 apiJar,
                 versionedInvented,
@@ -1361,7 +1446,7 @@ public final class KotlinPluginLoaderTest {
                 constructor,
                 versionedInvented,
                 healthyClasspath,
-                "Kotlin API server resource missing: spk/plugin/api/InjectedApi.class",
+                "outside the official exported API set",
                 "versioned invented reserved Kotlin API class was accepted"
             );
 
@@ -1377,8 +1462,8 @@ public final class KotlinPluginLoaderTest {
                 constructor,
                 versionedModified,
                 healthyClasspath,
-                "does not match server API",
-                "versioned modified reserved Kotlin API class was accepted"
+                "duplicate effective API class authority",
+                "versioned modified reserved Kotlin API class bypassed effective duplicate fence"
             );
         }finally{
             Files.deleteIfExists(
@@ -1388,7 +1473,19 @@ public final class KotlinPluginLoaderTest {
                 versionedInvented
             );
             Files.deleteIfExists(
+                duplicateEffective
+            );
+            Files.deleteIfExists(
+                missing
+            );
+            Files.deleteIfExists(
                 modified
+            );
+            Files.deleteIfExists(
+                thirdParty
+            );
+            Files.deleteIfExists(
+                testOnly
             );
             Files.deleteIfExists(
                 inventedContent
@@ -1400,6 +1497,53 @@ public final class KotlinPluginLoaderTest {
                 root
             );
         }
+    }
+
+    private static void assertOfficialApiExportSet(
+        Path apiJar
+    )throws Exception{
+        java.util.LinkedHashSet<String> actual=
+            new java.util.LinkedHashSet<>();
+
+        try(java.util.jar.JarFile jar=
+                new java.util.jar.JarFile(
+                    apiJar.toFile()
+                )){
+            java.util.Enumeration<java.util.jar.JarEntry> entries=
+                jar.entries();
+
+            while(entries.hasMoreElements()){
+                java.util.jar.JarEntry entry=
+                    entries.nextElement();
+
+                if(entry.isDirectory())
+                    continue;
+
+                String name=
+                    entry.getName()
+                        .replace(
+                            '\\',
+                            '/'
+                        );
+
+                if(name.endsWith(
+                        ".class"))
+                    actual.add(
+                        name
+                    );
+            }
+        }
+
+        if(!actual.equals(
+                PluginApiExportContract
+                    .resources()))
+            throw new AssertionError(
+                "Gradle plugin API artifact/runtime export contract drift actual="+
+                actual+
+                " expected="+
+                PluginApiExportContract
+                    .resources()
+            );
     }
 
     private static void assertApiConstructorRejected(
@@ -1453,6 +1597,93 @@ public final class KotlinPluginLoaderTest {
 
         try(java.io.InputStream owned=input){
             return owned.readAllBytes();
+        }
+    }
+
+    private static void omitApiEntry(
+        Path source,
+        Path target,
+        String omittedEntry
+    )throws Exception{
+        try(java.util.jar.JarFile jar=
+                new java.util.jar.JarFile(
+                    source.toFile()
+                )){
+            Manifest sourceManifest=
+                jar.getManifest();
+            Manifest manifest=
+                sourceManifest==null
+                    ?new Manifest()
+                    :new Manifest(
+                        sourceManifest
+                    );
+            Attributes attributes=
+                manifest.getMainAttributes();
+
+            if(attributes.getValue(
+                    Attributes.Name.MANIFEST_VERSION)==null)
+                attributes.put(
+                    Attributes.Name.MANIFEST_VERSION,
+                    "1.0"
+                );
+
+            boolean omitted=false;
+
+            try(JarOutputStream out=
+                    new JarOutputStream(
+                        Files.newOutputStream(
+                            target
+                        ),
+                        manifest
+                    )){
+                java.util.Enumeration<java.util.jar.JarEntry> entries=
+                    jar.entries();
+
+                while(entries.hasMoreElements()){
+                    java.util.jar.JarEntry entry=
+                        entries.nextElement();
+                    String name=
+                        entry.getName();
+
+                    if("META-INF/MANIFEST.MF"
+                            .equalsIgnoreCase(
+                                name
+                            ))
+                        continue;
+
+                    if(name.equals(
+                            omittedEntry)){
+                        omitted=true;
+                        continue;
+                    }
+
+                    JarEntry copy=
+                        new JarEntry(
+                            name
+                        );
+                    out.putNextEntry(
+                        copy
+                    );
+
+                    if(!entry.isDirectory())
+                        try(java.io.InputStream input=
+                                jar.getInputStream(
+                                    entry
+                                )){
+                            input.transferTo(
+                                out
+                            );
+                        }
+
+                    out.closeEntry();
+                }
+            }
+
+            if(!omitted)
+                throw new AssertionError(
+                    "test API omitted entry was absent: "+
+                    omittedEntry
+                );
         }
     }
 
