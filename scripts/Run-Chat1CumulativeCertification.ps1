@@ -273,7 +273,7 @@ try {
         logSha256 = $logSha
         logBytes = [long]$logItem.Length
         hostedPromotionSatisfied = $false
-        hostedPromotionBlocker = '#816'
+        hostedEvidenceSeparate = $true
     }
 }
 finally {
