@@ -121,6 +121,11 @@ public final class KotlinPluginLoaderTest {
             apiJar,
             compileClasspath
         );
+        assertApiArtifactIdentityPinned(
+            constructor,
+            apiJar,
+            compileClasspath
+        );
         assertClasspathIdentityPinned(
             constructor,
             healthy,
@@ -580,6 +585,7 @@ public final class KotlinPluginLoaderTest {
             "kotlinManifestClasspathFenced=true "+
             "kotlinMultiReleaseClasspathFenced=true "+
             "kotlinJarIndexFenced=true "+
+            "kotlinApiArtifactIdentityPinned=true "+
             "serverInternalDenied=true "+
             "pluginApiIdentity=true "+
             "scriptSdkIdentity=true "+
@@ -1252,6 +1258,303 @@ public final class KotlinPluginLoaderTest {
                 )
             );
             out.closeEntry();
+        }
+    }
+
+    private static void assertApiArtifactIdentityPinned(
+        Constructor<?> constructor,
+        Path apiJar,
+        List<Path> healthyClasspath
+    )throws Exception{
+        Path root=
+            Files.createTempDirectory(
+                "kotlin-api-identity-"
+            );
+        Path invented=
+            root.resolve(
+                "invented-api.jar"
+            );
+        Path modified=
+            root.resolve(
+                "modified-api.jar"
+            );
+        Path versionedInvented=
+            root.resolve(
+                "versioned-invented-api.jar"
+            );
+        Path versionedModified=
+            root.resolve(
+                "versioned-modified-api.jar"
+            );
+
+        byte[] pluginBytes=
+            serverResourceBytes(
+                "spk/plugin/api/Plugin.class"
+            );
+        byte[] manifestBytes=
+            serverResourceBytes(
+                "spk/plugin/api/PluginManifest.class"
+            );
+
+        try{
+            rewriteApiJar(
+                apiJar,
+                invented,
+                "spk/plugin/api/InjectedApi.class",
+                pluginBytes,
+                false,
+                false
+            );
+            assertApiConstructorRejected(
+                constructor,
+                invented,
+                healthyClasspath,
+                "Kotlin API server resource missing: spk/plugin/api/InjectedApi.class",
+                "invented reserved Kotlin API class was accepted"
+            );
+
+            rewriteApiJar(
+                apiJar,
+                modified,
+                "spk/plugin/api/Plugin.class",
+                manifestBytes,
+                true,
+                false
+            );
+            assertApiConstructorRejected(
+                constructor,
+                modified,
+                healthyClasspath,
+                "does not match server API",
+                "modified reserved Kotlin API class was accepted"
+            );
+
+            rewriteApiJar(
+                apiJar,
+                versionedInvented,
+                "META-INF/versions/9/spk/plugin/api/InjectedApi.class",
+                pluginBytes,
+                false,
+                true
+            );
+            assertApiConstructorRejected(
+                constructor,
+                versionedInvented,
+                healthyClasspath,
+                "Kotlin API server resource missing: spk/plugin/api/InjectedApi.class",
+                "versioned invented reserved Kotlin API class was accepted"
+            );
+
+            rewriteApiJar(
+                apiJar,
+                versionedModified,
+                "META-INF/versions/9/spk/plugin/api/Plugin.class",
+                manifestBytes,
+                false,
+                true
+            );
+            assertApiConstructorRejected(
+                constructor,
+                versionedModified,
+                healthyClasspath,
+                "does not match server API",
+                "versioned modified reserved Kotlin API class was accepted"
+            );
+        }finally{
+            Files.deleteIfExists(
+                versionedModified
+            );
+            Files.deleteIfExists(
+                versionedInvented
+            );
+            Files.deleteIfExists(
+                modified
+            );
+            Files.deleteIfExists(
+                invented
+            );
+            Files.deleteIfExists(
+                root
+            );
+        }
+    }
+
+    private static void assertApiConstructorRejected(
+        Constructor<?> constructor,
+        Path apiJar,
+        List<Path> healthyClasspath,
+        String expected,
+        String failureMessage
+    )throws Exception{
+        boolean rejected=false;
+
+        try{
+            constructor.newInstance(
+                apiJar,
+                healthyClasspath
+            );
+        }catch(InvocationTargetException expectedFailure){
+            Throwable cause=
+                expectedFailure.getCause();
+
+            rejected=
+                cause instanceof
+                    IllegalArgumentException&&
+                cause.getMessage()!=null&&
+                cause.getMessage()
+                    .contains(
+                        expected
+                    );
+        }
+
+        if(!rejected)
+            throw new AssertionError(
+                failureMessage
+            );
+    }
+
+    private static byte[] serverResourceBytes(
+        String resource
+    )throws Exception{
+        java.io.InputStream input=
+            Plugin.class.getClassLoader()
+                .getResourceAsStream(
+                    resource
+                );
+
+        if(input==null)
+            throw new AssertionError(
+                "missing server test resource: "+
+                resource
+            );
+
+        try(java.io.InputStream owned=input){
+            return owned.readAllBytes();
+        }
+    }
+
+    private static void rewriteApiJar(
+        Path source,
+        Path target,
+        String targetEntry,
+        byte[] targetBytes,
+        boolean replaceExisting,
+        boolean multiRelease
+    )throws Exception{
+        try(java.util.jar.JarFile jar=
+                new java.util.jar.JarFile(
+                    source.toFile()
+                )){
+            Manifest sourceManifest=
+                jar.getManifest();
+            Manifest manifest=
+                sourceManifest==null
+                    ?new Manifest()
+                    :new Manifest(
+                        sourceManifest
+                    );
+            Attributes attributes=
+                manifest.getMainAttributes();
+
+            if(attributes.getValue(
+                    Attributes.Name.MANIFEST_VERSION)==null)
+                attributes.put(
+                    Attributes.Name.MANIFEST_VERSION,
+                    "1.0"
+                );
+
+            if(multiRelease)
+                attributes.putValue(
+                    "Multi-Release",
+                    "true"
+                );
+
+            boolean replaced=false;
+
+            try(JarOutputStream out=
+                    new JarOutputStream(
+                        Files.newOutputStream(
+                            target
+                        ),
+                        manifest
+                    )){
+                java.util.Enumeration<java.util.jar.JarEntry> entries=
+                    jar.entries();
+
+                while(entries.hasMoreElements()){
+                    java.util.jar.JarEntry entry=
+                        entries.nextElement();
+                    String name=
+                        entry.getName();
+
+                    if("META-INF/MANIFEST.MF"
+                            .equalsIgnoreCase(
+                                name
+                            ))
+                        continue;
+
+                    if(name.equals(
+                            targetEntry)){
+                        if(replaceExisting){
+                            out.putNextEntry(
+                                new JarEntry(
+                                    targetEntry
+                                )
+                            );
+                            out.write(
+                                targetBytes
+                            );
+                            out.closeEntry();
+                            replaced=true;
+                        }else{
+                            throw new AssertionError(
+                                "test API entry already exists: "+
+                                targetEntry
+                            );
+                        }
+
+                        continue;
+                    }
+
+                    JarEntry copy=
+                        new JarEntry(
+                            name
+                        );
+                    out.putNextEntry(
+                        copy
+                    );
+
+                    if(!entry.isDirectory())
+                        try(java.io.InputStream input=
+                                jar.getInputStream(
+                                    entry
+                                )){
+                            input.transferTo(
+                                out
+                            );
+                        }
+
+                    out.closeEntry();
+                }
+
+                if(replaceExisting&&!replaced)
+                    throw new AssertionError(
+                        "test API replacement entry missing: "+
+                        targetEntry
+                    );
+
+                if(!replaceExisting){
+                    out.putNextEntry(
+                        new JarEntry(
+                            targetEntry
+                        )
+                    );
+                    out.write(
+                        targetBytes
+                    );
+                    out.closeEntry();
+                }
+            }
         }
     }
 
