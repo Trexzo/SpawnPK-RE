@@ -3,6 +3,7 @@ import java.lang.reflect.*;
 import java.nio.file.*;
 import java.security.*;
 import java.util.*;
+import java.util.zip.GZIPInputStream;
 import rs.cache.a;
 
 public final class VerifyR13Profile {
@@ -100,11 +101,57 @@ public final class VerifyR13Profile {
         }
 
         require(
-            textureArchive != null &&
-            sha256(textureArchive).equals(
-                "8d5ca9da0d629960a41401fa873cbfd1a0c61727214588f87578f045e98afc14"
+            textureArchive != null,
+            "texture archive missing"
+        );
+
+        require(
+            textureArchive.length >= 6,
+            "texture archive header"
+        );
+
+        int rawLength =
+            ((textureArchive[0] & 0xff) << 16) |
+            ((textureArchive[1] & 0xff) << 8) |
+            (textureArchive[2] & 0xff);
+        int packedLength =
+            ((textureArchive[3] & 0xff) << 16) |
+            ((textureArchive[4] & 0xff) << 8) |
+            (textureArchive[5] & 0xff);
+
+        require(
+            packedLength == 0,
+            "R13 generated texture archive transport"
+        );
+
+        byte[] textureBody;
+        try(
+            GZIPInputStream gzip=
+                new GZIPInputStream(
+                    new ByteArrayInputStream(
+                        textureArchive,
+                        6,
+                        textureArchive.length - 6
+                    )
+                );
+            ByteArrayOutputStream body=
+                new ByteArrayOutputStream(
+                    rawLength
+                )
+        ){
+            gzip.transferTo(
+                body
+            );
+            textureBody=
+                body.toByteArray();
+        }
+
+        require(
+            textureBody.length == rawLength &&
+            sha256(textureBody).equals(
+                "596f6e438a2f3dd8141d1d5c757a50ff38ad30dbee361921b163ae73d599b4f8"
             ),
-            "texture archive SHA"
+            "texture archive semantic-body SHA"
         );
 
         Class<?> jagClass = Class.forName("rs.x.f");
@@ -125,8 +172,9 @@ public final class VerifyR13Profile {
         require(width == 64 && height == 64, "texture shape");
 
         System.out.println(
-            "R13_PROFILE_TEXTURE_PASS sha256=" +
-            sha256(textureArchive) +
+            "R13_PROFILE_TEXTURE_PASS semanticBodySha256=" +
+            sha256(textureBody) +
+            " transportSha256=" + sha256(textureArchive) +
             " runtime=" + width + "x" + height
         );
         System.out.println("R13_ISOLATED_PROFILE_EXACT_V308_PASS");
