@@ -4,9 +4,11 @@ $ErrorActionPreference = 'Stop'
 $hadCallerJavaHome = Test-Path Env:JAVA_HOME
 $callerJavaHome = $env:JAVA_HOME
 $callerPath = $env:Path
+$callerLocationPushed = $false
 
 try {
-    Set-Location $PSScriptRoot
+    Push-Location -LiteralPath $PSScriptRoot
+    $callerLocationPushed = $true
 
 # R85 JAVA11+ AUTOSELECT BEGIN
 # Keep this marker for VERIFY_OFFLINE_READY.ps1 compatibility, but use the
@@ -387,6 +389,10 @@ catch {
 
 }
 finally {
+    if ($callerLocationPushed) {
+        Pop-Location
+    }
+
     if ($hadCallerJavaHome) {
         $env:JAVA_HOME = $callerJavaHome
     }
