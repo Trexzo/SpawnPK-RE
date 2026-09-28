@@ -4173,10 +4173,10 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
 
         if(authoritativeMarkerLines.size() != 1 ||
            !authoritativeMarkerLines[0].contains(
-                "Select-String -LiteralPath \$log -SimpleMatch -Pattern '${authoritativeMarker}'"
+                "\$_.Contains('${authoritativeMarker}')"
             ))
             throw new GradleException(
-                'Wrapper must observe the exact Gradle-owned cumulative PASS marker exactly once.'
+                'Wrapper must observe the exact Gradle-owned cumulative PASS marker exactly once from invocation-owned output.'
             )
 
         if(authoritativeMarkerLines[0] =~
