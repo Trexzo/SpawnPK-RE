@@ -568,6 +568,11 @@ Assert-True ($v308Patcher -match 'canonical destination identity changed during 
 Assert-True ($v308Patcher -match 'def restore_moved_entry_without_follow') 'v308 local-client publisher cannot compensate an atomically moved ambiguous entry without following it.'
 Assert-True ($v308Patcher -match 'moved_identity != record\["snapshot_identity"\]') 'v308 local-client publisher does not revalidate moved commit preimage identity before hashing.'
 Assert-True ($v308Patcher -match 'rollback quarantine identity drift') 'v308 local-client publisher does not revalidate moved rollback quarantine identity before hashing.'
+Assert-True ($v308Patcher -match '\"published_identity\": None') 'v308 local-client publisher does not reserve exact committed file identity in transaction state.'
+Assert-True ($v308Patcher -match 'record\[\"published_identity\"\] = publish_identity') 'v308 local-client publisher does not retain exact canonical identity after no-overwrite publication.'
+Assert-True ($v308Patcher -match 'final canonical identity drift') 'v308 local-client final verification does not require exact committed file identity.'
+Assert-True ($v308Patcher -match 'rollback lifetime identity lost') 'v308 local-client rollback does not require exact committed file identity before quarantine.'
+Assert-True ($v308Patcher -match 'restored destination identity does not match source leaf') 'v308 local-client restore does not prove no-overwrite hard-link identity before hashing restored bytes.'
 Assert-True ($v308Patcher -match 'os\.path\.lexists\(record\["destination"\]\)') 'v308 local-client rollback still uses path-following existence for canonical destination preservation.'
 Assert-True ($v308Patcher -notmatch 'destination\.is_file\(\)') 'v308 local-client publisher reintroduced path-following destination.is_file() canonical authority.'
 Assert-True ($v308Patcher -notmatch 'destination\.exists\(\)') 'v308 local-client publisher reintroduced path-following destination.exists() canonical authority.'
@@ -612,7 +617,11 @@ foreach ($entry in @(
     @('os.rmdir(output)', 1),
     @('canonical destination identity changed during backup', 1),
     @('moved commit preimage identity drift', 1),
-    @('rollback quarantine identity drift', 1)
+    @('rollback quarantine identity drift', 1),
+    @('"published_identity": None', 1),
+    @('record["published_identity"] = publish_identity', 1),
+    @('final canonical identity drift', 1),
+    @('rollback lifetime identity lost', 1)
 )) {
     Assert-ExactTextCount $v308Patcher $entry[0] ([int]$entry[1]) 'v308 publisher path-confinement structural count drift.'
 }
@@ -626,6 +635,7 @@ $v308LeafRecheckIndex = $v308Patcher.IndexOf('assert_verified_leaf(', $v308Snaps
 $v308TouchIndex = $v308Patcher.IndexOf('touched.append(record)', $v308LeafRecheckIndex)
 $v308PreimageTransitionIndex = $v308Patcher.IndexOf('os.replace(', $v308TouchIndex)
 $v308PublishIndex = $v308Patcher.IndexOf('os.link(', $v308TouchIndex)
+$v308PublishedIdentityIndex = $v308Patcher.IndexOf('record["published_identity"] = publish_identity', $v308PublishIndex)
 $v308CommitIndex = $v308Patcher.IndexOf('record["committed"] = True', $v308PublishIndex)
 $v308PublishedShaIndex = $v308Patcher.IndexOf('record["published_sha"] = record["expected_sha"]', $v308CommitIndex)
 $v308FinalVerifyIndex = $v308Patcher.IndexOf('V308_LOCAL_CLIENT_FINAL_VERIFY_PASS')
@@ -641,6 +651,7 @@ Assert-True ($v308LeafRecheckIndex -gt $v308SnapshotRecheckIndex) 'v308 local-cl
 Assert-True ($v308TouchIndex -gt $v308LeafRecheckIndex) 'v308 local-client builder acquires mutation ownership before both sides of publication are revalidated.'
 Assert-True ($v308PreimageTransitionIndex -gt $v308TouchIndex) 'v308 local-client builder can capture an existing canonical preimage before rollback ownership.'
 Assert-True ($v308PublishIndex -gt $v308TouchIndex) 'v308 local-client builder can publish a canonical directory entry before rollback ownership.'
+Assert-True ($v308PublishedIdentityIndex -gt $v308PublishIndex) 'v308 local-client publisher does not bind canonical lifetime identity after no-overwrite publication.'
 Assert-True ($v308CommitIndex -gt $v308PublishIndex) 'v308 local-client builder marks publication committed before no-overwrite canonical publication succeeds.'
 Assert-True ($v308PublishedShaIndex -gt $v308CommitIndex) 'v308 local-client builder records published-byte authority before commit state.'
 Assert-True ($v308FinalVerifyIndex -gt $v308PublishedShaIndex) 'v308 local-client final verification does not follow committed publication.'
