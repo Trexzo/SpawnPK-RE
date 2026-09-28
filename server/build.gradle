@@ -3979,7 +3979,79 @@ tasks.register('issue4FinalCertification') {
     }
 }
 
+tasks.register('chat1CumulativeWrapperContractRegression') {
+    group = 'verification'
+    description = 'Locks the canonical exact-v308 cumulative-certification wrapper without requiring proprietary client bytes.'
+
+    doLast {
+        File wrapper =
+            new File(
+                repoRoot,
+                'scripts/Run-Chat1CumulativeCertification.ps1'
+            )
+
+        if(!wrapper.isFile())
+            throw new GradleException(
+                "Missing Chat 1 cumulative certification wrapper: ${wrapper}"
+            )
+
+        String text =
+            wrapper.getText('UTF-8')
+
+        [
+            'Select-LocalLabBuildJava.ps1',
+            'Get-FileHash',
+            v308AcceptanceClientSha256,
+            'chat1CurrentCumulativeCertification',
+            '-Pv308ClientPath=',
+            '--no-daemon',
+            '--console=plain',
+            'CHAT1_CUMULATIVE_WRAPPER_COMPLETE',
+            'exactV308=true'
+        ].each { required ->
+            if(!text.contains(required))
+                throw new GradleException(
+                    "Chat 1 cumulative wrapper contract missing: ${required}"
+                )
+        }
+
+        if(text.contains(
+                'SPAWNPK_CHAT1_CURRENT_CUMULATIVE_CERTIFICATION_PASS'))
+            throw new GradleException(
+                'Wrapper must not synthesize the authoritative cumulative PASS marker.'
+            )
+
+        int cleanIndex =
+            text.indexOf(
+                "'clean'"
+            )
+        int gateIndex =
+            text.indexOf(
+                "'chat1CurrentCumulativeCertification'"
+            )
+        int clientIndex =
+            text.indexOf(
+                '"-Pv308ClientPath=$client"'
+            )
+
+        if(cleanIndex < 0 ||
+           gateIndex <= cleanIndex ||
+           clientIndex <= gateIndex)
+            throw new GradleException(
+                'Wrapper Gradle invocation ordering drifted: expected clean -> cumulative gate -> exact client property.'
+            )
+
+        logger.lifecycle(
+            'CHAT1_CUMULATIVE_WRAPPER_CONTRACT_PASS ' +
+            'exactV308HashPinned=true ' +
+            'canonicalGate=true ' +
+            'authoritativeMarkerNotSynthesized=true'
+        )
+    }
+}
+
 tasks.named('check') {
+    dependsOn tasks.named('chat1CumulativeWrapperContractRegression')
     dependsOn tasks.named('customAssetPipelineRegression')
     dependsOn tasks.named('customAssetPipelineHardeningRegression')
     dependsOn tasks.named('playerAppearanceRoleRegression')
@@ -4382,6 +4454,7 @@ tasks.register('chat1CurrentCumulativeCertification') {
     description = 'Runs the complete current Chat 1 release candidate: Issue #5 Kotlin scripting, Issue #9 R13 source gates, #271/#427 presentation/application gates, Issue #7 pet-damage ownership, focused 175 and canonical exact-v308 179.'
 
     dependsOn(
+        tasks.named('chat1CumulativeWrapperContractRegression'),
         tasks.named('issue5KotlinScriptingCertification'),
         tasks.named('issue9R13SourceCertification'),
         tasks.named('staffPartyhatAppearanceGateRegression'),
