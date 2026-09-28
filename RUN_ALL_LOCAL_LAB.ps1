@@ -1,6 +1,14 @@
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
-Set-Location $PSScriptRoot
+
+$hadCallerJavaHome = Test-Path Env:JAVA_HOME
+$callerJavaHome = $env:JAVA_HOME
+$callerPath = $env:Path
+$callerLocationPushed = $false
+
+try {
+    Push-Location -LiteralPath $PSScriptRoot
+    $callerLocationPushed = $true
 
 # R85 JAVA11+ AUTOSELECT BEGIN
 # Keep this marker for VERIFY_OFFLINE_READY.ps1 compatibility, but use the
@@ -31,17 +39,30 @@ $serverJar = Join-Path $root 'server\build\SpawnPKLocalServer.jar'
 function Get-LauncherOwnedProcessIds {
     param(
         [System.Diagnostics.Process[]]$Roots,
-        [string]$Label
+        [string]$Label,
+        [switch]$IncludeExitedRoots
     )
 
-    $rootPids = @(
+    $recordedRoots = @(
         $Roots |
-            Where-Object { $null -ne $_ -and $_.Id -gt 0 -and -not $_.HasExited } |
+            Where-Object { $null -ne $_ -and $_.Id -gt 0 }
+    )
+    $recordedRootPids = @(
+        $recordedRoots |
+            ForEach-Object { [int]$_.Id } |
+            Select-Object -Unique
+    )
+    $liveRoots = @(
+        $recordedRoots |
+            Where-Object { -not $_.HasExited }
+    )
+    $liveRootPids = @(
+        $liveRoots |
             ForEach-Object { [int]$_.Id } |
             Select-Object -Unique
     )
 
-    if ($rootPids.Count -eq 0) {
+    if ($recordedRootPids.Count -eq 0) {
         return @()
     }
 
@@ -53,11 +74,82 @@ function Get-LauncherOwnedProcessIds {
     }
 
     $depthByPid = @{}
-    foreach ($rootPid in $rootPids) {
-        if ($rootPid -eq $PID) {
-            throw "$Label refused current launcher PID as an owned child root: $rootPid"
+
+    foreach ($liveRootPid in $liveRootPids) {
+        if ($liveRootPid -eq $PID) {
+            throw "$Label refused current launcher PID as an owned child root: $liveRootPid"
         }
-        $depthByPid[$rootPid] = 0
+        $depthByPid[$liveRootPid] = 0
+    }
+
+    if ($IncludeExitedRoots) {
+        $exitedRoots = @(
+            $recordedRoots |
+                Where-Object { $_.HasExited }
+        )
+
+        foreach ($exitedRoot in $exitedRoots) {
+            $rootPid = [int]$exitedRoot.Id
+            if ($rootPid -eq $PID) {
+                throw "$Label refused current launcher PID as an exited owned root: $rootPid"
+            }
+
+            try {
+                $rootStart = [DateTime]$exitedRoot.StartTime
+                $rootExit = [DateTime]$exitedRoot.ExitTime
+            }
+            catch {
+                throw "$Label cannot prove exited-root lifetime for PID $rootPid : $($_.Exception.Message)"
+            }
+
+            if ($rootExit -lt $rootStart) {
+                throw "$Label found invalid exited-root lifetime for PID $rootPid"
+            }
+
+            $reused = @(
+                $snapshot |
+                    Where-Object { [int]$_.ProcessId -eq $rootPid }
+            )
+            if ($reused.Count -ne 0) {
+                throw "$Label refused ambiguous exited-root PID reuse: $rootPid"
+            }
+
+            $directChildren = @(
+                $snapshot |
+                    Where-Object { [int]$_.ParentProcessId -eq $rootPid }
+            )
+
+            foreach ($directChild in $directChildren) {
+                $childPid = [int]$directChild.ProcessId
+                if ($childPid -eq $PID) {
+                    throw "$Label refused current launcher PID as an exited-root descendant: $childPid"
+                }
+
+                try {
+                    $childCreated = [DateTime]$directChild.CreationDate
+                }
+                catch {
+                    throw "$Label cannot prove creation time for exited-root child PID $childPid : $($_.Exception.Message)"
+                }
+
+                if ($childCreated -lt $rootStart -or
+                    $childCreated -ge $rootExit) {
+                    throw (
+                        "$Label refused ambiguous exited-root child lifetime. " +
+                        "rootPid=$rootPid childPid=$childPid " +
+                        "rootStart=$($rootStart.ToString('o')) " +
+                        "rootExit=$($rootExit.ToString('o')) " +
+                        "childCreated=$($childCreated.ToString('o'))"
+                    )
+                }
+
+                $depthByPid[$childPid] = 1
+            }
+        }
+    }
+
+    if ($depthByPid.Count -eq 0) {
+        return @()
     }
 
     $changed = $true
@@ -89,7 +181,7 @@ function Stop-LauncherOwnedProcessTree {
         [string]$Label
     )
 
-    $ownedPids = @(Get-LauncherOwnedProcessIds -Roots $Roots -Label $Label)
+    $ownedPids = @(Get-LauncherOwnedProcessIds -Roots $Roots -Label $Label -IncludeExitedRoots)
     foreach ($ownedPid in $ownedPids) {
         $live = Get-Process -Id $ownedPid -ErrorAction SilentlyContinue
         if ($null -eq $live) {
@@ -293,4 +385,19 @@ catch {
         $cleanupFailure = $_
     }
     Throw-LauncherFailureWithCleanup -PrimaryFailure $primaryFailure -CleanupFailure $cleanupFailure -Label 'RUN_ALL_LOCAL_LAB'
+}
+
+}
+finally {
+    if ($callerLocationPushed) {
+        Pop-Location
+    }
+
+    if ($hadCallerJavaHome) {
+        $env:JAVA_HOME = $callerJavaHome
+    }
+    else {
+        Remove-Item Env:JAVA_HOME -ErrorAction SilentlyContinue
+    }
+    $env:Path = $callerPath
 }

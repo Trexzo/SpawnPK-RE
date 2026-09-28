@@ -4,7 +4,15 @@ param(
 
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
-Set-Location $PSScriptRoot
+
+$hadCallerJavaHome = Test-Path Env:JAVA_HOME
+$callerJavaHome = $env:JAVA_HOME
+$callerPath = $env:Path
+$callerLocationPushed = $false
+
+try {
+    Push-Location -LiteralPath $PSScriptRoot
+    $callerLocationPushed = $true
 
 $runtimeCheck = Join-Path $PSScriptRoot 'scripts\Check-ExternalRuntime.ps1'
 if (-not (Test-Path -LiteralPath $runtimeCheck -PathType Leaf)) {
@@ -74,4 +82,19 @@ if (-not [string]::IsNullOrWhiteSpace($LocalLabUserHome)) {
 & $java.Path @javaArgs -jar $jar
 if ($LASTEXITCODE -ne 0) {
     throw "AIRGAP client exited with code $LASTEXITCODE using $($java.Path)"
+}
+
+}
+finally {
+    if ($callerLocationPushed) {
+        Pop-Location
+    }
+
+    if ($hadCallerJavaHome) {
+        $env:JAVA_HOME = $callerJavaHome
+    }
+    else {
+        Remove-Item Env:JAVA_HOME -ErrorAction SilentlyContinue
+    }
+    $env:Path = $callerPath
 }
