@@ -197,6 +197,9 @@ Assert-True ($quick -notmatch 'Write-Warning.*owned-process cleanup') 'Quick-sta
 Assert-True ($quick -notmatch 'Stop-Process\s+-Name') 'Quick-start launcher reintroduced broad name-based process cleanup.'
 
 foreach ($entry in @(
+    @('function Get-LauncherOwnedProcessIds', 1),
+    @('function Stop-LauncherOwnedProcessTree', 1),
+    @('function Throw-LauncherFailureWithCleanup', 1),
     @('$ready = $false', 1),
     @('$airgapClient = $null', 1),
     @('$ownedChildren = @()', 1),
@@ -421,6 +424,9 @@ Assert-True ($all -match 'AddSeconds\(30\)') 'Server-ready deadline is not the r
 Assert-True ($all -match 'R85 JAVA11\+ AUTOSELECT BEGIN') 'Compatibility selector marker was removed.'
 
 foreach ($entry in @(
+    @('function Get-LauncherOwnedProcessIds', 1),
+    @('function Stop-LauncherOwnedProcessTree', 1),
+    @('function Throw-LauncherFailureWithCleanup', 1),
     @('$ready = $false', 1),
     @('$airgapClient = $null', 1),
     @('$ownedChildren = @()', 1),
