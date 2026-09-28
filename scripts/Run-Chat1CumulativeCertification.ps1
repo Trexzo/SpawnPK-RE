@@ -54,11 +54,17 @@ function Assert-OrdinaryDirectory {
         [string]$Label
     )
 
-    if (-not (Test-Path -LiteralPath $Path -PathType Container)) {
+    try {
+        $item = Get-Item -LiteralPath $Path -Force -ErrorAction Stop
+    }
+    catch {
         throw "$Label is not an ordinary directory: $Path"
     }
 
-    $item = Get-Item -LiteralPath $Path -Force
+    if (-not $item.PSIsContainer) {
+        throw "$Label is not an ordinary directory: $Path"
+    }
+
     if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
         throw "$Label must not be a reparse point: $Path"
     }
