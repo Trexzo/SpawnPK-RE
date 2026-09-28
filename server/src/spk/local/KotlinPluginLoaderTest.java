@@ -1306,6 +1306,10 @@ public final class KotlinPluginLoaderTest {
             root.resolve(
                 "versioned-invented-api.jar"
             );
+        Path versionedBase=
+            root.resolve(
+                "versioned-base-api.jar"
+            );
         Path versionedModified=
             root.resolve(
                 "versioned-modified-api.jar"
@@ -1450,8 +1454,13 @@ public final class KotlinPluginLoaderTest {
                 "versioned invented reserved Kotlin API class was accepted"
             );
 
-            rewriteApiJar(
+            omitApiEntry(
                 apiJar,
+                versionedBase,
+                "spk/plugin/api/Plugin.class"
+            );
+            rewriteApiJar(
+                versionedBase,
                 versionedModified,
                 "META-INF/versions/9/spk/plugin/api/Plugin.class",
                 manifestBytes,
@@ -1462,12 +1471,15 @@ public final class KotlinPluginLoaderTest {
                 constructor,
                 versionedModified,
                 healthyClasspath,
-                "duplicate effective API class authority",
-                "versioned modified reserved Kotlin API class bypassed effective duplicate fence"
+                "does not match server API",
+                "versioned modified reserved Kotlin API class was accepted"
             );
         }finally{
             Files.deleteIfExists(
                 versionedModified
+            );
+            Files.deleteIfExists(
+                versionedBase
             );
             Files.deleteIfExists(
                 versionedInvented
