@@ -58,6 +58,7 @@ $launcherFiles = @(
     'scripts\Build-Server.ps1',
     'RUN_REPO_SELFTEST.ps1',
     'RUN_V5185_FULL_SELFTEST.ps1',
+    'VERIFY_OFFLINE_READY.ps1',
     'scripts\Patch-LocalConfigs.ps1',
     'WATCH_CLIENT_NETWORK.ps1',
     'scripts\Run-Server.ps1',
@@ -81,6 +82,7 @@ $bootstrap = Read-RepoFile 'BOOTSTRAP.ps1'
 $buildServer = Read-RepoFile 'scripts\Build-Server.ps1'
 $repoSelftest = Read-RepoFile 'RUN_REPO_SELFTEST.ps1'
 $fullSelftest = Read-RepoFile 'RUN_V5185_FULL_SELFTEST.ps1'
+$offlineReady = Read-RepoFile 'VERIFY_OFFLINE_READY.ps1'
 $configPatch = Read-RepoFile 'scripts\Patch-LocalConfigs.ps1'
 $serverWrapper = Read-RepoFile 'scripts\Run-Server.ps1'
 $clientWrapper = Read-RepoFile 'scripts\Run-Client-Airgap.ps1'
@@ -117,6 +119,29 @@ foreach ($uniqueAnchor in $r13UniqueAnchors) {
         "expected=1 actual=$count anchor=$uniqueAnchor"
     )
 }
+
+Assert-True ($r13Acceptance -match '\$hadCallerJavaHome\s*=\s*Test-Path Env:JAVA_HOME') 'R13 acceptance does not record caller JAVA_HOME ownership.'
+Assert-True ($r13Acceptance -match '\$callerJavaHome\s*=\s*\$env:JAVA_HOME') 'R13 acceptance does not snapshot caller JAVA_HOME.'
+Assert-True ($r13Acceptance -match '\$callerPath\s*=\s*\$env:Path') 'R13 acceptance does not snapshot caller PATH.'
+Assert-True ($r13Acceptance -match 'Remove-Item Env:JAVA_HOME -ErrorAction SilentlyContinue') 'R13 acceptance does not restore an originally absent JAVA_HOME.'
+foreach ($entry in @(
+    @('$hadCallerJavaHome = Test-Path Env:JAVA_HOME', 1),
+    @('$callerJavaHome = $env:JAVA_HOME', 1),
+    @('$callerPath = $env:Path', 1),
+    @('$env:Path = $callerPath', 1),
+    @('Remove-Item Env:JAVA_HOME -ErrorAction SilentlyContinue', 1)
+)) {
+    Assert-ExactTextCount $r13Acceptance $entry[0] ([int]$entry[1]) 'R13 acceptance Java-environment ownership count drift.'
+}
+$r13EnvCaptureIndex = $r13Acceptance.IndexOf('$callerPath = $env:Path')
+$r13JavaIndex = $r13Acceptance.IndexOf('$java = Set-LocalLabJava')
+$r13ReadyIndex = $r13Acceptance.IndexOf('R13_RUNTIME_ACCEPTANCE_READY automaticVisualPass=false')
+$r13FinalInstructionIndex = $r13Acceptance.IndexOf('Do not record R13 visual PASS until those observations are made on the real GUI session.')
+$r13EnvRestoreIndex = $r13Acceptance.LastIndexOf('$env:Path = $callerPath')
+Assert-True ($r13EnvCaptureIndex -ge 0 -and $r13EnvCaptureIndex -lt $r13JavaIndex) 'R13 acceptance caller environment is not captured before canonical Java selection.'
+Assert-True ($r13ReadyIndex -gt $r13JavaIndex) 'R13 readiness marker precedes canonical Java selection/acceptance flow.'
+Assert-True ($r13FinalInstructionIndex -gt $r13ReadyIndex) 'R13 final operator instruction no longer follows readiness marker.'
+Assert-True ($r13EnvRestoreIndex -gt $r13FinalInstructionIndex) 'R13 acceptance restores caller Java environment before the complete operator flow ends.'
 
 Assert-True ($client -match [regex]::Escape('scripts\Check-ExternalRuntime.ps1')) 'Standalone airgap launcher does not verify current exact-v308 external-runtime authority.'
 Assert-True ($client -match 'Missing LocalLab external-runtime verifier') 'Standalone airgap launcher does not fail closed when the runtime verifier is missing.'
@@ -786,19 +811,62 @@ Assert-True ($selftestEnvCaptureIndex -ge 0 -and $selftestEnvCaptureIndex -lt $s
 Assert-True ($selftestPassIndex -gt $selftestJavaIndex) 'Historical selftest success boundary precedes Java selection/test execution.'
 Assert-True ($selftestEnvRestoreIndex -gt $selftestPassIndex) 'Historical selftest restores caller Java environment before the complete 179-test run ends.'
 
+Assert-True ($offlineReady -match 'R85_SelectJava11Plus\.ps1') 'Historical offline verifier lost its Java-11+ selector.'
+Assert-True ($offlineReady -match 'Set-R85Java11Plus') 'Historical offline verifier does not invoke the Java-11+ selector.'
+Assert-True ($offlineReady -match '\$hadCallerJavaHome=Test-Path Env:JAVA_HOME') 'Historical offline verifier does not record caller JAVA_HOME ownership.'
+Assert-True ($offlineReady -match '\$callerJavaHome=\$env:JAVA_HOME') 'Historical offline verifier does not snapshot caller JAVA_HOME.'
+Assert-True ($offlineReady -match '\$callerPath=\$env:Path') 'Historical offline verifier does not snapshot caller PATH.'
+Assert-True ($offlineReady -match 'Remove-Item Env:JAVA_HOME -ErrorAction SilentlyContinue') 'Historical offline verifier does not restore an originally absent JAVA_HOME.'
+Assert-True ($offlineReady -match 'V5185_ENGINE_R85_OFFLINE_READY_PASS') 'Historical offline verifier lost its final readiness boundary.'
+foreach ($entry in @(
+    @('$hadCallerJavaHome=Test-Path Env:JAVA_HOME', 1),
+    @('$callerJavaHome=$env:JAVA_HOME', 1),
+    @('$callerPath=$env:Path', 1),
+    @('$env:Path=$callerPath', 1),
+    @('Remove-Item Env:JAVA_HOME -ErrorAction SilentlyContinue', 1)
+)) {
+    Assert-ExactTextCount $offlineReady $entry[0] ([int]$entry[1]) 'Historical offline verifier Java-environment ownership count drift.'
+}
+$offlineEnvCaptureIndex = $offlineReady.IndexOf('$callerPath=$env:Path')
+$offlineJavaIndex = $offlineReady.IndexOf('$javaInfo=Set-R85Java11Plus')
+$offlinePassIndex = $offlineReady.IndexOf('V5185_ENGINE_R85_OFFLINE_READY_PASS')
+$offlineEnvRestoreIndex = $offlineReady.LastIndexOf('$env:Path=$callerPath')
+Assert-True ($offlineEnvCaptureIndex -ge 0 -and $offlineEnvCaptureIndex -lt $offlineJavaIndex) 'Historical offline verifier caller environment is not captured before Java-11+ selection.'
+Assert-True ($offlinePassIndex -gt $offlineJavaIndex) 'Historical offline verifier readiness boundary precedes Java-dependent verification.'
+Assert-True ($offlineEnvRestoreIndex -gt $offlinePassIndex) 'Historical offline verifier restores caller Java environment before readiness reporting completes.'
+
 Assert-True ($serverWrapper -match 'Select-LocalLabJava\.ps1') 'Server wrapper is not using the canonical Java selector.'
 Assert-True ($serverWrapper -match [regex]::Escape('server\build\SpawnPKLocalServer.jar')) 'Server wrapper does not target the current built server JAR.'
 Assert-True ($serverWrapper -match 'Test-Path\s+-LiteralPath\s+\$required\s+-PathType\s+Leaf') 'Server wrapper does not fail closed on missing launch components.'
 Assert-True ($serverWrapper -match '&\s+\$java\.Path\s+-jar\s+\$jar\s+--bootstrap\s+--movement') 'Server wrapper does not launch through the selected Java path with canonical server arguments.'
 Assert-True ($serverWrapper -match '\$serverExit\s*=\s*\$LASTEXITCODE') 'Server wrapper does not capture the native Java exit code immediately.'
 Assert-True ($serverWrapper -match '\$serverExit\s+-ne\s+0') 'Server wrapper does not fail on nonzero Java exit.'
+Assert-True ($serverWrapper -match '\$hadCallerJavaHome\s*=\s*Test-Path Env:JAVA_HOME') 'Server wrapper does not record caller JAVA_HOME ownership.'
+Assert-True ($serverWrapper -match '\$callerJavaHome\s*=\s*\$env:JAVA_HOME') 'Server wrapper does not snapshot caller JAVA_HOME.'
+Assert-True ($serverWrapper -match '\$callerPath\s*=\s*\$env:Path') 'Server wrapper does not snapshot caller PATH.'
+Assert-True ($serverWrapper -match 'Remove-Item Env:JAVA_HOME -ErrorAction SilentlyContinue') 'Server wrapper does not restore an originally absent JAVA_HOME.'
+foreach ($entry in @(
+    @('$hadCallerJavaHome = Test-Path Env:JAVA_HOME', 1),
+    @('$callerJavaHome = $env:JAVA_HOME', 1),
+    @('$callerPath = $env:Path', 1),
+    @('$env:Path = $callerPath', 1),
+    @('Remove-Item Env:JAVA_HOME -ErrorAction SilentlyContinue', 1)
+)) {
+    Assert-ExactTextCount $serverWrapper $entry[0] ([int]$entry[1]) 'Server wrapper Java-environment ownership count drift.'
+}
 
+
+$serverEnvCaptureIndex = $serverWrapper.IndexOf('$callerPath = $env:Path')
+$serverJavaIndex = $serverWrapper.IndexOf('$java = Set-LocalLabJava')
 $serverLaunchIndex = $serverWrapper.IndexOf('& $java.Path -jar $jar --bootstrap --movement')
 $serverExitCaptureIndex = $serverWrapper.IndexOf('$serverExit = $LASTEXITCODE')
 $serverExitCheckIndex = $serverWrapper.IndexOf('if ($serverExit -ne 0)')
-Assert-True ($serverLaunchIndex -ge 0) 'Server wrapper native launch not found.'
+$serverEnvRestoreIndex = $serverWrapper.LastIndexOf('$env:Path = $callerPath')
+Assert-True ($serverEnvCaptureIndex -ge 0 -and $serverEnvCaptureIndex -lt $serverJavaIndex) 'Server wrapper caller environment is not captured before canonical Java selection.'
+Assert-True ($serverLaunchIndex -gt $serverJavaIndex) 'Server wrapper native launch does not execute under selected canonical Java.'
 Assert-True ($serverExitCaptureIndex -gt $serverLaunchIndex) 'Server wrapper does not capture native exit after launch.'
 Assert-True ($serverExitCheckIndex -gt $serverExitCaptureIndex) 'Server wrapper checks exit status before capture or not at all.'
+Assert-True ($serverEnvRestoreIndex -gt $serverExitCheckIndex) 'Server wrapper restores caller Java environment before native exit handling completes.'
 
 Assert-True ($clientWrapper -match 'Select-LocalLabJava\.ps1') 'Client wrapper is not using the canonical Java selector.'
 Assert-True ($selector -match 'Major -eq 17') 'Canonical selector no longer prefers the proven Java 17 runtime.'
@@ -809,11 +877,25 @@ Assert-True ($ignore -match '(?m)^\*\.pid\s*$') '*.pid is not ignored.'
 Assert-True ($ignore -match '(?m)^runtime/locallab-user-home/\s*$') 'LocalLab isolated user.home runtime tree is not ignored.'
 
 if (-not $SkipJavaProbe) {
-    . (Join-Path $repo 'scripts\Select-LocalLabJava.ps1')
-    $java = Set-LocalLabJava
-    Assert-True ($null -ne $java) 'Canonical selector returned no Java runtime.'
-    Assert-True ([int]$java.Major -ge 11) "Selected Java is below 11: $($java.Major)"
-    Assert-True (Test-Path -LiteralPath $java.Path -PathType Leaf) "Selected Java path is missing: $($java.Path)"
+    $probeHadJavaHome = Test-Path Env:JAVA_HOME
+    $probeJavaHome = $env:JAVA_HOME
+    $probePath = $env:Path
+    try {
+        . (Join-Path $repo 'scripts\Select-LocalLabJava.ps1')
+        $java = Set-LocalLabJava
+        Assert-True ($null -ne $java) 'Canonical selector returned no Java runtime.'
+        Assert-True ([int]$java.Major -ge 11) "Selected Java is below 11: $($java.Major)"
+        Assert-True (Test-Path -LiteralPath $java.Path -PathType Leaf) "Selected Java path is missing: $($java.Path)"
+    }
+    finally {
+        if ($probeHadJavaHome) {
+            $env:JAVA_HOME = $probeJavaHome
+        }
+        else {
+            Remove-Item Env:JAVA_HOME -ErrorAction SilentlyContinue
+        }
+        $env:Path = $probePath
+    }
 }
 
 Write-Host 'LOCALLAB_LAUNCHER_CONTRACT_PASS' -ForegroundColor Green
