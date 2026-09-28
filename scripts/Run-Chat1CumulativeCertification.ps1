@@ -27,9 +27,7 @@ if (-not (Test-Path -LiteralPath $client -PathType Leaf)) {
 }
 
 $actualClientSha =
-    (Get-FileHash -LiteralPath $client -Algorithm SHA256)
-        .Hash
-        .ToLowerInvariant()
+    (Get-FileHash -LiteralPath $client -Algorithm SHA256).Hash.ToLowerInvariant()
 
 if ($actualClientSha -ne $expectedClientSha) {
     throw (
