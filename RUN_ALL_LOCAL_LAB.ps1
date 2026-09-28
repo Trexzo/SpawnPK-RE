@@ -41,28 +41,26 @@ function Get-LauncherOwnedProcessIds {
         [switch]$IncludeExitedRoots
     )
 
+    $recordedRoots = @(
+        $Roots |
+            Where-Object { $null -ne $_ -and $_.Id -gt 0 }
+    )
     $recordedRootPids = @(
-        $Roots |
-            Where-Object { $null -ne $_ -and $_.Id -gt 0 } |
+        $recordedRoots |
             ForEach-Object { [int]$_.Id } |
             Select-Object -Unique
     )
-
+    $liveRoots = @(
+        $recordedRoots |
+            Where-Object { -not $_.HasExited }
+    )
     $liveRootPids = @(
-        $Roots |
-            Where-Object { $null -ne $_ -and $_.Id -gt 0 -and -not $_.HasExited } |
+        $liveRoots |
             ForEach-Object { [int]$_.Id } |
             Select-Object -Unique
     )
 
-    $rootPids = if ($IncludeExitedRoots) {
-        @($recordedRootPids)
-    }
-    else {
-        @($liveRootPids)
-    }
-
-    if ($rootPids.Count -eq 0) {
+    if ($recordedRootPids.Count -eq 0) {
         return @()
     }
 
@@ -73,28 +71,83 @@ function Get-LauncherOwnedProcessIds {
         throw "$Label ownership enumeration failed: $($_.Exception.Message)"
     }
 
+    $depthByPid = @{}
+
+    foreach ($liveRootPid in $liveRootPids) {
+        if ($liveRootPid -eq $PID) {
+            throw "$Label refused current launcher PID as an owned child root: $liveRootPid"
+        }
+        $depthByPid[$liveRootPid] = 0
+    }
+
     if ($IncludeExitedRoots) {
-        $exitedRootPids = @(
-            $recordedRootPids |
-                Where-Object { $_ -notin $liveRootPids }
+        $exitedRoots = @(
+            $recordedRoots |
+                Where-Object { $_.HasExited }
         )
-        foreach ($exitedRootPid in $exitedRootPids) {
+
+        foreach ($exitedRoot in $exitedRoots) {
+            $rootPid = [int]$exitedRoot.Id
+            if ($rootPid -eq $PID) {
+                throw "$Label refused current launcher PID as an exited owned root: $rootPid"
+            }
+
+            try {
+                $rootStart = [DateTime]$exitedRoot.StartTime
+                $rootExit = [DateTime]$exitedRoot.ExitTime
+            }
+            catch {
+                throw "$Label cannot prove exited-root lifetime for PID $rootPid : $($_.Exception.Message)"
+            }
+
+            if ($rootExit -lt $rootStart) {
+                throw "$Label found invalid exited-root lifetime for PID $rootPid"
+            }
+
             $reused = @(
                 $snapshot |
-                    Where-Object { [int]$_.ProcessId -eq $exitedRootPid }
+                    Where-Object { [int]$_.ProcessId -eq $rootPid }
             )
             if ($reused.Count -ne 0) {
-                throw "$Label refused ambiguous exited-root PID reuse: $exitedRootPid"
+                throw "$Label refused ambiguous exited-root PID reuse: $rootPid"
+            }
+
+            $directChildren = @(
+                $snapshot |
+                    Where-Object { [int]$_.ParentProcessId -eq $rootPid }
+            )
+
+            foreach ($directChild in $directChildren) {
+                $childPid = [int]$directChild.ProcessId
+                if ($childPid -eq $PID) {
+                    throw "$Label refused current launcher PID as an exited-root descendant: $childPid"
+                }
+
+                try {
+                    $childCreated = [DateTime]$directChild.CreationDate
+                }
+                catch {
+                    throw "$Label cannot prove creation time for exited-root child PID $childPid : $($_.Exception.Message)"
+                }
+
+                if ($childCreated -lt $rootStart -or
+                    $childCreated -gt $rootExit) {
+                    throw (
+                        "$Label refused ambiguous exited-root child lifetime. " +
+                        "rootPid=$rootPid childPid=$childPid " +
+                        "rootStart=$($rootStart.ToString('o')) " +
+                        "rootExit=$($rootExit.ToString('o')) " +
+                        "childCreated=$($childCreated.ToString('o'))"
+                    )
+                }
+
+                $depthByPid[$childPid] = 1
             }
         }
     }
 
-    $depthByPid = @{}
-    foreach ($rootPid in $rootPids) {
-        if ($rootPid -eq $PID) {
-            throw "$Label refused current launcher PID as an owned child root: $rootPid"
-        }
-        $depthByPid[$rootPid] = 0
+    if ($depthByPid.Count -eq 0) {
+        return @()
     }
 
     $changed = $true
@@ -115,10 +168,6 @@ function Get-LauncherOwnedProcessIds {
 
     return @(
         $depthByPid.GetEnumerator() |
-            Where-Object {
-                $_.Value -gt 0 -or
-                $_.Key -in $liveRootPids
-            } |
             Sort-Object Value -Descending |
             ForEach-Object { [int]$_.Key }
     )
