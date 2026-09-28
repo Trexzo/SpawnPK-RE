@@ -4089,7 +4089,7 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
             "\$ErrorActionPreference = 'Continue'",
             'spawnpk-chat1-local-certification-evidence-v1',
             'hostedPromotionSatisfied = $false',
-            "hostedPromotionBlocker = '#816'",
+            'hostedEvidenceSeparate = $true',
             'Set-Content -LiteralPath $evidence',
             'SPAWNPK_CHAT1_CURRENT_CUMULATIVE_CERTIFICATION_PASS',
             'CHAT1_CUMULATIVE_WRAPPER_COMPLETE',
@@ -4126,6 +4126,11 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
                     "Chat 1 cumulative client-snapshot guard count drift: expected=${expectedCount} actual=${count} anchor=${anchor}"
                 )
         }
+
+        if(text.contains("hostedPromotionBlocker = '#816'"))
+            throw new GradleException(
+                'Local cumulative evidence must not name resolved infrastructure issue #816 as a current promotion blocker.'
+            )
 
         String authoritativeMarker =
             'SPAWNPK_CHAT1_CURRENT_CUMULATIVE_CERTIFICATION_PASS'
