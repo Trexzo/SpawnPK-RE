@@ -10,15 +10,30 @@ $serverJar = Join-Path $repo 'server\build\SpawnPKLocalServer.jar'
 function Get-LauncherOwnedProcessIds {
     param(
         [System.Diagnostics.Process[]]$Roots,
-        [string]$Label
+        [string]$Label,
+        [switch]$IncludeExitedRoots
     )
 
-    $rootPids = @(
+    $recordedRootPids = @(
+        $Roots |
+            Where-Object { $null -ne $_ -and $_.Id -gt 0 } |
+            ForEach-Object { [int]$_.Id } |
+            Select-Object -Unique
+    )
+
+    $liveRootPids = @(
         $Roots |
             Where-Object { $null -ne $_ -and $_.Id -gt 0 -and -not $_.HasExited } |
             ForEach-Object { [int]$_.Id } |
             Select-Object -Unique
     )
+
+    $rootPids = if ($IncludeExitedRoots) {
+        @($recordedRootPids)
+    }
+    else {
+        @($liveRootPids)
+    }
 
     if ($rootPids.Count -eq 0) {
         return @()
@@ -57,6 +72,10 @@ function Get-LauncherOwnedProcessIds {
 
     return @(
         $depthByPid.GetEnumerator() |
+            Where-Object {
+                $_.Value -gt 0 -or
+                $_.Key -in $liveRootPids
+            } |
             Sort-Object Value -Descending |
             ForEach-Object { [int]$_.Key }
     )
@@ -68,7 +87,7 @@ function Stop-LauncherOwnedProcessTree {
         [string]$Label
     )
 
-    $ownedPids = @(Get-LauncherOwnedProcessIds -Roots $Roots -Label $Label)
+    $ownedPids = @(Get-LauncherOwnedProcessIds -Roots $Roots -Label $Label -IncludeExitedRoots)
     foreach ($ownedPid in $ownedPids) {
         $live = Get-Process -Id $ownedPid -ErrorAction SilentlyContinue
         if ($null -eq $live) {
