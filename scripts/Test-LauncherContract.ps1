@@ -155,6 +155,9 @@ Assert-True ($client -match '83b3e27e2aae50512d044ae4c74d84afb36df8b8a8051b5eb0c
 Assert-True ($client -match 'Get-FileHash -LiteralPath \$launchSnapshot -Algorithm SHA256') 'Standalone airgap launcher does not independently hash its private launch snapshot.'
 Assert-True ($client -match 'AIRGAP_CLIENT_LAUNCH_SNAPSHOT_VERIFIED') 'Standalone airgap launcher does not report private snapshot verification.'
 Assert-True ($client -match 'Invocation-owned AIRGAP snapshot cleanup did not remove') 'Standalone airgap launcher does not fail closed when private snapshot cleanup is incomplete.'
+Assert-True ($client -match 'AIRGAP launcher cleanup was incomplete after caller-state restoration') 'Standalone airgap launcher can surface snapshot/location cleanup failure before restoring caller state.'
+Assert-True ($client -match '\$snapshotCleanupFailure\s*=\s*\$_') 'Standalone airgap launcher does not defer snapshot cleanup failure until caller-state restoration.'
+Assert-True ($client -match '\$locationCleanupFailure\s*=\s*\$_') 'Standalone airgap launcher does not defer location cleanup failure until caller-state restoration.'
 Assert-True ($client -match 'SPAWNPK_LOCALLAB_USER_HOME') 'Standalone airgap launcher does not expose the isolated LocalLab user.home environment contract.'
 Assert-True ($client -match '-Duser\.home=\$resolvedHome') 'Standalone airgap launcher does not pass the isolated home to Java.'
 Assert-True ($client -match 'LOCAL_LAB_CLIENT_HOME_ISOLATED') 'Standalone airgap launcher does not report isolated client-home authority.'
@@ -229,6 +232,9 @@ $standaloneSelectorCallIndex = $client.IndexOf('$java = Set-LocalLabJava')
 $standaloneEnvRestoreIndex = $client.LastIndexOf('$env:Path = $callerPath')
 Assert-True ($standaloneEnvCaptureIndex -ge 0 -and $standaloneEnvCaptureIndex -lt $standaloneSelectorCallIndex) 'Standalone airgap caller environment is not captured before Java selection.'
 Assert-True ($standaloneEnvRestoreIndex -gt $standaloneLaunchIndex) 'Standalone airgap caller environment is restored before the synchronous Java client finishes.'
+Assert-True ($standaloneEnvRestoreIndex -gt $standaloneSnapshotCleanupIndex) 'Standalone airgap caller environment is restored before invocation-owned snapshot cleanup is attempted.'
+$standaloneCleanupThrowIndex = $client.IndexOf('AIRGAP launcher cleanup was incomplete after caller-state restoration')
+Assert-True ($standaloneCleanupThrowIndex -gt $standaloneEnvRestoreIndex) 'Standalone airgap cleanup failure can escape before caller Java state restoration.'
 $standaloneLocationPushIndex = $client.IndexOf('Push-Location -LiteralPath $PSScriptRoot')
 $standaloneLocationPopIndex = $client.LastIndexOf('Pop-Location')
 Assert-True ($standaloneLocationPushIndex -ge 0 -and $standaloneLocationPushIndex -lt $standaloneRuntimeCheckIndex) 'Standalone airgap repository location is not established before launcher work.'
