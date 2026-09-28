@@ -111,6 +111,12 @@ public final class KotlinPluginLoaderTest {
             apiJar,
             compileClasspath
         );
+        assertManifestParsingBounded(
+            constructor,
+            healthy,
+            apiJar,
+            compileClasspath
+        );
         assertMultiReleaseClasspathFenced(
             constructor,
             apiJar,
@@ -583,6 +589,7 @@ public final class KotlinPluginLoaderTest {
             "dependencyNamespaceFence=true "+
             "kotlinClasspathExtensionBypassFenced=true "+
             "kotlinManifestClasspathFenced=true "+
+            "kotlinManifestSizeBounded=true "+
             "kotlinMultiReleaseClasspathFenced=true "+
             "kotlinJarIndexFenced=true "+
             "kotlinApiArtifactIdentityPinned=true "+
@@ -879,6 +886,338 @@ public final class KotlinPluginLoaderTest {
                     ),
                     manifest
                 )){
+        }
+    }
+
+
+    private static void assertManifestParsingBounded(
+        Constructor<?> constructor,
+        Path healthy,
+        Path apiJar,
+        List<Path> healthyClasspath
+    )throws Exception{
+        if(healthyClasspath.isEmpty())
+            return;
+
+        Path root=
+            Files.createTempDirectory(
+                "kotlin-manifest-bounded-"
+            );
+        Path api=
+            root.resolve(
+                "api.jar"
+            );
+        Path runtime=
+            root.resolve(
+                "runtime.jar"
+            );
+        Path hostile=
+            root.resolve(
+                "hostile.jar"
+            );
+        Path continued=
+            root.resolve(
+                "continued.jar"
+            );
+        Path hugeNamed=
+            root.resolve(
+                "huge-named.jar"
+            );
+        Path hugeNamedApi=
+            root.resolve(
+                "huge-named-api.jar"
+            );
+
+        try{
+            Files.copy(
+                apiJar,
+                api
+            );
+            Files.copy(
+                healthyClasspath.get(0),
+                runtime
+            );
+
+            PluginLoader runtimeLoader=
+                (PluginLoader)
+                    constructor.newInstance(
+                        api,
+                        java.util.Collections
+                            .singletonList(
+                                runtime
+                            )
+                    );
+
+            writeJarWithRawManifest(
+                healthyClasspath.get(0),
+                hostile,
+                oversizedManifestMain()
+            );
+            Files.move(
+                hostile,
+                runtime,
+                java.nio.file.StandardCopyOption.REPLACE_EXISTING
+            );
+
+            assertLoadRejected(
+                runtimeLoader,
+                healthy,
+                "manifest main section exceeds",
+                "oversized Kotlin dependency manifest entered captured authority"
+            );
+
+            Files.copy(
+                healthyClasspath.get(0),
+                runtime,
+                java.nio.file.StandardCopyOption.REPLACE_EXISTING
+            );
+
+            PluginLoader apiLoader=
+                (PluginLoader)
+                    constructor.newInstance(
+                        api,
+                        java.util.Collections
+                            .singletonList(
+                                runtime
+                            )
+                    );
+
+            writeJarWithRawManifest(
+                apiJar,
+                hostile,
+                oversizedManifestMain()
+            );
+            Files.move(
+                hostile,
+                api,
+                java.nio.file.StandardCopyOption.REPLACE_EXISTING
+            );
+
+            assertLoadRejected(
+                apiLoader,
+                healthy,
+                "manifest main section exceeds",
+                "oversized Kotlin API manifest entered captured authority"
+            );
+
+            writeJarWithRawManifest(
+                healthyClasspath.get(0),
+                continued,
+                (
+                    "Manifest-Version: 1.0\r\n"+
+                    "Class-Path: sibling-\r\n"+
+                    " continued.jar\r\n"+
+                    "\r\n"
+                ).getBytes(
+                    java.nio.charset.StandardCharsets.UTF_8
+                )
+            );
+
+            boolean continuedRejected=false;
+
+            try{
+                constructor.newInstance(
+                    apiJar,
+                    java.util.Collections
+                        .singletonList(
+                            continued
+                        )
+                );
+            }catch(InvocationTargetException expected){
+                Throwable cause=
+                    expected.getCause();
+
+                continuedRejected=
+                    cause instanceof
+                        IllegalArgumentException&&
+                    cause.getMessage()!=null&&
+                    cause.getMessage()
+                        .contains(
+                            "manifest Class-Path is forbidden"
+                        );
+            }
+
+            if(!continuedRejected)
+                throw new AssertionError(
+                    "continued Kotlin manifest Class-Path was accepted"
+                );
+
+            writeJarWithRawManifest(
+                healthyClasspath.get(0),
+                hugeNamed,
+                hugeNamedManifest()
+            );
+
+            constructor.newInstance(
+                apiJar,
+                java.util.Collections
+                    .singletonList(
+                        hugeNamed
+                    )
+            );
+
+            writeJarWithRawManifest(
+                apiJar,
+                hugeNamedApi,
+                hugeNamedManifest()
+            );
+
+            constructor.newInstance(
+                hugeNamedApi,
+                healthyClasspath
+            );
+        }finally{
+            Files.deleteIfExists(
+                hugeNamedApi
+            );
+            Files.deleteIfExists(
+                hugeNamed
+            );
+            Files.deleteIfExists(
+                continued
+            );
+            Files.deleteIfExists(
+                hostile
+            );
+            Files.deleteIfExists(
+                runtime
+            );
+            Files.deleteIfExists(
+                api
+            );
+            Files.deleteIfExists(
+                root
+            );
+        }
+    }
+
+    private static byte[] oversizedManifestMain()
+        throws Exception{
+        java.io.ByteArrayOutputStream out=
+            new java.io.ByteArrayOutputStream();
+
+        out.write(
+            (
+                "Manifest-Version: 1.0\r\n"+
+                "X-Fill: "
+            ).getBytes(
+                java.nio.charset.StandardCharsets.UTF_8
+            )
+        );
+
+        for(int i=0;
+            i<BoundedManifestMain
+                .MAX_MAIN_SECTION_BYTES+
+                1024;
+            i++)
+            out.write(
+                'a'
+            );
+
+        return out.toByteArray();
+    }
+
+    private static byte[] hugeNamedManifest()
+        throws Exception{
+        java.io.ByteArrayOutputStream out=
+            new java.io.ByteArrayOutputStream();
+
+        out.write(
+            (
+                "Manifest-Version: 1.0\r\n"+
+                "\r\n"+
+                "Name: ignored/section\r\n"+
+                "X-Fill: "
+            ).getBytes(
+                java.nio.charset.StandardCharsets.UTF_8
+            )
+        );
+
+        for(int i=0;
+            i<BoundedManifestMain
+                .MAX_MAIN_SECTION_BYTES*8;
+            i++)
+            out.write(
+                'b'
+            );
+
+        out.write(
+            "\r\n\r\n".getBytes(
+                java.nio.charset.StandardCharsets.UTF_8
+            )
+        );
+
+        return out.toByteArray();
+    }
+
+    private static void writeJarWithRawManifest(
+        Path source,
+        Path target,
+        byte[] manifestBytes
+    )throws Exception{
+        try(java.util.jar.JarFile input=
+                new java.util.jar.JarFile(
+                    source.toFile()
+                );
+            JarOutputStream output=
+                new JarOutputStream(
+                    Files.newOutputStream(
+                        target
+                    )
+                )){
+            output.putNextEntry(
+                new JarEntry(
+                    "META-INF/MANIFEST.MF"
+                )
+            );
+            output.write(
+                manifestBytes
+            );
+            output.closeEntry();
+
+            java.util.Enumeration<java.util.jar.JarEntry> entries=
+                input.entries();
+            byte[] buffer=
+                new byte[8192];
+
+            while(entries.hasMoreElements()){
+                java.util.jar.JarEntry entry=
+                    entries.nextElement();
+
+                if("META-INF/MANIFEST.MF"
+                        .equalsIgnoreCase(
+                            entry.getName()
+                        ))
+                    continue;
+
+                JarEntry copy=
+                    new JarEntry(
+                        entry.getName()
+                    );
+                output.putNextEntry(
+                    copy
+                );
+
+                if(!entry.isDirectory())
+                    try(java.io.InputStream in=
+                            input.getInputStream(
+                                entry
+                            )){
+                        int read;
+
+                        while((read=
+                                in.read(
+                                    buffer
+                                ))!=-1)
+                            output.write(
+                                buffer,
+                                0,
+                                read
+                            );
+                    }
+
+                output.closeEntry();
+            }
         }
     }
 
