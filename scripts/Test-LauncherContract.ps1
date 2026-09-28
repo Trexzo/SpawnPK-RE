@@ -791,7 +791,7 @@ Assert-True ($v308SuccessIndex -gt $v308FinalVerifyIndex) 'v308 local-client bui
 
 Assert-True ($releaseAcceptance -match [regex]::Escape('scripts\Select-LocalLabJava.ps1')) 'Current release acceptance does not use canonical runtime Java selector.'
 Assert-True ($releaseAcceptance -match 'Set-LocalLabJava') 'Current release acceptance does not resolve canonical LocalLab runtime Java.'
-Assert-True ($releaseAcceptance -match '-FilePath\s+\$runtimeJava\.Path') 'Current release loopback smoke does not launch with selected canonical Java path.'
+Assert-True ($releaseAcceptance -match '\$processInfo\.FileName\s*=\s*\$runtimeJava\.Path') 'Current release loopback smoke does not launch with selected canonical Java path.'
 Assert-True ($releaseAcceptance -notmatch 'Get-Command\s+java(?:\.exe)?') 'Current release acceptance reintroduced arbitrary PATH Java selection.'
 Assert-True ($releaseAcceptance -match 'Run-Chat1CumulativeCertification\.ps1') 'Current release acceptance lost canonical cumulative certification wrapper.'
 Assert-True ($releaseAcceptance -match 'CURRENT_RELEASE_CUMULATIVE_CERTIFICATION_PASS') 'Current release acceptance lost cumulative certification success boundary.'
@@ -815,7 +815,7 @@ $releaseSelectorIndex = $releaseAcceptance.IndexOf('$runtimeJavaSelector = Join-
 $releaseJavaIndex = $releaseAcceptance.IndexOf('$runtimeJava = Set-LocalLabJava')
 $releaseCumulativeIndex = $releaseAcceptance.IndexOf('& $cumulativeWrapper -ClientJar $client')
 $releaseSmokeIndex = $releaseAcceptance.LastIndexOf('Invoke-CurrentServerLoopbackSmoke')
-$releaseStartProcessIndex = $releaseAcceptance.IndexOf('-FilePath $runtimeJava.Path')
+$releaseStartProcessIndex = $releaseAcceptance.IndexOf('$processInfo.FileName = $runtimeJava.Path')
 Assert-True ($releaseSelectorIndex -ge 0) 'Current release runtime Java selector path not found.'
 Assert-True ($releaseJavaIndex -gt $releaseSelectorIndex) 'Current release resolves runtime Java before selector authority is established.'
 Assert-True ($releaseCumulativeIndex -gt $releaseJavaIndex) 'Current release cumulative certification does not follow canonical Java selection.'
@@ -850,22 +850,35 @@ Assert-True ($releaseAcceptance -notmatch 'Stop-Process -Id \$process\.Id -Force
 Assert-True ($releaseAcceptance -match 'Current release smoke failed and cleanup was incomplete') 'Current release smoke does not combine primary and cleanup failure authority.'
 
 # Current release smoke evidence must remain inside one ordinary repository
-# build/release-smoke ancestry and must never perform blanket destructive cleanup.
+# build/release-smoke ancestry and bind every published leaf to an owned
+# CreateNew handle. Child stdout/stderr authority must come from process pipes,
+# never mutable redirect paths.
 Assert-True ($releaseAcceptance -match 'function Assert-ReleaseOrdinaryDirectory') 'Current release smoke lacks ordinary-directory validation.'
 Assert-True ($releaseAcceptance -match 'function Assert-ReleaseSmokeAncestry') 'Current release smoke lacks exact ancestry validation.'
 Assert-True ($releaseAcceptance -match 'function Initialize-ReleaseSmokeDirectory') 'Current release smoke lacks guarded one-level directory initialization.'
 Assert-True ($releaseAcceptance -match 'function Remove-ReleaseSmokeEvidenceLeafSafely') 'Current release smoke lacks bounded ordinary-file cleanup.'
+Assert-True ($releaseAcceptance -match 'function Write-ReleaseSmokeEvidenceTextOwned') 'Current release smoke lacks owned evidence publication.'
 Assert-True ($releaseAcceptance -match '\$smokeBuildRoot\s*=\s*Join-Path\s+\$server\s+"build"') 'Current release smoke build authority is not derived directly from server root.'
 Assert-True ($releaseAcceptance -match '\$smokeDir\s*=\s*Join-Path\s+\$smokeBuildRoot\s+"release-smoke"') 'Current release smoke evidence authority is not derived from exact build root.'
 Assert-True ($releaseAcceptance -match '\[IO\.FileAttributes\]::ReparsePoint') 'Current release smoke does not reject reparse roots/leaves.'
+Assert-True ($releaseAcceptance -match '\[IO\.FileMode\]::CreateNew') 'Current release smoke evidence publication is not fail-closed on pre-existing leaves.'
+Assert-True ($releaseAcceptance -match '\[IO\.FileShare\]::None') 'Current release smoke evidence publication does not retain exclusive leaf ownership while writing.'
+Assert-True ($releaseAcceptance -match '\$processInfo\.RedirectStandardOutput\s*=\s*\$true') 'Current release smoke stdout is not process-pipe owned.'
+Assert-True ($releaseAcceptance -match '\$processInfo\.RedirectStandardError\s*=\s*\$true') 'Current release smoke stderr is not process-pipe owned.'
+Assert-True ($releaseAcceptance -match '\$process\.StandardOutput\.ReadToEndAsync\(\)') 'Current release smoke does not asynchronously drain stdout pipe.'
+Assert-True ($releaseAcceptance -match '\$process\.StandardError\.ReadToEndAsync\(\)') 'Current release smoke does not asynchronously drain stderr pipe.'
+Assert-True ($releaseAcceptance -match '\$stdoutTask\.GetAwaiter\(\)\.GetResult\(\)') 'Current release smoke does not consume invocation-owned stdout pipe bytes.'
+Assert-True ($releaseAcceptance -match '\$stderrTask\.GetAwaiter\(\)\.GetResult\(\)') 'Current release smoke does not consume invocation-owned stderr pipe bytes.'
 Assert-True ($releaseAcceptance -match 'Current release smoke evidence cleanup refuses directory/reparse substitution') 'Current release smoke cleanup does not reject directory/reparse leaf substitution.'
 Assert-True ($releaseAcceptance -notmatch 'New-Item\s+-ItemType\s+Directory\s+-Force\s+-Path\s+\$smokeDir') 'Current release smoke reintroduced force-creating the evidence directory.'
 Assert-True ($releaseAcceptance -notmatch 'Remove-Item\s+-LiteralPath\s+\$stdout,\s*\$stderr,\s*\$versionsPath,\s*\$shaPath[^\r\n]*SilentlyContinue') 'Current release smoke reintroduced silent multi-path evidence cleanup.'
 Assert-True ($releaseAcceptance -notmatch 'Remove-Item[^\r\n]*-Recurse[^\r\n]*\$smoke') 'Current release smoke introduced recursive evidence cleanup.'
-Assert-True ($releaseAcceptance -match "Phase 'before-stdout-stderr-redirection'") 'Current release smoke does not revalidate ancestry before process redirection.'
-Assert-True ($releaseAcceptance -match "Phase 'before-server-sha-evidence-write'") 'Current release smoke does not revalidate ancestry before server-SHA evidence write.'
-Assert-True ($releaseAcceptance -match "Phase 'before-versions-evidence-write'") 'Current release smoke does not revalidate ancestry before versions evidence write.'
-Assert-True ($releaseAcceptance -match "Phase 'before-smoke-log-read'") 'Current release smoke does not revalidate ancestry before reading redirected smoke logs.'
+Assert-True ($releaseAcceptance -notmatch 'Set-Content\s+-LiteralPath\s+\$shaPath') 'Current release smoke reintroduced path-open server-SHA evidence publication.'
+Assert-True ($releaseAcceptance -notmatch 'Set-Content\s+-LiteralPath\s+\$versionsPath') 'Current release smoke reintroduced path-open versions evidence publication.'
+Assert-True ($releaseAcceptance -notmatch '-RedirectStandardOutput\s+\$stdout') 'Current release smoke reintroduced mutable stdout redirect path authority.'
+Assert-True ($releaseAcceptance -notmatch '-RedirectStandardError\s+\$stderr') 'Current release smoke reintroduced mutable stderr redirect path authority.'
+Assert-True ($releaseAcceptance -notmatch 'Get-Content\s+-LiteralPath\s+\$stdout') 'Current release smoke reintroduced mutable stdout path read authority.'
+Assert-True ($releaseAcceptance -notmatch 'Get-Content\s+-LiteralPath\s+\$stderr') 'Current release smoke reintroduced mutable stderr path read authority.'
 
 foreach ($entry in @(
     @('function Get-ReleaseExactGitHead', 1),
@@ -891,14 +904,21 @@ foreach ($entry in @(
     @('function Assert-ReleaseSmokeAncestry', 1),
     @('function Initialize-ReleaseSmokeDirectory', 1),
     @('function Remove-ReleaseSmokeEvidenceLeafSafely', 1),
+    @('function Write-ReleaseSmokeEvidenceTextOwned', 1),
     @('$smokeBuildRoot = Join-Path $server "build"', 1),
     @('$smokeDir = Join-Path $smokeBuildRoot "release-smoke"', 1),
     @('Initialize-ReleaseSmokeDirectory -BuildRoot $smokeBuildRoot -SmokeRoot $smokeDir', 1),
     @('Remove-ReleaseSmokeEvidenceLeafSafely -BuildRoot $smokeBuildRoot -SmokeRoot $smokeDir -Path $evidenceLeaf', 1),
-    @("Phase 'before-server-sha-evidence-write'", 1),
-    @("Phase 'before-stdout-stderr-redirection'", 1),
-    @("Phase 'before-versions-evidence-write'", 1),
-    @("Phase 'before-smoke-log-read'", 1)
+    @('$processInfo.RedirectStandardOutput = $true', 1),
+    @('$processInfo.RedirectStandardError = $true', 1),
+    @('$stdoutTask = $process.StandardOutput.ReadToEndAsync()', 1),
+    @('$stderrTask = $process.StandardError.ReadToEndAsync()', 1),
+    @('$outText = [string]$stdoutTask.GetAwaiter().GetResult()', 1),
+    @('$errText = [string]$stderrTask.GetAwaiter().GetResult()', 1),
+    @("-Label 'server-sha'", 1),
+    @("-Label 'versions'", 1),
+    @("-Label 'stdout'", 1),
+    @("-Label 'stderr'", 1)
 )) {
     Assert-ExactTextCount $releaseAcceptance $entry[0] ([int]$entry[1]) 'Current release identity/smoke structural count drift.'
 }
@@ -907,14 +927,16 @@ $releaseSmokeBuildIndex = $releaseAcceptance.IndexOf('$smokeBuildRoot = Join-Pat
 $releaseSmokeRootIndex = $releaseAcceptance.IndexOf('$smokeDir = Join-Path $smokeBuildRoot "release-smoke"')
 $releaseSmokeInitializeIndex = $releaseAcceptance.IndexOf('Initialize-ReleaseSmokeDirectory -BuildRoot $smokeBuildRoot -SmokeRoot $smokeDir')
 $releaseSmokeCleanupIndex = $releaseAcceptance.IndexOf('Remove-ReleaseSmokeEvidenceLeafSafely -BuildRoot $smokeBuildRoot -SmokeRoot $smokeDir -Path $evidenceLeaf')
-$releaseSmokeShaGuardIndex = $releaseAcceptance.IndexOf("Phase 'before-server-sha-evidence-write'")
-$releaseSmokeShaWriteIndex = $releaseAcceptance.IndexOf('Set-Content -LiteralPath $shaPath')
-$releaseSmokeRedirectGuardIndex = $releaseAcceptance.IndexOf("Phase 'before-stdout-stderr-redirection'")
-$releaseSmokeStartProcessIndex = $releaseAcceptance.IndexOf('$process = Start-Process')
-$releaseSmokeVersionsGuardIndex = $releaseAcceptance.IndexOf("Phase 'before-versions-evidence-write'")
-$releaseSmokeVersionsWriteIndex = $releaseAcceptance.IndexOf('Set-Content -LiteralPath $versionsPath')
-$releaseSmokeLogReadGuardIndex = $releaseAcceptance.IndexOf("Phase 'before-smoke-log-read'")
-$releaseSmokeStdoutReadIndex = $releaseAcceptance.IndexOf('Get-Content -LiteralPath $stdout')
+$releaseSmokeShaPublishIndex = $releaseAcceptance.IndexOf("-Label 'server-sha'", $releaseSmokeCleanupIndex)
+$releaseSmokeProcessInfoIndex = $releaseAcceptance.IndexOf('$processInfo = New-Object System.Diagnostics.ProcessStartInfo', $releaseSmokeShaPublishIndex)
+$releaseSmokeProcessStartIndex = $releaseAcceptance.IndexOf('if (-not $process.Start())', $releaseSmokeProcessInfoIndex)
+$releaseSmokeStdoutPipeIndex = $releaseAcceptance.IndexOf('$stdoutTask = $process.StandardOutput.ReadToEndAsync()', $releaseSmokeProcessStartIndex)
+$releaseSmokeStderrPipeIndex = $releaseAcceptance.IndexOf('$stderrTask = $process.StandardError.ReadToEndAsync()', $releaseSmokeStdoutPipeIndex)
+$releaseSmokeVersionsPublishIndex = $releaseAcceptance.IndexOf("-Label 'versions'", $releaseSmokeStderrPipeIndex)
+$releaseSmokePipeResultIndex = $releaseAcceptance.IndexOf('$outText = [string]$stdoutTask.GetAwaiter().GetResult()', $releaseSmokeVersionsPublishIndex)
+$releaseSmokeStdoutPublishIndex = $releaseAcceptance.IndexOf("-Label 'stdout'", $releaseSmokePipeResultIndex)
+$releaseSmokeStderrPublishIndex = $releaseAcceptance.IndexOf("-Label 'stderr'", $releaseSmokeStdoutPublishIndex)
+$releaseSmokeCombinedLogIndex = $releaseAcceptance.IndexOf('$combinedLog = $outText + "`n" + $errText', $releaseSmokeStderrPublishIndex)
 $releaseHeadCaptureIndex = $releaseAcceptance.IndexOf('$releaseHead = Get-ReleaseExactGitHead')
 $releasePreflightIdentityIndex = $releaseAcceptance.IndexOf('Assert-ReleaseSourceIdentity -ExpectedHead $releaseHead -Phase "preflight"')
 $releaseSelectorInvokeIndex = $releaseAcceptance.IndexOf('. $runtimeJavaSelector')
@@ -939,10 +961,13 @@ $releaseFinalPassIndex = $releaseAcceptance.IndexOf('CURRENT_RELEASE_ACCEPTANCE_
 Assert-True ($releaseSmokeBuildIndex -ge 0 -and $releaseSmokeRootIndex -gt $releaseSmokeBuildIndex) 'Current release smoke root is not derived from exact build authority.'
 Assert-True ($releaseSmokeInitializeIndex -gt $releaseSmokeRootIndex) 'Current release smoke ancestry is not initialized after exact lexical authority is derived.'
 Assert-True ($releaseSmokeCleanupIndex -gt $releaseSmokeInitializeIndex) 'Current release smoke evidence cleanup can run before guarded ancestry initialization.'
-Assert-True ($releaseSmokeShaGuardIndex -gt $releaseSmokeCleanupIndex -and $releaseSmokeShaWriteIndex -gt $releaseSmokeShaGuardIndex) 'Current release server-SHA evidence write is not guarded by immediate smoke ancestry validation.'
-Assert-True ($releaseSmokeRedirectGuardIndex -gt $releaseSmokeShaWriteIndex -and $releaseSmokeStartProcessIndex -gt $releaseSmokeRedirectGuardIndex) 'Current release stdout/stderr redirection is not guarded by immediate smoke ancestry validation.'
-Assert-True ($releaseSmokeVersionsGuardIndex -gt $releaseSmokeStartProcessIndex -and $releaseSmokeVersionsWriteIndex -gt $releaseSmokeVersionsGuardIndex) 'Current release versions evidence write is not guarded by smoke ancestry validation.'
-Assert-True ($releaseSmokeLogReadGuardIndex -gt $releaseSmokeVersionsWriteIndex -and $releaseSmokeStdoutReadIndex -gt $releaseSmokeLogReadGuardIndex) 'Current release redirected log read is not guarded by smoke ancestry validation.'
+Assert-True ($releaseSmokeShaPublishIndex -gt $releaseSmokeCleanupIndex) 'Current release server-SHA evidence is published before bounded stale-leaf cleanup.'
+Assert-True ($releaseSmokeProcessInfoIndex -gt $releaseSmokeShaPublishIndex -and $releaseSmokeProcessStartIndex -gt $releaseSmokeProcessInfoIndex) 'Current release exact server process setup does not follow owned SHA evidence publication.'
+Assert-True ($releaseSmokeStdoutPipeIndex -gt $releaseSmokeProcessStartIndex -and $releaseSmokeStderrPipeIndex -gt $releaseSmokeStdoutPipeIndex) 'Current release stdout/stderr pipes are not acquired after exact process start.'
+Assert-True ($releaseSmokeVersionsPublishIndex -gt $releaseSmokeStderrPipeIndex) 'Current release versions evidence publication precedes invocation-owned process output capture.'
+Assert-True ($releaseSmokePipeResultIndex -gt $releaseSmokeVersionsPublishIndex) 'Current release consumes child pipe output before AUX/version semantics complete.'
+Assert-True ($releaseSmokeStdoutPublishIndex -gt $releaseSmokePipeResultIndex -and $releaseSmokeStderrPublishIndex -gt $releaseSmokeStdoutPublishIndex) 'Current release durable stdout/stderr evidence is not published from captured process-pipe bytes.'
+Assert-True ($releaseSmokeCombinedLogIndex -gt $releaseSmokeStderrPublishIndex) 'Current release log assertions do not operate on invocation-owned in-memory pipe bytes.'
 Assert-True ($releaseHeadCaptureIndex -ge 0 -and $releasePreflightIdentityIndex -gt $releaseHeadCaptureIndex) 'Current release does not bind one exact Git head at preflight.'
 Assert-True ($releaseSelectorInvokeIndex -gt $releasePreflightIdentityIndex) 'Current release executes repository Java-selector code before source identity preflight.'
 Assert-True ($releaseLauncherInvokeIndex -gt $releasePreflightIdentityIndex) 'Current release executes launcher regression before source identity preflight.'
@@ -985,7 +1010,7 @@ $releasePrivateHashIndex = $releaseAcceptance.IndexOf('Get-FileHash -InputStream
 $releaseExpectedShaCompareIndex = $releaseAcceptance.IndexOf('$certifiedSha -ne $ExpectedServerSha256', $releaseSmokeFunctionIndex)
 $releasePrivateExpectedShaCompareIndex = $releaseAcceptance.IndexOf('$privateSha -ne $ExpectedServerSha256', $releaseSmokeFunctionIndex)
 $releasePrivateVerifyIndex = $releaseAcceptance.IndexOf('CURRENT_RELEASE_SERVER_SNAPSHOT_VERIFIED', $releaseSmokeFunctionIndex)
-$releaseProcessSpawnIndex = $releaseAcceptance.IndexOf('$process = Start-Process', $releaseSmokeFunctionIndex)
+$releaseProcessSpawnIndex = $releaseAcceptance.IndexOf('if (-not $process.Start())', $releaseSmokeFunctionIndex)
 $releaseFirstOwnershipIndex = $releaseAcceptance.IndexOf('Assert-ExactSmokeListenerOwnership', $releaseSmokeFunctionIndex)
 $releaseAuxIndex = $releaseAcceptance.IndexOf('Invoke-WebRequest', $releaseSmokeFunctionIndex)
 $releaseFinalOwnershipIndex = $releaseAcceptance.LastIndexOf('Assert-ExactSmokeListenerOwnership')
