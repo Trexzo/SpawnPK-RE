@@ -55,6 +55,9 @@ $launcherFiles = @(
     'RUN_CURRENT_RELEASE_ACCEPTANCE.ps1',
     'IMPORT_EXISTING_RUNTIME.ps1',
     'BOOTSTRAP.ps1',
+    'scripts\Build-Server.ps1',
+    'RUN_REPO_SELFTEST.ps1',
+    'RUN_V5185_FULL_SELFTEST.ps1',
     'scripts\Patch-LocalConfigs.ps1',
     'WATCH_CLIENT_NETWORK.ps1',
     'scripts\Run-Server.ps1',
@@ -75,6 +78,9 @@ $nonAirgap = Read-RepoFile 'RUN_CLIENT_LOCALHOST_NONAIRGAP.ps1'
 $all = Read-RepoFile 'RUN_ALL_LOCAL_LAB.ps1'
 $quick = Read-RepoFile 'RUN_LOCAL_LAB.ps1'
 $bootstrap = Read-RepoFile 'BOOTSTRAP.ps1'
+$buildServer = Read-RepoFile 'scripts\Build-Server.ps1'
+$repoSelftest = Read-RepoFile 'RUN_REPO_SELFTEST.ps1'
+$fullSelftest = Read-RepoFile 'RUN_V5185_FULL_SELFTEST.ps1'
 $configPatch = Read-RepoFile 'scripts\Patch-LocalConfigs.ps1'
 $serverWrapper = Read-RepoFile 'scripts\Run-Server.ps1'
 $clientWrapper = Read-RepoFile 'scripts\Run-Client-Airgap.ps1'
@@ -645,6 +651,35 @@ Assert-True ($bootstrap -match '\[switch\]\$SkipConfigPatch') 'Bootstrap no long
 Assert-True ($bootstrap -match 'BOOTSTRAP_CONFIG_PATCH_RETIRED') 'Bootstrap does not state that live config mutation is retired.'
 Assert-True ($bootstrap -match 'isolatedCachePipelineRequired=true') 'Bootstrap does not point custom-cache work to isolated authority.'
 Assert-True ($bootstrap -notmatch [regex]::Escape('scripts\Patch-LocalConfigs.ps1')) 'Bootstrap reintroduced the retired live config patch script.'
+Assert-True ($bootstrap -match '\$hadCallerJavaHome\s*=\s*Test-Path Env:JAVA_HOME') 'Bootstrap does not record whether caller JAVA_HOME existed.'
+Assert-True ($bootstrap -match '\$callerJavaHome\s*=\s*\$env:JAVA_HOME') 'Bootstrap does not snapshot caller JAVA_HOME.'
+Assert-True ($bootstrap -match '\$callerPath\s*=\s*\$env:Path') 'Bootstrap does not snapshot caller PATH.'
+Assert-True ($bootstrap -match 'finally\s*\{[\s\S]*\$env:Path\s*=\s*\$callerPath') 'Bootstrap does not restore caller PATH in outer finally.'
+Assert-True ($bootstrap -match 'Remove-Item Env:JAVA_HOME -ErrorAction SilentlyContinue') 'Bootstrap does not restore an originally absent JAVA_HOME.'
+Assert-True ($bootstrap -match [regex]::Escape('scripts\Build-Server.ps1')) 'Bootstrap no longer invokes the canonical build wrapper.'
+Assert-True ($bootstrap -match 'RUN_REPO_SELFTEST\.ps1') 'Bootstrap no longer invokes the repository selftest path when enabled.'
+
+foreach ($entry in @(
+    @('$hadCallerJavaHome = Test-Path Env:JAVA_HOME', 1),
+    @('$callerJavaHome = $env:JAVA_HOME', 1),
+    @('$callerPath = $env:Path', 1),
+    @('$env:Path = $callerPath', 1),
+    @('Remove-Item Env:JAVA_HOME -ErrorAction SilentlyContinue', 1)
+)) {
+    Assert-ExactTextCount $bootstrap $entry[0] ([int]$entry[1]) 'Bootstrap Java-environment ownership count drift.'
+}
+
+$bootstrapEnvCaptureIndex = $bootstrap.IndexOf('$callerPath = $env:Path')
+$bootstrapJavaIndex = $bootstrap.IndexOf('$java = Set-LocalLabJava')
+$bootstrapBuildIndex = $bootstrap.IndexOf("scripts\Build-Server.ps1")
+$bootstrapSelftestIndex = $bootstrap.IndexOf('RUN_REPO_SELFTEST.ps1')
+$bootstrapCompleteIndex = $bootstrap.IndexOf('BOOTSTRAP_COMPLETE')
+$bootstrapEnvRestoreIndex = $bootstrap.LastIndexOf('$env:Path = $callerPath')
+Assert-True ($bootstrapEnvCaptureIndex -ge 0 -and $bootstrapEnvCaptureIndex -lt $bootstrapJavaIndex) 'Bootstrap caller environment is not captured before runtime Java selection.'
+Assert-True ($bootstrapBuildIndex -gt $bootstrapJavaIndex) 'Bootstrap build does not execute under the selected runtime environment boundary.'
+Assert-True ($bootstrapSelftestIndex -gt $bootstrapJavaIndex) 'Bootstrap selftest path is not structurally inside the selected runtime environment boundary.'
+Assert-True ($bootstrapCompleteIndex -gt $bootstrapJavaIndex) 'Bootstrap completion marker precedes runtime Java selection.'
+Assert-True ($bootstrapEnvRestoreIndex -gt $bootstrapCompleteIndex) 'Bootstrap caller environment is restored before the complete bootstrap/selftest flow ends.'
 
 Assert-True ($configPatch -match 'LOCALLAB_CONFIG_PATCH_RETIRED') 'Retired config-patch shim lost its fail-closed marker.'
 Assert-True ($configPatch -match 'isolatedCachePipelineRequired=true') 'Retired config-patch shim does not require isolated cache authority.'
@@ -653,6 +688,62 @@ Assert-True ($configPatch -match 'build_r13_isolated_profile\.py') 'Retired conf
 Assert-True ($configPatch -notmatch 'VoidglassR3ConfigPatchTool') 'Retired config-patch shim still invokes the obsolete Java mutator.'
 Assert-True ($configPatch -notmatch 'Copy-Item') 'Retired config-patch shim still copies live config bytes.'
 Assert-True ($configPatch -notmatch '&\s+\$java\.Path') 'Retired config-patch shim still launches Java mutation tooling.'
+
+Assert-True ($buildServer -match 'Select-LocalLabBuildJava\.ps1') 'Build-Server does not use canonical JDK-21 selector.'
+Assert-True ($buildServer -match 'Set-LocalLabBuildJava') 'Build-Server does not invoke canonical build-JDK selection.'
+Assert-True ($buildServer -match '\$hadCallerJavaHome\s*=\s*Test-Path Env:JAVA_HOME') 'Build-Server does not record caller JAVA_HOME ownership.'
+Assert-True ($buildServer -match '\$callerJavaHome\s*=\s*\$env:JAVA_HOME') 'Build-Server does not snapshot caller JAVA_HOME.'
+Assert-True ($buildServer -match '\$callerPath\s*=\s*\$env:Path') 'Build-Server does not snapshot caller PATH.'
+Assert-True ($buildServer -match 'Remove-Item Env:JAVA_HOME -ErrorAction SilentlyContinue') 'Build-Server does not restore an originally absent JAVA_HOME.'
+Assert-True ($buildServer -match 'SERVER_BUILD_OK') 'Build-Server lost its final build artifact/SHA success boundary.'
+
+foreach ($entry in @(
+    @('$hadCallerJavaHome = Test-Path Env:JAVA_HOME', 1),
+    @('$callerJavaHome = $env:JAVA_HOME', 1),
+    @('$callerPath = $env:Path', 1),
+    @('$env:Path = $callerPath', 1),
+    @('Remove-Item Env:JAVA_HOME -ErrorAction SilentlyContinue', 1)
+)) {
+    Assert-ExactTextCount $buildServer $entry[0] ([int]$entry[1]) 'Build-Server Java-environment ownership count drift.'
+}
+
+$buildEnvCaptureIndex = $buildServer.IndexOf('$callerPath = $env:Path')
+$buildJavaIndex = $buildServer.IndexOf('$buildJava = Set-LocalLabBuildJava')
+$buildInvokeIndex = $buildServer.IndexOf('& $build')
+$buildSuccessIndex = $buildServer.IndexOf('SERVER_BUILD_OK')
+$buildEnvRestoreIndex = $buildServer.LastIndexOf('$env:Path = $callerPath')
+Assert-True ($buildEnvCaptureIndex -ge 0 -and $buildEnvCaptureIndex -lt $buildJavaIndex) 'Build-Server caller environment is not captured before JDK-21 selection.'
+Assert-True ($buildInvokeIndex -gt $buildJavaIndex) 'Build-Server actual build does not execute under selected JDK-21 environment.'
+Assert-True ($buildSuccessIndex -gt $buildInvokeIndex) 'Build-Server success boundary precedes actual build.'
+Assert-True ($buildEnvRestoreIndex -gt $buildSuccessIndex) 'Build-Server restores caller Java environment before artifact/SHA validation completes.'
+
+Assert-True ($repoSelftest -match 'RUN_V5185_FULL_SELFTEST\.ps1') 'Repository selftest no longer delegates to the historical full selftest harness.'
+Assert-True ($repoSelftest -notmatch 'Set-R85Java11Plus') 'Repository selftest should not add an independent historical Java selector mutation.'
+Assert-True ($fullSelftest -match 'R85_SelectJava11Plus\.ps1') 'Historical full selftest lost its Java-11+ selector.'
+Assert-True ($fullSelftest -match 'Set-R85Java11Plus') 'Historical full selftest does not invoke the Java-11+ selector.'
+Assert-True ($fullSelftest -match '\$hadCallerJavaHome=Test-Path Env:JAVA_HOME') 'Historical full selftest does not record caller JAVA_HOME ownership.'
+Assert-True ($fullSelftest -match '\$callerJavaHome=\$env:JAVA_HOME') 'Historical full selftest does not snapshot caller JAVA_HOME.'
+Assert-True ($fullSelftest -match '\$callerPath=\$env:Path') 'Historical full selftest does not snapshot caller PATH.'
+Assert-True ($fullSelftest -match 'Remove-Item Env:JAVA_HOME -ErrorAction SilentlyContinue') 'Historical full selftest does not restore an originally absent JAVA_HOME.'
+Assert-True ($fullSelftest -match 'V5185_FULL_SELFTEST_PASS count=179') 'Historical full selftest lost the exact 179-test success boundary.'
+
+foreach ($entry in @(
+    @('$hadCallerJavaHome=Test-Path Env:JAVA_HOME', 1),
+    @('$callerJavaHome=$env:JAVA_HOME', 1),
+    @('$callerPath=$env:Path', 1),
+    @('$env:Path=$callerPath', 1),
+    @('Remove-Item Env:JAVA_HOME -ErrorAction SilentlyContinue', 1)
+)) {
+    Assert-ExactTextCount $fullSelftest $entry[0] ([int]$entry[1]) 'Historical selftest Java-environment ownership count drift.'
+}
+
+$selftestEnvCaptureIndex = $fullSelftest.IndexOf('$callerPath=$env:Path')
+$selftestJavaIndex = $fullSelftest.IndexOf('$javaInfo=Set-R85Java11Plus')
+$selftestPassIndex = $fullSelftest.IndexOf('V5185_FULL_SELFTEST_PASS count=179')
+$selftestEnvRestoreIndex = $fullSelftest.LastIndexOf('$env:Path=$callerPath')
+Assert-True ($selftestEnvCaptureIndex -ge 0 -and $selftestEnvCaptureIndex -lt $selftestJavaIndex) 'Historical selftest caller environment is not captured before Java-11+ selection.'
+Assert-True ($selftestPassIndex -gt $selftestJavaIndex) 'Historical selftest success boundary precedes Java selection/test execution.'
+Assert-True ($selftestEnvRestoreIndex -gt $selftestPassIndex) 'Historical selftest restores caller Java environment before the complete 179-test run ends.'
 
 Assert-True ($serverWrapper -match 'Select-LocalLabJava\.ps1') 'Server wrapper is not using the canonical Java selector.'
 Assert-True ($serverWrapper -match [regex]::Escape('server\build\SpawnPKLocalServer.jar')) 'Server wrapper does not target the current built server JAR.'
