@@ -4096,6 +4096,10 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
             'hostedPromotionSatisfied = $false',
             'hostedEvidenceSeparate = $true',
             'Set-Content -LiteralPath $evidence',
+            'Get-FileHash -LiteralPath $evidence -Algorithm SHA256',
+            'spawnpk-chat1-cumulative-result-v1',
+            'evidenceSha256 = $evidenceSha',
+            'Write-Output $completion',
             'SPAWNPK_CHAT1_CURRENT_CUMULATIVE_CERTIFICATION_PASS',
             'CHAT1_CUMULATIVE_WRAPPER_COMPLETE',
             'hostedPromotionSatisfied=false',
@@ -4177,6 +4181,8 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
             '& $gradlew @gradleArgs',
             "Select-String -LiteralPath \$log -SimpleMatch -Pattern 'SPAWNPK_CHAT1_CURRENT_CUMULATIVE_CERTIFICATION_PASS'",
             'ConvertTo-Json',
+            'spawnpk-chat1-cumulative-result-v1',
+            'Write-Output $completion',
             'CHAT1_CUMULATIVE_WRAPPER_COMPLETE'
         ].each { anchor ->
             int count = 0
@@ -4208,7 +4214,12 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
         [
             'scripts\\Run-Chat1CumulativeCertification.ps1',
             '& $cumulativeWrapper -ClientJar $client -EvidenceFileName $cumulativeEvidenceName',
-            'certifiedServerJarSha256',
+            'Tee-Object -Variable cumulativeOutput',
+            'spawnpk-chat1-cumulative-result-v1',
+            '$certifiedServerSha = [string]$cumulativeResult.certifiedServerJarSha256',
+            '$expectedEvidenceSha = [string]$cumulativeResult.evidenceSha256',
+            'Get-FileHash -InputStream $cumulativeEvidenceGuard -Algorithm SHA256',
+            '$cumulativeEvidence.certifiedServerJarSha256 -ne $certifiedServerSha',
             '-ExpectedServerSha256 $certifiedServerSha',
             'CURRENT_RELEASE_CUMULATIVE_CERTIFICATION_PASS',
             'hostedPromotionSatisfied=false'
@@ -4241,12 +4252,32 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
             currentReleaseText.indexOf(
                 '& $cumulativeWrapper -ClientJar $client'
             )
+        int currentResultIndex =
+            currentReleaseText.indexOf(
+                '$cumulativeResult = $cumulativeResults[0]'
+            )
+        int currentServerShaIndex =
+            currentReleaseText.indexOf(
+                '$certifiedServerSha = [string]$cumulativeResult.certifiedServerJarSha256'
+            )
+        int currentEvidenceHashIndex =
+            currentReleaseText.indexOf(
+                'Get-FileHash -InputStream $cumulativeEvidenceGuard -Algorithm SHA256'
+            )
+        int currentEvidenceServerMatchIndex =
+            currentReleaseText.indexOf(
+                '$cumulativeEvidence.certifiedServerJarSha256 -ne $certifiedServerSha'
+            )
 
         if(currentBuildIndex < 0 ||
            currentCumulativeIndex <= currentBuildIndex ||
-           currentLoopbackIndex <= currentCumulativeIndex)
+           currentResultIndex <= currentCumulativeIndex ||
+           currentServerShaIndex <= currentResultIndex ||
+           currentEvidenceHashIndex <= currentServerShaIndex ||
+           currentEvidenceServerMatchIndex <= currentEvidenceHashIndex ||
+           currentLoopbackIndex <= currentEvidenceServerMatchIndex)
             throw new GradleException(
-                'Current release acceptance ordering drifted: expected clean build -> canonical cumulative wrapper -> loopback smoke.'
+                'Current release acceptance ordering drifted: expected clean build -> canonical cumulative wrapper -> in-memory result/server SHA -> guarded evidence hash/cross-check -> loopback smoke.'
             )
 
         int currentCumulativeCount = 0
@@ -4336,9 +4367,21 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
             text.indexOf(
                 'ConvertTo-Json'
             )
+        int evidenceWriteIndex =
+            text.indexOf(
+                'Set-Content -LiteralPath $evidence'
+            )
+        int evidenceHashIndex =
+            text.indexOf(
+                'Get-FileHash -LiteralPath $evidence -Algorithm SHA256'
+            )
         int completionIndex =
             text.indexOf(
                 'CHAT1_CUMULATIVE_WRAPPER_COMPLETE'
+            )
+        int structuredResultIndex =
+            text.indexOf(
+                'Write-Output $completion'
             )
 
         if(sourceOpenIndex < 0 ||
@@ -4381,9 +4424,12 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
            privateReleaseIndex <= markerServerShaParseIndex ||
            snapshotCleanupIndex <= privateReleaseIndex ||
            jsonIndex <= snapshotCleanupIndex ||
-           completionIndex <= jsonIndex)
+           evidenceWriteIndex <= jsonIndex ||
+           evidenceHashIndex <= evidenceWriteIndex ||
+           completionIndex <= evidenceHashIndex ||
+           structuredResultIndex <= completionIndex)
             throw new GradleException(
-                'Wrapper evidence ordering drifted: expected Gradle invoke -> native exit capture -> zero-exit check -> Gradle marker observation -> Gradle-owned server SHA parse -> private guard release -> private-root cleanup -> JSON evidence -> wrapper completion.'
+                'Wrapper evidence ordering drifted: expected Gradle invoke -> native exit capture -> zero-exit check -> Gradle marker observation -> Gradle-owned server SHA parse -> private guard release -> private-root cleanup -> JSON write/hash -> wrapper completion -> structured in-memory result.'
             )
 
         logger.lifecycle(
@@ -4396,6 +4442,7 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
             'cleanHeadBound=true ' +
             'durableEvidence=true ' +
             'certifiedServerShaBound=true ' +
+            'inMemoryReleaseHandoff=true ' +
             'hostedPromotionSatisfied=false ' +
             'authoritativeMarkerObservedOnly=true'
         )
