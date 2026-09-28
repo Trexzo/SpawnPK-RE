@@ -40,6 +40,7 @@ function Assert-Parses([string]$RelativePath) {
 $launcherFiles = @(
     'RUN_CLIENT_AIRGAP.ps1',
     'RUN_ALL_LOCAL_LAB.ps1',
+    'RUN_CURRENT_RELEASE_ACCEPTANCE.ps1',
     'WATCH_CLIENT_NETWORK.ps1',
     'scripts\Run-Server.ps1',
     'scripts\Run-Client-Airgap.ps1',
