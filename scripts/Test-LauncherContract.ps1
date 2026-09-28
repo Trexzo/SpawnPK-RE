@@ -805,6 +805,7 @@ foreach ($entry in @(
     @('function Get-ReleaseWorktreeChanges', 1),
     @('function Assert-ReleaseSourceIdentity', 1),
     @('function Assert-ExactSmokeListenerOwnership', 1),
+    @('Current release exact smoke process exited after listener snapshot', 1),
     @('function Invoke-CurrentServerLoopbackSmoke', 1),
     @('$cumulativeEvidenceName = (', 1),
     @('certifiedServerJarSha256', 1),
@@ -849,6 +850,19 @@ Assert-True ($releasePostSmokeIdentityIndex -gt $releaseSmokeInvokeIndex) 'Curre
 Assert-True ($releaseFinalPassIndex -gt $releasePostSmokeIdentityIndex) 'Current release whole-flow PASS precedes final clean exact-head proof.'
 
 # Validate ordering inside the smoke function independently from top-level flow.
+$releaseListenerHelperIndex = $releaseAcceptance.IndexOf('function Assert-ExactSmokeListenerOwnership')
+$releaseListenerSnapshotIndex = $releaseAcceptance.IndexOf('$connections = @(Get-ReleasePortListeners)', $releaseListenerHelperIndex)
+$releaseListenerMismatchIndex = $releaseAcceptance.IndexOf('Current release smoke listener ownership mismatch', $releaseListenerHelperIndex)
+$releaseListenerFirstRefreshIndex = $releaseAcceptance.IndexOf('$ExpectedProcess.Refresh()', $releaseListenerHelperIndex)
+$releaseListenerSecondRefreshIndex = $releaseAcceptance.IndexOf('$ExpectedProcess.Refresh()', $releaseListenerFirstRefreshIndex + 1)
+$releaseListenerPostSnapshotExitIndex = $releaseAcceptance.IndexOf('Current release exact smoke process exited after listener snapshot', $releaseListenerHelperIndex)
+
+Assert-True ($releaseListenerHelperIndex -ge 0) 'Current release exact listener-ownership helper not found.'
+Assert-True ($releaseListenerFirstRefreshIndex -gt $releaseListenerHelperIndex -and $releaseListenerFirstRefreshIndex -lt $releaseListenerSnapshotIndex) 'Current release listener proof does not preflight the retained Process lifetime before the listener snapshot.'
+Assert-True ($releaseListenerMismatchIndex -gt $releaseListenerSnapshotIndex) 'Current release listener snapshot is not evaluated before lifetime revalidation.'
+Assert-True ($releaseListenerSecondRefreshIndex -gt $releaseListenerMismatchIndex) 'Current release listener proof does not refresh the same retained Process after evaluating the listener snapshot.'
+Assert-True ($releaseListenerPostSnapshotExitIndex -gt $releaseListenerSecondRefreshIndex) 'Current release listener proof does not fail closed when the retained Process exits after the listener snapshot.'
+
 $releaseSmokeFunctionIndex = $releaseAcceptance.IndexOf('function Invoke-CurrentServerLoopbackSmoke')
 $releaseSourceGuardIndex = $releaseAcceptance.IndexOf('$sourceGuard = [IO.File]::Open(', $releaseSmokeFunctionIndex)
 $releaseSourceHashIndex = $releaseAcceptance.IndexOf('Get-FileHash -InputStream $sourceGuard', $releaseSmokeFunctionIndex)

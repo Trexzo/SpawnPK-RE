@@ -115,6 +115,13 @@ function Assert-ExactSmokeListenerOwnership {
             "owners=$($owners -join ',')"
         )
     }
+
+    # Close the PID-reuse window after the listener snapshot: the same retained
+    # Process object must still represent the original live server lifetime.
+    $ExpectedProcess.Refresh()
+    if ($ExpectedProcess.HasExited) {
+        throw "Current release exact smoke process exited after listener snapshot at phase '$Phase'."
+    }
 }
 
 function Test-LoopbackPort {
