@@ -142,6 +142,54 @@ Assert-True ($r13EnvCaptureIndex -ge 0 -and $r13EnvCaptureIndex -lt $r13JavaInde
 Assert-True ($r13ReadyIndex -gt $r13JavaIndex) 'R13 readiness marker precedes canonical Java selection/acceptance flow.'
 Assert-True ($r13FinalInstructionIndex -gt $r13ReadyIndex) 'R13 final operator instruction no longer follows readiness marker.'
 Assert-True ($r13EnvRestoreIndex -gt $r13FinalInstructionIndex) 'R13 acceptance restores caller Java environment before the complete operator flow ends.'
+
+foreach ($entry in @(
+    @('function Get-Sha256Hex', 1),
+    @('[IO.File]::Open(', 3),
+    @('[IO.FileShare]::Read', 2),
+    @('[IO.FileShare]::None', 1),
+    @('[IO.FileMode]::CreateNew', 1),
+    @("'--client-jar', $r13SnapshotClient", 1),
+    @("'--client-jar', $clientJar", 0),
+    @('$r13ProfileFailure = $_', 1),
+    @('R13ClientSnapshotCleanupFailure', 1),
+    @('Remove-Item -LiteralPath $r13SnapshotRoot -Recurse -Force -ErrorAction Stop', 1)
+)) {
+    Assert-ExactTextCount $r13Acceptance $entry[0] ([int]$entry[1]) 'R13 exact-v308 profile input snapshot contract drift.'
+}
+Assert-True ($r13Acceptance -match '854f26ff9f134b0317572e7ac1688e6f40a231d5a4c66f8db5d655b7f45ce7c6') 'R13 acceptance no longer pins exact v308 source SHA.'
+Assert-True ($r13Acceptance -match 'R13 exact-v308 input snapshot cleanup failed') 'R13 acceptance does not surface cleanup-only failure.'
+
+$r13ProfileBuildIndex = $r13Acceptance.IndexOf("Write-Host '=== R13 isolated profile build ==='")
+$r13SnapshotRootIndex = $r13Acceptance.IndexOf('$r13SnapshotRoot = Join-Path', $r13ProfileBuildIndex)
+$r13SourceOpenIndex = $r13Acceptance.IndexOf('[IO.File]::Open(', $r13SnapshotRootIndex)
+$r13SourceHashIndex = $r13Acceptance.IndexOf('$r13SourceSha = Get-Sha256Hex -Stream $r13SourceGuard', $r13SourceOpenIndex)
+$r13WriterOpenIndex = $r13Acceptance.IndexOf('[IO.File]::Open(', $r13SourceOpenIndex + 1)
+$r13CopyIndex = $r13Acceptance.IndexOf('$r13SourceGuard.CopyTo($r13SnapshotWriter)', $r13WriterOpenIndex)
+$r13PrivateOpenIndex = $r13Acceptance.IndexOf('[IO.File]::Open(', $r13WriterOpenIndex + 1)
+$r13PrivateHashIndex = $r13Acceptance.IndexOf('$r13PrivateSha = Get-Sha256Hex -Stream $r13PrivateGuard', $r13PrivateOpenIndex)
+$r13SourceReleaseIndex = $r13Acceptance.IndexOf('$r13SourceGuard.Dispose()', $r13PrivateHashIndex)
+$r13PrivateArgIndex = $r13Acceptance.IndexOf("'--client-jar', $r13SnapshotClient", $r13SourceReleaseIndex)
+$r13PythonInvokeIndex = $r13Acceptance.IndexOf('& $python.Source @profileArgs', $r13PrivateArgIndex)
+$r13PrivateReleaseIndex = $r13Acceptance.LastIndexOf('$r13PrivateGuard.Dispose()')
+$r13SnapshotCleanupIndex = $r13Acceptance.LastIndexOf('Remove-Item -LiteralPath $r13SnapshotRoot -Recurse -Force -ErrorAction Stop')
+$r13FailureReplayIndex = $r13Acceptance.IndexOf('throw $r13ProfileFailure')
+$r13ManifestIndex = $r13Acceptance.IndexOf("$manifest = Join-Path $output 'R13_PROFILE_MANIFEST.json'")
+
+Assert-True ($r13SnapshotRootIndex -gt $r13ProfileBuildIndex) 'R13 profile input snapshot is not invocation-owned by the profile build.'
+Assert-True ($r13SourceOpenIndex -gt $r13SnapshotRootIndex) 'R13 acceptance opens canonical client before private snapshot ownership exists.'
+Assert-True ($r13SourceHashIndex -gt $r13SourceOpenIndex) 'R13 acceptance does not hash the already-open canonical source identity.'
+Assert-True ($r13WriterOpenIndex -gt $r13SourceHashIndex) 'R13 private writer opens before canonical SHA admission.'
+Assert-True ($r13CopyIndex -gt $r13WriterOpenIndex) 'R13 private input copy precedes no-overwrite writer creation.'
+Assert-True ($r13PrivateOpenIndex -gt $r13CopyIndex) 'R13 private guard is acquired before snapshot copy completes.'
+Assert-True ($r13PrivateHashIndex -gt $r13PrivateOpenIndex) 'R13 acceptance does not independently hash the guarded private snapshot.'
+Assert-True ($r13SourceReleaseIndex -gt $r13PrivateHashIndex) 'R13 canonical source guard is released before private identity equality is proven.'
+Assert-True ($r13PrivateArgIndex -gt $r13SourceReleaseIndex) 'R13 profile builder arguments are formed before invocation-owned identity is proven.'
+Assert-True ($r13PythonInvokeIndex -gt $r13PrivateArgIndex) 'R13 profile builder invocation precedes private snapshot argument selection.'
+Assert-True ($r13PrivateReleaseIndex -gt $r13PythonInvokeIndex) 'R13 private read guard does not span the complete profile-builder process.'
+Assert-True ($r13SnapshotCleanupIndex -gt $r13PrivateReleaseIndex) 'R13 private snapshot root is removed before the private guard is released.'
+Assert-True ($r13FailureReplayIndex -gt $r13SnapshotCleanupIndex) 'R13 primary profile-builder failure may be replayed before private input cleanup completes.'
+Assert-True ($r13ManifestIndex -gt $r13FailureReplayIndex) 'R13 manifest validation does not follow successful guarded profile-builder cleanup.'
 Assert-True ($client -match [regex]::Escape('scripts\Check-ExternalRuntime.ps1')) 'Standalone airgap launcher does not verify current exact-v308 external-runtime authority.'
 Assert-True ($client -match 'Missing LocalLab external-runtime verifier') 'Standalone airgap launcher does not fail closed when the runtime verifier is missing.'
 Assert-True ($client -match [regex]::Escape('scripts\Select-LocalLabJava.ps1')) 'Standalone airgap launcher does not use canonical Java selector.'
