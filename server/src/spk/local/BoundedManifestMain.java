@@ -11,16 +11,30 @@ import java.util.jar.JarFile;
 import java.util.jar.Manifest;
 
 /**
- * Bounded reader for caller-controlled JAR manifest main attributes.
+ * Bounded reader for caller-controlled JAR manifest authority.
  *
- * Only the main section is authority for the plugin Class-Path policy. The
- * reader stops at the first terminating blank line, so later named sections
- * are never consumed. Expanded main-section bytes are bounded independently
- * of ZIP metadata.
+ * Admission uses a verification-disabled JarFile so signature verifier setup
+ * cannot parse the full manifest before these project resource caps run.
+ *
+ * The main section is retained only through its terminating blank line and is
+ * parsed with java.util.jar.Manifest for normal continuation semantics. The
+ * remainder is streamed/discarded under a separate total expanded-byte cap
+ * because the later URLClassLoader may parse the complete manifest.
  */
 final class BoundedManifestMain {
+    /**
+     * Project aggregate main-section cap. This intentionally exceeds the JAR
+     * specification's required 65,535-byte single-header-value compatibility.
+     */
     static final int MAX_MAIN_SECTION_BYTES=
-        64*1024;
+        256*1024;
+
+    /**
+     * Project cap for the complete expanded manifest entry presented later to
+     * URLClassLoader/JarFile runtime parsing.
+     */
+    static final int MAX_MANIFEST_BYTES=
+        4*1024*1024;
 
     private static final String MANIFEST_ENTRY=
         "META-INF/MANIFEST.MF";
@@ -29,7 +43,44 @@ final class BoundedManifestMain {
         JarFile jar,
         Path archive
     )throws IOException{
-        JarEntry entry=null;
+        JarEntry entry=
+            findManifestEntry(
+                jar,
+                archive
+            );
+
+        if(entry==null)
+            return null;
+
+        byte[] main;
+
+        try(InputStream input=
+                jar.getInputStream(
+                    entry
+                )){
+            main=
+                readBoundedManifest(
+                    input,
+                    archive
+                );
+        }
+
+        Manifest manifest=
+            new Manifest(
+                new ByteArrayInputStream(
+                    main
+                )
+            );
+
+        return manifest
+            .getMainAttributes();
+    }
+
+    private static JarEntry findManifestEntry(
+        JarFile jar,
+        Path archive
+    ){
+        JarEntry found=null;
         java.util.Enumeration<JarEntry> entries=
             jar.entries();
 
@@ -51,64 +102,30 @@ final class BoundedManifestMain {
                     MANIFEST_ENTRY))
                 continue;
 
-            if(!name.equals(
-                    MANIFEST_ENTRY))
+            if(found!=null)
                 throw new IllegalArgumentException(
-                    "plugin manifest entry name is non-canonical: "+
-                    name+
-                    " archive="+
+                    "plugin archive contains ambiguous manifest authority: "+
                     archive
                 );
 
-            if(entry!=null)
-                throw new IllegalArgumentException(
-                    "plugin archive contains duplicate manifest authority: "+
-                    archive
-                );
-
-            entry=candidate;
+            found=candidate;
         }
 
-        if(entry==null)
-            return null;
-
-        byte[] main;
-
-        try(InputStream input=
-                jar.getInputStream(
-                    entry
-                )){
-            main=
-                readMainSection(
-                    input,
-                    archive
-                );
-        }
-
-        Manifest manifest=
-            new Manifest(
-                new ByteArrayInputStream(
-                    main
-                )
-            );
-
-        return manifest
-            .getMainAttributes();
+        return found;
     }
 
-    private static byte[] readMainSection(
+    private static byte[] readBoundedManifest(
         InputStream input,
         Path archive
     )throws IOException{
-        ByteArrayOutputStream output=
+        ByteArrayOutputStream main=
             new ByteArrayOutputStream(
-                Math.min(
-                    8192,
-                    MAX_MAIN_SECTION_BYTES
-                )
+                8192
             );
         byte[] buffer=
             new byte[8192];
+        int total=0;
+        boolean mainComplete=false;
         boolean lineHasContent=false;
         boolean pendingCr=false;
 
@@ -119,7 +136,7 @@ final class BoundedManifestMain {
                 );
 
             if(read<0)
-                return output
+                return main
                     .toByteArray();
 
             for(int index=0;
@@ -128,34 +145,49 @@ final class BoundedManifestMain {
                 int value=
                     buffer[index]&0xff;
 
+                total++;
+
+                if(total>
+                        MAX_MANIFEST_BYTES)
+                    throw new IllegalArgumentException(
+                        "plugin manifest exceeds "+
+                        MAX_MANIFEST_BYTES+
+                        " expanded bytes: "+
+                        archive
+                    );
+
+                if(mainComplete)
+                    continue;
+
                 if(pendingCr){
                     if(value=='\n'){
-                        append(
-                            output,
+                        appendMain(
+                            main,
                             value,
                             archive
                         );
                         pendingCr=false;
 
                         if(!lineHasContent)
-                            return output
-                                .toByteArray();
+                            mainComplete=true;
+                        else
+                            lineHasContent=false;
 
-                        lineHasContent=false;
                         continue;
                     }
 
                     pendingCr=false;
 
-                    if(!lineHasContent)
-                        return output
-                            .toByteArray();
+                    if(!lineHasContent){
+                        mainComplete=true;
+                        continue;
+                    }
 
                     lineHasContent=false;
                 }
 
-                append(
-                    output,
+                appendMain(
+                    main,
                     value,
                     archive
                 );
@@ -164,10 +196,9 @@ final class BoundedManifestMain {
                     pendingCr=true;
                 }else if(value=='\n'){
                     if(!lineHasContent)
-                        return output
-                            .toByteArray();
-
-                    lineHasContent=false;
+                        mainComplete=true;
+                    else
+                        lineHasContent=false;
                 }else{
                     lineHasContent=true;
                 }
@@ -175,12 +206,12 @@ final class BoundedManifestMain {
         }
     }
 
-    private static void append(
-        ByteArrayOutputStream output,
+    private static void appendMain(
+        ByteArrayOutputStream main,
         int value,
         Path archive
     ){
-        if(output.size()>=
+        if(main.size()>=
                 MAX_MAIN_SECTION_BYTES)
             throw new IllegalArgumentException(
                 "plugin manifest main section exceeds "+
@@ -189,7 +220,7 @@ final class BoundedManifestMain {
                 archive
             );
 
-        output.write(
+        main.write(
             value
         );
     }
