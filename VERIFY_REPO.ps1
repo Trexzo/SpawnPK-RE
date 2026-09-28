@@ -44,6 +44,7 @@ $required = @(
     "scripts\Run-Chat1CumulativeCertification.ps1",
     "scripts\Run-R13AssetAcceptance.ps1",
     "scripts\Test-LauncherContract.ps1",
+    "scripts\Test-GradleBootstrapContract.ps1",
 
     "server\build.ps1",
     "server\build.gradle",
