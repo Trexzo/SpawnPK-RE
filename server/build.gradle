@@ -4062,7 +4062,7 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
         [
             'Select-LocalLabBuildJava.ps1',
             'Get-Sha256Hex',
-            'New-Object System.IO.FileStream',
+            '[IO.File]::Open(',
             '[IO.FileShare]::Read',
             '$sourceGuard',
             '$snapshotRoot',
