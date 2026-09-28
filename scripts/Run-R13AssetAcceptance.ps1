@@ -24,6 +24,34 @@ function Get-NormalizedDirectoryPath([string]$Path) {
     return [IO.Path]::GetFullPath($Path).TrimEnd($trimChars)
 }
 
+function Get-Sha256Hex {
+    param(
+        [Parameter(Mandatory=$true)]
+        [System.IO.Stream]$Stream
+    )
+
+    if (-not $Stream.CanRead -or -not $Stream.CanSeek) {
+        throw 'SHA-256 input stream must be readable and seekable.'
+    }
+
+    $sha = [Security.Cryptography.SHA256]::Create()
+    try {
+        $Stream.Position = 0
+        $hash = $sha.ComputeHash($Stream)
+        return (
+            @(
+                $hash | ForEach-Object {
+                    $_.ToString('x2')
+                }
+            ) -join ''
+        )
+    }
+    finally {
+        $sha.Dispose()
+        $Stream.Position = 0
+    }
+}
+
 function Assert-UnderRuntimeRoot(
     [string]$Candidate,
     [string]$RuntimeRoot
@@ -223,6 +251,8 @@ $runtimeBuilder = Join-Path $repo 'scripts\Build-V308LocalClients.ps1'
 $profileBuilder = Join-Path $repo 'tools\custom-assets\build_r13_isolated_profile.py'
 $runAll = Join-Path $repo 'RUN_ALL_LOCAL_LAB.ps1'
 $clientJar = Join-Path $repo 'evidence\client(6).jar'
+$expectedClientSha =
+    '854f26ff9f134b0317572e7ac1688e6f40a231d5a4c66f8db5d655b7f45ce7c6'
 
 foreach ($required in @(
     $selector,
@@ -276,18 +306,133 @@ if ($existingOutput) {
 }
 
 Write-Host '=== R13 isolated profile build ===' -ForegroundColor Cyan
-$profileArgs = @(
-    $profileBuilder,
-    '--base-spawnpk', $base,
-    '--client-jar', $clientJar,
-    '--output-home', $output,
-    '--java', $java.Path,
-    '--javac', $javac
+$r13SnapshotRoot = Join-Path (
+    [IO.Path]::GetTempPath()
+) (
+    'spawnpk-r13-v308-input-' + [Guid]::NewGuid().ToString('N')
 )
-& $python.Source @profileArgs
+$r13SnapshotClient = Join-Path $r13SnapshotRoot 'client-v308.jar'
+$r13SourceGuard = $null
+$r13PrivateGuard = $null
+$r13ProfileFailure = $null
+$r13CleanupFailures = @()
 
-if ($LASTEXITCODE -ne 0) {
-    throw "R13 isolated profile builder failed with code $LASTEXITCODE"
+try {
+    New-Item -ItemType Directory -Path $r13SnapshotRoot | Out-Null
+
+    $r13SourceGuard = [IO.File]::Open(
+        $clientJar,
+        [IO.FileMode]::Open,
+        [IO.FileAccess]::Read,
+        [IO.FileShare]::Read
+    )
+
+    $r13SourceSha = Get-Sha256Hex -Stream $r13SourceGuard
+    if ($r13SourceSha -ne $expectedClientSha) {
+        throw (
+            'R13 exact-v308 source client SHA mismatch. ' +
+            "Expected: $expectedClientSha Actual: $r13SourceSha"
+        )
+    }
+
+    $r13SnapshotWriter = [IO.File]::Open(
+        $r13SnapshotClient,
+        [IO.FileMode]::CreateNew,
+        [IO.FileAccess]::Write,
+        [IO.FileShare]::None
+    )
+    try {
+        $r13SourceGuard.Position = 0
+        $r13SourceGuard.CopyTo($r13SnapshotWriter)
+        $r13SnapshotWriter.Flush($true)
+    }
+    finally {
+        $r13SnapshotWriter.Dispose()
+    }
+
+    $r13PrivateGuard = [IO.File]::Open(
+        $r13SnapshotClient,
+        [IO.FileMode]::Open,
+        [IO.FileAccess]::Read,
+        [IO.FileShare]::Read
+    )
+    $r13PrivateSha = Get-Sha256Hex -Stream $r13PrivateGuard
+
+    if ($r13PrivateSha -ne $expectedClientSha -or
+        $r13PrivateSha -ne $r13SourceSha) {
+        throw (
+            'R13 invocation-owned exact-v308 snapshot identity mismatch. ' +
+            "Expected: $expectedClientSha Source: $r13SourceSha Snapshot: $r13PrivateSha"
+        )
+    }
+
+    $r13SourceGuard.Dispose()
+    $r13SourceGuard = $null
+
+    $profileArgs = @(
+        $profileBuilder,
+        '--base-spawnpk', $base,
+        '--client-jar', $r13SnapshotClient,
+        '--output-home', $output,
+        '--java', $java.Path,
+        '--javac', $javac
+    )
+    & $python.Source @profileArgs
+
+    if ($LASTEXITCODE -ne 0) {
+        throw "R13 isolated profile builder failed with code $LASTEXITCODE"
+    }
+}
+catch {
+    $r13ProfileFailure = $_
+}
+finally {
+    if ($null -ne $r13PrivateGuard) {
+        try {
+            $r13PrivateGuard.Dispose()
+            $r13PrivateGuard = $null
+        }
+        catch {
+            $r13CleanupFailures +=
+                "private guard dispose: $($_.Exception.Message)"
+        }
+    }
+
+    if ($null -ne $r13SourceGuard) {
+        try {
+            $r13SourceGuard.Dispose()
+            $r13SourceGuard = $null
+        }
+        catch {
+            $r13CleanupFailures +=
+                "source guard dispose: $($_.Exception.Message)"
+        }
+    }
+
+    if (Test-Path -LiteralPath $r13SnapshotRoot) {
+        try {
+            Remove-Item -LiteralPath $r13SnapshotRoot -Recurse -Force -ErrorAction Stop
+        }
+        catch {
+            $r13CleanupFailures +=
+                "snapshot root cleanup: $($_.Exception.Message)"
+        }
+    }
+}
+
+if ($null -ne $r13ProfileFailure) {
+    if ($r13CleanupFailures.Count -ne 0) {
+        $r13ProfileFailure.Exception.Data['R13ClientSnapshotCleanupFailure'] =
+            ($r13CleanupFailures -join ' | ')
+    }
+    throw $r13ProfileFailure
+}
+
+if ($r13CleanupFailures.Count -ne 0) {
+    throw (
+        'R13 exact-v308 input snapshot cleanup failed: ' +
+        ($r13CleanupFailures -join ' | ')
+    )
 }
 
 $manifest = Join-Path $output 'R13_PROFILE_MANIFEST.json'
