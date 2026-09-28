@@ -815,6 +815,10 @@ public final class PluginClassLoaderIsolationTest {
             directory.resolve(
                 "huge-named.jar"
             );
+        Path alias=
+            directory.resolve(
+                "alias.jar"
+            );
 
         try{
             writeJarWithRawManifest(
@@ -848,6 +852,24 @@ public final class PluginClassLoaderIsolationTest {
 
             writeJarWithRawManifest(
                 jarA,
+                alias,
+                "meta-inf/manifest.mf",
+                (
+                    "Manifest-Version: 1.0\r\n"+
+                    "Class-Path: hidden.jar\r\n"+
+                    "\r\n"
+                ).getBytes(
+                    java.nio.charset.StandardCharsets.UTF_8
+                )
+            );
+            assertJavaManifestRejected(
+                alias,
+                "manifest entry name is non-canonical",
+                "case-aliased manifest"
+            );
+
+            writeJarWithRawManifest(
+                jarA,
                 hugeNamed,
                 hugeNamedManifest()
             );
@@ -865,6 +887,9 @@ public final class PluginClassLoaderIsolationTest {
                     "huge named manifest section healthy load did not close"
                 );
         }finally{
+            Files.deleteIfExists(
+                alias
+            );
             Files.deleteIfExists(
                 hugeNamed
             );
@@ -985,6 +1010,20 @@ public final class PluginClassLoaderIsolationTest {
         Path target,
         byte[] manifestBytes
     )throws Exception{
+        writeJarWithRawManifest(
+            source,
+            target,
+            "META-INF/MANIFEST.MF",
+            manifestBytes
+        );
+    }
+
+    private static void writeJarWithRawManifest(
+        Path source,
+        Path target,
+        String manifestEntry,
+        byte[] manifestBytes
+    )throws Exception{
         try(JarFile input=
                 new JarFile(
                     source.toFile()
@@ -997,7 +1036,7 @@ public final class PluginClassLoaderIsolationTest {
                 )){
             output.putNextEntry(
                 new JarEntry(
-                    "META-INF/MANIFEST.MF"
+                    manifestEntry
                 )
             );
             output.write(
