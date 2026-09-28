@@ -110,8 +110,19 @@ if ($LASTEXITCODE -ne 0) {
 }
 finally {
     if ($null -ne $launchSnapshot -and
-        (Test-Path -LiteralPath $launchSnapshot -PathType Leaf)) {
-        Remove-Item -LiteralPath $launchSnapshot -Force -ErrorAction SilentlyContinue
+        (Test-Path -LiteralPath $launchSnapshot)) {
+        $snapshotItem = Get-Item -LiteralPath $launchSnapshot -Force
+
+        if ($snapshotItem.PSIsContainer -or
+            (($snapshotItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0)) {
+            throw "Invocation-owned AIRGAP snapshot identity changed before cleanup: $launchSnapshot"
+        }
+
+        Remove-Item -LiteralPath $launchSnapshot -Force -ErrorAction Stop
+
+        if (Test-Path -LiteralPath $launchSnapshot) {
+            throw "Invocation-owned AIRGAP snapshot cleanup did not remove: $launchSnapshot"
+        }
     }
 
     if ($callerLocationPushed) {
