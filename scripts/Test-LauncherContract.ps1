@@ -428,6 +428,7 @@ Assert-True ($runtimeImport -match 'Rollback-owned destination directory is not 
 Assert-True ($runtimeImport -notmatch 'Remove-Item[^\\r\\n]*(evidence|local-client)[^\\r\\n]*-Recurse') 'Runtime importer reintroduced recursive deletion authority over canonical destination directories.'
 Assert-True ($runtimeImport -match 'pathConfinement=true') 'Runtime importer success/preflight markers do not expose path-confinement authority.'
 Assert-True ($runtimeImport -match 'function New-SameDirectoryLeafPath') 'Runtime importer lacks transaction-owned same-directory leaf allocation.'
+Assert-True ($runtimeImport -match 'leaf collision') 'Runtime importer does not fail closed when a generated same-directory leaf path already exists.'
 Assert-True ($runtimeImport -match 'function New-VerifiedSameDirectoryLeaf') 'Runtime importer lacks verified same-directory publication/restore leaves.'
 Assert-True ($runtimeImport -match 'function Assert-VerifiedOwnedLeaf') 'Runtime importer lacks exact private-leaf ownership revalidation.'
 Assert-True ($runtimeImport -match '\[IO\.FileMode\]::CreateNew') 'Runtime importer publication leaf is not create-new/no-overwrite.'
