@@ -19,7 +19,10 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import shutil
+import stat
+import uuid
 import struct
 import tempfile
 import zipfile
@@ -113,6 +116,245 @@ def sha256_file(path: Path) -> str:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def lexical_absolute(path: Path) -> Path:
+    return Path(
+        os.path.abspath(
+            os.path.normpath(
+                os.fspath(path)
+            )
+        )
+    )
+
+
+def lstat_or_none(path: Path):
+    try:
+        return os.lstat(path)
+    except FileNotFoundError:
+        return None
+
+
+def is_reparse_or_symlink(st) -> bool:
+    file_attributes = getattr(st, "st_file_attributes", 0)
+    reparse_flag = getattr(
+        stat,
+        "FILE_ATTRIBUTE_REPARSE_POINT",
+        0x400,
+    )
+    return (
+        stat.S_ISLNK(st.st_mode)
+        or bool(file_attributes & reparse_flag)
+    )
+
+
+def assert_ordinary_directory(path: Path, label: str):
+    st = lstat_or_none(path)
+    if st is None:
+        raise RuntimeError(f"{label} directory missing: {path}")
+    if is_reparse_or_symlink(st):
+        raise RuntimeError(f"{label} must not be a reparse/symlink: {path}")
+    if not stat.S_ISDIR(st.st_mode):
+        raise RuntimeError(f"{label} is not an ordinary directory: {path}")
+    return st
+
+
+def assert_regular_file_or_absent(path: Path, label: str):
+    st = lstat_or_none(path)
+    if st is None:
+        return None
+    if is_reparse_or_symlink(st):
+        raise RuntimeError(f"{label} must not be a reparse/symlink: {path}")
+    if not stat.S_ISREG(st.st_mode):
+        raise RuntimeError(f"{label} is not an ordinary regular file: {path}")
+    return st
+
+
+def file_identity(st) -> tuple[int, int, int, int]:
+    return (
+        int(st.st_dev),
+        int(st.st_ino),
+        int(st.st_size),
+        int(st.st_mtime_ns),
+    )
+
+
+def assert_canonical_output_path(requested: Path) -> Path:
+    repo = lexical_absolute(Path(__file__).parent.parent.parent)
+    expected = lexical_absolute(repo / "local-client")
+    output = lexical_absolute(requested)
+
+    if os.path.normcase(os.fspath(output)) != os.path.normcase(os.fspath(expected)):
+        raise RuntimeError(
+            "canonical output lexical identity drift "
+            f"expected={expected} actual={output}"
+        )
+
+    assert_ordinary_directory(repo, "repository root")
+
+    output_state = lstat_or_none(output)
+    if output_state is not None:
+        assert_ordinary_directory(output, "canonical local-client")
+
+    return output
+
+
+def restore_moved_entry_without_follow(
+    moved: Path,
+    destination: Path,
+    label: str,
+) -> None:
+    if lstat_or_none(destination) is not None:
+        raise RuntimeError(
+            f"{label} cannot restore moved entry because destination exists: "
+            f"{destination}"
+        )
+    if lstat_or_none(moved) is None:
+        raise RuntimeError(f"{label} moved entry disappeared: {moved}")
+    os.replace(moved, destination)
+
+
+def new_same_directory_leaf_path(destination: Path, purpose: str) -> Path:
+    leaf = destination.with_name(
+        f".{destination.name}.spawnpk-{purpose}-{uuid.uuid4().hex}.tmp"
+    )
+    if os.path.lexists(leaf):
+        raise RuntimeError(f"private leaf collision: {leaf}")
+    return leaf
+
+
+def copy_verified_same_directory_leaf(
+    source: Path,
+    destination: Path,
+    expected_sha: str,
+    purpose: str,
+) -> Path:
+    prefix = f".{destination.name}.spawnpk-{purpose}-"
+    fd, leaf_text = tempfile.mkstemp(
+        prefix=prefix,
+        suffix=".tmp",
+        dir=destination.parent,
+    )
+    leaf = Path(leaf_text)
+    complete = False
+
+    try:
+        with os.fdopen(fd, "wb") as target, source.open("rb") as source_handle:
+            shutil.copyfileobj(source_handle, target, length=1024 * 1024)
+            target.flush()
+            os.fsync(target.fileno())
+
+        actual = sha256_file(leaf)
+        if actual != expected_sha:
+            raise RuntimeError(
+                "private leaf hash mismatch "
+                f"purpose={purpose} expected={expected_sha} actual={actual}"
+            )
+
+        complete = True
+        return leaf
+    finally:
+        if not complete and os.path.lexists(leaf):
+            leaf_state = assert_regular_file_or_absent(
+                leaf,
+                f"{purpose} private leaf cleanup",
+            )
+            if leaf_state is not None:
+                leaf.unlink()
+
+
+def assert_verified_leaf(path: Path, expected_sha: str, label: str) -> None:
+    st = assert_regular_file_or_absent(path, label)
+    if st is None:
+        raise RuntimeError(f"{label} private leaf missing: {path}")
+
+    actual = sha256_file(path)
+    if actual != expected_sha:
+        raise RuntimeError(
+            f"{label} private leaf ownership lost "
+            f"expected={expected_sha} actual={actual} path={path}"
+        )
+
+
+def remove_verified_leaf(path, expected_sha: str, label: str) -> None:
+    if path is None or not os.path.lexists(path):
+        return
+    assert_verified_leaf(path, expected_sha, label)
+    path.unlink()
+
+
+def assert_destination_snapshot_owned(record: dict) -> None:
+    destination = record["destination"]
+    current_state = assert_regular_file_or_absent(
+        destination,
+        f"{record['name']} canonical destination",
+    )
+
+    if record["existed"]:
+        if current_state is None:
+            raise RuntimeError(
+                f"{record['name']} destination disappeared after backup snapshot"
+            )
+
+        current_identity = file_identity(current_state)
+        if current_identity != record["snapshot_identity"]:
+            raise RuntimeError(
+                f"{record['name']} destination identity changed after backup snapshot "
+                f"snapshot={record['snapshot_identity']} current={current_identity}"
+            )
+
+        backup_sha = sha256_file(record["backup"])
+        current_sha = sha256_file(destination)
+        if current_sha != backup_sha:
+            raise RuntimeError(
+                f"{record['name']} destination changed after backup snapshot "
+                f"snapshot={backup_sha} current={current_sha}"
+            )
+    elif current_state is not None:
+        raise RuntimeError(
+            f"{record['name']} destination appeared after backup snapshot"
+        )
+
+
+def restore_private_leaf_without_overwrite(
+    source_leaf: Path,
+    destination: Path,
+    expected_sha: str,
+    label: str,
+) -> None:
+    assert_verified_leaf(source_leaf, expected_sha, label)
+    source_state = assert_regular_file_or_absent(source_leaf, label)
+    if source_state is None:
+        raise RuntimeError(f"{label} source leaf disappeared")
+    source_identity = file_identity(source_state)
+
+    try:
+        os.link(source_leaf, destination)
+    except FileExistsError as error:
+        raise RuntimeError(
+            f"{label} destination appeared before no-overwrite restore: {destination}"
+        ) from error
+
+    restored_state = assert_regular_file_or_absent(
+        destination,
+        f"{label} restored destination",
+    )
+    if (
+        restored_state is None
+        or file_identity(restored_state) != source_identity
+    ):
+        raise RuntimeError(
+            f"{label} restored destination identity does not match source leaf"
+        )
+
+    restored_sha = sha256_file(destination)
+    if restored_sha != expected_sha:
+        raise RuntimeError(
+            f"{label} restored destination hash mismatch "
+            f"expected={expected_sha} actual={restored_sha}"
+        )
+
+    source_leaf.unlink()
 
 
 def patch_utf8_constants(data: bytes) -> bytes:
@@ -316,7 +558,7 @@ def main() -> int:
     args = parser.parse_args()
 
     source = args.exact_v308_jar.resolve()
-    output = args.output_directory.resolve()
+    output = assert_canonical_output_path(args.output_directory)
 
     if not source.is_file():
         raise SystemExit(f"exact v308 JAR missing: {source}")
@@ -409,22 +651,52 @@ def main() -> int:
             f"localhost={localhost_sha} airgap={airgap_sha} count={len(staged)}"
         )
 
-        output_existed = output.exists()
-        output.mkdir(parents=True, exist_ok=True)
+        output_existed = os.path.lexists(output)
+        output_created = False
+        if output_existed:
+            assert_ordinary_directory(output, "canonical local-client")
+        else:
+            os.mkdir(output)
+            output_created = True
+            assert_ordinary_directory(
+                output,
+                "transaction-created canonical local-client",
+            )
 
         publication = []
         for index, (name, staged_path, expected_sha) in enumerate(staged):
+            assert_ordinary_directory(
+                output,
+                "canonical local-client before destination snapshot",
+            )
             destination = output / name
             backup_path = backup / f"{index}-{name}"
-            existed = destination.is_file()
-
-            if destination.exists() and not existed:
-                raise SystemExit(
-                    f"canonical generated output is not a regular file: {destination}"
-                )
+            destination_state = assert_regular_file_or_absent(
+                destination,
+                f"{name} canonical destination snapshot",
+            )
+            existed = destination_state is not None
+            snapshot_identity = (
+                file_identity(destination_state)
+                if destination_state is not None
+                else None
+            )
 
             if existed:
                 shutil.copyfile(destination, backup_path)
+
+                destination_after_backup = assert_regular_file_or_absent(
+                    destination,
+                    f"{name} canonical destination after backup",
+                )
+                if (
+                    destination_after_backup is None
+                    or file_identity(destination_after_backup) != snapshot_identity
+                ):
+                    raise SystemExit(
+                        f"canonical destination identity changed during backup: {destination}"
+                    )
+
                 if sha256_file(backup_path) != sha256_file(destination):
                     raise SystemExit(
                         f"rollback backup verification failed: {destination}"
@@ -438,6 +710,12 @@ def main() -> int:
                     "expected_sha": expected_sha,
                     "backup": backup_path,
                     "existed": existed,
+                    "snapshot_identity": snapshot_identity,
+                    "publish_leaf": None,
+                    "preimage_leaf": None,
+                    "committed": False,
+                    "published_sha": None,
+                    "published_identity": None,
                 }
             )
 
@@ -449,22 +727,157 @@ def main() -> int:
         touched = []
         try:
             for record in publication:
-                # Record rollback ownership before the first canonical write.
-                touched.append(record)
-                shutil.copyfile(record["stage"], record["destination"])
+                destination = record["destination"]
 
-                published_sha = sha256_file(record["destination"])
-                if published_sha != record["expected_sha"]:
-                    raise RuntimeError(
-                        "published artifact hash mismatch "
-                        f"name={record['name']} "
-                        f"expected={record['expected_sha']} "
-                        f"actual={published_sha}"
+                record["publish_leaf"] = copy_verified_same_directory_leaf(
+                    record["stage"],
+                    destination,
+                    record["expected_sha"],
+                    "publish",
+                )
+
+                # Re-prove both sides of the canonical transition immediately
+                # before acquiring mutation ownership.
+                assert_destination_snapshot_owned(record)
+                assert_verified_leaf(
+                    record["publish_leaf"],
+                    record["expected_sha"],
+                    f"{record['name']} publish",
+                )
+
+                touched.append(record)
+
+                if record["existed"]:
+                    backup_sha = sha256_file(record["backup"])
+                    record["preimage_leaf"] = new_same_directory_leaf_path(
+                        destination,
+                        "commit-preimage",
                     )
+
+                    # Capture the exact canonical file at commit time instead
+                    # of overwriting it. This transition is same-directory and
+                    # atomic. The captured bytes must still equal the frozen
+                    # rollback snapshot.
+                    os.replace(
+                        destination,
+                        record["preimage_leaf"],
+                    )
+
+                    try:
+                        moved_state = assert_regular_file_or_absent(
+                            record["preimage_leaf"],
+                            f"{record['name']} moved commit preimage",
+                        )
+                        if moved_state is None:
+                            raise RuntimeError("moved commit preimage disappeared")
+
+                        moved_identity = file_identity(moved_state)
+                        if moved_identity != record["snapshot_identity"]:
+                            raise RuntimeError(
+                                "moved commit preimage identity drift "
+                                f"snapshot={record['snapshot_identity']} "
+                                f"moved={moved_identity}"
+                            )
+
+                        displaced_sha = sha256_file(record["preimage_leaf"])
+                    except BaseException:
+                        if not os.path.lexists(destination):
+                            restore_moved_entry_without_follow(
+                                record["preimage_leaf"],
+                                destination,
+                                f"{record['name']} commit preimage compensation",
+                            )
+                            record["preimage_leaf"] = None
+                        raise
+
+                    if displaced_sha != backup_sha:
+                        restore_moved_entry_without_follow(
+                            record["preimage_leaf"],
+                            destination,
+                            f"{record['name']} changed commit preimage",
+                        )
+                        record["preimage_leaf"] = None
+
+                        raise RuntimeError(
+                            f"{record['name']} destination changed during commit "
+                            f"snapshot={backup_sha} displaced={displaced_sha}"
+                        )
+
+                # Hard-link creation is no-overwrite on both Windows and Unix.
+                # It creates the canonical directory entry only if the name is
+                # still absent; the verified private leaf remains available
+                # until that discrete transition succeeds.
+                publish_leaf_state = assert_regular_file_or_absent(
+                    record["publish_leaf"],
+                    f"{record['name']} publish leaf before link",
+                )
+                if publish_leaf_state is None:
+                    raise RuntimeError(
+                        f"{record['name']} publish leaf disappeared before link"
+                    )
+                publish_identity = file_identity(publish_leaf_state)
+
+                try:
+                    os.link(
+                        record["publish_leaf"],
+                        destination,
+                    )
+                except FileExistsError as error:
+                    if record["preimage_leaf"] is not None:
+                        preimage_sha = sha256_file(record["preimage_leaf"])
+                        if not os.path.lexists(destination):
+                            restore_private_leaf_without_overwrite(
+                                record["preimage_leaf"],
+                                destination,
+                                preimage_sha,
+                                f"{record['name']} failed commit preimage",
+                            )
+                            record["preimage_leaf"] = None
+
+                    raise RuntimeError(
+                        f"{record['name']} destination appeared before atomic publish"
+                    ) from error
+
+                published_state = assert_regular_file_or_absent(
+                    destination,
+                    f"{record['name']} canonical published destination",
+                )
+                if (
+                    published_state is None
+                    or file_identity(published_state) != publish_identity
+                ):
+                    raise RuntimeError(
+                        f"{record['name']} canonical publish identity drift"
+                    )
+
+                record["committed"] = True
+                record["published_sha"] = record["expected_sha"]
+                record["published_identity"] = publish_identity
+
+                # Canonical and private leaf now refer to the same exact inode.
+                # Drop only the transaction-owned private name.
+                remove_verified_leaf(
+                    record["publish_leaf"],
+                    record["expected_sha"],
+                    f"{record['name']} committed publish",
+                )
+                record["publish_leaf"] = None
 
             # Re-verify the complete generated set while rollback ownership is
             # still active. No success output is emitted before this finishes.
             for record in publication:
+                final_state = assert_regular_file_or_absent(
+                    record["destination"],
+                    f"{record['name']} final canonical destination",
+                )
+                if (
+                    final_state is None
+                    or file_identity(final_state) != record["published_identity"]
+                ):
+                    raise RuntimeError(
+                        f"{record['name']} final canonical identity drift"
+                    )
+
                 final_sha = sha256_file(record["destination"])
                 if final_sha != record["expected_sha"]:
                     raise RuntimeError(
@@ -473,6 +886,20 @@ def main() -> int:
                         f"expected={record['expected_sha']} "
                         f"actual={final_sha}"
                     )
+
+            # Existing-destination preimages remain rollback authority until
+            # the whole generated set is verified. Retire them only now.
+            for record in publication:
+                if record["preimage_leaf"] is None:
+                    continue
+
+                backup_sha = sha256_file(record["backup"])
+                remove_verified_leaf(
+                    record["preimage_leaf"],
+                    backup_sha,
+                    f"{record['name']} committed preimage",
+                )
+                record["preimage_leaf"] = None
 
             print(
                 "V308_LOCAL_CLIENT_FINAL_VERIFY_PASS "
@@ -483,29 +910,217 @@ def main() -> int:
 
             for record in reversed(touched):
                 try:
-                    if record["existed"]:
-                        shutil.copyfile(
-                            record["backup"],
-                            record["destination"],
+                    destination = record["destination"]
+
+                    if not record["committed"]:
+                        remove_verified_leaf(
+                            record["publish_leaf"],
+                            record["expected_sha"],
+                            f"{record['name']} uncommitted publish",
                         )
-                        restored_sha = sha256_file(record["destination"])
+                        record["publish_leaf"] = None
+
+                        if record["preimage_leaf"] is not None:
+                            preimage_sha = sha256_file(record["preimage_leaf"])
+                            if os.path.lexists(destination):
+                                raise RuntimeError(
+                                    f"{record['name']} cannot restore uncommitted "
+                                    "preimage because destination was recreated"
+                                )
+
+                            restore_private_leaf_without_overwrite(
+                                record["preimage_leaf"],
+                                destination,
+                                preimage_sha,
+                                f"{record['name']} uncommitted preimage",
+                            )
+                            record["preimage_leaf"] = None
+                        continue
+
+                    current_state = assert_regular_file_or_absent(
+                        destination,
+                        f"{record['name']} committed rollback destination",
+                    )
+                    if current_state is None:
+                        raise RuntimeError(
+                            f"{record['name']} committed destination disappeared"
+                        )
+
+                    current_identity = file_identity(current_state)
+                    if current_identity != record["published_identity"]:
+                        raise RuntimeError(
+                            f"{record['name']} rollback lifetime identity lost "
+                            f"published={record['published_identity']} "
+                            f"current={current_identity}"
+                        )
+
+                    current_sha = sha256_file(destination)
+                    if current_sha != record["published_sha"]:
+                        raise RuntimeError(
+                            f"{record['name']} rollback ownership lost "
+                            f"published={record['published_sha']} current={current_sha}"
+                        )
+
+                    quarantine = new_same_directory_leaf_path(
+                        destination,
+                        "rollback-published",
+                    )
+                    os.replace(destination, quarantine)
+
+                    try:
+                        quarantine_state = assert_regular_file_or_absent(
+                            quarantine,
+                            f"{record['name']} rollback quarantine",
+                        )
+                        if quarantine_state is None:
+                            raise RuntimeError("rollback quarantine disappeared")
+                        quarantine_identity = file_identity(quarantine_state)
+                        if quarantine_identity != current_identity:
+                            raise RuntimeError(
+                                "rollback quarantine identity drift "
+                                f"before={current_identity} moved={quarantine_identity}"
+                            )
+                        quarantined_sha = sha256_file(quarantine)
+                    except BaseException:
+                        if not os.path.lexists(destination):
+                            restore_moved_entry_without_follow(
+                                quarantine,
+                                destination,
+                                f"{record['name']} rollback quarantine compensation",
+                            )
+                            quarantine = None
+                        raise
+
+                    if quarantined_sha != record["published_sha"]:
+                        if not os.path.lexists(destination):
+                            restore_moved_entry_without_follow(
+                                quarantine,
+                                destination,
+                                f"{record['name']} changed rollback publication",
+                            )
+                            quarantine = None
+
+                        raise RuntimeError(
+                            f"{record['name']} rollback ownership changed during "
+                            f"quarantine published={record['published_sha']} "
+                            f"moved={quarantined_sha}"
+                        )
+
+                    if record["existed"]:
                         backup_sha = sha256_file(record["backup"])
+
+                        if record["preimage_leaf"] is None:
+                            record["preimage_leaf"] = (
+                                copy_verified_same_directory_leaf(
+                                    record["backup"],
+                                    destination,
+                                    backup_sha,
+                                    "rollback-restore",
+                                )
+                            )
+
+                        try:
+                            restore_private_leaf_without_overwrite(
+                                record["preimage_leaf"],
+                                destination,
+                                backup_sha,
+                                f"{record['name']} rollback preimage",
+                            )
+                            record["preimage_leaf"] = None
+                        except BaseException:
+                            if not os.path.lexists(destination):
+                                restore_private_leaf_without_overwrite(
+                                    quarantine,
+                                    destination,
+                                    quarantined_sha,
+                                    f"{record['name']} rollback compensation",
+                                )
+                                quarantine = None
+                            raise
+
+                        restored_sha = sha256_file(destination)
                         if restored_sha != backup_sha:
                             raise RuntimeError(
-                                "restored destination does not match rollback backup"
+                                f"{record['name']} restored destination does not "
+                                "match rollback backup"
                             )
-                    elif record["destination"].exists():
-                        record["destination"].unlink()
+                    elif os.path.lexists(destination):
+                        raise RuntimeError(
+                            f"{record['name']} absent-before destination was "
+                            "recreated during rollback"
+                        )
+
+                    remove_verified_leaf(
+                        quarantine,
+                        record["published_sha"],
+                        f"{record['name']} rollback quarantine",
+                    )
                 except BaseException as rollback_error:
                     rollback_errors.append(
                         f"{record['name']}: {rollback_error}"
                     )
 
-            if not output_existed:
+            # Clean only exact transaction-owned private leaves that remain.
+            for record in publication:
                 try:
-                    output.rmdir()
-                except OSError:
-                    pass
+                    remove_verified_leaf(
+                        record["publish_leaf"],
+                        record["expected_sha"],
+                        f"{record['name']} residual publish",
+                    )
+                    record["publish_leaf"] = None
+                except BaseException as leaf_error:
+                    rollback_errors.append(
+                        f"{record['name']} publish-leaf: {leaf_error}"
+                    )
+
+                try:
+                    if record["preimage_leaf"] is not None:
+                        # If an originally existing destination cannot be
+                        # restored because another process recreated the
+                        # canonical name, preserve the exact pre-transaction
+                        # bytes rather than deleting the only same-directory
+                        # recovery copy.
+                        if (
+                            record["existed"]
+                            and not record["committed"]
+                            and os.path.lexists(record["destination"])
+                        ):
+                            rollback_errors.append(
+                                f"{record['name']} preimage preserved after "
+                                "rollback ownership loss: "
+                                f"{record['preimage_leaf']}"
+                            )
+                            continue
+
+                        expected_preimage_sha = (
+                            sha256_file(record["backup"])
+                            if record["existed"]
+                            else record["expected_sha"]
+                        )
+                        remove_verified_leaf(
+                            record["preimage_leaf"],
+                            expected_preimage_sha,
+                            f"{record['name']} residual preimage",
+                        )
+                        record["preimage_leaf"] = None
+                except BaseException as leaf_error:
+                    rollback_errors.append(
+                        f"{record['name']} preimage-leaf: {leaf_error}"
+                    )
+
+            if output_created:
+                try:
+                    assert_ordinary_directory(
+                        output,
+                        "transaction-created canonical local-client rollback",
+                    )
+                    os.rmdir(output)
+                except BaseException as directory_error:
+                    rollback_errors.append(
+                        "canonical local-client directory cleanup: "
+                        f"{directory_error}"
+                    )
 
             if rollback_errors:
                 raise RuntimeError(
