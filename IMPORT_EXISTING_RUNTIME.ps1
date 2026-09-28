@@ -155,9 +155,12 @@ function New-SameDirectoryLeafPath(
         '.tmp'
     )
 
-    return Assert-PathInsideRepository (
-        Join-Path $directory $leafName
-    ) "$($Record.Label) $Purpose leaf"
+    $leaf = Join-Path $directory $leafName
+    return (
+        Assert-PathInsideRepository `
+            $leaf `
+            "$($Record.Label) $Purpose leaf"
+    )
 }
 
 function New-VerifiedSameDirectoryLeaf(
@@ -170,6 +173,8 @@ function New-VerifiedSameDirectoryLeaf(
 
     $sourceStream = $null
     $leafStream = $null
+    $leafComplete = $false
+    $leafFailure = $null
 
     try {
         $sourceStream = [IO.File]::Open(
@@ -188,6 +193,9 @@ function New-VerifiedSameDirectoryLeaf(
         $sourceStream.CopyTo($leafStream)
         $leafStream.Flush($true)
     }
+    catch {
+        $leafFailure = $_
+    }
     finally {
         if ($null -ne $leafStream) {
             $leafStream.Dispose()
@@ -197,14 +205,31 @@ function New-VerifiedSameDirectoryLeaf(
         }
     }
 
-    [void](Assert-RegularDestinationOrMissing $leaf "$($Record.Label) $Purpose leaf")
+    if ($null -eq $leafFailure) {
+        try {
+            [void](Assert-RegularDestinationOrMissing $leaf "$($Record.Label) $Purpose leaf")
 
-    $leafSha = Get-ExactSha256 $leaf
-    if ($leafSha -ne $ExpectedSha256) {
-        throw (
-            "$($Record.Label) $Purpose leaf hash mismatch. " +
-            "Expected: $ExpectedSha256 Actual: $leafSha Path: $leaf"
-        )
+            $leafSha = Get-ExactSha256 $leaf
+            if ($leafSha -ne $ExpectedSha256) {
+                throw (
+                    "$($Record.Label) $Purpose leaf hash mismatch. " +
+                    "Expected: $ExpectedSha256 Actual: $leafSha Path: $leaf"
+                )
+            }
+
+            $leafComplete = $true
+        }
+        catch {
+            $leafFailure = $_
+        }
+    }
+
+    if (-not $leafComplete) {
+        if (Test-Path -LiteralPath $leaf) {
+            Remove-Item -LiteralPath $leaf -Force -ErrorAction SilentlyContinue
+        }
+
+        throw $leafFailure
     }
 
     return $leaf
@@ -411,6 +436,8 @@ try {
                     $true
                 )
                 $record.PublishLeaf = $null
+                $record.Committed = $true
+                $record.PublishedSha256 = $record.ExpectedSha256
 
                 # File.Replace atomically captures the actual destination
                 # preimage. This closes the race between snapshot revalidation
@@ -432,6 +459,9 @@ try {
                         $record.ExpectedSha256 `
                         "$($record.Label) failed commit leaf"
 
+                    $record.Committed = $false
+                    $record.PublishedSha256 = $null
+
                     throw (
                         "$($record.Label) destination changed during atomic commit. " +
                         "Snapshot: $backupSha Displaced: $displacedSha"
@@ -452,10 +482,9 @@ try {
                     $record.Destination
                 )
                 $record.PublishLeaf = $null
+                $record.Committed = $true
+                $record.PublishedSha256 = $record.ExpectedSha256
             }
-
-            $record.Committed = $true
-            $record.PublishedSha256 = $record.ExpectedSha256
         }
 
         # Keep final whole-triplet verification inside rollback ownership.
