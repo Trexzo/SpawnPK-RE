@@ -142,14 +142,10 @@ try {
         )
     }
 
-    # Observe the Gradle-owned authoritative marker without printing or
-    # embedding that complete marker in this wrapper source.
-    $authoritativeMarker =
-        'SPAWNPK_CHAT1_CURRENT_' +
-        'CUMULATIVE_CERTIFICATION_PASS'
-
+    # Observe the Gradle-owned authoritative marker after native exit 0.
+    # This wrapper never emits that release marker itself.
     $markerMatch =
-        Select-String -LiteralPath $log -SimpleMatch -Pattern $authoritativeMarker
+        Select-String -LiteralPath $log -SimpleMatch -Pattern 'SPAWNPK_CHAT1_CURRENT_CUMULATIVE_CERTIFICATION_PASS'
 
     if ($null -eq $markerMatch) {
         throw (
