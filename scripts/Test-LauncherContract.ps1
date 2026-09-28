@@ -340,7 +340,7 @@ Assert-True ($quick -match '\$childCreated -lt \$rootStart -or\s+\$childCreated 
 Assert-True ($quick -match 'cannot prove exited-root lifetime') 'Quick-start cleanup does not fail closed when recorded root lifetime cannot be read.'
 Assert-True ($quick -match 'cannot prove creation time for exited-root child') 'Quick-start cleanup does not fail closed when child creation time cannot be read.'
 Assert-True ($quick -match 'refused ambiguous exited-root PID reuse') 'Quick-start cleanup does not fail closed when an exited recorded PID is live again.'
-Assert-True ($quick -match 'Get-LauncherOwnedProcessIds -Roots \$Roots -Label \$Label -IncludeExitedRoots') 'Quick-start failure cleanup does not opt into lifetime-bound exited-root traversal.'
+Assert-True ($quick -match 'Get-LauncherOwnedProcessRecords -Roots \$Roots -Label \$Label -IncludeExitedRoots') 'Quick-start failure cleanup does not opt into lifetime-bound exited-root traversal.'
 Assert-True ($quick -match '\$candidatePid\s+-notin\s+\$serverOwnedPids') 'Quick-start launcher does not bind ready server PID to the recorded server window.'
 Assert-True ($quick -match '\$_\.ProcessId\s+-in\s+\$clientOwnedPids') 'Quick-start launcher does not bind airgap Java discovery to the recorded client window.'
 Assert-True ($quick -match '\$stableClient\.ProcessId\s+-notin\s+\$stableClientOwnedPids') 'Quick-start client stability does not retain recorded client-window ancestry.'
@@ -351,15 +351,16 @@ Assert-True ($quick -notmatch 'Write-Warning.*owned-process cleanup') 'Quick-sta
 Assert-True ($quick -notmatch 'Stop-Process\s+-Name') 'Quick-start launcher reintroduced broad name-based process cleanup.'
 
 foreach ($entry in @(
+    @('function Get-NormalizedProcessLifetimeStamp', 1),
+    @('function Get-LauncherOwnedProcessRecords', 1),
     @('function Get-LauncherOwnedProcessIds', 1),
     @('function Stop-LauncherOwnedProcessTree', 1),
     @('function Throw-LauncherFailureWithCleanup', 1),
     @('[switch]$IncludeExitedRoots', 1),
-    @('Get-LauncherOwnedProcessIds -Roots $Roots -Label $Label -IncludeExitedRoots', 2),
+    @('Get-LauncherOwnedProcessRecords -Roots $Roots -Label $Label -IncludeExitedRoots', 2),
     @('$recordedRoots = @(', 1),
     @('$recordedRootPids = @(', 1),
     @('$liveRoots = @(', 1),
-    @('$liveRootPids = @(', 1),
     @('$exitedRoots = @(', 1),
     @('$rootStart = [DateTime]$exitedRoot.StartTime', 1),
     @('$rootExit = [DateTime]$exitedRoot.ExitTime', 1),
@@ -639,7 +640,7 @@ Assert-True ($all -match '\$childCreated -lt \$rootStart -or\s+\$childCreated -g
 Assert-True ($all -match 'cannot prove exited-root lifetime') 'Multi-client cleanup does not fail closed when recorded root lifetime cannot be read.'
 Assert-True ($all -match 'cannot prove creation time for exited-root child') 'Multi-client cleanup does not fail closed when child creation time cannot be read.'
 Assert-True ($all -match 'refused ambiguous exited-root PID reuse') 'Multi-client cleanup does not fail closed when an exited recorded PID is live again.'
-Assert-True ($all -match 'Get-LauncherOwnedProcessIds -Roots \$Roots -Label \$Label -IncludeExitedRoots') 'Multi-client failure cleanup does not opt into lifetime-bound exited-root traversal.'
+Assert-True ($all -match 'Get-LauncherOwnedProcessRecords -Roots \$Roots -Label \$Label -IncludeExitedRoots') 'Multi-client failure cleanup does not opt into lifetime-bound exited-root traversal.'
 Assert-True ($all -match '\$candidateServerPid\s+-in\s+\$serverOwnedPids') 'Multi-client launcher does not bind server readiness to the recorded server window.'
 Assert-True ($all -match '\$_\.ProcessId\s+-in\s+\$clientOwnedPids') 'Multi-client launcher does not bind client discovery to the recorded client window.'
 Assert-True ($all -match '\$stableAirgapClient\.ProcessId\s+-notin\s+\$stableClientOwnedPids') 'Multi-client client stability does not retain recorded client-window ancestry.'
@@ -671,15 +672,16 @@ Assert-True ($all -match '\$callerLocationPushed\s*=\s*\$true') 'Multi-client la
 Assert-True ($all -match 'if \(\$callerLocationPushed\)\s*\{\s*Pop-Location') 'Multi-client launcher does not guarantee caller-location restoration.'
 
 foreach ($entry in @(
+    @('function Get-NormalizedProcessLifetimeStamp', 1),
+    @('function Get-LauncherOwnedProcessRecords', 1),
     @('function Get-LauncherOwnedProcessIds', 1),
     @('function Stop-LauncherOwnedProcessTree', 1),
     @('function Throw-LauncherFailureWithCleanup', 1),
     @('[switch]$IncludeExitedRoots', 1),
-    @('Get-LauncherOwnedProcessIds -Roots $Roots -Label $Label -IncludeExitedRoots', 2),
+    @('Get-LauncherOwnedProcessRecords -Roots $Roots -Label $Label -IncludeExitedRoots', 2),
     @('$recordedRoots = @(', 1),
     @('$recordedRootPids = @(', 1),
     @('$liveRoots = @(', 1),
-    @('$liveRootPids = @(', 1),
     @('$exitedRoots = @(', 1),
     @('$rootStart = [DateTime]$exitedRoot.StartTime', 1),
     @('$rootExit = [DateTime]$exitedRoot.ExitTime', 1),
@@ -744,24 +746,33 @@ Assert-True ($allLocationPushIndex -ge 0 -and $allLocationPushIndex -lt $allJava
 Assert-True ($allLocationPopIndex -gt $allCombinedThrowIndex) 'Multi-client caller location restoration does not structurally cover the complete launcher flow.'
 
 foreach ($launcherSource in @($quick, $all)) {
+    Assert-True ($launcherSource -match 'function Get-NormalizedProcessLifetimeStamp') 'Launcher has no shared deterministic lifetime normalization helper.'
+    Assert-True ($launcherSource -match '\[TimeSpan\]::TicksPerMillisecond') 'Launcher lifetime normalization is not pinned to one-millisecond common precision.'
     Assert-True ($launcherSource -match '\$recordedStartUtc\s*=\s*\(\[DateTime\]\$liveRoot\.StartTime\)\.ToUniversalTime\(\)') 'Launcher live-root ownership does not bind to recorded Process.StartTime.'
     Assert-True ($launcherSource -match '\$currentMatches\s*=\s*@\(') 'Launcher live-root ownership does not resolve current CIM PID identity.'
     Assert-True ($launcherSource -match '\$currentMatches\.Count\s+-ne\s+1') 'Launcher live-root ownership does not require exactly one current PID match.'
     Assert-True ($launcherSource -match '\$currentCreatedUtc\s*=\s*\(\[DateTime\]\$currentMatches\[0\]\.CreationDate\)\.ToUniversalTime\(\)') 'Launcher live-root ownership does not bind current CIM CreationDate.'
-    Assert-True ($launcherSource -match '\$liveRootStartDeltaSeconds\s*=\s*\[Math\]::Abs') 'Launcher live-root ownership does not compute deterministic start-time delta.'
-    Assert-True ($launcherSource -match '\$liveRootStartDeltaSeconds\s+-gt\s+2\.0') 'Launcher live-root ownership lost fixed two-second API normalization tolerance.'
+    Assert-True ($launcherSource -match '\$recordedStartStamp\s*=') 'Launcher live-root ownership does not normalize recorded start identity.'
+    Assert-True ($launcherSource -match '\$currentCreatedStamp\s*=') 'Launcher live-root ownership does not normalize current creation identity.'
+    Assert-True ($launcherSource -match '\$recordedStartStamp\s+-ne\s+\$currentCreatedStamp') 'Launcher live-root ownership does not require exact normalized lifetime equality.'
+    Assert-True ($launcherSource -notmatch 'liveRootStartDeltaSeconds') 'Launcher live-root ownership reintroduced generic time-delta identity.'
+    Assert-True ($launcherSource -notmatch '-gt\s+2\.0') 'Launcher live-root ownership reintroduced the rejected two-second tolerance.'
     Assert-True ($launcherSource -match 'refused live-root PID lifetime mismatch') 'Launcher live-root ownership does not fail closed on PID lifetime mismatch.'
-    Assert-True ($launcherSource -match 'cannot prove unique current live-root identity') 'Launcher live-root ownership does not fail closed when current PID identity is missing/ambiguous.'
+    Assert-True ($launcherSource -match '\$lifetimeStampByPid\[\$liveRootPid\]') 'Launcher does not retain normalized live-root lifetime authority.'
 
     foreach ($entry in @(
+        @('function Get-NormalizedProcessLifetimeStamp', 1),
+        @('[TimeSpan]::TicksPerMillisecond', 1),
         @('$recordedStartUtc = ([DateTime]$liveRoot.StartTime).ToUniversalTime()', 1),
         @('$currentMatches = @(', 1),
         @('$currentMatches.Count -ne 1', 1),
         @('$currentCreatedUtc = ([DateTime]$currentMatches[0].CreationDate).ToUniversalTime()', 1),
-        @('$liveRootStartDeltaSeconds = [Math]::Abs(', 1),
-        @('$liveRootStartDeltaSeconds -gt 2.0', 1),
+        @('$recordedStartStamp =', 1),
+        @('$currentCreatedStamp =', 1),
+        @('$recordedStartStamp -ne $currentCreatedStamp', 1),
         @('refused live-root PID lifetime mismatch', 1),
-        @('$depthByPid[$liveRootPid] = 0', 1)
+        @('$depthByPid[$liveRootPid] = 0', 1),
+        @('$lifetimeStampByPid[$liveRootPid] = [long]$currentCreatedStamp', 1)
     )) {
         Assert-ExactTextCount $launcherSource $entry[0] ([int]$entry[1]) 'Launcher live-root lifetime structural count drift.'
     }
@@ -769,24 +780,33 @@ foreach ($launcherSource in @($quick, $all)) {
     $liveRootStartIndex = $launcherSource.IndexOf('$recordedStartUtc = ([DateTime]$liveRoot.StartTime).ToUniversalTime()')
     $liveRootCurrentIndex = $launcherSource.IndexOf('$currentMatches = @(')
     $liveRootCreationIndex = $launcherSource.IndexOf('$currentCreatedUtc = ([DateTime]$currentMatches[0].CreationDate).ToUniversalTime()')
-    $liveRootDeltaIndex = $launcherSource.IndexOf('$liveRootStartDeltaSeconds = [Math]::Abs(')
-    $liveRootMismatchIndex = $launcherSource.IndexOf('if ($liveRootStartDeltaSeconds -gt 2.0)')
+    $liveRootRecordedStampIndex = $launcherSource.IndexOf('$recordedStartStamp =')
+    $liveRootCurrentStampIndex = $launcherSource.IndexOf('$currentCreatedStamp =')
+    $liveRootMismatchIndex = $launcherSource.IndexOf('if ($recordedStartStamp -ne $currentCreatedStamp)')
     $liveRootSeedIndex = $launcherSource.IndexOf('$depthByPid[$liveRootPid] = 0')
+    $liveRootLifetimeSeedIndex = $launcherSource.IndexOf('$lifetimeStampByPid[$liveRootPid] = [long]$currentCreatedStamp')
     Assert-True ($liveRootStartIndex -ge 0) 'Launcher recorded live-root start-time proof not found.'
     Assert-True ($liveRootCurrentIndex -gt $liveRootStartIndex) 'Launcher queries current live-root PID before recorded start identity.'
     Assert-True ($liveRootCreationIndex -gt $liveRootCurrentIndex) 'Launcher reads current CreationDate before unique current PID proof.'
-    Assert-True ($liveRootDeltaIndex -gt $liveRootCreationIndex) 'Launcher computes live-root identity delta before both timestamps are proven.'
-    Assert-True ($liveRootMismatchIndex -gt $liveRootDeltaIndex) 'Launcher lifetime mismatch fence precedes deterministic delta computation.'
-    Assert-True ($liveRootSeedIndex -gt $liveRootMismatchIndex) 'Launcher grants depth-0 ancestry authority before live-root lifetime identity is proven.'
+    Assert-True ($liveRootRecordedStampIndex -gt $liveRootCreationIndex) 'Launcher normalizes recorded lifetime before current CreationDate is proven.'
+    Assert-True ($liveRootCurrentStampIndex -gt $liveRootRecordedStampIndex) 'Launcher current lifetime normalization ordering is malformed.'
+    Assert-True ($liveRootMismatchIndex -gt $liveRootCurrentStampIndex) 'Launcher lifetime mismatch fence precedes exact normalized identity construction.'
+    Assert-True ($liveRootSeedIndex -gt $liveRootMismatchIndex) 'Launcher grants depth-0 ancestry authority before exact live-root lifetime identity is proven.'
+    Assert-True ($liveRootLifetimeSeedIndex -gt $liveRootSeedIndex) 'Launcher does not persist live-root lifetime authority with ancestry authority.'
 }
 
 foreach ($launcherSource in @($quick, $all)) {
     Assert-True ($launcherSource -match '\$cleanupDeadline\s*=\s*\(Get-Date\)\.AddSeconds\(5\)') 'Launcher cleanup lost bounded five-second convergence deadline.'
     Assert-True ($launcherSource -match '\$cleanupMaxPasses\s*=\s*8') 'Launcher cleanup lost bounded eight-pass convergence limit.'
     Assert-True ($launcherSource -match 'while \(\$cleanupPass -lt \$cleanupMaxPasses') 'Launcher cleanup does not repeatedly rescan owned process authority.'
-    Assert-True ($launcherSource -match 'Get-LauncherOwnedProcessIds -Roots \$Roots -Label \$Label -IncludeExitedRoots') 'Launcher cleanup rescan is not rooted in lifetime-bound ownership authority.'
-    Assert-True ($launcherSource -match '\$liveOwnedPids\.Count\s+-eq\s+0') 'Launcher cleanup has no zero-live-owned convergence condition.'
-    Assert-True ($launcherSource -match '\$remainingOwnedPids\.Count\s+-ne\s+0') 'Launcher cleanup does not fail after bounded exhaustion with remaining owned processes.'
+    Assert-True ($launcherSource -match 'Get-LauncherOwnedProcessRecords -Roots \$Roots -Label \$Label -IncludeExitedRoots') 'Launcher destructive cleanup does not consume lifetime-bearing ownership records.'
+    Assert-True ($launcherSource -match '\$ownedProcess\.LifetimeStamp') 'Launcher destructive cleanup does not carry discovered lifetime identity.'
+    Assert-True ($launcherSource -match 'Get-NormalizedProcessLifetimeStamp -Timestamp \(\[DateTime\]\$live\.StartTime\)') 'Launcher cleanup does not re-read current process lifetime immediately before termination.'
+    Assert-True ($launcherSource -match '\$liveStartStamp\s+-ne\s+\[long\]\$ownedProcess\.LifetimeStamp') 'Launcher cleanup does not reject stop-time PID lifetime reuse.'
+    Assert-True ($launcherSource -match 'Stop-Process -InputObject \$live -Force') 'Launcher cleanup does not terminate the exact revalidated process object.'
+    Assert-True ($launcherSource -notmatch 'Stop-Process -Id \$ownedPid') 'Launcher cleanup still grants destructive authority to a bare PID.'
+    Assert-True ($launcherSource -match '\$ownedProcesses\.Count\s+-eq\s+0') 'Launcher cleanup has no zero-owned convergence condition.'
+    Assert-True ($launcherSource -match '\$remainingLive\.Count\s+-ne\s+0') 'Launcher cleanup does not fail after bounded exhaustion with remaining exact-lifetime processes.'
     Assert-True ($launcherSource -match 'launcher-owned cleanup did not converge') 'Launcher cleanup does not surface bounded convergence failure.'
     Assert-True ($launcherSource -notmatch 'Stop-Process\s+-Name') 'Launcher convergent cleanup reintroduced broad name-based termination.'
 
@@ -794,25 +814,33 @@ foreach ($launcherSource in @($quick, $all)) {
         @('$cleanupDeadline = (Get-Date).AddSeconds(5)', 1),
         @('$cleanupMaxPasses = 8', 1),
         @('$cleanupPass++', 1),
-        @('$liveOwnedPids = @(', 1),
-        @('$remainingOwnedPids = @(', 1),
+        @('$ownedProcesses = @(', 1),
+        @('$remainingOwnedProcesses = @(', 1),
+        @('Get-LauncherOwnedProcessRecords -Roots $Roots -Label $Label -IncludeExitedRoots', 2),
+        @('Stop-Process -InputObject $live -Force -ErrorAction Stop', 1),
+        @('refused cleanup PID lifetime mismatch', 1),
+        @('refused final cleanup PID lifetime mismatch', 1),
         @('launcher-owned cleanup did not converge', 1),
         @('Start-Sleep -Milliseconds 100', 1)
     )) {
-        Assert-ExactTextCount $launcherSource $entry[0] ([int]$entry[1]) 'Launcher cleanup convergence structural count drift.'
+        Assert-ExactTextCount $launcherSource $entry[0] ([int]$entry[1]) 'Launcher cleanup convergence/lifetime structural count drift.'
     }
 
     $cleanupLoopIndex = $launcherSource.IndexOf('while ($cleanupPass -lt $cleanupMaxPasses')
-    $cleanupRescanIndex = $launcherSource.IndexOf('Get-LauncherOwnedProcessIds -Roots $Roots -Label $Label -IncludeExitedRoots', $cleanupLoopIndex)
-    $cleanupStopIndex = $launcherSource.IndexOf('Stop-Process -Id $ownedPid -Force -ErrorAction Stop', $cleanupRescanIndex)
-    $cleanupFinalRescanIndex = $launcherSource.LastIndexOf('Get-LauncherOwnedProcessIds -Roots $Roots -Label $Label -IncludeExitedRoots')
-    $cleanupRemainingCheckIndex = $launcherSource.IndexOf('if ($remainingOwnedPids.Count -ne 0)')
+    $cleanupRescanIndex = $launcherSource.IndexOf('Get-LauncherOwnedProcessRecords -Roots $Roots -Label $Label -IncludeExitedRoots', $cleanupLoopIndex)
+    $cleanupLifetimeReadIndex = $launcherSource.IndexOf('Get-NormalizedProcessLifetimeStamp -Timestamp ([DateTime]$live.StartTime)', $cleanupRescanIndex)
+    $cleanupLifetimeMismatchIndex = $launcherSource.IndexOf('if ($liveStartStamp -ne [long]$ownedProcess.LifetimeStamp)', $cleanupLifetimeReadIndex)
+    $cleanupStopIndex = $launcherSource.IndexOf('Stop-Process -InputObject $live -Force -ErrorAction Stop', $cleanupLifetimeMismatchIndex)
+    $cleanupFinalRescanIndex = $launcherSource.LastIndexOf('Get-LauncherOwnedProcessRecords -Roots $Roots -Label $Label -IncludeExitedRoots')
+    $cleanupRemainingCheckIndex = $launcherSource.IndexOf('if ($remainingLive.Count -ne 0)')
     $cleanupCompleteIndex = $launcherSource.LastIndexOf('LOCALLAB_OWNED_PROCESS_CLEANUP_COMPLETE')
     Assert-True ($cleanupLoopIndex -ge 0) 'Launcher cleanup convergence loop not found.'
-    Assert-True ($cleanupRescanIndex -gt $cleanupLoopIndex) 'Launcher cleanup does not rescan ownership inside bounded loop.'
-    Assert-True ($cleanupStopIndex -gt $cleanupRescanIndex) 'Launcher cleanup terminates processes before lifetime-bound ownership discovery.'
+    Assert-True ($cleanupRescanIndex -gt $cleanupLoopIndex) 'Launcher cleanup does not rescan lifetime-bearing ownership inside bounded loop.'
+    Assert-True ($cleanupLifetimeReadIndex -gt $cleanupRescanIndex) 'Launcher cleanup does not re-read current lifetime after ownership discovery.'
+    Assert-True ($cleanupLifetimeMismatchIndex -gt $cleanupLifetimeReadIndex) 'Launcher cleanup stop-time lifetime mismatch fence is ordered before current lifetime read.'
+    Assert-True ($cleanupStopIndex -gt $cleanupLifetimeMismatchIndex) 'Launcher cleanup can terminate before exact lifetime revalidation.'
     Assert-True ($cleanupFinalRescanIndex -gt $cleanupStopIndex) 'Launcher cleanup has no final ownership rescan after bounded termination passes.'
-    Assert-True ($cleanupRemainingCheckIndex -gt $cleanupFinalRescanIndex) 'Launcher cleanup checks exhaustion before final ownership rescan.'
+    Assert-True ($cleanupRemainingCheckIndex -gt $cleanupFinalRescanIndex) 'Launcher cleanup checks exhaustion before final lifetime-bound ownership rescan.'
     Assert-True ($cleanupCompleteIndex -gt $cleanupRemainingCheckIndex) 'Launcher cleanup can emit final completion before zero-owned exhaustion proof.'
 }
 
