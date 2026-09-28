@@ -118,7 +118,7 @@ Assert-True ($client -match 'LOCAL_LAB_CLIENT_HOME_DEFAULT') 'Standalone airgap 
 Assert-True ($clientWrapper -match 'LocalLabUserHome') 'Canonical airgap wrapper does not forward isolated client-home authority.'
 
 $standaloneRuntimeCheckIndex = $client.IndexOf('& $runtimeCheck')
-$standaloneJarIndex = $client.IndexOf("$jar = Join-Path $PSScriptRoot 'local-client\client-airgap.jar'")
+$standaloneJarIndex = $client.IndexOf('$jar = Join-Path $PSScriptRoot ''local-client\client-airgap.jar''')
 $standaloneLaunchIndex = $client.IndexOf('& $java.Path @javaArgs -jar $jar')
 Assert-True ($standaloneRuntimeCheckIndex -ge 0) 'Standalone airgap external-runtime verification invocation not found.'
 Assert-True ($standaloneJarIndex -gt $standaloneRuntimeCheckIndex) 'Standalone airgap client path is admitted before external-runtime verification.'
