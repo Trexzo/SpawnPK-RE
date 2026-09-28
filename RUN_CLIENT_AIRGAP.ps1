@@ -6,6 +6,12 @@ Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
 Set-Location $PSScriptRoot
 
+$runtimeCheck = Join-Path $PSScriptRoot 'scripts\Check-ExternalRuntime.ps1'
+if (-not (Test-Path -LiteralPath $runtimeCheck -PathType Leaf)) {
+    throw "Missing LocalLab external-runtime verifier: $runtimeCheck"
+}
+& $runtimeCheck
+
 # Keep the standalone legacy launcher deterministic too. The canonical
 # scripts/Run-Client-Airgap.ps1 already selects Java before delegating here,
 # but users and older tooling may still invoke this file directly.
