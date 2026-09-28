@@ -123,6 +123,8 @@ try {
 
     $touched = New-Object 'System.Collections.Generic.List[object]'
 
+    $finalHashes = @{}
+
     try {
         foreach ($record in $records) {
             $destinationDirectory = Split-Path -Parent $record.Destination
@@ -141,6 +143,25 @@ try {
                 )
             }
         }
+
+        # Keep final whole-triplet verification inside rollback ownership.
+        foreach ($record in $records) {
+            if (-not (Test-Path -LiteralPath $record.Destination -PathType Leaf)) {
+                throw "$($record.Label) destination missing after publication: $($record.Destination)"
+            }
+
+            $finalSha = Get-ExactSha256 $record.Destination
+            if ($finalSha -ne $record.ExpectedSha256) {
+                throw (
+                    "$($record.Label) final destination hash mismatch. " +
+                    "Expected: $($record.ExpectedSha256) Actual: $finalSha"
+                )
+            }
+
+            $finalHashes[$record.Label] = $finalSha
+        }
+
+        Write-Host 'RUNTIME_IMPORT_FINAL_VERIFY_PASS count=3' -ForegroundColor Green
     }
     catch {
         $publishFailure = $_
@@ -180,21 +201,10 @@ try {
         throw $publishFailure
     }
 
-    # Final whole-triplet verification is required before success is published.
     foreach ($record in $records) {
-        if (-not (Test-Path -LiteralPath $record.Destination -PathType Leaf)) {
-            throw "$($record.Label) destination missing after publication: $($record.Destination)"
-        }
-
-        $finalSha = Get-ExactSha256 $record.Destination
-        if ($finalSha -ne $record.ExpectedSha256) {
-            throw (
-                "$($record.Label) final destination hash mismatch. " +
-                "Expected: $($record.ExpectedSha256) Actual: $finalSha"
-            )
-        }
-
-        Write-Host "$($record.Label) IMPORTED sha256=$finalSha" -ForegroundColor Green
+        Write-Host (
+            "$($record.Label) IMPORTED sha256=$($finalHashes[$record.Label])"
+        ) -ForegroundColor Green
     }
 
     Write-Host (
