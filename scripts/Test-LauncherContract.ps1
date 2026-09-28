@@ -747,7 +747,7 @@ Assert-True ($allLocationPopIndex -gt $allCombinedThrowIndex) 'Multi-client call
 
 foreach ($launcherSource in @($quick, $all)) {
     Assert-True ($launcherSource -match 'function Get-NormalizedProcessLifetimeStamp') 'Launcher has no shared deterministic lifetime normalization helper.'
-    Assert-True ($launcherSource -match '\[TimeSpan\]::TicksPerMillisecond') 'Launcher lifetime normalization is not pinned to one-millisecond common precision.'
+    Assert-True ($launcherSource -match '\$ticksPerMicrosecond\s*=\s*10L') 'Launcher lifetime normalization is not pinned to CIM microsecond common precision.'
     Assert-True ($launcherSource -match '\$recordedStartUtc\s*=\s*\(\[DateTime\]\$liveRoot\.StartTime\)\.ToUniversalTime\(\)') 'Launcher live-root ownership does not bind to recorded Process.StartTime.'
     Assert-True ($launcherSource -match '\$currentMatches\s*=\s*@\(') 'Launcher live-root ownership does not resolve current CIM PID identity.'
     Assert-True ($launcherSource -match '\$currentMatches\.Count\s+-ne\s+1') 'Launcher live-root ownership does not require exactly one current PID match.'
@@ -762,7 +762,7 @@ foreach ($launcherSource in @($quick, $all)) {
 
     foreach ($entry in @(
         @('function Get-NormalizedProcessLifetimeStamp', 1),
-        @('[TimeSpan]::TicksPerMillisecond', 1),
+        @('$ticksPerMicrosecond = 10L', 1),
         @('$recordedStartUtc = ([DateTime]$liveRoot.StartTime).ToUniversalTime()', 1),
         @('$currentMatches = @(', 1),
         @('$currentMatches.Count -ne 1', 1),
