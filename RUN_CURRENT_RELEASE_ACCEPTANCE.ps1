@@ -9,10 +9,15 @@ $ErrorActionPreference = "Stop"
 $repo = $PSScriptRoot
 $server = Join-Path $repo "server"
 $gradle = Join-Path $server "gradlew.bat"
+$cumulativeWrapper = Join-Path $repo "scripts\Run-Chat1CumulativeCertification.ps1"
 $expectedV308 = "854f26ff9f134b0317572e7ac1688e6f40a231d5a4c66f8db5d655b7f45ce7c6"
 
 if (-not (Test-Path -LiteralPath $gradle -PathType Leaf)) {
     throw "Missing Gradle wrapper: $gradle"
+}
+
+if (-not (Test-Path -LiteralPath $cumulativeWrapper -PathType Leaf)) {
+    throw "Missing canonical cumulative certification wrapper: $cumulativeWrapper"
 }
 
 $client = (Resolve-Path -LiteralPath $V308ClientPath).Path
@@ -202,15 +207,16 @@ try {
     Write-Host "CURRENT_RELEASE_BUILD_PASS focusedGate=true" -ForegroundColor Green
 
     Invoke-CurrentServerLoopbackSmoke
-
-    & $gradle r85V308Acceptance "-Pv308ClientPath=$client"
-
-    if ($LASTEXITCODE -ne 0) {
-        throw "Exact v308 inherited 179/179 acceptance failed with exit code $LASTEXITCODE"
-    }
-
-    Write-Host "CURRENT_RELEASE_V308_ACCEPTANCE_PASS clientSha256=$actual canonicalPromoted=true" -ForegroundColor Green
 }
 finally {
     Pop-Location
 }
+
+try {
+    & $cumulativeWrapper -ClientJar $client
+}
+catch {
+    throw "Canonical current cumulative certification failed: $($_.Exception.Message)"
+}
+
+Write-Host "CURRENT_RELEASE_CUMULATIVE_CERTIFICATION_PASS clientSha256=$actual hostedPromotionSatisfied=false" -ForegroundColor Green
