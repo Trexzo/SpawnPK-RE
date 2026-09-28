@@ -523,9 +523,9 @@ Assert-True ($runtimeImport -match 'destination changed after rollback snapshot'
 Assert-True ($runtimeImport -match '\$destinationDirectories\s*=\s*@\(\)') 'Runtime importer does not own a unique destination-directory set.'
 Assert-True ($runtimeImport -match 'RUNTIME_IMPORT_DESTINATION_DIRECTORIES_READY') 'Runtime importer does not prove destination-directory ownership before publication.'
 Assert-True ($runtimeImport -match 'restored destination hash mismatch') 'Runtime importer does not verify restored destination bytes against rollback backup.'
-Assert-True ($runtimeImport -match 'Sort-Object \{ \$_.Path\.Length \} -Descending') 'Runtime importer does not clean transaction-created destination directories deepest-first.'
+Assert-True ($runtimeImport -match 'Sort-Object \{ \$_\.Path\.Length \} -Descending') 'Runtime importer does not clean transaction-created destination directories deepest-first.'
 Assert-True ($runtimeImport -match 'Rollback-owned destination directory is not empty') 'Runtime importer does not fail closed instead of deleting unrelated destination-directory material.'
-Assert-True ($runtimeImport -notmatch 'Remove-Item[^\\r\\n]*(evidence|local-client)[^\\r\\n]*-Recurse') 'Runtime importer reintroduced recursive deletion authority over canonical destination directories.'
+Assert-True ($runtimeImport -notmatch 'Remove-Item[^\r\n]*(evidence|local-client)[^\r\n]*-Recurse') 'Runtime importer reintroduced recursive deletion authority over canonical destination directories.'
 Assert-True ($runtimeImport -match 'pathConfinement=true') 'Runtime importer success/preflight markers do not expose path-confinement authority.'
 Assert-True ($runtimeImport -match 'function New-SameDirectoryLeafPath') 'Runtime importer lacks transaction-owned same-directory leaf allocation.'
 Assert-True ($runtimeImport -match 'leaf collision') 'Runtime importer does not fail closed when a generated same-directory leaf path already exists.'
@@ -657,7 +657,7 @@ $runtimeBuilderPatchIndex = $runtimeBuilder.IndexOf('& $python.Source $patcher $
 $runtimeBuilderPrivateReleaseIndex = $runtimeBuilder.LastIndexOf('$privateGuard.Dispose()')
 $runtimeBuilderSnapshotCleanupIndex = $runtimeBuilder.LastIndexOf('Remove-Item -LiteralPath $snapshotRoot -Recurse -Force')
 $runtimeBuilderFailureReplayIndex = $runtimeBuilder.IndexOf('throw $patcherFailure')
-$runtimeBuilderFinalVerifyIndex = $runtimeBuilder.IndexOf("& (Join-Path $PSScriptRoot 'Check-ExternalRuntime.ps1')")
+$runtimeBuilderFinalVerifyIndex = $runtimeBuilder.IndexOf("& (Join-Path `$PSScriptRoot 'Check-ExternalRuntime.ps1')")
 Assert-True ($runtimeBuilderCanonicalClientIndex -ge 0) 'PowerShell runtime builder canonical-client admission check not found.'
 Assert-True ($runtimeBuilderOutputIndex -gt $runtimeBuilderCanonicalClientIndex) 'PowerShell runtime builder validates canonical output before canonical client admission.'
 Assert-True ($runtimeBuilderPathFenceIndex -gt $runtimeBuilderOutputIndex) 'PowerShell runtime builder checks path confinement before canonical lexical admission completes.'
