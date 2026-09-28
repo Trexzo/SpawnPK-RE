@@ -1,3 +1,9 @@
+# HISTORICAL SEALED R8.5 BASELINE VERIFIER
+# This script intentionally preserves the 2026-09-19 v307/v5131 certification contract.
+# It is not the current development-runtime verifier.
+# For current exact-v308 authority use scripts\Check-ExternalRuntime.ps1 and
+# RUN_CURRENT_RELEASE_ACCEPTANCE.ps1.
+
 param(
   [string]$Target=$PSScriptRoot,
   [string]$ConfigDir=(Join-Path $env:USERPROFILE '.spawnpk\configs')
