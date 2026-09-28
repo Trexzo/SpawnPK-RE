@@ -114,6 +114,30 @@ function Assert-RegularDestinationOrMissing(
     return $full
 }
 
+function Assert-DestinationSnapshotStillOwned([object]$Record) {
+    [void](Assert-RegularDestinationOrMissing $Record.Destination $Record.Label)
+    $existsNow = Test-Path -LiteralPath $Record.Destination -PathType Leaf
+
+    if ($Record.Existed) {
+        if (-not $existsNow) {
+            throw "$($Record.Label) destination disappeared after rollback snapshot: $($Record.Destination)"
+        }
+
+        $backupSha = Get-ExactSha256 $Record.Backup
+        $currentSha = Get-ExactSha256 $Record.Destination
+
+        if ($currentSha -ne $backupSha) {
+            throw (
+                "$($Record.Label) destination changed after rollback snapshot. " +
+                "Snapshot: $backupSha Current: $currentSha"
+            )
+        }
+    }
+    elseif ($existsNow) {
+        throw "$($Record.Label) destination appeared after rollback snapshot: $($Record.Destination)"
+    }
+}
+
 $records = @()
 
 # Prove the complete source triplet before creating any destination state.
@@ -258,7 +282,10 @@ try {
 
     try {
         foreach ($record in $records) {
-            [void](Assert-RegularDestinationOrMissing $record.Destination $record.Label)
+            # Revalidate the exact file snapshot immediately before ownership.
+            # This prevents overwriting a concurrent file that appeared/changed
+            # after backup state was frozen.
+            Assert-DestinationSnapshotStillOwned $record
 
             # Add rollback ownership before the first destination write.
             $touched.Add($record)
