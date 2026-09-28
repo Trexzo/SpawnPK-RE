@@ -156,11 +156,15 @@ function New-SameDirectoryLeafPath(
     )
 
     $leaf = Join-Path $directory $leafName
-    return (
-        Assert-PathInsideRepository `
-            $leaf `
-            "$($Record.Label) $Purpose leaf"
-    )
+    $leaf = Assert-PathInsideRepository `
+        $leaf `
+        "$($Record.Label) $Purpose leaf"
+
+    if (Test-Path -LiteralPath $leaf) {
+        throw "$($Record.Label) $Purpose leaf collision: $leaf"
+    }
+
+    return $leaf
 }
 
 function New-VerifiedSameDirectoryLeaf(
