@@ -8,9 +8,11 @@ $ErrorActionPreference = 'Stop'
 $hadCallerJavaHome = Test-Path Env:JAVA_HOME
 $callerJavaHome = $env:JAVA_HOME
 $callerPath = $env:Path
+$callerLocationPushed = $false
 
 try {
-    Set-Location $PSScriptRoot
+    Push-Location -LiteralPath $PSScriptRoot
+    $callerLocationPushed = $true
 
 $runtimeCheck = Join-Path $PSScriptRoot 'scripts\Check-ExternalRuntime.ps1'
 if (-not (Test-Path -LiteralPath $runtimeCheck -PathType Leaf)) {
@@ -84,6 +86,10 @@ if ($LASTEXITCODE -ne 0) {
 
 }
 finally {
+    if ($callerLocationPushed) {
+        Pop-Location
+    }
+
     if ($hadCallerJavaHome) {
         $env:JAVA_HOME = $callerJavaHome
     }
