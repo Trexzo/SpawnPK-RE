@@ -927,6 +927,10 @@ public final class KotlinPluginLoaderTest {
             root.resolve(
                 "huge-named-api.jar"
             );
+        Path alias=
+            root.resolve(
+                "alias.jar"
+            );
 
         try{
             Files.copy(
@@ -1044,6 +1048,48 @@ public final class KotlinPluginLoaderTest {
 
             writeJarWithRawManifest(
                 healthyClasspath.get(0),
+                alias,
+                "meta-inf/manifest.mf",
+                (
+                    "Manifest-Version: 1.0\r\n"+
+                    "Class-Path: hidden.jar\r\n"+
+                    "\r\n"
+                ).getBytes(
+                    java.nio.charset.StandardCharsets.UTF_8
+                )
+            );
+
+            boolean aliasRejected=false;
+
+            try{
+                constructor.newInstance(
+                    apiJar,
+                    java.util.Collections
+                        .singletonList(
+                            alias
+                        )
+                );
+            }catch(InvocationTargetException expected){
+                Throwable cause=
+                    expected.getCause();
+
+                aliasRejected=
+                    cause instanceof
+                        IllegalArgumentException&&
+                    cause.getMessage()!=null&&
+                    cause.getMessage()
+                        .contains(
+                            "manifest entry name is non-canonical"
+                        );
+            }
+
+            if(!aliasRejected)
+                throw new AssertionError(
+                    "case-aliased Kotlin dependency manifest was accepted"
+                );
+
+            writeJarWithRawManifest(
+                healthyClasspath.get(0),
                 hugeNamed,
                 hugeNamedManifest()
             );
@@ -1067,6 +1113,9 @@ public final class KotlinPluginLoaderTest {
                 healthyClasspath
             );
         }finally{
+            Files.deleteIfExists(
+                alias
+            );
             Files.deleteIfExists(
                 hugeNamedApi
             );
@@ -1155,6 +1204,20 @@ public final class KotlinPluginLoaderTest {
         Path target,
         byte[] manifestBytes
     )throws Exception{
+        writeJarWithRawManifest(
+            source,
+            target,
+            "META-INF/MANIFEST.MF",
+            manifestBytes
+        );
+    }
+
+    private static void writeJarWithRawManifest(
+        Path source,
+        Path target,
+        String manifestEntry,
+        byte[] manifestBytes
+    )throws Exception{
         try(java.util.jar.JarFile input=
                 new java.util.jar.JarFile(
                     source.toFile()
@@ -1167,7 +1230,7 @@ public final class KotlinPluginLoaderTest {
                 )){
             output.putNextEntry(
                 new JarEntry(
-                    "META-INF/MANIFEST.MF"
+                    manifestEntry
                 )
             );
             output.write(
