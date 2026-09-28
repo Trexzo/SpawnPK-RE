@@ -4266,9 +4266,19 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
             text.indexOf(
                 "'chat1CurrentCumulativeCertification'"
             )
-        int sourceGuardIndex =
+        int sourceOpenIndex =
             text.indexOf(
-                '$sourceGuard ='
+                '[IO.File]::Open('
+            )
+        int writerOpenIndex =
+            text.indexOf(
+                '[IO.File]::Open(',
+                sourceOpenIndex + 1
+            )
+        int privateOpenIndex =
+            text.indexOf(
+                '[IO.File]::Open(',
+                writerOpenIndex + 1
             )
         int sourceHashIndex =
             text.indexOf(
@@ -4277,10 +4287,6 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
         int copyIndex =
             text.indexOf(
                 '$sourceGuard.CopyTo($snapshotWriter)'
-            )
-        int privateGuardIndex =
-            text.indexOf(
-                '$privateGuard ='
             )
         int privateHashIndex =
             text.indexOf(
@@ -4319,14 +4325,15 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
                 'CHAT1_CUMULATIVE_WRAPPER_COMPLETE'
             )
 
-        if(sourceGuardIndex < 0 ||
-           sourceHashIndex <= sourceGuardIndex ||
-           copyIndex <= sourceHashIndex ||
-           privateGuardIndex <= copyIndex ||
-           privateHashIndex <= privateGuardIndex ||
+        if(sourceOpenIndex < 0 ||
+           sourceHashIndex <= sourceOpenIndex ||
+           writerOpenIndex <= sourceHashIndex ||
+           copyIndex <= writerOpenIndex ||
+           privateOpenIndex <= copyIndex ||
+           privateHashIndex <= privateOpenIndex ||
            sourceReleaseIndex <= privateHashIndex)
             throw new GradleException(
-                'Wrapper exact-v308 client admission ordering drifted: expected guarded source -> source hash -> private copy -> private guard -> private hash -> source release.'
+                'Wrapper exact-v308 client admission ordering drifted: expected guarded source open -> source hash -> private writer open/copy -> private guard open -> private hash -> source release.'
             )
 
         if(text.contains('"-Pv308ClientPath=$client"'))
