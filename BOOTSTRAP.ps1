@@ -9,8 +9,13 @@ $ErrorActionPreference = 'Stop'
 
 $repo = $PSScriptRoot
 
-. (Join-Path $repo 'scripts\Select-LocalLabJava.ps1')
-$java = Set-LocalLabJava
+$hadCallerJavaHome = Test-Path Env:JAVA_HOME
+$callerJavaHome = $env:JAVA_HOME
+$callerPath = $env:Path
+
+try {
+    . (Join-Path $repo 'scripts\Select-LocalLabJava.ps1')
+    $java = Set-LocalLabJava
 
 if (-not $ServerOnly) {
     & (Join-Path $repo 'scripts\Check-ExternalRuntime.ps1')
@@ -44,3 +49,14 @@ if (-not $SkipSelfTest) {
 
 Write-Host 'BOOTSTRAP_COMPLETE' -ForegroundColor Green
 Write-Host 'Run: .\RUN_LOCAL_LAB.ps1' -ForegroundColor Cyan
+
+}
+finally {
+    if ($hadCallerJavaHome) {
+        $env:JAVA_HOME = $callerJavaHome
+    }
+    else {
+        Remove-Item Env:JAVA_HOME -ErrorAction SilentlyContinue
+    }
+    $env:Path = $callerPath
+}
