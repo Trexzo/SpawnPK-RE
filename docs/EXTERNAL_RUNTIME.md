@@ -23,17 +23,27 @@ The localhost and airgap JARs are deterministic derivatives of the exact v308 in
 No patched proprietary JAR is committed. Generated JAR entries use deterministic STORED
 ZIP records so whole-JAR hashes do not depend on the caller's Python/zlib version.
 
-Run:
+Use the canonical operator wrapper from the repository root:
 
 ```powershell
-python .\tools\runtime\build_v308_local_clients.py .\evidence\client(6).jar .\local-client
+.\scripts\Build-V308LocalClients.ps1
 ```
 
-Expected marker:
+The wrapper:
+- requires the canonical `evidence\client(6).jar` input path;
+- requires the canonical `local-client\` output directory;
+- independently checks the exact v308 input SHA-256;
+- invokes `tools\runtime\build_v308_local_clients.py`;
+- runs `scripts\Check-ExternalRuntime.ps1` afterward so the complete
+  evidence/airgap/localhost triplet is verified before success.
 
-`V308_LOCAL_CLIENT_PATCH_PASS`
+Expected final wrapper marker:
 
-The patcher rejects any input JAR whose SHA-256 is not the exact v308 authority above.
+`V308_LOCAL_CLIENT_BUILD_AND_VERIFY_PASS`
+
+The Python patcher is the deterministic implementation layer used by that wrapper.
+For research/tool development it may be invoked directly, but the canonical LocalLab
+runtime should be rebuilt through the PowerShell wrapper above.
 
 ### localhost variant
 
@@ -72,10 +82,26 @@ For LocalLab custom-asset work, use the isolated profile root:
 
 Do not write generated LocalLab assets into the real OS user profile.
 
-## Existing R8.5 definition patching
+## Live configs and custom assets
 
-R8.5 modifies only local definition metadata in:
-- `.spawnpk\configs\i.bin`;
-- `.spawnpk\configs\e.bin`.
+Normal bootstrap does **not** rewrite the authorized live client config files:
 
-The existing bootstrap path backs those files up before patching. The v308 external-runtime rebuild in this issue does not broaden that cache-mutation authority.
+- `%USERPROFILE%\.spawnpk\configs\i.bin`;
+- `%USERPROFILE%\.spawnpk\configs\e.bin`.
+
+The former direct live-config patch path is retired. `scripts\Patch-LocalConfigs.ps1`
+is retained only as a fail-closed compatibility shim and does not copy or mutate
+client config bytes.
+
+Custom LocalLab asset work belongs in an isolated client profile/cache copy. Use:
+
+```powershell
+.\scripts\Run-R13AssetAcceptance.ps1 -BaseSpawnpk "<authorized .spawnpk directory>"
+```
+
+or the underlying isolated profile tooling in
+`tools\custom-assets\build_r13_isolated_profile.py`.
+
+The exact-v308 external-runtime rebuild changes only the generated LocalLab client
+variants under `local-client\`; it does not grant authority to mutate the user's
+live `.spawnpk\configs` tree.
