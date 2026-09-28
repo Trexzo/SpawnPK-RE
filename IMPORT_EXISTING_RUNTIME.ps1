@@ -167,6 +167,9 @@ foreach ($item in $items) {
         Stage = $null
         Backup = $null
         Existed = $false
+        WriteStarted = $false
+        PublishedAndVerified = $false
+        PublishedSha256 = $null
     }
 }
 
@@ -288,7 +291,10 @@ try {
             Assert-DestinationSnapshotStillOwned $record
 
             # Add rollback ownership before the first destination write.
+            # A failed/partial write stays touched, but does not gain destructive
+            # rollback authority until its exact postimage has been verified.
             $touched.Add($record)
+            $record.WriteStarted = $true
 
             Copy-Item -LiteralPath $record.Stage -Destination $record.Destination -Force
 
@@ -299,6 +305,9 @@ try {
                     "Expected: $($record.ExpectedSha256) Actual: $publishedSha"
                 )
             }
+
+            $record.PublishedSha256 = $publishedSha
+            $record.PublishedAndVerified = $true
         }
 
         # Keep final whole-triplet verification inside rollback ownership.
@@ -328,8 +337,32 @@ try {
 
         foreach ($record in $rollbackTargets) {
             try {
+                if (-not $record.WriteStarted) {
+                    throw "$($record.Label) rollback state is inconsistent: touched without WriteStarted."
+                }
+
+                if (-not $record.PublishedAndVerified -or
+                    [string]::IsNullOrWhiteSpace([string]$record.PublishedSha256)) {
+                    throw (
+                        "$($record.Label) rollback ownership cannot be proven after incomplete publication; " +
+                        'destination left untouched.'
+                    )
+                }
+
+                [void](Assert-RegularDestinationOrMissing $record.Destination $record.Label)
+                if (-not (Test-Path -LiteralPath $record.Destination -PathType Leaf)) {
+                    throw "$($record.Label) rollback ownership lost: published destination is missing."
+                }
+
+                $rollbackCurrentSha = Get-ExactSha256 $record.Destination
+                if ($rollbackCurrentSha -ne $record.PublishedSha256) {
+                    throw (
+                        "$($record.Label) rollback ownership lost after publication. " +
+                        "Published: $($record.PublishedSha256) Current: $rollbackCurrentSha"
+                    )
+                }
+
                 if ($record.Existed) {
-                    [void](Assert-RegularDestinationOrMissing $record.Destination $record.Label)
                     Copy-Item -LiteralPath $record.Backup -Destination $record.Destination -Force
 
                     $backupSha = Get-ExactSha256 $record.Backup
@@ -341,8 +374,7 @@ try {
                         )
                     }
                 }
-                elseif (Test-Path -LiteralPath $record.Destination) {
-                    [void](Assert-RegularDestinationOrMissing $record.Destination $record.Label)
+                else {
                     Remove-Item -LiteralPath $record.Destination -Force
                 }
             }
