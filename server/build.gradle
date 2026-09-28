@@ -4025,7 +4025,7 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
             "\$ErrorActionPreference = 'Continue'",
             'spawnpk-chat1-local-certification-evidence-v1',
             'hostedPromotionSatisfied = $false',
-            'hostedPromotionBlocker = ''#816''',
+            "hostedPromotionBlocker = '#816'",
             'Set-Content -LiteralPath $evidence',
             'CHAT1_CUMULATIVE_WRAPPER_COMPLETE',
             'hostedPromotionSatisfied=false',
