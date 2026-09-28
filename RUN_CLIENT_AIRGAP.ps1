@@ -109,24 +109,37 @@ if ($LASTEXITCODE -ne 0) {
 
 }
 finally {
-    if ($null -ne $launchSnapshot -and
-        (Test-Path -LiteralPath $launchSnapshot)) {
-        $snapshotItem = Get-Item -LiteralPath $launchSnapshot -Force
+    $snapshotCleanupFailure = $null
+    $locationCleanupFailure = $null
 
-        if ($snapshotItem.PSIsContainer -or
-            (($snapshotItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0)) {
-            throw "Invocation-owned AIRGAP snapshot identity changed before cleanup: $launchSnapshot"
+    try {
+        if ($null -ne $launchSnapshot -and
+            (Test-Path -LiteralPath $launchSnapshot)) {
+            $snapshotItem = Get-Item -LiteralPath $launchSnapshot -Force
+
+            if ($snapshotItem.PSIsContainer -or
+                (($snapshotItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0)) {
+                throw "Invocation-owned AIRGAP snapshot identity changed before cleanup: $launchSnapshot"
+            }
+
+            Remove-Item -LiteralPath $launchSnapshot -Force -ErrorAction Stop
+
+            if (Test-Path -LiteralPath $launchSnapshot) {
+                throw "Invocation-owned AIRGAP snapshot cleanup did not remove: $launchSnapshot"
+            }
         }
-
-        Remove-Item -LiteralPath $launchSnapshot -Force -ErrorAction Stop
-
-        if (Test-Path -LiteralPath $launchSnapshot) {
-            throw "Invocation-owned AIRGAP snapshot cleanup did not remove: $launchSnapshot"
-        }
+    }
+    catch {
+        $snapshotCleanupFailure = $_
     }
 
     if ($callerLocationPushed) {
-        Pop-Location
+        try {
+            Pop-Location
+        }
+        catch {
+            $locationCleanupFailure = $_
+        }
     }
 
     if ($hadCallerJavaHome) {
@@ -136,4 +149,20 @@ finally {
         Remove-Item Env:JAVA_HOME -ErrorAction SilentlyContinue
     }
     $env:Path = $callerPath
+
+    if ($null -ne $snapshotCleanupFailure -or
+        $null -ne $locationCleanupFailure) {
+        $cleanupParts = @()
+        if ($null -ne $snapshotCleanupFailure) {
+            $cleanupParts += "snapshot=$($snapshotCleanupFailure.Exception.Message)"
+        }
+        if ($null -ne $locationCleanupFailure) {
+            $cleanupParts += "location=$($locationCleanupFailure.Exception.Message)"
+        }
+
+        throw (
+            'AIRGAP launcher cleanup was incomplete after caller-state restoration. ' +
+            ($cleanupParts -join ' | ')
+        )
+    }
 }
