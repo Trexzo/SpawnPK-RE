@@ -4153,10 +4153,10 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
             )
 
         if(currentBuildIndex < 0 ||
-           currentLoopbackIndex <= currentBuildIndex ||
-           currentCumulativeIndex <= currentLoopbackIndex)
+           currentCumulativeIndex <= currentBuildIndex ||
+           currentLoopbackIndex <= currentCumulativeIndex)
             throw new GradleException(
-                'Current release acceptance ordering drifted: expected clean build -> loopback smoke -> canonical cumulative wrapper.'
+                'Current release acceptance ordering drifted: expected clean build -> canonical cumulative wrapper -> loopback smoke.'
             )
 
         int currentCumulativeCount = 0
