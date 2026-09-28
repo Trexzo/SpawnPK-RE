@@ -130,7 +130,6 @@ $oldJavaHome = $env:JAVA_HOME
 $oldPath = $env:Path
 $sourceGuard = $null
 $privateGuard = $null
-$serverGuard = $null
 $certifiedServerSha = $null
 
 try {
@@ -245,15 +244,26 @@ try {
 
     # Observe the Gradle-owned authoritative marker after native exit 0.
     # This wrapper never emits that release marker itself.
-    $markerMatch =
+    $markerMatches = @(
         Select-String -LiteralPath $log -SimpleMatch -Pattern 'SPAWNPK_CHAT1_CURRENT_CUMULATIVE_CERTIFICATION_PASS'
+    )
 
-    if ($null -eq $markerMatch) {
+    if ($markerMatches.Count -ne 1) {
         throw (
-            'Gradle returned exit 0 but the authoritative cumulative PASS marker ' +
-            'was not observed in the captured log.'
+            'Expected exactly one Gradle-owned cumulative PASS marker in the captured log. ' +
+            "Observed: $($markerMatches.Count)"
         )
     }
+
+    $markerLine = [string]$markerMatches[0].Line
+    $serverShaMatch = [regex]::Match(
+        $markerLine,
+        '(?:^|\s)serverSha256=([0-9a-f]{64})(?=\s|$)'
+    )
+    if (-not $serverShaMatch.Success) {
+        throw 'Gradle-owned cumulative PASS marker lacks a valid serverSha256 field.'
+    }
+    $certifiedServerSha = $serverShaMatch.Groups[1].Value
 
     $dirtyAfter = @(Get-TrackedWorktreeChanges)
     if ($dirtyAfter.Count -ne 0) {
@@ -269,25 +279,6 @@ try {
             'Git HEAD changed during cumulative certification. ' +
             "Before: $headBefore After: $headAfter"
         )
-    }
-
-    # Bind durable cumulative evidence to the exact generated server JAR
-    # identity produced by this successful certification invocation.
-    $certifiedServerJar = Join-Path $repo 'server\build\SpawnPKLocalServer.jar'
-    if (-not (Test-Path -LiteralPath $certifiedServerJar -PathType Leaf)) {
-        throw "Cumulative certification produced no server JAR: $certifiedServerJar"
-    }
-
-    $serverGuard =
-        [IO.File]::Open(
-            $certifiedServerJar,
-            [IO.FileMode]::Open,
-            [IO.FileAccess]::Read,
-            [IO.FileShare]::Read
-        )
-    $certifiedServerSha = Get-Sha256Hex -Stream $serverGuard
-    if ($certifiedServerSha -notmatch '^[0-9a-f]{64}$') {
-        throw "Invalid cumulative-certified server SHA-256: $certifiedServerSha"
     }
 
     $logItem = Get-Item -LiteralPath $log
@@ -315,11 +306,6 @@ try {
 }
 finally {
     try {
-        if ($null -ne $serverGuard) {
-            $serverGuard.Dispose()
-            $serverGuard = $null
-        }
-
         if ($null -ne $privateGuard) {
             $privateGuard.Dispose()
             $privateGuard = $null
