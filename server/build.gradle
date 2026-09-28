@@ -4097,7 +4097,7 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
             '$logGuard.Flush($true)',
             'Write-Host $line',
             'Get-FileHash -InputStream $logGuard -Algorithm SHA256',
-            "$authoritativeMarker = 'SPAWNPK_CHAT1_CURRENT_CUMULATIVE_CERTIFICATION_PASS'",
+            '$authoritativeMarker = \'SPAWNPK_CHAT1_CURRENT_CUMULATIVE_CERTIFICATION_PASS\'',
             '$gradleOutput |',
             '$gradleExit = $LASTEXITCODE',
             "\$ErrorActionPreference = 'Continue'",
@@ -4210,7 +4210,7 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
         [
             'function Get-ExactGitHead',
             '& $gradlew @gradleArgs',
-            "$authoritativeMarker = 'SPAWNPK_CHAT1_CURRENT_CUMULATIVE_CERTIFICATION_PASS'",
+            '$authoritativeMarker = \'SPAWNPK_CHAT1_CURRENT_CUMULATIVE_CERTIFICATION_PASS\'',
             'New-Object \'System.Collections.Generic.List[string]\'',
             '[void]$gradleOutput.Add($line)',
             '$logWriter.WriteLine($line)',
