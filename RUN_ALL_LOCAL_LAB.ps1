@@ -75,10 +75,49 @@ function Get-LauncherOwnedProcessIds {
 
     $depthByPid = @{}
 
-    foreach ($liveRootPid in $liveRootPids) {
+    foreach ($liveRoot in $liveRoots) {
+        $liveRootPid = [int]$liveRoot.Id
         if ($liveRootPid -eq $PID) {
             throw "$Label refused current launcher PID as an owned child root: $liveRootPid"
         }
+
+        try {
+            $recordedStartUtc = ([DateTime]$liveRoot.StartTime).ToUniversalTime()
+        }
+        catch {
+            throw "$Label cannot prove live-root start time for PID $liveRootPid : $($_.Exception.Message)"
+        }
+
+        $currentMatches = @(
+            $snapshot |
+                Where-Object { [int]$_.ProcessId -eq $liveRootPid }
+        )
+
+        if ($currentMatches.Count -ne 1) {
+            throw "$Label cannot prove unique current live-root identity for PID $liveRootPid count=$($currentMatches.Count)"
+        }
+
+        try {
+            $currentCreatedUtc = ([DateTime]$currentMatches[0].CreationDate).ToUniversalTime()
+        }
+        catch {
+            throw "$Label cannot prove current live-root creation time for PID $liveRootPid : $($_.Exception.Message)"
+        }
+
+        $liveRootStartDeltaSeconds = [Math]::Abs(
+            ($currentCreatedUtc - $recordedStartUtc).TotalSeconds
+        )
+
+        if ($liveRootStartDeltaSeconds -gt 2.0) {
+            throw (
+                "$Label refused live-root PID lifetime mismatch. " +
+                "pid=$liveRootPid " +
+                "recordedStart=$($recordedStartUtc.ToString('o')) " +
+                "currentCreated=$($currentCreatedUtc.ToString('o')) " +
+                "deltaSeconds=$liveRootStartDeltaSeconds"
+            )
+        }
+
         $depthByPid[$liveRootPid] = 0
     }
 
