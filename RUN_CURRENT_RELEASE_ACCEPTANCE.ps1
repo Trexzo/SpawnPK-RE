@@ -197,8 +197,12 @@ function Invoke-CurrentServerLoopbackSmoke {
     }
     finally {
         if ($null -ne $process -and -not $process.HasExited) {
-            Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
-            Wait-Process -Id $process.Id -ErrorAction SilentlyContinue
+            Stop-Process -InputObject $process -Force -ErrorAction SilentlyContinue
+            try {
+                [void]$process.WaitForExit(5000)
+            }
+            catch {
+            }
         }
     }
 }
