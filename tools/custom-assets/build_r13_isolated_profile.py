@@ -79,6 +79,29 @@ def packed_model_occupied(idx1: Path, model_id: int) -> bool:
     return length != 0 or sector != 0
 
 
+def validate_output_home(
+    base: Path,
+    output_home: Path,
+    real_home: Path,
+) -> None:
+    source_home = base.parent.resolve()
+
+    if (
+        output_home == real_home
+        or output_home == source_home
+        or output_home == base
+        or base in output_home.parents
+    ):
+        raise ValueError(
+            "refusing real/source/cache-contained user.home as isolated output"
+        )
+
+    if output_home.exists():
+        raise ValueError(
+            f"output home already exists; refusing replacement: {output_home}"
+        )
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--base-spawnpk", required=True, type=Path)
@@ -105,22 +128,14 @@ def main() -> int:
 
     real_home = Path.home().resolve()
 
-    source_home = base.parent.resolve()
-
-    if (
-        output_home == real_home
-        or output_home == source_home
-        or output_home == base
-        or base in output_home.parents
-    ):
-        raise SystemExit(
-            "refusing real/source/cache-contained user.home as isolated output"
+    try:
+        validate_output_home(
+            base,
+            output_home,
+            real_home,
         )
-
-    if output_home.exists():
-        raise SystemExit(
-            f"output home already exists; refusing replacement: {output_home}"
-        )
+    except ValueError as exc:
+        raise SystemExit(str(exc)) from exc
 
     required = (
         "configs/i.bin",
