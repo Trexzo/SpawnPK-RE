@@ -629,68 +629,8 @@ try {
 
     $certifiedServerSha = [string]$cumulativeResult.certifiedServerJarSha256
     $expectedEvidenceSha = [string]$cumulativeResult.evidenceSha256
-    if ($certifiedServerSha -notmatch '^[0-9a-f]{64}
-    Write-Host (
-        "CURRENT_RELEASE_CUMULATIVE_CERTIFICATION_PASS " +
-        "head=$releaseHead clientSha256=$actual " +
-        "serverSha256=$certifiedServerSha hostedPromotionSatisfied=false"
-    ) -ForegroundColor Green
-
-    Assert-ReleaseSourceIdentity -ExpectedHead $releaseHead -Phase "post-cumulative"
-
-    $certifiedJar = Join-Path $server "build\SpawnPKLocalServer.jar"
-    $smokeEvidence = Invoke-CurrentServerLoopbackSmoke -CanonicalJar $certifiedJar -ExpectedServerSha256 $certifiedServerSha
-
-    Assert-ReleaseSourceIdentity -ExpectedHead $releaseHead -Phase "post-smoke"
-
-    Write-Host (
-        "CURRENT_RELEASE_ACCEPTANCE_PASS " +
-        "head=$releaseHead clientSha256=$actual " +
-        "serverSha256=$($smokeEvidence.ServerSha256) " +
-        "hostedPromotionSatisfied=false"
-    ) -ForegroundColor Green
-}
-finally {
-    if ($hadCallerJavaHome) {
-        $env:JAVA_HOME = $callerJavaHome
-    }
-    else {
-        Remove-Item Env:JAVA_HOME -ErrorAction SilentlyContinue
-    }
-    $env:Path = $callerPath
-}
- -or
-        $expectedEvidenceSha -notmatch '^[0-9a-f]{64}
-    Write-Host (
-        "CURRENT_RELEASE_CUMULATIVE_CERTIFICATION_PASS " +
-        "head=$releaseHead clientSha256=$actual " +
-        "serverSha256=$certifiedServerSha hostedPromotionSatisfied=false"
-    ) -ForegroundColor Green
-
-    Assert-ReleaseSourceIdentity -ExpectedHead $releaseHead -Phase "post-cumulative"
-
-    $certifiedJar = Join-Path $server "build\SpawnPKLocalServer.jar"
-    $smokeEvidence = Invoke-CurrentServerLoopbackSmoke -CanonicalJar $certifiedJar -ExpectedServerSha256 $certifiedServerSha
-
-    Assert-ReleaseSourceIdentity -ExpectedHead $releaseHead -Phase "post-smoke"
-
-    Write-Host (
-        "CURRENT_RELEASE_ACCEPTANCE_PASS " +
-        "head=$releaseHead clientSha256=$actual " +
-        "serverSha256=$($smokeEvidence.ServerSha256) " +
-        "hostedPromotionSatisfied=false"
-    ) -ForegroundColor Green
-}
-finally {
-    if ($hadCallerJavaHome) {
-        $env:JAVA_HOME = $callerJavaHome
-    }
-    else {
-        Remove-Item Env:JAVA_HOME -ErrorAction SilentlyContinue
-    }
-    $env:Path = $callerPath
-}
-) {
+    if ($certifiedServerSha -notmatch '^[0-9a-f]{64}$' -or
+        $expectedEvidenceSha -notmatch '^[0-9a-f]{64}$') {
         throw "Canonical cumulative wrapper result lacks valid SHA-256 identity."
     }
 
