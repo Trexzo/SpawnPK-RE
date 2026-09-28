@@ -22,14 +22,52 @@ final class BoundedManifestMain {
     static final int MAX_MAIN_SECTION_BYTES=
         64*1024;
 
+    private static final String MANIFEST_ENTRY=
+        "META-INF/MANIFEST.MF";
+
     static Attributes readMainAttributes(
         JarFile jar,
         Path archive
     )throws IOException{
-        JarEntry entry=
-            jar.getJarEntry(
-                "META-INF/MANIFEST.MF"
-            );
+        JarEntry entry=null;
+        java.util.Enumeration<JarEntry> entries=
+            jar.entries();
+
+        while(entries.hasMoreElements()){
+            JarEntry candidate=
+                entries.nextElement();
+
+            if(candidate.isDirectory())
+                continue;
+
+            String name=
+                candidate.getName()
+                    .replace(
+                        '\\',
+                        '/'
+                    );
+
+            if(!name.equalsIgnoreCase(
+                    MANIFEST_ENTRY))
+                continue;
+
+            if(!name.equals(
+                    MANIFEST_ENTRY))
+                throw new IllegalArgumentException(
+                    "plugin manifest entry name is non-canonical: "+
+                    name+
+                    " archive="+
+                    archive
+                );
+
+            if(entry!=null)
+                throw new IllegalArgumentException(
+                    "plugin archive contains duplicate manifest authority: "+
+                    archive
+                );
+
+            entry=candidate;
+        }
 
         if(entry==null)
             return null;
