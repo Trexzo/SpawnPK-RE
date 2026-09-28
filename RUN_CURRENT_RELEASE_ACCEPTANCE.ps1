@@ -10,6 +10,7 @@ $repo = $PSScriptRoot
 $server = Join-Path $repo "server"
 $gradle = Join-Path $server "gradlew.bat"
 $cumulativeWrapper = Join-Path $repo "scripts\Run-Chat1CumulativeCertification.ps1"
+$runtimeJavaSelector = Join-Path $repo "scripts\Select-LocalLabJava.ps1"
 $expectedV308 = "854f26ff9f134b0317572e7ac1688e6f40a231d5a4c66f8db5d655b7f45ce7c6"
 
 if (-not (Test-Path -LiteralPath $gradle -PathType Leaf)) {
@@ -19,6 +20,13 @@ if (-not (Test-Path -LiteralPath $gradle -PathType Leaf)) {
 if (-not (Test-Path -LiteralPath $cumulativeWrapper -PathType Leaf)) {
     throw "Missing canonical cumulative certification wrapper: $cumulativeWrapper"
 }
+
+if (-not (Test-Path -LiteralPath $runtimeJavaSelector -PathType Leaf)) {
+    throw "Missing canonical runtime Java selector: $runtimeJavaSelector"
+}
+
+. $runtimeJavaSelector
+$runtimeJava = Set-LocalLabJava
 
 $client = (Resolve-Path -LiteralPath $V308ClientPath).Path
 
@@ -90,12 +98,6 @@ function Invoke-CurrentServerLoopbackSmoke {
         throw "Missing built LocalLab server JAR: $jar"
     }
 
-    $javaCommand = Get-Command java.exe -ErrorAction SilentlyContinue
-
-    if ($null -eq $javaCommand) {
-        $javaCommand = Get-Command java -ErrorAction Stop
-    }
-
     $smokeDir = Join-Path $server "build\release-smoke"
     $stdout = Join-Path $smokeDir "server.stdout.log"
     $stderr = Join-Path $smokeDir "server.stderr.log"
@@ -106,7 +108,7 @@ function Invoke-CurrentServerLoopbackSmoke {
     Remove-Item -LiteralPath $stdout, $stderr, $versionsPath, $shaPath -Force -ErrorAction SilentlyContinue
 
     $process = Start-Process `
-        -FilePath $javaCommand.Source `
+        -FilePath $runtimeJava.Path `
         -ArgumentList @("-jar", "`"$jar`"", "--bootstrap", "--movement") `
         -WorkingDirectory $repo `
         -RedirectStandardOutput $stdout `
