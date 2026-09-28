@@ -42,6 +42,7 @@ $launcherFiles = @(
     'RUN_SECOND_LOCAL_CLIENT.ps1',
     'RUN_CLIENT_LOCALHOST_NONAIRGAP.ps1',
     'RUN_ALL_LOCAL_LAB.ps1',
+    'RUN_LOCAL_LAB.ps1',
     'RUN_CURRENT_RELEASE_ACCEPTANCE.ps1',
     'WATCH_CLIENT_NETWORK.ps1',
     'scripts\Run-Server.ps1',
@@ -60,6 +61,7 @@ $client = Read-RepoFile 'RUN_CLIENT_AIRGAP.ps1'
 $secondClient = Read-RepoFile 'RUN_SECOND_LOCAL_CLIENT.ps1'
 $nonAirgap = Read-RepoFile 'RUN_CLIENT_LOCALHOST_NONAIRGAP.ps1'
 $all = Read-RepoFile 'RUN_ALL_LOCAL_LAB.ps1'
+$quick = Read-RepoFile 'RUN_LOCAL_LAB.ps1'
 $serverWrapper = Read-RepoFile 'scripts\Run-Server.ps1'
 $clientWrapper = Read-RepoFile 'scripts\Run-Client-Airgap.ps1'
 $selector = Read-RepoFile 'scripts\Select-LocalLabJava.ps1'
@@ -148,6 +150,29 @@ $nonAirgapLaunchIndex = $nonAirgap.IndexOf('& $java.Path -jar $jar')
 Assert-True ($nonAirgapConsentIndex -ge 0) 'Direct nonairgap consent gate not found.'
 Assert-True ($nonAirgapSelectorIndex -gt $nonAirgapConsentIndex) 'Direct nonairgap launcher performs setup before explicit consent.'
 Assert-True ($nonAirgapLaunchIndex -gt $nonAirgapSelectorIndex) 'Direct nonairgap launch ordering is malformed.'
+
+Assert-True ($quick -match [regex]::Escape('scripts\Check-ExternalRuntime.ps1')) 'Quick-start launcher does not use current external-runtime preflight.'
+Assert-True ($quick -match [regex]::Escape('server\build\SpawnPKLocalServer.jar')) 'Quick-start launcher does not preflight the current built server JAR.'
+Assert-True ($quick -match [regex]::Escape('scripts\Run-Server.ps1')) 'Quick-start launcher does not use the canonical server wrapper.'
+Assert-True ($quick -match [regex]::Escape('scripts\Run-Client-Airgap.ps1')) 'Quick-start launcher does not use the canonical airgap client wrapper.'
+Assert-True ($quick -match [regex]::Escape('$ports = 43594, 43595')) 'Quick-start launcher does not track both game and AUX ports.'
+Assert-True ($quick -match [regex]::Escape('$readyPorts -contains 43594')) 'Quick-start launcher does not require game-port readiness.'
+Assert-True ($quick -match [regex]::Escape('$readyPorts -contains 43595')) 'Quick-start launcher does not require AUX-port readiness.'
+Assert-True ($quick -match [regex]::Escape('$readyOwnerPids.Count -gt 1')) 'Quick-start launcher does not fail closed on multiple listener owners.'
+Assert-True ($quick -match 'Get-CimInstance\s+Win32_Process') 'Quick-start launcher does not inspect listener process identity.'
+Assert-True ($quick -match 'SpawnPKLocalServer\|spk\\\.local\\\.Main\|SpawnPK-LocalLab') 'Quick-start launcher does not require expected SpawnPK LocalLab server identity.'
+Assert-True ($quick -match 'AddSeconds\(30\)') 'Quick-start launcher lost the bounded 30-second server readiness window.'
+Assert-True ($quick -match 'QUICKSTART_SERVER_PROCESS_READY') 'Quick-start launcher does not report proven server process readiness.'
+Assert-True ($quick -match 'QUICKSTART_SERVER_PORTS_READY game=43594 aux=43595') 'Quick-start launcher does not report dual-port readiness.'
+
+$quickServerJarIndex = $quick.IndexOf('$serverJar = Join-Path')
+$quickStartIndex = $quick.IndexOf('Start-Process powershell.exe')
+$quickDualReadyIndex = $quick.IndexOf('$readyPorts -contains 43595')
+$quickClientLaunchIndex = $quick.IndexOf('& $clientScript')
+Assert-True ($quickServerJarIndex -ge 0 -and $quickServerJarIndex -lt $quickStartIndex) 'Quick-start server-JAR preflight is not established before child launch.'
+Assert-True ($quickStartIndex -ge 0) 'Quick-start child server launch not found.'
+Assert-True ($quickDualReadyIndex -gt $quickStartIndex) 'Quick-start dual-port proof does not occur after server launch.'
+Assert-True ($quickClientLaunchIndex -gt $quickDualReadyIndex) 'Quick-start launches the airgap client before dual-port server readiness is proven.'
 
 Assert-True ($externalRuntime -match '854f26ff9f134b0317572e7ac1688e6f40a231d5a4c66f8db5d655b7f45ce7c6') 'External runtime no longer pins exact v308 evidence client.'
 Assert-True ($externalRuntime -match '83b3e27e2aae50512d044ae4c74d84afb36df8b8a8051b5eb0c9275427363c33') 'External runtime no longer pins exact v308 airgap client.'
