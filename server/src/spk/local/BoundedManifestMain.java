@@ -65,12 +65,22 @@ final class BoundedManifestMain {
                 );
         }
 
-        Manifest manifest=
-            new Manifest(
-                new ByteArrayInputStream(
-                    bytes
-                )
+        final Manifest manifest;
+
+        try{
+            manifest=
+                new Manifest(
+                    new ByteArrayInputStream(
+                        bytes
+                    )
+                );
+        }catch(IOException invalid){
+            throw new IllegalArgumentException(
+                "plugin manifest syntax is invalid: "+
+                archive,
+                invalid
             );
+        }
 
         return manifest
             .getMainAttributes();
