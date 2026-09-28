@@ -25,8 +25,13 @@ if (-not (Test-Path -LiteralPath $runtimeJavaSelector -PathType Leaf)) {
     throw "Missing canonical runtime Java selector: $runtimeJavaSelector"
 }
 
-. $runtimeJavaSelector
-$runtimeJava = Set-LocalLabJava
+$hadCallerJavaHome = Test-Path Env:JAVA_HOME
+$callerJavaHome = $env:JAVA_HOME
+$callerPath = $env:Path
+
+try {
+    . $runtimeJavaSelector
+    $runtimeJava = Set-LocalLabJava
 
 $client = (Resolve-Path -LiteralPath $V308ClientPath).Path
 
@@ -224,3 +229,14 @@ Write-Host "CURRENT_RELEASE_CUMULATIVE_CERTIFICATION_PASS clientSha256=$actual h
 # Smoke the server JAR produced by the exact-current cumulative certification,
 # not the earlier ordinary build that the canonical wrapper cleans/rebuilds.
 Invoke-CurrentServerLoopbackSmoke
+
+}
+finally {
+    if ($hadCallerJavaHome) {
+        $env:JAVA_HOME = $callerJavaHome
+    }
+    else {
+        Remove-Item Env:JAVA_HOME -ErrorAction SilentlyContinue
+    }
+    $env:Path = $callerPath
+}
