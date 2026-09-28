@@ -251,10 +251,11 @@ def main() -> int:
             texture_id=TEXTURE_ID,
         )
 
-        texture_semantic_sha =
+        texture_semantic_sha = (
             texture_builder.semantic_sha256(
                 texture_blob
             )
+        )
 
         if (
             texture_semantic_sha
