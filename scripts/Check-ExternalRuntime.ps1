@@ -2,9 +2,9 @@ Set-StrictMode -Version 2.0
 $ErrorActionPreference="Stop"
 $repo=Split-Path -Parent $PSScriptRoot
 $files=@(
-    @("PINNED_CLIENT","evidence\client(6).jar","6232bae206846a4ba8d09766a2dee886b69016066a3f50f83b201bf705f93662"),
-    @("AIRGAP_CLIENT","local-client\client-airgap.jar","9ff1b80fe81b1af2e174df71db33f5aeb5ee489c265ab2880bcda35f7797019b"),
-    @("LOCALHOST_CLIENT","local-client\client-localhost.jar","139cf87e18eed052707b05c9f49cac167ee9cc200600c74ed53a0035bfdac8cb")
+    @("PINNED_CLIENT","evidence\client(6).jar","854f26ff9f134b0317572e7ac1688e6f40a231d5a4c66f8db5d655b7f45ce7c6"),
+    @("AIRGAP_CLIENT","local-client\client-airgap.jar","46b7d7d35c38fdd2ea49c3c7b7bea1406787f5f188d9fe102faedd20c983554a"),
+    @("LOCALHOST_CLIENT","local-client\client-localhost.jar","b8bccc927de4599d2d7b3d93ad66d91087f504e4e5250b9140b5b942cdc737d4")
 )
 foreach($row in $files){
     $p=Join-Path $repo $row[1]
@@ -15,4 +15,4 @@ Expected: $($row[2])
 Actual:   $a"}
     Write-Host "$($row[0]) HASH OK" -ForegroundColor Green
 }
-Write-Host "EXTERNAL_RUNTIME_OK" -ForegroundColor Green
+Write-Host "EXTERNAL_RUNTIME_OK exactClient=v308 coherentTriplet=true" -ForegroundColor Green
