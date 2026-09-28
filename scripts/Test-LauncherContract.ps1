@@ -370,6 +370,15 @@ Assert-True ($runtimeImport -match 'Sort-Object \\{ \\$_\\.Path\\.Length \\} -De
 Assert-True ($runtimeImport -match 'Rollback-owned destination directory is not empty') 'Runtime importer does not fail closed instead of deleting unrelated destination-directory material.'
 Assert-True ($runtimeImport -notmatch 'Remove-Item[^\\r\\n]*(evidence|local-client)[^\\r\\n]*-Recurse') 'Runtime importer reintroduced recursive deletion authority over canonical destination directories.'
 Assert-True ($runtimeImport -match 'pathConfinement=true') 'Runtime importer success/preflight markers do not expose path-confinement authority.'
+Assert-True ($runtimeImport -match 'WriteStarted\s*=\s*\$false') 'Runtime importer does not track publication-start state separately from rollback ownership.'
+Assert-True ($runtimeImport -match 'PublishedAndVerified\s*=\s*\$false') 'Runtime importer does not track exact verified publication state.'
+Assert-True ($runtimeImport -match 'PublishedSha256\s*=\s*\$null') 'Runtime importer does not retain transaction-published byte identity.'
+Assert-True ($runtimeImport -match '\$record\.WriteStarted\s*=\s*\$true') 'Runtime importer does not mark mutation start before the canonical write.'
+Assert-True ($runtimeImport -match '\$record\.PublishedSha256\s*=\s*\$publishedSha') 'Runtime importer does not retain exact successful publication SHA.'
+Assert-True ($runtimeImport -match '\$record\.PublishedAndVerified\s*=\s*\$true') 'Runtime importer grants rollback ownership before exact publication verification.'
+Assert-True ($runtimeImport -match 'rollback ownership cannot be proven after incomplete publication') 'Runtime importer can destructively rollback an incomplete/unverified canonical write.'
+Assert-True ($runtimeImport -match 'rollback ownership lost after publication') 'Runtime importer does not fail closed when canonical bytes change after verified publication.'
+Assert-True ($runtimeImport -match '\$rollbackCurrentSha\s+-ne\s+\$record\.PublishedSha256') 'Runtime importer does not compare rollback target bytes to transaction-published identity.'
 
 foreach ($entry in @(
     @('function Assert-NoReparsePathComponents', 1),
@@ -380,7 +389,15 @@ foreach ($entry in @(
     @('$destinationDirectories = @()', 1),
     @('RUNTIME_IMPORT_DESTINATION_DIRECTORIES_READY', 1),
     @('restored destination hash mismatch', 1),
-    @('Rollback-owned destination directory is not empty', 1)
+    @('Rollback-owned destination directory is not empty', 1),
+    @('WriteStarted = $false', 1),
+    @('PublishedAndVerified = $false', 1),
+    @('PublishedSha256 = $null', 1),
+    @('$record.WriteStarted = $true', 1),
+    @('$record.PublishedSha256 = $publishedSha', 1),
+    @('$record.PublishedAndVerified = $true', 1),
+    @('rollback ownership cannot be proven after incomplete publication', 1),
+    @('rollback ownership lost after publication', 1)
 )) {
     Assert-ExactTextCount $runtimeImport $entry[0] ([int]$entry[1]) 'Runtime importer rollback/path-safety structural count drift.'
 }
@@ -392,7 +409,13 @@ $runtimeImportBackupIndex = $runtimeImport.IndexOf('RUNTIME_IMPORT_BACKUP_READY'
 $runtimeImportDirectoryReadyIndex = $runtimeImport.IndexOf('RUNTIME_IMPORT_DESTINATION_DIRECTORIES_READY')
 $runtimeImportSnapshotRecheckIndex = $runtimeImport.IndexOf('Assert-DestinationSnapshotStillOwned $record')
 $runtimeImportTouchIndex = $runtimeImport.IndexOf('$touched.Add($record)')
+$runtimeImportWriteStartedIndex = $runtimeImport.IndexOf('$record.WriteStarted = $true')
 $runtimeImportPublishIndex = $runtimeImport.IndexOf('Copy-Item -LiteralPath $record.Stage -Destination $record.Destination -Force')
+$runtimeImportPublishedShaIndex = $runtimeImport.IndexOf('$record.PublishedSha256 = $publishedSha')
+$runtimeImportPublishedVerifiedIndex = $runtimeImport.IndexOf('$record.PublishedAndVerified = $true')
+$runtimeImportRollbackOwnershipIndex = $runtimeImport.IndexOf('$rollbackCurrentSha -ne $record.PublishedSha256')
+$runtimeImportRollbackRestoreIndex = $runtimeImport.IndexOf('Copy-Item -LiteralPath $record.Backup -Destination $record.Destination -Force')
+$runtimeImportRollbackRemoveIndex = $runtimeImport.IndexOf('Remove-Item -LiteralPath $record.Destination -Force')
 $runtimeImportVerifyIndex = $runtimeImport.IndexOf('RUNTIME_IMPORT_FINAL_VERIFY_PASS')
 $runtimeImportCatchIndex = $runtimeImport.IndexOf('catch {', $runtimeImportPublishIndex)
 $runtimeImportFinalIndex = $runtimeImport.IndexOf('EXTERNAL_RUNTIME_IMPORT_PASS')
@@ -402,7 +425,13 @@ Assert-True ($runtimeImportBackupIndex -gt $runtimeImportStageIndex) 'Runtime im
 Assert-True ($runtimeImportDirectoryReadyIndex -gt $runtimeImportBackupIndex) 'Runtime importer creates/adopts destination directories before backup authority is frozen.'
 Assert-True ($runtimeImportSnapshotRecheckIndex -gt $runtimeImportDirectoryReadyIndex) 'Runtime importer does not revalidate the exact destination snapshot after directory ownership is proven.'
 Assert-True ($runtimeImportTouchIndex -gt $runtimeImportSnapshotRecheckIndex) 'Runtime importer acquires file mutation ownership before revalidating the exact destination snapshot.'
-Assert-True ($runtimeImportPublishIndex -gt $runtimeImportTouchIndex) 'Runtime importer writes a destination before rollback ownership is recorded.'
+Assert-True ($runtimeImportWriteStartedIndex -gt $runtimeImportTouchIndex) 'Runtime importer marks write-start before rollback tracking has acquired the record.'
+Assert-True ($runtimeImportPublishIndex -gt $runtimeImportWriteStartedIndex) 'Runtime importer mutates canonical destination before recording WriteStarted.'
+Assert-True ($runtimeImportPublishedShaIndex -gt $runtimeImportPublishIndex) 'Runtime importer records published SHA before the canonical write.'
+Assert-True ($runtimeImportPublishedVerifiedIndex -gt $runtimeImportPublishedShaIndex) 'Runtime importer grants destructive rollback authority before storing published byte identity.'
+Assert-True ($runtimeImportRollbackOwnershipIndex -gt $runtimeImportPublishedVerifiedIndex) 'Runtime importer rollback ownership check is not structurally after verified publication.'
+Assert-True ($runtimeImportRollbackRestoreIndex -gt $runtimeImportRollbackOwnershipIndex) 'Runtime importer can restore backup before proving canonical bytes are transaction-owned.'
+Assert-True ($runtimeImportRollbackRemoveIndex -gt $runtimeImportRollbackOwnershipIndex) 'Runtime importer can remove a new destination before proving canonical bytes are transaction-owned.'
 Assert-True ($runtimeImportVerifyIndex -gt $runtimeImportPublishIndex) 'Runtime importer final verification does not follow destination publication.'
 Assert-True ($runtimeImportCatchIndex -gt $runtimeImportVerifyIndex) 'Runtime importer final verification escaped rollback ownership.'
 Assert-True ($runtimeImportFinalIndex -gt $runtimeImportVerifyIndex) 'Runtime importer reports success before final whole-triplet verification.'
