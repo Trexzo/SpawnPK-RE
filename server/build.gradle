@@ -4086,7 +4086,7 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
             '-Pv308ClientPath=',
             '--no-daemon',
             '--console=plain',
-            'runtime\\certification',
+            '$evidenceRoot = Join-Path $runtimeRoot \'certification\'',
             '$runtimeRoot = Join-Path $repo \'runtime\'',
             'function Assert-OrdinaryDirectory',
             'function Initialize-CertificationEvidenceRoot',
