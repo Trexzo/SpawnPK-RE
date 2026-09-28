@@ -22,7 +22,7 @@ def jag_hash(name: str) -> int:
     return value
 
 
-def parse_archive(blob: bytes):
+def archive_body(blob: bytes) -> bytes:
     if len(blob) < 6:
         raise ValueError("short archive")
 
@@ -41,6 +41,16 @@ def parse_archive(blob: bytes):
         raise ValueError(
             f"archive length mismatch expected={raw_len} actual={len(body)}"
         )
+
+    return body
+
+
+def semantic_sha256(blob: bytes) -> str:
+    return hashlib.sha256(archive_body(blob)).hexdigest()
+
+
+def parse_archive(blob: bytes):
+    body = archive_body(blob)
 
     count = int.from_bytes(body[:2], "big")
     pos = 2
@@ -168,7 +178,8 @@ def main() -> None:
     print(
         "R13_TEXTURE_ARCHIVE_BUILD_PASS "
         f"bytes={len(blob)} "
-        f"sha256={hashlib.sha256(blob).hexdigest()}"
+        f"transportSha256={hashlib.sha256(blob).hexdigest()} "
+        f"semanticBodySha256={semantic_sha256(blob)}"
     )
 
 
