@@ -4027,6 +4027,7 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
             'hostedPromotionSatisfied = $false',
             "hostedPromotionBlocker = '#816'",
             'Set-Content -LiteralPath $evidence',
+            'SPAWNPK_CHAT1_CURRENT_CUMULATIVE_CERTIFICATION_PASS',
             'CHAT1_CUMULATIVE_WRAPPER_COMPLETE',
             'hostedPromotionSatisfied=false',
             'exactV308=true'
@@ -4037,16 +4038,45 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
                 )
         }
 
-        if(text.contains(
-                'SPAWNPK_CHAT1_CURRENT_CUMULATIVE_CERTIFICATION_PASS'))
+        String authoritativeMarker =
+            'SPAWNPK_CHAT1_CURRENT_CUMULATIVE_CERTIFICATION_PASS'
+        List<String> authoritativeMarkerLines =
+            text.readLines().findAll {
+                it.contains(
+                    authoritativeMarker
+                )
+            }
+
+        if(authoritativeMarkerLines.size() != 1 ||
+           !authoritativeMarkerLines[0].contains(
+                "Select-String -LiteralPath \\$log -SimpleMatch -Pattern '${authoritativeMarker}'"
+            ))
             throw new GradleException(
-                'Wrapper must not synthesize the authoritative cumulative PASS marker.'
+                'Wrapper must observe the exact Gradle-owned cumulative PASS marker exactly once.'
             )
+
+        if(authoritativeMarkerLines[0] =~
+                /(?i)\b(Write-Host|Write-Output|echo|return)\b/)
+            throw new GradleException(
+                'Wrapper must not emit the authoritative cumulative PASS marker.'
+            )
+
+        [
+            'Write-Host $markerMatch',
+            'Write-Output $markerMatch',
+            'echo $markerMatch',
+            'return $markerMatch'
+        ].each { forbiddenOutput ->
+            if(text.contains(forbiddenOutput))
+                throw new GradleException(
+                    "Wrapper must not emit observed Gradle marker data: ${forbiddenOutput}"
+                )
+        }
 
         [
             'function Get-ExactGitHead',
             '& $gradlew @gradleArgs',
-            'Select-String -LiteralPath $log',
+            "Select-String -LiteralPath \\$log -SimpleMatch -Pattern 'SPAWNPK_CHAT1_CURRENT_CUMULATIVE_CERTIFICATION_PASS'",
             'ConvertTo-Json',
             'CHAT1_CUMULATIVE_WRAPPER_COMPLETE'
         ].each { anchor ->
@@ -4096,9 +4126,13 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
             text.indexOf(
                 '$gradleExit = $LASTEXITCODE'
             )
+        int exitSuccessCheckIndex =
+            text.indexOf(
+                'if ($null -eq $gradleExit -or $gradleExit -ne 0)'
+            )
         int markerObservationIndex =
             text.indexOf(
-                'Select-String -LiteralPath $log'
+                "Select-String -LiteralPath \\$log -SimpleMatch -Pattern 'SPAWNPK_CHAT1_CURRENT_CUMULATIVE_CERTIFICATION_PASS'"
             )
         int jsonIndex =
             text.indexOf(
@@ -4118,11 +4152,12 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
 
         if(invokeIndex < 0 ||
            exitCaptureIndex <= invokeIndex ||
-           markerObservationIndex <= exitCaptureIndex ||
+           exitSuccessCheckIndex <= exitCaptureIndex ||
+           markerObservationIndex <= exitSuccessCheckIndex ||
            jsonIndex <= markerObservationIndex ||
            completionIndex <= jsonIndex)
             throw new GradleException(
-                'Wrapper evidence ordering drifted: expected Gradle invoke -> native exit capture -> Gradle marker observation -> JSON evidence -> wrapper completion.'
+                'Wrapper evidence ordering drifted: expected Gradle invoke -> native exit capture -> zero-exit check -> Gradle marker observation -> JSON evidence -> wrapper completion.'
             )
 
         logger.lifecycle(
@@ -4132,7 +4167,7 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
             'cleanHeadBound=true ' +
             'durableEvidence=true ' +
             'hostedPromotionSatisfied=false ' +
-            'authoritativeMarkerNotSynthesized=true'
+            'authoritativeMarkerObservedOnly=true'
         )
     }
 }
