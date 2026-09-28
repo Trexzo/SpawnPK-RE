@@ -571,7 +571,7 @@ Assert-True ($v308Patcher -match 'record\["committed"\]\s*=\s*True') 'v308 local
 Assert-True ($v308Patcher -match 'record\["published_sha"\]\s*=\s*record\["expected_sha"\]') 'v308 local-client builder does not retain exact published-byte rollback authority.'
 Assert-True ($v308Patcher -match 'rollback ownership lost') 'v308 local-client rollback does not refuse changed canonical bytes.'
 Assert-True ($v308Patcher -notmatch 'shutil\.copyfile\(record\["stage"\], record\["destination"\]\)') 'v308 local-client builder reintroduced direct staged copy into canonical output.'
-Assert-True ($v308Patcher -notmatch 'shutil\.copyfile\([\s\S]*record\["backup"\],[\s\S]*record\["destination"\]') 'v308 local-client builder reintroduced direct rollback copy into canonical output.'
+Assert-True ($v308Patcher -notmatch 'shutil\.copyfile\(\s*record\["backup"\],\s*record\["destination"\],?\s*\)') 'v308 local-client builder reintroduced direct rollback copy into canonical output.'
 Assert-True ($v308Patcher -notmatch 'build_variant\(source, output / "client-localhost\.jar"') 'v308 local-client builder reintroduced direct localhost generation into canonical output.'
 Assert-True ($v308Patcher -notmatch 'build_variant\(source, output / "client-airgap\.jar"') 'v308 local-client builder reintroduced direct airgap generation into canonical output.'
 
