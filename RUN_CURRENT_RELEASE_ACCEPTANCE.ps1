@@ -205,8 +205,6 @@ try {
     }
 
     Write-Host "CURRENT_RELEASE_BUILD_PASS focusedGate=true" -ForegroundColor Green
-
-    Invoke-CurrentServerLoopbackSmoke
 }
 finally {
     Pop-Location
@@ -220,3 +218,7 @@ catch {
 }
 
 Write-Host "CURRENT_RELEASE_CUMULATIVE_CERTIFICATION_PASS clientSha256=$actual hostedPromotionSatisfied=false" -ForegroundColor Green
+
+# Smoke the server JAR produced by the exact-current cumulative certification,
+# not the earlier ordinary build that the canonical wrapper cleans/rebuilds.
+Invoke-CurrentServerLoopbackSmoke
