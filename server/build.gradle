@@ -4341,16 +4341,6 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
                 'Wrapper Gradle invocation ordering drifted: expected clean -> cumulative gate -> invocation-owned exact client snapshot.'
             )
 
-        if(invokeIndex < 0 ||
-           exitCaptureIndex <= invokeIndex ||
-           exitSuccessCheckIndex <= exitCaptureIndex ||
-           markerObservationIndex <= exitSuccessCheckIndex ||
-           jsonIndex <= markerObservationIndex ||
-           completionIndex <= jsonIndex)
-            throw new GradleException(
-                'Wrapper evidence ordering drifted: expected Gradle invoke -> native exit capture -> zero-exit check -> Gradle marker observation -> JSON evidence -> wrapper completion.'
-            )
-
         int privateReleaseIndex =
             text.lastIndexOf(
                 '$privateGuard.Dispose()'
@@ -4360,10 +4350,16 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
                 'Remove-Item -LiteralPath $snapshotRoot -Recurse -Force'
             )
 
-        if(privateReleaseIndex <= markerObservationIndex ||
-           snapshotCleanupIndex <= privateReleaseIndex)
+        if(invokeIndex < 0 ||
+           exitCaptureIndex <= invokeIndex ||
+           exitSuccessCheckIndex <= exitCaptureIndex ||
+           markerObservationIndex <= exitSuccessCheckIndex ||
+           privateReleaseIndex <= markerObservationIndex ||
+           snapshotCleanupIndex <= privateReleaseIndex ||
+           jsonIndex <= snapshotCleanupIndex ||
+           completionIndex <= jsonIndex)
             throw new GradleException(
-                'Wrapper private exact-v308 guard/cleanup ordering drifted: guard must span Gradle + marker observation, then release before private-root deletion.'
+                'Wrapper evidence ordering drifted: expected Gradle invoke -> native exit capture -> zero-exit check -> Gradle marker observation -> private guard release -> private-root cleanup -> JSON evidence -> wrapper completion.'
             )
 
         logger.lifecycle(
