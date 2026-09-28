@@ -46,8 +46,47 @@ function Assert-UnderRuntimeRoot(
     return $candidateFull
 }
 
+function Assert-NoReparsePointAncestors(
+    [string]$Candidate,
+    [string]$RuntimeRoot
+) {
+    $candidateFull = Assert-UnderRuntimeRoot $Candidate $RuntimeRoot
+    $rootFull = Get-NormalizedDirectoryPath $RuntimeRoot
+    $trimChars = [char[]]@(
+        [IO.Path]::DirectorySeparatorChar,
+        [IO.Path]::AltDirectorySeparatorChar
+    )
+
+    $cursor = $rootFull
+    if (Test-Path -LiteralPath $cursor) {
+        $rootItem = Get-Item -LiteralPath $cursor -Force
+        if (($rootItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+            throw "R13 runtime root must not be a reparse point: $cursor"
+        }
+    }
+
+    $relative = $candidateFull.Substring($rootFull.Length).TrimStart($trimChars)
+    foreach ($segment in @($relative -split '[\\/]')) {
+        if ([string]::IsNullOrWhiteSpace($segment)) {
+            continue
+        }
+
+        $cursor = Join-Path $cursor $segment
+        if (-not (Test-Path -LiteralPath $cursor)) {
+            break
+        }
+
+        $item = Get-Item -LiteralPath $cursor -Force
+        if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+            throw "R13 output path must not traverse a reparse point: $cursor"
+        }
+    }
+
+    return $candidateFull
+}
+
 $runtimeRoot = Join-Path $repo 'runtime\locallab-user-home'
-$output = Assert-UnderRuntimeRoot $OutputHome $runtimeRoot
+$output = Assert-NoReparsePointAncestors $OutputHome $runtimeRoot
 $base = Get-NormalizedDirectoryPath $BaseSpawnpk
 
 if (-not (Test-Path -LiteralPath $base -PathType Container)) {
@@ -63,7 +102,7 @@ if (Test-Path -LiteralPath $output) {
         throw "R13 output already exists: $output. Re-run with -ResetOutput to rebuild the canonical isolated runtime copy."
     }
 
-    $null = Assert-UnderRuntimeRoot $output $runtimeRoot
+    $null = Assert-NoReparsePointAncestors $output $runtimeRoot
     Write-Host "Removing previous R13 isolated output: $output" -ForegroundColor Yellow
     Remove-Item -LiteralPath $output -Recurse -Force
 }
