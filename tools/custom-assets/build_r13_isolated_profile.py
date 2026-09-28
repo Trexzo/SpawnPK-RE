@@ -105,9 +105,16 @@ def main() -> int:
 
     real_home = Path.home().resolve()
 
-    if output_home == real_home or output_home == base.parent.resolve():
+    source_home = base.parent.resolve()
+
+    if (
+        output_home == real_home
+        or output_home == source_home
+        or output_home == base
+        or base in output_home.parents
+    ):
         raise SystemExit(
-            "refusing real/source user.home as isolated output"
+            "refusing real/source/cache-contained user.home as isolated output"
         )
 
     if output_home.exists():
