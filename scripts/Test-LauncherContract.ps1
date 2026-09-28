@@ -122,7 +122,20 @@ Assert-True ($client -match [regex]::Escape('scripts\Check-ExternalRuntime.ps1')
 Assert-True ($client -match 'Missing LocalLab external-runtime verifier') 'Standalone airgap launcher does not fail closed when the runtime verifier is missing.'
 Assert-True ($client -match [regex]::Escape('scripts\Select-LocalLabJava.ps1')) 'Standalone airgap launcher does not use canonical Java selector.'
 Assert-True ($client -match 'Set-LocalLabJava') 'Standalone airgap launcher does not invoke Set-LocalLabJava.'
-Assert-True ($client -match '&\s+\$java\.Path\s+@javaArgs\s+-jar\s+\$jar') 'Standalone airgap launcher does not invoke the selected Java executable with the optional JVM argument vector.'
+Assert-True ($client -match '&\s+\$java\.Path\s+@javaArgs\s+-jar\s+\$launchSnapshot') 'Standalone airgap launcher does not invoke selected Java with the guarded private snapshot.'
+Assert-True ($client -notmatch '&\s+\$java\.Path\s+@javaArgs\s+-jar\s+\$jar') 'Standalone airgap launcher still executes the mutable canonical airgap JAR directly.'
+Assert-True ($client -match '83b3e27e2aae50512d044ae4c74d84afb36df8b8a8051b5eb0c9275427363c33') 'Standalone airgap launcher no longer independently pins exact airgap snapshot SHA-256.'
+Assert-True ($client -match [regex]::Escape("$launchSnapshot = Join-Path $launchRoot 'client-airgap.jar'")) 'Standalone airgap private snapshot does not preserve semantic client-airgap.jar basename.'
+Assert-True ($client -match [regex]::Escape('[IO.File]::Copy($jar, $launchSnapshot, $false)')) 'Standalone airgap launcher does not create a no-overwrite private snapshot.'
+Assert-True ($client -match '\[IO\.File\]::Open\([\s\S]*\$launchSnapshot[\s\S]*\[IO\.FileAccess\]::Read[\s\S]*\[IO\.FileShare\]::Read') 'Standalone airgap launcher does not hold a read-only no-write/no-delete guard on the private snapshot.'
+Assert-True ($client -match [regex]::Escape('Get-FileHash -InputStream $snapshotGuard -Algorithm SHA256')) 'Standalone airgap launcher does not hash the guarded snapshot identity.'
+Assert-True ($client -match 'AIRGAP_CLIENT_LAUNCH_SNAPSHOT_VERIFIED') 'Standalone airgap launcher does not report guarded private-snapshot verification.'
+Assert-True ($client -match [regex]::Escape('$primaryFailure = $_')) 'Standalone airgap launcher does not preserve the primary body failure.'
+Assert-True ($client -match 'AIRGAP client launch failed; cleanup was also incomplete') 'Standalone airgap launcher does not preserve primary authority when cleanup also fails.'
+Assert-True ($client -match [regex]::Escape('$snapshotGuard.Dispose()')) 'Standalone airgap launcher does not dispose snapshot guard during cleanup.'
+Assert-True ($client -match [regex]::Escape('Remove-Item -LiteralPath $launchSnapshot -Force -ErrorAction Stop')) 'Standalone airgap launcher does not clean the exact snapshot leaf.'
+Assert-True ($client -match [regex]::Escape('Remove-Item -LiteralPath $launchRoot -ErrorAction Stop')) 'Standalone airgap launcher does not non-recursively clean the invocation-owned snapshot directory.'
+Assert-True ($client -notmatch 'Remove-Item\s+-LiteralPath\s+\$launchRoot[^\r\n]*-Recurse') 'Standalone airgap launcher reintroduced recursive snapshot-directory cleanup.'
 Assert-True ($client -match 'SPAWNPK_LOCALLAB_USER_HOME') 'Standalone airgap launcher does not expose the isolated LocalLab user.home environment contract.'
 Assert-True ($client -match '-Duser\.home=\$resolvedHome') 'Standalone airgap launcher does not pass the isolated home to Java.'
 Assert-True ($client -match 'LOCAL_LAB_CLIENT_HOME_ISOLATED') 'Standalone airgap launcher does not report isolated client-home authority.'
@@ -155,9 +168,19 @@ foreach ($entry in @(
     @('$callerLocationPushed = $false', 1),
     @('Push-Location -LiteralPath $PSScriptRoot', 1),
     @('$callerLocationPushed = $true', 1),
-    @('Pop-Location', 1)
+    @('Pop-Location', 1),
+    @("$launchSnapshot = Join-Path $launchRoot 'client-airgap.jar'", 1),
+    @('[IO.File]::Copy($jar, $launchSnapshot, $false)', 1),
+    @('[IO.FileShare]::Read', 1),
+    @('Get-FileHash -InputStream $snapshotGuard -Algorithm SHA256', 1),
+    @('AIRGAP_CLIENT_LAUNCH_SNAPSHOT_VERIFIED', 1),
+    @('& $java.Path @javaArgs -jar $launchSnapshot', 1),
+    @('$snapshotGuard.Dispose()', 1),
+    @('Remove-Item -LiteralPath $launchSnapshot -Force -ErrorAction Stop', 1),
+    @('Remove-Item -LiteralPath $launchRoot -ErrorAction Stop', 1),
+    @('$primaryFailure = $_', 1)
 )) {
-    Assert-ExactTextCount $client $entry[0] ([int]$entry[1]) 'Standalone airgap Java-environment ownership count drift.'
+    Assert-ExactTextCount $client $entry[0] ([int]$entry[1]) 'Standalone airgap Java/snapshot ownership count drift.'
 }
 
 foreach ($entry in @(
@@ -172,10 +195,24 @@ foreach ($entry in @(
 
 $standaloneRuntimeCheckIndex = $client.IndexOf('& $runtimeCheck')
 $standaloneJarIndex = $client.IndexOf('$jar = Join-Path $PSScriptRoot ''local-client\client-airgap.jar''')
-$standaloneLaunchIndex = $client.IndexOf('& $java.Path @javaArgs -jar $jar')
+$standaloneSnapshotRootIndex = $client.IndexOf("'SpawnPK-airgap-' + [Guid]::NewGuid().ToString('N')")
+$standaloneSnapshotLeafIndex = $client.IndexOf("$launchSnapshot = Join-Path $launchRoot 'client-airgap.jar'")
+$standaloneGuardIndex = $client.IndexOf('$snapshotGuard = [IO.File]::Open(')
+$standaloneHashIndex = $client.IndexOf('Get-FileHash -InputStream $snapshotGuard -Algorithm SHA256')
+$standaloneLaunchIndex = $client.IndexOf('& $java.Path @javaArgs -jar $launchSnapshot')
+$standaloneGuardDisposeIndex = $client.IndexOf('$snapshotGuard.Dispose()')
+$standaloneLeafCleanupIndex = $client.IndexOf('Remove-Item -LiteralPath $launchSnapshot -Force -ErrorAction Stop')
+$standaloneDirectoryCleanupIndex = $client.IndexOf('Remove-Item -LiteralPath $launchRoot -ErrorAction Stop')
 Assert-True ($standaloneRuntimeCheckIndex -ge 0) 'Standalone airgap external-runtime verification invocation not found.'
-Assert-True ($standaloneJarIndex -gt $standaloneRuntimeCheckIndex) 'Standalone airgap client path is admitted before external-runtime verification.'
-Assert-True ($standaloneLaunchIndex -gt $standaloneRuntimeCheckIndex) 'Standalone airgap client launches before exact-v308 external-runtime verification.'
+Assert-True ($standaloneJarIndex -gt $standaloneRuntimeCheckIndex) 'Standalone airgap canonical client path is admitted before coherent runtime verification.'
+Assert-True ($standaloneSnapshotRootIndex -gt $standaloneJarIndex) 'Standalone airgap snapshot root is created before coherent runtime verification completes.'
+Assert-True ($standaloneSnapshotLeafIndex -gt $standaloneSnapshotRootIndex) 'Standalone airgap semantic snapshot leaf is not inside the unique invocation root.'
+Assert-True ($standaloneGuardIndex -gt $standaloneSnapshotLeafIndex) 'Standalone airgap snapshot guard is acquired before the snapshot leaf exists.'
+Assert-True ($standaloneHashIndex -gt $standaloneGuardIndex) 'Standalone airgap private bytes are hashed before the no-write/no-delete guard is acquired.'
+Assert-True ($standaloneLaunchIndex -gt $standaloneHashIndex) 'Standalone airgap Java launch occurs before guarded private snapshot hashing.'
+Assert-True ($standaloneGuardDisposeIndex -gt $standaloneLaunchIndex) 'Standalone airgap snapshot guard is disposed before synchronous Java completion.'
+Assert-True ($standaloneLeafCleanupIndex -gt $standaloneGuardDisposeIndex) 'Standalone airgap snapshot leaf cleanup occurs before guard disposal.'
+Assert-True ($standaloneDirectoryCleanupIndex -gt $standaloneLeafCleanupIndex) 'Standalone airgap invocation directory cleanup occurs before snapshot leaf cleanup.'
 $standaloneEnvCaptureIndex = $client.IndexOf('$callerPath = $env:Path')
 $standaloneSelectorCallIndex = $client.IndexOf('$java = Set-LocalLabJava')
 $standaloneEnvRestoreIndex = $client.LastIndexOf('$env:Path = $callerPath')
@@ -185,6 +222,9 @@ $standaloneLocationPushIndex = $client.IndexOf('Push-Location -LiteralPath $PSSc
 $standaloneLocationPopIndex = $client.LastIndexOf('Pop-Location')
 Assert-True ($standaloneLocationPushIndex -ge 0 -and $standaloneLocationPushIndex -lt $standaloneRuntimeCheckIndex) 'Standalone airgap repository location is not established before launcher work.'
 Assert-True ($standaloneLocationPopIndex -gt $standaloneLaunchIndex) 'Standalone airgap caller location is restored before synchronous client completion.'
+Assert-True ($quick -match 'client-airgap\\\.jar') 'Quick launcher process identity no longer recognizes semantic client-airgap.jar snapshot basename.'
+Assert-True ($all -match 'client-airgap\\\.jar') 'Multi-client launcher process identity no longer recognizes semantic client-airgap.jar snapshot basename.'
+Assert-True ($r13Acceptance -match 'client-airgap\\\.jar') 'R13 live-profile ownership no longer recognizes semantic client-airgap.jar snapshot basename.'
 
 Assert-True ($secondClient -match '\[switch\]\$AllowNonAirgap') 'Second-client launcher does not require the explicit -AllowNonAirgap switch.'
 Assert-True ($secondClient -match [regex]::Escape('scripts\Run-Client-Airgap.ps1')) 'Second-client default does not target the canonical airgap wrapper.'
