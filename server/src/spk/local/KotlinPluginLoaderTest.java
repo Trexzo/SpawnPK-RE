@@ -1274,6 +1274,10 @@ public final class KotlinPluginLoaderTest {
             root.resolve(
                 "invented-api.jar"
             );
+        Path inventedContent=
+            root.resolve(
+                "invented-content-api.jar"
+            );
         Path modified=
             root.resolve(
                 "modified-api.jar"
@@ -1311,6 +1315,22 @@ public final class KotlinPluginLoaderTest {
                 healthyClasspath,
                 "Kotlin API server resource missing: spk/plugin/api/InjectedApi.class",
                 "invented reserved Kotlin API class was accepted"
+            );
+
+            rewriteApiJar(
+                apiJar,
+                inventedContent,
+                "spk/content/api/InjectedContentApi.class",
+                pluginBytes,
+                false,
+                false
+            );
+            assertApiConstructorRejected(
+                constructor,
+                inventedContent,
+                healthyClasspath,
+                "Kotlin API server resource missing: spk/content/api/InjectedContentApi.class",
+                "invented reserved Kotlin content API class was accepted"
             );
 
             rewriteApiJar(
@@ -1369,6 +1389,9 @@ public final class KotlinPluginLoaderTest {
             );
             Files.deleteIfExists(
                 modified
+            );
+            Files.deleteIfExists(
+                inventedContent
             );
             Files.deleteIfExists(
                 invented
