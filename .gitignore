@@ -86,3 +86,6 @@ server/.gradle/
 
 # LocalLab isolated client profile
 runtime/locallab-user-home/
+
+# Local cumulative certification logs
+runtime/certification/
