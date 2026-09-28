@@ -19,7 +19,9 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import shutil
+import uuid
 import struct
 import tempfile
 import zipfile
@@ -113,6 +115,117 @@ def sha256_file(path: Path) -> str:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def new_same_directory_leaf_path(destination: Path, purpose: str) -> Path:
+    leaf = destination.with_name(
+        f".{destination.name}.spawnpk-{purpose}-{uuid.uuid4().hex}.tmp"
+    )
+    if leaf.exists():
+        raise RuntimeError(f"private leaf collision: {leaf}")
+    return leaf
+
+
+def copy_verified_same_directory_leaf(
+    source: Path,
+    destination: Path,
+    expected_sha: str,
+    purpose: str,
+) -> Path:
+    prefix = f".{destination.name}.spawnpk-{purpose}-"
+    fd, leaf_text = tempfile.mkstemp(
+        prefix=prefix,
+        suffix=".tmp",
+        dir=destination.parent,
+    )
+    leaf = Path(leaf_text)
+    complete = False
+
+    try:
+        with os.fdopen(fd, "wb") as target, source.open("rb") as source_handle:
+            shutil.copyfileobj(source_handle, target, length=1024 * 1024)
+            target.flush()
+            os.fsync(target.fileno())
+
+        actual = sha256_file(leaf)
+        if actual != expected_sha:
+            raise RuntimeError(
+                "private leaf hash mismatch "
+                f"purpose={purpose} expected={expected_sha} actual={actual}"
+            )
+
+        complete = True
+        return leaf
+    finally:
+        if not complete and leaf.exists():
+            leaf.unlink()
+
+
+def assert_verified_leaf(path: Path, expected_sha: str, label: str) -> None:
+    if not path.is_file():
+        raise RuntimeError(f"{label} private leaf missing: {path}")
+
+    actual = sha256_file(path)
+    if actual != expected_sha:
+        raise RuntimeError(
+            f"{label} private leaf ownership lost "
+            f"expected={expected_sha} actual={actual} path={path}"
+        )
+
+
+def remove_verified_leaf(path: Path | None, expected_sha: str, label: str) -> None:
+    if path is None or not path.exists():
+        return
+    assert_verified_leaf(path, expected_sha, label)
+    path.unlink()
+
+
+def assert_destination_snapshot_owned(record: dict) -> None:
+    destination = record["destination"]
+    exists_now = destination.is_file()
+
+    if record["existed"]:
+        if not exists_now:
+            raise RuntimeError(
+                f"{record['name']} destination disappeared after backup snapshot"
+            )
+
+        backup_sha = sha256_file(record["backup"])
+        current_sha = sha256_file(destination)
+        if current_sha != backup_sha:
+            raise RuntimeError(
+                f"{record['name']} destination changed after backup snapshot "
+                f"snapshot={backup_sha} current={current_sha}"
+            )
+    elif destination.exists():
+        raise RuntimeError(
+            f"{record['name']} destination appeared after backup snapshot"
+        )
+
+
+def restore_private_leaf_without_overwrite(
+    source_leaf: Path,
+    destination: Path,
+    expected_sha: str,
+    label: str,
+) -> None:
+    assert_verified_leaf(source_leaf, expected_sha, label)
+
+    try:
+        os.link(source_leaf, destination)
+    except FileExistsError as error:
+        raise RuntimeError(
+            f"{label} destination appeared before no-overwrite restore: {destination}"
+        ) from error
+
+    restored_sha = sha256_file(destination)
+    if restored_sha != expected_sha:
+        raise RuntimeError(
+            f"{label} restored destination hash mismatch "
+            f"expected={expected_sha} actual={restored_sha}"
+        )
+
+    source_leaf.unlink()
 
 
 def patch_utf8_constants(data: bytes) -> bytes:
@@ -438,6 +551,10 @@ def main() -> int:
                     "expected_sha": expected_sha,
                     "backup": backup_path,
                     "existed": existed,
+                    "publish_leaf": None,
+                    "preimage_leaf": None,
+                    "committed": False,
+                    "published_sha": None,
                 }
             )
 
@@ -449,18 +566,96 @@ def main() -> int:
         touched = []
         try:
             for record in publication:
-                # Record rollback ownership before the first canonical write.
-                touched.append(record)
-                shutil.copyfile(record["stage"], record["destination"])
+                destination = record["destination"]
 
-                published_sha = sha256_file(record["destination"])
-                if published_sha != record["expected_sha"]:
-                    raise RuntimeError(
-                        "published artifact hash mismatch "
-                        f"name={record['name']} "
-                        f"expected={record['expected_sha']} "
-                        f"actual={published_sha}"
+                record["publish_leaf"] = copy_verified_same_directory_leaf(
+                    record["stage"],
+                    destination,
+                    record["expected_sha"],
+                    "publish",
+                )
+
+                # Re-prove both sides of the canonical transition immediately
+                # before acquiring mutation ownership.
+                assert_destination_snapshot_owned(record)
+                assert_verified_leaf(
+                    record["publish_leaf"],
+                    record["expected_sha"],
+                    f"{record['name']} publish",
+                )
+
+                touched.append(record)
+
+                if record["existed"]:
+                    backup_sha = sha256_file(record["backup"])
+                    record["preimage_leaf"] = new_same_directory_leaf_path(
+                        destination,
+                        "commit-preimage",
                     )
+
+                    # Capture the exact canonical file at commit time instead
+                    # of overwriting it. This transition is same-directory and
+                    # atomic. The captured bytes must still equal the frozen
+                    # rollback snapshot.
+                    os.replace(
+                        destination,
+                        record["preimage_leaf"],
+                    )
+
+                    displaced_sha = sha256_file(record["preimage_leaf"])
+                    if displaced_sha != backup_sha:
+                        try:
+                            restore_private_leaf_without_overwrite(
+                                record["preimage_leaf"],
+                                destination,
+                                displaced_sha,
+                                f"{record['name']} changed commit preimage",
+                            )
+                            record["preimage_leaf"] = None
+                        finally:
+                            pass
+
+                        raise RuntimeError(
+                            f"{record['name']} destination changed during commit "
+                            f"snapshot={backup_sha} displaced={displaced_sha}"
+                        )
+
+                # Hard-link creation is no-overwrite on both Windows and Unix.
+                # It creates the canonical directory entry only if the name is
+                # still absent; the verified private leaf remains available
+                # until that discrete transition succeeds.
+                try:
+                    os.link(
+                        record["publish_leaf"],
+                        destination,
+                    )
+                except FileExistsError as error:
+                    if record["preimage_leaf"] is not None:
+                        preimage_sha = sha256_file(record["preimage_leaf"])
+                        if not destination.exists():
+                            restore_private_leaf_without_overwrite(
+                                record["preimage_leaf"],
+                                destination,
+                                preimage_sha,
+                                f"{record['name']} failed commit preimage",
+                            )
+                            record["preimage_leaf"] = None
+
+                    raise RuntimeError(
+                        f"{record['name']} destination appeared before atomic publish"
+                    ) from error
+
+                record["committed"] = True
+                record["published_sha"] = record["expected_sha"]
+
+                # Canonical and private leaf now refer to the same exact inode.
+                # Drop only the transaction-owned private name.
+                remove_verified_leaf(
+                    record["publish_leaf"],
+                    record["expected_sha"],
+                    f"{record['name']} committed publish",
+                )
+                record["publish_leaf"] = None
 
             # Re-verify the complete generated set while rollback ownership is
             # still active. No success output is emitted before this finishes.
@@ -474,6 +669,20 @@ def main() -> int:
                         f"actual={final_sha}"
                     )
 
+            # Existing-destination preimages remain rollback authority until
+            # the whole generated set is verified. Retire them only now.
+            for record in publication:
+                if record["preimage_leaf"] is None:
+                    continue
+
+                backup_sha = sha256_file(record["backup"])
+                remove_verified_leaf(
+                    record["preimage_leaf"],
+                    backup_sha,
+                    f"{record['name']} committed preimage",
+                )
+                record["preimage_leaf"] = None
+
             print(
                 "V308_LOCAL_CLIENT_FINAL_VERIFY_PASS "
                 f"count={len(publication)} rollbackOwned=true"
@@ -483,22 +692,151 @@ def main() -> int:
 
             for record in reversed(touched):
                 try:
-                    if record["existed"]:
-                        shutil.copyfile(
-                            record["backup"],
-                            record["destination"],
+                    destination = record["destination"]
+
+                    if not record["committed"]:
+                        remove_verified_leaf(
+                            record["publish_leaf"],
+                            record["expected_sha"],
+                            f"{record['name']} uncommitted publish",
                         )
-                        restored_sha = sha256_file(record["destination"])
+                        record["publish_leaf"] = None
+
+                        if record["preimage_leaf"] is not None:
+                            preimage_sha = sha256_file(record["preimage_leaf"])
+                            if destination.exists():
+                                raise RuntimeError(
+                                    f"{record['name']} cannot restore uncommitted "
+                                    "preimage because destination was recreated"
+                                )
+
+                            restore_private_leaf_without_overwrite(
+                                record["preimage_leaf"],
+                                destination,
+                                preimage_sha,
+                                f"{record['name']} uncommitted preimage",
+                            )
+                            record["preimage_leaf"] = None
+                        continue
+
+                    if not destination.is_file():
+                        raise RuntimeError(
+                            f"{record['name']} committed destination disappeared"
+                        )
+
+                    current_sha = sha256_file(destination)
+                    if current_sha != record["published_sha"]:
+                        raise RuntimeError(
+                            f"{record['name']} rollback ownership lost "
+                            f"published={record['published_sha']} current={current_sha}"
+                        )
+
+                    quarantine = new_same_directory_leaf_path(
+                        destination,
+                        "rollback-published",
+                    )
+                    os.replace(destination, quarantine)
+
+                    quarantined_sha = sha256_file(quarantine)
+                    if quarantined_sha != record["published_sha"]:
+                        if not destination.exists():
+                            restore_private_leaf_without_overwrite(
+                                quarantine,
+                                destination,
+                                quarantined_sha,
+                                f"{record['name']} changed rollback publication",
+                            )
+
+                        raise RuntimeError(
+                            f"{record['name']} rollback ownership changed during "
+                            f"quarantine published={record['published_sha']} "
+                            f"moved={quarantined_sha}"
+                        )
+
+                    if record["existed"]:
                         backup_sha = sha256_file(record["backup"])
+
+                        if record["preimage_leaf"] is None:
+                            record["preimage_leaf"] = (
+                                copy_verified_same_directory_leaf(
+                                    record["backup"],
+                                    destination,
+                                    backup_sha,
+                                    "rollback-restore",
+                                )
+                            )
+
+                        try:
+                            restore_private_leaf_without_overwrite(
+                                record["preimage_leaf"],
+                                destination,
+                                backup_sha,
+                                f"{record['name']} rollback preimage",
+                            )
+                            record["preimage_leaf"] = None
+                        except BaseException:
+                            if not destination.exists():
+                                restore_private_leaf_without_overwrite(
+                                    quarantine,
+                                    destination,
+                                    quarantined_sha,
+                                    f"{record['name']} rollback compensation",
+                                )
+                                quarantine = None
+                            raise
+
+                        restored_sha = sha256_file(destination)
                         if restored_sha != backup_sha:
                             raise RuntimeError(
-                                "restored destination does not match rollback backup"
+                                f"{record['name']} restored destination does not "
+                                "match rollback backup"
                             )
-                    elif record["destination"].exists():
-                        record["destination"].unlink()
+                    elif destination.exists():
+                        raise RuntimeError(
+                            f"{record['name']} absent-before destination was "
+                            "recreated during rollback"
+                        )
+
+                    remove_verified_leaf(
+                        quarantine,
+                        record["published_sha"],
+                        f"{record['name']} rollback quarantine",
+                    )
                 except BaseException as rollback_error:
                     rollback_errors.append(
                         f"{record['name']}: {rollback_error}"
+                    )
+
+            # Clean only exact transaction-owned private leaves that remain.
+            for record in publication:
+                try:
+                    remove_verified_leaf(
+                        record["publish_leaf"],
+                        record["expected_sha"],
+                        f"{record['name']} residual publish",
+                    )
+                    record["publish_leaf"] = None
+                except BaseException as leaf_error:
+                    rollback_errors.append(
+                        f"{record['name']} publish-leaf: {leaf_error}"
+                    )
+
+                try:
+                    if record["preimage_leaf"] is not None:
+                        expected_preimage_sha = (
+                            sha256_file(record["backup"])
+                            if record["existed"]
+                            else record["expected_sha"]
+                        )
+                        remove_verified_leaf(
+                            record["preimage_leaf"],
+                            expected_preimage_sha,
+                            f"{record['name']} residual preimage",
+                        )
+                        record["preimage_leaf"] = None
+                except BaseException as leaf_error:
+                    rollback_errors.append(
+                        f"{record['name']} preimage-leaf: {leaf_error}"
                     )
 
             if not output_existed:
