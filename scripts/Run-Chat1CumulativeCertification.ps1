@@ -331,6 +331,19 @@ finally {
 $json = $record | ConvertTo-Json -Depth 4
 Set-Content -LiteralPath $evidence -Value $json -Encoding UTF8
 
+$evidenceItem = Get-Item -LiteralPath $evidence
+$evidenceSha =
+    (Get-FileHash -LiteralPath $evidence -Algorithm SHA256).Hash.ToLowerInvariant()
+
+$completion = [pscustomobject]@{
+    format = 'spawnpk-chat1-cumulative-result-v1'
+    gitHead = $headBefore
+    exactV308ClientSha256 = $privateClientSha
+    certifiedServerJarSha256 = $certifiedServerSha
+    evidenceFile = $evidenceItem.Name
+    evidenceSha256 = $evidenceSha
+}
+
 Write-Host (
     'CHAT1_CUMULATIVE_WRAPPER_COMPLETE ' +
     "exactV308=true " +
@@ -340,6 +353,9 @@ Write-Host (
     "serverSha256=$certifiedServerSha " +
     "logSha256=$logSha " +
     "logBytes=$($logItem.Length) " +
-    "evidence=$([IO.Path]::GetFileName($evidence)) " +
+    "evidence=$($evidenceItem.Name) " +
+    "evidenceSha256=$evidenceSha " +
     'hostedPromotionSatisfied=false'
 ) -ForegroundColor Green
+
+Write-Output $completion
