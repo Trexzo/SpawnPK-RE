@@ -14,6 +14,7 @@ server/build/
 # Runtime account / mutable state
 server/data/accounts/
 server/data/dev_pet_visual.properties
+server/data/locallab_dialog_keys.properties
 
 # Client binaries / proprietary evidence
 local-client/*.jar
@@ -90,3 +91,6 @@ runtime/locallab-user-home/
 
 # Local cumulative certification evidence
 runtime/certification/
+# Python tooling bytecode/cache
+__pycache__/
+*.py[cod]
