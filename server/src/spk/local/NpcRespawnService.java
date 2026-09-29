@@ -338,19 +338,9 @@ final class NpcRespawnService {
                             authority
                         );
 
-                    NpcLifecycleService.Snapshot retired=
-                        lifecycle.retireDeadCanonical(
-                            checked
-                        );
-
-                    if(retired.deathTick!=
-                            state.deathTick||
-                       retired.maxHitpoints!=
-                            state.maxHitpoints)
-                        throw new IllegalStateException(
-                            "NPC lifecycle retirement snapshot drift id="+
-                            checked.id
-                        );
+                    lifecycle.retireDeadCanonical(
+                        checked
+                    );
 
                     tickets.put(
                         ticketId,
