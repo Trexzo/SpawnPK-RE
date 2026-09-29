@@ -249,6 +249,7 @@ if ($existingOutput -and -not $ResetOutput) {
 $selector = Join-Path $repo 'scripts\Select-LocalLabJava.ps1'
 $runtimeBuilder = Join-Path $repo 'scripts\Build-V308LocalClients.ps1'
 $profileBuilder = Join-Path $repo 'tools\custom-assets\build_r13_isolated_profile.py'
+$buildServer = Join-Path $repo 'scripts\Build-Server.ps1'
 $runAll = Join-Path $repo 'RUN_ALL_LOCAL_LAB.ps1'
 $clientJar = Join-Path $repo 'evidence\client(6).jar'
 $expectedClientSha =
@@ -258,6 +259,7 @@ foreach ($required in @(
     $selector,
     $runtimeBuilder,
     $profileBuilder,
+    $buildServer,
     $runAll,
     $clientJar
 )) {
@@ -457,6 +459,20 @@ Write-Host (
         $manifestData.modelSha256,
         $manifestData.textureArchiveSemanticSha256
 ) -ForegroundColor Green
+
+Write-Host '=== R13 LocalLab server build ===' -ForegroundColor Cyan
+& $buildServer
+
+if ($LASTEXITCODE -ne 0) {
+    throw "R13 LocalLab server build failed with code $LASTEXITCODE"
+}
+
+$serverJar = Join-Path $repo 'server\build\SpawnPKLocalServer.jar'
+if (-not (Test-Path -LiteralPath $serverJar -PathType Leaf)) {
+    throw "R13 LocalLab server build completed without expected JAR: $serverJar"
+}
+
+Write-Host 'R13_SERVER_BUILD_READY serverJar=true' -ForegroundColor Green
 
 $hadOldHome = Test-Path Env:SPAWNPK_LOCALLAB_USER_HOME
 $oldHome = $env:SPAWNPK_LOCALLAB_USER_HOME
