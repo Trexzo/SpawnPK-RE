@@ -187,11 +187,12 @@ public final class WalkRouteTraceClassTool {
                 "post-transform hook mismatch="+after.hooks
             );
 
+        // Match the already-proven DialogKeyClassTool pattern. The injected
+        // observer is straight-line code after an existing ISTORE and adds no
+        // labels or control-flow edges, so preserving existing frames is safer
+        // than asking ASM to resolve the entire obfuscated client hierarchy.
         ClassWriter writer=
-            new ClassWriter(
-                ClassWriter.COMPUTE_FRAMES|
-                ClassWriter.COMPUTE_MAXS
-            );
+            new ClassWriter(0);
 
         cn.accept(writer);
         byte[] output=writer.toByteArray();
