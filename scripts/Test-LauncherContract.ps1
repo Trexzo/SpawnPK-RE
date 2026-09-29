@@ -143,6 +143,22 @@ Assert-True ($r13EnvCaptureIndex -ge 0 -and $r13EnvCaptureIndex -lt $r13JavaInde
 Assert-True ($r13ReadyIndex -gt $r13JavaIndex) 'R13 readiness marker precedes canonical Java selection/acceptance flow.'
 Assert-True ($r13FinalInstructionIndex -gt $r13ReadyIndex) 'R13 final operator instruction no longer follows readiness marker.'
 Assert-True ($r13EnvRestoreIndex -gt $r13FinalInstructionIndex) 'R13 acceptance restores caller Java environment before the complete operator flow ends.'
+$r13BuildServerPathIndex = $r13Acceptance.IndexOf('$buildServer = Join-Path $repo ''scripts\Build-Server.ps1''')
+$r13ProfileReadyIndex = $r13Acceptance.IndexOf('R13_PROFILE_READY home=')
+$r13BuildServerInvokeIndex = $r13Acceptance.IndexOf('& $buildServer')
+$r13ServerBuildReadyIndex = $r13Acceptance.IndexOf('R13_SERVER_BUILD_READY serverJar=true')
+$r13RunAllInvokeIndex = $r13Acceptance.IndexOf('& $runAll')
+Assert-True ($r13BuildServerPathIndex -ge 0) 'R13 acceptance does not bind the canonical Build-Server launcher.'
+Assert-ExactTextCount $r13Acceptance '$buildServer = Join-Path $repo ''scripts\Build-Server.ps1''' 1 'R13 acceptance Build-Server binding count drift.'
+Assert-ExactTextCount $r13Acceptance '& $buildServer' 1 'R13 acceptance Build-Server invocation count drift.'
+Assert-ExactTextCount $r13Acceptance '$buildServer,' 1 'R13 acceptance does not require the canonical Build-Server component exactly once.'
+Assert-ExactTextCount $r13Acceptance '$serverJar = Join-Path $repo ''server\build\SpawnPKLocalServer.jar''' 1 'R13 acceptance server-JAR binding count drift.'
+Assert-ExactTextCount $r13Acceptance 'R13 LocalLab server build failed with code' 1 'R13 acceptance lost explicit Build-Server exit-code failure.'
+Assert-ExactTextCount $r13Acceptance 'R13 LocalLab server build completed without expected JAR:' 1 'R13 acceptance lost post-build server-JAR existence failure.'
+Assert-True ($r13Acceptance -match 'Test-Path -LiteralPath \$serverJar -PathType Leaf') 'R13 acceptance no longer proves the built server JAR is an ordinary file before launch.'
+Assert-True ($r13BuildServerInvokeIndex -gt $r13ProfileReadyIndex) 'R13 acceptance builds the server before isolated profile readiness.'
+Assert-True ($r13ServerBuildReadyIndex -gt $r13BuildServerInvokeIndex) 'R13 acceptance server-build readiness marker precedes the canonical build invocation.'
+Assert-True ($r13RunAllInvokeIndex -gt $r13ServerBuildReadyIndex) 'R13 acceptance launches LocalLab before the canonical server build is proven ready.'
 
 foreach ($entry in @(
     @('function Get-Sha256Hex', 1),
