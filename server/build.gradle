@@ -5356,6 +5356,37 @@ tasks.register('chat1CurrentCumulativeServerIdentityRegression') {
                 )
         }
 
+        int dependencyBlockEnd = taskText.indexOf('\n\n    doLast {')
+        if(dependencyBlockEnd < 0)
+            throw new GradleException(
+                'Current cumulative dependency block terminator not found.'
+            )
+
+        String dependencyText =
+            taskText.substring(0, dependencyBlockEnd)
+
+        [
+            "tasks.named('currentTrainFocusedRegression')",
+            "tasks.named('r85V308Acceptance')",
+            "tasks.named('verifyJava11Bytecode')"
+        ].each { required ->
+            if(!dependencyText.contains(required))
+                throw new GradleException(
+                    "Current cumulative direct proof dependency missing: ${required}"
+                )
+        }
+
+        [
+            "'focused=175 '",
+            "'exactV308=179 '",
+            "'bytecodeMajor=55'"
+        ].each { required ->
+            if(!taskText.contains(required))
+                throw new GradleException(
+                    "Current cumulative numeric proof claim missing: ${required}"
+                )
+        }
+
         int jarIndex = taskText.indexOf(
             "tasks.named('jar', Jar).get().archiveFile.get().asFile"
         )
@@ -5393,6 +5424,9 @@ tasks.register('chat1CurrentCumulativeCertification') {
         tasks.named('chat1CurrentCumulativeServerIdentityRegression'),
         tasks.named('gradleBootstrapContractRegression'),
         tasks.named('issue5KotlinScriptingCertification'),
+        tasks.named('currentTrainFocusedRegression'),
+        tasks.named('r85V308Acceptance'),
+        tasks.named('verifyJava11Bytecode'),
         tasks.named('issue9R13SourceCertification'),
         tasks.named('staffPartyhatAppearanceGateRegression'),
         tasks.named('tournamentPresentationRegression'),
