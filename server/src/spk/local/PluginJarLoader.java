@@ -15,10 +15,55 @@ import spk.plugin.api.Plugin;
 import spk.plugin.api.PluginContext;
 import spk.plugin.api.PluginManifest;
 
-final class PluginJarLoader {
+final class PluginJarLoader implements PluginLoader {
+    private static final PluginJarLoader INSTANCE=
+        new PluginJarLoader();
     private static final String RESERVED_SERVER_ENTRY_PREFIX=
         "spk/";
 
+    static PluginJarLoader instance(){
+        return INSTANCE;
+    }
+
+    @Override public boolean supports(
+        PluginSource source
+    ){
+        if(source==null||
+           !source.hasEntrypoint())
+            return false;
+
+        Path fileName=
+            source.path()
+                .getFileName();
+
+        return fileName!=null&&
+            fileName.toString()
+                .toLowerCase(
+                    java.util.Locale.ROOT
+                ).endsWith(
+                    ".jar"
+                );
+    }
+
+    @Override public PluginRuntime load(
+        PluginSource source
+    )throws Exception{
+        Objects.requireNonNull(
+            source,
+            "source"
+        );
+
+        if(!supports(source))
+            throw new IllegalArgumentException(
+                "unsupported JAR plugin source: "+
+                source.path()
+            );
+
+        return load(
+            source.path(),
+            source.requireEntrypoint()
+        );
+    }
     static LoadedPlugin load(
         Path jar,
         String entrypoint
@@ -35,6 +80,37 @@ final class PluginJarLoader {
         String entrypoint,
         ClassLoader parent
     )throws Exception{
+        return load(
+            jar,
+            entrypoint,
+            parent,
+            (source,snapshot)->{},
+            (source,snapshot)->{}
+        );
+    }
+
+    static LoadedPlugin load(
+        Path jar,
+        String entrypoint,
+        ClassLoader parent,
+        ArchiveAdmissionHook admissionHook
+    )throws Exception{
+        return load(
+            jar,
+            entrypoint,
+            parent,
+            admissionHook,
+            (source,snapshot)->{}
+        );
+    }
+
+    static LoadedPlugin load(
+        Path jar,
+        String entrypoint,
+        ClassLoader parent,
+        ArchiveAdmissionHook admissionHook,
+        ArchiveSnapshotObserver snapshotObserver
+    )throws Exception{
         Path path=
             Objects.requireNonNull(
                 jar,
@@ -46,30 +122,55 @@ final class PluginJarLoader {
                 entrypoint
             );
 
-        validateArchive(
-            path,
-            main
-        );
-
-        IsolatedPluginClassLoader loader=
-            new IsolatedPluginClassLoader(
-                path.toUri().toURL(),
-                Objects.requireNonNull(
-                    parent,
-                    "parent"
-                )
+        ArchiveSnapshot snapshot=
+            ArchiveSnapshot.capture(
+                path
             );
+        IsolatedPluginClassLoader loader=null;
 
         try{
+            Objects.requireNonNull(
+                snapshotObserver,
+                "snapshotObserver"
+            ).snapshotCreated(
+                path,
+                snapshot.path()
+            );
+
+            validateArchive(
+                snapshot.path(),
+                main
+            );
+
+            Objects.requireNonNull(
+                admissionHook,
+                "admissionHook"
+            ).afterValidation(
+                path,
+                snapshot.path()
+            );
+
+            IsolatedPluginClassLoader openedLoader=
+                new IsolatedPluginClassLoader(
+                    snapshot.path()
+                        .toUri()
+                        .toURL(),
+                    Objects.requireNonNull(
+                        parent,
+                        "parent"
+                    )
+                );
+            loader=openedLoader;
+
             Plugin delegate=
                 PluginThreadContext.call(
-                    loader,
+                    openedLoader,
                     ()->{
                         Class<?> type=
                             Class.forName(
                                 main,
                                 true,
-                                loader
+                                openedLoader
                             );
 
                         if(!Plugin.class
@@ -103,13 +204,25 @@ final class PluginJarLoader {
                 delegate,
                 loader,
                 path,
-                main
+                main,
+                snapshot
             );
         }catch(Throwable failure){
+            if(loader!=null)
+                try{
+                    loader.close();
+                }catch(Throwable cleanup){
+                    preserveFailure(
+                        failure,
+                        cleanup
+                    );
+                }
+
             try{
-                loader.close();
+                snapshot.close();
             }catch(Throwable cleanup){
-                failure.addSuppressed(
+                preserveFailure(
+                    failure,
                     cleanup
                 );
             }
@@ -121,44 +234,110 @@ final class PluginJarLoader {
         }
     }
 
+    interface ArchiveAdmissionHook {
+        void afterValidation(
+            Path source,
+            Path snapshot
+        )throws Exception;
+    }
+
+    interface ArchiveSnapshotObserver {
+        void snapshotCreated(
+            Path source,
+            Path snapshot
+        )throws Exception;
+    }
+
+    interface ArchiveCaptureHook {
+        void afterPrivatePathsCreated(
+            Path root,
+            Path snapshot
+        )throws IOException;
+    }
+
+    static void captureArchiveForTest(
+        Path source,
+        ArchiveCaptureHook hook
+    )throws Exception{
+        ArchiveSnapshot snapshot=
+            ArchiveSnapshot.capture(
+                source,
+                hook
+            );
+
+        snapshot.close();
+    }
+
     static ClassLoader callbackClassLoader(
         Plugin plugin
     ){
-        if(plugin==null)
-            return PluginJarLoader.class
-                .getClassLoader();
-
-        if(plugin instanceof LoadedPlugin)
-            return ((LoadedPlugin)plugin)
-                .classLoader();
-
-        return plugin.getClass()
-            .getClassLoader();
+        return PluginRuntimeSupport
+            .callbackClassLoader(
+                plugin
+            );
     }
 
     static Throwable closePluginRuntime(
         Plugin plugin,
         Throwable primary
     ){
-        if(!(plugin instanceof LoadedPlugin))
-            return null;
+        return PluginRuntimeSupport
+            .closePluginRuntime(
+                plugin,
+                primary
+            );
+    }
 
-        try{
-            ((LoadedPlugin)plugin)
-                .close();
-            return null;
-        }catch(Throwable cleanup){
-            if(primary!=null)
-                primary.addSuppressed(
-                    cleanup
-                );
-            else
+    static int archiveCleanupDebtCount(){
+        synchronized(
+            ArchiveCleanupDebt.DEBTS
+        ){
+            return ArchiveCleanupDebt
+                .DEBTS.size();
+        }
+    }
+
+    static Throwable retryArchiveCleanupDebtOnce(
+        Throwable primary
+    ){
+        synchronized(
+            ArchiveCleanupDebt.DEBTS
+        ){
+            Throwable aggregate=primary;
+
+            java.util.Iterator<ArchiveCleanupDebt>
+                iterator=
+                    ArchiveCleanupDebt.DEBTS
+                        .iterator();
+
+            while(iterator.hasNext()){
+                ArchiveCleanupDebt debt=
+                    iterator.next();
+                Throwable retry=
+                    debt.retry();
+
+                if(retry==null){
+                    iterator.remove();
+                    continue;
+                }
+
+                if(aggregate==null)
+                    aggregate=retry;
+                else
+                    preserveFailure(
+                        aggregate,
+                        retry
+                    );
+
                 System.err.println(
-                    "[plugins] classloader close failed errorClass="+
-                    cleanup.getClass()
-                        .getName()
+                    "[plugins] Java archive cleanup debt retry failed root="+
+                    debt.root+
+                    " errorClass="+
+                    retry.getClass().getName()
                 );
-            return cleanup;
+            }
+
+            return aggregate;
         }
     }
 
@@ -182,8 +361,33 @@ final class PluginJarLoader {
 
         try(JarFile file=
                 new JarFile(
-                    jar.toFile()
+                    jar.toFile(),
+                    false
                 )){
+            java.util.jar.Attributes mainAttributes=
+                BoundedManifestMain
+                    .readMainAttributes(
+                        file,
+                        jar
+                    );
+
+            if(mainAttributes!=null){
+                String classPath=
+                    mainAttributes
+                        .getValue(
+                            java.util.jar.Attributes
+                                .Name.CLASS_PATH
+                        );
+
+                if(classPath!=null&&
+                   !classPath.trim()
+                        .isEmpty())
+                    throw new IllegalArgumentException(
+                        "plugin JAR manifest Class-Path is forbidden: "+
+                        classPath
+                    );
+            }
+
             Enumeration<JarEntry> entries=
                 file.entries();
 
@@ -200,6 +404,13 @@ final class PluginJarLoader {
                             '\\',
                             '/'
                         );
+
+                if("META-INF/INDEX.LIST"
+                        .equals(name))
+                    throw new IllegalArgumentException(
+                        "plugin JAR index is forbidden: "+
+                        name
+                    );
 
                 if(name.equals(
                         entrypointClass))
@@ -253,6 +464,25 @@ final class PluginJarLoader {
         return clean;
     }
 
+    private static void preserveFailure(
+        Throwable primary,
+        Throwable cleanup
+    ){
+        if(primary==null||
+           cleanup==null||
+           primary==cleanup)
+            return;
+
+        for(Throwable existing:
+                primary.getSuppressed())
+            if(existing==cleanup)
+                return;
+
+        primary.addSuppressed(
+            cleanup
+        );
+    }
+
     private static void rethrow(
         Throwable failure
     )throws Exception{
@@ -268,19 +498,21 @@ final class PluginJarLoader {
     }
 
     static final class LoadedPlugin
-        implements Plugin,AutoCloseable {
+        implements PluginRuntime {
 
-        private final Plugin delegate;
-        private final IsolatedPluginClassLoader loader;
+        private volatile Plugin delegate;
+        private volatile IsolatedPluginClassLoader loader;
         private final Path source;
         private final String entrypoint;
+        private volatile ArchiveSnapshot snapshot;
         private volatile boolean closed;
 
         LoadedPlugin(
             Plugin delegate,
             IsolatedPluginClassLoader loader,
             Path source,
-            String entrypoint
+            String entrypoint,
+            ArchiveSnapshot snapshot
         ){
             this.delegate=
                 Objects.requireNonNull(
@@ -296,47 +528,69 @@ final class PluginJarLoader {
                 source;
             this.entrypoint=
                 entrypoint;
-        }
-
-        @Override public PluginManifest manifest(){
-            requireOpen();
-
-            return PluginThreadContext
-                .callUnchecked(
-                    loader,
-                    delegate::manifest
+            this.snapshot=
+                Objects.requireNonNull(
+                    snapshot,
+                    "snapshot"
                 );
         }
 
-        @Override public void enable(
+        @Override public synchronized PluginManifest manifest(){
+            Plugin current=
+                requireDelegate();
+            IsolatedPluginClassLoader
+                currentLoader=
+                    requireLoader();
+
+            return PluginThreadContext
+                .callUnchecked(
+                    currentLoader,
+                    current::manifest
+                );
+        }
+
+        @Override public synchronized void enable(
             PluginContext context
         )throws Exception{
-            requireOpen();
+            Plugin current=
+                requireDelegate();
+            IsolatedPluginClassLoader
+                currentLoader=
+                    requireLoader();
 
             PluginThreadContext.run(
-                loader,
-                ()->delegate.enable(
+                currentLoader,
+                ()->current.enable(
                     context
                 )
             );
         }
 
-        @Override public void disable()
+        @Override public synchronized void disable()
             throws Exception{
-            requireOpen();
+            Plugin current=
+                requireDelegate();
+            IsolatedPluginClassLoader
+                currentLoader=
+                    requireLoader();
 
             PluginThreadContext.run(
-                loader,
-                delegate::disable
+                currentLoader,
+                current::disable
             );
         }
 
-        Plugin delegate(){
-            return delegate;
+        synchronized Plugin delegate(){
+            return requireDelegate();
         }
 
-        ClassLoader classLoader(){
-            return loader;
+        @Override public synchronized ClassLoader
+            callbackClassLoader(){
+            return requireLoader();
+        }
+
+        synchronized ClassLoader classLoader(){
+            return requireLoader();
         }
 
         Path source(){
@@ -351,21 +605,301 @@ final class PluginJarLoader {
             return closed;
         }
 
-        private void requireOpen(){
-            if(closed)
-                throw new IllegalStateException(
-                    "plugin classloader closed: "+
-                    entrypoint
-                );
+        synchronized Path snapshotPath(){
+            ArchiveSnapshot current=
+                snapshot;
+
+            if(current==null)
+                throw terminalFailure();
+
+            return current.path();
+        }
+
+        private Plugin requireDelegate(){
+            Plugin current=
+                delegate;
+
+            if(closed||
+               current==null)
+                throw terminalFailure();
+
+            return current;
+        }
+
+        private IsolatedPluginClassLoader
+            requireLoader(){
+            IsolatedPluginClassLoader current=
+                loader;
+
+            if(closed||
+               current==null)
+                throw terminalFailure();
+
+            return current;
+        }
+
+        private IllegalStateException
+            terminalFailure(){
+            return new IllegalStateException(
+                "plugin classloader closed: "+
+                entrypoint
+            );
         }
 
         @Override public synchronized void close()
-            throws IOException{
+            throws Exception{
             if(closed)
                 return;
 
             closed=true;
-            loader.close();
+
+            IsolatedPluginClassLoader
+                ownedLoader=loader;
+            ArchiveSnapshot
+                ownedSnapshot=snapshot;
+            Throwable failure=null;
+
+            try{
+                if(ownedLoader!=null)
+                    ownedLoader.close();
+            }catch(Throwable cleanup){
+                failure=cleanup;
+            }
+
+            try{
+                if(ownedSnapshot!=null)
+                    ownedSnapshot.close();
+            }catch(Throwable cleanup){
+                if(failure==null)
+                    failure=cleanup;
+                else
+                    preserveFailure(
+                        failure,
+                        cleanup
+                    );
+            }finally{
+                delegate=null;
+                loader=null;
+                snapshot=null;
+            }
+
+            if(failure!=null)
+                rethrow(
+                    failure
+                );
+        }
+    }
+
+    private static final class ArchiveSnapshot
+        implements AutoCloseable {
+        private final Path root;
+        private final Path path;
+        private boolean closed;
+
+        private ArchiveSnapshot(
+            Path root,
+            Path path
+        ){
+            this.root=root;
+            this.path=path;
+        }
+
+        static ArchiveSnapshot capture(
+            Path source
+        )throws Exception{
+            return capture(
+                source,
+                (root,snapshot)->{}
+            );
+        }
+
+        static ArchiveSnapshot capture(
+            Path source,
+            ArchiveCaptureHook hook
+        )throws Exception{
+            if(!Files.isRegularFile(source))
+                throw new IllegalArgumentException(
+                    "plugin JAR missing: "+
+                    source
+                );
+
+            Path root=
+                Files.createTempDirectory(
+                    "spawnpk-plugin-archive-"
+                );
+            Path path=
+                root.resolve(
+                    "plugin.jar"
+                );
+
+            try{
+                Files.createFile(
+                    path
+                );
+
+                Objects.requireNonNull(
+                    hook,
+                    "hook"
+                ).afterPrivatePathsCreated(
+                    root,
+                    path
+                );
+
+                try(java.io.InputStream input=
+                        Files.newInputStream(
+                            source
+                        );
+                    java.io.OutputStream output=
+                        Files.newOutputStream(
+                            path,
+                            java.nio.file.StandardOpenOption.WRITE,
+                            java.nio.file.StandardOpenOption.TRUNCATE_EXISTING
+                        )){
+                    byte[] buffer=
+                        new byte[8192];
+                    int read;
+
+                    while((read=
+                            input.read(
+                                buffer
+                            ))!=-1)
+                        output.write(
+                            buffer,
+                            0,
+                            read
+                        );
+                }
+
+                return new ArchiveSnapshot(
+                    root,
+                    path
+                );
+            }catch(Throwable failure){
+                Throwable cleanup=
+                    ArchiveCleanupDebt.delete(
+                        path,
+                        root
+                    );
+
+                if(cleanup!=null){
+                    ArchiveCleanupDebt.register(
+                        path,
+                        root
+                    );
+                    preserveFailure(
+                        failure,
+                        cleanup
+                    );
+                }
+
+                rethrow(failure);
+                throw new AssertionError(
+                    "unreachable"
+                );
+            }
+        }
+
+        Path path(){
+            return path;
+        }
+
+        @Override public synchronized void close()
+            throws Exception{
+            if(closed)
+                return;
+
+            closed=true;
+            Throwable failure=
+                ArchiveCleanupDebt.delete(
+                    path,
+                    root
+                );
+
+            if(failure!=null){
+                ArchiveCleanupDebt.register(
+                    path,
+                    root
+                );
+                rethrow(
+                    failure
+                );
+            }
+        }
+    }
+
+    private static final class ArchiveCleanupDebt {
+        private static final java.util.ArrayList<
+            ArchiveCleanupDebt
+        > DEBTS=
+            new java.util.ArrayList<>();
+
+        private final Path path;
+        private final Path root;
+
+        private ArchiveCleanupDebt(
+            Path path,
+            Path root
+        ){
+            this.path=path;
+            this.root=root;
+        }
+
+        static void register(
+            Path path,
+            Path root
+        ){
+            synchronized(DEBTS){
+                for(ArchiveCleanupDebt existing:
+                        DEBTS)
+                    if(existing.path.equals(path)&&
+                       existing.root.equals(root))
+                        return;
+
+                DEBTS.add(
+                    new ArchiveCleanupDebt(
+                        path,
+                        root
+                    )
+                );
+            }
+        }
+
+        Throwable retry(){
+            return delete(
+                path,
+                root
+            );
+        }
+
+        static Throwable delete(
+            Path path,
+            Path root
+        ){
+            Throwable failure=null;
+
+            try{
+                Files.deleteIfExists(
+                    path
+                );
+            }catch(Throwable cleanup){
+                failure=cleanup;
+            }
+
+            try{
+                Files.deleteIfExists(
+                    root
+                );
+            }catch(Throwable cleanup){
+                if(failure==null)
+                    failure=cleanup;
+                else
+                    preserveFailure(
+                        failure,
+                        cleanup
+                    );
+            }
+
+            return failure;
         }
     }
 

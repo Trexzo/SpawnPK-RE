@@ -1,0 +1,9 @@
+{
+  "format": "spawnpk-v308-blender-material-v1",
+  "materialName": "SPK_Texture_278",
+  "textureId": 278,
+  "uvLayer": "SPK_UV",
+  "image": "r11-texture-278.png",
+  "mappingPolicy": "canonical triangle UV: (0,0),(1,0),(0,1)",
+  "note": "Texture-278 cache conversion/injection is a separately proven exact-v308 stage; this file binds Blender-authored material identity to the model export."
+}

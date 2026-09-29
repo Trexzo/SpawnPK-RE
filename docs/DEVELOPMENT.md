@@ -18,5 +18,7 @@ Before committing:
 
 Branch names: `fix/...`, `feature/...`, `research/...`, `refactor/...`.
 
-Immediate work: fix Make-X fixture/root, finish launcher cleanup, and replace the
-rejected Voidglass compositor with a real custom-asset pipeline.
+Active priorities move with the cumulative recovery/integration frontier.
+Use the repository's current GitHub Issues, Pull Requests, and integration/release
+queue as the source of truth instead of retaining a hardcoded immediate-work list
+in this document.
