@@ -4914,6 +4914,11 @@ tasks.named('check') {
     dependsOn tasks.named('currentTrainFocusedRegression')
     dependsOn tasks.named('pluginKotlinJvmConsumerRegression')
     dependsOn tasks.named('pluginKotlinDirectoryRegression')
+    dependsOn tasks.named('pluginClassloaderIsolationRegression')
+    dependsOn tasks.named('pluginLoaderAbstractionRegression')
+    dependsOn tasks.named('pluginKotlinDslRegression')
+    dependsOn tasks.named('pluginWorldTerminalLifecycleRegression')
+    dependsOn tasks.named('pluginRuntimeFailureCascadeRegression')
     dependsOn tasks.named('r85Regression')
 }
 
