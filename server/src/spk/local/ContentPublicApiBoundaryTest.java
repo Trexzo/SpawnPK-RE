@@ -76,6 +76,7 @@ public final class ContentPublicApiBoundaryTest {
             violations
         );
         assertApiTypeCoverage(violations);
+        assertInheritedSurfaceGuard(violations);
 
         for(Class<?> api:API_TYPES){
             if(!Modifier.isPublic(api.getModifiers()))
@@ -83,6 +84,8 @@ public final class ContentPublicApiBoundaryTest {
                     api.getName()+
                     " is not public"
                 );
+
+            inspectInheritedSurface(api,violations);
 
             for(Method method:
                     api.getDeclaredMethods()){
@@ -270,6 +273,7 @@ public final class ContentPublicApiBoundaryTest {
             "containerIdentity=false "+
             "cacheIdentity=false "+
             "apiCoverageComplete=true "+
+            "inheritedSurface=true "+
             "javaIoLeak=false"
         );
     }
@@ -521,6 +525,150 @@ public final class ContentPublicApiBoundaryTest {
                     semantic
                 );
     }
+
+
+    private static void assertInheritedSurfaceGuard(
+        List<String> violations
+    ){
+        ArrayList<String> inheritedMethodProbe=
+            new ArrayList<>();
+
+        inspectInheritedSurface(
+            InheritedTransportProbe.class,
+            inheritedMethodProbe
+        );
+
+        if(inheritedMethodProbe.isEmpty())
+            violations.add(
+                "inherited public method transport leak guard is inactive"
+            );
+
+        ArrayList<String> genericSuperProbe=
+            new ArrayList<>();
+
+        inspectInheritedSurface(
+            InheritedGenericProbe.class,
+            genericSuperProbe
+        );
+
+        if(genericSuperProbe.isEmpty())
+            violations.add(
+                "generic supertype transport leak guard is inactive"
+            );
+    }
+
+    private static void inspectInheritedSurface(
+        Class<?> api,
+        List<String> violations
+    ){
+        Type superType=
+            api.getGenericSuperclass();
+
+        if(superType!=null&&
+           superType!=Object.class)
+            inspect(
+                superType,
+                api.getName()+" generic superclass",
+                violations
+            );
+
+        Type[] interfaces=
+            api.getGenericInterfaces();
+
+        for(int i=0;i<interfaces.length;i++)
+            inspect(
+                interfaces[i],
+                api.getName()+
+                " generic interface["+
+                i+
+                "]",
+                violations
+            );
+
+        for(Method method:api.getMethods()){
+            if(method.getDeclaringClass()==api||
+               !Modifier.isPublic(
+                    method.getModifiers()))
+                continue;
+
+            String location=
+                api.getName()+
+                " inherited "+
+                method.getDeclaringClass().getName()+
+                "#"+
+                method.getName();
+
+            inspectInheritedName(
+                method.getName(),
+                location,
+                violations
+            );
+
+            inspect(
+                method.getGenericReturnType(),
+                location+" return",
+                violations
+            );
+
+            Type[] parameters=
+                method.getGenericParameterTypes();
+
+            for(int i=0;i<parameters.length;i++)
+                inspect(
+                    parameters[i],
+                    location+
+                    " param["+
+                    i+
+                    "]",
+                    violations
+                );
+
+            for(Class<?> exceptionType:
+                    method.getExceptionTypes())
+                inspectClass(
+                    exceptionType,
+                    location+" throws",
+                    violations
+                );
+        }
+    }
+
+    private static void inspectInheritedName(
+        String name,
+        String location,
+        List<String> violations
+    ){
+        String lower=
+            name.toLowerCase(Locale.ROOT);
+
+        if("sceneIndex".equals(name)||
+           "protocolIndex".equals(name)||
+           "playerIndex".equals(name)||
+           "percentageText".equals(name)||
+           lower.contains("widget")||
+           exposesRawInventorySlotIdentity(lower)||
+           exposesRawContainerIdentity(lower)||
+           exposesRawCacheIdentity(lower)||
+           lower.contains("opcode")||
+           lower.contains("schema")||
+           lower.contains("packet"))
+            violations.add(
+                location+
+                " exposes raw transport/presentation identity"
+            );
+    }
+
+    private interface InheritedTransportContract {
+        Socket socket();
+    }
+
+    private abstract static class InheritedTransportProbe
+            implements InheritedTransportContract {}
+
+    private static class InheritedGenericBase<T> {}
+
+    private static final class InheritedGenericProbe
+            extends InheritedGenericBase<Socket> {}
 
     private static void inspect(
         Type type,
