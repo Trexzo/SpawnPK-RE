@@ -555,6 +555,19 @@ public final class ContentPublicApiBoundaryTest {
             violations.add(
                 "generic supertype transport leak guard is inactive"
             );
+
+        ArrayList<String> nestedGenericProbe=
+            new ArrayList<>();
+
+        inspectInheritedSurface(
+            InheritedNestedTransportProbe.class,
+            nestedGenericProbe
+        );
+
+        if(nestedGenericProbe.isEmpty())
+            violations.add(
+                "recursive generic supertype transport leak guard is inactive"
+            );
     }
 
     private static void inspectInheritedSurface(
@@ -566,7 +579,7 @@ public final class ContentPublicApiBoundaryTest {
 
         if(superType!=null&&
            superType!=Object.class)
-            inspect(
+            inspectInheritedTypeHierarchy(
                 superType,
                 api.getName()+" generic superclass",
                 violations
@@ -576,7 +589,7 @@ public final class ContentPublicApiBoundaryTest {
             api.getGenericInterfaces();
 
         for(int i=0;i<interfaces.length;i++)
-            inspect(
+            inspectInheritedTypeHierarchy(
                 interfaces[i],
                 api.getName()+
                 " generic interface["+
@@ -673,6 +686,97 @@ public final class ContentPublicApiBoundaryTest {
 
     private static final class InheritedGenericProbe
             extends InheritedGenericBase<Socket> {}
+
+    private interface InheritedGenericCarrier<T> {}
+
+    private interface InheritedNestedTransportContract
+            extends InheritedGenericCarrier<Socket> {}
+
+    private abstract static class InheritedNestedTransportProbe
+            implements InheritedNestedTransportContract {}
+
+    private static void inspectInheritedTypeHierarchy(
+        Type type,
+        String location,
+        List<String> violations
+    ){
+        Set<Type> visiting=
+            Collections.newSetFromMap(
+                new IdentityHashMap<Type,Boolean>()
+            );
+
+        inspectInheritedTypeHierarchy(
+            type,
+            location,
+            violations,
+            visiting
+        );
+    }
+
+    private static void inspectInheritedTypeHierarchy(
+        Type type,
+        String location,
+        List<String> violations,
+        Set<Type> visiting
+    ){
+        if(type==null||
+           !visiting.add(type))
+            return;
+
+        try{
+            inspect(
+                type,
+                location,
+                violations
+            );
+
+            Class<?> rawType=null;
+
+            if(type instanceof Class<?>)
+                rawType=(Class<?>)type;
+            else if(type instanceof ParameterizedType){
+                Type raw=
+                    ((ParameterizedType)type)
+                        .getRawType();
+
+                if(raw instanceof Class<?>)
+                    rawType=(Class<?>)raw;
+            }
+
+            if(rawType==null||
+               rawType.getName().startsWith("java."))
+                return;
+
+            Type parent=
+                rawType.getGenericSuperclass();
+
+            if(parent!=null&&
+               parent!=Object.class)
+                inspectInheritedTypeHierarchy(
+                    parent,
+                    location+
+                    " -> generic superclass",
+                    violations,
+                    visiting
+                );
+
+            Type[] parents=
+                rawType.getGenericInterfaces();
+
+            for(int i=0;i<parents.length;i++)
+                inspectInheritedTypeHierarchy(
+                    parents[i],
+                    location+
+                    " -> generic interface["+
+                    i+
+                    "]",
+                    violations,
+                    visiting
+                );
+        }finally{
+            visiting.remove(type);
+        }
+    }
 
     private static void inspect(
         Type type,
