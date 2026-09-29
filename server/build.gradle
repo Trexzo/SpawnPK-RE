@@ -4939,6 +4939,7 @@ tasks.named('check') {
     dependsOn tasks.named('worldAdmissionPulseStartAtomicRegression')
     dependsOn tasks.named('worldNpcMutationOwnershipRegression')
     dependsOn tasks.named('npcLifecycleServiceRegression')
+    dependsOn tasks.named('npcCombatResolutionServiceRegression')
     dependsOn tasks.named('localAuxHttpResponseRegression')
     dependsOn tasks.named('localAuxResponseLivenessRegression')
     dependsOn tasks.named('localAuxiliaryWorkerFailureRegression')
@@ -5247,6 +5248,20 @@ tasks.register('npcLifecycleServiceRegression', JavaExec) {
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass = 'spk.local.NpcLifecycleServiceTest'
+}
+
+
+tasks.register('npcCombatResolutionServiceRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves player-to-NPC PvM resolution holds attacker generation ownership and delegates final HP/death mutation to the exact canonical NPC lifecycle fence.'
+    dependsOn(
+        tasks.named('testClasses'),
+        tasks.named('npcLifecycleServiceRegression')
+    )
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.NpcCombatResolutionServiceTest'
 }
 
 
