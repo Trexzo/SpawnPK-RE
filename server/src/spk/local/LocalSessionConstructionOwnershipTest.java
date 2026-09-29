@@ -698,6 +698,16 @@ public final class LocalSessionConstructionOwnershipTest {
                 "shutdown fence did not publish while factory was blocked"
             );
 
+        long socketCloseDeadline=
+            System.nanoTime()+
+                TimeUnit.SECONDS.toNanos(
+                    5
+                );
+
+        while(!socket.isClosed()&&
+              System.nanoTime()<socketCloseDeadline)
+            Thread.yield();
+
         if(!socket.isClosed())
             throw new AssertionError(
                 "concurrent shutdown did not close claimed accepted socket"
