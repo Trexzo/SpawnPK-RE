@@ -1910,15 +1910,9 @@ public final class LocalSessionConstructionOwnershipTest {
                 repeated
             );
 
-        boolean lateFailureRetained=false;
-
-        for(Throwable suppressed:
-                terminalFailure.getSuppressed())
-            if(suppressed==
-                    accepted.failure)
-                lateFailureRetained=true;
-
-        if(!lateFailureRetained)
+        if(!containsSuppressedIdentity(
+                terminalFailure,
+                accepted.failure))
             throw new AssertionError(
                 "late accepted-socket close failure was not retained in terminal diagnostics"
             );
