@@ -698,6 +698,16 @@ public final class LocalSessionConstructionOwnershipTest {
                 "shutdown fence did not publish while factory was blocked"
             );
 
+        long socketCloseDeadline=
+            System.nanoTime()+
+                TimeUnit.SECONDS.toNanos(
+                    5
+                );
+
+        while(!socket.isClosed()&&
+              System.nanoTime()<socketCloseDeadline)
+            Thread.yield();
+
         if(!socket.isClosed())
             throw new AssertionError(
                 "concurrent shutdown did not close claimed accepted socket"
@@ -1910,15 +1920,9 @@ public final class LocalSessionConstructionOwnershipTest {
                 repeated
             );
 
-        boolean lateFailureRetained=false;
-
-        for(Throwable suppressed:
-                terminalFailure.getSuppressed())
-            if(suppressed==
-                    accepted.failure)
-                lateFailureRetained=true;
-
-        if(!lateFailureRetained)
+        if(!containsSuppressedIdentity(
+                terminalFailure,
+                accepted.failure))
             throw new AssertionError(
                 "late accepted-socket close failure was not retained in terminal diagnostics"
             );
