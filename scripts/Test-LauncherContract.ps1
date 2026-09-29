@@ -683,7 +683,7 @@ Assert-True ($v308Patcher -match 'unchangedEntryPayloadIdentity') 'v308 local-cl
 Assert-True ($v308Patcher -match 'entryInventoryAndOrderPreserved') 'v308 local-client patcher no longer proves entry inventory/order preservation.'
 Assert-True ($v308Patcher -match 'manifestPayloadPreserved') 'v308 local-client patcher no longer proves manifest preservation.'
 
-Assert-True ($v308Patcher -match '(?m)^import stat$') 'v308 local-client publisher lacks stat-mode authority for non-following path checks.'
+Assert-True ($v308Patcher -match '(?m)^import stat\r?$') 'v308 local-client publisher lacks stat-mode authority for non-following path checks.'
 Assert-True ($v308Patcher -match 'def lexical_absolute') 'v308 local-client publisher does not preserve lexical output identity.'
 Assert-True ($v308Patcher -match 'def lstat_or_none') 'v308 local-client publisher does not use non-following lstat path inspection.'
 Assert-True ($v308Patcher -match 'def is_reparse_or_symlink') 'v308 local-client publisher does not classify Windows reparse/symlink entries.'
