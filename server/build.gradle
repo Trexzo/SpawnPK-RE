@@ -4920,6 +4920,7 @@ tasks.named('check') {
     dependsOn tasks.named('pluginWorldTerminalLifecycleRegression')
     dependsOn tasks.named('pluginRuntimeFailureCascadeRegression')
     dependsOn tasks.named('localServerStartupFailureCleanupRegression')
+    dependsOn tasks.named('localSessionConstructionOwnershipRegression')
     dependsOn tasks.named('r85Regression')
 }
 
