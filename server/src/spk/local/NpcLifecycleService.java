@@ -293,6 +293,76 @@ final class NpcLifecycleService {
         return result[0];
     }
 
+    Snapshot retireDeadCanonical(
+        WorldNpc npc
+    ){
+        WorldNpc checked=
+            Objects.requireNonNull(
+                npc,
+                "npc"
+            );
+
+        Snapshot[] retired=
+            new Snapshot[1];
+
+        boolean current=
+            withCurrentNpc(
+                checked,
+                ()->{
+                    synchronized(this){
+                        Entry entry=
+                            entries.get(
+                                checked.id
+                            );
+
+                        if(entry==null)
+                            throw new IllegalStateException(
+                                "NPC lifecycle missing id="+
+                                checked.id
+                            );
+
+                        if(entry.npc!=checked)
+                            throw new IllegalStateException(
+                                "NPC lifecycle exact object changed id="+
+                                checked.id
+                            );
+
+                        if(entry.state!=State.DEAD||
+                           entry.deathTick==
+                                NO_DEATH_TICK)
+                            throw new IllegalStateException(
+                                "NPC is not dead id="+
+                                checked.id
+                            );
+
+                        Snapshot snapshot=
+                            entry.snapshot();
+
+                        if(!npcs.remove(
+                                checked.id))
+                            throw new IllegalStateException(
+                                "canonical NPC retirement failed id="+
+                                checked.id
+                            );
+
+                        entries.remove(
+                            checked.id
+                        );
+
+                        retired[0]=snapshot;
+                    }
+                }
+            );
+
+        if(!current)
+            throw new IllegalStateException(
+                "canonical NPC registry ownership lost id="+
+                checked.id
+            );
+
+        return retired[0];
+    }
+
     synchronized Snapshot get(EntityId npcId){
         Entry entry=
             entries.get(
