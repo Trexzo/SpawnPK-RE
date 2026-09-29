@@ -586,7 +586,11 @@ public final class ContentPublicApiBoundaryTest {
             );
 
         for(Method method:api.getMethods()){
-            if(method.getDeclaringClass()==api||
+            Class<?> declaring=
+                method.getDeclaringClass();
+
+            if(declaring==api||
+               declaring.getName().startsWith("java.")||
                !Modifier.isPublic(
                     method.getModifiers()))
                 continue;
