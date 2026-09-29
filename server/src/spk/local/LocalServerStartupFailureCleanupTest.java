@@ -429,8 +429,8 @@ public final class LocalServerStartupFailureCleanupTest {
             new SocketException(
                 "fixture-aux-accept-poll-configuration-failure"
             );
-        ServerSocket game=
-            new ServerSocket();
+        PollRecordingServerSocket game=
+            new PollRecordingServerSocket();
         PollConfigurationFailServerSocket aux=
             new PollConfigurationFailServerSocket(
                 expectedFailure
@@ -476,7 +476,7 @@ public final class LocalServerStartupFailureCleanupTest {
                     "auxiliary accept poll was configured before successful listener bind"
                 );
 
-            if(game.getSoTimeout()!=
+            if(game.configuredTimeout!=
                     LocalServerShutdownCoordinator
                         .GAME_ACCEPT_POLL_TIMEOUT_MILLIS)
                 throw new AssertionError(
@@ -805,6 +805,24 @@ public final class LocalServerStartupFailureCleanupTest {
                 phase+
                 " left World live"
             );
+    }
+
+    private static final class PollRecordingServerSocket
+        extends ServerSocket {
+
+        private int configuredTimeout=-1;
+
+        PollRecordingServerSocket()
+        throws IOException{}
+
+        @Override public void setSoTimeout(
+            int timeout
+        )throws SocketException{
+            super.setSoTimeout(
+                timeout
+            );
+            configuredTimeout=timeout;
+        }
     }
 
     private static final class PollConfigurationFailServerSocket
