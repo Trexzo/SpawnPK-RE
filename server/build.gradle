@@ -2410,6 +2410,7 @@ tasks.register(
     group = 'verification'
     description = 'Runs the source-only exact-R11 legacy textured+skinned writer byte-identity and fail-closed regression.'
     workingDir repoRoot
+    environment 'PYTHONDONTWRITEBYTECODE', '1'
     commandLine(
         issue9PythonExecutable,
         new File(
@@ -2426,6 +2427,7 @@ tasks.register(
     group = 'verification'
     description = 'Runs the source-only R13 isolated-profile path-containment regression.'
     workingDir repoRoot
+    environment 'PYTHONDONTWRITEBYTECODE', '1'
     commandLine(
         issue9PythonExecutable,
         new File(
