@@ -229,6 +229,7 @@ function Write-ReleaseSmokeEvidenceTextOwned {
     Assert-ReleaseSmokeAncestry -BuildRoot $BuildRoot -SmokeRoot $SmokeRoot -Phase ("before-" + $Label + "-create")
 
     $writer = $null
+    $evidenceOwned = $false
     try {
         $writer = [IO.FileStream]::new(
             $Path,
@@ -236,6 +237,7 @@ function Write-ReleaseSmokeEvidenceTextOwned {
             [IO.FileAccess]::Write,
             [IO.FileShare]::None
         )
+        $evidenceOwned = $true
 
         # The leaf identity is now invocation-owned. Revalidate its parent
         # ancestry after acquisition so a concurrent parent substitution
@@ -248,6 +250,51 @@ function Write-ReleaseSmokeEvidenceTextOwned {
             $writer.Write($bytes, 0, $bytes.Length)
         }
         $writer.Flush()
+        $writer.Dispose()
+        $writer = $null
+    }
+    catch {
+        $publishFailure = $_
+        $publishCleanupFailures = New-Object 'System.Collections.Generic.List[string]'
+
+        if ($null -ne $writer) {
+            try {
+                $writer.Dispose()
+            }
+            catch {
+                $publishCleanupFailures.Add(
+                    "writer=$($_.Exception.Message)"
+                )
+            }
+            finally {
+                $writer = $null
+            }
+        }
+
+        if ($evidenceOwned) {
+            try {
+                Remove-ReleaseSmokeEvidenceLeafSafely -BuildRoot $BuildRoot -SmokeRoot $SmokeRoot -Path $Path
+                $evidenceOwned = $false
+            }
+            catch {
+                $publishCleanupFailures.Add(
+                    "leaf=$($_.Exception.Message)"
+                )
+            }
+        }
+
+        if ($publishCleanupFailures.Count -ne 0) {
+            throw [System.Exception]::new(
+                (
+                    "Current release smoke evidence publication failed and cleanup was unsafe/incomplete. " +
+                    "Label=$Label Primary: $($publishFailure.Exception.Message) " +
+                    "Cleanup: $($publishCleanupFailures -join ' | ')"
+                ),
+                $publishFailure.Exception
+            )
+        }
+
+        throw $publishFailure
     }
     finally {
         if ($null -ne $writer) {
