@@ -5345,25 +5345,38 @@ tasks.register('chat1CurrentCumulativeServerIdentityRegression') {
             throw new GradleException('Current cumulative certification task not found.')
 
         String taskText = buildText.substring(taskIndex)
+        String nextTaskAnchor =
+            "tasks.register('issue5KotlinScriptingCertification')"
+        int cumulativeTaskEnd =
+            taskText.indexOf(nextTaskAnchor)
+        if(cumulativeTaskEnd < 0)
+            throw new GradleException(
+                'Current cumulative task boundary not found.'
+            )
+
+        String cumulativeTaskText =
+            taskText.substring(0, cumulativeTaskEnd)
+
         [
             "tasks.named('jar', Jar).get().archiveFile.get().asFile",
             'sha256(certifiedServerJar)',
             "'serverSha256=' + certifiedServerSha256 + ' '"
         ].each { required ->
-            if(!taskText.contains(required))
+            if(!cumulativeTaskText.contains(required))
                 throw new GradleException(
                     "Current cumulative server identity contract missing: ${required}"
                 )
         }
 
-        int dependencyBlockEnd = taskText.indexOf('    doLast {')
+        int dependencyBlockEnd =
+            cumulativeTaskText.indexOf('    doLast {')
         if(dependencyBlockEnd < 0)
             throw new GradleException(
                 'Current cumulative dependency block terminator not found.'
             )
 
         String dependencyText =
-            taskText.substring(0, dependencyBlockEnd)
+            cumulativeTaskText.substring(0, dependencyBlockEnd)
 
         [
             "tasks.named('currentTrainFocusedRegression')",
@@ -5381,22 +5394,22 @@ tasks.register('chat1CurrentCumulativeServerIdentityRegression') {
             "'exactV308=179 '",
             "'bytecodeMajor=55'"
         ].each { required ->
-            if(!taskText.contains(required))
+            if(!cumulativeTaskText.contains(required))
                 throw new GradleException(
                     "Current cumulative numeric proof claim missing: ${required}"
                 )
         }
 
-        int jarIndex = taskText.indexOf(
+        int jarIndex = cumulativeTaskText.indexOf(
             "tasks.named('jar', Jar).get().archiveFile.get().asFile"
         )
-        int hashIndex = taskText.indexOf(
+        int hashIndex = cumulativeTaskText.indexOf(
             'sha256(certifiedServerJar)'
         )
-        int markerIndex = taskText.indexOf(
+        int markerIndex = cumulativeTaskText.indexOf(
             "'SPAWNPK_CHAT1_CURRENT_CUMULATIVE_CERTIFICATION_PASS '"
         )
-        int markerShaIndex = taskText.indexOf(
+        int markerShaIndex = cumulativeTaskText.indexOf(
             "'serverSha256=' + certifiedServerSha256 + ' '"
         )
 
