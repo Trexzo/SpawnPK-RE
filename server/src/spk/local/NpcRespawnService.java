@@ -278,8 +278,6 @@ final class NpcRespawnService {
                 respawnPolicyAuthority
             );
 
-        TicketId ticketId=
-            nextTicketId();
         Ticket[] scheduled=
             new Ticket[1];
 
@@ -327,6 +325,9 @@ final class NpcRespawnService {
 
                     Tile tile=
                         checked.tile();
+
+                    TicketId ticketId=
+                        nextTicketId();
 
                     Ticket ticket=
                         new Ticket(
