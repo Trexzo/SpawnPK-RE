@@ -263,6 +263,15 @@ public final class KotlinPluginDirectoryTest {
                 ).replace(
                     "\"kscript\"",
                     "\"kscript2\""
+                ).replace(
+                    "npcId = 301",
+                    "npcId = 32001"
+                ).replace(
+                    "itemId = 201",
+                    "itemId = 32002"
+                ).replace(
+                    "\"fixture.kotlin.button\"",
+                    "\"fixture.kotlin.button.ondemand\""
                 );
 
             Path onDemand=
