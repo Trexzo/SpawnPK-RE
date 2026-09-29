@@ -4908,6 +4908,7 @@ tasks.named('check') {
     dependsOn tasks.named('dailyChallengeTransportRegression')
     dependsOn tasks.named('loadoutEditorTransportRegression')
     dependsOn tasks.named('currentTrainFocusedRegression')
+    dependsOn tasks.named('pluginKotlinDirectoryRegression')
     dependsOn tasks.named('r85Regression')
 }
 
