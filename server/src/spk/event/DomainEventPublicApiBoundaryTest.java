@@ -555,77 +555,112 @@ public final class DomainEventPublicApiBoundaryTest {
         String location,
         List<String> violations
     ){
-        if(type instanceof Class<?>){
-            inspectClass(
-                (Class<?>)type,
-                location,
-                violations
-            );
-            return;
-        }
-
-        if(type instanceof ParameterizedType){
-            ParameterizedType parameterized=
-                (ParameterizedType)type;
-
-            inspect(
-                parameterized.getRawType(),
-                location,
-                violations
+        Set<Type> visiting=
+            Collections.newSetFromMap(
+                new IdentityHashMap<Type,Boolean>()
             );
 
-            for(Type argument:
-                    parameterized
-                        .getActualTypeArguments())
-                inspect(
-                    argument,
-                    location,
-                    violations
-                );
+        inspect(
+            type,
+            location,
+            violations,
+            visiting
+        );
+    }
+
+    private static void inspect(
+        Type type,
+        String location,
+        List<String> violations,
+        Set<Type> visiting
+    ){
+        if(type==null||
+           !visiting.add(type))
             return;
-        }
 
-        if(type instanceof GenericArrayType){
-            inspect(
-                ((GenericArrayType)type)
-                    .getGenericComponentType(),
-                location,
-                violations
-            );
-            return;
-        }
-
-        if(type instanceof WildcardType){
-            WildcardType wildcard=
-                (WildcardType)type;
-
-            for(Type upper:
-                    wildcard.getUpperBounds())
-                inspect(
-                    upper,
+        try{
+            if(type instanceof Class<?>){
+                inspectClass(
+                    (Class<?>)type,
                     location,
                     violations
                 );
+                return;
+            }
 
-            for(Type lower:
-                    wildcard.getLowerBounds())
+            if(type instanceof ParameterizedType){
+                ParameterizedType parameterized=
+                    (ParameterizedType)type;
+
                 inspect(
-                    lower,
+                    parameterized.getRawType(),
                     location,
-                    violations
+                    violations,
+                    visiting
                 );
-            return;
+
+                for(Type argument:
+                        parameterized
+                            .getActualTypeArguments())
+                    inspect(
+                        argument,
+                        location,
+                        violations,
+                        visiting
+                    );
+
+                return;
+            }
+
+            if(type instanceof GenericArrayType){
+                inspect(
+                    ((GenericArrayType)type)
+                        .getGenericComponentType(),
+                    location,
+                    violations,
+                    visiting
+                );
+                return;
+            }
+
+            if(type instanceof WildcardType){
+                WildcardType wildcard=
+                    (WildcardType)type;
+
+                for(Type upper:
+                        wildcard.getUpperBounds())
+                    inspect(
+                        upper,
+                        location,
+                        violations,
+                        visiting
+                    );
+
+                for(Type lower:
+                        wildcard.getLowerBounds())
+                    inspect(
+                        lower,
+                        location,
+                        violations,
+                        visiting
+                    );
+
+                return;
+            }
+
+            if(type instanceof TypeVariable<?>)
+                for(Type bound:
+                        ((TypeVariable<?>)type)
+                            .getBounds())
+                    inspect(
+                        bound,
+                        location,
+                        violations,
+                        visiting
+                    );
+        }finally{
+            visiting.remove(type);
         }
-
-        if(type instanceof TypeVariable<?>)
-            for(Type bound:
-                    ((TypeVariable<?>)type)
-                        .getBounds())
-                inspect(
-                    bound,
-                    location,
-                    violations
-                );
     }
 
     private static void inspectClass(
