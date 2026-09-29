@@ -657,7 +657,7 @@ $runtimeBuilderPatchIndex = $runtimeBuilder.IndexOf('& $python.Source $patcher $
 $runtimeBuilderPrivateReleaseIndex = $runtimeBuilder.LastIndexOf('$privateGuard.Dispose()')
 $runtimeBuilderSnapshotCleanupIndex = $runtimeBuilder.LastIndexOf('Remove-Item -LiteralPath $snapshotRoot -Recurse -Force')
 $runtimeBuilderFailureReplayIndex = $runtimeBuilder.IndexOf('throw $patcherFailure')
-$runtimeBuilderFinalVerifyIndex = $runtimeBuilder.IndexOf("& (Join-Path $PSScriptRoot 'Check-ExternalRuntime.ps1')")
+$runtimeBuilderFinalVerifyIndex = $runtimeBuilder.IndexOf("& (Join-Path `$PSScriptRoot 'Check-ExternalRuntime.ps1')")
 Assert-True ($runtimeBuilderCanonicalClientIndex -ge 0) 'PowerShell runtime builder canonical-client admission check not found.'
 Assert-True ($runtimeBuilderOutputIndex -gt $runtimeBuilderCanonicalClientIndex) 'PowerShell runtime builder validates canonical output before canonical client admission.'
 Assert-True ($runtimeBuilderPathFenceIndex -gt $runtimeBuilderOutputIndex) 'PowerShell runtime builder checks path confinement before canonical lexical admission completes.'
