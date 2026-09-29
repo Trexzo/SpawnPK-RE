@@ -817,13 +817,15 @@ foreach ($entry in @(
 $releaseSelectorIndex = $releaseAcceptance.IndexOf('$runtimeJavaSelector = Join-Path')
 $releaseJavaIndex = $releaseAcceptance.IndexOf('$runtimeJava = Set-LocalLabJava')
 $releaseCumulativeIndex = $releaseAcceptance.IndexOf('& $cumulativeWrapper -ClientJar $client')
+$releaseSmokeFunctionIndex = $releaseAcceptance.IndexOf('function Invoke-CurrentServerLoopbackSmoke')
 $releaseSmokeIndex = $releaseAcceptance.LastIndexOf('Invoke-CurrentServerLoopbackSmoke')
-$releaseStartProcessIndex = $releaseAcceptance.IndexOf('$processInfo.FileName = $runtimeJava.Path')
+$releaseStartProcessIndex = $releaseAcceptance.IndexOf('$processInfo.FileName = $runtimeJava.Path', $releaseSmokeFunctionIndex)
 Assert-True ($releaseSelectorIndex -ge 0) 'Current release runtime Java selector path not found.'
 Assert-True ($releaseJavaIndex -gt $releaseSelectorIndex) 'Current release resolves runtime Java before selector authority is established.'
 Assert-True ($releaseCumulativeIndex -gt $releaseJavaIndex) 'Current release cumulative certification does not follow canonical Java selection.'
-Assert-True ($releaseSmokeIndex -gt $releaseCumulativeIndex) 'Current release loopback smoke starts before cumulative certification.'
-Assert-True ($releaseStartProcessIndex -gt $releaseJavaIndex) 'Current release smoke process does not use Java selected by canonical policy.'
+Assert-True ($releaseSmokeFunctionIndex -ge 0) 'Current release loopback smoke function definition not found.'
+Assert-True ($releaseStartProcessIndex -gt $releaseSmokeFunctionIndex) 'Current release smoke function does not use Java selected by canonical policy.'
+Assert-True ($releaseSmokeIndex -gt $releaseCumulativeIndex) 'Current release loopback smoke invocation starts before cumulative certification.'
 $releaseEnvCaptureIndex = $releaseAcceptance.IndexOf('$callerPath = $env:Path')
 $releaseEnvRestoreIndex = $releaseAcceptance.LastIndexOf('$env:Path = $callerPath')
 Assert-True ($releaseEnvCaptureIndex -gt $releaseSelectorIndex -and $releaseEnvCaptureIndex -lt $releaseJavaIndex) 'Current release caller Java environment is not captured after selector-path admission and before selector mutation.'
