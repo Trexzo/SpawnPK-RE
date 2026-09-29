@@ -4937,6 +4937,7 @@ tasks.named('check') {
     dependsOn tasks.named('petSpecializedProcContentCommandActionOwnershipRegression')
     dependsOn tasks.named('worldPulseStartFailureAtomicRegression')
     dependsOn tasks.named('worldAdmissionPulseStartAtomicRegression')
+    dependsOn tasks.named('worldNpcMutationOwnershipRegression')
     dependsOn tasks.named('localAuxHttpResponseRegression')
     dependsOn tasks.named('localAuxResponseLivenessRegression')
     dependsOn tasks.named('localAuxiliaryWorkerFailureRegression')
@@ -5220,6 +5221,17 @@ tasks.register('localSessionConstructionOwnershipRegression', JavaExec) {
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass = 'spk.local.LocalSessionConstructionOwnershipTest'
+}
+
+
+tasks.register('worldNpcMutationOwnershipRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves exact canonical WorldNpc mutation ownership linearizes concurrent remove/replace across the full caller action.'
+    dependsOn tasks.named('testClasses')
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.WorldNpcMutationOwnershipTest'
 }
 
 
