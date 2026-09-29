@@ -4938,6 +4938,7 @@ tasks.named('check') {
     dependsOn tasks.named('worldPulseStartFailureAtomicRegression')
     dependsOn tasks.named('worldAdmissionPulseStartAtomicRegression')
     dependsOn tasks.named('worldNpcMutationOwnershipRegression')
+    dependsOn tasks.named('npcLifecycleServiceRegression')
     dependsOn tasks.named('localAuxHttpResponseRegression')
     dependsOn tasks.named('localAuxResponseLivenessRegression')
     dependsOn tasks.named('localAuxiliaryWorkerFailureRegression')
@@ -5232,6 +5233,20 @@ tasks.register('worldNpcMutationOwnershipRegression', JavaExec) {
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass = 'spk.local.WorldNpcMutationOwnershipTest'
+}
+
+
+tasks.register('npcLifecycleServiceRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves canonical WorldNpc HP/death mutation is linearized by exact registry ownership and remains protocol independent.'
+    dependsOn(
+        tasks.named('testClasses'),
+        tasks.named('worldNpcMutationOwnershipRegression')
+    )
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.NpcLifecycleServiceTest'
 }
 
 
