@@ -5345,17 +5345,16 @@ tasks.register('chat1CurrentCumulativeServerIdentityRegression') {
             throw new GradleException('Current cumulative certification task not found.')
 
         String taskText = buildText.substring(taskIndex)
-        String nextTaskAnchor =
-            "tasks.register('issue5KotlinScriptingCertification')"
-        int cumulativeTaskEnd =
-            taskText.indexOf(nextTaskAnchor)
-        if(cumulativeTaskEnd < 0)
-            throw new GradleException(
-                'Current cumulative task boundary not found.'
+        int nextTaskIndex =
+            taskText.indexOf(
+                'tasks.register(',
+                taskAnchor.length()
             )
 
         String cumulativeTaskText =
-            taskText.substring(0, cumulativeTaskEnd)
+            nextTaskIndex < 0 ?
+                taskText :
+                taskText.substring(0, nextTaskIndex)
 
         [
             "tasks.named('jar', Jar).get().archiveFile.get().asFile",
