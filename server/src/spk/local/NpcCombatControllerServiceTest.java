@@ -18,6 +18,8 @@ public final class NpcCombatControllerServiceTest {
         staleTargetRetired();
         staleAttackerRetired();
         reentrantApproachCancelNoMove();
+        cadenceClockDriftAtomic();
+        damageClockDriftAtomic();
         authorityGuards();
         boundaryGuard();
 
@@ -37,6 +39,8 @@ public final class NpcCombatControllerServiceTest {
             "staleEngagementRetired=true "+
             "reentrantApproachCancelNoMove=true "+
             "sharedClockBound=true "+
+            "cadenceClockDriftAtomic=true "+
+            "damageClockDriftAtomic=true "+
             "targetSelectionOwned=false "+
             "aggroOwned=false "+
             "presentationOwned=false "+
@@ -786,6 +790,293 @@ public final class NpcCombatControllerServiceTest {
                 damage.calls==0&&
                 cadence.calls==0,
                 "reentrant approach cancellation moved/attacked"
+            );
+        }finally{
+            cleanup(world);
+        }
+    }
+
+    private static void cadenceClockDriftAtomic()
+        throws Exception{
+        World world=
+            World.isolatedForTest(
+                600L
+            );
+        WorldPlayer player=
+            new WorldPlayer();
+        long generation=
+            world.registerPlayer(
+                player,
+                "controller-cadence-clock"
+            );
+
+        player.movement()
+            .restoreAccountState(
+                false,
+                100,
+                3201,
+                3200,
+                0
+            );
+
+        WorldNpc npc=
+            world.npcs().spawn(
+                1505,
+                3200,
+                3200,
+                0
+            );
+        TrackingDamage damage=
+            new TrackingDamage(
+                10
+            );
+        final int[] cadenceCalls={0};
+
+        NpcCombatEngagementService.CadenceResolver cadence=
+            new NpcCombatEngagementService.CadenceResolver(){
+                @Override public int nextDelayTicks(
+                    NpcCombatEngagementService.Context context
+                ){
+                    cadenceCalls[0]++;
+
+                    if(cadenceCalls[0]==1){
+                        long advanced=
+                            world.clock().advance();
+
+                        if(advanced!=1L)
+                            throw new AssertionError(
+                                "cadence clock drift fixture tick="+
+                                advanced
+                            );
+                    }
+
+                    return 3;
+                }
+
+                @Override public String authority(){
+                    return "CUSTOM_LOCALLAB_NPC_CADENCE";
+                }
+
+                @Override public String policy(){
+                    return "DRIFT_ONCE_THEN_FIXED";
+                }
+            };
+
+        NpcCombatControllerService controller=
+            new NpcCombatControllerService(
+                world,
+                fixedApproach(),
+                cadence,
+                new NpcPlayerCombatResolutionService(
+                    damage
+                ),
+                ORCHESTRATION_AUTHORITY,
+                NpcCombatControllerService
+                    .APPROACH_BEFORE_ENGAGEMENT_TICK
+            );
+
+        try{
+            controller.begin(
+                npc,
+                player,
+                generation,
+                0L
+            );
+
+            NpcCombatEngagementService.Snapshot before=
+                controller.get(
+                    npc.id
+                );
+
+            expect(
+                IllegalStateException.class,
+                ()->controller.tick(
+                    npc.id,
+                    0L
+                ),
+                "cadence clock drift"
+            );
+
+            NpcCombatEngagementService.Snapshot afterFailure=
+                controller.get(
+                    npc.id
+                );
+
+            require(
+                world.clock().tick()==1L&&
+                hp(player)==99&&
+                cadenceCalls[0]==1&&
+                damage.calls==0&&
+                afterFailure!=null&&
+                afterFailure.nextAttackTick==
+                    before.nextAttackTick&&
+                afterFailure.revision==
+                    before.revision,
+                "cadence clock drift published stale attack"
+            );
+
+            NpcCombatControllerService.TickResult retry=
+                controller.tick(
+                    npc.id,
+                    1L
+                );
+
+            require(
+                retry.status==
+                    NpcCombatControllerService.Status.ATTACKED&&
+                hp(player)==89&&
+                cadenceCalls[0]==2&&
+                damage.calls==1&&
+                controller.get(
+                    npc.id
+                ).nextAttackTick==4L&&
+                controller.get(
+                    npc.id
+                ).revision==1L,
+                "cadence clock drift retry did not attack once"
+            );
+        }finally{
+            cleanup(world);
+        }
+    }
+
+    private static void damageClockDriftAtomic()
+        throws Exception{
+        World world=
+            World.isolatedForTest(
+                600L
+            );
+        WorldPlayer player=
+            new WorldPlayer();
+        long generation=
+            world.registerPlayer(
+                player,
+                "controller-damage-clock"
+            );
+
+        player.movement()
+            .restoreAccountState(
+                false,
+                100,
+                3201,
+                3200,
+                0
+            );
+
+        WorldNpc npc=
+            world.npcs().spawn(
+                1506,
+                3200,
+                3200,
+                0
+            );
+        final int[] damageCalls={0};
+
+        NpcPlayerCombatResolutionService.DamageResolver damage=
+            new NpcPlayerCombatResolutionService.DamageResolver(){
+                @Override public int resolve(
+                    NpcPlayerCombatResolutionService.DamageContext context
+                ){
+                    damageCalls[0]++;
+
+                    if(damageCalls[0]==1){
+                        long advanced=
+                            world.clock().advance();
+
+                        if(advanced!=1L)
+                            throw new AssertionError(
+                                "damage clock drift fixture tick="+
+                                advanced
+                            );
+                    }
+
+                    return 10;
+                }
+
+                @Override public String authority(){
+                    return "CUSTOM_LOCALLAB_NPC_DAMAGE";
+                }
+
+                @Override public String formula(){
+                    return "DRIFT_ONCE_THEN_FIXED";
+                }
+            };
+        TrackingCadence cadence=
+            new TrackingCadence(
+                3
+            );
+        NpcCombatControllerService controller=
+            new NpcCombatControllerService(
+                world,
+                fixedApproach(),
+                cadence,
+                new NpcPlayerCombatResolutionService(
+                    damage
+                ),
+                ORCHESTRATION_AUTHORITY,
+                NpcCombatControllerService
+                    .APPROACH_BEFORE_ENGAGEMENT_TICK
+            );
+
+        try{
+            controller.begin(
+                npc,
+                player,
+                generation,
+                0L
+            );
+
+            NpcCombatEngagementService.Snapshot before=
+                controller.get(
+                    npc.id
+                );
+
+            expect(
+                IllegalStateException.class,
+                ()->controller.tick(
+                    npc.id,
+                    0L
+                ),
+                "damage clock drift"
+            );
+
+            NpcCombatEngagementService.Snapshot afterFailure=
+                controller.get(
+                    npc.id
+                );
+
+            require(
+                world.clock().tick()==1L&&
+                hp(player)==99&&
+                cadence.calls==1&&
+                damageCalls[0]==1&&
+                afterFailure!=null&&
+                afterFailure.nextAttackTick==
+                    before.nextAttackTick&&
+                afterFailure.revision==
+                    before.revision,
+                "damage clock drift mutated HP/cadence"
+            );
+
+            NpcCombatControllerService.TickResult retry=
+                controller.tick(
+                    npc.id,
+                    1L
+                );
+
+            require(
+                retry.status==
+                    NpcCombatControllerService.Status.ATTACKED&&
+                hp(player)==89&&
+                cadence.calls==2&&
+                damageCalls[0]==2&&
+                controller.get(
+                    npc.id
+                ).nextAttackTick==4L&&
+                controller.get(
+                    npc.id
+                ).revision==1L,
+                "damage clock drift retry did not attack once"
             );
         }finally{
             cleanup(world);
