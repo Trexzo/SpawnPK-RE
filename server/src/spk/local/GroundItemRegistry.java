@@ -32,11 +32,6 @@ final class GroundItemRegistry {
                 throw new NullPointerException(
                     "tile"
                 );
-            if(spawnedTick<0L)
-                throw new IllegalArgumentException(
-                    "spawnedTick="+spawnedTick
-                );
-
             this.itemId=itemId;
             this.amount=amount;
             this.tile=tile;
@@ -150,8 +145,7 @@ final class GroundItemRegistry {
              */
             if(checked.itemId<0||
                checked.amount<=0||
-               checked.tile==null||
-               checked.spawnedTick<0L)
+               checked.tile==null)
                 throw new IllegalArgumentException(
                     "invalid ground-item batch request"
                 );
