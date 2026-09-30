@@ -446,11 +446,28 @@ final class NpcCombatEngagementService {
                                             if(engagements.get(
                                                     engagement.attackerId
                                                 )!=engagement||
-                                               !engagement.executing)
-                                                throw new IllegalStateException(
-                                                    "NPC engagement ownership changed during attack id="+
-                                                    engagement.attackerId
-                                                );
+                                               !engagement.executing){
+                                                /*
+                                                 * The executor returned
+                                                 * successfully, so its attack
+                                                 * side effect already happened.
+                                                 * Reentrant caller code may
+                                                 * deliberately cancel or replace
+                                                 * the engagement while the exact
+                                                 * player/NPC ownership fences are
+                                                 * still held. Do not publish the
+                                                 * old schedule onto a replacement,
+                                                 * and do not report a false
+                                                 * failure for the completed
+                                                 * attack.
+                                                 */
+                                                result[0]=
+                                                    new TickResult(
+                                                        TickStatus.ATTACKED,
+                                                        null
+                                                    );
+                                                return;
+                                            }
 
                                             engagement.nextAttackTick=
                                                 nextAttackTick;
