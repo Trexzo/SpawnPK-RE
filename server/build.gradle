@@ -4916,6 +4916,7 @@ tasks.register('npcDropResolutionServiceRegression', JavaExec) {
 
 
 tasks.named('check') {
+    dependsOn tasks.named('monsterSpawnerServiceRegression')
     dependsOn tasks.named('npcDropResolutionServiceRegression')
     dependsOn tasks.named('issue9LauncherContractRegression')
     dependsOn tasks.named('chat1CumulativeWrapperContractRegression')
@@ -5292,6 +5293,20 @@ tasks.register('npcRespawnServiceRegression', JavaExec) {
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass = 'spk.local.NpcRespawnServiceTest'
+}
+
+
+tasks.register('monsterSpawnerServiceRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves caller-defined Monster Spawner catalog/budget semantics with exact canonical WorldNpc tracking and despawn ownership.'
+    dependsOn(
+        tasks.named('testClasses'),
+        tasks.named('worldNpcMutationOwnershipRegression')
+    )
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.MonsterSpawnerServiceTest'
 }
 
 
