@@ -21,6 +21,14 @@ import java.util.*;
 final class SharedNpcWorldRelay {
     private static final IdentityHashMap<ServerPacketWriter,Context> BY_WRITER=new IdentityHashMap<>();
     private static final IdentityHashMap<World,WorldState> BY_WORLD=new IdentityHashMap<>();
+    /**
+     * Explicit gameplay-owned projection membership. Weak World keys prevent a
+     * presentation registry from retaining closed isolated worlds when no
+     * LocalSession exists.
+     */
+    private static final WeakHashMap<World,LinkedHashSet<EntityId>>
+        TRACKED_CANONICAL=
+            new WeakHashMap<>();
 
     private SharedNpcWorldRelay(){}
 
@@ -72,9 +80,117 @@ final class SharedNpcWorldRelay {
             );
 
         try{c.removeAllRemotePets();}catch(Throwable ignored){}
+        try{c.removeAllGenericNpcs();}catch(Throwable ignored){}
         c.state.pruneDeadRecipients();
         if(c.state.contexts.isEmpty())
             BY_WORLD.remove(c.state.world);
+    }
+
+    static synchronized void trackCanonicalNpc(
+        World world,
+        WorldNpc npc
+    ){
+        World checkedWorld=
+            Objects.requireNonNull(
+                world,
+                "world"
+            );
+        WorldNpc checkedNpc=
+            Objects.requireNonNull(
+                npc,
+                "npc"
+            );
+
+        if(checkedWorld.npcs().byId(
+                checkedNpc.id
+            )!=checkedNpc)
+            throw new IllegalArgumentException(
+                "canonical NPC is not owned by World id="+
+                checkedNpc.id
+            );
+
+        if(checkedNpc.ownerId!=null)
+            throw new IllegalArgumentException(
+                "owned pet/mini NPC must use existing relay id="+
+                checkedNpc.id
+            );
+
+        if(checkedWorld.homeNpcs()
+                .ownsCanonicalId(
+                    checkedNpc.id
+                ))
+            throw new IllegalArgumentException(
+                "HOME NPC must use HomeWorldRuntimePlan projection id="+
+                checkedNpc.id
+            );
+
+        LinkedHashSet<EntityId> tracked=
+            TRACKED_CANONICAL.get(
+                checkedWorld
+            );
+
+        if(tracked==null){
+            tracked=
+                new LinkedHashSet<>();
+            TRACKED_CANONICAL.put(
+                checkedWorld,
+                tracked
+            );
+        }
+
+        tracked.add(
+            checkedNpc.id
+        );
+    }
+
+    static synchronized boolean untrackCanonicalNpc(
+        World world,
+        EntityId npcId
+    ){
+        if(world==null||npcId==null)
+            return false;
+
+        LinkedHashSet<EntityId> tracked=
+            TRACKED_CANONICAL.get(
+                world
+            );
+
+        if(tracked==null)
+            return false;
+
+        boolean removed=
+            tracked.remove(
+                npcId
+            );
+
+        if(tracked.isEmpty())
+            TRACKED_CANONICAL.remove(
+                world
+            );
+
+        return removed;
+    }
+
+    private static synchronized void pruneTrackedCanonicalNpc(
+        World world,
+        EntityId npcId
+    ){
+        LinkedHashSet<EntityId> tracked=
+            TRACKED_CANONICAL.get(
+                world
+            );
+
+        if(tracked==null)
+            return;
+
+        tracked.remove(
+            npcId
+        );
+
+        if(tracked.isEmpty())
+            TRACKED_CANONICAL.remove(
+                world
+            );
     }
 
     static void syncRemotePets(
@@ -113,6 +229,47 @@ final class SharedNpcWorldRelay {
         }catch(Throwable t){
             System.err.println(
                 "[ENGINE-R3.2] remote pet sync failed viewer="+
+                candidate.owner.id()+": "+t
+            );
+        }
+    }
+
+    static void syncCanonicalNpcs(
+        ServerPacketWriter viewerWriter
+    ){
+        final Context candidate;
+
+        synchronized(SharedNpcWorldRelay.class){
+            candidate=
+                BY_WRITER.get(
+                    viewerWriter
+                );
+        }
+
+        if(candidate==null)
+            return;
+
+        try{
+            candidate.state.world
+                .withOpenPlayerOwnershipIfCurrent(
+                    candidate.owner,
+                    candidate.ownerGeneration,
+                    ()->{
+                        synchronized(
+                            SharedNpcWorldRelay.class
+                        ){
+                            if(BY_WRITER.get(
+                                    viewerWriter
+                                )!=candidate)
+                                return;
+                        }
+
+                        candidate.syncCanonicalNpcs();
+                    }
+                );
+        }catch(Throwable t){
+            System.err.println(
+                "[ENGINE-R3.2] canonical NPC sync failed viewer="+
                 candidate.owner.id()+": "+t
             );
         }
@@ -405,6 +562,8 @@ final class SharedNpcWorldRelay {
         final long ownerGeneration;
         final HashMap<EntityId,RemotePetTrack> remote=new HashMap<>();
         final NpcViewIndexMap remoteIndexes=new NpcViewIndexMap();
+        final NpcViewIndexMap genericIndexes=
+            new NpcViewIndexMap();
         Context(ServerPacketWriter w,WorldState s,WorldPlayer o,NpcRegistry n,MovementState m){
             writer=w;
             state=s;
@@ -702,6 +861,115 @@ final class SharedNpcWorldRelay {
                     stale.add(id);
             for(EntityId id:stale)
                 removeRemote(id);
+        }
+
+        void syncCanonicalNpcs()throws IOException{
+            if(!ownerCurrent())
+                return;
+
+            ArrayList<EntityId> tracked;
+
+            synchronized(SharedNpcWorldRelay.class){
+                LinkedHashSet<EntityId> worldTracked=
+                    TRACKED_CANONICAL.get(
+                        state.world
+                    );
+
+                tracked=
+                    worldTracked==null
+                        ?new ArrayList<EntityId>()
+                        :new ArrayList<>(
+                            worldTracked
+                        );
+            }
+
+            HashSet<EntityId> desired=
+                new HashSet<>(
+                    tracked
+                );
+
+            for(EntityId id:tracked){
+                WorldNpc canonical=
+                    state.world.npcs()
+                        .byId(id);
+
+                if(canonical==null||
+                   canonical.ownerId!=null||
+                   state.world.homeNpcs()
+                       .ownsCanonicalId(id)){
+                    removeGeneric(id);
+                    desired.remove(id);
+                    pruneTrackedCanonicalNpc(
+                        state.world,
+                        id
+                    );
+                    continue;
+                }
+
+                NpcEntity projected=
+                    npcs.syncSharedCanonicalNpc(
+                        canonical,
+                        movement,
+                        writer
+                    );
+
+                Integer mapped=
+                    genericIndexes.sceneIndex(
+                        id
+                    );
+
+                if(projected==null){
+                    if(mapped!=null)
+                        genericIndexes.unbind(
+                            id
+                        );
+                    continue;
+                }
+
+                if(mapped!=null&&
+                   mapped.intValue()!=
+                        projected.sceneIndex)
+                    genericIndexes.unbind(
+                        id
+                    );
+
+                genericIndexes.bind(
+                    id,
+                    projected.sceneIndex
+                );
+            }
+
+            for(EntityId id:
+                    new ArrayList<>(
+                        genericIndexes
+                            .snapshot()
+                            .keySet()
+                    ))
+                if(!desired.contains(id))
+                    removeGeneric(id);
+        }
+
+        void removeGeneric(
+            EntityId id
+        )throws IOException{
+            npcs.removeSharedCanonicalNpc(
+                id,
+                writer
+            );
+            genericIndexes.unbind(
+                id
+            );
+        }
+
+        void removeAllGenericNpcs()
+            throws IOException{
+            for(EntityId id:
+                    new ArrayList<>(
+                        genericIndexes
+                            .snapshot()
+                            .keySet()
+                    ))
+                removeGeneric(id);
         }
 
         int syncOne(
