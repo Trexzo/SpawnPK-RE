@@ -19,6 +19,7 @@ public final class TournamentServiceTest {
         System.out.println(
             "TOURNAMENT_SERVICE_PASS "+
             "globalEventComposition=true "+
+            "registrationComposition=true "+
             "scheduledRegistrationOnly=true "+
             "callerPairing=true "+
             "twoOnePlayerTeams=true "+
