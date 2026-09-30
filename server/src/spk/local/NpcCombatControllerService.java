@@ -349,17 +349,22 @@ final class NpcCombatControllerService {
                     );
             }
 
-            NpcCombatEngagementService.TickResult cadence;
+            final NpcCombatEngagementService.TickResult[] cadenceResult=
+                new NpcCombatEngagementService.TickResult[1];
 
             activeAttackEngagement=
                 snapshot;
 
             try{
-                cadence=
-                    engagements.tick(
-                        checkedId,
-                        worldTick
-                    );
+                world.withExpectedClockTickOwnership(
+                    worldTick,
+                    ()->
+                        cadenceResult[0]=
+                            engagements.tick(
+                                checkedId,
+                                worldTick
+                            )
+                );
             }catch(TargetAlreadyDeadException dead){
                 return result(
                     Status.TARGET_DEAD,
@@ -372,6 +377,12 @@ final class NpcCombatControllerService {
             }finally{
                 activeAttackEngagement=null;
             }
+
+            NpcCombatEngagementService.TickResult cadence=
+                Objects.requireNonNull(
+                    cadenceResult[0],
+                    "cadenceResult"
+                );
 
             switch(cadence.status){
                 case NONE:
