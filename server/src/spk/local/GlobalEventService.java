@@ -212,6 +212,88 @@ final class GlobalEventService {
         ).run();
     }
 
+    /**
+     * Atomically publishes one new GlobalEvent together with caller-owned
+     * consumer state. The event is visible reentrantly to the action while the
+     * GlobalEventService monitor remains held, but no competing lifecycle
+     * observer/mutator can cross the registration boundary.
+     *
+     * If caller publication fails, the exact newly-created event is removed
+     * before releasing this monitor so no orphan GlobalEvent remains.
+     */
+    synchronized Snapshot registerWithCompositionOwnership(
+        WorldEventDefinition definition,
+        EventCompositionAction action
+    )throws Exception{
+        WorldEventDefinition checked=
+            Objects.requireNonNull(
+                definition,
+                "definition"
+            );
+        EventCompositionAction checkedAction=
+            Objects.requireNonNull(
+                action,
+                "action"
+            );
+
+        if(entries.containsKey(
+                checked.id))
+            throw new IllegalStateException(
+                "duplicate world event id="+
+                checked.id
+            );
+
+        Entry entry=
+            new Entry(
+                checked
+            );
+
+        entries.put(
+            checked.id,
+            entry
+        );
+
+        try{
+            checkedAction.run();
+            return entry.snapshot();
+        }catch(RuntimeException failure){
+            rollbackRegistration(
+                entry,
+                failure
+            );
+            throw failure;
+        }catch(Error failure){
+            rollbackRegistration(
+                entry,
+                failure
+            );
+            throw failure;
+        }catch(Exception failure){
+            rollbackRegistration(
+                entry,
+                failure
+            );
+            throw failure;
+        }
+    }
+
+    private void rollbackRegistration(
+        Entry entry,
+        Throwable failure
+    ){
+        if(entries.remove(
+                entry.definition.id,
+                entry))
+            return;
+
+        failure.addSuppressed(
+            new IllegalStateException(
+                "GlobalEvent registration rollback ownership lost id="+
+                entry.definition.id
+            )
+        );
+    }
+
     synchronized TerminalHold acquireTerminalHold(
         WorldEventId eventId,
         String ownerRef
