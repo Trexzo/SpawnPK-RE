@@ -108,6 +108,10 @@ final class NpcLifecycleService {
         }
     }
 
+    interface DeadNpcAction {
+        void run(Snapshot snapshot) throws Exception;
+    }
+
     private final WorldNpcRegistry npcs;
     private final LinkedHashMap<EntityId,Entry> entries=
         new LinkedHashMap<>();
@@ -361,6 +365,88 @@ final class NpcLifecycleService {
             );
 
         return retired[0];
+    }
+
+    boolean withDeadCanonicalOwnershipIfCurrent(
+        WorldNpc npc,
+        DeadNpcAction action
+    )throws Exception{
+        WorldNpc checked=
+            Objects.requireNonNull(
+                npc,
+                "npc"
+            );
+        Objects.requireNonNull(
+            action,
+            "action"
+        );
+
+        return npcs
+            .withCurrentMutationOwnershipIfCurrent(
+                checked,
+                ()->{
+                    synchronized(this){
+                        Entry entry=
+                            entries.get(
+                                checked.id
+                            );
+
+                        if(entry==null)
+                            throw new IllegalStateException(
+                                "NPC lifecycle missing id="+
+                                checked.id
+                            );
+
+                        if(entry.npc!=checked)
+                            throw new IllegalStateException(
+                                "NPC lifecycle exact object changed id="+
+                                checked.id
+                            );
+
+                        if(entry.state!=State.DEAD||
+                           entry.deathTick==
+                                NO_DEATH_TICK)
+                            throw new IllegalStateException(
+                                "NPC lifecycle is not dead id="+
+                                checked.id
+                            );
+
+                        Snapshot before=
+                            entry.snapshot();
+
+                        action.run(
+                            before
+                        );
+
+                        if(npcs.byId(
+                                checked.id
+                            )!=checked)
+                            throw new IllegalStateException(
+                                "NPC registry ownership changed during owned action id="+
+                                checked.id
+                            );
+
+                        Entry after=
+                            entries.get(
+                                checked.id
+                            );
+
+                        if(after!=entry)
+                            throw new IllegalStateException(
+                                "NPC lifecycle entry changed during owned action id="+
+                                checked.id
+                            );
+
+                        if(entry.state!=State.DEAD||
+                           entry.deathTick!=
+                                before.deathTick)
+                            throw new IllegalStateException(
+                                "NPC death identity changed during owned action id="+
+                                checked.id
+                            );
+                    }
+                }
+            );
     }
 
     synchronized Snapshot get(EntityId npcId){
