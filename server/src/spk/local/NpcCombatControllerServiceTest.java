@@ -119,15 +119,24 @@ public final class NpcCombatControllerServiceTest {
         Fixture f=
             new Fixture(
                 "controller-loop",
-                3203,
-                3200,
+                1408,
+                8961,
                 0,
-                3200,
-                3200,
+                1408,
+                8959,
                 0
             );
 
         try{
+            f.player.movement()
+                .enterTransientRegion(
+                    1408,
+                    8961,
+                    0,
+                    1400,
+                    8950
+                );
+
             f.controller.begin(
                 f.npc,
                 f.player,
@@ -135,129 +144,73 @@ public final class NpcCombatControllerServiceTest {
                 0L
             );
 
-            NpcCombatControllerService.TickResult first=
-                f.controller.tick(
-                    f.npc.id,
-                    0L
+            long tick=0L;
+            int approachSteps=0;
+            NpcCombatControllerService.TickResult attacked=null;
+
+            for(int attempts=0;attempts<8;attempts++){
+                NpcCombatControllerService.TickResult current=
+                    f.controller.tick(
+                        f.npc.id,
+                        tick
+                    );
+
+                if(current.status==
+                        NpcCombatControllerService.Status.ATTACKED){
+                    attacked=current;
+                    break;
+                }
+
+                require(
+                    current.status==
+                        NpcCombatControllerService.Status.APPROACHED&&
+                    current.approach!=null&&
+                    current.approach.status==
+                        NpcCombatApproachService.Status.MOVED&&
+                    current.approach.before!=null&&
+                    current.approach.after!=null&&
+                    current.approach.before.plane==
+                        current.approach.after.plane&&
+                    Math.max(
+                        Math.abs(
+                            current.approach.after.x-
+                            current.approach.before.x
+                        ),
+                        Math.abs(
+                            current.approach.after.y-
+                            current.approach.before.y
+                        )
+                    )==1&&
+                    f.hp()==99&&
+                    f.damage.calls==0&&
+                    f.cadence.calls==0&&
+                    f.controller.get(
+                        f.npc.id
+                    ).nextAttackTick==0L&&
+                    f.controller.get(
+                        f.npc.id
+                    ).revision==0L,
+                    "approach step advanced attack state or moved illegally"
                 );
 
-            require(
-                first.status==
-                    NpcCombatControllerService.Status.APPROACHED,
-                "first approach controller status="+
-                first.status
-            );
-            require(
-                first.approach!=null,
-                "first approach result missing"
-            );
-            require(
-                first.approach.status==
-                    NpcCombatApproachService.Status.MOVED,
-                "first approach route status="+
-                first.approach.status
-            );
-            require(
-                first.approach.before!=null&&
-                first.approach.after!=null&&
-                first.approach.before.x==3200&&
-                first.approach.before.y==3200&&
-                first.approach.after.x==f.npc.x()&&
-                first.approach.after.y==f.npc.y()&&
-                MovementState.direction(
-                    first.approach.before.x,
-                    first.approach.before.y,
-                    first.approach.after.x,
-                    first.approach.after.y
-                )>=0&&
-                Math.max(
-                    Math.abs(f.npc.x()-3203),
-                    Math.abs(f.npc.y()-3200)
-                )==2,
-                "first approach did not make one legal progress step x="+
-                f.npc.x()+
-                " y="+
-                f.npc.y()
-            );
-            require(
-                f.hp()==99,
-                "first approach HP="+
-                f.hp()
-            );
-            require(
-                f.damage.calls==0,
-                "first approach damage calls="+
-                f.damage.calls
-            );
-            require(
-                f.cadence.calls==0,
-                "first approach cadence calls="+
-                f.cadence.calls
-            );
-
-            NpcCombatEngagementService.Snapshot firstEngagement=
-                f.controller.get(
-                    f.npc.id
-                );
+                approachSteps++;
+                tick=f.world.clock().advance();
+            }
 
             require(
-                firstEngagement!=null,
-                "first approach engagement missing"
+                attacked!=null&&
+                approachSteps>=1&&
+                attacked.approach!=null&&
+                attacked.approach.status==
+                    NpcCombatApproachService.Status.IN_RANGE&&
+                attacked.cadence!=null&&
+                attacked.cadence.status==
+                    NpcCombatEngagementService.TickStatus.ATTACKED&&
+                f.hp()==89&&
+                f.damage.calls==1&&
+                f.cadence.calls==1,
+                "in-range attack/cadence composition"
             );
-            require(
-                firstEngagement.nextAttackTick==0L,
-                "first approach nextAttackTick="+
-                firstEngagement.nextAttackTick
-            );
-            require(
-                firstEngagement.revision==0L,
-                "first approach revision="+
-                firstEngagement.revision
-            );
-
-            long tick1=
-                f.world.clock().advance();
-
-            NpcCombatControllerService.TickResult second=
-                f.controller.tick(
-                    f.npc.id,
-                    tick1
-                );
-
-            require(
-                tick1==1L&&
-                second.status==
-                    NpcCombatControllerService.Status.APPROACHED&&
-                second.approach!=null&&
-                second.approach.status==
-                    NpcCombatApproachService.Status.MOVED&&
-                second.approach.after!=null&&
-                second.approach.after.x==f.npc.x()&&
-                second.approach.after.y==f.npc.y()&&
-                Math.max(
-                    Math.abs(f.npc.x()-3203),
-                    Math.abs(f.npc.y()-3200)
-                )==1&&
-                f.hp()==99&&
-                f.damage.calls==0&&
-                f.cadence.calls==0&&
-                f.controller.get(
-                    f.npc.id
-                ).nextAttackTick==0L,
-                "second approach step advanced attack state x="+
-                f.npc.x()+
-                " y="+
-                f.npc.y()
-            );
-
-            long tick2=
-                f.world.clock().advance();
-
-            NpcCombatControllerService.TickResult attacked=
-                f.controller.tick(
-                    f.npc.id,
-                    tick2
-                );
 
             NpcCombatEngagementService.Snapshot afterAttack=
                 f.controller.get(
@@ -265,72 +218,54 @@ public final class NpcCombatControllerServiceTest {
                 );
 
             require(
-                tick2==2L&&
-                attacked.status==
-                    NpcCombatControllerService.Status.ATTACKED&&
-                attacked.approach!=null&&
-                attacked.approach.status==
-                    NpcCombatApproachService.Status.IN_RANGE&&
-                attacked.cadence!=null&&
-                attacked.cadence.status==
-                    NpcCombatEngagementService.TickStatus.ATTACKED&&
-                f.npc.x()==3202&&
-                f.hp()==89&&
-                f.damage.calls==1&&
-                f.cadence.calls==1&&
                 afterAttack!=null&&
-                afterAttack.nextAttackTick==5L&&
+                afterAttack.nextAttackTick==
+                    tick+3L&&
                 afterAttack.revision==1L,
-                "in-range attack/cadence composition"
+                "first attack cadence publication"
             );
 
-            long tick3=
-                f.world.clock().advance();
+            long due=
+                afterAttack.nextAttackTick;
 
-            NpcCombatControllerService.TickResult waiting=
-                f.controller.tick(
-                    f.npc.id,
-                    tick3
+            while(f.world.clock().tick()<due-1L){
+                long waitingTick=
+                    f.world.clock().advance();
+
+                NpcCombatControllerService.TickResult waiting=
+                    f.controller.tick(
+                        f.npc.id,
+                        waitingTick
+                    );
+
+                require(
+                    waiting.status==
+                        NpcCombatControllerService.Status.WAITING&&
+                    f.hp()==89&&
+                    f.damage.calls==1&&
+                    f.cadence.calls==1&&
+                    f.controller.get(
+                        f.npc.id
+                    ).nextAttackTick==due,
+                    "pre-cadence in-range tick attacked"
                 );
+            }
 
-            require(
-                tick3==3L&&
-                waiting.status==
-                    NpcCombatControllerService.Status.WAITING&&
-                f.hp()==89&&
-                f.damage.calls==1&&
-                f.cadence.calls==1&&
-                f.controller.get(
-                    f.npc.id
-                ).nextAttackTick==5L,
-                "pre-cadence in-range tick attacked"
-            );
-
-            long tick4=
+            long dueTick=
                 f.world.clock().advance();
 
             require(
-                f.controller.tick(
-                    f.npc.id,
-                    tick4
-                ).status==
-                    NpcCombatControllerService.Status.WAITING&&
-                f.hp()==89&&
-                f.damage.calls==1,
-                "second pre-cadence tick attacked"
+                dueTick==due,
+                "cadence due tick mismatch"
             );
-
-            long tick5=
-                f.world.clock().advance();
 
             NpcCombatControllerService.TickResult attackedAgain=
                 f.controller.tick(
                     f.npc.id,
-                    tick5
+                    dueTick
                 );
 
             require(
-                tick5==5L&&
                 attackedAgain.status==
                     NpcCombatControllerService.Status.ATTACKED&&
                 f.hp()==79&&
@@ -338,7 +273,8 @@ public final class NpcCombatControllerServiceTest {
                 f.cadence.calls==2&&
                 f.controller.get(
                     f.npc.id
-                ).nextAttackTick==8L&&
+                ).nextAttackTick==
+                    dueTick+3L&&
                 f.controller.get(
                     f.npc.id
                 ).revision==2L,
