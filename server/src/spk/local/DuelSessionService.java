@@ -515,11 +515,14 @@ final class DuelSessionService {
                 playerRef
             );
 
-        matches.adjustParticipantScore(
+        matches.adjustParticipantScoreOwned(
             entry.matchId,
             participant,
             counterKey,
-            delta
+            delta,
+            requireChildLease(
+                entry
+            )
         );
 
         return entry.snapshot();
@@ -544,11 +547,14 @@ final class DuelSessionService {
                 playerRef
             );
 
-        matches.adjustTeamScore(
+        matches.adjustTeamScoreOwned(
             entry.matchId,
             team,
             counterKey,
-            delta
+            delta,
+            requireChildLease(
+                entry
+            )
         );
 
         return entry.snapshot();
