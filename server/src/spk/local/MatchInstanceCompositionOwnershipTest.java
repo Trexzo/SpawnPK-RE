@@ -187,6 +187,9 @@ public final class MatchInstanceCompositionOwnershipTest {
                 "directMatchTerminalBlocked=true "+
                 "directInstanceTopologyBlocked=true "+
                 "independentHoldIdentity=true "+
+                "capabilityIdentity=true "+
+                "foreignCapabilityRejected=true "+
+                "keyReleaseApiAbsent=true "+
                 "holdReleaseAllowsOwnedTerminal=true "+
                 "protocolIndependent=true"
             );
@@ -215,8 +218,14 @@ public final class MatchInstanceCompositionOwnershipTest {
             WorldInstanceId.of(
                 "composition:held:first"
             );
-        String firstHold=
-            "owner:first";
+        MatchSessionService.TerminalHold[]
+            firstMatchHold=
+                new MatchSessionService
+                    .TerminalHold[1];
+        WorldInstanceService.StructuralHold[]
+            firstInstanceHold=
+                new WorldInstanceService
+                    .StructuralHold[1];
 
         matches.withWorldInstanceCompositionOwnership(
             instances,
@@ -228,25 +237,27 @@ public final class MatchInstanceCompositionOwnershipTest {
                     firstInstance,
                     "player:first"
                 );
-                matches.acquireTerminalHold(
-                    firstMatch,
-                    firstHold
-                );
-                instances.acquireStructuralHold(
-                    firstInstance,
-                    firstHold
-                );
+                firstMatchHold[0]=
+                    matches.acquireTerminalHold(
+                        firstMatch
+                    );
+                firstInstanceHold[0]=
+                    instances.acquireStructuralHold(
+                        firstInstance
+                    );
             }
         );
 
         require(
+            firstMatchHold[0]!=null&&
+            firstInstanceHold[0]!=null&&
             matches.terminalHoldCount(
                 firstMatch
             )==1&&
             instances.structuralHoldCount(
                 firstInstance
             )==1,
-            "durable child holds not published"
+            "durable child capabilities not published"
         );
 
         expectIllegal(
@@ -288,19 +299,115 @@ public final class MatchInstanceCompositionOwnershipTest {
             "direct instance close admission crossed durable hold"
         );
 
-        expectIllegal(
-            ()->matches.acquireTerminalHold(
-                firstMatch,
-                firstHold
-            ),
-            "duplicate match hold accepted"
+        MatchSessionService.TerminalHold secondSameMatch=
+            matches.acquireTerminalHold(
+                firstMatch
+            );
+        WorldInstanceService.StructuralHold secondSameInstance=
+            instances.acquireStructuralHold(
+                firstInstance
+            );
+
+        require(
+            secondSameMatch!=firstMatchHold[0]&&
+            secondSameInstance!=
+                firstInstanceHold[0]&&
+            matches.terminalHoldCount(
+                firstMatch
+            )==2&&
+            instances.structuralHoldCount(
+                firstInstance
+            )==2,
+            "capability identities not independent"
         );
-        expectIllegal(
-            ()->instances.acquireStructuralHold(
-                firstInstance,
-                firstHold
+
+        matches.releaseTerminalHold(
+            secondSameMatch
+        );
+        instances.releaseStructuralHold(
+            secondSameInstance
+        );
+
+        MatchSessionService foreignMatches=
+            new MatchSessionService();
+        WorldInstanceService foreignInstances=
+            new WorldInstanceService();
+        MatchId foreignMatch=
+            MatchId.of(
+                "composition:held:foreign"
+            );
+        WorldInstanceId foreignInstance=
+            WorldInstanceId.of(
+                "composition:held:foreign"
+            );
+
+        createActivePair(
+            foreignMatches,
+            foreignInstances,
+            foreignMatch,
+            foreignInstance,
+            "player:foreign-owner"
+        );
+
+        MatchSessionService.TerminalHold foreignMatchHold=
+            foreignMatches.acquireTerminalHold(
+                foreignMatch
+            );
+        WorldInstanceService.StructuralHold foreignInstanceHold=
+            foreignInstances.acquireStructuralHold(
+                foreignInstance
+            );
+
+        expect(
+            IllegalArgumentException.class,
+            ()->matches.releaseTerminalHold(
+                foreignMatchHold
             ),
-            "duplicate instance hold accepted"
+            "foreign MatchSession capability release"
+        );
+        expect(
+            IllegalArgumentException.class,
+            ()->instances.releaseStructuralHold(
+                foreignInstanceHold
+            ),
+            "foreign WorldInstance capability release"
+        );
+
+        boolean oldMatchKeyReleaseApi=false;
+        boolean oldInstanceKeyReleaseApi=false;
+
+        for(java.lang.reflect.Method candidate:
+                MatchSessionService.class
+                    .getDeclaredMethods())
+            if(candidate.getName().equals(
+                    "releaseTerminalHold")&&
+               Arrays.equals(
+                    candidate.getParameterTypes(),
+                    new Class<?>[]{
+                        MatchId.class,
+                        String.class
+                    }
+               ))
+                oldMatchKeyReleaseApi=true;
+
+        for(java.lang.reflect.Method candidate:
+                WorldInstanceService.class
+                    .getDeclaredMethods())
+            if(candidate.getName().equals(
+                    "releaseStructuralHold")&&
+               Arrays.equals(
+                    candidate.getParameterTypes(),
+                    new Class<?>[]{
+                        WorldInstanceId.class,
+                        String.class
+                    }
+               ))
+                oldInstanceKeyReleaseApi=true;
+
+        require(
+            !oldMatchKeyReleaseApi&&
+            !oldInstanceKeyReleaseApi,
+            "caller-forgeable child key release API remains"
         );
 
         MatchId secondMatch=
@@ -311,6 +418,14 @@ public final class MatchInstanceCompositionOwnershipTest {
             WorldInstanceId.of(
                 "composition:held:second"
             );
+        MatchSessionService.TerminalHold[]
+            secondMatchHold=
+                new MatchSessionService
+                    .TerminalHold[1];
+        WorldInstanceService.StructuralHold[]
+            secondInstanceHold=
+                new WorldInstanceService
+                    .StructuralHold[1];
 
         matches.withWorldInstanceCompositionOwnership(
             instances,
@@ -322,22 +437,20 @@ public final class MatchInstanceCompositionOwnershipTest {
                     secondInstance,
                     "player:second"
                 );
-                matches.acquireTerminalHold(
-                    secondMatch,
-                    "owner:second"
-                );
-                instances.acquireStructuralHold(
-                    secondInstance,
-                    "owner:second"
-                );
+                secondMatchHold[0]=
+                    matches.acquireTerminalHold(
+                        secondMatch
+                    );
+                secondInstanceHold[0]=
+                    instances.acquireStructuralHold(
+                        secondInstance
+                    );
 
                 instances.releaseStructuralHold(
-                    firstInstance,
-                    firstHold
+                    firstInstanceHold[0]
                 );
                 matches.releaseTerminalHold(
-                    firstMatch,
-                    firstHold
+                    firstMatchHold[0]
                 );
 
                 matches.cancel(
@@ -367,6 +480,8 @@ public final class MatchInstanceCompositionOwnershipTest {
         );
 
         require(
+            secondMatchHold[0]!=null&&
+            secondInstanceHold[0]!=null&&
             matches.terminalHoldCount(
                 secondMatch
             )==1&&
@@ -378,22 +493,27 @@ public final class MatchInstanceCompositionOwnershipTest {
             instances.get(secondInstance).lifecycle==
                 WorldInstanceService
                     .Lifecycle.ACTIVE,
-            "independent child hold disturbed"
+            "independent child capability disturbed"
         );
 
         expectIllegal(
             ()->matches.releaseTerminalHold(
-                firstMatch,
-                firstHold
+                firstMatchHold[0]
             ),
-            "double match hold release accepted"
+            "double MatchSession capability release accepted"
         );
         expectIllegal(
             ()->instances.releaseStructuralHold(
-                firstInstance,
-                firstHold
+                firstInstanceHold[0]
             ),
-            "double instance hold release accepted"
+            "double WorldInstance capability release accepted"
+        );
+
+        foreignMatches.releaseTerminalHold(
+            foreignMatchHold
+        );
+        foreignInstances.releaseStructuralHold(
+            foreignInstanceHold
         );
     }
 
