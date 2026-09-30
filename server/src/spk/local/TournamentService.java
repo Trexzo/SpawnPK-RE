@@ -447,19 +447,10 @@ final class TournamentService {
             );
 
         if(entry.matches.containsKey(
-                checkedMatchId)||
-           matches.get(
-                checkedMatchId)!=null)
+                checkedMatchId))
             throw new IllegalStateException(
                 "Tournament match id already exists "+
                 checkedMatchId
-            );
-
-        if(instances.get(
-                checkedInstanceId)!=null)
-            throw new IllegalStateException(
-                "Tournament instance id already exists "+
-                checkedInstanceId
             );
 
         TournamentMatch tournamentMatch=
@@ -472,55 +463,75 @@ final class TournamentService {
 
         // Known failure conditions are preflighted before reusable-service
         // mutation.
-        matches.create(
-            checkedMatchId,
-            entry.rules
-        );
-        matches.addTeam(
-            checkedMatchId,
-            tournamentMatch.firstTeamId
-        );
-        matches.addTeam(
-            checkedMatchId,
-            tournamentMatch.secondTeamId
-        );
-        matches.join(
-            checkedMatchId,
-            tournamentMatch.firstTeamId,
-            tournamentMatch.firstParticipant
-        );
-        matches.join(
-            checkedMatchId,
-            tournamentMatch.secondTeamId,
-            tournamentMatch.secondParticipant
-        );
+        withCompositionOwnership(
+            ()->{
+                if(matches.get(
+                        checkedMatchId)!=null)
+                    throw new IllegalStateException(
+                        "Tournament match id already exists "+
+                        checkedMatchId
+                    );
 
-        instances.create(
-            checkedInstanceId,
-            checkedMatchId.toString(),
-            entry.policyAuthority
-        );
-        instances.attach(
-            checkedInstanceId,
-            tournamentMatch.firstParticipant
-        );
-        instances.attach(
-            checkedInstanceId,
-            tournamentMatch.secondParticipant
-        );
+                if(instances.get(
+                        checkedInstanceId)!=null)
+                    throw new IllegalStateException(
+                        "Tournament instance id already exists "+
+                        checkedInstanceId
+                    );
 
-        matches.attachInstance(
-            checkedMatchId,
-            checkedInstanceId
-        );
-        matches.markReady(
-            checkedMatchId
-        );
-        instances.activate(
-            checkedInstanceId
-        );
-        matches.activate(
-            checkedMatchId
+            matches.create(
+                checkedMatchId,
+                entry.rules
+            );
+            matches.addTeam(
+                checkedMatchId,
+                tournamentMatch.firstTeamId
+            );
+            matches.addTeam(
+                checkedMatchId,
+                tournamentMatch.secondTeamId
+            );
+            matches.join(
+                checkedMatchId,
+                tournamentMatch.firstTeamId,
+                tournamentMatch.firstParticipant
+            );
+            matches.join(
+                checkedMatchId,
+                tournamentMatch.secondTeamId,
+                tournamentMatch.secondParticipant
+            );
+    
+            instances.create(
+                checkedInstanceId,
+                checkedMatchId.toString(),
+                entry.policyAuthority
+            );
+            instances.attach(
+                checkedInstanceId,
+                tournamentMatch.firstParticipant
+            );
+            instances.attach(
+                checkedInstanceId,
+                tournamentMatch.secondParticipant
+            );
+    
+            matches.attachInstance(
+                checkedMatchId,
+                checkedInstanceId
+            );
+            matches.markReady(
+                checkedMatchId
+            );
+            instances.activate(
+                checkedInstanceId
+            );
+            matches.activate(
+                checkedMatchId
+            );
+    
+    
+            }
         );
 
         first.state=EntrantState.IN_MATCH;
@@ -580,12 +591,7 @@ final class TournamentService {
                 winner
             );
 
-        preflightOwnedInstance(
-            tournamentMatch
-        );
-
-        matches.complete(
-            tournamentMatch.matchId,
+        MatchSession.Result result=
             new MatchSession.Result(
                 outcomeKey,
                 winnerTeam,
@@ -593,11 +599,21 @@ final class TournamentService {
                     decisionAuthority,
                     "decisionAuthority"
                 )
-            )
-        );
+            );
 
-        closeOwnedInstance(
-            tournamentMatch
+        withCompositionOwnership(
+            ()->{
+                preflightOwnedInstance(
+                    tournamentMatch
+                );
+                matches.complete(
+                    tournamentMatch.matchId,
+                    result
+                );
+                closeOwnedInstance(
+                    tournamentMatch
+                );
+            }
         );
 
         Entrant winningEntrant=
@@ -641,17 +657,19 @@ final class TournamentService {
                 matchId
             );
 
-        preflightOwnedInstance(
-            tournamentMatch
-        );
-
-        matches.cancel(
-            tournamentMatch.matchId,
-            reasonKey
-        );
-
-        closeOwnedInstance(
-            tournamentMatch
+        withCompositionOwnership(
+            ()->{
+                preflightOwnedInstance(
+                    tournamentMatch
+                );
+                matches.cancel(
+                    tournamentMatch.matchId,
+                    reasonKey
+                );
+                closeOwnedInstance(
+                    tournamentMatch
+                );
+            }
         );
 
         Entrant first=
@@ -733,6 +751,26 @@ final class TournamentService {
 
     synchronized int size(){
         return tournaments.size();
+    }
+
+    private void withCompositionOwnership(
+        MatchSessionService.MatchInstanceCompositionAction action
+    ){
+        try{
+            matches.withWorldInstanceCompositionOwnership(
+                instances,
+                action
+            );
+        }catch(RuntimeException failure){
+            throw failure;
+        }catch(Error failure){
+            throw failure;
+        }catch(Exception failure){
+            throw new IllegalStateException(
+                "unexpected Tournament composition ownership failure",
+                failure
+            );
+        }
     }
 
     private Snapshot snapshotOf(
