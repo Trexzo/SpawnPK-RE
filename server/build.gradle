@@ -4930,6 +4930,7 @@ tasks.named('check') {
     dependsOn tasks.named('groundItemBatchSettlementRegression')
     dependsOn tasks.named('npcDropGroundSettlementRegression')
     dependsOn tasks.named('npcDropLiveSceneRegression')
+    dependsOn tasks.named('npcDropLiveSettlementAtomicRegression')
     dependsOn tasks.named('localGroundItemInteractionRegression')
     dependsOn tasks.named('npcPlayerCombatResolutionServiceRegression')
     dependsOn tasks.named('npcCombatResolutionServiceRegression')
@@ -5410,6 +5411,21 @@ tasks.register('npcDropLiveSceneRegression', JavaExec) {
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass = 'spk.local.NpcDropLiveSceneTest'
+}
+
+
+tasks.register('npcDropLiveSettlementAtomicRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves live owner-scoped NPC loot presentation and receipts derive from immutable old/new facts captured by the exact atomic ground-item batch commit.'
+    dependsOn(
+        tasks.named('testClasses'),
+        tasks.named('npcDropLiveSceneRegression'),
+        tasks.named('npcDropGroundSettlementRegression')
+    )
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.NpcDropLiveSettlementAtomicTest'
 }
 
 
