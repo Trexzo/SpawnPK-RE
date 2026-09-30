@@ -437,26 +437,41 @@ final class MatchSessionService {
         long delta
     ){
         Entry entry=requireActive(matchId);
-        TeamState team=
-            entry.teams.get(
-                Objects.requireNonNull(
-                    teamId,
-                    "teamId"
-                )
-            );
+        requireNoCompositionLease(
+            entry,
+            "adjustTeamScore"
+        );
 
-        if(team==null)
-            throw new IllegalArgumentException(
-                "unknown team id="+teamId
-            );
-
-        adjustScore(
-            team.scores,
+        return adjustTeamScoreEntry(
+            entry,
+            teamId,
             counterKey,
             delta
         );
+    }
 
-        return snapshot(entry);
+    synchronized MatchSession adjustTeamScoreOwned(
+        MatchId matchId,
+        MatchTeamId teamId,
+        String counterKey,
+        long delta,
+        CompositionLease lease
+    ){
+        Entry entry=requireActive(matchId);
+        requireCompositionLease(
+            entry,
+            Objects.requireNonNull(
+                lease,
+                "lease"
+            )
+        );
+
+        return adjustTeamScoreEntry(
+            entry,
+            teamId,
+            counterKey,
+            delta
+        );
     }
 
     synchronized MatchSession adjustParticipantScore(
@@ -466,27 +481,41 @@ final class MatchSessionService {
         long delta
     ){
         Entry entry=requireActive(matchId);
-        ParticipantState participant=
-            requireParticipant(
-                entry,
-                participantRef
-            );
+        requireNoCompositionLease(
+            entry,
+            "adjustParticipantScore"
+        );
 
-        if(participant.status!=
-                MatchSession.ParticipantStatus.PRESENT)
-            throw new IllegalStateException(
-                "participant not present "+
-                participant.participantRef+
-                " status="+participant.status
-            );
-
-        adjustScore(
-            participant.scores,
+        return adjustParticipantScoreEntry(
+            entry,
+            participantRef,
             counterKey,
             delta
         );
+    }
 
-        return snapshot(entry);
+    synchronized MatchSession adjustParticipantScoreOwned(
+        MatchId matchId,
+        String participantRef,
+        String counterKey,
+        long delta,
+        CompositionLease lease
+    ){
+        Entry entry=requireActive(matchId);
+        requireCompositionLease(
+            entry,
+            Objects.requireNonNull(
+                lease,
+                "lease"
+            )
+        );
+
+        return adjustParticipantScoreEntry(
+            entry,
+            participantRef,
+            counterKey,
+            delta
+        );
     }
 
     /**
@@ -502,28 +531,41 @@ final class MatchSessionService {
         long delta
     ){
         Entry entry=require(matchId);
+        requireNoCompositionLease(
+            entry,
+            "tryAdjustPresentParticipantScore"
+        );
 
-        if(entry.state!=
-                MatchSession.State.ACTIVE)
-            return false;
-
-        ParticipantState participant=
-            requireParticipant(
-                entry,
-                participantRef
-            );
-
-        if(participant.status!=
-                MatchSession.ParticipantStatus.PRESENT)
-            return false;
-
-        adjustScore(
-            participant.scores,
+        return tryAdjustPresentParticipantScoreEntry(
+            entry,
+            participantRef,
             counterKey,
             delta
         );
+    }
 
-        return true;
+    synchronized boolean tryAdjustPresentParticipantScoreOwned(
+        MatchId matchId,
+        String participantRef,
+        String counterKey,
+        long delta,
+        CompositionLease lease
+    ){
+        Entry entry=require(matchId);
+        requireCompositionLease(
+            entry,
+            Objects.requireNonNull(
+                lease,
+                "lease"
+            )
+        );
+
+        return tryAdjustPresentParticipantScoreEntry(
+            entry,
+            participantRef,
+            counterKey,
+            delta
+        );
     }
 
     /**
@@ -537,41 +579,41 @@ final class MatchSessionService {
         long delta
     ){
         Entry entry=require(matchId);
+        requireNoCompositionLease(
+            entry,
+            "tryAdjustPresentParticipantTeamScore"
+        );
 
-        if(entry.state!=
-                MatchSession.State.ACTIVE)
-            return false;
-
-        ParticipantState participant=
-            requireParticipant(
-                entry,
-                participantRef
-            );
-
-        if(participant.status!=
-                MatchSession.ParticipantStatus.PRESENT)
-            return false;
-
-        TeamState team=
-            entry.teams.get(
-                participant.teamId
-            );
-
-        if(team==null)
-            throw new IllegalStateException(
-                "participant team disappeared "+
-                participant.teamId+
-                " ref="+
-                participant.participantRef
-            );
-
-        adjustScore(
-            team.scores,
+        return tryAdjustPresentParticipantTeamScoreEntry(
+            entry,
+            participantRef,
             counterKey,
             delta
         );
+    }
 
-        return true;
+    synchronized boolean tryAdjustPresentParticipantTeamScoreOwned(
+        MatchId matchId,
+        String participantRef,
+        String counterKey,
+        long delta,
+        CompositionLease lease
+    ){
+        Entry entry=require(matchId);
+        requireCompositionLease(
+            entry,
+            Objects.requireNonNull(
+                lease,
+                "lease"
+            )
+        );
+
+        return tryAdjustPresentParticipantTeamScoreEntry(
+            entry,
+            participantRef,
+            counterKey,
+            delta
+        );
     }
 
     synchronized MatchSession leave(
@@ -866,6 +908,134 @@ final class MatchSessionService {
         entry.state=
             MatchSession.State.CANCELLED;
         return snapshot(entry);
+    }
+
+    private MatchSession adjustTeamScoreEntry(
+        Entry entry,
+        MatchTeamId teamId,
+        String counterKey,
+        long delta
+    ){
+        TeamState team=
+            entry.teams.get(
+                Objects.requireNonNull(
+                    teamId,
+                    "teamId"
+                )
+            );
+
+        if(team==null)
+            throw new IllegalArgumentException(
+                "unknown team id="+teamId
+            );
+
+        adjustScore(
+            team.scores,
+            counterKey,
+            delta
+        );
+
+        return snapshot(entry);
+    }
+
+    private MatchSession adjustParticipantScoreEntry(
+        Entry entry,
+        String participantRef,
+        String counterKey,
+        long delta
+    ){
+        ParticipantState participant=
+            requireParticipant(
+                entry,
+                participantRef
+            );
+
+        if(participant.status!=
+                MatchSession.ParticipantStatus.PRESENT)
+            throw new IllegalStateException(
+                "participant not present "+
+                participant.participantRef+
+                " status="+participant.status
+            );
+
+        adjustScore(
+            participant.scores,
+            counterKey,
+            delta
+        );
+
+        return snapshot(entry);
+    }
+
+    private boolean tryAdjustPresentParticipantScoreEntry(
+        Entry entry,
+        String participantRef,
+        String counterKey,
+        long delta
+    ){
+        if(entry.state!=
+                MatchSession.State.ACTIVE)
+            return false;
+
+        ParticipantState participant=
+            requireParticipant(
+                entry,
+                participantRef
+            );
+
+        if(participant.status!=
+                MatchSession.ParticipantStatus.PRESENT)
+            return false;
+
+        adjustScore(
+            participant.scores,
+            counterKey,
+            delta
+        );
+
+        return true;
+    }
+
+    private boolean tryAdjustPresentParticipantTeamScoreEntry(
+        Entry entry,
+        String participantRef,
+        String counterKey,
+        long delta
+    ){
+        if(entry.state!=
+                MatchSession.State.ACTIVE)
+            return false;
+
+        ParticipantState participant=
+            requireParticipant(
+                entry,
+                participantRef
+            );
+
+        if(participant.status!=
+                MatchSession.ParticipantStatus.PRESENT)
+            return false;
+
+        TeamState team=
+            entry.teams.get(
+                participant.teamId
+            );
+
+        if(team==null)
+            throw new IllegalStateException(
+                "participant team disappeared "+
+                participant.teamId+
+                " ref="+
+                participant.participantRef
+            );
+
+        adjustScore(
+            team.scores,
+            counterKey,
+            delta
+        );
+
+        return true;
     }
 
     private MatchSession markParticipant(
