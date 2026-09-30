@@ -410,19 +410,33 @@ final class ClanWarSessionService {
                 entry.matchId
             );
 
+            String holdKey=
+                childHoldKey(entry);
             acquireChildHolds(
                 entry.matchId,
                 entry.instanceId,
-                childHoldKey(entry)
+                holdKey
             );
+
+            boolean published=false;
+
+            try{
+                sessions.put(
+                    entry.challengeId,
+                    entry
+                );
+                published=true;
+            }finally{
+                if(!published)
+                    releaseChildHolds(
+                        entry.matchId,
+                        entry.instanceId,
+                        holdKey
+                    );
+            }
     
     
             }
-        );
-
-        sessions.put(
-            entry.challengeId,
-            entry
         );
 
         return entry.snapshot();
