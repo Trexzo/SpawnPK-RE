@@ -58,6 +58,7 @@ public final class MatchInstanceSessionCompositionAtomicityTest {
             "clanChildOwnership=true "+
             "duelChildOwnership=true "+
             "tournamentChildOwnership=true "+
+            "childStartupHoldFailureSafe=true "+
             "ownerPublishAfterOwnedAction=true "+
             "terminalPreflightInsideOwnership=true"
         );
@@ -358,6 +359,24 @@ public final class MatchInstanceSessionCompositionAtomicityTest {
             startAcquire>startActivated,
             label+
                 " does not acquire durable child ownership after activation"
+        );
+
+        int startupFinally=
+            start.indexOf(
+                "}finally{",
+                startAcquire
+            );
+        int startupFailureRelease=
+            start.indexOf(
+                "releaseChildHolds(",
+                startupFinally
+            );
+
+        require(
+            startupFinally>startAcquire&&
+            startupFailureRelease>startupFinally,
+            label+
+                " does not compensate durable child ownership on startup publication failure"
         );
 
         int completePreflight=
