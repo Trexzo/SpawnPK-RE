@@ -51,6 +51,7 @@ public final class MatchInstanceSessionCompositionAtomicityTest {
             "tournamentStartup=true "+
             "tournamentTerminal=true "+
             "tournamentGlobalEventStartupOwnership=true "+
+            "tournamentGlobalEventTerminalOwnership=true "+
             "ownerPublishAfterOwnedAction=true "+
             "terminalPreflightInsideOwnership=true"
         );
@@ -63,15 +64,15 @@ public final class MatchInstanceSessionCompositionAtomicityTest {
             count(
                 source,
                 "withCompositionOwnership("
-            )==3,
-            "TournamentService legacy composition ownership call/helper count"
+            )==1,
+            "TournamentService legacy composition helper count"
         );
 
         require(
             count(
                 source,
                 "withEventAndCompositionOwnership("
-            )==2,
+            )==4,
             "TournamentService GlobalEvent+match composition call/helper count"
         );
 
@@ -121,41 +122,43 @@ public final class MatchInstanceSessionCompositionAtomicityTest {
             "TournamentService publishes entrant state before owned startup action"
         );
 
-        assertOwnedBeforePublish(
+        assertOwnedBeforePublishWith(
             complete,
+            "withEventAndCompositionOwnership(",
             "tournamentMatch.state=",
             "TournamentService complete"
         );
-        assertOwnedBeforePublish(
+        assertOwnedBeforePublishWith(
             cancel,
+            "withEventAndCompositionOwnership(",
             "tournamentMatch.state=",
             "TournamentService cancel"
         );
 
         require(
             complete.indexOf(
-                "withCompositionOwnership("
+                "withEventAndCompositionOwnership("
             )>=0&&
             complete.indexOf(
                 "preflightOwnedInstance"
             )>
             complete.indexOf(
-                "withCompositionOwnership("
+                "withEventAndCompositionOwnership("
             ),
-            "TournamentService complete preflight outside ownership"
+            "TournamentService complete preflight outside GlobalEvent+match ownership"
         );
 
         require(
             cancel.indexOf(
-                "withCompositionOwnership("
+                "withEventAndCompositionOwnership("
             )>=0&&
             cancel.indexOf(
                 "preflightOwnedInstance"
             )>
             cancel.indexOf(
-                "withCompositionOwnership("
+                "withEventAndCompositionOwnership("
             ),
-            "TournamentService cancel preflight outside ownership"
+            "TournamentService cancel preflight outside GlobalEvent+match ownership"
         );
     }
 
@@ -231,6 +234,31 @@ public final class MatchInstanceSessionCompositionAtomicityTest {
                 "withCompositionOwnership("
             ),
             label+" cancel preflight outside ownership"
+        );
+    }
+
+    private static void assertOwnedBeforePublishWith(
+        String method,
+        String ownershipAnchor,
+        String publishAnchor,
+        String label
+    ){
+        int owned=
+            method.indexOf(
+                ownershipAnchor
+            );
+        int publish=
+            method.indexOf(
+                publishAnchor
+            );
+
+        require(
+            owned>=0,
+            label+" lacks requested composition ownership"
+        );
+        require(
+            publish>owned,
+            label+" publishes owner state before owned action"
         );
     }
 
