@@ -17,6 +17,7 @@ final class NpcCombatAiService {
         NO_TARGET,
         ENGAGED,
         CONTROLLER,
+        ATTACKER_DEAD,
         STALE_ATTACKER,
         STALE_TARGET
     }
@@ -155,6 +156,26 @@ final class NpcCombatAiService {
         requireCurrentWorldTick(
             worldTick
         );
+
+        NpcLifecycleService.Snapshot lifecycle=
+            world.npcLifecycle()
+                .get(
+                    checked.id
+                );
+
+        if(lifecycle!=null&&
+           lifecycle.dead()){
+            controller.cancel(
+                checked
+            );
+
+            return result(
+                Status.ATTACKER_DEAD,
+                null,
+                null,
+                null
+            );
+        }
 
         NpcCombatEngagementService.Snapshot active=
             controller.get(
