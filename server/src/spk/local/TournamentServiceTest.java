@@ -30,6 +30,9 @@ public final class TournamentServiceTest {
             "activeMatchBlocksTerminalEvent=true "+
             "terminalHoldProtectsActiveMatch=true "+
             "terminalHoldRelease=true "+
+            "durableChildLease=true "+
+            "directChildTerminalBlocked=true "+
+            "childLeaseRelease=true "+
             "globalEventOwnershipLinearized=true "+
             "lockOrderTournamentEventMatchInstance=true "+
             "explicitTournamentCompletion=true "+
@@ -741,8 +744,30 @@ public final class TournamentServiceTest {
         require(
             completeEvents.terminalHoldCount(
                 completeEventId
-            )==1,
-            "Tournament child did not acquire terminal hold"
+            )==1&&
+            completeMatches.compositionLeaseHeld(
+                completeMatchId
+            )&&
+            completeInstances.compositionLeaseHeld(
+                completeInstanceId
+            ),
+            "Tournament child did not acquire terminal ownership"
+        );
+
+        expect(
+            IllegalStateException.class,
+            ()->completeMatches.cancel(
+                completeMatchId,
+                "external_cancel"
+            ),
+            "external Tournament match cancel"
+        );
+        expect(
+            IllegalStateException.class,
+            ()->completeInstances.beginClosing(
+                completeInstanceId
+            ),
+            "external Tournament instance close"
         );
 
         expect(
@@ -794,6 +819,12 @@ public final class TournamentServiceTest {
             completeEvents.terminalHoldCount(
                 completeEventId
             )==0&&
+            !completeMatches.compositionLeaseHeld(
+                completeMatchId
+            )&&
+            !completeInstances.compositionLeaseHeld(
+                completeInstanceId
+            )&&
             completeInstances.get(
                 completeInstanceId
             ).lifecycle==
@@ -877,6 +908,12 @@ public final class TournamentServiceTest {
             cancelEvents.terminalHoldCount(
                 cancelEventId
             )==0&&
+            !cancelMatches.compositionLeaseHeld(
+                cancelMatchId
+            )&&
+            !cancelInstances.compositionLeaseHeld(
+                cancelInstanceId
+            )&&
             cancelInstances.get(
                 cancelInstanceId
             ).lifecycle==
