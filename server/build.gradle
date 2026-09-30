@@ -4929,6 +4929,7 @@ tasks.named('check') {
     dependsOn tasks.named('npcDropResolutionServiceRegression')
     dependsOn tasks.named('groundItemBatchSettlementRegression')
     dependsOn tasks.named('npcDropGroundSettlementRegression')
+    dependsOn tasks.named('localGroundItemInteractionRegression')
     dependsOn tasks.named('npcPlayerCombatResolutionServiceRegression')
     dependsOn tasks.named('npcCombatResolutionServiceRegression')
     dependsOn tasks.named('npcRespawnServiceRegression')
@@ -5394,6 +5395,17 @@ tasks.register('npcDropGroundSettlementRegression', JavaExec) {
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass = 'spk.local.NpcDropGroundSettlementServiceTest'
+}
+
+
+tasks.register('localGroundItemInteractionRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves ground-item Take resolves current-plane visible ownership correctly, including private precedence and public fallback.'
+    dependsOn tasks.named('testClasses')
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.LocalGroundItemInteractionHandlerTest'
 }
 
 
