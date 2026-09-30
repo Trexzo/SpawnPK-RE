@@ -17,6 +17,7 @@ public final class NpcCombatEngagementServiceTest {
         ownershipLinearized();
         concurrentTickSingleOwner();
         tickOwnershipLinearized();
+        cadenceReentrantCancelPreventsExecutor();
         authorityAndBoundary();
 
         System.out.println(
@@ -33,6 +34,7 @@ public final class NpcCombatEngagementServiceTest {
             "cancelOwnershipLinearized=true "+
             "tickSingleOwner=true "+
             "tickOwnershipLinearized=true "+
+            "cadenceReentrantCancelPreventsExecutor=true "+
             "executorDelegated=true "+
             "executorFailureNoAdvance=true "+
             "executorFailureReleasesReservation=true "+
@@ -1036,6 +1038,81 @@ public final class NpcCombatEngagementServiceTest {
             f.close();
         }
     }
+
+    private static void cadenceReentrantCancelPreventsExecutor()
+        throws Exception{
+        Fixture f=new Fixture(
+            "engage-cadence-reentrant-cancel"
+        );
+
+        try{
+            AtomicReference<NpcCombatEngagementService>
+                serviceRef=
+                    new AtomicReference<>();
+            AtomicInteger attacks=
+                new AtomicInteger();
+
+            NpcCombatEngagementService.CadenceResolver
+                reentrantCadence=
+                    new NpcCombatEngagementService.CadenceResolver(){
+                        public int nextDelayTicks(
+                            NpcCombatEngagementService.Context c
+                        ){
+                            NpcCombatEngagementService service=
+                                serviceRef.get();
+
+                            require(
+                                service!=null&&
+                                service.cancel(f.npc),
+                                "cadence reentrant cancel did not win"
+                            );
+
+                            return 2;
+                        }
+
+                        public String authority(){
+                            return "CUSTOM_LOCALLAB_CADENCE";
+                        }
+
+                        public String policy(){
+                            return "TEST_REENTRANT_CANCEL";
+                        }
+                    };
+
+            NpcCombatEngagementService service=
+                new NpcCombatEngagementService(
+                    f.world,
+                    reentrantCadence,
+                    (n,t,g,w)->attacks.incrementAndGet()
+                );
+
+            serviceRef.set(service);
+
+            service.begin(
+                f.npc,
+                f.player,
+                f.generation,
+                0L
+            );
+
+            NpcCombatEngagementService.TickResult result=
+                service.tick(
+                    f.npc.id,
+                    0L
+                );
+
+            require(
+                result.status==
+                    NpcCombatEngagementService.TickStatus.NONE&&
+                attacks.get()==0&&
+                service.get(f.npc.id)==null,
+                "cadence reentrant cancel crossed executor boundary"
+            );
+        }finally{
+            f.close();
+        }
+    }
+
 
     private static void authorityAndBoundary(){
         Fixture f=new Fixture("engage-boundary");
