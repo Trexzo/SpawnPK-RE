@@ -370,6 +370,22 @@ final class NpcCombatEngagementService {
                                                 cadenceAuthority
                                             );
 
+                                        /*
+                                         * Cadence is caller-owned and may
+                                         * reenter/cancel this engagement.
+                                         * Revalidate the exact reservation
+                                         * again before any attack side effect.
+                                         */
+                                        synchronized(engagements){
+                                            if(engagements.get(
+                                                    engagement.attackerId
+                                                )!=engagement||
+                                               !engagement.executing){
+                                                engagementGone[0]=true;
+                                                return;
+                                            }
+                                        }
+
                                         final long nextAttackTick;
 
                                         try{
