@@ -562,6 +562,31 @@ public final class MatchInstanceCompositionOwnershipTest {
         matches.activate(matchId);
     }
 
+    private static void expect(
+        Class<? extends Throwable> type,
+        ThrowingAction action,
+        String label
+    )throws Exception{
+        try{
+            action.run();
+        }catch(Throwable failure){
+            if(type.isInstance(failure))
+                return;
+
+            throw new AssertionError(
+                label+
+                " wrong failure "+
+                failure,
+                failure
+            );
+        }
+
+        throw new AssertionError(
+            label+
+            " did not fail"
+        );
+    }
+
     private static void expectIllegal(
         ThrowingAction action,
         String label
