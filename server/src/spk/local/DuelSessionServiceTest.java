@@ -29,6 +29,7 @@ public final class DuelSessionServiceTest {
             "durableChildLease=true "+
             "directChildTerminalBlocked=true "+
             "ownerTerminalReleasesChildLease=true "+
+            "terminalFailureRetainsChildLease=true "+
             "participantIndexReleased=true "+
             "stakeMutation=false "+
             "rewardMutation=false "+
@@ -452,6 +453,35 @@ public final class DuelSessionServiceTest {
                     "instance:duel:cancel"
                 )
             );
+
+        expect(
+            IllegalArgumentException.class,
+            ()->service.cancelActive(
+                activeCancel,
+                "   "
+            ),
+            "invalid active Duel cancel reason"
+        );
+
+        require(
+            service.get(
+                activeCancel
+            ).state==
+                DuelSessionService.State.ACTIVE&&
+            matches.compositionLeaseHeld(
+                active.matchId
+            )&&
+            instances.compositionLeaseHeld(
+                active.instanceId
+            )&&
+            service.openFor(
+                "player:e"
+            )!=null&&
+            service.openFor(
+                "player:f"
+            )!=null,
+            "failed Duel terminalization dropped child ownership"
+        );
 
         DuelSessionService.Snapshot cancelled=
             service.cancelActive(
