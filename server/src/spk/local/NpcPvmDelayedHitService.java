@@ -430,6 +430,7 @@ final class NpcPvmDelayedHitService {
                 return false;
 
             entry.state=State.CANCELLED;
+            entry.executing=false;
             handle=entry.handle;
         }
 
