@@ -4917,6 +4917,7 @@ tasks.named('check') {
     dependsOn tasks.named('npcWorldPulseAiRegression')
     dependsOn tasks.named('npcCombatRuntimeBinderRegression')
     dependsOn tasks.named('monsterSpawnerCombatBindingRegression')
+    dependsOn tasks.named('monsterSpawnerCombatDespawnRegression')
     dependsOn tasks.named('npcPvmDelayedHitServiceRegression')
     dependsOn tasks.named('npcCombatDelayedCompositionRegression')
     dependsOn tasks.named('monsterSpawnerServiceRegression')
@@ -5492,6 +5493,20 @@ tasks.register('monsterSpawnerCombatBindingRegression', JavaExec) {
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass = 'spk.local.MonsterSpawnerCombatBindingServiceTest'
+}
+
+
+tasks.register('monsterSpawnerCombatDespawnRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves bound Monster Spawner NPC terminal removal unbinds pulse runtime and canonical/tracked NPC state atomically.'
+    dependsOn(
+        tasks.named('testClasses'),
+        tasks.named('monsterSpawnerCombatBindingRegression')
+    )
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.MonsterSpawnerCombatDespawnTest'
 }
 
 
