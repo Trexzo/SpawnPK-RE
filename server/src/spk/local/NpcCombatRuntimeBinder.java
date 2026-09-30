@@ -193,6 +193,14 @@ final class NpcCombatRuntimeBinder {
     private final LinkedHashMap<EntityId,Entry>
         bindings=
             new LinkedHashMap<>();
+    private final HashSet<EntityId>
+        bindingInProgress=
+            new HashSet<>();
+
+    private final HashSet<EntityId>
+        unbindingInProgress=
+            new HashSet<>();
+
 
     NpcCombatRuntimeBinder(
         World world,
@@ -218,120 +226,123 @@ final class NpcCombatRuntimeBinder {
                 attacker,
                 "attacker"
             );
+        EntityId id=
+            checked.id;
 
         synchronized(this){
-            if(bindings.containsKey(
-                    checked.id))
+            if(bindings.containsKey(id))
                 throw new IllegalStateException(
                     "NPC combat runtime already bound id="+
-                    checked.id
+                    id
+                );
+
+            if(!bindingInProgress.add(id))
+                throw new IllegalStateException(
+                    "NPC combat runtime bind already in progress id="+
+                    id
                 );
         }
 
-        final Tile[] initialTile={null};
+        NpcCombatAiTickTarget attachedTarget=null;
 
-        boolean current=
-            world.npcs()
-                .withCurrentMutationOwnershipIfCurrent(
-                    checked,
-                    ()->
-                        initialTile[0]=
-                            checked.tile()
+        try{
+            final Tile[] initialTile={null};
+
+            boolean current=
+                world.npcs()
+                    .withCurrentMutationOwnershipIfCurrent(
+                        checked,
+                        ()->
+                            initialTile[0]=
+                                checked.tile()
+                    );
+
+            if(!current)
+                return new BindResult(
+                    BindStatus.STALE_ATTACKER,
+                    null
                 );
 
-        if(!current)
-            return new BindResult(
-                BindStatus.STALE_ATTACKER,
-                null
-            );
-
-        BehaviorPlan plan=
-            planResolver.resolve(
-                new Context(
-                    checked,
-                    initialTile[0]
-                )
-            );
-
-        if(plan==null)
-            return new BindResult(
-                BindStatus.UNCONFIGURED,
-                null
-            );
-
-        if(world.npcs().byId(
-                checked.id
-            )!=checked)
-            return new BindResult(
-                BindStatus.STALE_ATTACKER,
-                null
-            );
-
-        NpcPlayerCombatResolutionService damage=
-            new NpcPlayerCombatResolutionService(
-                plan.damageResolver
-            );
-
-        NpcCombatControllerService controller=
-            new NpcCombatControllerService(
-                world,
-                plan.approachPolicy,
-                plan.cadenceResolver,
-                damage,
-                plan.controllerAuthority,
-                NpcCombatControllerService
-                    .APPROACH_BEFORE_ENGAGEMENT_TICK
-            );
-
-        NpcTargetAcquisitionService acquisition=
-            new NpcTargetAcquisitionService(
-                world,
-                plan.acquisitionPolicy,
-                plan.targetAuthority,
-                plan.targetPolicy
-            );
-
-        NpcCombatAiService ai=
-            new NpcCombatAiService(
-                world,
-                acquisition,
-                controller,
-                plan.initialAttackTickResolver,
-                plan.aiAuthority,
-                NpcCombatAiService
-                    .ACQUIRE_THEN_DELEGATE
-            );
-
-        NpcCombatAiTickTarget tickTarget=
-            new NpcCombatAiTickTarget(
-                checked,
-                ai
-            );
-
-        Entry entry=
-            new Entry(
-                checked,
-                plan,
-                tickTarget
-            );
-
-        synchronized(this){
-            if(bindings.containsKey(
-                    checked.id))
-                throw new IllegalStateException(
-                    "NPC combat runtime concurrently bound id="+
-                    checked.id
+            BehaviorPlan plan=
+                planResolver.resolve(
+                    new Context(
+                        checked,
+                        initialTile[0]
+                    )
                 );
 
+            if(plan==null)
+                return new BindResult(
+                    BindStatus.UNCONFIGURED,
+                    null
+                );
+
+            if(world.npcs().byId(id)!=checked)
+                return new BindResult(
+                    BindStatus.STALE_ATTACKER,
+                    null
+                );
+
+            NpcPlayerCombatResolutionService damage=
+                new NpcPlayerCombatResolutionService(
+                    plan.damageResolver
+                );
+
+            NpcCombatControllerService controller=
+                new NpcCombatControllerService(
+                    world,
+                    plan.approachPolicy,
+                    plan.cadenceResolver,
+                    damage,
+                    plan.controllerAuthority,
+                    NpcCombatControllerService
+                        .APPROACH_BEFORE_ENGAGEMENT_TICK
+                );
+
+            NpcTargetAcquisitionService acquisition=
+                new NpcTargetAcquisitionService(
+                    world,
+                    plan.acquisitionPolicy,
+                    plan.targetAuthority,
+                    plan.targetPolicy
+                );
+
+            NpcCombatAiService ai=
+                new NpcCombatAiService(
+                    world,
+                    acquisition,
+                    controller,
+                    plan.initialAttackTickResolver,
+                    plan.aiAuthority,
+                    NpcCombatAiService
+                        .ACQUIRE_THEN_DELEGATE
+                );
+
+            NpcCombatAiTickTarget tickTarget=
+                new NpcCombatAiTickTarget(
+                    checked,
+                    ai
+                );
+
+            Entry entry=
+                new Entry(
+                    checked,
+                    plan,
+                    tickTarget
+                );
+
+            /*
+             * Never hold the binder monitor while entering World lifecycle
+             * ownership. bindingInProgress is the per-NPC publication lease.
+             */
             try{
                 world.attachNpcTickTarget(
                     checked,
                     tickTarget
                 );
+                attachedTarget=tickTarget;
             }catch(IllegalStateException failure){
-                if(world.npcs().byId(
-                        checked.id
-                    )!=checked)
+                if(world.npcs().byId(id)!=checked)
                     return new BindResult(
                         BindStatus.STALE_ATTACKER,
                         null
@@ -340,15 +351,40 @@ final class NpcCombatRuntimeBinder {
                 throw failure;
             }
 
-            bindings.put(
-                checked.id,
-                entry
-            );
+            synchronized(this){
+                if(bindings.containsKey(id))
+                    throw new IllegalStateException(
+                        "NPC combat runtime concurrently published id="+
+                        id
+                    );
 
-            return new BindResult(
-                BindStatus.BOUND,
-                entry.snapshot()
-            );
+                if(!bindingInProgress.contains(id))
+                    throw new IllegalStateException(
+                        "NPC combat runtime bind reservation lost id="+
+                        id
+                    );
+
+                bindings.put(
+                    id,
+                    entry
+                );
+                attachedTarget=null;
+
+                return new BindResult(
+                    BindStatus.BOUND,
+                    entry.snapshot()
+                );
+            }
+        }finally{
+            if(attachedTarget!=null)
+                world.detachNpcTickTarget(
+                    id,
+                    attachedTarget
+                );
+
+            synchronized(this){
+                bindingInProgress.remove(id);
+            }
         }
     }
 
@@ -368,7 +404,7 @@ final class NpcCombatRuntimeBinder {
             :entry.snapshot();
     }
 
-    synchronized boolean unbind(
+    boolean unbind(
         EntityId npcId
     ){
         try{
@@ -388,7 +424,7 @@ final class NpcCombatRuntimeBinder {
         }
     }
 
-    synchronized BindingSnapshot unbindComposed(
+    BindingSnapshot unbindComposed(
         EntityId npcId,
         UnbindCommitAction commitAction
     )throws Exception{
@@ -402,57 +438,94 @@ final class NpcCombatRuntimeBinder {
                 commitAction,
                 "commitAction"
             );
-        Entry entry=
-            bindings.get(
-                checked
-            );
+        final Entry entry;
 
-        if(entry==null)
-            return null;
+        synchronized(this){
+            if(bindingInProgress.contains(
+                    checked))
+                throw new IllegalStateException(
+                    "NPC combat runtime bind in progress id="+
+                    checked
+                );
 
-        if(!world.detachNpcTickTarget(
-                checked,
-                entry.tickTarget))
-            throw new IllegalStateException(
-                "NPC combat runtime lost exact pulse target id="+
-                checked
-            );
+            if(!unbindingInProgress.add(
+                    checked))
+                throw new IllegalStateException(
+                    "NPC combat runtime unbind already in progress id="+
+                    checked
+                );
 
-        Throwable primary=null;
+            entry=
+                bindings.get(
+                    checked
+                );
+
+            if(entry==null){
+                unbindingInProgress.remove(
+                    checked
+                );
+                return null;
+            }
+        }
+
+        boolean detached=false;
 
         try{
-            checkedCommit.run();
-        }catch(Throwable failure){
-            primary=failure;
-        }
-
-        if(primary!=null){
-            try{
-                world.attachNpcTickTarget(
-                    entry.attacker,
-                    entry.tickTarget
+            if(!world.detachNpcTickTarget(
+                    checked,
+                    entry.tickTarget))
+                throw new IllegalStateException(
+                    "NPC combat runtime lost exact pulse target id="+
+                    checked
                 );
-            }catch(Throwable rollbackFailure){
-                if(rollbackFailure!=primary)
-                    primary.addSuppressed(
-                        rollbackFailure
-                    );
+
+            detached=true;
+
+            try{
+                checkedCommit.run();
+            }catch(Throwable primary){
+                if(detached){
+                    try{
+                        world.attachNpcTickTarget(
+                            entry.attacker,
+                            entry.tickTarget
+                        );
+                        detached=false;
+                    }catch(Throwable rollbackFailure){
+                        if(rollbackFailure!=primary)
+                            primary.addSuppressed(
+                                rollbackFailure
+                            );
+                    }
+                }
+
+                rethrow(
+                    primary
+                );
             }
 
-            rethrow(
-                primary
-            );
+            synchronized(this){
+                if(bindings.get(
+                        checked
+                    )!=entry)
+                    throw new IllegalStateException(
+                        "NPC combat runtime binding identity changed during composed unbind id="+
+                        checked
+                    );
+
+                bindings.remove(
+                    checked
+                );
+
+                return entry.snapshot();
+            }
+        }finally{
+            synchronized(this){
+                unbindingInProgress.remove(
+                    checked
+                );
+            }
         }
-
-        if(!bindings.remove(
-                checked,
-                entry))
-            throw new IllegalStateException(
-                "NPC combat runtime binding identity changed during composed unbind id="+
-                checked
-            );
-
-        return entry.snapshot();
     }
 
     synchronized int size(){
