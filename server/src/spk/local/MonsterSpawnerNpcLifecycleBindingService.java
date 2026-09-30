@@ -120,14 +120,64 @@ final class MonsterSpawnerNpcLifecycleBindingService {
                                 "lifecycle plan"
                             );
 
-                        lifecycleResult[0]=
-                            world.npcLifecycle()
-                                .register(
-                                    npc,
-                                    plan.maxHitpoints,
-                                    plan.sourceAuthority
+                        boolean lifecycleRegistered=false;
+                        boolean projectionTracked=false;
+
+                        try{
+                            lifecycleResult[0]=
+                                world.npcLifecycle()
+                                    .register(
+                                        npc,
+                                        plan.maxHitpoints,
+                                        plan.sourceAuthority
+                                    );
+                            lifecycleRegistered=true;
+
+                            SharedNpcWorldRelay
+                                .trackCanonicalNpc(
+                                    world,
+                                    npc
                                 );
-                        planKey[0]=plan.planKey;
+                            projectionTracked=true;
+                            planKey[0]=plan.planKey;
+                        }catch(Throwable failure){
+                            if(projectionTracked){
+                                try{
+                                    SharedNpcWorldRelay
+                                        .untrackCanonicalNpc(
+                                            world,
+                                            npc.id
+                                        );
+                                }catch(Throwable cleanup){
+                                    if(cleanup!=failure)
+                                        failure.addSuppressed(
+                                            cleanup
+                                        );
+                                }
+                            }
+
+                            if(lifecycleRegistered){
+                                try{
+                                    if(!world.npcLifecycle()
+                                            .unregister(
+                                                npc.id
+                                            ))
+                                        throw new IllegalStateException(
+                                            "Monster Spawner lifecycle rollback missing id="+
+                                            npc.id
+                                        );
+                                }catch(Throwable cleanup){
+                                    if(cleanup!=failure)
+                                        failure.addSuppressed(
+                                            cleanup
+                                        );
+                                }
+                            }
+
+                            rethrow(
+                                failure
+                            );
+                        }
                     }
                 );
 
@@ -146,6 +196,21 @@ final class MonsterSpawnerNpcLifecycleBindingService {
 
     NpcLifecycleService lifecycleAuthority(){
         return world.npcLifecycle();
+    }
+
+    private static void rethrow(
+        Throwable failure
+    )throws Exception{
+        if(failure instanceof RuntimeException)
+            throw (RuntimeException)failure;
+        if(failure instanceof Error)
+            throw (Error)failure;
+        if(failure instanceof Exception)
+            throw (Exception)failure;
+
+        throw new RuntimeException(
+            failure
+        );
     }
 
     private static String requireGameplayAuthority(
