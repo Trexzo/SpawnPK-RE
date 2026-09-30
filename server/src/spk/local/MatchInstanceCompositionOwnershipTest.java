@@ -186,7 +186,9 @@ public final class MatchInstanceCompositionOwnershipTest {
                 "directMatchTerminalBlocked=true "+
                 "directInstanceTopologyBlocked=true "+
                 "pairedLeaseRelease=true "+
+                "opaqueLeaseIdentity=true "+
                 "duplicateLeaseFailClosed=true "+
+                "missingLeaseFailClosed=true "+
                 "lockOrderMatchThenInstance=true "+
                 "protocolIndependent=true"
             );
@@ -219,8 +221,10 @@ public final class MatchInstanceCompositionOwnershipTest {
             MatchTeamId.of(
                 "team:leased"
             );
-        String leaseKey=
-            "parent:leased";
+        AtomicReference<
+            MatchSessionService.CompositionLease
+        > lease=
+            new AtomicReference<>();
 
         matches.withWorldInstanceCompositionOwnership(
             instances,
@@ -260,11 +264,13 @@ public final class MatchInstanceCompositionOwnershipTest {
                 matches.activate(
                     matchId
                 );
-                matches.acquireWorldInstanceCompositionLease(
-                    instances,
-                    matchId,
-                    instanceId,
-                    leaseKey
+                lease.set(
+                    matches.acquireWorldInstanceCompositionLease(
+                        instances,
+                        matchId,
+                        instanceId,
+                        "parent:leased"
+                    )
                 );
             }
         );
@@ -334,14 +340,14 @@ public final class MatchInstanceCompositionOwnershipTest {
             "duplicate paired lease"
         );
         expect(
-            IllegalStateException.class,
+            NullPointerException.class,
             ()->matches.releaseWorldInstanceCompositionLease(
                 instances,
                 matchId,
                 instanceId,
-                "parent:wrong"
+                null
             ),
-            "wrong paired lease release"
+            "missing paired lease token"
         );
 
         require(
@@ -361,7 +367,7 @@ public final class MatchInstanceCompositionOwnershipTest {
                     instances,
                     matchId,
                     instanceId,
-                    leaseKey
+                    lease.get()
                 );
                 matches.cancel(
                     matchId,
@@ -404,7 +410,7 @@ public final class MatchInstanceCompositionOwnershipTest {
                 instances,
                 matchId,
                 instanceId,
-                leaseKey
+                lease.get()
             ),
             "double paired lease release"
         );
