@@ -546,6 +546,14 @@ final class NpcPvmDelayedHitService {
         return entries.size();
     }
 
+    boolean isBoundTo(
+        World expectedWorld,
+        NpcLifecycleService expectedLifecycle
+    ){
+        return world==expectedWorld&&
+            lifecycle==expectedLifecycle;
+    }
+
     String deliveryAuthority(){
         return deliveryAuthority;
     }
