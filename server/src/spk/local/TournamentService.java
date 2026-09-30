@@ -372,20 +372,11 @@ final class TournamentService {
                     new Entrant(participant)
                 );
 
-                    result[0]=
-                        new Snapshot(
-                            entry,
-                            event
-                        );
-
-                    published=true;
-                }finally{
-                    if(!published)
-                        events.releaseTerminalHold(
-                            entry.eventId,
-                            terminalHoldKey
-                        );
-                }
+                result[0]=
+                    new Snapshot(
+                        entry,
+                        event
+                    );
             }
         );
 
@@ -510,14 +501,14 @@ final class TournamentService {
                         checkedInstanceId
                     );
 
-                String terminalHoldKey=
+                String holdKey=
                     terminalHoldKey(
                         checkedMatchId
                     );
 
                 events.acquireTerminalHold(
                     entry.eventId,
-                    terminalHoldKey
+                    holdKey
                 );
 
                 boolean published=false;
@@ -527,72 +518,81 @@ final class TournamentService {
                         checkedMatchId,
                         entry.rules
                     );
-                matches.addTeam(
-                    checkedMatchId,
-                    tournamentMatch.firstTeamId
-                );
-                matches.addTeam(
-                    checkedMatchId,
-                    tournamentMatch.secondTeamId
-                );
-                matches.join(
-                    checkedMatchId,
-                    tournamentMatch.firstTeamId,
-                    tournamentMatch.firstParticipant
-                );
-                matches.join(
-                    checkedMatchId,
-                    tournamentMatch.secondTeamId,
-                    tournamentMatch.secondParticipant
-                );
-
-                instances.create(
-                    checkedInstanceId,
-                    checkedMatchId.toString(),
-                    entry.policyAuthority
-                );
-                instances.attach(
-                    checkedInstanceId,
-                    tournamentMatch.firstParticipant
-                );
-                instances.attach(
-                    checkedInstanceId,
-                    tournamentMatch.secondParticipant
-                );
-
-                matches.attachInstance(
-                    checkedMatchId,
-                    checkedInstanceId
-                );
-                matches.markReady(
-                    checkedMatchId
-                );
-                instances.activate(
-                    checkedInstanceId
-                );
-                matches.activate(
-                    checkedMatchId
-                );
-
-                first.state=
-                    EntrantState.IN_MATCH;
-                first.activeMatchId=
-                    checkedMatchId;
-                second.state=
-                    EntrantState.IN_MATCH;
-                second.activeMatchId=
-                    checkedMatchId;
-
-                entry.matches.put(
-                    checkedMatchId,
-                    tournamentMatch
-                );
-
-                result[0]=
-                    new Snapshot(
-                        entry,
-                        event
+                    matches.addTeam(
+                        checkedMatchId,
+                        tournamentMatch.firstTeamId
                     );
+                    matches.addTeam(
+                        checkedMatchId,
+                        tournamentMatch.secondTeamId
+                    );
+                    matches.join(
+                        checkedMatchId,
+                        tournamentMatch.firstTeamId,
+                        tournamentMatch.firstParticipant
+                    );
+                    matches.join(
+                        checkedMatchId,
+                        tournamentMatch.secondTeamId,
+                        tournamentMatch.secondParticipant
+                    );
+
+                    instances.create(
+                        checkedInstanceId,
+                        checkedMatchId.toString(),
+                        entry.policyAuthority
+                    );
+                    instances.attach(
+                        checkedInstanceId,
+                        tournamentMatch.firstParticipant
+                    );
+                    instances.attach(
+                        checkedInstanceId,
+                        tournamentMatch.secondParticipant
+                    );
+
+                    matches.attachInstance(
+                        checkedMatchId,
+                        checkedInstanceId
+                    );
+                    matches.markReady(
+                        checkedMatchId
+                    );
+                    instances.activate(
+                        checkedInstanceId
+                    );
+                    matches.activate(
+                        checkedMatchId
+                    );
+
+                    first.state=
+                        EntrantState.IN_MATCH;
+                    first.activeMatchId=
+                        checkedMatchId;
+                    second.state=
+                        EntrantState.IN_MATCH;
+                    second.activeMatchId=
+                        checkedMatchId;
+
+                    entry.matches.put(
+                        checkedMatchId,
+                        tournamentMatch
+                    );
+
+                    published=true;
+
+                    result[0]=
+                        new Snapshot(
+                            entry,
+                            event
+                        );
+                }finally{
+                    if(!published)
+                        events.releaseTerminalHold(
+                            entry.eventId,
+                            holdKey
+                        );
+                }
             }
         );
 
@@ -619,7 +619,6 @@ final class TournamentService {
             );
 
         String loser;
-
         MatchTeamId winnerTeam;
 
         if(tournamentMatch.firstParticipant
