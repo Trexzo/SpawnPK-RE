@@ -4915,6 +4915,7 @@ tasks.named('check') {
     dependsOn tasks.named('npcTargetAcquisitionServiceRegression')
     dependsOn tasks.named('npcCombatAiServiceRegression')
     dependsOn tasks.named('npcWorldPulseAiRegression')
+    dependsOn tasks.named('npcCombatRuntimeBinderRegression')
     dependsOn tasks.named('npcPvmDelayedHitServiceRegression')
     dependsOn tasks.named('npcCombatDelayedCompositionRegression')
     dependsOn tasks.named('monsterSpawnerServiceRegression')
@@ -5461,6 +5462,20 @@ tasks.register('npcWorldPulseAiRegression', JavaExec) {
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass = 'spk.local.NpcWorldPulseAiTest'
+}
+
+
+tasks.register('npcCombatRuntimeBinderRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves caller-defined NPC combat behavior plans bind atomically to canonical WorldPulse runtime without inventing combat policy.'
+    dependsOn(
+        tasks.named('testClasses'),
+        tasks.named('npcWorldPulseAiRegression')
+    )
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.NpcCombatRuntimeBinderTest'
 }
 
 
