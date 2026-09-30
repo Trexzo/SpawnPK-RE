@@ -125,6 +125,8 @@ final class MonsterSpawnerNpcLifecycleBindingService {
                     y,
                     plane,
                     (npc,binding)->{
+                        boolean projectionTracked=false;
+
                         try{
                             LifecyclePlan plan=
                                 Objects.requireNonNull(
@@ -140,8 +142,36 @@ final class MonsterSpawnerNpcLifecycleBindingService {
                                     plan.maxHitpoints,
                                     plan.sourceAuthority
                                 );
+
+                            SharedNpcWorldRelay
+                                .trackCanonicalNpc(
+                                    world,
+                                    npc
+                                );
+                            projectionTracked=true;
                             planKey[0]=plan.planKey;
                         }catch(Throwable primary){
+                            if(projectionTracked){
+                                try{
+                                    SharedNpcWorldRelay
+                                        .untrackCanonicalNpc(
+                                            world,
+                                            npc.id
+                                        );
+                                }catch(Throwable rollbackFailure){
+                                    if(rollbackFailure!=primary)
+                                        primary.addSuppressed(
+                                            rollbackFailure
+                                        );
+                                }
+                            }
+
+                            /*
+                             * Deliberately unconditional: the lifecycle resolver
+                             * may have inserted the exact fresh NPC before
+                             * lifecycle.register(...) fails duplicate. #1211
+                             * proved that stale-entry rollback case.
+                             */
                             try{
                                 lifecycle.unregisterExact(
                                     npc
