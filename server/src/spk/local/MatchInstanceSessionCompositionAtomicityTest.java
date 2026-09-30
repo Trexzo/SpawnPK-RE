@@ -52,6 +52,8 @@ public final class MatchInstanceSessionCompositionAtomicityTest {
             "tournamentTerminal=true "+
             "tournamentGlobalEventStartupOwnership=true "+
             "tournamentGlobalEventTerminalOwnership=true "+
+            "tournamentStartupHoldFailureSafe=true "+
+            "tournamentTerminalHoldOrder=true "+
             "ownerPublishAfterOwnedAction=true "+
             "terminalPreflightInsideOwnership=true"
         );
@@ -122,6 +124,40 @@ public final class MatchInstanceSessionCompositionAtomicityTest {
             "TournamentService publishes entrant state before owned startup action"
         );
 
+        int startHoldAcquire=
+            start.indexOf(
+                "events.acquireTerminalHold("
+            );
+        int startTry=
+            start.indexOf(
+                "try{",
+                startHoldAcquire
+            );
+        int startPublished=
+            start.indexOf(
+                "published=true;",
+                startTry
+            );
+        int startFinally=
+            start.indexOf(
+                "}finally{",
+                startPublished
+            );
+        int startHoldRelease=
+            start.indexOf(
+                "events.releaseTerminalHold(",
+                startFinally
+            );
+
+        require(
+            startHoldAcquire>startOwned&&
+            startTry>startHoldAcquire&&
+            startPublished>startTry&&
+            startFinally>startPublished&&
+            startHoldRelease>startFinally,
+            "TournamentService startup terminal hold lacks failure-safe publication ordering"
+        );
+
         assertOwnedBeforePublishWith(
             complete,
             "withEventAndCompositionOwnership(",
@@ -159,6 +195,25 @@ public final class MatchInstanceSessionCompositionAtomicityTest {
                 "withEventAndCompositionOwnership("
             ),
             "TournamentService cancel preflight outside GlobalEvent+match ownership"
+        );
+
+        require(
+            complete.indexOf(
+                "events.releaseTerminalHold("
+            )>
+            complete.indexOf(
+                "tournamentMatch.state="
+            ),
+            "TournamentService complete releases terminal hold before local terminal publication"
+        );
+        require(
+            cancel.indexOf(
+                "events.releaseTerminalHold("
+            )>
+            cancel.indexOf(
+                "tournamentMatch.state="
+            ),
+            "TournamentService cancel releases terminal hold before local terminal publication"
         );
     }
 
