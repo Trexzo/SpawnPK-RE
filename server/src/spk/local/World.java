@@ -24,6 +24,8 @@ final class World implements AutoCloseable {
     private final WorldHomeNpcService homeNpcs=new WorldHomeNpcService(npcs);
     private final WorldPetNpcService petNpcs=new WorldPetNpcService(npcs);
     private final WorldNpcPresentationEvents npcPresentationEvents=new WorldNpcPresentationEvents();
+    private final WorldGroundItemPresentationEvents groundItemPresentationEvents=
+        new WorldGroundItemPresentationEvents();
     private final WorldCommandInbox commands;
     private final DomainEventBus domainEvents;
     private final LinkedHashMap<EntityId,WorldTickTarget> tickTargets=new LinkedHashMap<>();
@@ -185,6 +187,9 @@ final class World implements AutoCloseable {
     WorldHomeNpcService homeNpcs(){return homeNpcs;}
     WorldPetNpcService petNpcs(){return petNpcs;}
     WorldNpcPresentationEvents npcPresentationEvents(){return npcPresentationEvents;}
+    WorldGroundItemPresentationEvents groundItemPresentationEvents(){
+        return groundItemPresentationEvents;
+    }
     WorldCommandInbox commands(){return commands;}
     DomainEventBus domainEvents(){return domainEvents;}
     WorldPulse pulse(){return pulse;}
@@ -903,6 +908,7 @@ final class World implements AutoCloseable {
                         plugins::closeResources
                     ),
                     npcPresentationEvents::close,
+                    groundItemPresentationEvents::close,
                     domainEvents::close,
                     commands::close,
                     realtime::close,
