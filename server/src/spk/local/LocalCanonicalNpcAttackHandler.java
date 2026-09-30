@@ -89,6 +89,14 @@ final class LocalCanonicalNpcAttackHandler {
 
     private static final int BASIC_HIT_TYPE=1;
 
+    @FunctionalInterface
+    interface BeforeResolutionHook {
+        void run(
+            WorldNpc target,
+            long expectedGeneration
+        );
+    }
+
     private final World world;
     private final WorldPlayer player;
     private final LongSupplier generationSupplier;
@@ -96,6 +104,7 @@ final class LocalCanonicalNpcAttackHandler {
     private final CombatStyleState combatStyles;
     private final NpcRegistry npcs;
     private final NpcCombatResolutionService resolution;
+    private final BeforeResolutionHook beforeResolution;
     private long nextAllowedAttackTick;
 
     LocalCanonicalNpcAttackHandler(
@@ -105,6 +114,26 @@ final class LocalCanonicalNpcAttackHandler {
         EquipmentState equipment,
         CombatStyleState combatStyles,
         NpcRegistry npcs
+    ){
+        this(
+            world,
+            player,
+            generationSupplier,
+            equipment,
+            combatStyles,
+            npcs,
+            (target,generation)->{}
+        );
+    }
+
+    LocalCanonicalNpcAttackHandler(
+        World world,
+        WorldPlayer player,
+        LongSupplier generationSupplier,
+        EquipmentState equipment,
+        CombatStyleState combatStyles,
+        NpcRegistry npcs,
+        BeforeResolutionHook beforeResolution
     ){
         this.world=Objects.requireNonNull(world,"world");
         this.player=Objects.requireNonNull(player,"player");
@@ -120,6 +149,11 @@ final class LocalCanonicalNpcAttackHandler {
                 "combatStyles"
             );
         this.npcs=Objects.requireNonNull(npcs,"npcs");
+        this.beforeResolution=
+            Objects.requireNonNull(
+                beforeResolution,
+                "beforeResolution"
+            );
 
         if(player.equipment()!=equipment||
            player.combatStyles()!=combatStyles)
@@ -397,15 +431,69 @@ final class LocalCanonicalNpcAttackHandler {
                 false
             );
 
-        NpcCombatResolutionService.Result hit=
-            resolution.resolveImmediateOwned(
-                world,
-                generation,
+        NpcCombatResolutionService.Result hit;
+
+        try{
+            beforeResolution.run(
                 target,
-                weaponId,
-                style,
-                attackTick
+                generation
             );
+
+            hit=
+                resolution.resolveImmediateOwned(
+                    world,
+                    generation,
+                    target,
+                    weaponId,
+                    style,
+                    attackTick
+                );
+        }catch(
+            NpcCombatResolutionService
+                .StaleAttackerOwnershipException stale
+        ){
+            return result(
+                Status.STALE_PLAYER,
+                clicked,
+                canonicalId,
+                distance,
+                legalRange,
+                0,
+                before.hitpoints,
+                before.maxHitpoints,
+                false
+            );
+        }catch(
+            NpcCombatResolutionService
+                .StaleTargetOwnershipException stale
+        ){
+            return result(
+                Status.STALE_CANONICAL,
+                clicked,
+                canonicalId,
+                distance,
+                legalRange,
+                0,
+                before.hitpoints,
+                before.maxHitpoints,
+                false
+            );
+        }catch(
+            NpcLifecycleService
+                .LifecycleOwnershipException stale
+        ){
+            return result(
+                Status.LIFECYCLE_MISSING,
+                clicked,
+                canonicalId,
+                distance,
+                legalRange,
+                0,
+                before.hitpoints,
+                before.maxHitpoints,
+                false
+            );
+        }
 
         NpcLifecycleService.DamageResult damage=
             hit.lifecycle;
