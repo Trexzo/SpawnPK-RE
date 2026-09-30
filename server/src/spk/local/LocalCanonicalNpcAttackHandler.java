@@ -440,14 +440,45 @@ final class LocalCanonicalNpcAttackHandler {
             );
 
             hit=
-                resolution.resolveImmediateOwned(
+                resolution.resolveImmediateOwnedAdmitted(
                     world,
                     generation,
                     target,
                     weaponId,
                     style,
-                    attackTick
+                    attackTick,
+                    (attacker,checkedTarget)->{
+                        MovementState currentMovement=
+                            attacker.movement();
+                        Tile currentTargetTile=
+                            checkedTarget.tile();
+
+                        return currentMovement.plane()==
+                                currentTargetTile.plane&&
+                            inLegalRange(
+                                currentMovement.x(),
+                                currentMovement.y(),
+                                currentTargetTile.x,
+                                currentTargetTile.y,
+                                legalRange
+                            );
+                    }
                 );
+        }catch(
+            NpcCombatResolutionService
+                .ImmediateDamageAdmissionRejectedException rejected
+        ){
+            return result(
+                Status.OUT_OF_RANGE,
+                clicked,
+                canonicalId,
+                distance,
+                legalRange,
+                0,
+                before.hitpoints,
+                before.maxHitpoints,
+                false
+            );
         }catch(
             NpcCombatResolutionService
                 .StaleAttackerOwnershipException stale
