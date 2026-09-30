@@ -55,6 +55,8 @@ final class WorldInstanceService {
         final String sourceAuthority;
         final LinkedHashSet<String> participants=
             new LinkedHashSet<>();
+        final LinkedHashSet<String> structuralHolds=
+            new LinkedHashSet<>();
 
         Lifecycle lifecycle=Lifecycle.CREATED;
 
@@ -85,6 +87,49 @@ final class WorldInstanceService {
             "action"
         );
         action.run();
+    }
+
+    synchronized void acquireStructuralHold(
+        WorldInstanceId instanceId,
+        String holdKey
+    ){
+        Instance instance=require(instanceId);
+        String key=requireHoldKey(holdKey);
+
+        if(instance.lifecycle!=Lifecycle.ACTIVE)
+            throw invalid(
+                instance,
+                "acquireStructuralHold"
+            );
+
+        if(!instance.structuralHolds.add(key))
+            throw new IllegalStateException(
+                "duplicate WorldInstance structural hold instance="+
+                instance.id+
+                " key="+key
+            );
+    }
+
+    synchronized void releaseStructuralHold(
+        WorldInstanceId instanceId,
+        String holdKey
+    ){
+        Instance instance=require(instanceId);
+        String key=requireHoldKey(holdKey);
+
+        if(!instance.structuralHolds.remove(key))
+            throw new IllegalStateException(
+                "missing WorldInstance structural hold instance="+
+                instance.id+
+                " key="+key
+            );
+    }
+
+    synchronized int structuralHoldCount(
+        WorldInstanceId instanceId
+    ){
+        return require(instanceId)
+            .structuralHolds.size();
     }
 
     synchronized Snapshot create(
@@ -128,6 +173,11 @@ final class WorldInstanceService {
                 instance.lifecycle
             );
 
+        requireNoStructuralHolds(
+            instance,
+            "attach"
+        );
+
         if(!instance.participants.add(participant))
             throw new IllegalStateException(
                 "participant already attached "+
@@ -152,6 +202,11 @@ final class WorldInstanceService {
                 "cannot detach from closed instance"
             );
 
+        requireNoStructuralHolds(
+            instance,
+            "detach"
+        );
+
         if(!instance.participants.remove(participant))
             throw new IllegalStateException(
                 "participant not attached "+
@@ -174,6 +229,11 @@ final class WorldInstanceService {
     synchronized Snapshot beginClosing(WorldInstanceId id){
         Instance instance=require(id);
 
+        requireNoStructuralHolds(
+            instance,
+            "beginClosing"
+        );
+
         if(instance.lifecycle==Lifecycle.CLOSING)
             return instance.snapshot();
 
@@ -186,6 +246,11 @@ final class WorldInstanceService {
 
     synchronized Snapshot close(WorldInstanceId id){
         Instance instance=require(id);
+
+        requireNoStructuralHolds(
+            instance,
+            "close"
+        );
 
         if(instance.lifecycle==Lifecycle.CLOSED)
             return instance.snapshot();
@@ -233,6 +298,36 @@ final class WorldInstanceService {
             out.add(instance.snapshot());
 
         return Collections.unmodifiableList(out);
+    }
+
+    private static void requireNoStructuralHolds(
+        Instance instance,
+        String operation
+    ){
+        if(!instance.structuralHolds.isEmpty())
+            throw new IllegalStateException(
+                operation+
+                " blocked by WorldInstance structural holds instance="+
+                instance.id+
+                " holds="+
+                instance.structuralHolds
+            );
+    }
+
+    private static String requireHoldKey(
+        String holdKey
+    ){
+        if(holdKey==null)
+            throw new NullPointerException("holdKey");
+
+        String key=holdKey.trim();
+
+        if(key.isEmpty())
+            throw new IllegalArgumentException(
+                "holdKey blank"
+            );
+
+        return key;
     }
 
     private Instance require(WorldInstanceId id){
