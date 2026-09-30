@@ -275,18 +275,6 @@ final class ClanWarSessionService {
                 "instanceId"
             );
 
-        if(matches.get(checkedMatchId)!=null)
-            throw new IllegalStateException(
-                "Clan War match id already exists "+
-                checkedMatchId
-            );
-
-        if(instances.get(checkedInstanceId)!=null)
-            throw new IllegalStateException(
-                "Clan War instance id already exists "+
-                checkedInstanceId
-            );
-
         Entry entry=
             new Entry(
                 challengeSnapshot,
@@ -343,67 +331,87 @@ final class ClanWarSessionService {
                 policyAuthority
             );
 
-        matches.create(
-            entry.matchId,
-            rules
-        );
-        matches.addTeam(
-            entry.matchId,
-            entry.challengerTeamId
-        );
-        matches.addTeam(
-            entry.matchId,
-            entry.challengedTeamId
-        );
+        withCompositionOwnership(
+            ()->{
+                if(matches.get(
+                        checkedMatchId)!=null)
+                    throw new IllegalStateException(
+                        "Clan War match id already exists "+
+                        checkedMatchId
+                    );
 
-        for(String participant:
-                entry.challengerParticipants)
-            matches.join(
+                if(instances.get(
+                        checkedInstanceId)!=null)
+                    throw new IllegalStateException(
+                        "Clan War instance id already exists "+
+                        checkedInstanceId
+                    );
+
+            matches.create(
                 entry.matchId,
-                entry.challengerTeamId,
-                participant
+                rules
             );
-
-        for(String participant:
-                entry.challengedParticipants)
-            matches.join(
+            matches.addTeam(
                 entry.matchId,
-                entry.challengedTeamId,
-                participant
+                entry.challengerTeamId
             );
-
-        instances.create(
-            entry.instanceId,
-            entry.matchId.toString(),
-            policyAuthority
-        );
-
-        for(String participant:
-                entry.challengerParticipants)
-            instances.attach(
+            matches.addTeam(
+                entry.matchId,
+                entry.challengedTeamId
+            );
+    
+            for(String participant:
+                    entry.challengerParticipants)
+                matches.join(
+                    entry.matchId,
+                    entry.challengerTeamId,
+                    participant
+                );
+    
+            for(String participant:
+                    entry.challengedParticipants)
+                matches.join(
+                    entry.matchId,
+                    entry.challengedTeamId,
+                    participant
+                );
+    
+            instances.create(
                 entry.instanceId,
-                participant
+                entry.matchId.toString(),
+                policyAuthority
             );
-
-        for(String participant:
-                entry.challengedParticipants)
-            instances.attach(
-                entry.instanceId,
-                participant
+    
+            for(String participant:
+                    entry.challengerParticipants)
+                instances.attach(
+                    entry.instanceId,
+                    participant
+                );
+    
+            for(String participant:
+                    entry.challengedParticipants)
+                instances.attach(
+                    entry.instanceId,
+                    participant
+                );
+    
+            matches.attachInstance(
+                entry.matchId,
+                entry.instanceId
             );
-
-        matches.attachInstance(
-            entry.matchId,
-            entry.instanceId
-        );
-        matches.markReady(
-            entry.matchId
-        );
-        instances.activate(
-            entry.instanceId
-        );
-        matches.activate(
-            entry.matchId
+            matches.markReady(
+                entry.matchId
+            );
+            instances.activate(
+                entry.instanceId
+            );
+            matches.activate(
+                entry.matchId
+            );
+    
+    
+            }
         );
 
         sessions.put(
@@ -452,10 +460,6 @@ final class ClanWarSessionService {
                 challengeId
             );
 
-        preflightOwnedInstance(
-            entry
-        );
-
         MatchTeamId winner=
             teamForClan(
                 entry,
@@ -471,13 +475,19 @@ final class ClanWarSessionService {
                 )
             );
 
-        matches.complete(
-            entry.matchId,
-            result
-        );
-
-        closeOwnedInstance(
-            entry
+        withCompositionOwnership(
+            ()->{
+                preflightOwnedInstance(
+                    entry
+                );
+                matches.complete(
+                    entry.matchId,
+                    result
+                );
+                closeOwnedInstance(
+                    entry
+                );
+            }
         );
 
         entry.lifecycle=
@@ -495,17 +505,19 @@ final class ClanWarSessionService {
                 challengeId
             );
 
-        preflightOwnedInstance(
-            entry
-        );
-
-        matches.cancel(
-            entry.matchId,
-            reasonKey
-        );
-
-        closeOwnedInstance(
-            entry
+        withCompositionOwnership(
+            ()->{
+                preflightOwnedInstance(
+                    entry
+                );
+                matches.cancel(
+                    entry.matchId,
+                    reasonKey
+                );
+                closeOwnedInstance(
+                    entry
+                );
+            }
         );
 
         entry.lifecycle=
@@ -559,6 +571,26 @@ final class ClanWarSessionService {
         return Collections.unmodifiableList(
             out
         );
+    }
+
+    private void withCompositionOwnership(
+        MatchSessionService.MatchInstanceCompositionAction action
+    ){
+        try{
+            matches.withWorldInstanceCompositionOwnership(
+                instances,
+                action
+            );
+        }catch(RuntimeException failure){
+            throw failure;
+        }catch(Error failure){
+            throw failure;
+        }catch(Exception failure){
+            throw new IllegalStateException(
+                "unexpected Clan War composition ownership failure",
+                failure
+            );
+        }
     }
 
     private Entry requireActive(
