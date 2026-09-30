@@ -4,6 +4,7 @@ import java.lang.reflect.Field;
 import java.util.Locale;
 import java.util.PriorityQueue;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 public final class NpcPvmDelayedHitServiceTest {
@@ -926,6 +927,8 @@ public final class NpcPvmDelayedHitServiceTest {
             new CountDownLatch(1);
         AtomicReference<Thread> advanceThread=
             new AtomicReference<>();
+        AtomicBoolean eventInserted=
+            new AtomicBoolean();
 
         try{
             Future<?> publication=
@@ -953,6 +956,9 @@ public final class NpcPvmDelayedHitServiceTest {
                                         1L
                                     ),
                                     ()->{}
+                                );
+                                eventInserted.set(
+                                    true
                                 );
                             }
                         );
@@ -986,8 +992,10 @@ public final class NpcPvmDelayedHitServiceTest {
             );
 
             require(
-                world.events().size()==0,
-                "event inserted before publication release"
+                !publication.isDone()&&
+                !advance.isDone()&&
+                !eventInserted.get(),
+                "publication/advance escaped before release"
             );
 
             releasePublication.countDown();
