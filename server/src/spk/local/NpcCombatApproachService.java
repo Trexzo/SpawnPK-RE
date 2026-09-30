@@ -165,12 +165,93 @@ final class NpcCombatApproachService {
                                             stopRange
                                         );
 
+                                    if(!world.players().owns(
+                                            checkedTarget,
+                                            targetGeneration
+                                        )){
+                                        result[0]=
+                                            result(
+                                                Status.STALE_TARGET,
+                                                checkedAttacker,
+                                                checkedTarget,
+                                                null,
+                                                null,
+                                                -1,
+                                                null,
+                                                null
+                                            );
+                                        return;
+                                    }
+
+                                    if(world.npcs().byId(
+                                            checkedAttacker.id
+                                        )!=checkedAttacker){
+                                        result[0]=
+                                            result(
+                                                Status.STALE_ATTACKER,
+                                                checkedAttacker,
+                                                checkedTarget,
+                                                null,
+                                                null,
+                                                -1,
+                                                null,
+                                                null
+                                            );
+                                        return;
+                                    }
+
                                     RouteRequest.Policy routePolicy=
                                         Objects.requireNonNull(
                                             policy.routePolicy(
                                                 context
                                             ),
                                             "routePolicy"
+                                        );
+
+                                    if(!world.players().owns(
+                                            checkedTarget,
+                                            targetGeneration
+                                        )){
+                                        result[0]=
+                                            result(
+                                                Status.STALE_TARGET,
+                                                checkedAttacker,
+                                                checkedTarget,
+                                                null,
+                                                null,
+                                                -1,
+                                                null,
+                                                null
+                                            );
+                                        return;
+                                    }
+
+                                    if(world.npcs().byId(
+                                            checkedAttacker.id
+                                        )!=checkedAttacker){
+                                        result[0]=
+                                            result(
+                                                Status.STALE_ATTACKER,
+                                                checkedAttacker,
+                                                checkedTarget,
+                                                null,
+                                                null,
+                                                -1,
+                                                null,
+                                                null
+                                            );
+                                        return;
+                                    }
+
+                                    if((routePolicy==
+                                            RouteRequest.Policy
+                                                .HOME_COMBAT_COMPATIBILITY||
+                                        routePolicy==
+                                            RouteRequest.Policy
+                                                .HOME_RECOVERED_STATIC_AUTHORITY)&&
+                                       from.plane!=0)
+                                        throw new IllegalArgumentException(
+                                            "HOME route policy requires plane 0"
                                         );
 
                                     if(from.plane!=targetTile.plane){
