@@ -168,6 +168,8 @@ final class DuelSessionService {
         State state=State.PROPOSED;
         MatchId matchId;
         WorldInstanceId instanceId;
+        MatchSessionService.CompositionLease
+            childLease;
 
         Entry(
             ChallengeId challengeId,
@@ -472,14 +474,15 @@ final class DuelSessionService {
                 checkedMatchId
             );
 
-            matches.acquireWorldInstanceCompositionLease(
-                instances,
-                checkedMatchId,
-                checkedInstanceId,
-                childLeaseKey(
-                    checkedMatchId
-                )
-            );
+            entry.childLease=
+                matches.acquireWorldInstanceCompositionLease(
+                    instances,
+                    checkedMatchId,
+                    checkedInstanceId,
+                    childLeaseLabel(
+                        checkedMatchId
+                    )
+                );
     
     
             }
@@ -617,10 +620,11 @@ final class DuelSessionService {
                     instances,
                     entry.matchId,
                     entry.instanceId,
-                    childLeaseKey(
-                        entry.matchId
+                    requireChildLease(
+                        entry
                     )
                 );
+                entry.childLease=null;
 
                 matches.complete(
                     entry.matchId,
@@ -660,10 +664,11 @@ final class DuelSessionService {
                     instances,
                     entry.matchId,
                     entry.instanceId,
-                    childLeaseKey(
-                        entry.matchId
+                    requireChildLease(
+                        entry
                     )
                 );
+                entry.childLease=null;
 
                 matches.cancel(
                     entry.matchId,
@@ -743,7 +748,7 @@ final class DuelSessionService {
         );
     }
 
-    private static String childLeaseKey(
+    private static String childLeaseLabel(
         MatchId matchId
     ){
         return "duel:"+
@@ -751,6 +756,19 @@ final class DuelSessionService {
                 matchId,
                 "matchId"
             );
+    }
+
+    private static MatchSessionService.CompositionLease
+        requireChildLease(
+            Entry entry
+        ){
+        if(entry.childLease==null)
+            throw new IllegalStateException(
+                "Duel child lease missing "+
+                entry.matchId
+            );
+
+        return entry.childLease;
     }
 
     private void preflightOwnedInstance(
