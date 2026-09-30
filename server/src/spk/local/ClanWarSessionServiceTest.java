@@ -22,6 +22,7 @@ public final class ClanWarSessionServiceTest {
             "cancellationClosesInstance=true "+
             "durableChildLease=true "+
             "directChildTerminalBlocked=true "+
+            "directParticipantMutationBlocked=true "+
             "ownerTerminalReleasesChildLease=true "+
             "terminalFailureRetainsChildLease=true "+
             "definitionPreserved=true "+
@@ -145,6 +146,14 @@ public final class ClanWarSessionServiceTest {
                 instanceId
             ),
             "external Clan War instance close"
+        );
+        expect(
+            IllegalStateException.class,
+            ()->matches.leave(
+                matchId,
+                "player:a"
+            ),
+            "external Clan War participant leave"
         );
 
         require(
