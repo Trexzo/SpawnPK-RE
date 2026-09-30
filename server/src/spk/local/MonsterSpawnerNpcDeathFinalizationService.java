@@ -93,6 +93,19 @@ final class MonsterSpawnerNpcDeathFinalizationService {
             );
     }
 
+    boolean isBoundTo(
+        World expectedWorld,
+        MonsterSpawnerCombatBindingService expectedCombat
+    ){
+        return world==expectedWorld&&
+            combat==expectedCombat&&
+            lifecycle==expectedWorld.npcLifecycle()&&
+            drops.isBoundTo(
+                expectedWorld.npcs(),
+                expectedWorld.npcLifecycle()
+            );
+    }
+
     Result finalizeDead(
         String ownerRef,
         WorldNpc npc,
