@@ -4902,6 +4902,10 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
 }
 
 tasks.named('check') {
+    dependsOn tasks.named('matchInstanceSessionCompositionAtomicityRegression')
+    dependsOn tasks.named('clanWarSessionServiceRegression')
+    dependsOn tasks.named('duelSessionServiceRegression')
+    dependsOn tasks.named('tournamentServiceRegression')
     dependsOn tasks.named('matchInstanceCompositionOwnershipRegression')
     dependsOn tasks.named('issue9LauncherContractRegression')
     dependsOn tasks.named('chat1CumulativeWrapperContractRegression')
@@ -5232,6 +5236,53 @@ tasks.register('matchInstanceCompositionOwnershipRegression', JavaExec) {
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass = 'spk.local.MatchInstanceCompositionOwnershipTest'
+}
+
+
+tasks.register('clanWarSessionServiceRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves accepted Clan Wars compose into semantic MatchSession + WorldInstance lifecycles without inventing rewards or transport policy.'
+    dependsOn tasks.named('testClasses')
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.ClanWarSessionServiceTest'
+}
+
+
+tasks.register('duelSessionServiceRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves standard Duel challenge/session composition over MatchSession + WorldInstance without owning stakes, rewards, or transport.'
+    dependsOn tasks.named('testClasses')
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.DuelSessionServiceTest'
+}
+
+
+tasks.register('tournamentServiceRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves explicit LocalLab single-elimination Tournament composition over GlobalEvent + MatchSession + WorldInstance without reward or protocol ownership.'
+    dependsOn tasks.named('testClasses')
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.TournamentServiceTest'
+}
+
+
+tasks.register('matchInstanceSessionCompositionAtomicityRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves Clan War, Duel and Tournament startup/terminal composition remains inside shared MatchSession + WorldInstance ownership.'
+    dependsOn(
+        tasks.named('testClasses'),
+        tasks.named('matchInstanceCompositionOwnershipRegression')
+    )
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.MatchInstanceSessionCompositionAtomicityTest'
 }
 
 
