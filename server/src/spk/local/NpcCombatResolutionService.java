@@ -80,6 +80,99 @@ final class NpcCombatResolutionService {
         }
     }
 
+    enum Delivery {
+        IMMEDIATE,
+        SCHEDULED
+    }
+
+    static final class AttackResolution {
+        final EntityId attackerId;
+        final EntityId targetId;
+        final CombatDamageRules.Result damage;
+        final CombatAttackTimingRules.Result timing;
+        final CombatSystemHooks.Snapshot hooks;
+        final Delivery delivery;
+        final NpcLifecycleService.DamageResult lifecycle;
+        final NpcPvmDelayedHitService.Snapshot scheduledHit;
+        final int nextAttackDelayTicks;
+
+        AttackResolution(
+            EntityId attackerId,
+            EntityId targetId,
+            CombatDamageRules.Result damage,
+            CombatAttackTimingRules.Result timing,
+            CombatSystemHooks.Snapshot hooks,
+            Delivery delivery,
+            NpcLifecycleService.DamageResult lifecycle,
+            NpcPvmDelayedHitService.Snapshot scheduledHit,
+            int nextAttackDelayTicks
+        ){
+            this.attackerId=
+                Objects.requireNonNull(
+                    attackerId,
+                    "attackerId"
+                );
+            this.targetId=
+                Objects.requireNonNull(
+                    targetId,
+                    "targetId"
+                );
+            this.damage=
+                Objects.requireNonNull(
+                    damage,
+                    "damage"
+                );
+            this.timing=
+                Objects.requireNonNull(
+                    timing,
+                    "timing"
+                );
+            this.hooks=
+                Objects.requireNonNull(
+                    hooks,
+                    "hooks"
+                );
+            this.delivery=
+                Objects.requireNonNull(
+                    delivery,
+                    "delivery"
+                );
+
+            if(delivery==Delivery.IMMEDIATE){
+                this.lifecycle=
+                    Objects.requireNonNull(
+                        lifecycle,
+                        "lifecycle"
+                    );
+                if(scheduledHit!=null)
+                    throw new IllegalArgumentException(
+                        "IMMEDIATE resolution cannot carry scheduledHit"
+                    );
+                this.scheduledHit=null;
+            }else{
+                if(lifecycle!=null)
+                    throw new IllegalArgumentException(
+                        "SCHEDULED resolution cannot carry lifecycle"
+                    );
+                this.lifecycle=null;
+                this.scheduledHit=
+                    Objects.requireNonNull(
+                        scheduledHit,
+                        "scheduledHit"
+                    );
+            }
+
+            if(nextAttackDelayTicks<=0)
+                throw new IllegalArgumentException(
+                    "nextAttackDelayTicks="+
+                    nextAttackDelayTicks
+                );
+
+            this.nextAttackDelayTicks=
+                nextAttackDelayTicks;
+        }
+    }
+
     private static final class Prepared {
         final CombatDamageRules.Result damage;
         final CombatAttackTimingRules.Result timing;
@@ -150,19 +243,172 @@ final class NpcCombatResolutionService {
             null
         );
 
-        /*
-         * Policy/hook evaluation is intentionally outside the final ownership
-         * mutation section, matching current PvP.  The final World attacker
-         * fence and NpcLifecycle exact-object registry fence decide whether the
-         * prepared result is still allowed to mutate canonical state.
-         */
+        CombatAttackTimingRules.Result timing=
+            resolveTiming(
+                weaponId
+            );
+
+        if(timing.hitDelayTicks!=0)
+            throw new IllegalStateException(
+                "PvM delayed-hit scheduler not yet wired hitDelayTicks="+
+                timing.hitDelayTicks+
+                " authority="+
+                timing.hitDelayAuthority
+            );
+
         Prepared prepared=
-            prepare(
+            prepareAfterTiming(
                 weaponId,
                 style,
+                worldTick,
+                timing
+            );
+
+        NpcLifecycleService.DamageResult lifecycleResult=
+            applyImmediateOwned(
+                world,
+                expectedAttackerGeneration,
+                checkedTarget,
+                prepared,
                 worldTick
             );
 
+        return new Result(
+            owner.id(),
+            checkedTarget.id,
+            prepared.damage,
+            prepared.timing,
+            prepared.hooks,
+            lifecycleResult,
+            nextAttackDelayTicks(
+                prepared.timing
+            )
+        );
+    }
+
+    AttackResolution resolveOwned(
+        World world,
+        long expectedAttackerGeneration,
+        WorldNpc target,
+        int weaponId,
+        CombatStyleRepository.Style style,
+        long worldTick,
+        NpcPvmDelayedHitService delayedHits
+    )throws Exception{
+        World checkedWorld=
+            Objects.requireNonNull(
+                world,
+                "world"
+            );
+        WorldNpc checkedTarget=
+            Objects.requireNonNull(
+                target,
+                "target"
+            );
+        NpcPvmDelayedHitService checkedDelayedHits=
+            Objects.requireNonNull(
+                delayedHits,
+                "delayedHits"
+            );
+
+        if(worldTick<0L)
+            throw new IllegalArgumentException(
+                "worldTick="+
+                worldTick
+            );
+
+        requireAttacker(
+            checkedWorld,
+            expectedAttackerGeneration,
+            null
+        );
+        requireTarget(
+            checkedWorld,
+            checkedTarget,
+            null
+        );
+
+        CombatAttackTimingRules.Result timing=
+            resolveTiming(
+                weaponId
+            );
+
+        if(timing.hitDelayTicks>0&&
+           worldTick!=checkedWorld.clock().tick())
+            throw new IllegalStateException(
+                "delayed PvM resolution requires shared world clock tick expected="+
+                checkedWorld.clock().tick()+
+                " actual="+
+                worldTick
+            );
+
+        Prepared prepared=
+            prepareAfterTiming(
+                weaponId,
+                style,
+                worldTick,
+                timing
+            );
+
+        int cadence=
+            nextAttackDelayTicks(
+                prepared.timing
+            );
+
+        if(prepared.timing.hitDelayTicks==0){
+            NpcLifecycleService.DamageResult lifecycleResult=
+                applyImmediateOwned(
+                    checkedWorld,
+                    expectedAttackerGeneration,
+                    checkedTarget,
+                    prepared,
+                    worldTick
+                );
+
+            return new AttackResolution(
+                owner.id(),
+                checkedTarget.id,
+                prepared.damage,
+                prepared.timing,
+                prepared.hooks,
+                Delivery.IMMEDIATE,
+                lifecycleResult,
+                null,
+                cadence
+            );
+        }
+
+        NpcPvmDelayedHitService.Snapshot scheduled=
+            checkedDelayedHits.schedule(
+                owner,
+                expectedAttackerGeneration,
+                checkedTarget,
+                prepared.damage.damage,
+                prepared.timing.hitDelayTicks,
+                prepared.damage.authority,
+                prepared.damage.formula
+            );
+
+        return new AttackResolution(
+            owner.id(),
+            checkedTarget.id,
+            prepared.damage,
+            prepared.timing,
+            prepared.hooks,
+            Delivery.SCHEDULED,
+            null,
+            scheduled,
+            cadence
+        );
+    }
+
+    private NpcLifecycleService.DamageResult applyImmediateOwned(
+        World world,
+        long expectedAttackerGeneration,
+        WorldNpc checkedTarget,
+        Prepared prepared,
+        long worldTick
+    )throws java.io.IOException{
         final NpcLifecycleService.DamageResult[] lifecycleResult=
             new NpcLifecycleService.DamageResult[1];
 
@@ -207,29 +453,14 @@ final class NpcCombatResolutionService {
             throw error;
         }
 
-        int delay=
-            prepared.timing.attackSpeedTicks>0
-                ?prepared.timing.attackSpeedTicks
-                :4;
-
-        return new Result(
-            owner.id(),
-            checkedTarget.id,
-            prepared.damage,
-            prepared.timing,
-            prepared.hooks,
-            Objects.requireNonNull(
-                lifecycleResult[0],
-                "lifecycleResult"
-            ),
-            Math.max(1,delay)
+        return Objects.requireNonNull(
+            lifecycleResult[0],
+            "lifecycleResult"
         );
     }
 
-    private Prepared prepare(
-        int weaponId,
-        CombatStyleRepository.Style style,
-        long worldTick
+    private CombatAttackTimingRules.Result resolveTiming(
+        int weaponId
     ){
         CombatWeaponProfile profile=
             CombatWeaponRepository.resolve(
@@ -240,26 +471,24 @@ final class NpcCombatResolutionService {
                 weaponId
             );
 
-        CombatAttackTimingRules.Result timing=
-            Objects.requireNonNull(
-                timingRules.resolve(
-                    new CombatAttackTimingRules.Request(
-                        weaponId,
-                        profile,
-                        runtime
-                    )
-                ),
-                "timing result"
-            );
+        return Objects.requireNonNull(
+            timingRules.resolve(
+                new CombatAttackTimingRules.Request(
+                    weaponId,
+                    profile,
+                    runtime
+                )
+            ),
+            "timing result"
+        );
+    }
 
-        if(timing.hitDelayTicks!=0)
-            throw new IllegalStateException(
-                "PvM delayed-hit scheduler not yet wired hitDelayTicks="+
-                timing.hitDelayTicks+
-                " authority="+
-                timing.hitDelayAuthority
-            );
-
+    private Prepared prepareAfterTiming(
+        int weaponId,
+        CombatStyleRepository.Style style,
+        long worldTick,
+        CombatAttackTimingRules.Result timing
+    ){
         CombatSystemHooks.Snapshot hookSnapshot=
             Objects.requireNonNull(
                 hooks.beforeDamage(
@@ -287,6 +516,20 @@ final class NpcCombatResolutionService {
             damage,
             timing,
             hookSnapshot
+        );
+    }
+
+    private static int nextAttackDelayTicks(
+        CombatAttackTimingRules.Result timing
+    ){
+        int delay=
+            timing.attackSpeedTicks>0
+                ?timing.attackSpeedTicks
+                :4;
+
+        return Math.max(
+            1,
+            delay
         );
     }
 
