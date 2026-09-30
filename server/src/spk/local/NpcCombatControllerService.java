@@ -210,16 +210,9 @@ final class NpcCombatControllerService {
                 worldTick
             );
 
-        long authoritativeTick=
-            world.clock().tick();
-
-        if(worldTick!=authoritativeTick)
-            throw new IllegalStateException(
-                "NPC combat controller requires shared world tick expected="+
-                authoritativeTick+
-                " actual="+
-                worldTick
-            );
+        requireCurrentWorldTick(
+            worldTick
+        );
 
         if(ticking)
             throw new IllegalStateException(
@@ -340,6 +333,9 @@ final class NpcCombatControllerService {
                     );
 
                 case IN_RANGE:
+                    requireCurrentWorldTick(
+                        worldTick
+                    );
                     break;
 
                 default:
@@ -435,8 +431,12 @@ final class NpcCombatControllerService {
         long targetGeneration,
         long worldTick
     )throws Exception{
+        requireCurrentWorldTick(
+            worldTick
+        );
+
         NpcPlayerCombatResolutionService.Result resolved=
-            damage.resolveImmediateOwned(
+            damage.resolveImmediateOwnedAtExpectedTick(
                 world,
                 attacker,
                 target,
@@ -471,6 +471,21 @@ final class NpcCombatControllerService {
             ))
             engagements.cancel(
                 attacker
+            );
+    }
+
+    private void requireCurrentWorldTick(
+        long expectedTick
+    ){
+        long authoritativeTick=
+            world.clock().tick();
+
+        if(expectedTick!=authoritativeTick)
+            throw new IllegalStateException(
+                "NPC combat controller requires shared world tick expected="+
+                authoritativeTick+
+                " actual="+
+                expectedTick
             );
     }
 
