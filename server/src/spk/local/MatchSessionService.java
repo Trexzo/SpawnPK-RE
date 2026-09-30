@@ -46,6 +46,8 @@ final class MatchSessionService {
             new LinkedHashMap<>();
         final LinkedHashMap<String,ParticipantState> participants=
             new LinkedHashMap<>();
+        final LinkedHashSet<String> terminalHolds=
+            new LinkedHashSet<>();
 
         MatchSession.State state=
             MatchSession.State.CREATED;
@@ -83,6 +85,43 @@ final class MatchSessionService {
         instances.withMatchCompositionOwnership(
             action
         );
+    }
+
+    synchronized void acquireTerminalHold(
+        MatchId matchId,
+        String holdKey
+    ){
+        Entry entry=requireActive(matchId);
+        String key=requireHoldKey(holdKey);
+
+        if(!entry.terminalHolds.add(key))
+            throw new IllegalStateException(
+                "duplicate MatchSession terminal hold match="+
+                entry.id+
+                " key="+key
+            );
+    }
+
+    synchronized void releaseTerminalHold(
+        MatchId matchId,
+        String holdKey
+    ){
+        Entry entry=require(matchId);
+        String key=requireHoldKey(holdKey);
+
+        if(!entry.terminalHolds.remove(key))
+            throw new IllegalStateException(
+                "missing MatchSession terminal hold match="+
+                entry.id+
+                " key="+key
+            );
+    }
+
+    synchronized int terminalHoldCount(
+        MatchId matchId
+    ){
+        return require(matchId)
+            .terminalHolds.size();
     }
 
     synchronized MatchSession create(
@@ -455,6 +494,10 @@ final class MatchSessionService {
             MatchSession.State.ACTIVE,
             "complete"
         );
+        requireNoTerminalHolds(
+            entry,
+            "complete"
+        );
 
         MatchSession.Result checked=
             Objects.requireNonNull(
@@ -498,6 +541,11 @@ final class MatchSessionService {
 
         if(entry.state==MatchSession.State.COMPLETED)
             throw invalid(entry,"cancel");
+
+        requireNoTerminalHolds(
+            entry,
+            "cancel"
+        );
 
         entry.cancellationReasonKey=reason;
         entry.state=MatchSession.State.CANCELLED;
@@ -658,6 +706,36 @@ final class MatchSessionService {
             );
 
         scores.put(key,next);
+    }
+
+    private static void requireNoTerminalHolds(
+        Entry entry,
+        String operation
+    ){
+        if(!entry.terminalHolds.isEmpty())
+            throw new IllegalStateException(
+                operation+
+                " blocked by MatchSession terminal holds match="+
+                entry.id+
+                " holds="+
+                entry.terminalHolds
+            );
+    }
+
+    private static String requireHoldKey(
+        String holdKey
+    ){
+        if(holdKey==null)
+            throw new NullPointerException("holdKey");
+
+        String key=holdKey.trim();
+
+        if(key.isEmpty())
+            throw new IllegalArgumentException(
+                "holdKey blank"
+            );
+
+        return key;
     }
 
     private static void requireState(
