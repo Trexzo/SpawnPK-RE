@@ -70,6 +70,151 @@ public final class LocalGroundItemInteractionHandlerTest {
             if(h.hasPendingTake())
                 throw new AssertionError("cancelled pending state not cleared");
 
+            Tile overlapTile=new Tile(movement.x(),movement.y(),0);
+            GroundItem otherPrivate=
+                world.groundItems().add(
+                    995,7,overlapTile,"other",13L,false);
+            GroundItem ownPrivate=
+                world.groundItems().add(
+                    995,11,overlapTile,"OpenSrc",13L,false);
+
+            LocalGroundItemInteractionHandler.Result ownTaken=
+                h.handle(
+                    new GroundItemInteraction(
+                        236,3,995,overlapTile.x,overlapTile.y
+                    ),
+                    "opensrc",
+                    scene,
+                    w
+                );
+
+            if(ownTaken==null||
+               !ownTaken.logText.contains("TAKE_ON_TILE_IMMEDIATE"))
+                throw new AssertionError(
+                    "owner-aware take="+
+                    (ownTaken==null?"null":ownTaken.logText)
+                );
+            if(world.groundItems().byId(ownPrivate.id)!=null)
+                throw new AssertionError(
+                    "own private stack remained after take"
+                );
+            if(world.groundItems().byId(otherPrivate.id)!=otherPrivate)
+                throw new AssertionError(
+                    "foreign private stack was removed"
+                );
+
+            GroundItem publicItem=
+                world.groundItems().add(
+                    995,3,overlapTile,null,14L,false);
+
+            LocalGroundItemInteractionHandler.Result publicTaken=
+                h.handle(
+                    new GroundItemInteraction(
+                        236,3,995,overlapTile.x,overlapTile.y
+                    ),
+                    "opensrc",
+                    scene,
+                    w
+                );
+
+            if(publicTaken==null||
+               !publicTaken.logText.contains("TAKE_ON_TILE_IMMEDIATE"))
+                throw new AssertionError(
+                    "public fallback take="+
+                    (publicTaken==null?"null":publicTaken.logText)
+                );
+            if(world.groundItems().byId(publicItem.id)!=null)
+                throw new AssertionError(
+                    "public fallback stack remained after take"
+                );
+            if(world.groundItems().byId(otherPrivate.id)!=otherPrivate)
+                throw new AssertionError(
+                    "foreign private stack changed during public fallback"
+                );
+
+            LocalGroundItemInteractionHandler.Result foreignOnly=
+                h.handle(
+                    new GroundItemInteraction(
+                        236,3,995,overlapTile.x,overlapTile.y
+                    ),
+                    "opensrc",
+                    scene,
+                    w
+                );
+
+            if(foreignOnly==null||
+               !foreignOnly.logText.contains(
+                   "REJECTED_NOT_VISIBLE_OR_MISSING"))
+                throw new AssertionError(
+                    "foreign-only visibility="+
+                    (foreignOnly==null?"null":foreignOnly.logText)
+                );
+
+            movement.enterTransientRegion(
+                movement.x(),
+                movement.y(),
+                2,
+                MovementState.REGION_BASE_X,
+                MovementState.REGION_BASE_Y
+            );
+
+            Tile planeTwo=
+                new Tile(
+                    movement.x(),
+                    movement.y(),
+                    2
+                );
+            Tile sameXyPlaneZero=
+                new Tile(
+                    movement.x(),
+                    movement.y(),
+                    0
+                );
+
+            GroundItem wrongPlane=
+                world.groundItems().add(
+                    4151,2,sameXyPlaneZero,"opensrc",15L,false);
+            GroundItem planeTwoOwned=
+                world.groundItems().add(
+                    4151,4,planeTwo,"opensrc",15L,false);
+
+            SceneUpdatePublisher scenePlaneTwo=
+                new SceneUpdatePublisher(
+                    w,
+                    new SceneCoordinateContext(
+                        MovementState.REGION_BASE_X,
+                        MovementState.REGION_BASE_Y,
+                        2
+                    )
+                );
+
+            LocalGroundItemInteractionHandler.Result planeTaken=
+                h.handle(
+                    new GroundItemInteraction(
+                        236,3,4151,planeTwo.x,planeTwo.y
+                    ),
+                    "opensrc",
+                    scenePlaneTwo,
+                    w
+                );
+
+            if(planeTaken==null||
+               !planeTaken.logText.contains("TAKE_ON_TILE_IMMEDIATE"))
+                throw new AssertionError(
+                    "nonzero-plane take="+
+                    (planeTaken==null?"null":planeTaken.logText)
+                );
+            if(world.groundItems().byId(planeTwoOwned.id)!=null)
+                throw new AssertionError(
+                    "nonzero-plane stack remained"
+                );
+            if(world.groundItems().byId(wrongPlane.id)!=wrongPlane)
+                throw new AssertionError(
+                    "same x/y wrong-plane stack was selected"
+                );
+
+            movement.returnHome();
+
             Tile studyTile=new Tile(movement.x()+1,movement.y(),0);
             world.groundItems().add(4653,1,studyTile,"opensrc",12L,true);
             GroundItemInteraction study=new GroundItemInteraction(
@@ -85,7 +230,7 @@ public final class LocalGroundItemInteractionHandlerTest {
                 throw new AssertionError("unimplemented semantic must not save");
 
             System.out.println(
-                "LOCAL_GROUND_ITEM_HANDLER_PASS immediateTake=true deferredOwnership=true pathEndCancel=true nonTakeFailClosed=true");
+                "LOCAL_GROUND_ITEM_HANDLER_PASS immediateTake=true deferredOwnership=true pathEndCancel=true nonTakeFailClosed=true ownerAwareLookup=true currentPlane=true privatePreferred=true publicFallback=true");
         }finally{
             world.close();
         }
