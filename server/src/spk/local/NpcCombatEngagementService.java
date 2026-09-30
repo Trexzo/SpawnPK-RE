@@ -39,19 +39,6 @@ final class NpcCombatEngagementService {
         ) throws Exception;
     }
 
-    interface TickPublicationAction {
-        void run() throws Exception;
-    }
-
-    interface TickPublicationGuard {
-        void run(
-            long expectedWorldTick,
-            TickPublicationAction action
-        ) throws Exception;
-    }
-
-
-
     static final class Context {
         final EntityId attackerId;
         final int attackerDefinitionId;
@@ -145,7 +132,6 @@ final class NpcCombatEngagementService {
     private final World world;
     private final CadenceResolver cadenceResolver;
     private final AttackExecutor attackExecutor;
-    private final TickPublicationGuard tickPublicationGuard;
     private final String cadenceAuthority;
     private final String cadencePolicy;
     private final LinkedHashMap<EntityId,Engagement> engagements=
@@ -156,21 +142,6 @@ final class NpcCombatEngagementService {
         CadenceResolver cadenceResolver,
         AttackExecutor attackExecutor
     ){
-        this(
-            world,
-            cadenceResolver,
-            attackExecutor,
-            (expectedWorldTick,action)->
-                action.run()
-        );
-    }
-
-    NpcCombatEngagementService(
-        World world,
-        CadenceResolver cadenceResolver,
-        AttackExecutor attackExecutor,
-        TickPublicationGuard tickPublicationGuard
-    ){
         this.world=Objects.requireNonNull(world,"world");
         this.cadenceResolver=Objects.requireNonNull(
             cadenceResolver,
@@ -179,10 +150,6 @@ final class NpcCombatEngagementService {
         this.attackExecutor=Objects.requireNonNull(
             attackExecutor,
             "attackExecutor"
-        );
-        this.tickPublicationGuard=Objects.requireNonNull(
-            tickPublicationGuard,
-            "tickPublicationGuard"
         );
         this.cadenceAuthority=requireGameplayAuthority(
             cadenceResolver.authority()
@@ -360,10 +327,7 @@ final class NpcCombatEngagementService {
                                 .withCurrentMutationOwnershipIfCurrent(
                                     attacker,
                                     ()->{
-                                        tickPublicationGuard.run(
-                                            worldTick,
-                                            ()->{
-                                                final long scheduledTick;
+                                        final long scheduledTick;
                                         final long revision;
 
                                         synchronized(engagements){
@@ -526,8 +490,6 @@ final class NpcCombatEngagementService {
                                                     snapshot(engagement)
                                                 );
                                         }
-                                            }
-                                        );
                                     }
                                 );
 
