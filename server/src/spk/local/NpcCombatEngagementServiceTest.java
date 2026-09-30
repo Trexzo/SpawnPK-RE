@@ -634,10 +634,23 @@ public final class NpcCombatEngagementServiceTest {
             );
 
             /*
-             * Cancel has completed its idempotency precheck and is queued on
-             * NPC mutation ownership held by blocker. Taking the engagement
-             * monitor now lets us release that blocker and force cancel to
-             * acquire NPC ownership before it blocks at the final removal.
+             * The start latch fires immediately before service.cancel(...).
+             * First prove cancel has crossed its initial engagement-map
+             * idempotency precheck and is actually blocked on the NPC registry
+             * lock still owned by blocker. Otherwise the main thread can grab
+             * engagements first and mistake the initial precheck wait for the
+             * later final-removal wait.
+             */
+            awaitBlocked(
+                cancelThread,
+                "cancel did not reach NPC ownership"
+            );
+
+            /*
+             * Cancel is now queued on NPC mutation ownership held by blocker.
+             * Taking the engagement monitor lets us release that blocker and
+             * force cancel to acquire NPC ownership before it blocks at the
+             * final removal.
              */
             synchronized(engagements){
                 releaseBlocker.countDown();
