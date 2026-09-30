@@ -4902,6 +4902,7 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
 }
 
 tasks.named('check') {
+    dependsOn tasks.named('matchInstanceCompositionOwnershipRegression')
     dependsOn tasks.named('issue9LauncherContractRegression')
     dependsOn tasks.named('chat1CumulativeWrapperContractRegression')
     dependsOn tasks.named('chat1CurrentCumulativeServerIdentityRegression')
@@ -5220,6 +5221,17 @@ tasks.register('localSessionConstructionOwnershipRegression', JavaExec) {
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass = 'spk.local.LocalSessionConstructionOwnershipTest'
+}
+
+
+tasks.register('matchInstanceCompositionOwnershipRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves MatchSession and WorldInstance mutation ownership is held together across one composition action.'
+    dependsOn tasks.named('testClasses')
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.MatchInstanceCompositionOwnershipTest'
 }
 
 
