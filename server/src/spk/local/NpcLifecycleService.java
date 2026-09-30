@@ -18,6 +18,44 @@ final class NpcLifecycleService {
         DEAD
     }
 
+    static final class MissingLifecycleException
+        extends IllegalArgumentException {
+        final EntityId npcId;
+
+        MissingLifecycleException(
+            EntityId npcId
+        ){
+            super(
+                "NPC lifecycle not registered id="+
+                npcId
+            );
+            this.npcId=
+                Objects.requireNonNull(
+                    npcId,
+                    "npcId"
+                );
+        }
+    }
+
+    static final class LifecycleOwnershipChangedException
+        extends IllegalStateException {
+        final EntityId npcId;
+
+        LifecycleOwnershipChangedException(
+            EntityId npcId
+        ){
+            super(
+                "NPC lifecycle ownership changed id="+
+                npcId
+            );
+            this.npcId=
+                Objects.requireNonNull(
+                    npcId,
+                    "npcId"
+                );
+        }
+    }
+
     static final class Snapshot {
         final EntityId npcId;
         final int definitionId;
@@ -230,8 +268,7 @@ final class NpcLifecycleService {
                             );
 
                         if(entry!=expected)
-                            throw new IllegalStateException(
-                                "NPC lifecycle ownership changed id="+
+                            throw new LifecycleOwnershipChangedException(
                                 key
                             );
 
@@ -540,8 +577,7 @@ final class NpcLifecycleService {
             );
 
         if(entry==null)
-            throw new IllegalArgumentException(
-                "NPC lifecycle not registered id="+
+            throw new MissingLifecycleException(
                 npcId
             );
 
