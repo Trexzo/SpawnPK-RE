@@ -33,6 +33,7 @@ public final class TournamentServiceTest {
             "durableChildLease=true "+
             "directChildTerminalBlocked=true "+
             "childLeaseRelease=true "+
+            "terminalFailureRetainsAllHolds=true "+
             "globalEventOwnershipLinearized=true "+
             "lockOrderTournamentEventMatchInstance=true "+
             "explicitTournamentCompletion=true "+
@@ -805,6 +806,36 @@ public final class TournamentServiceTest {
                 WorldInstanceService
                     .Lifecycle.ACTIVE,
             "Tournament end deadline crossed active child terminal hold"
+        );
+
+        expect(
+            IllegalArgumentException.class,
+            ()->completeService.cancelMatch(
+                completeEventId,
+                completeMatchId,
+                "   "
+            ),
+            "invalid Tournament child cancel reason"
+        );
+
+        require(
+            completeEvents.terminalHoldCount(
+                completeEventId
+            )==1&&
+            completeMatches.compositionLeaseHeld(
+                completeMatchId
+            )&&
+            completeInstances.compositionLeaseHeld(
+                completeInstanceId
+            )&&
+            completeService.get(
+                completeEventId
+            ).match(
+                completeMatchId
+            ).state==
+                TournamentService
+                    .TournamentMatchState.ACTIVE,
+            "failed Tournament terminalization dropped ownership"
         );
 
         completeService.completeMatch(
