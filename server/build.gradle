@@ -5407,21 +5407,6 @@ tasks.register('npcCombatResolutionServiceRegression', JavaExec) {
 }
 
 
-tasks.register('monsterSpawnerPvmRuntimeRegression', JavaExec) {
-    group = 'verification'
-    description = 'Proves one exact World-bound Monster Spawner PvM runtime owns spawn identity, death finalization and retryable drop settlement.'
-    dependsOn(
-        tasks.named('testClasses'),
-        tasks.named('monsterSpawnerNpcDeathFinalizationRegression'),
-        tasks.named('npcDropGroundSettlementRegression')
-    )
-
-    workingDir repoRoot
-    classpath = sourceSets.test.runtimeClasspath
-    mainClass = 'spk.local.MonsterSpawnerPvmRuntimeTest'
-}
-
-
 tasks.register('groundItemBatchSettlementRegression', JavaExec) {
     group = 'verification'
     description = 'Proves canonical ground-item drop bundles validate and commit atomically with deterministic stack merging and rollback on later-row failure.'
@@ -5470,6 +5455,21 @@ tasks.register('localGroundItemInteractionRegression', JavaExec) {
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass = 'spk.local.LocalGroundItemInteractionHandlerTest'
+}
+
+
+tasks.register('monsterSpawnerPvmRuntimeRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves one exact World-bound Monster Spawner PvM runtime owns spawn identity, death finalization and retryable drop settlement.'
+    dependsOn(
+        tasks.named('testClasses'),
+        tasks.named('monsterSpawnerNpcDeathFinalizationRegression'),
+        tasks.named('npcDropGroundSettlementRegression')
+    )
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.MonsterSpawnerPvmRuntimeTest'
 }
 
 
