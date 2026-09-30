@@ -565,6 +565,12 @@ final class TournamentService {
                         checkedMatchId
                     );
 
+                    acquireChildHolds(
+                        checkedMatchId,
+                        checkedInstanceId,
+                        holdKey
+                    );
+
                     first.state=
                         EntrantState.IN_MATCH;
                     first.activeMatchId=
@@ -667,6 +673,13 @@ final class TournamentService {
                 preflightOwnedInstance(
                     tournamentMatch
                 );
+                releaseChildHolds(
+                    tournamentMatch.matchId,
+                    tournamentMatch.instanceId,
+                    terminalHoldKey(
+                        tournamentMatch.matchId
+                    )
+                );
                 matches.complete(
                     tournamentMatch.matchId,
                     result
@@ -741,6 +754,13 @@ final class TournamentService {
 
                 preflightOwnedInstance(
                     tournamentMatch
+                );
+                releaseChildHolds(
+                    tournamentMatch.matchId,
+                    tournamentMatch.instanceId,
+                    terminalHoldKey(
+                        tournamentMatch.matchId
+                    )
                 );
                 matches.cancel(
                     tournamentMatch.matchId,
@@ -1045,6 +1065,48 @@ final class TournamentService {
             );
 
         return match;
+    }
+
+    private void acquireChildHolds(
+        MatchId matchId,
+        WorldInstanceId instanceId,
+        String holdKey
+    ){
+        matches.acquireTerminalHold(
+            matchId,
+            holdKey
+        );
+
+        boolean instanceHeld=false;
+
+        try{
+            instances.acquireStructuralHold(
+                instanceId,
+                holdKey
+            );
+            instanceHeld=true;
+        }finally{
+            if(!instanceHeld)
+                matches.releaseTerminalHold(
+                    matchId,
+                    holdKey
+                );
+        }
+    }
+
+    private void releaseChildHolds(
+        MatchId matchId,
+        WorldInstanceId instanceId,
+        String holdKey
+    ){
+        instances.releaseStructuralHold(
+            instanceId,
+            holdKey
+        );
+        matches.releaseTerminalHold(
+            matchId,
+            holdKey
+        );
     }
 
     private void preflightOwnedInstance(
