@@ -1,0 +1,252 @@
+package spk.local;
+
+import java.nio.charset.StandardCharsets;
+import java.nio.file.*;
+import java.util.*;
+
+public final class MatchInstanceSessionCompositionAtomicityTest {
+    public static void main(String[] args)throws Exception{
+        String clan=read(
+            "server/src/spk/local/ClanWarSessionService.java"
+        );
+        String duel=read(
+            "server/src/spk/local/DuelSessionService.java"
+        );
+        String tournament=read(
+            "server/src/spk/local/TournamentService.java"
+        );
+
+        assertService(
+            clan,
+            "ClanWarSessionService",
+            "synchronized Snapshot startAccepted(",
+            "sessions.put(",
+            "synchronized Snapshot complete(",
+            "entry.lifecycle=",
+            "synchronized Snapshot cancel(",
+            "entry.lifecycle="
+        );
+
+        assertService(
+            duel,
+            "DuelSessionService",
+            "synchronized Snapshot startAccepted(",
+            "entry.matchId=checkedMatchId;",
+            "synchronized Snapshot complete(",
+            "entry.state=State.COMPLETED;",
+            "synchronized Snapshot cancelActive(",
+            "entry.state=State.CANCELLED;"
+        );
+
+        assertService(
+            tournament,
+            "TournamentService",
+            "synchronized Snapshot startMatch(",
+            "first.state=EntrantState.IN_MATCH;",
+            "synchronized Snapshot completeMatch(",
+            "tournamentMatch.state=",
+            "synchronized Snapshot cancelMatch(",
+            "tournamentMatch.state="
+        );
+
+        System.out.println(
+            "MATCH_INSTANCE_SESSION_COMPOSITION_ATOMICITY_PASS "+
+            "clanStartup=true "+
+            "clanTerminal=true "+
+            "duelStartup=true "+
+            "duelTerminal=true "+
+            "tournamentStartup=true "+
+            "tournamentTerminal=true "+
+            "ownerPublishAfterOwnedAction=true "+
+            "terminalPreflightInsideOwnership=true"
+        );
+    }
+
+    private static void assertService(
+        String source,
+        String label,
+        String startSignature,
+        String startPublish,
+        String completeSignature,
+        String completePublish,
+        String cancelSignature,
+        String cancelPublish
+    ){
+        require(
+            count(
+                source,
+                "withCompositionOwnership("
+            )==4,
+            label+" composition ownership call/helper count"
+        );
+
+        String start=method(
+            source,
+            startSignature
+        );
+        String complete=method(
+            source,
+            completeSignature
+        );
+        String cancel=method(
+            source,
+            cancelSignature
+        );
+
+        assertOwnedBeforePublish(
+            start,
+            startPublish,
+            label+" startup"
+        );
+        assertOwnedBeforePublish(
+            complete,
+            completePublish,
+            label+" complete"
+        );
+        assertOwnedBeforePublish(
+            cancel,
+            cancelPublish,
+            label+" cancel"
+        );
+
+        require(
+            complete.indexOf(
+                "withCompositionOwnership("
+            )>=0&&
+            complete.indexOf(
+                "preflightOwnedInstance"
+            )>
+            complete.indexOf(
+                "withCompositionOwnership("
+            ),
+            label+" complete preflight outside ownership"
+        );
+
+        require(
+            cancel.indexOf(
+                "withCompositionOwnership("
+            )>=0&&
+            cancel.indexOf(
+                "preflightOwnedInstance"
+            )>
+            cancel.indexOf(
+                "withCompositionOwnership("
+            ),
+            label+" cancel preflight outside ownership"
+        );
+    }
+
+    private static void assertOwnedBeforePublish(
+        String method,
+        String publishAnchor,
+        String label
+    ){
+        int owned=
+            method.indexOf(
+                "withCompositionOwnership("
+            );
+        int publish=
+            method.indexOf(
+                publishAnchor
+            );
+
+        require(
+            owned>=0,
+            label+" lacks composition ownership"
+        );
+        require(
+            publish>owned,
+            label+" publishes owner state before owned action"
+        );
+    }
+
+    private static String method(
+        String source,
+        String signature
+    ){
+        int start=
+            source.indexOf(signature);
+
+        require(
+            start>=0,
+            "missing method "+signature
+        );
+
+        int open=
+            source.indexOf(
+                '{',
+                start
+            );
+
+        require(
+            open>=0,
+            "missing method body "+signature
+        );
+
+        int depth=0;
+
+        for(int i=open;i<source.length();i++){
+            char value=source.charAt(i);
+
+            if(value=='{')
+                depth++;
+            else if(value=='}'){
+                depth--;
+
+                if(depth==0)
+                    return source.substring(
+                        start,
+                        i+1
+                    );
+            }
+        }
+
+        throw new AssertionError(
+            "unterminated method "+signature
+        );
+    }
+
+    private static int count(
+        String source,
+        String needle
+    ){
+        int count=0;
+        int from=0;
+
+        while(true){
+            int found=
+                source.indexOf(
+                    needle,
+                    from
+                );
+
+            if(found<0)
+                return count;
+
+            count++;
+            from=
+                found+needle.length();
+        }
+    }
+
+    private static String read(
+        String path
+    )throws Exception{
+        return new String(
+            Files.readAllBytes(
+                Paths.get(path)
+            ),
+            StandardCharsets.UTF_8
+        );
+    }
+
+    private static void require(
+        boolean condition,
+        String label
+    ){
+        if(!condition)
+            throw new AssertionError(label);
+    }
+
+    private MatchInstanceSessionCompositionAtomicityTest(){}
+}
