@@ -11,6 +11,8 @@ public final class NpcPvmDelayedHitServiceTest {
         noEarlyDamageAndDueOnce();
         sameTickInsertionOrder();
         cancellationPreventsDamage();
+        cancellationDuringDueDeliveryNoDamage();
+        deliveryFailureTerminalNoRetry();
         staleAttackerNoDamage();
         staleTargetNoDamage();
         alreadyDeadDoesNotDuplicateDeath();
@@ -243,6 +245,192 @@ public final class NpcPvmDelayedHitServiceTest {
             f.close();
         }
     }
+
+    private static void cancellationDuringDueDeliveryNoDamage()
+        throws Exception{
+        Fixture f=
+            new Fixture(
+                "delayed-cancel-due",
+                25
+            );
+        ExecutorService workers=
+            Executors.newFixedThreadPool(2);
+        CountDownLatch npcLockHeld=
+            new CountDownLatch(1);
+        CountDownLatch releaseNpcLock=
+            new CountDownLatch(1);
+
+        try{
+            NpcPvmDelayedHitService service=
+                f.service();
+
+            NpcPvmDelayedHitService.Snapshot hit=
+                service.schedule(
+                    f.player,
+                    f.generation,
+                    f.npc,
+                    11,
+                    1,
+                    "TEST_DAMAGE",
+                    "CANCEL_DURING_DUE"
+                );
+
+            Future<Boolean> blocker=
+                workers.submit(
+                    ()->f.world.npcs()
+                        .withCurrentMutationOwnershipIfCurrent(
+                            f.npc,
+                            ()->{
+                                npcLockHeld.countDown();
+
+                                if(!releaseNpcLock.await(
+                                        5L,
+                                        TimeUnit.SECONDS))
+                                    throw new AssertionError(
+                                        "due cancel NPC lock timeout"
+                                    );
+                            }
+                        )
+                );
+
+            require(
+                npcLockHeld.await(
+                    5L,
+                    TimeUnit.SECONDS
+                ),
+                "due cancel blocker start"
+            );
+
+            long tick=
+                f.world.clock().advance();
+
+            Future<Integer> delivery=
+                workers.submit(
+                    ()->f.world.events()
+                        .runDue(tick)
+                );
+
+            Thread.sleep(100L);
+
+            require(
+                !delivery.isDone(),
+                "due delivery did not wait on NPC ownership"
+            );
+
+            require(
+                service.cancel(
+                    hit.hitId
+                ),
+                "cancel during due delivery"
+            );
+
+            releaseNpcLock.countDown();
+
+            require(
+                blocker.get(
+                    5L,
+                    TimeUnit.SECONDS
+                ),
+                "due cancel blocker ownership"
+            );
+
+            require(
+                delivery.get(
+                    5L,
+                    TimeUnit.SECONDS
+                )==1,
+                "due cancel event count"
+            );
+
+            NpcPvmDelayedHitService.Snapshot result=
+                service.get(
+                    hit.hitId
+                );
+
+            require(
+                result.state==
+                    NpcPvmDelayedHitService.State.CANCELLED&&
+                f.hp()==25,
+                "cancel during due delivery applied damage"
+            );
+        }finally{
+            releaseNpcLock.countDown();
+            workers.shutdownNow();
+            workers.awaitTermination(
+                5L,
+                TimeUnit.SECONDS
+            );
+            f.close();
+        }
+    }
+
+    private static void deliveryFailureTerminalNoRetry()
+        throws Exception{
+        Fixture f=
+            new Fixture(
+                "delayed-failure",
+                18
+            );
+
+        try{
+            NpcPvmDelayedHitService service=
+                f.service();
+
+            NpcPvmDelayedHitService.Snapshot hit=
+                service.schedule(
+                    f.player,
+                    f.generation,
+                    f.npc,
+                    4,
+                    1,
+                    "TEST_DAMAGE",
+                    "FAILURE"
+                );
+
+            require(
+                f.lifecycle.unregister(
+                    f.npc.id
+                ),
+                "remove lifecycle fixture"
+            );
+
+            long tick=
+                f.world.clock().advance();
+
+            require(
+                f.world.events().runDue(
+                    tick
+                )==1,
+                "failed delivery event count"
+            );
+
+            NpcPvmDelayedHitService.Snapshot failed=
+                service.get(
+                    hit.hitId
+                );
+
+            require(
+                failed.state==
+                    NpcPvmDelayedHitService.State.FAILED&&
+                IllegalArgumentException.class
+                    .getName()
+                    .equals(
+                        failed.failureType
+                    )&&
+                f.world.events().runDue(
+                    tick
+                )==0&&
+                service.get(
+                    hit.hitId
+                ).state==
+                    NpcPvmDelayedHitService.State.FAILED,
+                "delivery failure was retried or not retained"
+            );
+        }finally{
+            f.close();
+        }
+    }
+
 
     private static void staleAttackerNoDamage()
         throws Exception{
