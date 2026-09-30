@@ -259,6 +259,8 @@ public final class NpcPvmDelayedHitServiceTest {
             new CountDownLatch(1);
         CountDownLatch releaseNpcLock=
             new CountDownLatch(1);
+        AtomicReference<Thread> deliveryThread=
+            new AtomicReference<>();
 
         try{
             NpcPvmDelayedHitService service=
@@ -306,14 +308,17 @@ public final class NpcPvmDelayedHitServiceTest {
 
             Future<Integer> delivery=
                 workers.submit(
-                    ()->f.world.events()
-                        .runDue(tick)
+                    ()->{
+                        deliveryThread.set(
+                            Thread.currentThread()
+                        );
+                        return f.world.events()
+                            .runDue(tick);
+                    }
                 );
 
-            Thread.sleep(100L);
-
-            require(
-                !delivery.isDone(),
+            awaitBlocked(
+                deliveryThread,
                 "due delivery did not wait on NPC ownership"
             );
 
