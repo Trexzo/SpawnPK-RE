@@ -15,6 +15,7 @@ public final class NpcCombatDelayedCompositionTest {
         zeroDelayImmediate();
         positiveDelayScheduled();
         sharedClockBound();
+        policyClockDriftAtomic();
         schedulerFailureAtomic();
         exactOwnershipPreflight();
         domainBoundary();
@@ -29,6 +30,7 @@ public final class NpcCombatDelayedCompositionTest {
             "hooksOnce=true "+
             "damageOnce=true "+
             "sharedClockBound=true "+
+            "policyClockDriftAtomic=true "+
             "schedulerFailureAtomic=true "+
             "dueDamageOnce=true "+
             "cadencePreserved=true "+
@@ -267,6 +269,110 @@ public final class NpcCombatDelayedCompositionTest {
             f.close();
         }
     }
+
+    private static void policyClockDriftAtomic()
+        throws Exception{
+        World world=
+            World.isolatedForTest(
+                600L
+            );
+        WorldPlayer attacker=
+            new WorldPlayer();
+        long generation=
+            world.registerPlayer(
+                attacker,
+                "delayed-policy-clock"
+            );
+
+        try{
+            NpcLifecycleService lifecycle=
+                new NpcLifecycleService(
+                    world.npcs()
+                );
+            WorldNpc npc=
+                world.npcs().spawn(
+                    1499,
+                    3211,
+                    3200,
+                    0
+                );
+            lifecycle.register(
+                npc,
+                40,
+                "CUSTOM_LOCALLAB"
+            );
+
+            TrackingTimingRules timing=
+                new TrackingTimingRules(
+                    4,
+                    2
+                );
+            TrackingHooks hooks=
+                new TrackingHooks();
+            TrackingDamageRules damage=
+                new TrackingDamageRules(
+                    7,
+                    ()->{
+                        long tick=
+                            world.clock()
+                                .advance();
+
+                        if(tick!=1L)
+                            throw new AssertionError(
+                                "policy clock drift fixture tick="+
+                                tick
+                            );
+                    }
+                );
+
+            NpcCombatResolutionService resolver=
+                new NpcCombatResolutionService(
+                    attacker,
+                    lifecycle,
+                    damage,
+                    timing,
+                    hooks
+                );
+            NpcPvmDelayedHitService delayed=
+                delayed(
+                    world,
+                    lifecycle
+                );
+
+            boolean rejected=false;
+
+            try{
+                resolver.resolveOwned(
+                    world,
+                    generation,
+                    npc,
+                    WEAPON,
+                    STYLE,
+                    0L,
+                    delayed
+                );
+            }catch(IllegalStateException expected){
+                rejected=true;
+            }
+
+            require(
+                rejected&&
+                world.clock().tick()==1L&&
+                lifecycle.get(
+                    npc.id
+                ).hitpoints==40&&
+                timing.calls==1&&
+                hooks.calls==1&&
+                damage.calls==1&&
+                delayed.size()==0&&
+                world.events().size()==0,
+                "policy clock drift escaped schedule authority"
+            );
+        }finally{
+            cleanup(world);
+        }
+    }
+
 
     private static void schedulerFailureAtomic()
         throws Exception{
