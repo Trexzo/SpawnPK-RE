@@ -376,8 +376,8 @@ public final class NpcCombatControllerServiceTest {
                 result.status==
                     NpcCombatControllerService.Status.TARGET_DEAD&&
                 f.controller.size()==0&&
-                f.npc.x()==3200&&
-                f.npc.y()==3200&&
+                f.npc.x()==3087&&
+                f.npc.y()==3495&&
                 f.damage.calls==0&&
                 f.cadence.calls==0,
                 "dead target was approached/attacked"
@@ -918,8 +918,8 @@ public final class NpcCombatControllerServiceTest {
 
             require(
                 world.clock().tick()==1L&&
-                npc.x()==3200&&
-                npc.y()==3200&&
+                npc.x()==3087&&
+                npc.y()==3495&&
                 hp(player)==99&&
                 approachCalls[0]==1&&
                 cadence.calls==0&&
