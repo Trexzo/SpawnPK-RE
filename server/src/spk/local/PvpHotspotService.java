@@ -219,14 +219,53 @@ final class PvpHotspotService {
                 authority
             );
 
-        // All local validation is complete before mutating GlobalEventService.
-        events.register(checked);
-        hotspots.put(
-            entry.eventId,
-            entry
-        );
+        final Snapshot[] result=
+            new Snapshot[1];
 
-        return snapshotOf(entry);
+        try{
+            events.registerWithCompositionOwnership(
+                checked,
+                ()->{
+                    hotspots.put(
+                        entry.eventId,
+                        entry
+                    );
+
+                    try{
+                        result[0]=
+                            snapshotOf(
+                                entry
+                            );
+                    }catch(RuntimeException failure){
+                        hotspots.remove(
+                            entry.eventId,
+                            entry
+                        );
+                        throw failure;
+                    }catch(Error failure){
+                        hotspots.remove(
+                            entry.eventId,
+                            entry
+                        );
+                        throw failure;
+                    }
+                }
+            );
+        }catch(RuntimeException failure){
+            throw failure;
+        }catch(Error failure){
+            throw failure;
+        }catch(Exception failure){
+            throw new IllegalStateException(
+                "unexpected PvP Hotspot GlobalEvent registration ownership failure",
+                failure
+            );
+        }
+
+        return Objects.requireNonNull(
+            result[0],
+            "PvP Hotspot registration snapshot"
+        );
     }
 
     synchronized Snapshot enter(
