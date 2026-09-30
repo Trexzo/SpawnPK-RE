@@ -472,6 +472,35 @@ final class NpcLifecycleService {
         )!=null;
     }
 
+    synchronized boolean unregisterExact(
+        WorldNpc expectedNpc
+    ){
+        WorldNpc checked=
+            Objects.requireNonNull(
+                expectedNpc,
+                "expectedNpc"
+            );
+
+        Entry entry=
+            entries.get(
+                checked.id
+            );
+
+        if(entry==null)
+            return false;
+
+        if(entry.npc!=checked)
+            throw new IllegalStateException(
+                "NPC lifecycle exact object changed id="+
+                checked.id
+            );
+
+        entries.remove(
+            checked.id
+        );
+        return true;
+    }
+
     synchronized int size(){
         return entries.size();
     }
