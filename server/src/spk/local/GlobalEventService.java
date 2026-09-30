@@ -301,6 +301,72 @@ final class GlobalEventService {
         return entry.snapshot();
     }
 
+    synchronized Snapshot registerWithCompositionOwnership(
+        WorldEventDefinition definition,
+        EventCompositionAction action
+    )throws Exception{
+        WorldEventDefinition checked=
+            Objects.requireNonNull(
+                definition,
+                "definition"
+            );
+        EventCompositionAction checkedAction=
+            Objects.requireNonNull(
+                action,
+                "action"
+            );
+
+        if(entries.containsKey(
+                checked.id))
+            throw new IllegalStateException(
+                "duplicate world event id="+
+                checked.id
+            );
+
+        Entry entry=
+            new Entry(
+                checked
+            );
+
+        entries.put(
+            checked.id,
+            entry
+        );
+
+        try{
+            checkedAction.run();
+
+            /*
+             * Registration composition is a publication boundary, not a
+             * lifecycle-mutation callback. Reentrant reads are allowed, but
+             * the exact newly published event must still be pristine.
+             */
+            if(entry.lifecycle!=Lifecycle.SCHEDULED||
+               entry.phaseIndex!=-1||
+               entry.lastTransitionTick!=
+                    NO_TRANSITION_TICK||
+               !entry.terminalHolds.isEmpty())
+                throw new IllegalStateException(
+                    "GlobalEvent registration action mutated lifecycle id="+
+                    checked.id
+                );
+
+            return entry.snapshot();
+        }catch(Exception failure){
+            entries.remove(
+                checked.id,
+                entry
+            );
+            throw failure;
+        }catch(Error failure){
+            entries.remove(
+                checked.id,
+                entry
+            );
+            throw failure;
+        }
+    }
+
     synchronized Snapshot get(WorldEventId id){
         Entry entry=entries.get(
             Objects.requireNonNull(id,"id")
