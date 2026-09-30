@@ -4910,6 +4910,7 @@ tasks.named('check') {
     dependsOn tasks.named('matchInstanceCompositionOwnershipRegression')
     dependsOn tasks.named('npcCombatEngagementServiceRegression')
     dependsOn tasks.named('npcCombatApproachServiceRegression')
+    dependsOn tasks.named('npcPvmDelayedHitServiceRegression')
     dependsOn tasks.named('monsterSpawnerServiceRegression')
     dependsOn tasks.named('pvpHotspotServiceRegression')
     dependsOn tasks.named('npcDropResolutionServiceRegression')
@@ -5384,6 +5385,20 @@ tasks.register('npcCombatApproachServiceRegression', JavaExec) {
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass = 'spk.local.NpcCombatApproachServiceTest'
+}
+
+
+tasks.register('npcPvmDelayedHitServiceRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves already-resolved player-to-NPC damage is delivered once on the shared WorldEventQueue under exact attacker generation and canonical target ownership.'
+    dependsOn(
+        tasks.named('testClasses'),
+        tasks.named('npcCombatResolutionServiceRegression')
+    )
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.NpcPvmDelayedHitServiceTest'
 }
 
 
