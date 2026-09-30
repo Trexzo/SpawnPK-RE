@@ -512,6 +512,7 @@ final class TournamentService {
                 );
 
                 boolean published=false;
+                boolean childHoldsAcquired=false;
 
                 try{
                     matches.create(
@@ -570,6 +571,7 @@ final class TournamentService {
                         checkedInstanceId,
                         holdKey
                     );
+                    childHoldsAcquired=true;
 
                     first.state=
                         EntrantState.IN_MATCH;
@@ -593,11 +595,19 @@ final class TournamentService {
                             event
                         );
                 }finally{
-                    if(!published)
+                    if(!published){
+                        if(childHoldsAcquired)
+                            releaseChildHolds(
+                                checkedMatchId,
+                                checkedInstanceId,
+                                holdKey
+                            );
+
                         events.releaseTerminalHold(
                             entry.eventId,
                             holdKey
                         );
+                    }
                 }
             }
         );
