@@ -7,8 +7,9 @@ public final class PvpHotspotServiceTest {
     private static final String POLICY=
         "LOCAL_LAB_POLICY_PVP_HOTSPOT";
 
-    public static void main(String[] args){
+    public static void main(String[] args)throws Exception{
         activePresenceAndKills();
+        counterOverflowAtomic();
         completionLifecycle();
         cancellationLifecycle();
         authorityGuards();
@@ -23,6 +24,7 @@ public final class PvpHotspotServiceTest {
             "validatedKillRequiresPresence=true "+
             "selfKillRejected=true "+
             "participantScopedCounters=true "+
+            "counterOverflowAtomic=true "+
             "staleWorldTickRejected=true "+
             "leaveBlocksKillAttribution=true "+
             "completionClearsPresence=true "+
@@ -201,6 +203,220 @@ public final class PvpHotspotServiceTest {
             "PvP Hotspot re-entry history"
         );
     }
+
+    private static void counterOverflowAtomic()throws Exception{
+        GlobalEventService events=
+            new GlobalEventService();
+        PvpHotspotService service=
+            new PvpHotspotService(
+                events
+            );
+
+        WorldEventId id=
+            WorldEventId.of(
+                "pvp-hotspot:overflow"
+            );
+
+        service.registerHotspot(
+            definition(
+                id,
+                10L,
+                100L
+            ),
+            "zone:wilderness:overflow",
+            POLICY
+        );
+
+        service.enter(
+            id,
+            "player:a",
+            10L
+        );
+        service.enter(
+            id,
+            "player:b",
+            10L
+        );
+
+        setParticipantCounters(
+            service,
+            id,
+            "player:a",
+            Long.MAX_VALUE,
+            0L
+        );
+        setParticipantCounters(
+            service,
+            id,
+            "player:b",
+            0L,
+            7L
+        );
+
+        expect(
+            IllegalStateException.class,
+            ()->service.recordValidatedKill(
+                id,
+                "player:a",
+                "player:b",
+                11L
+            ),
+            "attacker kill overflow"
+        );
+
+        require(
+            service.get(id)
+                .participant(
+                    "player:a"
+                ).kills==
+                    Long.MAX_VALUE&&
+            service.get(id)
+                .participant(
+                    "player:b"
+                ).deaths==7L,
+            "attacker overflow partially mutated counters"
+        );
+
+        setParticipantCounters(
+            service,
+            id,
+            "player:a",
+            4L,
+            0L
+        );
+        setParticipantCounters(
+            service,
+            id,
+            "player:b",
+            0L,
+            Long.MAX_VALUE
+        );
+
+        expect(
+            IllegalStateException.class,
+            ()->service.recordValidatedKill(
+                id,
+                "player:a",
+                "player:b",
+                12L
+            ),
+            "victim death overflow"
+        );
+
+        require(
+            service.get(id)
+                .participant(
+                    "player:a"
+                ).kills==4L&&
+            service.get(id)
+                .participant(
+                    "player:b"
+                ).deaths==
+                    Long.MAX_VALUE,
+            "victim overflow partially mutated counters"
+        );
+
+        setParticipantCounters(
+            service,
+            id,
+            "player:b",
+            0L,
+            5L
+        );
+
+        PvpHotspotService.KillResult result=
+            service.recordValidatedKill(
+                id,
+                "player:a",
+                "player:b",
+                13L
+            );
+
+        require(
+            result.attackerKills==5L&&
+            result.victimDeaths==6L&&
+            service.get(id)
+                .participant(
+                    "player:a"
+                ).kills==5L&&
+            service.get(id)
+                .participant(
+                    "player:b"
+                ).deaths==6L,
+            "normal counters after overflow fixtures"
+        );
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void setParticipantCounters(
+        PvpHotspotService service,
+        WorldEventId eventId,
+        String participantRef,
+        long kills,
+        long deaths
+    )throws Exception{
+        Field hotspotsField=
+            PvpHotspotService.class
+                .getDeclaredField(
+                    "hotspots"
+                );
+        hotspotsField.setAccessible(true);
+
+        Map<WorldEventId,Object> hotspots=
+            (Map<WorldEventId,Object>)
+                hotspotsField.get(
+                    service
+                );
+        Object entry=
+            Objects.requireNonNull(
+                hotspots.get(
+                    eventId
+                ),
+                "hotspot entry"
+            );
+
+        Field participantsField=
+            entry.getClass()
+                .getDeclaredField(
+                    "participants"
+                );
+        participantsField.setAccessible(true);
+
+        Map<String,Object> participants=
+            (Map<String,Object>)
+                participantsField.get(
+                    entry
+                );
+        Object participant=
+            Objects.requireNonNull(
+                participants.get(
+                    participantRef
+                ),
+                "hotspot participant"
+            );
+
+        Field killsField=
+            participant.getClass()
+                .getDeclaredField(
+                    "kills"
+                );
+        Field deathsField=
+            participant.getClass()
+                .getDeclaredField(
+                    "deaths"
+                );
+        killsField.setAccessible(true);
+        deathsField.setAccessible(true);
+        killsField.setLong(
+            participant,
+            kills
+        );
+        deathsField.setLong(
+            participant,
+            deaths
+        );
+    }
+
 
     private static void completionLifecycle(){
         GlobalEventService events=
