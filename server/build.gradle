@@ -4919,6 +4919,7 @@ tasks.named('check') {
     dependsOn tasks.named('monsterSpawnerCombatBindingRegression')
     dependsOn tasks.named('monsterSpawnerCombatDespawnRegression')
     dependsOn tasks.named('worldNpcLifecycleAuthorityRegression')
+    dependsOn tasks.named('monsterSpawnerNpcLifecycleBindingRegression')
     dependsOn tasks.named('npcPvmDelayedHitServiceRegression')
     dependsOn tasks.named('npcCombatDelayedCompositionRegression')
     dependsOn tasks.named('monsterSpawnerServiceRegression')
@@ -5524,6 +5525,20 @@ tasks.register('worldNpcLifecycleAuthorityRegression', JavaExec) {
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass = 'spk.local.WorldNpcLifecycleAuthorityTest'
+}
+
+
+tasks.register('monsterSpawnerNpcLifecycleBindingRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves Monster Spawner combat NPC creation atomically registers into the exact World-owned canonical HP/death lifecycle.'
+    dependsOn(
+        tasks.named('testClasses'),
+        tasks.named('worldNpcLifecycleAuthorityRegression')
+    )
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.MonsterSpawnerNpcLifecycleBindingTest'
 }
 
 
