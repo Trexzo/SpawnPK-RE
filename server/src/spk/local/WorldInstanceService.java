@@ -57,7 +57,8 @@ final class WorldInstanceService {
             new LinkedHashSet<>();
 
         Lifecycle lifecycle=Lifecycle.CREATED;
-        String compositionLeaseKey;
+        MatchSessionService.CompositionLease
+            compositionLease;
 
         Instance(
             WorldInstanceId id,
@@ -112,53 +113,49 @@ final class WorldInstanceService {
 
     synchronized void acquireCompositionLease(
         WorldInstanceId instanceId,
-        String leaseKey
+        MatchSessionService.CompositionLease lease
     ){
         Instance instance=
             require(
                 instanceId
             );
-        String key=
-            requireCompositionLeaseKey(
-                leaseKey
+        MatchSessionService.CompositionLease checked=
+            Objects.requireNonNull(
+                lease,
+                "lease"
             );
 
         requireCompositionLeaseAvailable(
             instance.id
         );
-        instance.compositionLeaseKey=
-            key;
+        instance.compositionLease=
+            checked;
     }
 
     synchronized void requireCompositionLease(
         WorldInstanceId instanceId,
-        String leaseKey
+        MatchSessionService.CompositionLease lease
     ){
         Instance instance=
             require(
                 instanceId
             );
-        String key=
-            requireCompositionLeaseKey(
-                leaseKey
+        MatchSessionService.CompositionLease checked=
+            Objects.requireNonNull(
+                lease,
+                "lease"
             );
 
-        if(!Objects.equals(
-                instance.compositionLeaseKey,
-                key))
+        if(instance.compositionLease!=checked)
             throw new IllegalStateException(
-                "composition lease mismatch instance="+
-                instance.id+
-                " expected="+
-                instance.compositionLeaseKey+
-                " actual="+
-                key
+                "composition lease identity mismatch instance="+
+                instance.id
             );
     }
 
     synchronized void releaseCompositionLease(
         WorldInstanceId instanceId,
-        String leaseKey
+        MatchSessionService.CompositionLease lease
     ){
         Instance instance=
             require(
@@ -167,9 +164,9 @@ final class WorldInstanceService {
 
         requireCompositionLease(
             instance.id,
-            leaseKey
+            lease
         );
-        instance.compositionLeaseKey=
+        instance.compositionLease=
             null;
     }
 
@@ -178,7 +175,7 @@ final class WorldInstanceService {
     ){
         return require(
             instanceId
-        ).compositionLeaseKey!=null;
+        ).compositionLease!=null;
     }
 
     synchronized Snapshot create(
@@ -353,33 +350,14 @@ final class WorldInstanceService {
         Instance instance,
         String operation
     ){
-        if(instance.compositionLeaseKey!=null)
+        if(instance.compositionLease!=null)
             throw new IllegalStateException(
                 operation+
                 " blocked by composition lease instance="+
                 instance.id+
                 " lease="+
-                instance.compositionLeaseKey
+                instance.compositionLease
             );
-    }
-
-    private static String requireCompositionLeaseKey(
-        String value
-    ){
-        if(value==null)
-            throw new NullPointerException(
-                "leaseKey"
-            );
-
-        String normalized=
-            value.trim();
-
-        if(normalized.isEmpty())
-            throw new IllegalArgumentException(
-                "leaseKey blank"
-            );
-
-        return normalized;
     }
 
     private Instance require(WorldInstanceId id){
