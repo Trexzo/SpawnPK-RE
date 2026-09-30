@@ -322,6 +322,7 @@ public final class MonsterSpawnerServiceTest {
             "Monster Spawner snapshot mutable"
         );
 
+        selectedRowIdentityStable();
         protocolBoundary();
 
         System.out.println(
@@ -329,6 +330,7 @@ public final class MonsterSpawnerServiceTest {
             "clientRows0to21=true "+
             "catalogCallerDefined=true "+
             "catalogReplaceAtomic=true "+
+            "selectedRowIdentityStable=true "+
             "ownerSessionIsolation=true "+
             "selectionRequired=true "+
             "callerBudget=true "+
@@ -345,6 +347,143 @@ public final class MonsterSpawnerServiceTest {
             "sourceItemIdAbuse=false "+
             "rewardMutation=false "+
             "protocolIndependent=true"
+        );
+    }
+
+    private static void selectedRowIdentityStable(){
+        WorldNpcRegistry registry=
+            new WorldNpcRegistry();
+        MonsterSpawnerService service=
+            new MonsterSpawnerService(
+                registry
+            );
+
+        service.replaceCatalog(
+            Arrays.asList(
+                new MonsterSpawnerService.CatalogEntry(
+                    0,
+                    "npc:selected",
+                    100
+                ),
+                new MonsterSpawnerService.CatalogEntry(
+                    1,
+                    "npc:unselected",
+                    101
+                )
+            ),
+            "IDENTITY_BASE"
+        );
+
+        service.openSession(
+            "player:identity",
+            POLICY
+        );
+        service.selectRow(
+            "player:identity",
+            0
+        );
+        service.activate(
+            "player:identity",
+            1
+        );
+
+        expect(
+            IllegalStateException.class,
+            ()->service.replaceCatalog(
+                Arrays.asList(
+                    new MonsterSpawnerService.CatalogEntry(
+                        0,
+                        "npc:retargeted",
+                        100
+                    ),
+                    new MonsterSpawnerService.CatalogEntry(
+                        1,
+                        "npc:unselected",
+                        101
+                    )
+                ),
+                "IDENTITY_SEMANTIC_DRIFT"
+            ),
+            "selected semantic key changed"
+        );
+
+        expect(
+            IllegalStateException.class,
+            ()->service.replaceCatalog(
+                Arrays.asList(
+                    new MonsterSpawnerService.CatalogEntry(
+                        0,
+                        "npc:selected",
+                        200
+                    ),
+                    new MonsterSpawnerService.CatalogEntry(
+                        1,
+                        "npc:unselected",
+                        101
+                    )
+                ),
+                "IDENTITY_DEFINITION_DRIFT"
+            ),
+            "selected definition changed"
+        );
+
+        MonsterSpawnerService.CatalogSnapshot
+            afterRejected=
+                service.catalog();
+
+        require(
+            "npc:selected".equals(
+                afterRejected.row(0).semanticKey
+            )&&
+            afterRejected.row(0).definitionId==100&&
+            service.getSession(
+                "player:identity"
+            ).selectedDefinitionId==100,
+            "failed identity replacement mutated selection"
+        );
+
+        MonsterSpawnerService.CatalogSnapshot
+            accepted=
+                service.replaceCatalog(
+                    Arrays.asList(
+                        new MonsterSpawnerService.CatalogEntry(
+                            0,
+                            "npc:selected",
+                            100
+                        ),
+                        new MonsterSpawnerService.CatalogEntry(
+                            1,
+                            "npc:unselected:new",
+                            202
+                        )
+                    ),
+                    "IDENTITY_UNSELECTED_REPLACEMENT"
+                );
+
+        require(
+            accepted.row(0).definitionId==100&&
+            "npc:unselected:new".equals(
+                accepted.row(1).semanticKey
+            )&&
+            accepted.row(1).definitionId==202,
+            "unselected catalog row replacement"
+        );
+
+        MonsterSpawnerService.SpawnResult spawn=
+            service.spawnSelected(
+                "player:identity",
+                3400,
+                3400,
+                0
+            );
+
+        require(
+            spawn.npc.definitionId==100&&
+            "npc:selected".equals(
+                spawn.session.selectedSemanticKey
+            )&&
+            spawn.session.selectedDefinitionId==100,
+            "selected identity drifted after accepted catalog replacement"
         );
     }
 
