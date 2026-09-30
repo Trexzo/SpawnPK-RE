@@ -191,6 +191,8 @@ public final class MatchInstanceCompositionOwnershipTest {
                 "opaqueLeaseIdentity=true "+
                 "duplicateLeaseFailClosed=true "+
                 "missingLeaseFailClosed=true "+
+                "participantTransitionsLeaseAware=true "+
+                "ownedParticipantTransition=true "+
                 "lockOrderMatchThenInstance=true "+
                 "protocolIndependent=true"
             );
@@ -309,6 +311,30 @@ public final class MatchInstanceCompositionOwnershipTest {
         );
         expect(
             IllegalStateException.class,
+            ()->matches.leave(
+                matchId,
+                "player:leased"
+            ),
+            "direct leased match leave"
+        );
+        expect(
+            IllegalStateException.class,
+            ()->matches.forfeit(
+                matchId,
+                "player:leased"
+            ),
+            "direct leased match forfeit"
+        );
+        expect(
+            IllegalStateException.class,
+            ()->matches.disconnect(
+                matchId,
+                "player:leased"
+            ),
+            "direct leased match disconnect"
+        );
+        expect(
+            IllegalStateException.class,
             ()->instances.attach(
                 instanceId,
                 "player:intruder"
@@ -360,6 +386,133 @@ public final class MatchInstanceCompositionOwnershipTest {
                 instanceId
             ),
             "failed lease mutation dropped ownership"
+        );
+
+        MatchSessionService foreignMatches=
+            new MatchSessionService();
+        WorldInstanceService foreignInstances=
+            new WorldInstanceService();
+        MatchId foreignMatchId=
+            MatchId.of(
+                "composition:foreign-lease"
+            );
+        WorldInstanceId foreignInstanceId=
+            WorldInstanceId.of(
+                "composition:foreign-lease"
+            );
+        MatchTeamId foreignTeamId=
+            MatchTeamId.of(
+                "team:foreign-lease"
+            );
+        AtomicReference<
+            MatchSessionService.CompositionLease
+        > foreignLease=
+            new AtomicReference<>();
+
+        foreignMatches.withWorldInstanceCompositionOwnership(
+            foreignInstances,
+            ()->{
+                foreignMatches.create(
+                    foreignMatchId,
+                    rules()
+                );
+                foreignMatches.addTeam(
+                    foreignMatchId,
+                    foreignTeamId
+                );
+                foreignMatches.join(
+                    foreignMatchId,
+                    foreignTeamId,
+                    "player:foreign"
+                );
+                foreignInstances.create(
+                    foreignInstanceId,
+                    foreignMatchId.toString(),
+                    "CUSTOM_LOCALLAB"
+                );
+                foreignInstances.attach(
+                    foreignInstanceId,
+                    "player:foreign"
+                );
+                foreignMatches.attachInstance(
+                    foreignMatchId,
+                    foreignInstanceId
+                );
+                foreignMatches.markReady(
+                    foreignMatchId
+                );
+                foreignInstances.activate(
+                    foreignInstanceId
+                );
+                foreignMatches.activate(
+                    foreignMatchId
+                );
+                foreignLease.set(
+                    foreignMatches.acquireWorldInstanceCompositionLease(
+                        foreignInstances,
+                        foreignMatchId,
+                        foreignInstanceId,
+                        "parent:foreign"
+                    )
+                );
+            }
+        );
+
+        expect(
+            IllegalStateException.class,
+            ()->matches.forfeitOwned(
+                matchId,
+                "player:leased",
+                foreignLease.get()
+            ),
+            "foreign lease participant transition"
+        );
+
+        MatchSession ownedTransition=
+            matches.forfeitOwned(
+                matchId,
+                "player:leased",
+                lease.get()
+            );
+
+        require(
+            ownedTransition.participant(
+                "player:leased"
+            ).status==
+                MatchSession.ParticipantStatus.FORFEITED,
+            "exact lease participant transition"
+        );
+
+        foreignMatches.withWorldInstanceCompositionOwnership(
+            foreignInstances,
+            ()->{
+                MatchSessionService.CompositionLease token=
+                    foreignLease.get();
+                foreignMatches.cancelOwned(
+                    foreignMatchId,
+                    "owner_cancelled",
+                    token
+                );
+                foreignInstances.beginClosingOwned(
+                    foreignInstanceId,
+                    token
+                );
+                foreignInstances.detachOwned(
+                    foreignInstanceId,
+                    "player:foreign",
+                    token
+                );
+                foreignInstances.closeOwned(
+                    foreignInstanceId,
+                    token
+                );
+                foreignMatches.releaseWorldInstanceCompositionLease(
+                    foreignInstances,
+                    foreignMatchId,
+                    foreignInstanceId,
+                    token
+                );
+            }
         );
 
         matches.withWorldInstanceCompositionOwnership(
