@@ -12,6 +12,7 @@ public final class PvpHotspotServiceTest {
         activePresenceAndKills();
         counterOverflowAtomic();
         globalEventOwnershipLinearized();
+        terminalPresenceReconciliation();
         completionLifecycle();
         cancellationLifecycle();
         authorityGuards();
@@ -28,6 +29,9 @@ public final class PvpHotspotServiceTest {
             "participantScopedCounters=true "+
             "counterOverflowAtomic=true "+
             "globalEventOwnershipLinearized=true "+
+            "terminalPresenceReconciled=true "+
+            "deadlineCompletionClearsPresence=true "+
+            "externalTerminalClearsPresence=true "+
             "staleWorldTickRejected=true "+
             "leaveBlocksKillAttribution=true "+
             "completionClearsPresence=true "+
@@ -555,6 +559,179 @@ public final class PvpHotspotServiceTest {
                 TimeUnit.SECONDS
             );
         }
+    }
+
+
+    private static void terminalPresenceReconciliation(){
+        GlobalEventService deadlineEvents=
+            new GlobalEventService();
+        PvpHotspotService deadlineService=
+            new PvpHotspotService(
+                deadlineEvents
+            );
+
+        WorldEventId deadlineId=
+            WorldEventId.of(
+                "pvp-hotspot:deadline-terminal"
+            );
+
+        deadlineService.registerHotspot(
+            definition(
+                deadlineId,
+                10L,
+                20L
+            ),
+            "zone:deadline-terminal",
+            POLICY
+        );
+
+        deadlineService.enter(
+            deadlineId,
+            "player:a",
+            10L
+        );
+        deadlineService.enter(
+            deadlineId,
+            "player:b",
+            11L
+        );
+        deadlineService.recordValidatedKill(
+            deadlineId,
+            "player:a",
+            "player:b",
+            12L
+        );
+
+        expect(
+            IllegalStateException.class,
+            ()->deadlineService.leave(
+                deadlineId,
+                "player:a",
+                20L
+            ),
+            "deadline-completed hotspot leave"
+        );
+
+        PvpHotspotService.Snapshot deadlineTerminal=
+            deadlineService.get(
+                deadlineId
+            );
+
+        require(
+            deadlineTerminal.lifecycle==
+                GlobalEventService
+                    .Lifecycle.COMPLETED&&
+            deadlineTerminal.presentCount()==0&&
+            !deadlineTerminal.participant(
+                "player:a"
+            ).present&&
+            !deadlineTerminal.participant(
+                "player:b"
+            ).present&&
+            deadlineTerminal.participant(
+                "player:a"
+            ).kills==1L&&
+            deadlineTerminal.participant(
+                "player:b"
+            ).deaths==1L,
+            "deadline terminal presence reconciliation"
+        );
+
+        GlobalEventService completedEvents=
+            new GlobalEventService();
+        PvpHotspotService completedService=
+            new PvpHotspotService(
+                completedEvents
+            );
+
+        WorldEventId completedId=
+            WorldEventId.of(
+                "pvp-hotspot:external-complete"
+            );
+
+        completedService.registerHotspot(
+            definition(
+                completedId,
+                30L,
+                60L
+            ),
+            "zone:external-complete",
+            POLICY
+        );
+        completedService.enter(
+            completedId,
+            "player:c",
+            30L
+        );
+
+        completedEvents.complete(
+            completedId,
+            40L
+        );
+
+        PvpHotspotService.Snapshot externallyCompleted=
+            completedService.get(
+                completedId
+            );
+
+        require(
+            externallyCompleted.lifecycle==
+                GlobalEventService
+                    .Lifecycle.COMPLETED&&
+            externallyCompleted.presentCount()==0&&
+            !externallyCompleted.participant(
+                "player:c"
+            ).present,
+            "external completion presence reconciliation"
+        );
+
+        GlobalEventService cancelledEvents=
+            new GlobalEventService();
+        PvpHotspotService cancelledService=
+            new PvpHotspotService(
+                cancelledEvents
+            );
+
+        WorldEventId cancelledId=
+            WorldEventId.of(
+                "pvp-hotspot:external-cancel"
+            );
+
+        cancelledService.registerHotspot(
+            definition(
+                cancelledId,
+                70L,
+                100L
+            ),
+            "zone:external-cancel",
+            POLICY
+        );
+        cancelledService.enter(
+            cancelledId,
+            "player:d",
+            70L
+        );
+
+        cancelledEvents.cancel(
+            cancelledId,
+            80L
+        );
+
+        PvpHotspotService.Snapshot externallyCancelled=
+            cancelledService.get(
+                cancelledId
+            );
+
+        require(
+            externallyCancelled.lifecycle==
+                GlobalEventService
+                    .Lifecycle.CANCELLED&&
+            externallyCancelled.presentCount()==0&&
+            !externallyCancelled.participant(
+                "player:d"
+            ).present,
+            "external cancellation presence reconciliation"
+        );
     }
 
 
