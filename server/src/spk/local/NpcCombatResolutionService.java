@@ -370,6 +370,15 @@ final class NpcCombatResolutionService {
                 timing
             );
 
+        if(prepared.timing.hitDelayTicks>0&&
+           worldTick!=world.clock().tick())
+            throw new IllegalStateException(
+                "delayed PvM attack clock changed during policy evaluation supplied="+
+                worldTick+
+                " world="+
+                world.clock().tick()
+            );
+
         int nextAttackDelay=
             nextAttackDelay(
                 prepared.timing
