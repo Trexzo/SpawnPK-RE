@@ -77,6 +77,16 @@ final class WorldInstanceService {
         instances=
             new LinkedHashMap<>();
 
+    synchronized void withMatchCompositionOwnership(
+        MatchSessionService.MatchInstanceCompositionAction action
+    )throws Exception{
+        Objects.requireNonNull(
+            action,
+            "action"
+        );
+        action.run();
+    }
+
     synchronized Snapshot create(
         WorldInstanceId id,
         String ownerRef,
