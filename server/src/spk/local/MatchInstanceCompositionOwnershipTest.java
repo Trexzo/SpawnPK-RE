@@ -185,6 +185,8 @@ public final class MatchInstanceCompositionOwnershipTest {
                 "durableChildLease=true "+
                 "directMatchTerminalBlocked=true "+
                 "directInstanceTopologyBlocked=true "+
+                "directParticipantTransitionBlocked=true "+
+                "ownedParticipantTransition=true "+
                 "pairedLeaseRelease=true "+
                 "ownedTerminalUnderLease=true "+
                 "releaseAfterTerminal=true "+
@@ -329,6 +331,46 @@ public final class MatchInstanceCompositionOwnershipTest {
                 instanceId
             ),
             "direct leased instance beginClosing"
+        );
+        expect(
+            IllegalStateException.class,
+            ()->matches.leave(
+                matchId,
+                "player:leased"
+            ),
+            "direct leased participant leave"
+        );
+        expect(
+            IllegalStateException.class,
+            ()->matches.forfeit(
+                matchId,
+                "player:leased"
+            ),
+            "direct leased participant forfeit"
+        );
+        expect(
+            IllegalStateException.class,
+            ()->matches.disconnect(
+                matchId,
+                "player:leased"
+            ),
+            "direct leased participant disconnect"
+        );
+
+        matches.forfeitOwned(
+            matchId,
+            "player:leased",
+            lease.get()
+        );
+
+        require(
+            matches.get(
+                matchId
+            ).participant(
+                "player:leased"
+            ).status==
+                MatchSession.ParticipantStatus.FORFEITED,
+            "owned participant transition"
         );
 
         expect(
