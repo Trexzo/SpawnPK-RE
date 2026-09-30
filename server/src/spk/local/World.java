@@ -268,6 +268,10 @@ final class World implements AutoCloseable {
         void run() throws Exception;
     }
 
+    interface OpenWorldAction {
+        void run() throws Exception;
+    }
+
     boolean withOpenPlayerMutationOwnershipIfCurrent(
         WorldPlayer player,
         long expectedGeneration,
@@ -301,6 +305,26 @@ final class World implements AutoCloseable {
             throw new NullPointerException(
                 "action"
             );
+
+        if(closed.get())
+            return false;
+
+        synchronized(lifecycleLock){
+            if(closed.get())
+                return false;
+
+            action.run();
+            return true;
+        }
+    }
+
+    boolean withOpenLifecycleOwnership(
+        OpenWorldAction action
+    )throws Exception{
+        Objects.requireNonNull(
+            action,
+            "action"
+        );
 
         if(closed.get())
             return false;
@@ -662,6 +686,29 @@ final class World implements AutoCloseable {
     int npcTickTargetCount(){
         synchronized(npcTickTargets){
             return npcTickTargets.size();
+        }
+    }
+
+    boolean pruneNpcTickTargetIfNpcMissing(
+        EntityId npcId
+    ){
+        EntityId checked=
+            Objects.requireNonNull(
+                npcId,
+                "npcId"
+            );
+
+        synchronized(lifecycleLock){
+            if(npcs.byId(
+                    checked
+                )!=null)
+                return false;
+
+            synchronized(npcTickTargets){
+                return npcTickTargets.remove(
+                    checked
+                )!=null;
+            }
         }
     }
 

@@ -157,6 +157,10 @@ final class MonsterSpawnerService {
         }
     }
 
+    interface SpawnedNpcCommitAction {
+        void run(WorldNpc npc) throws Exception;
+    }
+
     private static final class Session {
         final String ownerRef;
         final String policyAuthority;
@@ -425,6 +429,39 @@ final class MonsterSpawnerService {
         int y,
         int plane
     ){
+        try{
+            return spawnSelectedComposed(
+                ownerRef,
+                x,
+                y,
+                plane,
+                npc->{}
+            );
+        }catch(RuntimeException failure){
+            throw failure;
+        }catch(Error failure){
+            throw failure;
+        }catch(Exception failure){
+            throw new IllegalStateException(
+                "unexpected Monster Spawner composed spawn failure",
+                failure
+            );
+        }
+    }
+
+    synchronized SpawnResult spawnSelectedComposed(
+        String ownerRef,
+        int x,
+        int y,
+        int plane,
+        SpawnedNpcCommitAction action
+    )throws Exception{
+        SpawnedNpcCommitAction checkedAction=
+            Objects.requireNonNull(
+                action,
+                "action"
+            );
+
         Session session=
             requireSession(ownerRef);
 
@@ -446,6 +483,10 @@ final class MonsterSpawnerService {
                 session.selectedRowIndex
             );
 
+        final int budgetBefore=
+            session.remainingSpawnBudget;
+        final boolean activeBefore=
+            session.active;
         final SessionSnapshot[] committed=
             new SessionSnapshot[1];
 
@@ -487,12 +528,110 @@ final class MonsterSpawnerService {
             );
         }
 
+        try{
+            checkedAction.run(
+                npc
+            );
+        }catch(Throwable failure){
+            Throwable rollbackFailure=
+                rollbackFreshSpawn(
+                    session,
+                    npc,
+                    budgetBefore,
+                    activeBefore
+                );
+
+            if(rollbackFailure!=null&&
+               rollbackFailure!=failure)
+                failure.addSuppressed(
+                    rollbackFailure
+                );
+
+            rethrow(
+                failure
+            );
+        }
+
         return new SpawnResult(
             npc,
             Objects.requireNonNull(
                 committed[0],
                 "committed session snapshot"
             )
+        );
+    }
+
+    private Throwable rollbackFreshSpawn(
+        Session session,
+        WorldNpc npc,
+        int budgetBefore,
+        boolean activeBefore
+    ){
+        try{
+            boolean owned=
+                npcs.withCurrentMutationOwnershipIfCurrent(
+                    npc,
+                    ()->{
+                        WorldNpc tracked=
+                            session.spawnedNpcs.get(
+                                npc.id
+                            );
+
+                        if(tracked!=npc)
+                            throw new IllegalStateException(
+                                "Monster Spawner rollback tracked identity drifted "+
+                                npc.id
+                            );
+
+                        if(!npcs.remove(
+                                npc.id))
+                            throw new IllegalStateException(
+                                "Monster Spawner rollback canonical removal failed "+
+                                npc.id
+                            );
+
+                        WorldNpc removed=
+                            session.spawnedNpcs.remove(
+                                npc.id
+                            );
+
+                        if(removed!=npc)
+                            throw new IllegalStateException(
+                                "Monster Spawner rollback tracked removal drifted "+
+                                npc.id
+                            );
+
+                        session.remainingSpawnBudget=
+                            budgetBefore;
+                        session.active=
+                            activeBefore;
+                    }
+                );
+
+            if(!owned)
+                throw new IllegalStateException(
+                    "Monster Spawner rollback lost canonical NPC ownership "+
+                    npc.id
+                );
+
+            return null;
+        }catch(Throwable failure){
+            return failure;
+        }
+    }
+
+    private static void rethrow(
+        Throwable failure
+    )throws Exception{
+        if(failure instanceof RuntimeException)
+            throw (RuntimeException)failure;
+        if(failure instanceof Error)
+            throw (Error)failure;
+        if(failure instanceof Exception)
+            throw (Exception)failure;
+
+        throw new RuntimeException(
+            failure
         );
     }
 
