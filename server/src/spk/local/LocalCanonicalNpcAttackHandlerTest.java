@@ -127,6 +127,110 @@ public final class LocalCanonicalNpcAttackHandlerTest {
                 "first hit packet did not use lifecycle result"
             );
 
+            long cadenceDue=
+                handler.nextAllowedAttackTick();
+
+            require(
+                cadenceDue>world.clock().tick(),
+                "successful hit did not publish future cadence gate"
+            );
+
+            WorldNpc cadenceTarget=
+                canonicalTarget(
+                    world,
+                    attackDefinition,
+                    3090,
+                    3495,
+                    20
+                );
+
+            NpcEntity cadenceView=
+                project(
+                    world,
+                    cadenceTarget,
+                    relayWriter,
+                    npcs
+                );
+
+            long dueBeforeInvalid=
+                handler.nextAllowedAttackTick();
+
+            ByteArrayOutputStream invalidCadenceBytes=
+                new ByteArrayOutputStream();
+
+            LocalCanonicalNpcAttackHandler.Result
+                invalidDuringCadence=
+                    handler.handle(
+                        new NpcAction(
+                            72,
+                            cadenceView.sceneIndex
+                        ),
+                        cadenceView,
+                        writer(invalidCadenceBytes)
+                    );
+
+            require(
+                invalidDuringCadence.status==
+                    LocalCanonicalNpcAttackHandler
+                        .Status.OUT_OF_RANGE&&
+                world.npcLifecycle()
+                    .get(cadenceTarget.id)
+                    .hitpoints==20&&
+                invalidCadenceBytes.size()==0&&
+                handler.nextAllowedAttackTick()==
+                    dueBeforeInvalid,
+                "invalid click consumed or extended cadence"
+            );
+
+            world.npcs().move(
+                cadenceTarget.id,
+                3088,
+                3495,
+                0
+            );
+            SharedNpcWorldRelay.syncRemotePets(
+                relayWriter
+            );
+            cadenceView=
+                npcs.canonical(
+                    cadenceTarget.id
+                );
+
+            ByteArrayOutputStream rapidBytes=
+                new ByteArrayOutputStream();
+
+            LocalCanonicalNpcAttackHandler.Result
+                rapidRepeat=
+                    handler.handle(
+                        new NpcAction(
+                            72,
+                            cadenceView.sceneIndex
+                        ),
+                        cadenceView,
+                        writer(rapidBytes)
+                    );
+
+            require(
+                rapidRepeat.status==
+                    LocalCanonicalNpcAttackHandler
+                        .Status.CADENCE_BLOCKED&&
+                world.npcLifecycle()
+                    .get(cadenceTarget.id)
+                    .hitpoints==20&&
+                rapidBytes.size()==0&&
+                handler.nextAllowedAttackTick()==
+                    cadenceDue,
+                "target switch bypassed canonical PvM cadence"
+            );
+
+            while(world.clock().tick()<cadenceDue)
+                world.clock().advance();
+
+            require(
+                world.clock().tick()==cadenceDue,
+                "cadence due tick fixture"
+            );
+
             ByteArrayOutputStream lethalBytes=
                 new ByteArrayOutputStream();
 
@@ -453,6 +557,11 @@ public final class LocalCanonicalNpcAttackHandlerTest {
                 "outOfRangeNoDamage=true "+
                 "staleNoDamage=true "+
                 "dummyLegacyOwned=true "+
+                "cadenceServerOwned=true "+
+                "rapidRepeatBlocked=true "+
+                "exactDueTick=true "+
+                "invalidAttemptNoConsume=true "+
+                "targetSwitchNoBypass=true "+
                 "autoRepeat=false "+
                 "chaseOwned=false "+
                 "rewardsOwned=false"
