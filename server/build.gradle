@@ -4921,6 +4921,7 @@ tasks.named('check') {
     dependsOn tasks.named('monsterSpawnerNpcLifecycleBindingRegression')
     dependsOn tasks.named('npcCombatDeadAttackerGuardRegression')
     dependsOn tasks.named('monsterSpawnerNpcSceneProjectionRegression')
+    dependsOn tasks.named('canonicalNpcAttackClickRegression')
     dependsOn tasks.named('npcPvmDelayedHitServiceRegression')
     dependsOn tasks.named('npcCombatDelayedCompositionRegression')
     dependsOn tasks.named('monsterSpawnerServiceRegression')
@@ -5565,6 +5566,21 @@ tasks.register('monsterSpawnerNpcSceneProjectionRegression', JavaExec) {
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass = 'spk.local.MonsterSpawnerNpcSceneProjectionTest'
+}
+
+
+tasks.register('canonicalNpcAttackClickRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves exact semantic NPC Attack clicks resolve viewer-local canonical identity into one World-owned PvM strike and lifecycle-derived packet-65 hit presentation.'
+    dependsOn(
+        tasks.named('testClasses'),
+        tasks.named('monsterSpawnerNpcSceneProjectionRegression'),
+        tasks.named('npcCombatResolutionServiceRegression')
+    )
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.LocalCanonicalNpcAttackHandlerTest'
 }
 
 
