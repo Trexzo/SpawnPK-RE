@@ -4909,6 +4909,7 @@ tasks.named('check') {
     dependsOn tasks.named('tournamentServiceRegression')
     dependsOn tasks.named('matchInstanceCompositionOwnershipRegression')
     dependsOn tasks.named('npcCombatEngagementServiceRegression')
+    dependsOn tasks.named('npcCombatApproachServiceRegression')
     dependsOn tasks.named('monsterSpawnerServiceRegression')
     dependsOn tasks.named('pvpHotspotServiceRegression')
     dependsOn tasks.named('npcDropResolutionServiceRegression')
@@ -5370,6 +5371,20 @@ tasks.register('npcCombatEngagementServiceRegression', JavaExec) {
 }
 
 
+
+
+tasks.register('npcCombatApproachServiceRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves an already-selected canonical NPC can approach an exact current player by one collision-safe RouteFinder step without owning aggro, target selection, damage, or presentation.'
+    dependsOn(
+        tasks.named('testClasses'),
+        tasks.named('npcCombatEngagementServiceRegression')
+    )
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.NpcCombatApproachServiceTest'
+}
 
 
 tasks.register('matchInstanceCompositionOwnershipRegression', JavaExec) {
