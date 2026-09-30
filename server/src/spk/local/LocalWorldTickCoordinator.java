@@ -362,6 +362,7 @@ final class LocalWorldTickCoordinator {
             );
 
         SharedNpcWorldRelay.syncRemotePets(writer);
+        SharedNpcWorldRelay.syncCanonicalNpcs(writer);
 
         if(npcPulse!=null&&
            (
