@@ -353,31 +353,28 @@ final class NpcCombatResolutionService {
                 weaponId
             );
 
-        if(timing.hitDelayTicks>0&&
-           worldTick!=world.clock().tick())
-            throw new IllegalStateException(
-                "delayed PvM attack tick is not shared World clock tick supplied="+
-                worldTick+
-                " world="+
-                world.clock().tick()
+        if(timing.hitDelayTicks>0)
+            requireSharedClock(
+                world,
+                worldTick,
+                "before hooks"
             );
 
         Prepared prepared=
-            completePreparation(
-                weaponId,
-                style,
-                worldTick,
-                timing
-            );
-
-        if(prepared.timing.hitDelayTicks>0&&
-           worldTick!=world.clock().tick())
-            throw new IllegalStateException(
-                "delayed PvM attack clock changed during policy evaluation supplied="+
-                worldTick+
-                " world="+
-                world.clock().tick()
-            );
+            timing.hitDelayTicks>0
+                ?completeDelayedPreparation(
+                    world,
+                    weaponId,
+                    style,
+                    worldTick,
+                    timing
+                )
+                :completePreparation(
+                    weaponId,
+                    style,
+                    worldTick,
+                    timing
+                );
 
         int nextAttackDelay=
             nextAttackDelay(
@@ -481,6 +478,55 @@ final class NpcCombatResolutionService {
         );
     }
 
+    private Prepared completeDelayedPreparation(
+        World world,
+        int weaponId,
+        CombatStyleRepository.Style style,
+        long worldTick,
+        CombatAttackTimingRules.Result timing
+    ){
+        CombatSystemHooks.Snapshot hookSnapshot=
+            Objects.requireNonNull(
+                hooks.beforeDamage(
+                    CombatContext.NPC_PVM,
+                    weaponId,
+                    worldTick
+                ),
+                "hook snapshot"
+            );
+
+        requireSharedClock(
+            world,
+            worldTick,
+            "after hooks"
+        );
+
+        CombatDamageRules.Result damage=
+            Objects.requireNonNull(
+                damageRules.calculate(
+                    new CombatDamageRules.Request(
+                        CombatContext.NPC_PVM,
+                        weaponId,
+                        style,
+                        worldTick
+                    )
+                ),
+                "damage result"
+            );
+
+        requireSharedClock(
+            world,
+            worldTick,
+            "after damage"
+        );
+
+        return new Prepared(
+            damage,
+            timing,
+            hookSnapshot
+        );
+    }
+
     private Prepared completePreparation(
         int weaponId,
         CombatStyleRepository.Style style,
@@ -574,6 +620,25 @@ final class NpcCombatResolutionService {
             lifecycleResult[0],
             "lifecycleResult"
         );
+    }
+
+    private static void requireSharedClock(
+        World world,
+        long worldTick,
+        String phase
+    ){
+        long current=
+            world.clock().tick();
+
+        if(worldTick!=current)
+            throw new IllegalStateException(
+                "delayed PvM attack tick is not shared World clock tick phase="+
+                phase+
+                " supplied="+
+                worldTick+
+                " world="+
+                current
+            );
     }
 
     private static int nextAttackDelay(
