@@ -16,6 +16,7 @@ public final class NpcCombatDelayedCompositionTest {
         positiveDelayScheduled();
         sharedClockBound();
         policyClockDriftAtomic();
+        delayedServiceBindingPreflight();
         schedulerFailureAtomic();
         exactOwnershipPreflight();
         domainBoundary();
@@ -31,6 +32,7 @@ public final class NpcCombatDelayedCompositionTest {
             "damageOnce=true "+
             "sharedClockBound=true "+
             "policyClockDriftAtomic=true "+
+            "delayedServiceBinding=true "+
             "schedulerFailureAtomic=true "+
             "dueDamageOnce=true "+
             "cadencePreserved=true "+
@@ -367,6 +369,111 @@ public final class NpcCombatDelayedCompositionTest {
                 delayed.size()==0&&
                 world.events().size()==0,
                 "policy clock drift escaped schedule authority"
+            );
+        }finally{
+            cleanup(world);
+        }
+    }
+
+
+    private static void delayedServiceBindingPreflight()
+        throws Exception{
+        World world=
+            World.isolatedForTest(
+                600L
+            );
+        WorldPlayer attacker=
+            new WorldPlayer();
+        long generation=
+            world.registerPlayer(
+                attacker,
+                "delayed-binding"
+            );
+
+        try{
+            NpcLifecycleService resolverLifecycle=
+                new NpcLifecycleService(
+                    world.npcs()
+                );
+            NpcLifecycleService foreignLifecycle=
+                new NpcLifecycleService(
+                    world.npcs()
+                );
+            WorldNpc npc=
+                world.npcs().spawn(
+                    1500,
+                    3212,
+                    3200,
+                    0
+                );
+
+            resolverLifecycle.register(
+                npc,
+                40,
+                "CUSTOM_LOCALLAB_RESOLVER"
+            );
+            foreignLifecycle.register(
+                npc,
+                40,
+                "CUSTOM_LOCALLAB_FOREIGN"
+            );
+
+            TrackingTimingRules timing=
+                new TrackingTimingRules(
+                    4,
+                    2
+                );
+            TrackingHooks hooks=
+                new TrackingHooks();
+            TrackingDamageRules damage=
+                new TrackingDamageRules(
+                    7
+                );
+
+            NpcCombatResolutionService resolver=
+                new NpcCombatResolutionService(
+                    attacker,
+                    resolverLifecycle,
+                    damage,
+                    timing,
+                    hooks
+                );
+            NpcPvmDelayedHitService foreignDelayed=
+                delayed(
+                    world,
+                    foreignLifecycle
+                );
+
+            boolean rejected=false;
+
+            try{
+                resolver.resolveOwned(
+                    world,
+                    generation,
+                    npc,
+                    WEAPON,
+                    STYLE,
+                    0L,
+                    foreignDelayed
+                );
+            }catch(IllegalArgumentException expected){
+                rejected=true;
+            }
+
+            require(
+                rejected&&
+                resolverLifecycle.get(
+                    npc.id
+                ).hitpoints==40&&
+                foreignLifecycle.get(
+                    npc.id
+                ).hitpoints==40&&
+                timing.calls==0&&
+                hooks.calls==0&&
+                damage.calls==0&&
+                foreignDelayed.size()==0&&
+                world.events().size()==0,
+                "foreign delayed-hit dependencies reached combat policy"
             );
         }finally{
             cleanup(world);
