@@ -151,6 +151,24 @@ final class MonsterSpawnerPvmRuntime {
             settlement,
             "settlement"
         );
+
+        MonsterSpawnerCombatBindingService combat=
+            this.lifecycleBinding.combatAuthority();
+
+        if(!this.lifecycleBinding.isBoundTo(
+                this.world,
+                combat
+            )||
+           !this.finalizer.isBoundTo(
+                this.world,
+                combat
+            )||
+           !this.settlement.isBoundTo(
+                this.world
+            ))
+            throw new IllegalArgumentException(
+                "Monster Spawner PvM runtime services must share one exact World/combat authority graph"
+            );
     }
 
     SpawnResult spawnAndBind(
@@ -243,11 +261,16 @@ final class MonsterSpawnerPvmRuntime {
                 );
 
             if(entry.state==
-                    State.SETTLEMENT_PENDING)
-                return settlePending(entry);
-
-            entry.terminalInProgress=true;
+                    State.SETTLEMENT_PENDING){
+                // Retry outside the runtime monitor.
+            }else{
+                entry.terminalInProgress=true;
+            }
         }
+
+        if(entry.state==
+                State.SETTLEMENT_PENDING)
+            return settlePending(entry);
 
         MonsterSpawnerNpcDeathFinalizationService.Result
             finalized;
