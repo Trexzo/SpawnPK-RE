@@ -120,7 +120,12 @@ final class NpcCombatControllerService {
             new NpcCombatEngagementService(
                 this.world,
                 checkedCadence,
-                this::executeCanonicalAttack
+                this::executeCanonicalAttack,
+                (expectedWorldTick,action)->
+                    this.world.withExpectedClockTickOwnership(
+                        expectedWorldTick,
+                        action::run
+                    )
             );
 
         this.approach=
@@ -349,22 +354,17 @@ final class NpcCombatControllerService {
                     );
             }
 
-            final NpcCombatEngagementService.TickResult[] cadenceResult=
-                new NpcCombatEngagementService.TickResult[1];
+            NpcCombatEngagementService.TickResult cadence;
 
             activeAttackEngagement=
                 snapshot;
 
             try{
-                world.withExpectedClockTickOwnership(
-                    worldTick,
-                    ()->
-                        cadenceResult[0]=
-                            engagements.tick(
-                                checkedId,
-                                worldTick
-                            )
-                );
+                cadence=
+                    engagements.tick(
+                        checkedId,
+                        worldTick
+                    );
             }catch(TargetAlreadyDeadException dead){
                 return result(
                     Status.TARGET_DEAD,
@@ -377,12 +377,6 @@ final class NpcCombatControllerService {
             }finally{
                 activeAttackEngagement=null;
             }
-
-            NpcCombatEngagementService.TickResult cadence=
-                Objects.requireNonNull(
-                    cadenceResult[0],
-                    "cadenceResult"
-                );
 
             switch(cadence.status){
                 case NONE:
