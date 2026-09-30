@@ -186,6 +186,8 @@ public final class MatchInstanceCompositionOwnershipTest {
                 "directMatchTerminalBlocked=true "+
                 "directInstanceTopologyBlocked=true "+
                 "pairedLeaseRelease=true "+
+                "ownedTerminalUnderLease=true "+
+                "releaseAfterTerminal=true "+
                 "opaqueLeaseIdentity=true "+
                 "duplicateLeaseFailClosed=true "+
                 "missingLeaseFailClosed=true "+
@@ -363,25 +365,33 @@ public final class MatchInstanceCompositionOwnershipTest {
         matches.withWorldInstanceCompositionOwnership(
             instances,
             ()->{
+                MatchSessionService.CompositionLease token=
+                    lease.get();
+
+                matches.cancelOwned(
+                    matchId,
+                    "owner_cancelled",
+                    token
+                );
+                instances.beginClosingOwned(
+                    instanceId,
+                    token
+                );
+                instances.detachOwned(
+                    instanceId,
+                    "player:leased",
+                    token
+                );
+                instances.closeOwned(
+                    instanceId,
+                    token
+                );
+
                 matches.releaseWorldInstanceCompositionLease(
                     instances,
                     matchId,
                     instanceId,
-                    lease.get()
-                );
-                matches.cancel(
-                    matchId,
-                    "owner_cancelled"
-                );
-                instances.beginClosing(
-                    instanceId
-                );
-                instances.detach(
-                    instanceId,
-                    "player:leased"
-                );
-                instances.close(
-                    instanceId
+                    token
                 );
             }
         );
