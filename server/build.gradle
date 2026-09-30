@@ -4927,6 +4927,7 @@ tasks.named('check') {
     dependsOn tasks.named('monsterSpawnerServiceRegression')
     dependsOn tasks.named('pvpHotspotServiceRegression')
     dependsOn tasks.named('monsterSpawnerNpcDeathFinalizationRegression')
+    dependsOn tasks.named('monsterSpawnerPvmRuntimeRegression')
     dependsOn tasks.named('npcDeadTerminalCompositionRegression')
     dependsOn tasks.named('npcDropResolutionServiceRegression')
     dependsOn tasks.named('groundItemBatchSettlementRegression')
@@ -5403,6 +5404,21 @@ tasks.register('npcCombatResolutionServiceRegression', JavaExec) {
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass = 'spk.local.NpcCombatResolutionServiceTest'
+}
+
+
+tasks.register('monsterSpawnerPvmRuntimeRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves one exact World-bound Monster Spawner PvM runtime owns spawn identity, death finalization and retryable drop settlement.'
+    dependsOn(
+        tasks.named('testClasses'),
+        tasks.named('monsterSpawnerNpcDeathFinalizationRegression'),
+        tasks.named('npcDropGroundSettlementRegression')
+    )
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.MonsterSpawnerPvmRuntimeTest'
 }
 
 
