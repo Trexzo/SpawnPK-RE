@@ -117,7 +117,7 @@ final class MonsterSpawnerService {
             this.spawnedNpcIds=
                 Collections.unmodifiableList(
                     new ArrayList<>(
-                        session.spawnedNpcIds
+                        session.spawnedNpcs.keySet()
                     )
                 );
         }
@@ -160,9 +160,9 @@ final class MonsterSpawnerService {
     private static final class Session {
         final String ownerRef;
         final String policyAuthority;
-        final LinkedHashSet<EntityId>
-            spawnedNpcIds=
-                new LinkedHashSet<>();
+        final LinkedHashMap<EntityId,WorldNpc>
+            spawnedNpcs=
+                new LinkedHashMap<>();
 
         Integer selectedRowIndex;
         boolean active;
@@ -419,26 +419,53 @@ final class MonsterSpawnerService {
                 session.selectedRowIndex
             );
 
-        // Registry validation/spawn happens before any budget/tracking mutation.
-        WorldNpc npc=
-            npcs.spawn(
-                selected.definitionId,
-                x,
-                y,
-                plane
+        final SessionSnapshot[] committed=
+            new SessionSnapshot[1];
+
+        final WorldNpc npc;
+
+        try{
+            npc=
+                npcs.spawnWithMutationOwnership(
+                    selected.definitionId,
+                    x,
+                    y,
+                    plane,
+                    spawned->{
+                        if(session.spawnedNpcs.put(
+                                spawned.id,
+                                spawned)!=null)
+                            throw new IllegalStateException(
+                                "duplicate tracked Monster Spawner NPC "+
+                                spawned.id
+                            );
+
+                        session.remainingSpawnBudget--;
+
+                        if(session.remainingSpawnBudget==0)
+                            session.active=false;
+
+                        committed[0]=
+                            snapshotOf(session);
+                    }
+                );
+        }catch(RuntimeException failure){
+            throw failure;
+        }catch(Error failure){
+            throw failure;
+        }catch(Exception failure){
+            throw new IllegalStateException(
+                "unexpected Monster Spawner spawn ownership failure",
+                failure
             );
-
-        session.spawnedNpcIds.add(
-            npc.id
-        );
-        session.remainingSpawnBudget--;
-
-        if(session.remainingSpawnBudget==0)
-            session.active=false;
+        }
 
         return new SpawnResult(
             npc,
-            snapshotOf(session)
+            Objects.requireNonNull(
+                committed[0],
+                "committed session snapshot"
+            )
         );
     }
 
@@ -454,21 +481,53 @@ final class MonsterSpawnerService {
                 "npcId"
             );
 
-        if(!session.spawnedNpcIds
-                .contains(id))
+        WorldNpc tracked=
+            session.spawnedNpcs.get(id);
+
+        if(tracked==null)
             throw new IllegalArgumentException(
                 "NPC not tracked by Monster Spawner session "+
                 session.ownerRef+
                 " id="+id
             );
 
-        if(!npcs.remove(id))
-            throw new IllegalStateException(
-                "tracked Monster Spawner NPC missing from canonical registry "+
-                id
-            );
+        try{
+            boolean owned=
+                npcs.withCurrentMutationOwnershipIfCurrent(
+                    tracked,
+                    ()->{
+                        if(!npcs.remove(id))
+                            throw new IllegalStateException(
+                                "tracked Monster Spawner NPC disappeared during owned removal "+
+                                id
+                            );
 
-        session.spawnedNpcIds.remove(id);
+                        WorldNpc removed=
+                            session.spawnedNpcs.remove(id);
+
+                        if(removed!=tracked)
+                            throw new IllegalStateException(
+                                "Monster Spawner tracked NPC identity drifted "+
+                                id
+                            );
+                    }
+                );
+
+            if(!owned)
+                throw new IllegalStateException(
+                    "tracked Monster Spawner NPC is no longer exact canonical registry owner "+
+                    id
+                );
+        }catch(RuntimeException failure){
+            throw failure;
+        }catch(Error failure){
+            throw failure;
+        }catch(Exception failure){
+            throw new IllegalStateException(
+                "unexpected Monster Spawner despawn ownership failure",
+                failure
+            );
+        }
 
         return snapshotOf(session);
     }
