@@ -288,6 +288,44 @@ final class WorldPulse implements AutoCloseable,Runnable {
             if(world.closed())
                 return;
 
+            for(WorldNpcTickTarget target:
+                    world.npcTickTargetsSnapshot()){
+                if(world.closed())
+                    return;
+
+                if(world.npcs().byId(
+                        target.npcId()
+                    )==null){
+                    world.detachNpcTickTarget(
+                        target.npcId(),
+                        target
+                    );
+                    continue;
+                }
+
+                try{
+                    target.onWorldNpcTick(
+                        tick,
+                        nowMillis
+                    );
+                }catch(Throwable t){
+                    System.err.println(
+                        "[world] NPC tick target failed tick="+
+                        tick+
+                        " npc="+
+                        target.npcId()+
+                        " error="+
+                        t
+                    );
+                }
+
+                if(world.closed())
+                    return;
+            }
+
+            if(world.closed())
+                return;
+
             try{
                 world.persistence().checkpointDue(tick);
             }catch(Throwable t){
