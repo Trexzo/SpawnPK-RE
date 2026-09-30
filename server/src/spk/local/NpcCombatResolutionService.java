@@ -439,7 +439,7 @@ final class NpcCombatResolutionService {
                     );
 
                     lifecycleResult[0]=
-                        lifecycle.applyDamage(
+                        lifecycle.applyDamageOwned(
                             checkedTarget.id,
                             prepared.damage.damage,
                             worldTick
