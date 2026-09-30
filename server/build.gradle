@@ -4901,7 +4901,19 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
     }
 }
 
+tasks.register('clanWarSessionServiceRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves accepted Clan Wars compose into semantic MatchSession + WorldInstance lifecycles without inventing rewards or transport policy.'
+    dependsOn tasks.named('testClasses')
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.ClanWarSessionServiceTest'
+}
+
+
 tasks.named('check') {
+    dependsOn tasks.named('clanWarSessionServiceRegression')
     dependsOn tasks.named('issue9LauncherContractRegression')
     dependsOn tasks.named('chat1CumulativeWrapperContractRegression')
     dependsOn tasks.named('chat1CurrentCumulativeServerIdentityRegression')
