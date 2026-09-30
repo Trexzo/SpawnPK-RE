@@ -8,9 +8,10 @@ import java.util.function.LongSupplier;
  * One-click LocalLab bridge from a viewer-local NPC scene handle to canonical
  * World-owned PvM damage.
  *
- * This deliberately owns no cadence, chase, reward or death-finalization state.
- * The certified combat-dummy path remains in CombatEngine and is routed before
- * this handler.
+ * This owns only the per-session server-side cadence gate for exact canonical
+ * PvM clicks. Chase, auto-repeat, rewards and death finalization remain outside
+ * this handler. The certified combat-dummy path remains in CombatEngine and is
+ * routed before this handler.
  */
 final class LocalCanonicalNpcAttackHandler {
     enum Status {
@@ -23,6 +24,7 @@ final class LocalCanonicalNpcAttackHandler {
         STALE_PLAYER,
         OUT_OF_RANGE,
         PRESENTATION_UNREPRESENTABLE,
+        CADENCE_BLOCKED,
         HIT
     }
 
@@ -94,6 +96,7 @@ final class LocalCanonicalNpcAttackHandler {
     private final CombatStyleState combatStyles;
     private final NpcRegistry npcs;
     private final NpcCombatResolutionService resolution;
+    private long nextAllowedAttackTick;
 
     LocalCanonicalNpcAttackHandler(
         World world,
@@ -378,6 +381,22 @@ final class LocalCanonicalNpcAttackHandler {
                 false
             );
 
+        long attackTick=
+            world.clock().tick();
+
+        if(attackTick<nextAllowedAttackTick)
+            return result(
+                Status.CADENCE_BLOCKED,
+                clicked,
+                canonicalId,
+                distance,
+                legalRange,
+                0,
+                before.hitpoints,
+                before.maxHitpoints,
+                false
+            );
+
         NpcCombatResolutionService.Result hit=
             resolution.resolveImmediateOwned(
                 world,
@@ -385,7 +404,7 @@ final class LocalCanonicalNpcAttackHandler {
                 target,
                 weaponId,
                 style,
-                world.clock().tick()
+                attackTick
             );
 
         NpcLifecycleService.DamageResult damage=
@@ -425,6 +444,12 @@ final class LocalCanonicalNpcAttackHandler {
                 canonicalId
             );
 
+        nextAllowedAttackTick=
+            Math.addExact(
+                attackTick,
+                hit.nextAttackDelayTicks
+            );
+
         // Type 1 is explicit LocalLab basic-hit compatibility. It is not a
         // SpawnPK max-hit or original damage-family claim.
         npcs.sendMaskLocal(
@@ -452,6 +477,10 @@ final class LocalCanonicalNpcAttackHandler {
             after.maxHitpoints,
             damage.newlyDied
         );
+    }
+
+    long nextAllowedAttackTick(){
+        return nextAllowedAttackTick;
     }
 
     private static boolean inLegalRange(
