@@ -4922,6 +4922,7 @@ tasks.named('check') {
     dependsOn tasks.named('npcCombatDeadAttackerGuardRegression')
     dependsOn tasks.named('monsterSpawnerNpcSceneProjectionRegression')
     dependsOn tasks.named('canonicalNpcAttackClickRegression')
+    dependsOn tasks.named('canonicalNpcAttackOwnershipRaceRegression')
     dependsOn tasks.named('npcPvmDelayedHitServiceRegression')
     dependsOn tasks.named('npcCombatDelayedCompositionRegression')
     dependsOn tasks.named('monsterSpawnerServiceRegression')
@@ -5581,6 +5582,20 @@ tasks.register('canonicalNpcAttackClickRegression', JavaExec) {
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass = 'spk.local.LocalCanonicalNpcAttackHandlerTest'
+}
+
+
+tasks.register('canonicalNpcAttackOwnershipRaceRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves canonical NPC Attack ownership invalidation races fail closed without session-terminal exception, HP, packet or cadence side effects.'
+    dependsOn(
+        tasks.named('testClasses'),
+        tasks.named('canonicalNpcAttackClickRegression')
+    )
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.LocalCanonicalNpcAttackOwnershipRaceTest'
 }
 
 
