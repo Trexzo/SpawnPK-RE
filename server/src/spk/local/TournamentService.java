@@ -512,6 +512,7 @@ final class TournamentService {
                 );
 
                 boolean published=false;
+                boolean childLeaseAcquired=false;
 
                 try{
                     matches.create(
@@ -571,6 +572,7 @@ final class TournamentService {
                         checkedInstanceId,
                         holdKey
                     );
+                    childLeaseAcquired=true;
 
                     first.state=
                         EntrantState.IN_MATCH;
@@ -595,8 +597,7 @@ final class TournamentService {
                         );
                 }finally{
                     if(!published){
-                        if(matches.compositionLeaseHeld(
-                                checkedMatchId))
+                        if(childLeaseAcquired)
                             matches.releaseWorldInstanceCompositionLease(
                                 instances,
                                 checkedMatchId,
