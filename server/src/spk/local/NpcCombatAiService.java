@@ -264,7 +264,7 @@ final class NpcCombatAiService {
 
         final Tile[] attackerTile={null};
 
-        boolean attackerCurrent=
+        boolean attackerStillCurrent=
             world.npcs()
                 .withCurrentMutationOwnershipIfCurrent(
                     checked,
@@ -273,7 +273,7 @@ final class NpcCombatAiService {
                             checked.tile()
                 );
 
-        if(!attackerCurrent)
+        if(!attackerStillCurrent)
             return result(
                 Status.STALE_ATTACKER,
                 acquired,
