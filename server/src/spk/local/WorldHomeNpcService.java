@@ -250,6 +250,15 @@ final class WorldHomeNpcService {
         return id==null?null:registry.byId(id);
     }
 
+    synchronized boolean ownsCanonicalId(
+        EntityId canonicalId
+    ){
+        return canonicalId!=null&&
+            byOrdinal.containsValue(
+                canonicalId
+            );
+    }
+
     synchronized int size(){
         ensureInitialized();
         return byOrdinal.size();
