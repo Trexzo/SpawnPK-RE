@@ -209,6 +209,12 @@ final class NpcCombatResolutionService {
         this.hooks=Objects.requireNonNull(hooks,"hooks");
     }
 
+    boolean isBoundToLifecycle(
+        NpcLifecycleService expectedLifecycle
+    ){
+        return lifecycle==expectedLifecycle;
+    }
+
     String damageAuthority(){
         return damageRules.authority();
     }
