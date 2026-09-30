@@ -230,33 +230,57 @@ public final class MatchInstanceSessionCompositionAtomicityTest {
 
         require(
             complete.indexOf(
-                "releaseWorldInstanceCompositionLease("
+                "matches.completeOwned("
             )>
             complete.indexOf(
                 "preflightOwnedInstance"
             )&&
             complete.indexOf(
-                "releaseWorldInstanceCompositionLease("
-            )<
+                "tournamentMatch.state="
+            )>
             complete.indexOf(
-                "matches.complete("
+                "matches.completeOwned("
+            )&&
+            complete.indexOf(
+                "releaseWorldInstanceCompositionLease("
+            )>
+            complete.indexOf(
+                "tournamentMatch.state="
+            )&&
+            complete.indexOf(
+                "events.releaseTerminalHold("
+            )>
+            complete.indexOf(
+                "releaseWorldInstanceCompositionLease("
             ),
-            "TournamentService complete child lease release order"
+            "TournamentService complete durable ownership publication/release order"
         );
         require(
             cancel.indexOf(
-                "releaseWorldInstanceCompositionLease("
+                "matches.cancelOwned("
             )>
             cancel.indexOf(
                 "preflightOwnedInstance"
             )&&
             cancel.indexOf(
-                "releaseWorldInstanceCompositionLease("
-            )<
+                "tournamentMatch.state="
+            )>
             cancel.indexOf(
-                "matches.cancel("
+                "matches.cancelOwned("
+            )&&
+            cancel.indexOf(
+                "releaseWorldInstanceCompositionLease("
+            )>
+            cancel.indexOf(
+                "tournamentMatch.state="
+            )&&
+            cancel.indexOf(
+                "events.releaseTerminalHold("
+            )>
+            cancel.indexOf(
+                "releaseWorldInstanceCompositionLease("
             ),
-            "TournamentService cancel child lease release order"
+            "TournamentService cancel durable ownership publication/release order"
         );
     }
 
@@ -351,48 +375,45 @@ public final class MatchInstanceSessionCompositionAtomicityTest {
         );
         require(
             complete.indexOf(
-                "releaseWorldInstanceCompositionLease("
+                "matches.completeOwned("
             )>
             complete.indexOf(
                 "preflightOwnedInstance"
             )&&
-            complete.indexOf(
-                "releaseWorldInstanceCompositionLease("
-            )<
-            complete.indexOf(
-                "matches.complete("
-            ),
-            label+" complete durable child lease release order"
-        );
-        require(
-            cancel.indexOf(
-                "releaseWorldInstanceCompositionLease("
-            )>
-            cancel.indexOf(
-                "preflightOwnedInstance"
-            )&&
-            cancel.indexOf(
-                "releaseWorldInstanceCompositionLease("
-            )<
-            cancel.indexOf(
-                "matches.cancel("
-            ),
-            label+" cancel durable child lease release order"
-        );
-        require(
             complete.indexOf(
                 completePublish
             )>
             complete.indexOf(
-                "matches.complete("
+                "matches.completeOwned("
+            )&&
+            complete.indexOf(
+                "releaseWorldInstanceCompositionLease("
+            )>
+            complete.indexOf(
+                completePublish
+            ),
+            label+" complete durable ownership publication/release order"
+        );
+        require(
+            cancel.indexOf(
+                "matches.cancelOwned("
+            )>
+            cancel.indexOf(
+                "preflightOwnedInstance"
             )&&
             cancel.indexOf(
                 cancelPublish
             )>
             cancel.indexOf(
-                "matches.cancel("
+                "matches.cancelOwned("
+            )&&
+            cancel.indexOf(
+                "releaseWorldInstanceCompositionLease("
+            )>
+            cancel.indexOf(
+                cancelPublish
             ),
-            label+" parent terminal publication order"
+            label+" cancel durable ownership publication/release order"
         );
     }
 
