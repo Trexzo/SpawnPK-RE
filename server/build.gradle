@@ -4901,7 +4901,19 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
     }
 }
 
+tasks.register('duelSessionServiceRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves standard Duel challenge/session composition over MatchSession + WorldInstance without owning stakes, rewards, or transport.'
+    dependsOn tasks.named('testClasses')
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.DuelSessionServiceTest'
+}
+
+
 tasks.named('check') {
+    dependsOn tasks.named('duelSessionServiceRegression')
     dependsOn tasks.named('issue9LauncherContractRegression')
     dependsOn tasks.named('chat1CumulativeWrapperContractRegression')
     dependsOn tasks.named('chat1CurrentCumulativeServerIdentityRegression')
