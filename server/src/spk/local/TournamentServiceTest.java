@@ -33,6 +33,7 @@ public final class TournamentServiceTest {
             "durableChildLease=true "+
             "directChildTerminalBlocked=true "+
             "directParticipantMutationBlocked=true "+
+            "directScoreMutationBlocked=true "+
             "childLeaseRelease=true "+
             "terminalFailureRetainsAllHolds=true "+
             "globalEventOwnershipLinearized=true "+
@@ -786,6 +787,16 @@ public final class TournamentServiceTest {
                 "player:b"
             ),
             "external Tournament participant disconnect"
+        );
+        expect(
+            IllegalStateException.class,
+            ()->completeMatches.adjustParticipantScore(
+                completeMatchId,
+                "player:a",
+                "external",
+                1L
+            ),
+            "external Tournament score mutation"
         );
 
         expect(
