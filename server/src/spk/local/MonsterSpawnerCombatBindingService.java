@@ -17,6 +17,13 @@ final class MonsterSpawnerCombatBindingService {
         ) throws Exception;
     }
 
+    interface DespawnCommitDecorator {
+        MonsterSpawnerService.SessionSnapshot commit(
+            WorldNpc npc,
+            MonsterSpawnerService.TrackedNpcDespawnCommit commit
+        ) throws Exception;
+    }
+
     static final class Result {
         final MonsterSpawnerService.SpawnResult spawn;
         final NpcCombatRuntimeBinder.BindingSnapshot binding;
@@ -215,10 +222,28 @@ final class MonsterSpawnerCombatBindingService {
         String ownerRef,
         EntityId npcId
     )throws Exception{
+        return despawnAndUnbindComposed(
+            ownerRef,
+            npcId,
+            (npc,commit)->
+                commit.commit()
+        );
+    }
+
+    DespawnResult despawnAndUnbindComposed(
+        String ownerRef,
+        EntityId npcId,
+        DespawnCommitDecorator decorator
+    )throws Exception{
         EntityId checkedId=
             Objects.requireNonNull(
                 npcId,
                 "npcId"
+            );
+        DespawnCommitDecorator checkedDecorator=
+            Objects.requireNonNull(
+                decorator,
+                "decorator"
             );
         final MonsterSpawnerService.SessionSnapshot[]
             session={null};
@@ -242,7 +267,10 @@ final class MonsterSpawnerCombatBindingService {
                                             checkedId,
                                             ()->
                                                 committed[0]=
-                                                    commit.commit()
+                                                    checkedDecorator.commit(
+                                                        npc,
+                                                        commit
+                                                    )
                                         );
 
                                 if(binding==null)
