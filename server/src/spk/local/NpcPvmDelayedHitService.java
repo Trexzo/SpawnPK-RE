@@ -264,27 +264,6 @@ final class NpcPvmDelayedHitService {
                 "damageFormula"
             );
 
-        long scheduledFromTick=
-            world.clock().tick();
-
-        final long dueTick;
-
-        try{
-            dueTick=
-                Math.addExact(
-                    scheduledFromTick,
-                    (long)delayTicks
-                );
-        }catch(ArithmeticException overflow){
-            throw new IllegalStateException(
-                "delayed PvM hit tick overflow tick="+
-                scheduledFromTick+
-                " delay="+
-                delayTicks,
-                overflow
-            );
-        }
-
         final Snapshot[] result=
             new Snapshot[1];
 
@@ -310,81 +289,105 @@ final class NpcPvmDelayedHitService {
                                             checkedTarget.id
                                         );
 
-                                    Entry entry;
+                                    world.withClockEventPublicationOwnership(
+                                        scheduledFromTick->{
+                                            final long dueTick;
 
-                                    synchronized(this){
-                                        HitId id=
-                                            new HitId(
-                                                nextId()
-                                            );
-
-                                        entry=
-                                            new Entry(
-                                                id,
-                                                checkedAttacker,
-                                                attackerGeneration,
-                                                checkedTarget,
-                                                resolvedDamage,
-                                                scheduledFromTick,
-                                                dueTick,
-                                                checkedDamageAuthority,
-                                                checkedDamageFormula,
-                                                deliveryAuthority,
-                                                deliveryPolicy
-                                            );
-
-                                        entries.put(
-                                            id,
-                                            entry
-                                        );
-                                    }
-
-                                    WorldEventQueue.Handle handle;
-
-                                    try{
-                                        handle=
-                                            world.events()
-                                                .schedule(
-                                                    dueTick,
-                                                    ()->
-                                                        deliverFromWorldEvent(
-                                                            entry.hitId
-                                                        )
+                                            try{
+                                                dueTick=
+                                                    Math.addExact(
+                                                        scheduledFromTick,
+                                                        (long)delayTicks
+                                                    );
+                                            }catch(
+                                                ArithmeticException overflow
+                                            ){
+                                                throw new IllegalStateException(
+                                                    "delayed PvM hit tick overflow tick="+
+                                                    scheduledFromTick+
+                                                    " delay="+
+                                                    delayTicks,
+                                                    overflow
                                                 );
-                                    }catch(Throwable failure){
-                                        synchronized(this){
-                                            entries.remove(
-                                                entry.hitId,
-                                                entry
-                                            );
+                                            }
+
+                                            Entry entry;
+
+                                            synchronized(this){
+                                                HitId id=
+                                                    new HitId(
+                                                        nextId()
+                                                    );
+
+                                                entry=
+                                                    new Entry(
+                                                        id,
+                                                        checkedAttacker,
+                                                        attackerGeneration,
+                                                        checkedTarget,
+                                                        resolvedDamage,
+                                                        scheduledFromTick,
+                                                        dueTick,
+                                                        checkedDamageAuthority,
+                                                        checkedDamageFormula,
+                                                        deliveryAuthority,
+                                                        deliveryPolicy
+                                                    );
+
+                                                entries.put(
+                                                    id,
+                                                    entry
+                                                );
+                                            }
+
+                                            WorldEventQueue.Handle handle;
+
+                                            try{
+                                                handle=
+                                                    world.events()
+                                                        .schedule(
+                                                            dueTick,
+                                                            ()->
+                                                                deliverFromWorldEvent(
+                                                                    entry.hitId
+                                                                )
+                                                        );
+                                            }catch(Throwable failure){
+                                                synchronized(this){
+                                                    entries.remove(
+                                                        entry.hitId,
+                                                        entry
+                                                    );
+                                                }
+                                                rethrowUnchecked(
+                                                    failure
+                                                );
+                                                return;
+                                            }
+
+                                            boolean cancelHandle=false;
+
+                                            synchronized(this){
+                                                Entry current=
+                                                    entries.get(
+                                                        entry.hitId
+                                                    );
+
+                                                if(current==entry&&
+                                                   entry.state==
+                                                        State.SCHEDULED)
+                                                    entry.handle=handle;
+                                                else
+                                                    cancelHandle=true;
+
+                                                result[0]=
+                                                    entry.snapshot();
+                                            }
+
+                                            if(cancelHandle)
+                                                handle.cancel();
                                         }
-                                        rethrowUnchecked(
-                                            failure
-                                        );
-                                        return;
-                                    }
-
-                                    boolean cancelHandle=false;
-
-                                    synchronized(this){
-                                        Entry current=
-                                            entries.get(
-                                                entry.hitId
-                                            );
-
-                                        if(current==entry&&
-                                           entry.state==
-                                                State.SCHEDULED)
-                                            entry.handle=handle;
-                                        else
-                                            cancelHandle=true;
-
-                                        result[0]=
-                                            entry.snapshot();
-                                    }
-
-                                    if(cancelHandle)
-                                        handle.cancel();
+                                    );
                                 }
                             );
 
