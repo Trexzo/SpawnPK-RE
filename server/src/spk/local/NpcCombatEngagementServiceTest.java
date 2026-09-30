@@ -525,7 +525,7 @@ public final class NpcCombatEngagementServiceTest {
     private static void cancelOwnershipLinearized()throws Exception{
         Fixture f=new Fixture("engage-owned-cancel");
         ExecutorService workers=
-            Executors.newFixedThreadPool(2);
+            Executors.newFixedThreadPool(3);
 
         try{
             NpcCombatEngagementService service=
@@ -545,34 +545,81 @@ public final class NpcCombatEngagementServiceTest {
             Map<EntityId,Object> engagements=
                 engagementMap(service);
 
+            CountDownLatch blockerEntered=
+                new CountDownLatch(1);
+            CountDownLatch releaseBlocker=
+                new CountDownLatch(1);
+
+            Future<Boolean> blocker=
+                workers.submit(
+                    ()->
+                        f.world.npcs()
+                            .withCurrentMutationOwnershipIfCurrent(
+                                f.npc,
+                                ()->{
+                                    blockerEntered.countDown();
+
+                                    require(
+                                        releaseBlocker.await(
+                                            5L,
+                                            TimeUnit.SECONDS
+                                        ),
+                                        "cancel ownership blocker release"
+                                    );
+                                }
+                            )
+                );
+
+            require(
+                blockerEntered.await(
+                    5L,
+                    TimeUnit.SECONDS
+                ),
+                "cancel ownership blocker entry"
+            );
+
             AtomicReference<Thread> cancelThread=
                 new AtomicReference<>();
             CountDownLatch cancelStarted=
                 new CountDownLatch(1);
 
-            Future<Boolean> cancel;
+            Future<Boolean> cancel=
+                workers.submit(
+                    ()->{
+                        cancelThread.set(
+                            Thread.currentThread()
+                        );
+                        cancelStarted.countDown();
 
+                        return service.cancel(
+                            f.npc
+                        );
+                    }
+                );
+
+            require(
+                cancelStarted.await(
+                    5L,
+                    TimeUnit.SECONDS
+                ),
+                "cancel worker start"
+            );
+
+            /*
+             * Cancel has completed its idempotency precheck and is queued on
+             * NPC mutation ownership held by blocker. Taking the engagement
+             * monitor now lets us release that blocker and force cancel to
+             * acquire NPC ownership before it blocks at the final removal.
+             */
             synchronized(engagements){
-                cancel=
-                    workers.submit(
-                        ()->{
-                            cancelThread.set(
-                                Thread.currentThread()
-                            );
-                            cancelStarted.countDown();
-
-                            return service.cancel(
-                                f.npc
-                            );
-                        }
-                    );
+                releaseBlocker.countDown();
 
                 require(
-                    cancelStarted.await(
+                    blocker.get(
                         5L,
                         TimeUnit.SECONDS
                     ),
-                    "cancel worker start"
+                    "cancel ownership blocker rejected"
                 );
 
                 awaitBlocked(
