@@ -26,6 +26,9 @@ public final class DuelSessionServiceTest {
             "drawSupported=true "+
             "completionClosesInstance=true "+
             "cancellationClosesInstance=true "+
+            "durableChildOwnership=true "+
+            "directChildTerminalBlocked=true "+
+            "directInstanceTopologyBlocked=true "+
             "participantIndexReleased=true "+
             "stakeMutation=false "+
             "rewardMutation=false "+
@@ -150,6 +153,52 @@ public final class DuelSessionServiceTest {
             "Duel active composition"
         );
 
+        require(
+            matches.terminalHoldCount(
+                matchId
+            )==1&&
+            instances.structuralHoldCount(
+                instanceId
+            )==1,
+            "Duel child ownership not retained"
+        );
+
+        expect(
+            IllegalStateException.class,
+            ()->matches.complete(
+                matchId,
+                new MatchSession.Result(
+                    "external_complete",
+                    active.challengerTeamId,
+                    "LOCAL_LAB_POLICY"
+                )
+            ),
+            "direct Duel MatchSession completion"
+        );
+        expect(
+            IllegalStateException.class,
+            ()->matches.cancel(
+                matchId,
+                "external_cancel"
+            ),
+            "direct Duel MatchSession cancellation"
+        );
+        expect(
+            IllegalStateException.class,
+            ()->instances.detach(
+                instanceId,
+                "player:a"
+            ),
+            "direct Duel instance detach"
+        );
+        expect(
+            IllegalStateException.class,
+            ()->instances.beginClosing(
+                instanceId
+            ),
+            "direct Duel instance close admission"
+        );
+
         service.adjustParticipantScore(
             id,
             "player:a",
@@ -232,6 +281,12 @@ public final class DuelSessionServiceTest {
             closed.lifecycle==
                 WorldInstanceService.Lifecycle.CLOSED&&
             closed.participants.isEmpty()&&
+            matches.terminalHoldCount(
+                matchId
+            )==0&&
+            instances.structuralHoldCount(
+                instanceId
+            )==0&&
             service.openFor(
                 "player:a"
             )==null&&
