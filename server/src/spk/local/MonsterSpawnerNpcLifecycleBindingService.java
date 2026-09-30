@@ -107,6 +107,19 @@ final class MonsterSpawnerNpcLifecycleBindingService {
             );
     }
 
+    boolean isBoundTo(
+        World expectedWorld,
+        MonsterSpawnerCombatBindingService expectedCombat
+    ){
+        return world==expectedWorld&&
+            combat==expectedCombat&&
+            lifecycle==expectedWorld.npcLifecycle();
+    }
+
+    MonsterSpawnerCombatBindingService combatAuthority(){
+        return combat;
+    }
+
     Result spawnBindAndRegister(
         String ownerRef,
         int x,
