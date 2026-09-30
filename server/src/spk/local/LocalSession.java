@@ -45,6 +45,7 @@ final class LocalSession implements Runnable {
     private final LocalRoutedNpcInteractionHandler routedNpcHandler;
     private final LocalGenericInteractionHandler genericInteractionHandler;
     private final LocalPlayerInteractionHandler playerInteractions;
+    private final LocalCanonicalNpcAttackHandler canonicalNpcAttack;
     private final LocalEquipmentItemActionHandler equipmentItemActions;
     private final LocalPetInventoryDialogHandler petDialogs;
     private final LocalCompCapeCustomizeHandler compCapeCustomize;
@@ -170,6 +171,15 @@ final class LocalSession implements Runnable {
             equipment,
             ()->LocalSession.this.worldPlayerGeneration
         );
+        this.canonicalNpcAttack=
+            new LocalCanonicalNpcAttackHandler(
+                world,
+                worldPlayer,
+                ()->LocalSession.this.worldPlayerGeneration,
+                equipment,
+                combatStyles,
+                npcs
+            );
         this.equipmentItemActions = new LocalEquipmentItemActionHandler(
             bank,equipment,playerState,playerPresentation,combatStyles);
         this.petDialogs = new LocalPetInventoryDialogHandler(
@@ -731,6 +741,21 @@ final class LocalSession implements Runnable {
                     LocalSession.this.handleRegionLoadAck(
                         tag
                     );
+                }
+
+                @Override public LocalCanonicalNpcAttackHandler.Result
+                    handleCanonicalNpcAttack(
+                        NpcAction action,
+                        NpcEntity clicked,
+                        ServerPacketWriter writer
+                    )throws IOException{
+                    return LocalSession.this
+                        .canonicalNpcAttack
+                        .handle(
+                            action,
+                            clicked,
+                            writer
+                        );
                 }
 
                 @Override public void handleDevPanelAmount(
