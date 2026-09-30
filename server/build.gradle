@@ -4901,7 +4901,19 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
     }
 }
 
+tasks.register('pvpHotspotServiceRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves PvP Hotspot semantic presence and caller-validated kill counters without reward, teleport, multiplier, or protocol ownership.'
+    dependsOn tasks.named('testClasses')
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.PvpHotspotServiceTest'
+}
+
+
 tasks.named('check') {
+    dependsOn tasks.named('pvpHotspotServiceRegression')
     dependsOn tasks.named('issue9LauncherContractRegression')
     dependsOn tasks.named('chat1CumulativeWrapperContractRegression')
     dependsOn tasks.named('chat1CurrentCumulativeServerIdentityRegression')
