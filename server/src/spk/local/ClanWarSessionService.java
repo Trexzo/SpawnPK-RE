@@ -125,6 +125,8 @@ final class ClanWarSessionService {
 
         Lifecycle lifecycle=
             Lifecycle.ACTIVE;
+        MatchSessionService.CompositionLease
+            childLease;
 
         Entry(
             ClanWarChallenge.Snapshot challenge,
@@ -410,14 +412,15 @@ final class ClanWarSessionService {
                 entry.matchId
             );
 
-            matches.acquireWorldInstanceCompositionLease(
-                instances,
-                entry.matchId,
-                entry.instanceId,
-                childLeaseKey(
-                    entry.matchId
-                )
-            );
+            entry.childLease=
+                matches.acquireWorldInstanceCompositionLease(
+                    instances,
+                    entry.matchId,
+                    entry.instanceId,
+                    childLeaseLabel(
+                        entry.matchId
+                    )
+                );
     
     
             }
@@ -494,10 +497,11 @@ final class ClanWarSessionService {
                     instances,
                     entry.matchId,
                     entry.instanceId,
-                    childLeaseKey(
-                        entry.matchId
+                    requireChildLease(
+                        entry
                     )
                 );
+                entry.childLease=null;
 
                 matches.complete(
                     entry.matchId,
@@ -539,10 +543,11 @@ final class ClanWarSessionService {
                     instances,
                     entry.matchId,
                     entry.instanceId,
-                    childLeaseKey(
-                        entry.matchId
+                    requireChildLease(
+                        entry
                     )
                 );
+                entry.childLease=null;
 
                 matches.cancel(
                     entry.matchId,
@@ -679,7 +684,7 @@ final class ClanWarSessionService {
         );
     }
 
-    private static String childLeaseKey(
+    private static String childLeaseLabel(
         MatchId matchId
     ){
         return "clan-war:"+
@@ -687,6 +692,19 @@ final class ClanWarSessionService {
                 matchId,
                 "matchId"
             );
+    }
+
+    private static MatchSessionService.CompositionLease
+        requireChildLease(
+            Entry entry
+        ){
+        if(entry.childLease==null)
+            throw new IllegalStateException(
+                "Clan War child lease missing "+
+                entry.matchId
+            );
+
+        return entry.childLease;
     }
 
     private void preflightOwnedInstance(
