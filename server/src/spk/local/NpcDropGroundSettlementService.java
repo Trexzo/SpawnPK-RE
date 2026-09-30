@@ -137,6 +137,7 @@ final class NpcDropGroundSettlementService {
         }
     }
 
+    private final World world;
     private final GroundItemRegistry groundItems;
     private final String settlementAuthority;
     private final String settlementPolicy;
@@ -158,6 +159,7 @@ final class NpcDropGroundSettlementService {
                 "world"
             );
 
+        this.world=checkedWorld;
         this.groundItems=
             checkedWorld.groundItems();
         this.settlementAuthority=
@@ -220,6 +222,8 @@ final class NpcDropGroundSettlementService {
         ArrayList<GroundItemRegistry.AddRequest>
             requests=
                 new ArrayList<>();
+        ArrayList<Integer> oldAmounts=
+            new ArrayList<>();
 
         for(NpcDropResolutionService.Drop drop:
                 checked.drops){
@@ -228,6 +232,23 @@ final class NpcDropGroundSettlementService {
                     drop,
                     "drop"
                 );
+
+            GroundItem existingStack=
+                groundItems.findOwned(
+                    row.itemId,
+                    checked.context.deathTile.x,
+                    checked.context.deathTile.y,
+                    checked.context.deathTile.plane,
+                    checked.context.recipientRef
+                );
+
+            oldAmounts.add(
+                existingStack==null
+                    ?null
+                    :Integer.valueOf(
+                        existingStack.amount
+                    )
+            );
 
             requests.add(
                 new GroundItemRegistry.AddRequest(
@@ -288,7 +309,64 @@ final class NpcDropGroundSettlementService {
             receipt
         );
 
+        publishLiveOwnerScene(
+            checked,
+            materialized,
+            oldAmounts
+        );
+
         return receipt;
+    }
+
+    private void publishLiveOwnerScene(
+        NpcDropResolutionService.Resolution resolution,
+        List<GroundItem> materialized,
+        List<Integer> oldAmounts
+    ){
+        WorldPlayer recipient=
+            world.players().byName(
+                resolution.context.recipientRef
+            );
+
+        if(recipient==null)
+            return;
+
+        long generation=
+            recipient.generation();
+
+        if(!world.players().owns(
+                recipient,
+                generation
+            ))
+            return;
+
+        long now=
+            System.currentTimeMillis();
+
+        for(int i=0;i<materialized.size();i++){
+            GroundItem item=
+                materialized.get(i);
+            Integer oldAmount=
+                oldAmounts.get(i);
+
+            if(oldAmount==null)
+                world.groundItemPresentationEvents()
+                    .enqueueSpawn(
+                        now,
+                        item,
+                        recipient,
+                        generation
+                    );
+            else
+                world.groundItemPresentationEvents()
+                    .enqueueAmount(
+                        now,
+                        item,
+                        oldAmount.intValue(),
+                        recipient,
+                        generation
+                    );
+        }
     }
 
     synchronized Receipt get(
