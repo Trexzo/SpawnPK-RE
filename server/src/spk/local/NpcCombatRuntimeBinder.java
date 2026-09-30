@@ -485,17 +485,46 @@ final class NpcCombatRuntimeBinder {
                 checkedCommit.run();
             }catch(Throwable primary){
                 if(detached){
-                    try{
-                        world.attachNpcTickTarget(
-                            entry.attacker,
-                            entry.tickTarget
-                        );
-                        detached=false;
-                    }catch(Throwable rollbackFailure){
-                        if(rollbackFailure!=primary)
-                            primary.addSuppressed(
-                                rollbackFailure
+                    if(world.npcs().byId(
+                            checked
+                        )==entry.attacker){
+                        try{
+                            world.attachNpcTickTarget(
+                                entry.attacker,
+                                entry.tickTarget
                             );
+                            detached=false;
+                        }catch(Throwable rollbackFailure){
+                            if(rollbackFailure!=primary)
+                                primary.addSuppressed(
+                                    rollbackFailure
+                                );
+                        }
+                    }else{
+                        /*
+                         * The commit crossed the irreversible canonical-removal
+                         * boundary before failing. Reattaching the tick target is
+                         * no longer a valid rollback because attach requires the
+                         * exact canonical WorldNpc. Terminalize the exact binding
+                         * instead so a removed NPC cannot retain published combat
+                         * runtime state.
+                         */
+                        synchronized(this){
+                            if(bindings.get(
+                                    checked
+                                )==entry)
+                                bindings.remove(
+                                    checked
+                                );
+                            else
+                                primary.addSuppressed(
+                                    new IllegalStateException(
+                                        "NPC combat runtime binding identity changed after canonical removal id="+
+                                        checked
+                                    )
+                                );
+                        }
+                        detached=false;
                     }
                 }
 
