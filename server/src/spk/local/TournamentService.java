@@ -331,21 +331,34 @@ final class TournamentService {
             events.registerWithCompositionOwnership(
                 checkedDefinition,
                 ()->{
+                    Snapshot created=
+                        snapshotOf(
+                            entry
+                        );
                     tournaments.put(
                         entry.eventId,
                         entry
                     );
-                    result[0]=
-                        snapshotOf(
-                            entry
-                        );
+                    result[0]=created;
                 }
             );
         }catch(RuntimeException failure){
+            tournaments.remove(
+                entry.eventId,
+                entry
+            );
             throw failure;
         }catch(Error failure){
+            tournaments.remove(
+                entry.eventId,
+                entry
+            );
             throw failure;
         }catch(Exception failure){
+            tournaments.remove(
+                entry.eventId,
+                entry
+            );
             throw new IllegalStateException(
                 "unexpected Tournament GlobalEvent registration ownership failure",
                 failure
