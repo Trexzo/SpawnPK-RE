@@ -471,6 +471,15 @@ final class DuelSessionService {
             matches.activate(
                 checkedMatchId
             );
+
+            matches.acquireWorldInstanceCompositionLease(
+                instances,
+                checkedMatchId,
+                checkedInstanceId,
+                childLeaseKey(
+                    checkedMatchId
+                )
+            );
     
     
             }
@@ -603,16 +612,26 @@ final class DuelSessionService {
         withCompositionOwnership(
             ()->{
                 preflightOwnedInstance(entry);
+
+                matches.releaseWorldInstanceCompositionLease(
+                    instances,
+                    entry.matchId,
+                    entry.instanceId,
+                    childLeaseKey(
+                        entry.matchId
+                    )
+                );
+
                 matches.complete(
                     entry.matchId,
                     result
                 );
                 closeOwnedInstance(entry);
+
+                entry.state=State.COMPLETED;
+                releaseParticipants(entry);
             }
         );
-
-        entry.state=State.COMPLETED;
-        releaseParticipants(entry);
 
         return entry.snapshot();
     }
@@ -627,20 +646,35 @@ final class DuelSessionService {
                 State.ACTIVE,
                 "cancelActive"
             );
+        String reason=
+            MatchRules.normalizeKey(
+                reasonKey,
+                "reasonKey"
+            );
 
         withCompositionOwnership(
             ()->{
                 preflightOwnedInstance(entry);
+
+                matches.releaseWorldInstanceCompositionLease(
+                    instances,
+                    entry.matchId,
+                    entry.instanceId,
+                    childLeaseKey(
+                        entry.matchId
+                    )
+                );
+
                 matches.cancel(
                     entry.matchId,
-                    reasonKey
+                    reason
                 );
                 closeOwnedInstance(entry);
+
+                entry.state=State.CANCELLED;
+                releaseParticipants(entry);
             }
         );
-
-        entry.state=State.CANCELLED;
-        releaseParticipants(entry);
 
         return entry.snapshot();
     }
@@ -707,6 +741,16 @@ final class DuelSessionService {
         return Collections.unmodifiableList(
             out
         );
+    }
+
+    private static String childLeaseKey(
+        MatchId matchId
+    ){
+        return "duel:"+
+            Objects.requireNonNull(
+                matchId,
+                "matchId"
+            );
     }
 
     private void preflightOwnedInstance(
