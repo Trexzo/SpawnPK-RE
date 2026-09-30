@@ -409,6 +409,15 @@ final class ClanWarSessionService {
             matches.activate(
                 entry.matchId
             );
+
+            matches.acquireWorldInstanceCompositionLease(
+                instances,
+                entry.matchId,
+                entry.instanceId,
+                childLeaseKey(
+                    entry.matchId
+                )
+            );
     
     
             }
@@ -480,6 +489,16 @@ final class ClanWarSessionService {
                 preflightOwnedInstance(
                     entry
                 );
+
+                matches.releaseWorldInstanceCompositionLease(
+                    instances,
+                    entry.matchId,
+                    entry.instanceId,
+                    childLeaseKey(
+                        entry.matchId
+                    )
+                );
+
                 matches.complete(
                     entry.matchId,
                     result
@@ -487,11 +506,11 @@ final class ClanWarSessionService {
                 closeOwnedInstance(
                     entry
                 );
+
+                entry.lifecycle=
+                    Lifecycle.COMPLETED;
             }
         );
-
-        entry.lifecycle=
-            Lifecycle.COMPLETED;
 
         return entry.snapshot();
     }
@@ -504,24 +523,39 @@ final class ClanWarSessionService {
             requireActive(
                 challengeId
             );
+        String reason=
+            MatchRules.normalizeKey(
+                reasonKey,
+                "reasonKey"
+            );
 
         withCompositionOwnership(
             ()->{
                 preflightOwnedInstance(
                     entry
                 );
+
+                matches.releaseWorldInstanceCompositionLease(
+                    instances,
+                    entry.matchId,
+                    entry.instanceId,
+                    childLeaseKey(
+                        entry.matchId
+                    )
+                );
+
                 matches.cancel(
                     entry.matchId,
-                    reasonKey
+                    reason
                 );
                 closeOwnedInstance(
                     entry
                 );
+
+                entry.lifecycle=
+                    Lifecycle.CANCELLED;
             }
         );
-
-        entry.lifecycle=
-            Lifecycle.CANCELLED;
 
         return entry.snapshot();
     }
@@ -643,6 +677,16 @@ final class ClanWarSessionService {
             "clan not part of Clan War "+
             checked
         );
+    }
+
+    private static String childLeaseKey(
+        MatchId matchId
+    ){
+        return "clan-war:"+
+            Objects.requireNonNull(
+                matchId,
+                "matchId"
+            );
     }
 
     private void preflightOwnedInstance(
