@@ -161,6 +161,17 @@ final class MonsterSpawnerService {
         void run(WorldNpc npc) throws Exception;
     }
 
+    interface TrackedNpcDespawnCommit {
+        SessionSnapshot commit() throws Exception;
+    }
+
+    interface TrackedNpcDespawnAction {
+        SessionSnapshot run(
+            WorldNpc npc,
+            TrackedNpcDespawnCommit commit
+        ) throws Exception;
+    }
+
     private static final class Session {
         final String ownerRef;
         final String policyAuthority;
@@ -639,12 +650,41 @@ final class MonsterSpawnerService {
         String ownerRef,
         EntityId npcId
     ){
+        try{
+            return despawnTrackedComposed(
+                ownerRef,
+                npcId,
+                (npc,commit)->
+                    commit.commit()
+            );
+        }catch(RuntimeException failure){
+            throw failure;
+        }catch(Error failure){
+            throw failure;
+        }catch(Exception failure){
+            throw new IllegalStateException(
+                "unexpected Monster Spawner composed despawn failure",
+                failure
+            );
+        }
+    }
+
+    synchronized SessionSnapshot despawnTrackedComposed(
+        String ownerRef,
+        EntityId npcId,
+        TrackedNpcDespawnAction action
+    )throws Exception{
         Session session=
             requireSession(ownerRef);
         EntityId id=
             Objects.requireNonNull(
                 npcId,
                 "npcId"
+            );
+        TrackedNpcDespawnAction checkedAction=
+            Objects.requireNonNull(
+                action,
+                "action"
             );
 
         WorldNpc tracked=
@@ -657,45 +697,96 @@ final class MonsterSpawnerService {
                 " id="+id
             );
 
-        try{
-            boolean owned=
-                npcs.withCurrentMutationOwnershipIfCurrent(
-                    tracked,
-                    ()->{
-                        if(!npcs.remove(id))
-                            throw new IllegalStateException(
-                                "tracked Monster Spawner NPC disappeared during owned removal "+
+        final boolean[] committed={false};
+        final SessionSnapshot[] result={null};
+
+        TrackedNpcDespawnCommit commit=
+            ()->{
+                if(committed[0])
+                    throw new IllegalStateException(
+                        "Monster Spawner despawn commit already used "+
+                        id
+                    );
+
+                final SessionSnapshot[] committedSnapshot=
+                    new SessionSnapshot[1];
+
+                boolean owned=
+                    npcs.withCurrentMutationOwnershipIfCurrent(
+                        tracked,
+                        ()->{
+                            WorldNpc current=
+                                session.spawnedNpcs.get(
+                                    id
+                                );
+
+                            if(current!=tracked)
+                                throw new IllegalStateException(
+                                    "Monster Spawner tracked NPC identity drifted "+
+                                    id
+                                );
+
+                            /*
+                             * Prevalidate everything that can fail before the
+                             * two terminal mutations. Under the service monitor
+                             * the tracked map cannot change until both complete.
+                             */
+                            if(npcs.byId(id)!=tracked)
+                                throw new IllegalStateException(
+                                    "Monster Spawner canonical NPC identity drifted "+
+                                    id
+                                );
+
+                            if(!npcs.remove(id))
+                                throw new IllegalStateException(
+                                    "tracked Monster Spawner NPC disappeared during owned removal "+
+                                    id
+                                );
+
+                            session.spawnedNpcs.remove(
                                 id
                             );
 
-                        WorldNpc removed=
-                            session.spawnedNpcs.remove(id);
+                            committedSnapshot[0]=
+                                snapshotOf(session);
+                        }
+                    );
 
-                        if(removed!=tracked)
-                            throw new IllegalStateException(
-                                "Monster Spawner tracked NPC identity drifted "+
-                                id
-                            );
-                    }
-                );
+                if(!owned)
+                    throw new IllegalStateException(
+                        "tracked Monster Spawner NPC is no longer exact canonical registry owner "+
+                        id
+                    );
 
-            if(!owned)
-                throw new IllegalStateException(
-                    "tracked Monster Spawner NPC is no longer exact canonical registry owner "+
-                    id
-                );
-        }catch(RuntimeException failure){
-            throw failure;
-        }catch(Error failure){
-            throw failure;
-        }catch(Exception failure){
-            throw new IllegalStateException(
-                "unexpected Monster Spawner despawn ownership failure",
-                failure
+                committed[0]=true;
+                result[0]=
+                    Objects.requireNonNull(
+                        committedSnapshot[0],
+                        "despawn committed snapshot"
+                    );
+
+                return result[0];
+            };
+
+        SessionSnapshot actionResult=
+            checkedAction.run(
+                tracked,
+                commit
             );
-        }
 
-        return snapshotOf(session);
+        if(!committed[0])
+            throw new IllegalStateException(
+                "Monster Spawner despawn action returned without canonical commit "+
+                id
+            );
+
+        if(actionResult==null)
+            actionResult=result[0];
+
+        return Objects.requireNonNull(
+            actionResult,
+            "despawn action result"
+        );
     }
 
     synchronized SessionSnapshot getSession(
