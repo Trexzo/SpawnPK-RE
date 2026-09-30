@@ -57,6 +57,7 @@ final class WorldInstanceService {
             new LinkedHashSet<>();
 
         Lifecycle lifecycle=Lifecycle.CREATED;
+        String compositionLeaseKey;
 
         Instance(
             WorldInstanceId id,
@@ -85,6 +86,99 @@ final class WorldInstanceService {
             "action"
         );
         action.run();
+    }
+
+    synchronized void requireCompositionLeaseAvailable(
+        WorldInstanceId instanceId
+    ){
+        Instance instance=
+            require(
+                instanceId
+            );
+
+        if(instance.lifecycle!=Lifecycle.ACTIVE)
+            throw new IllegalStateException(
+                "composition lease requires ACTIVE instance "+
+                instance.id+
+                " lifecycle="+
+                instance.lifecycle
+            );
+
+        requireNoCompositionLease(
+            instance,
+            "acquireCompositionLease"
+        );
+    }
+
+    synchronized void acquireCompositionLease(
+        WorldInstanceId instanceId,
+        String leaseKey
+    ){
+        Instance instance=
+            require(
+                instanceId
+            );
+        String key=
+            requireCompositionLeaseKey(
+                leaseKey
+            );
+
+        requireCompositionLeaseAvailable(
+            instance.id
+        );
+        instance.compositionLeaseKey=
+            key;
+    }
+
+    synchronized void requireCompositionLease(
+        WorldInstanceId instanceId,
+        String leaseKey
+    ){
+        Instance instance=
+            require(
+                instanceId
+            );
+        String key=
+            requireCompositionLeaseKey(
+                leaseKey
+            );
+
+        if(!Objects.equals(
+                instance.compositionLeaseKey,
+                key))
+            throw new IllegalStateException(
+                "composition lease mismatch instance="+
+                instance.id+
+                " expected="+
+                instance.compositionLeaseKey+
+                " actual="+
+                key
+            );
+    }
+
+    synchronized void releaseCompositionLease(
+        WorldInstanceId instanceId,
+        String leaseKey
+    ){
+        Instance instance=
+            require(
+                instanceId
+            );
+
+        requireCompositionLease(
+            instance.id,
+            leaseKey
+        );
+        instance.compositionLeaseKey=
+            null;
+    }
+
+    synchronized boolean compositionLeaseHeld(
+        WorldInstanceId instanceId
+    ){
+        return require(
+            instanceId
+        ).compositionLeaseKey!=null;
     }
 
     synchronized Snapshot create(
@@ -121,6 +215,11 @@ final class WorldInstanceService {
                 participantRef
             );
 
+        requireNoCompositionLease(
+            instance,
+            "attach"
+        );
+
         if(instance.lifecycle!=Lifecycle.CREATED&&
            instance.lifecycle!=Lifecycle.ACTIVE)
             throw new IllegalStateException(
@@ -146,6 +245,11 @@ final class WorldInstanceService {
             PartyService.requireRef(
                 participantRef
             );
+
+        requireNoCompositionLease(
+            instance,
+            "detach"
+        );
 
         if(instance.lifecycle==Lifecycle.CLOSED)
             throw new IllegalStateException(
@@ -174,6 +278,11 @@ final class WorldInstanceService {
     synchronized Snapshot beginClosing(WorldInstanceId id){
         Instance instance=require(id);
 
+        requireNoCompositionLease(
+            instance,
+            "beginClosing"
+        );
+
         if(instance.lifecycle==Lifecycle.CLOSING)
             return instance.snapshot();
 
@@ -186,6 +295,11 @@ final class WorldInstanceService {
 
     synchronized Snapshot close(WorldInstanceId id){
         Instance instance=require(id);
+
+        requireNoCompositionLease(
+            instance,
+            "close"
+        );
 
         if(instance.lifecycle==Lifecycle.CLOSED)
             return instance.snapshot();
@@ -233,6 +347,39 @@ final class WorldInstanceService {
             out.add(instance.snapshot());
 
         return Collections.unmodifiableList(out);
+    }
+
+    private static void requireNoCompositionLease(
+        Instance instance,
+        String operation
+    ){
+        if(instance.compositionLeaseKey!=null)
+            throw new IllegalStateException(
+                operation+
+                " blocked by composition lease instance="+
+                instance.id+
+                " lease="+
+                instance.compositionLeaseKey
+            );
+    }
+
+    private static String requireCompositionLeaseKey(
+        String value
+    ){
+        if(value==null)
+            throw new NullPointerException(
+                "leaseKey"
+            );
+
+        String normalized=
+            value.trim();
+
+        if(normalized.isEmpty())
+            throw new IllegalArgumentException(
+                "leaseKey blank"
+            );
+
+        return normalized;
     }
 
     private Instance require(WorldInstanceId id){
