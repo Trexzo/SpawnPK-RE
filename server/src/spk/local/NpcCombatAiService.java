@@ -159,7 +159,7 @@ final class NpcCombatAiService {
 
         final NpcLifecycleService.Snapshot[] lifecycle={null};
 
-        boolean attackerCurrent=
+        boolean canonicalAttackerCurrent=
             world.npcs()
                 .withCurrentMutationOwnershipIfCurrent(
                     checked,
@@ -171,7 +171,7 @@ final class NpcCombatAiService {
                                 )
                 );
 
-        if(!attackerCurrent)
+        if(!canonicalAttackerCurrent)
             return result(
                 Status.STALE_ATTACKER,
                 null,
