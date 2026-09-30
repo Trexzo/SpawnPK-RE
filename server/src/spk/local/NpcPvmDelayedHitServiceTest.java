@@ -18,6 +18,7 @@ public final class NpcPvmDelayedHitServiceTest {
         alreadyDeadDoesNotDuplicateDeath();
         zeroDamageDelivered();
         scheduleOwnershipAndLockOrder();
+        scheduleTickQueueAtomic();
         overflowAtomic();
         terminalRetirement();
         authorityAndBoundary();
@@ -28,6 +29,7 @@ public final class NpcPvmDelayedHitServiceTest {
             "exactAttackerGeneration=true "+
             "exactTargetObject=true "+
             "lockOrderPlayerThenNpc=true "+
+            "scheduleTickQueueAtomic=true "+
             "positiveDelay=true "+
             "overflowAtomic=true "+
             "noEarlyDamage=true "+
@@ -760,6 +762,159 @@ public final class NpcPvmDelayedHitServiceTest {
                     NpcPvmDelayedHitService.State.STALE_ATTACKER&&
                 f.hp()==20,
                 "post-schedule stale attacker"
+            );
+        }finally{
+            releaseNpcLock.countDown();
+            workers.shutdownNow();
+            workers.awaitTermination(
+                5L,
+                TimeUnit.SECONDS
+            );
+            f.close();
+        }
+    }
+
+    private static void scheduleTickQueueAtomic()
+        throws Exception{
+        Fixture f=
+            new Fixture(
+                "delayed-publication-tick",
+                30
+            );
+        ExecutorService workers=
+            Executors.newFixedThreadPool(2);
+        CountDownLatch npcLockHeld=
+            new CountDownLatch(1);
+        CountDownLatch releaseNpcLock=
+            new CountDownLatch(1);
+        AtomicReference<Thread> scheduleThread=
+            new AtomicReference<>();
+
+        try{
+            Future<Boolean> blocker=
+                workers.submit(
+                    ()->f.world.npcs()
+                        .withCurrentMutationOwnershipIfCurrent(
+                            f.npc,
+                            ()->{
+                                npcLockHeld.countDown();
+
+                                if(!releaseNpcLock.await(
+                                        5L,
+                                        TimeUnit.SECONDS))
+                                    throw new AssertionError(
+                                        "publication NPC lock release timeout"
+                                    );
+                            }
+                        )
+                );
+
+            require(
+                npcLockHeld.await(
+                    5L,
+                    TimeUnit.SECONDS
+                ),
+                "publication NPC ownership blocker start"
+            );
+
+            NpcPvmDelayedHitService service=
+                f.service();
+
+            Future<NpcPvmDelayedHitService.Snapshot> scheduled=
+                workers.submit(
+                    ()->{
+                        scheduleThread.set(
+                            Thread.currentThread()
+                        );
+
+                        return service.schedule(
+                            f.player,
+                            f.generation,
+                            f.npc,
+                            6,
+                            2,
+                            "TEST_DAMAGE",
+                            "PUBLICATION_TICK"
+                        );
+                    }
+                );
+
+            awaitBlocked(
+                scheduleThread,
+                "schedule did not block before publication tick"
+            );
+
+            require(
+                f.world.clock().advance()==1L&&
+                f.world.clock().advance()==2L&&
+                f.world.clock().advance()==3L,
+                "authoritative clock advance while scheduling blocked"
+            );
+
+            require(
+                f.world.events().size()==0&&
+                f.hp()==30,
+                "blocked schedule published stale event"
+            );
+
+            releaseNpcLock.countDown();
+
+            require(
+                blocker.get(
+                    5L,
+                    TimeUnit.SECONDS
+                ),
+                "publication NPC blocker lost ownership"
+            );
+
+            NpcPvmDelayedHitService.Snapshot hit=
+                scheduled.get(
+                    5L,
+                    TimeUnit.SECONDS
+                );
+
+            require(
+                hit.state==
+                    NpcPvmDelayedHitService.State.SCHEDULED&&
+                hit.scheduledFromTick==3L&&
+                hit.dueTick==5L&&
+                f.world.events().size()==1&&
+                f.hp()==30,
+                "schedule used stale pre-ownership tick"
+            );
+
+            require(
+                f.world.events().runDue(3L)==0&&
+                f.hp()==30,
+                "publication delivered on current tick"
+            );
+
+            long tick4=
+                f.world.clock().advance();
+
+            require(
+                tick4==4L&&
+                f.world.events().runDue(tick4)==0&&
+                f.hp()==30,
+                "publication delivered before positive delay"
+            );
+
+            long tick5=
+                f.world.clock().advance();
+
+            require(
+                tick5==5L&&
+                f.world.events().runDue(tick5)==1&&
+                service.get(hit.hitId).state==
+                    NpcPvmDelayedHitService.State.DELIVERED&&
+                f.hp()==24,
+                "publication did not deliver exactly at due tick"
+            );
+
+            require(
+                f.world.events().runDue(tick5)==0&&
+                f.hp()==24,
+                "publication delivered duplicate damage"
             );
         }finally{
             releaseNpcLock.countDown();
