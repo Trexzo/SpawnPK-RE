@@ -72,9 +72,90 @@ final class SharedNpcWorldRelay {
             );
 
         try{c.removeAllRemotePets();}catch(Throwable ignored){}
+        try{c.removeAllGenericNpcs();}catch(Throwable ignored){}
         c.state.pruneDeadRecipients();
-        if(c.state.contexts.isEmpty())
+        if(c.state.contexts.isEmpty()&&
+           c.state.genericNpcIds.isEmpty())
             BY_WORLD.remove(c.state.world);
+    }
+
+    static synchronized void trackCanonicalNpc(
+        World world,
+        WorldNpc npc
+    ){
+        World checkedWorld=
+            Objects.requireNonNull(
+                world,
+                "world"
+            );
+        WorldNpc checkedNpc=
+            Objects.requireNonNull(
+                npc,
+                "npc"
+            );
+
+        if(checkedWorld.npcs().byId(
+                checkedNpc.id
+            )!=checkedNpc)
+            throw new IllegalArgumentException(
+                "canonical NPC is not owned by World id="+
+                checkedNpc.id
+            );
+
+        if(checkedNpc.ownerId!=null)
+            throw new IllegalArgumentException(
+                "owned pet/mini NPC must use existing relay id="+
+                checkedNpc.id
+            );
+
+        WorldState state=
+            BY_WORLD.get(
+                checkedWorld
+            );
+
+        if(state==null){
+            state=
+                new WorldState(
+                    checkedWorld
+                );
+            BY_WORLD.put(
+                checkedWorld,
+                state
+            );
+        }
+
+        state.genericNpcIds.add(
+            checkedNpc.id
+        );
+    }
+
+    static synchronized boolean untrackCanonicalNpc(
+        World world,
+        EntityId npcId
+    ){
+        if(world==null||npcId==null)
+            return false;
+
+        WorldState state=
+            BY_WORLD.get(
+                world
+            );
+
+        if(state==null)
+            return false;
+
+        boolean removed=
+            state.genericNpcIds.remove(
+                npcId
+            );
+
+        if(state.contexts.isEmpty()&&
+           state.genericNpcIds.isEmpty())
+            BY_WORLD.remove(
+                world
+            );
+
+        return removed;
     }
 
     static void syncRemotePets(
@@ -108,6 +189,7 @@ final class SharedNpcWorldRelay {
                         }
 
                         candidate.syncRemotePets();
+                        candidate.syncCanonicalNpcs();
                     }
                 );
         }catch(Throwable t){
@@ -360,6 +442,8 @@ final class SharedNpcWorldRelay {
         final World world;
         final HashMap<EntityId,Context> contexts=
             new HashMap<>();
+        final LinkedHashSet<EntityId> genericNpcIds=
+            new LinkedHashSet<>();
 
         WorldState(World world){
             this.world=world;
@@ -400,11 +484,22 @@ final class SharedNpcWorldRelay {
         }
     }
 
+    private static final class GenericNpcTrack{
+        int scene=-1;
+        int definition=-1;
+        int x;
+        int y;
+    }
+
     private static final class Context{
         final ServerPacketWriter writer;final WorldState state;final WorldPlayer owner;final NpcRegistry npcs;final MovementState movement;
         final long ownerGeneration;
         final HashMap<EntityId,RemotePetTrack> remote=new HashMap<>();
         final NpcViewIndexMap remoteIndexes=new NpcViewIndexMap();
+        final HashMap<EntityId,GenericNpcTrack> genericNpcs=
+            new HashMap<>();
+        final NpcViewIndexMap genericIndexes=
+            new NpcViewIndexMap();
         Context(ServerPacketWriter w,WorldState s,WorldPlayer o,NpcRegistry n,MovementState m){
             writer=w;
             state=s;
@@ -702,6 +797,288 @@ final class SharedNpcWorldRelay {
                     stale.add(id);
             for(EntityId id:stale)
                 removeRemote(id);
+        }
+
+        void syncCanonicalNpcs()throws IOException{
+            if(!ownerCurrent())
+                return;
+
+            ArrayList<EntityId> tracked;
+
+            synchronized(SharedNpcWorldRelay.class){
+                tracked=
+                    new ArrayList<>(
+                        state.genericNpcIds
+                    );
+            }
+
+            HashSet<EntityId> desired=
+                new HashSet<>(
+                    tracked
+                );
+
+            for(EntityId id:tracked){
+                WorldNpc canonical=
+                    state.world.npcs()
+                        .byId(id);
+
+                if(canonical==null||
+                   canonical.ownerId!=null){
+                    removeGeneric(id);
+                    continue;
+                }
+
+                GenericNpcTrack track=
+                    genericNpcs.get(id);
+
+                if(track==null){
+                    track=
+                        new GenericNpcTrack();
+                    genericNpcs.put(
+                        id,
+                        track
+                    );
+                }
+
+                syncGenericOne(
+                    id,
+                    canonical,
+                    track
+                );
+            }
+
+            ArrayList<EntityId> stale=
+                new ArrayList<>();
+
+            for(EntityId id:
+                    genericNpcs.keySet())
+                if(!desired.contains(id))
+                    stale.add(id);
+
+            for(EntityId id:stale)
+                removeGeneric(id);
+        }
+
+        private void syncGenericOne(
+            EntityId id,
+            WorldNpc canonical,
+            GenericNpcTrack track
+        )throws IOException{
+            int x=canonical.x();
+            int y=canonical.y();
+
+            if(canonical.plane()!=
+                    movement.plane()||
+               !movement.insideCurrentLoadedRegion(
+                    x,
+                    y
+                )||
+               Math.abs(x-movement.x())>15||
+               Math.abs(y-movement.y())>15){
+                if(track.scene>=0)
+                    npcs.devRemoveNpc(
+                        track.scene,
+                        writer
+                    );
+                genericIndexes.unbind(id);
+                track.scene=-1;
+                track.definition=
+                    canonical.definitionId;
+                track.x=x;
+                track.y=y;
+                return;
+            }
+
+            if(track.scene<0||
+               track.definition!=
+                    canonical.definitionId||
+               npcs.scene(track.scene)==null){
+                if(track.scene>=0)
+                    npcs.devRemoveNpc(
+                        track.scene,
+                        writer
+                    );
+
+                genericIndexes.unbind(id);
+
+                NpcEntity projected=
+                    npcs.spawnMirroredNpc(
+                        canonical.definitionId,
+                        x,
+                        y,
+                        null,
+                        movement,
+                        writer
+                    );
+
+                projected.bindCanonicalId(
+                    id
+                );
+                genericIndexes.bind(
+                    id,
+                    projected.sceneIndex
+                );
+
+                track.scene=
+                    projected.sceneIndex;
+                track.definition=
+                    canonical.definitionId;
+                track.x=x;
+                track.y=y;
+                return;
+            }
+
+            NpcEntity projected=
+                npcs.scene(
+                    track.scene
+                );
+
+            if(projected==null){
+                track.scene=-1;
+                syncGenericOne(
+                    id,
+                    canonical,
+                    track
+                );
+                return;
+            }
+
+            projected.bindCanonicalId(
+                id
+            );
+            genericIndexes.bind(
+                id,
+                projected.sceneIndex
+            );
+
+            int dx=x-track.x;
+            int dy=y-track.y;
+
+            if(dx==0&&dy==0)
+                return;
+
+            int d1=-1;
+            int d2=-1;
+
+            if(Math.abs(dx)<=1&&
+               Math.abs(dy)<=1){
+                d1=
+                    MovementState.direction(
+                        track.x,
+                        track.y,
+                        x,
+                        y
+                    );
+            }else if(Math.abs(dx)<=2&&
+                     Math.abs(dy)<=2){
+                int mx=
+                    track.x+
+                    Integer.signum(dx);
+                int my=
+                    track.y+
+                    Integer.signum(dy);
+
+                d1=
+                    MovementState.direction(
+                        track.x,
+                        track.y,
+                        mx,
+                        my
+                    );
+                d2=
+                    MovementState.direction(
+                        mx,
+                        my,
+                        x,
+                        y
+                    );
+            }
+
+            if(d1<0||
+               (Math.max(
+                    Math.abs(dx),
+                    Math.abs(dy)
+                )>1&&
+                d2<0)){
+                npcs.devRemoveNpc(
+                    track.scene,
+                    writer
+                );
+                genericIndexes.unbind(id);
+                track.scene=-1;
+                track.x=x;
+                track.y=y;
+                syncGenericOne(
+                    id,
+                    canonical,
+                    track
+                );
+                return;
+            }
+
+            ArrayList<NpcSyncEncoder.Update> updates=
+                new ArrayList<>();
+
+            for(NpcEntity npc:
+                    npcs.snapshot())
+                updates.add(
+                    npc==projected
+                        ?(d2>=0
+                            ?NpcSyncEncoder.Update.run(
+                                npc,
+                                d1,
+                                d2
+                            )
+                            :NpcSyncEncoder.Update.walk(
+                                npc,
+                                d1
+                            ))
+                        :NpcSyncEncoder.Update
+                            .retain(npc)
+                );
+
+            writer.varShort(
+                65,
+                NpcSyncEncoder.encode(
+                    updates,
+                    Collections.<NpcEntity>
+                        emptyList(),
+                    0,
+                    0
+                )
+            );
+
+            projected.x=x;
+            projected.y=y;
+            track.x=x;
+            track.y=y;
+        }
+
+        void removeGeneric(
+            EntityId id
+        )throws IOException{
+            GenericNpcTrack track=
+                genericNpcs.remove(id);
+
+            if(track==null)
+                return;
+
+            if(track.scene>=0)
+                npcs.devRemoveNpc(
+                    track.scene,
+                    writer
+                );
+
+            genericIndexes.unbind(id);
+        }
+
+        void removeAllGenericNpcs()
+            throws IOException{
+            for(EntityId id:
+                    new ArrayList<>(
+                        genericNpcs.keySet()
+                    ))
+                removeGeneric(id);
         }
 
         int syncOne(

@@ -267,6 +267,12 @@ final class MonsterSpawnerCombatBindingService {
                 "world closed before Monster Spawner combat despawn"
             );
 
+        SharedNpcWorldRelay
+            .untrackCanonicalNpc(
+                world,
+                checkedId
+            );
+
         return new DespawnResult(
             Objects.requireNonNull(
                 session[0],
