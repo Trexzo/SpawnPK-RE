@@ -565,6 +565,13 @@ final class TournamentService {
                         checkedMatchId
                     );
 
+                    matches.acquireWorldInstanceCompositionLease(
+                        instances,
+                        checkedMatchId,
+                        checkedInstanceId,
+                        holdKey
+                    );
+
                     first.state=
                         EntrantState.IN_MATCH;
                     first.activeMatchId=
@@ -587,11 +594,21 @@ final class TournamentService {
                             event
                         );
                 }finally{
-                    if(!published)
+                    if(!published){
+                        if(matches.compositionLeaseHeld(
+                                checkedMatchId))
+                            matches.releaseWorldInstanceCompositionLease(
+                                instances,
+                                checkedMatchId,
+                                checkedInstanceId,
+                                holdKey
+                            );
+
                         events.releaseTerminalHold(
                             entry.eventId,
                             holdKey
                         );
+                    }
                 }
             }
         );
@@ -667,6 +684,16 @@ final class TournamentService {
                 preflightOwnedInstance(
                     tournamentMatch
                 );
+
+                matches.releaseWorldInstanceCompositionLease(
+                    instances,
+                    tournamentMatch.matchId,
+                    tournamentMatch.instanceId,
+                    terminalHoldKey(
+                        tournamentMatch.matchId
+                    )
+                );
+
                 matches.complete(
                     tournamentMatch.matchId,
                     result
@@ -724,6 +751,11 @@ final class TournamentService {
                 entry,
                 matchId
             );
+        String reason=
+            MatchRules.normalizeKey(
+                reasonKey,
+                "reasonKey"
+            );
 
         withEventAndCompositionOwnership(
             entry.eventId,
@@ -742,9 +774,19 @@ final class TournamentService {
                 preflightOwnedInstance(
                     tournamentMatch
                 );
+
+                matches.releaseWorldInstanceCompositionLease(
+                    instances,
+                    tournamentMatch.matchId,
+                    tournamentMatch.instanceId,
+                    terminalHoldKey(
+                        tournamentMatch.matchId
+                    )
+                );
+
                 matches.cancel(
                     tournamentMatch.matchId,
-                    reasonKey
+                    reason
                 );
                 closeOwnedInstance(
                     tournamentMatch
