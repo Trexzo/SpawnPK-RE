@@ -184,6 +184,10 @@ final class NpcCombatRuntimeBinder {
         }
     }
 
+    interface UnbindCommitAction {
+        void run() throws Exception;
+    }
+
     private final World world;
     private final PlanResolver planResolver;
     private final LinkedHashMap<EntityId,Entry>
@@ -191,6 +195,10 @@ final class NpcCombatRuntimeBinder {
             new LinkedHashMap<>();
     private final HashSet<EntityId>
         bindingInProgress=
+            new HashSet<>();
+
+    private final HashSet<EntityId>
+        unbindingInProgress=
             new HashSet<>();
 
 
@@ -396,48 +404,147 @@ final class NpcCombatRuntimeBinder {
             :entry.snapshot();
     }
 
-    synchronized boolean unbind(
+    boolean unbind(
         EntityId npcId
     ){
+        try{
+            return unbindComposed(
+                npcId,
+                ()->{}
+            )!=null;
+        }catch(RuntimeException failure){
+            throw failure;
+        }catch(Error failure){
+            throw failure;
+        }catch(Exception failure){
+            throw new IllegalStateException(
+                "unexpected NPC combat runtime unbind failure",
+                failure
+            );
+        }
+    }
+
+    BindingSnapshot unbindComposed(
+        EntityId npcId,
+        UnbindCommitAction commitAction
+    )throws Exception{
         EntityId checked=
             Objects.requireNonNull(
                 npcId,
                 "npcId"
             );
-
-        if(bindingInProgress.contains(
-                checked))
-            throw new IllegalStateException(
-                "NPC combat runtime bind in progress id="+
-                checked
+        UnbindCommitAction checkedCommit=
+            Objects.requireNonNull(
+                commitAction,
+                "commitAction"
             );
+        final Entry entry;
 
-        Entry entry=
-            bindings.get(
-                checked
-            );
+        synchronized(this){
+            if(bindingInProgress.contains(
+                    checked))
+                throw new IllegalStateException(
+                    "NPC combat runtime bind in progress id="+
+                    checked
+                );
 
-        if(entry==null)
-            return false;
+            if(!unbindingInProgress.add(
+                    checked))
+                throw new IllegalStateException(
+                    "NPC combat runtime unbind already in progress id="+
+                    checked
+                );
 
-        if(!world.detachNpcTickTarget(
-                checked,
-                entry.tickTarget))
-            throw new IllegalStateException(
-                "NPC combat runtime lost exact pulse target id="+
-                checked
-            );
+            entry=
+                bindings.get(
+                    checked
+                );
 
-        bindings.remove(
-            checked,
-            entry
-        );
+            if(entry==null){
+                unbindingInProgress.remove(
+                    checked
+                );
+                return null;
+            }
+        }
 
-        return true;
+        boolean detached=false;
+
+        try{
+            if(!world.detachNpcTickTarget(
+                    checked,
+                    entry.tickTarget))
+                throw new IllegalStateException(
+                    "NPC combat runtime lost exact pulse target id="+
+                    checked
+                );
+
+            detached=true;
+
+            try{
+                checkedCommit.run();
+            }catch(Throwable primary){
+                if(detached){
+                    try{
+                        world.attachNpcTickTarget(
+                            entry.attacker,
+                            entry.tickTarget
+                        );
+                        detached=false;
+                    }catch(Throwable rollbackFailure){
+                        if(rollbackFailure!=primary)
+                            primary.addSuppressed(
+                                rollbackFailure
+                            );
+                    }
+                }
+
+                rethrow(
+                    primary
+                );
+            }
+
+            synchronized(this){
+                if(bindings.get(
+                        checked
+                    )!=entry)
+                    throw new IllegalStateException(
+                        "NPC combat runtime binding identity changed during composed unbind id="+
+                        checked
+                    );
+
+                bindings.remove(
+                    checked
+                );
+
+                return entry.snapshot();
+            }
+        }finally{
+            synchronized(this){
+                unbindingInProgress.remove(
+                    checked
+                );
+            }
+        }
     }
 
     synchronized int size(){
         return bindings.size();
+    }
+
+    private static void rethrow(
+        Throwable failure
+    )throws Exception{
+        if(failure instanceof RuntimeException)
+            throw (RuntimeException)failure;
+        if(failure instanceof Error)
+            throw (Error)failure;
+        if(failure instanceof Exception)
+            throw (Exception)failure;
+
+        throw new RuntimeException(
+            failure
+        );
     }
 
     private static String requireGameplayAuthority(
