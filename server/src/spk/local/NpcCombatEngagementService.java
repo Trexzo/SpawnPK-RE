@@ -38,7 +38,6 @@ final class NpcCombatEngagementService {
         final Tile attackerTile;
         final EntityId targetId;
         final long targetGeneration;
-        final Tile targetTile;
         final long worldTick;
         final long scheduledTick;
         final long revision;
@@ -56,7 +55,6 @@ final class NpcCombatEngagementService {
             this.attackerTile=attacker.tile();
             this.targetId=target.id();
             this.targetGeneration=targetGeneration;
-            this.targetTile=target.tile();
             this.worldTick=worldTick;
             this.scheduledTick=scheduledTick;
             this.revision=revision;
