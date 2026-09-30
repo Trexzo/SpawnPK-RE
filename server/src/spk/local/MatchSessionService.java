@@ -187,6 +187,18 @@ final class MatchSessionService {
                         "instanceId"
                     );
 
+                if(entry.instanceId==null||
+                   !entry.instanceId.equals(
+                        checkedInstanceId))
+                    throw new IllegalStateException(
+                        "match/instance lease mismatch match="+
+                        entry.id+
+                        " expected="+
+                        entry.instanceId+
+                        " actual="+
+                        checkedInstanceId
+                    );
+
                 requireCompositionLease(
                     entry,
                     key
