@@ -10,6 +10,7 @@ public final class NpcCombatEngagementServiceTest {
         staleNpcAndTargetCancel();
         cadenceAndExecutorFailureNoAdvance();
         overflowAtomic();
+        revisionOverflowAtomic();
         authorityAndBoundary();
 
         System.out.println(
@@ -21,6 +22,7 @@ public final class NpcCombatEngagementServiceTest {
             "waiting=true "+
             "cadenceCallerOwned=true "+
             "cadenceOverflowAtomic=true "+
+            "revisionOverflowAtomic=true "+
             "executorDelegated=true "+
             "executorFailureNoAdvance=true "+
             "staleNpcCancels=true "+
@@ -315,6 +317,101 @@ public final class NpcCombatEngagementServiceTest {
             f.close();
         }
     }
+
+    private static void revisionOverflowAtomic()throws Exception{
+        Fixture f=new Fixture(
+            "engage-revision-overflow"
+        );
+        try{
+            int[] attacks={0};
+
+            NpcCombatEngagementService service=
+                new NpcCombatEngagementService(
+                    f.world,
+                    cadence(2),
+                    (n,t,g,w)->attacks[0]++
+                );
+
+            service.begin(
+                f.npc,
+                f.player,
+                f.generation,
+                7L
+            );
+
+            setEngagementRevision(
+                service,
+                f.npc.id,
+                Long.MAX_VALUE
+            );
+
+            expect(
+                IllegalStateException.class,
+                ()->service.tick(
+                    f.npc.id,
+                    7L
+                ),
+                "revision overflow"
+            );
+
+            NpcCombatEngagementService.Snapshot
+                after=
+                    service.get(
+                        f.npc.id
+                    );
+
+            require(
+                attacks[0]==0&&
+                after.nextAttackTick==7L&&
+                after.revision==
+                    Long.MAX_VALUE,
+                "revision overflow invoked executor/advanced schedule"
+            );
+        }finally{
+            f.close();
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void setEngagementRevision(
+        NpcCombatEngagementService service,
+        EntityId attackerId,
+        long revision
+    )throws Exception{
+        Field engagementsField=
+            NpcCombatEngagementService.class
+                .getDeclaredField(
+                    "engagements"
+                );
+        engagementsField.setAccessible(true);
+
+        java.util.Map<EntityId,Object>
+            engagements=
+                (java.util.Map<EntityId,Object>)
+                    engagementsField.get(
+                        service
+                    );
+
+        Object engagement=
+            java.util.Objects.requireNonNull(
+                engagements.get(
+                    attackerId
+                ),
+                "engagement"
+            );
+
+        Field revisionField=
+            engagement.getClass()
+                .getDeclaredField(
+                    "revision"
+                );
+        revisionField.setAccessible(true);
+        revisionField.setLong(
+            engagement,
+            revision
+        );
+    }
+
 
     private static void authorityAndBoundary(){
         Fixture f=new Fixture("engage-boundary");
