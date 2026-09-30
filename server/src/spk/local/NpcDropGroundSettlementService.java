@@ -181,6 +181,13 @@ final class NpcDropGroundSettlementService {
             );
     }
 
+    boolean isBoundTo(
+        World expectedWorld
+    ){
+        return world==expectedWorld&&
+            groundItems==expectedWorld.groundItems();
+    }
+
     synchronized Receipt settle(
         NpcDropResolutionService.Resolution resolution
     ){
