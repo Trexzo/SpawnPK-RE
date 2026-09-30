@@ -18,6 +18,7 @@ public final class GlobalEventCompositionOwnershipTest {
             "terminalHold=true "+
             "terminalHoldCapability=true "+
             "foreignCapabilityRejected=true "+
+            "heldMutationClockAtomic=true "+
             "terminalHoldDeadlineBlock=true "+
             "actionFailureSafe=true "+
             "protocolIndependent=true"
@@ -155,8 +156,63 @@ public final class GlobalEventCompositionOwnershipTest {
 
         check(service.terminalHoldCount(definition.id)==1,"terminal hold count");
 
-        expect(IllegalStateException.class,()->service.complete(definition.id,12L),"held explicit complete");
-        expect(IllegalStateException.class,()->service.cancel(definition.id,12L),"held explicit cancel");
+        long beforeRejectedMutation=
+            service.lastObservedTick();
+
+        expect(
+            IllegalStateException.class,
+            ()->service.complete(
+                definition.id,
+                Long.MAX_VALUE
+            ),
+            "held explicit complete"
+        );
+
+        check(
+            service.lastObservedTick()==
+                beforeRejectedMutation&&
+            service.get(
+                definition.id
+            ).lifecycle==
+                GlobalEventService.Lifecycle.ACTIVE&&
+            service.terminalHoldCount(
+                definition.id
+            )==1,
+            "held complete mutated clock/event/hold"
+        );
+
+        expect(
+            IllegalStateException.class,
+            ()->service.cancel(
+                definition.id,
+                Long.MAX_VALUE
+            ),
+            "held explicit cancel"
+        );
+
+        check(
+            service.lastObservedTick()==
+                beforeRejectedMutation&&
+            service.get(
+                definition.id
+            ).lifecycle==
+                GlobalEventService.Lifecycle.ACTIVE&&
+            service.terminalHoldCount(
+                definition.id
+            )==1,
+            "held cancel mutated clock/event/hold"
+        );
+
+        service.tick(11L);
+
+        check(
+            service.lastObservedTick()==11L&&
+            service.get(
+                definition.id
+            ).lifecycle==
+                GlobalEventService.Lifecycle.ACTIVE,
+            "ordinary tick rejected after held mutation failure"
+        );
 
         service.tick(20L);
         check(
