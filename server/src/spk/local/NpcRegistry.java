@@ -20,6 +20,9 @@ final class NpcRegistry {
     /** Exact-v9.12 follower train: each entry is a tile vacated by the main pet. */
     private final ArrayDeque<int[]> miniTrail=new ArrayDeque<>();
     private final LinkedHashSet<Integer> devOwnedSceneIndexes=new LinkedHashSet<>();
+    /** Production viewer-local scenes owned by SharedNpcWorldRelay, never DEV tooling. */
+    private final LinkedHashSet<Integer> sharedCanonicalSceneIndexes=
+        new LinkedHashSet<>();
     private final DevAuthorityWorkbench dev;
     private final WorldPetNpcService worldPets;
     private final EntityId canonicalOwnerId;
@@ -67,7 +70,7 @@ final class NpcRegistry {
 
     void bootstrap(ServerPacketWriter w,MovementState movement,PetState petState) throws IOException {
         canonicalRemoveAll();
-        visible.clear(); ownerTrail.clear(); miniTrail.clear(); devOwnedSceneIndexes.clear(); pet=null; petNativeState=0; miniPet=null; recentOwnerRunning=false; hasLastOwnerAnchor=false; hasMiniTrail=false; lastOwnerFacingDir=6; suppressNextOwnerBreadcrumb=false; petDiscontinuityTicks=0; miniDiscontinuityTicks=0;
+        visible.clear(); ownerTrail.clear(); miniTrail.clear(); devOwnedSceneIndexes.clear(); sharedCanonicalSceneIndexes.clear(); pet=null; petNativeState=0; miniPet=null; recentOwnerRunning=false; hasLastOwnerAnchor=false; hasMiniTrail=false; lastOwnerFacingDir=6; suppressNextOwnerBreadcrumb=false; petDiscontinuityTicks=0; miniDiscontinuityTicks=0;
         // Existing home coordinates remain explicitly LOCAL diagnostic placements.
         visible.add(new NpcEntity(BLOOD_FOUNTAIN_INDEX,1799,movement.x()+3,movement.y()+3));
         // Exact definitions, localhost diagnostic placement only.
@@ -85,7 +88,7 @@ final class NpcRegistry {
     void bootstrapHome(ServerPacketWriter w,MovementState movement,PetState petState,HomeWorldRuntimePlan home) throws IOException {
         if(home==null) throw new NullPointerException("home");
         canonicalRemoveAll();
-        visible.clear(); ownerTrail.clear(); miniTrail.clear(); devOwnedSceneIndexes.clear(); pet=null; petNativeState=0; miniPet=null; recentOwnerRunning=false; hasLastOwnerAnchor=false; hasMiniTrail=false; lastOwnerFacingDir=6; suppressNextOwnerBreadcrumb=false; petDiscontinuityTicks=0; miniDiscontinuityTicks=0;
+        visible.clear(); ownerTrail.clear(); miniTrail.clear(); devOwnedSceneIndexes.clear(); sharedCanonicalSceneIndexes.clear(); pet=null; petNativeState=0; miniPet=null; recentOwnerRunning=false; hasLastOwnerAnchor=false; hasMiniTrail=false; lastOwnerFacingDir=6; suppressNextOwnerBreadcrumb=false; petDiscontinuityTicks=0; miniDiscontinuityTicks=0;
         List<NpcEntity> world=home.bootstrapNpcs(movement.x(),movement.y());
         for(NpcEntity n:world){
             if(n.sceneIndex==PET_INDEX) throw new IllegalStateException("HOME scene index collides with PET_INDEX");
@@ -165,6 +168,7 @@ final class NpcRegistry {
                 n->n!=pet&&n!=miniPet
             );
             devOwnedSceneIndexes.clear();
+            sharedCanonicalSceneIndexes.clear();
         }
 
         ownerTrail.clear();
@@ -263,6 +267,307 @@ final class NpcRegistry {
         w.varShort(65,NpcSyncEncoder.encode(retains(),Collections.singletonList(e),movement.x(),movement.y(),presentation));
         visible.add(e);devOwnedSceneIndexes.add(scene);
         return e;
+    }
+
+    /**
+     * Production packet-65 projection for one exact canonical WorldNpc.
+     * Scene indexes remain viewer-local and are never written back into WorldNpc.
+     */
+    NpcEntity syncSharedCanonicalNpc(
+        WorldNpc canonical,
+        MovementState movement,
+        ServerPacketWriter w
+    )throws IOException{
+        WorldNpc checked=
+            Objects.requireNonNull(
+                canonical,
+                "canonical"
+            );
+        MovementState checkedMovement=
+            Objects.requireNonNull(
+                movement,
+                "movement"
+            );
+        Objects.requireNonNull(
+            w,
+            "writer"
+        );
+
+        Tile tile=checked.tile();
+
+        boolean representable=
+            tile.plane==checkedMovement.plane()&&
+            checkedMovement.insideCurrentLoadedRegion(
+                tile.x,
+                tile.y
+            )&&
+            tile.x-checkedMovement.x()>=-16&&
+            tile.x-checkedMovement.x()<=15&&
+            tile.y-checkedMovement.y()>=-16&&
+            tile.y-checkedMovement.y()<=15;
+
+        NpcEntity existing=
+            canonical(
+                checked.id
+            );
+
+        if(!representable){
+            if(existing!=null&&
+               sharedCanonicalSceneIndexes.contains(
+                   existing.sceneIndex
+               ))
+                removeSharedCanonicalNpc(
+                    checked.id,
+                    w
+                );
+            return null;
+        }
+
+        if(existing!=null&&
+           !sharedCanonicalSceneIndexes.contains(
+               existing.sceneIndex
+           ))
+            throw new IllegalStateException(
+                "canonical NPC already projected by another scene owner id="+
+                checked.id+
+                " scene="+
+                existing.sceneIndex
+            );
+
+        if(existing==null)
+            return spawnSharedCanonicalNpc(
+                checked,
+                checkedMovement,
+                w
+            );
+
+        if(existing.definitionId!=
+                checked.definitionId){
+            removeSharedCanonicalNpc(
+                checked.id,
+                w
+            );
+            return spawnSharedCanonicalNpc(
+                checked,
+                checkedMovement,
+                w
+            );
+        }
+
+        int dx=tile.x-existing.x;
+        int dy=tile.y-existing.y;
+
+        if(dx==0&&dy==0)
+            return existing;
+
+        int d1=-1;
+        int d2=-1;
+
+        if(Math.abs(dx)<=1&&
+           Math.abs(dy)<=1){
+            d1=MovementState.direction(
+                existing.x,
+                existing.y,
+                tile.x,
+                tile.y
+            );
+        }else if(Math.abs(dx)<=2&&
+                 Math.abs(dy)<=2){
+            int mx=
+                existing.x+
+                Integer.signum(dx);
+            int my=
+                existing.y+
+                Integer.signum(dy);
+
+            d1=MovementState.direction(
+                existing.x,
+                existing.y,
+                mx,
+                my
+            );
+            d2=MovementState.direction(
+                mx,
+                my,
+                tile.x,
+                tile.y
+            );
+        }
+
+        if(d1<0||
+           (Math.max(
+                Math.abs(dx),
+                Math.abs(dy)
+            )>1&&
+            d2<0)){
+            removeSharedCanonicalNpc(
+                checked.id,
+                w
+            );
+            return spawnSharedCanonicalNpc(
+                checked,
+                checkedMovement,
+                w
+            );
+        }
+
+        ArrayList<NpcSyncEncoder.Update> updates=
+            new ArrayList<>();
+
+        for(NpcEntity npc:visible)
+            updates.add(
+                npc==existing
+                    ?(d2>=0
+                        ?NpcSyncEncoder.Update.run(
+                            npc,
+                            d1,
+                            d2
+                        )
+                        :NpcSyncEncoder.Update.walk(
+                            npc,
+                            d1
+                        ))
+                    :NpcSyncEncoder.Update.retain(
+                        npc
+                    )
+            );
+
+        w.varShort(
+            65,
+            NpcSyncEncoder.encode(
+                updates,
+                Collections.<NpcEntity>emptyList(),
+                0,
+                0
+            )
+        );
+
+        existing.x=tile.x;
+        existing.y=tile.y;
+        return existing;
+    }
+
+    private NpcEntity spawnSharedCanonicalNpc(
+        WorldNpc canonical,
+        MovementState movement,
+        ServerPacketWriter w
+    )throws IOException{
+        Tile tile=canonical.tile();
+
+        if(tile.plane!=movement.plane()||
+           !movement.insideCurrentLoadedRegion(
+               tile.x,
+               tile.y
+           ))
+            throw new IllegalArgumentException(
+                "canonical NPC outside viewer loaded plane/window"
+            );
+
+        int dx=tile.x-movement.x();
+        int dy=tile.y-movement.y();
+
+        if(dx<-16||dx>15||
+           dy<-16||dy>15)
+            throw new IllegalArgumentException(
+                "canonical NPC outside packet-65 add range"
+            );
+
+        int scene=
+            allocateDynamicSceneIndex();
+
+        if(scene<0)
+            throw new IllegalStateException(
+                "no free shared canonical NPC scene index"
+            );
+
+        NpcEntity projected=
+            new NpcEntity(
+                scene,
+                canonical.definitionId,
+                tile.x,
+                tile.y
+            );
+
+        projected.bindCanonicalId(
+            canonical.id
+        );
+
+        w.varShort(
+            65,
+            NpcSyncEncoder.encode(
+                retains(),
+                Collections.singletonList(
+                    projected
+                ),
+                movement.x(),
+                movement.y()
+            )
+        );
+
+        visible.add(projected);
+        sharedCanonicalSceneIndexes.add(
+            scene
+        );
+
+        return projected;
+    }
+
+    boolean removeSharedCanonicalNpc(
+        EntityId canonicalId,
+        ServerPacketWriter w
+    )throws IOException{
+        if(canonicalId==null)
+            return false;
+
+        NpcEntity target=
+            canonical(
+                canonicalId
+            );
+
+        if(target==null)
+            return false;
+
+        if(!sharedCanonicalSceneIndexes.contains(
+                target.sceneIndex))
+            return false;
+
+        ArrayList<NpcSyncEncoder.Update> updates=
+            new ArrayList<>();
+
+        for(NpcEntity npc:visible)
+            updates.add(
+                npc==target
+                    ?NpcSyncEncoder.Update.remove(
+                        npc
+                    )
+                    :NpcSyncEncoder.Update.retain(
+                        npc
+                    )
+            );
+
+        w.varShort(
+            65,
+            NpcSyncEncoder.encode(
+                updates,
+                Collections.emptyList(),
+                0,
+                0
+            )
+        );
+
+        visible.remove(target);
+        sharedCanonicalSceneIndexes.remove(
+            target.sceneIndex
+        );
+        return true;
+    }
+
+    boolean sharedCanonicalProjection(
+        int sceneIndex
+    ){
+        return sharedCanonicalSceneIndexes.contains(
+            sceneIndex
+        );
     }
 
     /** Exact NPC forced-text mask path. NPC 8330 consumes literal SNIPE in the
@@ -956,6 +1261,7 @@ final class NpcRegistry {
         if(e==pet) return "PET";
         if(e==miniPet) return "MINIPET";
         if(devOwnedSceneIndexes.contains(e.sceneIndex)) return "DEV";
+        if(sharedCanonicalSceneIndexes.contains(e.sceneIndex)) return "SHARED_CANONICAL";
         if(HomeWorldRuntimePlan.isHomeWorldSceneIndex(e.sceneIndex)) return "HOME";
         return "MAIN";
     }
