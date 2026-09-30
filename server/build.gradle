@@ -4940,6 +4940,7 @@ tasks.named('check') {
     dependsOn tasks.named('worldNpcMutationOwnershipRegression')
     dependsOn tasks.named('npcLifecycleServiceRegression')
     dependsOn tasks.named('npcPlayerCombatResolutionServiceRegression')
+    dependsOn tasks.named('npcCombatEngagementServiceRegression')
     dependsOn tasks.named('localAuxHttpResponseRegression')
     dependsOn tasks.named('localAuxResponseLivenessRegression')
     dependsOn tasks.named('localAuxiliaryWorkerFailureRegression')
@@ -5262,6 +5263,20 @@ tasks.register('npcPlayerCombatResolutionServiceRegression', JavaExec) {
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass = 'spk.local.NpcPlayerCombatResolutionServiceTest'
+}
+
+
+tasks.register('npcCombatEngagementServiceRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves explicit NPC engagement/cadence state keeps target generation ownership and delegates attack execution without owning damage/pathing policy.'
+    dependsOn(
+        tasks.named('testClasses'),
+        tasks.named('npcPlayerCombatResolutionServiceRegression')
+    )
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.NpcCombatEngagementServiceTest'
 }
 
 
