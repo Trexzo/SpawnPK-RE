@@ -471,6 +471,12 @@ final class DuelSessionService {
             matches.activate(
                 checkedMatchId
             );
+
+            acquireChildHolds(
+                checkedMatchId,
+                checkedInstanceId,
+                childHoldKey(entry)
+            );
     
     
             }
@@ -603,16 +609,20 @@ final class DuelSessionService {
         withCompositionOwnership(
             ()->{
                 preflightOwnedInstance(entry);
+                releaseChildHolds(
+                    entry.matchId,
+                    entry.instanceId,
+                    childHoldKey(entry)
+                );
                 matches.complete(
                     entry.matchId,
                     result
                 );
                 closeOwnedInstance(entry);
+                entry.state=State.COMPLETED;
+                releaseParticipants(entry);
             }
         );
-
-        entry.state=State.COMPLETED;
-        releaseParticipants(entry);
 
         return entry.snapshot();
     }
@@ -631,16 +641,20 @@ final class DuelSessionService {
         withCompositionOwnership(
             ()->{
                 preflightOwnedInstance(entry);
+                releaseChildHolds(
+                    entry.matchId,
+                    entry.instanceId,
+                    childHoldKey(entry)
+                );
                 matches.cancel(
                     entry.matchId,
                     reasonKey
                 );
                 closeOwnedInstance(entry);
+                entry.state=State.CANCELLED;
+                releaseParticipants(entry);
             }
         );
-
-        entry.state=State.CANCELLED;
-        releaseParticipants(entry);
 
         return entry.snapshot();
     }
@@ -707,6 +721,55 @@ final class DuelSessionService {
         return Collections.unmodifiableList(
             out
         );
+    }
+
+    private void acquireChildHolds(
+        MatchId matchId,
+        WorldInstanceId instanceId,
+        String holdKey
+    ){
+        matches.acquireTerminalHold(
+            matchId,
+            holdKey
+        );
+
+        boolean instanceHeld=false;
+
+        try{
+            instances.acquireStructuralHold(
+                instanceId,
+                holdKey
+            );
+            instanceHeld=true;
+        }finally{
+            if(!instanceHeld)
+                matches.releaseTerminalHold(
+                    matchId,
+                    holdKey
+                );
+        }
+    }
+
+    private void releaseChildHolds(
+        MatchId matchId,
+        WorldInstanceId instanceId,
+        String holdKey
+    ){
+        instances.releaseStructuralHold(
+            instanceId,
+            holdKey
+        );
+        matches.releaseTerminalHold(
+            matchId,
+            holdKey
+        );
+    }
+
+    private static String childHoldKey(
+        Entry entry
+    ){
+        return "duel:"+
+            entry.challengeId.value();
     }
 
     private void preflightOwnedInstance(
