@@ -693,22 +693,19 @@ final class TournamentService {
                     tournamentMatch
                 );
 
-                matches.releaseWorldInstanceCompositionLease(
-                    instances,
-                    tournamentMatch.matchId,
-                    tournamentMatch.instanceId,
+                MatchSessionService.CompositionLease lease=
                     requireChildLease(
                         tournamentMatch
-                    )
-                );
-                tournamentMatch.childLease=null;
+                    );
 
-                matches.complete(
+                matches.completeOwned(
                     tournamentMatch.matchId,
-                    result
+                    result,
+                    lease
                 );
                 closeOwnedInstance(
-                    tournamentMatch
+                    tournamentMatch,
+                    lease
                 );
 
                 Entrant winningEntrant=
@@ -736,6 +733,14 @@ final class TournamentService {
                     TournamentMatchState.COMPLETED;
                 tournamentMatch.winnerRef=
                     winner;
+
+                matches.releaseWorldInstanceCompositionLease(
+                    instances,
+                    tournamentMatch.matchId,
+                    tournamentMatch.instanceId,
+                    lease
+                );
+                tournamentMatch.childLease=null;
 
                 events.releaseTerminalHold(
                     entry.eventId,
@@ -784,22 +789,19 @@ final class TournamentService {
                     tournamentMatch
                 );
 
-                matches.releaseWorldInstanceCompositionLease(
-                    instances,
-                    tournamentMatch.matchId,
-                    tournamentMatch.instanceId,
+                MatchSessionService.CompositionLease lease=
                     requireChildLease(
                         tournamentMatch
-                    )
-                );
-                tournamentMatch.childLease=null;
+                    );
 
-                matches.cancel(
+                matches.cancelOwned(
                     tournamentMatch.matchId,
-                    reason
+                    reason,
+                    lease
                 );
                 closeOwnedInstance(
-                    tournamentMatch
+                    tournamentMatch,
+                    lease
                 );
 
                 Entrant first=
@@ -822,6 +824,14 @@ final class TournamentService {
 
                 tournamentMatch.state=
                     TournamentMatchState.CANCELLED;
+
+                matches.releaseWorldInstanceCompositionLease(
+                    instances,
+                    tournamentMatch.matchId,
+                    tournamentMatch.instanceId,
+                    lease
+                );
+                tournamentMatch.childLease=null;
 
                 events.releaseTerminalHold(
                     entry.eventId,
@@ -1151,21 +1161,26 @@ final class TournamentService {
     }
 
     private void closeOwnedInstance(
-        TournamentMatch tournamentMatch
+        TournamentMatch tournamentMatch,
+        MatchSessionService.CompositionLease lease
     ){
-        instances.beginClosing(
-            tournamentMatch.instanceId
-        );
-        instances.detach(
+        instances.beginClosingOwned(
             tournamentMatch.instanceId,
-            tournamentMatch.firstParticipant
+            lease
         );
-        instances.detach(
+        instances.detachOwned(
             tournamentMatch.instanceId,
-            tournamentMatch.secondParticipant
+            tournamentMatch.firstParticipant,
+            lease
         );
-        instances.close(
-            tournamentMatch.instanceId
+        instances.detachOwned(
+            tournamentMatch.instanceId,
+            tournamentMatch.secondParticipant,
+            lease
+        );
+        instances.closeOwned(
+            tournamentMatch.instanceId,
+            lease
         );
     }
 
