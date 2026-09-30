@@ -7,6 +7,7 @@ fails closed on every transformed class preimage.
 localhost:
 - enables the client's already-present local socket mode;
 - game/AUX socket host becomes 127.0.0.1;
+- expands exact-v308 Walk-here unreachable-target fallback from radius 1 to radius 2;
 - other web/update endpoints remain stock.
 
 airgap:
@@ -29,8 +30,8 @@ import zipfile
 from pathlib import Path
 
 INPUT_SHA = "854f26ff9f134b0317572e7ac1688e6f40a231d5a4c66f8db5d655b7f45ce7c6"
-LOCALHOST_SHA = "01c878a56ee25fb112dfe8b459dbd11ea26cfa8a92a7f287a4e5ee53f673cdbd"
-AIRGAP_SHA = "83b3e27e2aae50512d044ae4c74d84afb36df8b8a8051b5eb0c9275427363c33"
+LOCALHOST_SHA = "15ceb89669ddfe0a666e65b4a5291705af692a50e479bbde17e751eceb7fd23e"
+AIRGAP_SHA = "024fad774453430bb964076b98d460a6dae821ee31100322d104e30d9a9c97a7"
 
 PREIMAGE_SHA = {
     "rs/cache/b/e.class": "e21c305dd2ac52c16508e560f1770ea859f509670dced089424c274e8693638c",
@@ -48,7 +49,7 @@ PREIMAGE_SHA = {
 
 AIRGAP_POST_SHA = {
     "rs/cache/b/e.class": "b2ea9097d8d523e9603fc59e8cb0f23035f47be34e859c13c0f599208018f3fb",
-    "rs/Client.class": "5b77aa27a32f752101af6d160f217c4d1fba6024ff5d2bd78102f4afd232b8f2",
+    "rs/Client.class": "270ec10d18cdb8afc7720dc708014ff81370002a2ae155ad87aed2200b7ab43a",
     "rs/f/a$a.class": "23055b1d4da44692c95eb39a0205b7288c50566945d610ea0f6bcd6979807b31",
     "rs/f/a.class": "d2002314df33c59525c1702781bf0e4ba5d42c6cc30c0e6877c9dc5d65fc3e18",
     "rs/l/d/d.class": "dd9e8f9ea27663d7e640504d06f36292e2a2090766b7909a832b73e32d571566",
@@ -61,6 +62,7 @@ AIRGAP_POST_SHA = {
 }
 
 LOCALHOST_POST_SHA = {
+    "rs/Client.class": "ed6be206a8d387e6efd16bf86292497e5c98794c597b1aef963fcb642b54d560",
     "rs/f/a.class": "b86bd49f29aab65afc6f8f2306d8ef2b228b9dfe3d8c417b937c09d49aaf224a",
 }
 
@@ -68,6 +70,20 @@ LOCALHOST_POST_SHA = {
 # iconst_0; invokestatic Boolean.valueOf; putstatic d
 LOCAL_MODE_FALSE = bytes((0x03, 0xB8, 0x01, 0x17, 0xB3, 0x00, 0xED))
 LOCAL_MODE_TRUE = bytes((0x04,)) + LOCAL_MODE_FALSE[1:]
+
+# Exact v308 rs.Client.a(IIIIIIIIIZI)Z fallback-loop instruction prefix:
+# bipush 100; istore 24; iconst_1; istore 25; iload 25; iconst_2; if_icmpge
+# The exact rs/Client.class preimage is independently SHA-pinned above, and this
+# 11-byte sequence occurs exactly once in that class. Changing only iconst_2 to
+# iconst_3 expands the already-enabled Walk-here nearest-reachable fallback from
+# radius 1 to radius 2 without changing collision masks, packet framing, method
+# size, branch offsets, or StackMapTable positions.
+WALK_FALLBACK_RADIUS_ONE = bytes(
+    (0x10, 0x64, 0x36, 0x18, 0x04, 0x36, 0x19, 0x15, 0x19, 0x05, 0xA2)
+)
+WALK_FALLBACK_RADIUS_TWO = bytes(
+    (0x10, 0x64, 0x36, 0x18, 0x04, 0x36, 0x19, 0x15, 0x19, 0x06, 0xA2)
+)
 
 AIRGAP_REPLACEMENTS = (
     (
@@ -414,6 +430,83 @@ def toggle_local_mode(data: bytes) -> bytes:
     return data.replace(LOCAL_MODE_FALSE, LOCAL_MODE_TRUE, 1)
 
 
+def patch_walk_here_fallback_radius(data: bytes) -> bytes:
+    if data[:4] != b"\xca\xfe\xba\xbe":
+        raise ValueError("Walk-here fallback target is not a class file")
+
+    old_count = data.count(WALK_FALLBACK_RADIUS_ONE)
+    preexisting_new_count = data.count(WALK_FALLBACK_RADIUS_TWO)
+    if old_count != 1 or preexisting_new_count != 0:
+        raise ValueError(
+            "Walk-here fallback preimage drift "
+            f"radius1Count={old_count} radius2Count={preexisting_new_count}"
+        )
+
+    patched = data.replace(
+        WALK_FALLBACK_RADIUS_ONE,
+        WALK_FALLBACK_RADIUS_TWO,
+        1,
+    )
+
+    old_post_count = patched.count(WALK_FALLBACK_RADIUS_ONE)
+    new_post_count = patched.count(WALK_FALLBACK_RADIUS_TWO)
+    if old_post_count != 0 or new_post_count != 1:
+        raise ValueError(
+            "Walk-here fallback postimage drift "
+            f"radius1Count={old_post_count} radius2Count={new_post_count}"
+        )
+
+    if len(patched) != len(data):
+        raise ValueError("Walk-here fallback patch changed classfile length")
+
+    return patched
+
+
+def selftest_walk_here_fallback_patch() -> None:
+    synthetic = (
+        b"\xca\xfe\xba\xbe"
+        + b"prefix"
+        + WALK_FALLBACK_RADIUS_ONE
+        + b"suffix"
+    )
+    patched = patch_walk_here_fallback_radius(synthetic)
+
+    expected = (
+        b"\xca\xfe\xba\xbe"
+        + b"prefix"
+        + WALK_FALLBACK_RADIUS_TWO
+        + b"suffix"
+    )
+    if patched != expected:
+        raise ValueError("Walk-here fallback selftest postimage mismatch")
+
+    for label, invalid in (
+        ("missing", b"\xca\xfe\xba\xbe" + b"no-pattern"),
+        (
+            "duplicate",
+            b"\xca\xfe\xba\xbe"
+            + WALK_FALLBACK_RADIUS_ONE
+            + WALK_FALLBACK_RADIUS_ONE,
+        ),
+        (
+            "already-patched",
+            b"\xca\xfe\xba\xbe" + WALK_FALLBACK_RADIUS_TWO,
+        ),
+    ):
+        try:
+            patch_walk_here_fallback_radius(invalid)
+        except ValueError:
+            continue
+        raise ValueError(
+            f"Walk-here fallback selftest did not fail closed: {label}"
+        )
+
+    print(
+        "V308_WALK_HERE_FALLBACK_PATCH_SELFTEST_PASS "
+        "radiusBefore=1 radiusAfter=2 byteLengthNeutral=true failClosed=true"
+    )
+
+
 def deterministic_info(source: zipfile.ZipInfo) -> zipfile.ZipInfo:
     info = zipfile.ZipInfo(source.filename, (1980, 1, 1, 0, 0, 0))
     # Store entries without deflate so whole-JAR bytes do not depend on the
@@ -450,6 +543,9 @@ def build_variant(source: Path, output: Path, airgap: bool) -> dict:
 
             if source_info.filename.endswith(".class") and airgap:
                 patched = patch_utf8_constants(patched)
+
+            if source_info.filename == "rs/Client.class":
+                patched = patch_walk_here_fallback_radius(patched)
 
             if source_info.filename == "rs/f/a.class":
                 patched = toggle_local_mode(patched)
@@ -553,9 +649,27 @@ def assert_airgap_no_external_authority(path: Path) -> None:
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("exact_v308_jar", type=Path)
-    parser.add_argument("output_directory", type=Path)
+    parser.add_argument(
+        "--selftest-walk-here",
+        action="store_true",
+        help="run the source-only fail-closed Walk-here byte-patch regression",
+    )
+    parser.add_argument("exact_v308_jar", type=Path, nargs="?")
+    parser.add_argument("output_directory", type=Path, nargs="?")
     args = parser.parse_args()
+
+    if args.selftest_walk_here:
+        if args.exact_v308_jar is not None or args.output_directory is not None:
+            parser.error(
+                "--selftest-walk-here does not accept JAR/output positional arguments"
+            )
+        selftest_walk_here_fallback_patch()
+        return 0
+
+    if args.exact_v308_jar is None or args.output_directory is None:
+        parser.error(
+            "exact_v308_jar and output_directory are required outside selftest mode"
+        )
 
     source = args.exact_v308_jar.resolve()
     output = assert_canonical_output_path(args.output_directory)
@@ -625,6 +739,9 @@ def main() -> int:
             "updaterBase": "http://127.0.0.1:43595/spk_live/",
             "jarEntryCompression": "stored",
             "wholeJarDeterminismIndependentOfZlib": True,
+            "walkHereFallbackRadius": 2,
+            "walkHereFallbackExactMethod": "rs.Client.a(IIIIIIIIIZI)Z",
+            "walkHereFallbackByteLengthNeutral": True,
             "unchangedEntryPayloadIdentity": True,
             "entryInventoryAndOrderPreserved": True,
             "manifestPayloadPreserved": True,
