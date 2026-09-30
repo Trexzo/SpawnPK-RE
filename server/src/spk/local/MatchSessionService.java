@@ -578,10 +578,23 @@ final class MatchSessionService {
         MatchId matchId,
         String participantRef
     ){
-        return markParticipant(
+        return markParticipantUnowned(
             matchId,
             participantRef,
             MatchSession.ParticipantStatus.LEFT
+        );
+    }
+
+    synchronized MatchSession leaveOwned(
+        MatchId matchId,
+        String participantRef,
+        CompositionLease lease
+    ){
+        return markParticipantOwned(
+            matchId,
+            participantRef,
+            MatchSession.ParticipantStatus.LEFT,
+            lease
         );
     }
 
@@ -589,10 +602,23 @@ final class MatchSessionService {
         MatchId matchId,
         String participantRef
     ){
-        return markParticipant(
+        return markParticipantUnowned(
             matchId,
             participantRef,
             MatchSession.ParticipantStatus.FORFEITED
+        );
+    }
+
+    synchronized MatchSession forfeitOwned(
+        MatchId matchId,
+        String participantRef,
+        CompositionLease lease
+    ){
+        return markParticipantOwned(
+            matchId,
+            participantRef,
+            MatchSession.ParticipantStatus.FORFEITED,
+            lease
         );
     }
 
@@ -600,10 +626,23 @@ final class MatchSessionService {
         MatchId matchId,
         String participantRef
     ){
-        return markParticipant(
+        return markParticipantUnowned(
             matchId,
             participantRef,
             MatchSession.ParticipantStatus.DISCONNECTED
+        );
+    }
+
+    synchronized MatchSession disconnectOwned(
+        MatchId matchId,
+        String participantRef,
+        CompositionLease lease
+    ){
+        return markParticipantOwned(
+            matchId,
+            participantRef,
+            MatchSession.ParticipantStatus.DISCONNECTED,
+            lease
         );
     }
 
@@ -787,13 +826,55 @@ final class MatchSessionService {
         return snapshot(entry);
     }
 
-    private MatchSession markParticipant(
+    private MatchSession markParticipantUnowned(
         MatchId matchId,
         String participantRef,
         MatchSession.ParticipantStatus status
     ){
         Entry entry=require(matchId);
 
+        requireNoCompositionLease(
+            entry,
+            status.name().toLowerCase(
+                Locale.ROOT
+            )
+        );
+
+        return markParticipantEntry(
+            entry,
+            participantRef,
+            status
+        );
+    }
+
+    private MatchSession markParticipantOwned(
+        MatchId matchId,
+        String participantRef,
+        MatchSession.ParticipantStatus status,
+        CompositionLease lease
+    ){
+        Entry entry=require(matchId);
+
+        requireCompositionLease(
+            entry,
+            Objects.requireNonNull(
+                lease,
+                "lease"
+            )
+        );
+
+        return markParticipantEntry(
+            entry,
+            participantRef,
+            status
+        );
+    }
+
+    private static MatchSession markParticipantEntry(
+        Entry entry,
+        String participantRef,
+        MatchSession.ParticipantStatus status
+    ){
         if(entry.state==MatchSession.State.COMPLETED||
            entry.state==MatchSession.State.CANCELLED)
             throw invalid(

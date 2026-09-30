@@ -28,6 +28,8 @@ public final class DuelSessionServiceTest {
             "cancellationClosesInstance=true "+
             "durableChildLease=true "+
             "directChildTerminalBlocked=true "+
+            "directParticipantTransitionBlocked=true "+
+            "ownedForfeitUnderLease=true "+
             "ownerTerminalReleasesChildLease=true "+
             "terminalFailureRetainsChildLease=true "+
             "participantIndexReleased=true "+
@@ -183,6 +185,38 @@ public final class DuelSessionServiceTest {
                 "player:a"
             ),
             "external Duel instance detach"
+        );
+        expect(
+            IllegalStateException.class,
+            ()->matches.forfeit(
+                matchId,
+                "player:b"
+            ),
+            "external Duel participant forfeit"
+        );
+        expect(
+            IllegalStateException.class,
+            ()->matches.disconnect(
+                matchId,
+                "player:a"
+            ),
+            "external Duel participant disconnect"
+        );
+
+        require(
+            matches.get(
+                matchId
+            ).participant(
+                "player:a"
+            ).status==
+                MatchSession.ParticipantStatus.PRESENT&&
+            matches.get(
+                matchId
+            ).participant(
+                "player:b"
+            ).status==
+                MatchSession.ParticipantStatus.PRESENT,
+            "Duel participant changed outside owner"
         );
 
         service.adjustParticipantScore(
