@@ -158,9 +158,23 @@ public final class NpcCombatControllerServiceTest {
                 first.approach.status
             );
             require(
-                f.npc.x()==3201&&
-                f.npc.y()==3200,
-                "first approach position x="+
+                first.approach.before!=null&&
+                first.approach.after!=null&&
+                first.approach.before.x==3200&&
+                first.approach.before.y==3200&&
+                first.approach.after.x==f.npc.x()&&
+                first.approach.after.y==f.npc.y()&&
+                MovementState.direction(
+                    first.approach.before.x,
+                    first.approach.before.y,
+                    first.approach.after.x,
+                    first.approach.after.y
+                )>=0&&
+                Math.max(
+                    Math.abs(f.npc.x()-3203),
+                    Math.abs(f.npc.y()-3200)
+                )==2,
+                "first approach did not make one legal progress step x="+
                 f.npc.x()+
                 " y="+
                 f.npc.y()
@@ -214,14 +228,26 @@ public final class NpcCombatControllerServiceTest {
                 tick1==1L&&
                 second.status==
                     NpcCombatControllerService.Status.APPROACHED&&
-                f.npc.x()==3202&&
+                second.approach!=null&&
+                second.approach.status==
+                    NpcCombatApproachService.Status.MOVED&&
+                second.approach.after!=null&&
+                second.approach.after.x==f.npc.x()&&
+                second.approach.after.y==f.npc.y()&&
+                Math.max(
+                    Math.abs(f.npc.x()-3203),
+                    Math.abs(f.npc.y()-3200)
+                )==1&&
                 f.hp()==99&&
                 f.damage.calls==0&&
                 f.cadence.calls==0&&
                 f.controller.get(
                     f.npc.id
                 ).nextAttackTick==0L,
-                "second approach step advanced attack state"
+                "second approach step advanced attack state x="+
+                f.npc.x()+
+                " y="+
+                f.npc.y()
             );
 
             long tick2=
