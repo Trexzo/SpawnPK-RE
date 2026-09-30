@@ -238,28 +238,35 @@ final class WorldInstanceService {
         String participantRef
     ){
         Instance instance=require(id);
-        String participant=
-            PartyService.requireRef(
-                participantRef
-            );
-
         requireNoCompositionLease(
             instance,
             "detach"
         );
 
-        if(instance.lifecycle==Lifecycle.CLOSED)
-            throw new IllegalStateException(
-                "cannot detach from closed instance"
-            );
+        return detachEntry(
+            instance,
+            participantRef
+        );
+    }
 
-        if(!instance.participants.remove(participant))
-            throw new IllegalStateException(
-                "participant not attached "+
-                participant
-            );
+    synchronized Snapshot detachOwned(
+        WorldInstanceId id,
+        String participantRef,
+        MatchSessionService.CompositionLease lease
+    ){
+        Instance instance=require(id);
+        requireCompositionLease(
+            instance.id,
+            Objects.requireNonNull(
+                lease,
+                "lease"
+            )
+        );
 
-        return instance.snapshot();
+        return detachEntry(
+            instance,
+            participantRef
+        );
     }
 
     synchronized Snapshot activate(WorldInstanceId id){
@@ -274,44 +281,62 @@ final class WorldInstanceService {
 
     synchronized Snapshot beginClosing(WorldInstanceId id){
         Instance instance=require(id);
-
         requireNoCompositionLease(
             instance,
             "beginClosing"
         );
 
-        if(instance.lifecycle==Lifecycle.CLOSING)
-            return instance.snapshot();
+        return beginClosingEntry(
+            instance
+        );
+    }
 
-        if(instance.lifecycle!=Lifecycle.ACTIVE)
-            throw invalid(instance,"beginClosing");
+    synchronized Snapshot beginClosingOwned(
+        WorldInstanceId id,
+        MatchSessionService.CompositionLease lease
+    ){
+        Instance instance=require(id);
+        requireCompositionLease(
+            instance.id,
+            Objects.requireNonNull(
+                lease,
+                "lease"
+            )
+        );
 
-        instance.lifecycle=Lifecycle.CLOSING;
-        return instance.snapshot();
+        return beginClosingEntry(
+            instance
+        );
     }
 
     synchronized Snapshot close(WorldInstanceId id){
         Instance instance=require(id);
-
         requireNoCompositionLease(
             instance,
             "close"
         );
 
-        if(instance.lifecycle==Lifecycle.CLOSED)
-            return instance.snapshot();
+        return closeEntry(
+            instance
+        );
+    }
 
-        if(instance.lifecycle!=Lifecycle.CLOSING)
-            throw invalid(instance,"close");
+    synchronized Snapshot closeOwned(
+        WorldInstanceId id,
+        MatchSessionService.CompositionLease lease
+    ){
+        Instance instance=require(id);
+        requireCompositionLease(
+            instance.id,
+            Objects.requireNonNull(
+                lease,
+                "lease"
+            )
+        );
 
-        if(!instance.participants.isEmpty())
-            throw new IllegalStateException(
-                "cannot close instance with attached participants "+
-                instance.participants.size()
-            );
-
-        instance.lifecycle=Lifecycle.CLOSED;
-        return instance.snapshot();
+        return closeEntry(
+            instance
+        );
     }
 
     synchronized Snapshot get(WorldInstanceId id){
@@ -344,6 +369,69 @@ final class WorldInstanceService {
             out.add(instance.snapshot());
 
         return Collections.unmodifiableList(out);
+    }
+
+    private static Snapshot detachEntry(
+        Instance instance,
+        String participantRef
+    ){
+        String participant=
+            PartyService.requireRef(
+                participantRef
+            );
+
+        if(instance.lifecycle==Lifecycle.CLOSED)
+            throw new IllegalStateException(
+                "cannot detach from closed instance"
+            );
+
+        if(!instance.participants.remove(participant))
+            throw new IllegalStateException(
+                "participant not attached "+
+                participant
+            );
+
+        return instance.snapshot();
+    }
+
+    private static Snapshot beginClosingEntry(
+        Instance instance
+    ){
+        if(instance.lifecycle==Lifecycle.CLOSING)
+            return instance.snapshot();
+
+        if(instance.lifecycle!=Lifecycle.ACTIVE)
+            throw invalid(
+                instance,
+                "beginClosing"
+            );
+
+        instance.lifecycle=
+            Lifecycle.CLOSING;
+        return instance.snapshot();
+    }
+
+    private static Snapshot closeEntry(
+        Instance instance
+    ){
+        if(instance.lifecycle==Lifecycle.CLOSED)
+            return instance.snapshot();
+
+        if(instance.lifecycle!=Lifecycle.CLOSING)
+            throw invalid(
+                instance,
+                "close"
+            );
+
+        if(!instance.participants.isEmpty())
+            throw new IllegalStateException(
+                "cannot close instance with attached participants "+
+                instance.participants.size()
+            );
+
+        instance.lifecycle=
+            Lifecycle.CLOSED;
+        return instance.snapshot();
     }
 
     private static void requireNoCompositionLease(
