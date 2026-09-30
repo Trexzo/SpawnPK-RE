@@ -668,8 +668,13 @@ final class NpcPvmDelayedHitService {
                    entry.state==State.SCHEDULED){
                     entry.state=State.FAILED;
                     entry.failureType=
-                        failure.getClass()
-                            .getName();
+                        failure instanceof
+                            NpcLifecycleService
+                                .LifecycleOwnershipException
+                            ?IllegalArgumentException.class
+                                .getName()
+                            :failure.getClass()
+                                .getName();
                 }
 
                 entry.executing=false;
