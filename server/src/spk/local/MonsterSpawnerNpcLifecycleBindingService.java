@@ -140,8 +140,26 @@ final class MonsterSpawnerNpcLifecycleBindingService {
                                     plan.maxHitpoints,
                                     plan.sourceAuthority
                                 );
+                            SharedNpcWorldRelay
+                                .trackCanonicalNpc(
+                                    world,
+                                    npc
+                                );
                             planKey[0]=plan.planKey;
                         }catch(Throwable primary){
+                            try{
+                                SharedNpcWorldRelay
+                                    .untrackCanonicalNpc(
+                                        world,
+                                        npc.id
+                                    );
+                            }catch(Throwable rollbackFailure){
+                                if(rollbackFailure!=primary)
+                                    primary.addSuppressed(
+                                        rollbackFailure
+                                    );
+                            }
+
                             try{
                                 lifecycle.unregisterExact(
                                     npc
