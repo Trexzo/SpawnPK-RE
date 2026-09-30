@@ -29,6 +29,8 @@ public final class DuelSessionServiceTest {
             "durableChildLease=true "+
             "directChildTerminalBlocked=true "+
             "directParticipantMutationBlocked=true "+
+            "directScoreMutationBlocked=true "+
+            "ownerScoreUsesChildLease=true "+
             "ownerForfeitUsesChildLease=true "+
             "ownerTerminalReleasesChildLease=true "+
             "terminalFailureRetainsChildLease=true "+
@@ -164,6 +166,27 @@ public final class DuelSessionServiceTest {
                 instanceId
             ),
             "Duel child lease missing"
+        );
+
+        expect(
+            IllegalStateException.class,
+            ()->matches.adjustParticipantScore(
+                matchId,
+                "player:a",
+                "external",
+                1L
+            ),
+            "external Duel participant score"
+        );
+        expect(
+            IllegalStateException.class,
+            ()->matches.adjustTeamScore(
+                matchId,
+                active.challengerTeamId,
+                "external",
+                1L
+            ),
+            "external Duel team score"
         );
 
         expect(
