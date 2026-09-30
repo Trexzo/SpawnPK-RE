@@ -15,6 +15,9 @@ public final class NpcCombatEngagementServiceTest {
         overflowAtomic();
         revisionOverflowAtomic();
         ownershipLinearized();
+        concurrentTickSingleOwner();
+        tickOwnershipLinearized();
+        cadenceReentrantCancelPreventsExecutor();
         authorityAndBoundary();
 
         System.out.println(
@@ -29,8 +32,12 @@ public final class NpcCombatEngagementServiceTest {
             "revisionOverflowAtomic=true "+
             "beginOwnershipLinearized=true "+
             "cancelOwnershipLinearized=true "+
+            "tickSingleOwner=true "+
+            "tickOwnershipLinearized=true "+
+            "cadenceReentrantCancelPreventsExecutor=true "+
             "executorDelegated=true "+
             "executorFailureNoAdvance=true "+
+            "executorFailureReleasesReservation=true "+
             "staleNpcCancels=true "+
             "staleTargetCancels=true "+
             "cancelIdempotent=true "+
@@ -257,14 +264,18 @@ public final class NpcCombatEngagementServiceTest {
 
             cadenceFail.cancel(f.npc);
 
+            AtomicInteger executorCalls=
+                new AtomicInteger();
+
             NpcCombatEngagementService executorFail=
                 new NpcCombatEngagementService(
                     f.world,
                     cadence(2),
                     (n,t,g,w)->{
-                        throw new IllegalStateException(
-                            "executor boom"
-                        );
+                        if(executorCalls.incrementAndGet()==1)
+                            throw new IllegalStateException(
+                                "executor boom"
+                            );
                     }
                 );
 
@@ -280,6 +291,21 @@ public final class NpcCombatEngagementServiceTest {
                 executorFail.get(f.npc.id).nextAttackTick==7L&&
                 executorFail.get(f.npc.id).revision==0L,
                 "executor failure advanced schedule"
+            );
+
+            NpcCombatEngagementService.TickResult retry=
+                executorFail.tick(
+                    f.npc.id,
+                    7L
+                );
+
+            require(
+                retry.status==
+                    NpcCombatEngagementService.TickStatus.ATTACKED&&
+                retry.snapshot.nextAttackTick==9L&&
+                retry.snapshot.revision==1L&&
+                executorCalls.get()==2,
+                "executor failure reservation was not released"
             );
         }finally{
             f.close();
@@ -772,6 +798,319 @@ public final class NpcCombatEngagementServiceTest {
             engagement,
             revision
         );
+    }
+
+
+    private static void concurrentTickSingleOwner()
+        throws Exception{
+        Fixture f=new Fixture(
+            "engage-concurrent-tick"
+        );
+        ExecutorService workers=
+            Executors.newFixedThreadPool(2);
+        CountDownLatch releaseAttack=
+            new CountDownLatch(1);
+
+        try{
+            AtomicInteger attacks=
+                new AtomicInteger();
+            CountDownLatch attackEntered=
+                new CountDownLatch(1);
+
+            NpcCombatEngagementService service=
+                new NpcCombatEngagementService(
+                    f.world,
+                    cadence(2),
+                    (n,t,g,w)->{
+                        attacks.incrementAndGet();
+                        attackEntered.countDown();
+
+                        if(!releaseAttack.await(
+                                5L,
+                                TimeUnit.SECONDS))
+                            throw new AssertionError(
+                                "attack release timeout"
+                            );
+                    }
+                );
+
+            service.begin(
+                f.npc,
+                f.player,
+                f.generation,
+                0L
+            );
+
+            Future<NpcCombatEngagementService.TickResult>
+                first=
+                    workers.submit(
+                        ()->service.tick(
+                            f.npc.id,
+                            0L
+                        )
+                    );
+
+            require(
+                attackEntered.await(
+                    5L,
+                    TimeUnit.SECONDS
+                ),
+                "first attack did not enter executor"
+            );
+
+            Future<NpcCombatEngagementService.TickResult>
+                second=
+                    workers.submit(
+                        ()->service.tick(
+                            f.npc.id,
+                            0L
+                        )
+                    );
+
+            NpcCombatEngagementService.TickResult
+                secondResult=
+                    second.get(
+                        2L,
+                        TimeUnit.SECONDS
+                    );
+
+            require(
+                secondResult.status==
+                    NpcCombatEngagementService.TickStatus.WAITING&&
+                attacks.get()==1,
+                "concurrent tick executed duplicate attack"
+            );
+
+            releaseAttack.countDown();
+
+            NpcCombatEngagementService.TickResult
+                firstResult=
+                    first.get(
+                        5L,
+                        TimeUnit.SECONDS
+                    );
+
+            NpcCombatEngagementService.Snapshot
+                after=
+                    service.get(
+                        f.npc.id
+                    );
+
+            require(
+                firstResult.status==
+                    NpcCombatEngagementService.TickStatus.ATTACKED&&
+                attacks.get()==1&&
+                after.nextAttackTick==2L&&
+                after.revision==1L,
+                "single-owner tick publication"
+            );
+        }finally{
+            releaseAttack.countDown();
+            workers.shutdownNow();
+            workers.awaitTermination(
+                5L,
+                TimeUnit.SECONDS
+            );
+            f.close();
+        }
+    }
+
+    private static void tickOwnershipLinearized()
+        throws Exception{
+        Fixture f=new Fixture(
+            "engage-owned-tick"
+        );
+        ExecutorService workers=
+            Executors.newFixedThreadPool(3);
+        CountDownLatch releaseAttack=
+            new CountDownLatch(1);
+
+        try{
+            AtomicInteger attacks=
+                new AtomicInteger();
+            CountDownLatch attackEntered=
+                new CountDownLatch(1);
+
+            NpcCombatEngagementService service=
+                new NpcCombatEngagementService(
+                    f.world,
+                    cadence(2),
+                    (n,t,g,w)->{
+                        attacks.incrementAndGet();
+                        attackEntered.countDown();
+
+                        if(!releaseAttack.await(
+                                5L,
+                                TimeUnit.SECONDS))
+                            throw new AssertionError(
+                                "owned attack release timeout"
+                            );
+                    }
+                );
+
+            service.begin(
+                f.npc,
+                f.player,
+                f.generation,
+                0L
+            );
+
+            Future<NpcCombatEngagementService.TickResult>
+                tick=
+                    workers.submit(
+                        ()->service.tick(
+                            f.npc.id,
+                            0L
+                        )
+                    );
+
+            require(
+                attackEntered.await(
+                    5L,
+                    TimeUnit.SECONDS
+                ),
+                "owned tick did not enter executor"
+            );
+
+            Future<Boolean> remove=
+                workers.submit(
+                    ()->f.world.npcs()
+                        .remove(
+                            f.npc.id
+                        )
+                );
+
+            Future<Boolean> unregister=
+                workers.submit(
+                    ()->f.world.unregisterPlayer(
+                        f.player,
+                        f.generation
+                    )
+                );
+
+            requireBlocked(
+                remove,
+                "NPC removal crossed owned tick executor"
+            );
+            requireBlocked(
+                unregister,
+                "target unregister crossed owned tick executor"
+            );
+
+            releaseAttack.countDown();
+
+            NpcCombatEngagementService.TickResult
+                tickResult=
+                    tick.get(
+                        5L,
+                        TimeUnit.SECONDS
+                    );
+
+            require(
+                tickResult.status==
+                    NpcCombatEngagementService.TickStatus.ATTACKED&&
+                tickResult.snapshot.revision==1L&&
+                attacks.get()==1,
+                "owned tick result"
+            );
+
+            require(
+                remove.get(
+                    5L,
+                    TimeUnit.SECONDS
+                ),
+                "NPC removal after tick ownership release"
+            );
+            require(
+                unregister.get(
+                    5L,
+                    TimeUnit.SECONDS
+                ),
+                "target unregister after tick ownership release"
+            );
+        }finally{
+            releaseAttack.countDown();
+            workers.shutdownNow();
+            workers.awaitTermination(
+                5L,
+                TimeUnit.SECONDS
+            );
+            f.close();
+        }
+    }
+
+    private static void cadenceReentrantCancelPreventsExecutor()
+        throws Exception{
+        Fixture f=new Fixture(
+            "engage-cadence-reentrant-cancel"
+        );
+
+        try{
+            AtomicReference<NpcCombatEngagementService>
+                serviceRef=
+                    new AtomicReference<>();
+            AtomicInteger attacks=
+                new AtomicInteger();
+
+            NpcCombatEngagementService.CadenceResolver
+                reentrantCadence=
+                    new NpcCombatEngagementService.CadenceResolver(){
+                        public int nextDelayTicks(
+                            NpcCombatEngagementService.Context c
+                        ){
+                            NpcCombatEngagementService service=
+                                serviceRef.get();
+
+                            require(
+                                service!=null&&
+                                service.cancel(f.npc),
+                                "cadence reentrant cancel did not win"
+                            );
+
+                            return 2;
+                        }
+
+                        public String authority(){
+                            return "CUSTOM_LOCALLAB_CADENCE";
+                        }
+
+                        public String policy(){
+                            return "TEST_REENTRANT_CANCEL";
+                        }
+                    };
+
+            NpcCombatEngagementService service=
+                new NpcCombatEngagementService(
+                    f.world,
+                    reentrantCadence,
+                    (n,t,g,w)->attacks.incrementAndGet()
+                );
+
+            serviceRef.set(service);
+
+            service.begin(
+                f.npc,
+                f.player,
+                f.generation,
+                0L
+            );
+
+            NpcCombatEngagementService.TickResult result=
+                service.tick(
+                    f.npc.id,
+                    0L
+                );
+
+            require(
+                result.status==
+                    NpcCombatEngagementService.TickStatus.NONE&&
+                attacks.get()==0&&
+                service.get(f.npc.id)==null,
+                "cadence reentrant cancel crossed executor boundary"
+            );
+        }finally{
+            f.close();
+        }
     }
 
 
