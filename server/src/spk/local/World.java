@@ -20,6 +20,7 @@ final class World implements AutoCloseable {
     private final PlayerRegistry players=new PlayerRegistry();
     private final WorldRealtimeQueue realtime;
     private final WorldNpcRegistry npcs=new WorldNpcRegistry();
+    private final NpcLifecycleService npcLifecycle=new NpcLifecycleService(npcs);
     private final WorldHomeNpcService homeNpcs=new WorldHomeNpcService(npcs);
     private final WorldPetNpcService petNpcs=new WorldPetNpcService(npcs);
     private final WorldNpcPresentationEvents npcPresentationEvents=new WorldNpcPresentationEvents();
@@ -180,6 +181,7 @@ final class World implements AutoCloseable {
     WorldObjectRegistry objects(){return objects;}
     PlayerRegistry players(){return players;}
     WorldNpcRegistry npcs(){return npcs;}
+    NpcLifecycleService npcLifecycle(){return npcLifecycle;}
     WorldHomeNpcService homeNpcs(){return homeNpcs;}
     WorldPetNpcService petNpcs(){return petNpcs;}
     WorldNpcPresentationEvents npcPresentationEvents(){return npcPresentationEvents;}
