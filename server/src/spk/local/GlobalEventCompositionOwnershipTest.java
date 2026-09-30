@@ -103,15 +103,11 @@ public final class GlobalEventCompositionOwnershipTest {
                 "GlobalEvent completion crossed composition ownership"
             );
 
-            check(
-                service.get(
-                    definition.id
-                ).lifecycle==
-                    GlobalEventService
-                        .Lifecycle.ACTIVE,
-                "blocked competitor mutated event"
-            );
-
+            // Do not call back into the synchronized service here:
+            // the owner intentionally retains the same monitor until this
+            // thread releases the latch. The owner already proved ACTIVE
+            // reentrantly before publishing owned, and awaitBlocked proves
+            // the competing lifecycle mutation cannot cross that boundary.
             release.countDown();
 
             owner.get(
