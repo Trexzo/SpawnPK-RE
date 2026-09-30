@@ -317,6 +317,14 @@ final class NpcCombatResolutionService {
                 worldTick
             );
 
+        if(!checkedDelayedHits.isBoundTo(
+                checkedWorld,
+                lifecycle
+            ))
+            throw new IllegalArgumentException(
+                "delayedHits must be bound to resolver World + NpcLifecycleService"
+            );
+
         requireAttacker(
             checkedWorld,
             expectedAttackerGeneration,
@@ -379,14 +387,15 @@ final class NpcCombatResolutionService {
         }
 
         NpcPvmDelayedHitService.Snapshot scheduled=
-            checkedDelayedHits.schedule(
+            checkedDelayedHits.scheduleAtExpectedTick(
                 owner,
                 expectedAttackerGeneration,
                 checkedTarget,
                 prepared.damage.damage,
                 prepared.timing.hitDelayTicks,
                 prepared.damage.authority,
-                prepared.damage.formula
+                prepared.damage.formula,
+                worldTick
             );
 
         return new AttackResolution(

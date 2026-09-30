@@ -4,6 +4,7 @@ import java.lang.reflect.Field;
 import java.util.Locale;
 import java.util.PriorityQueue;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 public final class NpcPvmDelayedHitServiceTest {
@@ -18,6 +19,8 @@ public final class NpcPvmDelayedHitServiceTest {
         alreadyDeadDoesNotDuplicateDeath();
         zeroDamageDelivered();
         scheduleOwnershipAndLockOrder();
+        scheduleTickQueueAtomic();
+        clockAdvanceBlockedDuringPublication();
         overflowAtomic();
         terminalRetirement();
         authorityAndBoundary();
@@ -28,6 +31,8 @@ public final class NpcPvmDelayedHitServiceTest {
             "exactAttackerGeneration=true "+
             "exactTargetObject=true "+
             "lockOrderPlayerThenNpc=true "+
+            "scheduleTickQueueAtomic=true "+
+            "clockQueuePublicationLinearized=true "+
             "positiveDelay=true "+
             "overflowAtomic=true "+
             "noEarlyDamage=true "+
@@ -771,6 +776,257 @@ public final class NpcPvmDelayedHitServiceTest {
             f.close();
         }
     }
+
+    private static void scheduleTickQueueAtomic()
+        throws Exception{
+        Fixture f=
+            new Fixture(
+                "delayed-schedule-atomic",
+                30
+            );
+        ExecutorService workers=
+            Executors.newFixedThreadPool(2);
+        CountDownLatch npcOwned=
+            new CountDownLatch(1);
+        CountDownLatch releaseNpc=
+            new CountDownLatch(1);
+        AtomicReference<Thread> scheduleThread=
+            new AtomicReference<>();
+
+        try{
+            NpcPvmDelayedHitService service=
+                f.service();
+
+            Future<Boolean> blocker=
+                workers.submit(
+                    ()->f.world.npcs()
+                        .withCurrentMutationOwnershipIfCurrent(
+                            f.npc,
+                            ()->{
+                                npcOwned.countDown();
+
+                                if(!releaseNpc.await(
+                                        5L,
+                                        TimeUnit.SECONDS))
+                                    throw new AssertionError(
+                                        "schedule atomic NPC release timeout"
+                                    );
+                            }
+                        )
+                );
+
+            require(
+                npcOwned.await(
+                    5L,
+                    TimeUnit.SECONDS
+                ),
+                "schedule atomic NPC owner did not enter"
+            );
+
+            Future<NpcPvmDelayedHitService.Snapshot>
+                scheduled=
+                    workers.submit(
+                        ()->{
+                            scheduleThread.set(
+                                Thread.currentThread()
+                            );
+
+                            return service.schedule(
+                                f.player,
+                                f.generation,
+                                f.npc,
+                                6,
+                                2,
+                                "TEST_DAMAGE",
+                                "ATOMIC_SCHEDULE"
+                            );
+                        }
+                    );
+
+            awaitBlocked(
+                scheduleThread,
+                "delayed schedule did not block behind NPC ownership"
+            );
+
+            require(
+                f.world.clock().advance()==1L&&
+                f.world.clock().advance()==2L&&
+                f.world.clock().advance()==3L,
+                "clock did not advance while schedule was pre-publication blocked"
+            );
+
+            releaseNpc.countDown();
+
+            require(
+                blocker.get(
+                    5L,
+                    TimeUnit.SECONDS
+                ),
+                "schedule atomic NPC blocker ownership"
+            );
+
+            NpcPvmDelayedHitService.Snapshot
+                hit=
+                    scheduled.get(
+                        5L,
+                        TimeUnit.SECONDS
+                    );
+
+            require(
+                hit.scheduledFromTick==3L&&
+                hit.dueTick==5L&&
+                f.hp()==30,
+                "schedule did not bind publication tick"
+            );
+
+            long tick4=
+                f.world.clock().advance();
+
+            require(
+                tick4==4L&&
+                f.world.events().runDue(
+                    tick4
+                )==0&&
+                f.hp()==30,
+                "schedule atomic hit delivered early"
+            );
+
+            long tick5=
+                f.world.clock().advance();
+
+            require(
+                tick5==5L&&
+                f.world.events().runDue(
+                    tick5
+                )==1&&
+                f.hp()==24,
+                "schedule atomic hit did not preserve positive delay"
+            );
+        }finally{
+            releaseNpc.countDown();
+            workers.shutdownNow();
+            workers.awaitTermination(
+                5L,
+                TimeUnit.SECONDS
+            );
+            f.close();
+        }
+    }
+
+    private static void clockAdvanceBlockedDuringPublication()
+        throws Exception{
+        World world=
+            World.isolatedForTest(
+                600L
+            );
+        ExecutorService workers=
+            Executors.newFixedThreadPool(2);
+        CountDownLatch publicationEntered=
+            new CountDownLatch(1);
+        CountDownLatch releasePublication=
+            new CountDownLatch(1);
+        AtomicReference<Thread> advanceThread=
+            new AtomicReference<>();
+        AtomicBoolean eventInserted=
+            new AtomicBoolean();
+
+        try{
+            Future<?> publication=
+                workers.submit(
+                    ()->{
+                        world.withClockEventPublicationOwnership(
+                            authoritativeTick->{
+                                require(
+                                    authoritativeTick==0L,
+                                    "unexpected publication tick"
+                                );
+
+                                publicationEntered.countDown();
+
+                                if(!releasePublication.await(
+                                        5L,
+                                        TimeUnit.SECONDS))
+                                    throw new AssertionError(
+                                        "clock publication release timeout"
+                                    );
+
+                                world.events().schedule(
+                                    Math.addExact(
+                                        authoritativeTick,
+                                        1L
+                                    ),
+                                    ()->{}
+                                );
+                                eventInserted.set(
+                                    true
+                                );
+                            }
+                        );
+
+                        return null;
+                    }
+                );
+
+            require(
+                publicationEntered.await(
+                    5L,
+                    TimeUnit.SECONDS
+                ),
+                "clock publication did not enter"
+            );
+
+            Future<Long> advance=
+                workers.submit(
+                    ()->{
+                        advanceThread.set(
+                            Thread.currentThread()
+                        );
+                        return world.clock()
+                            .advance();
+                    }
+                );
+
+            awaitBlocked(
+                advanceThread,
+                "clock advance crossed publication ownership"
+            );
+
+            require(
+                !publication.isDone()&&
+                !advance.isDone()&&
+                !eventInserted.get(),
+                "publication/advance escaped before release"
+            );
+
+            releasePublication.countDown();
+
+            publication.get(
+                5L,
+                TimeUnit.SECONDS
+            );
+
+            require(
+                advance.get(
+                    5L,
+                    TimeUnit.SECONDS
+                )==1L&&
+                world.events().size()==1&&
+                world.events().runDue(
+                    1L
+                )==1,
+                "clock/queue publication did not linearize"
+            );
+        }finally{
+            releasePublication.countDown();
+            workers.shutdownNow();
+            workers.awaitTermination(
+                5L,
+                TimeUnit.SECONDS
+            );
+            world.close();
+        }
+    }
+
 
     private static void overflowAtomic()
         throws Exception{

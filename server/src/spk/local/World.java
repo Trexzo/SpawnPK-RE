@@ -228,6 +228,37 @@ final class World implements AutoCloseable {
     PluginManager plugins(){return plugins;}
     Object loginInitializationLock(){return loginInitializationLock;}
 
+    interface ClockEventPublicationAction {
+        void run(
+            long authoritativeTick
+        ) throws Exception;
+    }
+
+    /**
+     * Linearizes one caller-owned event publication against both logical clock
+     * advance and WorldEventQueue due selection/insertion.
+     *
+     * Lock order is GameClock -> WorldEventQueue. WorldPulse advances the
+     * GameClock and releases it before later entering WorldEventQueue.runDue,
+     * so the pulse never holds the queue while waiting for the clock.
+     */
+    void withClockEventPublicationOwnership(
+        ClockEventPublicationAction action
+    )throws Exception{
+        Objects.requireNonNull(
+            action,
+            "action"
+        );
+
+        synchronized(clock){
+            synchronized(events){
+                action.run(
+                    clock.tick()
+                );
+            }
+        }
+    }
+
     interface OwnedPlayerIoAction {
         void run() throws java.io.IOException;
     }
