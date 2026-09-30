@@ -134,6 +134,14 @@ final class NpcDropResolutionService {
             );
     }
 
+    boolean isBoundTo(
+        WorldNpcRegistry expectedNpcs,
+        NpcLifecycleService expectedLifecycle
+    ){
+        return npcs==expectedNpcs&&
+            lifecycle==expectedLifecycle;
+    }
+
     synchronized Resolution resolve(
         WorldNpc npc,
         String recipientRef

@@ -4927,6 +4927,7 @@ tasks.named('check') {
     dependsOn tasks.named('npcCombatResolutionServiceRegression')
     dependsOn tasks.named('npcRespawnServiceRegression')
     dependsOn tasks.named('npcDeadLifecycleOwnershipRegression')
+    dependsOn tasks.named('worldNpcLifecycleAuthorityRegression')
     dependsOn tasks.named('npcLifecycleServiceRegression')
     dependsOn tasks.named('worldNpcMutationOwnershipRegression')
     dependsOn tasks.named('issue9LauncherContractRegression')
@@ -5280,6 +5281,17 @@ tasks.register('worldNpcMutationOwnershipRegression', JavaExec) {
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass = 'spk.local.WorldNpcMutationOwnershipTest'
+}
+
+
+tasks.register('worldNpcLifecycleAuthorityRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves each World owns one canonical NPC HP/death lifecycle authority shared unchanged by runtime services.'
+    dependsOn tasks.named('testClasses')
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.WorldNpcLifecycleAuthorityTest'
 }
 
 
