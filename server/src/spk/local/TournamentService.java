@@ -192,6 +192,8 @@ final class TournamentService {
         String winnerRef;
         MatchSessionService.CompositionLease
             childLease;
+        GlobalEventService.TerminalHold
+            terminalHold;
 
         TournamentMatch(
             MatchId matchId,
@@ -503,15 +505,10 @@ final class TournamentService {
                         checkedInstanceId
                     );
 
-                String holdKey=
-                    terminalHoldKey(
-                        checkedMatchId
+                tournamentMatch.terminalHold=
+                    events.acquireTerminalHold(
+                        entry.eventId
                     );
-
-                events.acquireTerminalHold(
-                    entry.eventId,
-                    holdKey
-                );
 
                 boolean published=false;
                 boolean childLeaseAcquired=false;
@@ -573,7 +570,9 @@ final class TournamentService {
                             instances,
                             checkedMatchId,
                             checkedInstanceId,
-                            holdKey
+                            childLeaseLabel(
+                                checkedMatchId
+                            )
                         );
                     childLeaseAcquired=true;
 
@@ -613,9 +612,11 @@ final class TournamentService {
                         }
 
                         events.releaseTerminalHold(
-                            entry.eventId,
-                            holdKey
+                            requireTerminalHold(
+                                tournamentMatch
+                            )
                         );
+                        tournamentMatch.terminalHold=null;
                     }
                 }
             }
@@ -743,11 +744,11 @@ final class TournamentService {
                 tournamentMatch.childLease=null;
 
                 events.releaseTerminalHold(
-                    entry.eventId,
-                    terminalHoldKey(
-                        tournamentMatch.matchId
+                    requireTerminalHold(
+                        tournamentMatch
                     )
                 );
+                tournamentMatch.terminalHold=null;
             }
         );
 
@@ -834,11 +835,11 @@ final class TournamentService {
                 tournamentMatch.childLease=null;
 
                 events.releaseTerminalHold(
-                    entry.eventId,
-                    terminalHoldKey(
-                        tournamentMatch.matchId
+                    requireTerminalHold(
+                        tournamentMatch
                     )
                 );
+                tournamentMatch.terminalHold=null;
             }
         );
 
@@ -1197,7 +1198,20 @@ final class TournamentService {
         return match.childLease;
     }
 
-    private static String terminalHoldKey(
+    private static GlobalEventService.TerminalHold
+        requireTerminalHold(
+            TournamentMatch match
+        ){
+        if(match.terminalHold==null)
+            throw new IllegalStateException(
+                "Tournament terminal hold missing "+
+                match.matchId
+            );
+
+        return match.terminalHold;
+    }
+
+    private static String childLeaseLabel(
         MatchId matchId
     ){
         return "tournament-match:"+
