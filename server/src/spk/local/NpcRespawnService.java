@@ -250,6 +250,14 @@ final class NpcRespawnService {
             );
     }
 
+    boolean isBoundTo(
+        WorldNpcRegistry expectedNpcs,
+        NpcLifecycleService expectedLifecycle
+    ){
+        return npcs==expectedNpcs&&
+            lifecycle==expectedLifecycle;
+    }
+
     synchronized TicketSnapshot scheduleDead(
         WorldNpc npc,
         long respawnDelayTicks,
