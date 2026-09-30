@@ -10,6 +10,9 @@ import java.util.*;
  * delivered on the shared WorldEventQueue at an authoritative world tick.
  */
 final class NpcPvmDelayedHitService {
+    static final String REQUIRE_CURRENT_ATTACKER_GENERATION=
+        "REQUIRE_CURRENT_ATTACKER_GENERATION";
+
     enum State {
         SCHEDULED,
         DELIVERED,
@@ -207,6 +210,15 @@ final class NpcPvmDelayedHitService {
             requireText(
                 deliveryPolicy,
                 "deliveryPolicy"
+            );
+
+        if(!REQUIRE_CURRENT_ATTACKER_GENERATION
+                .equals(
+                    this.deliveryPolicy
+                ))
+            throw new IllegalArgumentException(
+                "unsupported delayed-hit delivery policy "+
+                this.deliveryPolicy
             );
     }
 
@@ -588,6 +600,10 @@ final class NpcPvmDelayedHitService {
 
                 entry.executing=false;
             }
+
+            rethrowUnchecked(
+                failure
+            );
         }
     }
 
