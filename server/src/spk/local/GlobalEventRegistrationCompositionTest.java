@@ -25,24 +25,28 @@ public final class GlobalEventRegistrationCompositionTest {
 
     private static void atomicPublicationBlocksObservationAndMutation()
         throws Exception{
+        observerBlocksUntilPublication();
+        mutationBlocksUntilPublication();
+    }
+
+    private static void observerBlocksUntilPublication()
+        throws Exception{
         GlobalEventService service=
             new GlobalEventService();
         WorldEventDefinition definition=
             definition(
-                "custom:registration-owned",
+                "custom:registration-observer",
                 10L,
                 20L
             );
 
         ExecutorService workers=
-            Executors.newFixedThreadPool(3);
+            Executors.newFixedThreadPool(2);
         CountDownLatch actionEntered=
             new CountDownLatch(1);
         CountDownLatch release=
             new CountDownLatch(1);
         AtomicReference<Thread> observerThread=
-            new AtomicReference<>();
-        AtomicReference<Thread> mutatorThread=
             new AtomicReference<>();
 
         try{
@@ -53,17 +57,13 @@ public final class GlobalEventRegistrationCompositionTest {
                             service.registerWithCompositionOwnership(
                                 definition,
                                 ()->{
-                                    GlobalEventService.Snapshot inside=
+                                    check(
                                         service.get(
                                             definition.id
-                                        );
-
-                                    check(
-                                        inside!=null&&
-                                        inside.lifecycle==
+                                        ).lifecycle==
                                             GlobalEventService
                                                 .Lifecycle.SCHEDULED,
-                                        "reentrant registration snapshot"
+                                        "reentrant observer registration snapshot"
                                     );
 
                                     actionEntered.countDown();
@@ -72,7 +72,7 @@ public final class GlobalEventRegistrationCompositionTest {
                                             5L,
                                             TimeUnit.SECONDS))
                                         throw new AssertionError(
-                                            "registration release timeout"
+                                            "observer registration release timeout"
                                         );
                                 }
                             );
@@ -81,7 +81,7 @@ public final class GlobalEventRegistrationCompositionTest {
                             created.lifecycle==
                                 GlobalEventService
                                     .Lifecycle.SCHEDULED,
-                            "registration postimage not scheduled"
+                            "observer registration postimage not scheduled"
                         );
 
                         return null;
@@ -93,7 +93,7 @@ public final class GlobalEventRegistrationCompositionTest {
                     5L,
                     TimeUnit.SECONDS
                 ),
-                "registration owner did not enter"
+                "observer registration owner did not enter"
             );
 
             Future<GlobalEventService.Snapshot> observer=
@@ -107,6 +107,100 @@ public final class GlobalEventRegistrationCompositionTest {
                         );
                     }
                 );
+
+            awaitBlocked(
+                observerThread,
+                "GlobalEvent observer crossed registration publication"
+            );
+
+            release.countDown();
+
+            owner.get(
+                5L,
+                TimeUnit.SECONDS
+            );
+
+            GlobalEventService.Snapshot observed=
+                observer.get(
+                    5L,
+                    TimeUnit.SECONDS
+                );
+
+            check(
+                observed!=null&&
+                observed.lifecycle==
+                    GlobalEventService
+                        .Lifecycle.SCHEDULED,
+                "observer did not see scheduled publication"
+            );
+        }finally{
+            release.countDown();
+            workers.shutdownNow();
+            workers.awaitTermination(
+                5L,
+                TimeUnit.SECONDS
+            );
+        }
+    }
+
+    private static void mutationBlocksUntilPublication()
+        throws Exception{
+        GlobalEventService service=
+            new GlobalEventService();
+        WorldEventDefinition definition=
+            definition(
+                "custom:registration-mutator",
+                10L,
+                20L
+            );
+
+        ExecutorService workers=
+            Executors.newFixedThreadPool(2);
+        CountDownLatch actionEntered=
+            new CountDownLatch(1);
+        CountDownLatch release=
+            new CountDownLatch(1);
+        AtomicReference<Thread> mutatorThread=
+            new AtomicReference<>();
+
+        try{
+            Future<?> owner=
+                workers.submit(
+                    ()->{
+                        service.registerWithCompositionOwnership(
+                            definition,
+                            ()->{
+                                check(
+                                    service.get(
+                                        definition.id
+                                    ).lifecycle==
+                                        GlobalEventService
+                                            .Lifecycle.SCHEDULED,
+                                    "reentrant mutator registration snapshot"
+                                );
+
+                                actionEntered.countDown();
+
+                                if(!release.await(
+                                        5L,
+                                        TimeUnit.SECONDS))
+                                    throw new AssertionError(
+                                        "mutator registration release timeout"
+                                    );
+                            }
+                        );
+
+                        return null;
+                    }
+                );
+
+            check(
+                actionEntered.await(
+                    5L,
+                    TimeUnit.SECONDS
+                ),
+                "mutator registration owner did not enter"
+            );
 
             Future<?> mutator=
                 workers.submit(
@@ -123,10 +217,6 @@ public final class GlobalEventRegistrationCompositionTest {
                 );
 
             awaitBlocked(
-                observerThread,
-                "GlobalEvent observer crossed registration publication"
-            );
-            awaitBlocked(
                 mutatorThread,
                 "GlobalEvent mutation crossed registration publication"
             );
@@ -137,24 +227,11 @@ public final class GlobalEventRegistrationCompositionTest {
                 5L,
                 TimeUnit.SECONDS
             );
-
-            GlobalEventService.Snapshot observed=
-                observer.get(
-                    5L,
-                    TimeUnit.SECONDS
-                );
             mutator.get(
                 5L,
                 TimeUnit.SECONDS
             );
 
-            check(
-                observed!=null&&
-                observed.lifecycle==
-                    GlobalEventService
-                        .Lifecycle.SCHEDULED,
-                "observer did not see scheduled publication"
-            );
             check(
                 service.get(
                     definition.id
