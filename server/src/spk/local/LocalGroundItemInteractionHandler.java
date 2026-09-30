@@ -36,11 +36,15 @@ final class LocalGroundItemInteractionHandler {
     )throws IOException{
         if(action==null)return null;
 
-        GroundItem ground=world.groundItems().find(
-            action.itemId,action.worldX,action.worldY,0);
+        GroundItem ground=world.groundItems().findVisible(
+            action.itemId,
+            action.worldX,
+            action.worldY,
+            movement.plane(),
+            username
+        );
 
-        if(ground==null ||
-           (ground.owner!=null&&!ground.owner.equalsIgnoreCase(username))){
+        if(ground==null){
             return Result.log(
                 "V511_GROUND_ACTION "+action+
                 " result=REJECTED_NOT_VISIBLE_OR_MISSING"
@@ -107,7 +111,7 @@ final class LocalGroundItemInteractionHandler {
            ground.itemId!=action.itemId||
            ground.tile.x!=action.worldX||
            ground.tile.y!=action.worldY||
-           ground.tile.plane!=0||
+           ground.tile.plane!=movement.plane()||
            now>pendingTakeDeadlineMs){
             clearPendingTake();
             return Result.log(
