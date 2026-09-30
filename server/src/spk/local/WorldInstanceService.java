@@ -9,6 +9,19 @@ import java.util.*;
  * deliberately external to this first semantic foundation.
  */
 final class WorldInstanceService {
+    static final class StructuralHold {
+        private final WorldInstanceService owner;
+        private final WorldInstanceId instanceId;
+
+        private StructuralHold(
+            WorldInstanceService owner,
+            WorldInstanceId instanceId
+        ){
+            this.owner=owner;
+            this.instanceId=instanceId;
+        }
+    }
+
     enum Lifecycle {
         CREATED,
         ACTIVE,
@@ -55,8 +68,13 @@ final class WorldInstanceService {
         final String sourceAuthority;
         final LinkedHashSet<String> participants=
             new LinkedHashSet<>();
-        final LinkedHashSet<String> structuralHolds=
-            new LinkedHashSet<>();
+        final Set<StructuralHold> structuralHolds=
+            Collections.newSetFromMap(
+                new IdentityHashMap<
+                    StructuralHold,
+                    Boolean
+                >()
+            );
 
         Lifecycle lifecycle=Lifecycle.CREATED;
 
@@ -89,12 +107,10 @@ final class WorldInstanceService {
         action.run();
     }
 
-    synchronized void acquireStructuralHold(
-        WorldInstanceId instanceId,
-        String holdKey
+    synchronized StructuralHold acquireStructuralHold(
+        WorldInstanceId instanceId
     ){
         Instance instance=require(instanceId);
-        String key=requireHoldKey(holdKey);
 
         if(instance.lifecycle!=Lifecycle.ACTIVE)
             throw invalid(
@@ -102,26 +118,44 @@ final class WorldInstanceService {
                 "acquireStructuralHold"
             );
 
-        if(!instance.structuralHolds.add(key))
-            throw new IllegalStateException(
-                "duplicate WorldInstance structural hold instance="+
-                instance.id+
-                " key="+key
+        StructuralHold hold=
+            new StructuralHold(
+                this,
+                instance.id
             );
+
+        if(!instance.structuralHolds.add(hold))
+            throw new IllegalStateException(
+                "duplicate WorldInstance structural hold identity instance="+
+                instance.id
+            );
+
+        return hold;
     }
 
     synchronized void releaseStructuralHold(
-        WorldInstanceId instanceId,
-        String holdKey
+        StructuralHold hold
     ){
-        Instance instance=require(instanceId);
-        String key=requireHoldKey(holdKey);
+        StructuralHold checked=
+            Objects.requireNonNull(
+                hold,
+                "hold"
+            );
 
-        if(!instance.structuralHolds.remove(key))
+        if(checked.owner!=this)
+            throw new IllegalArgumentException(
+                "structural hold belongs to another WorldInstanceService"
+            );
+
+        Instance instance=require(
+            checked.instanceId
+        );
+
+        if(!instance.structuralHolds.remove(
+                checked))
             throw new IllegalStateException(
-                "missing WorldInstance structural hold instance="+
-                instance.id+
-                " key="+key
+                "structural hold already released or unknown instance="+
+                checked.instanceId
             );
     }
 
@@ -312,22 +346,6 @@ final class WorldInstanceService {
                 " holds="+
                 instance.structuralHolds
             );
-    }
-
-    private static String requireHoldKey(
-        String holdKey
-    ){
-        if(holdKey==null)
-            throw new NullPointerException("holdKey");
-
-        String key=holdKey.trim();
-
-        if(key.isEmpty())
-            throw new IllegalArgumentException(
-                "holdKey blank"
-            );
-
-        return key;
     }
 
     private Instance require(WorldInstanceId id){
