@@ -548,7 +548,9 @@ final class PvpHotspotService {
         // advances scheduled/end deadlines before hotspot gameplay mutation.
         events.tick(worldTick);
 
-        return requireEvent(entry);
+        return reconcileTerminalPresence(
+            entry
+        );
     }
 
     private Snapshot snapshotOf(
@@ -556,8 +558,31 @@ final class PvpHotspotService {
     ){
         return snapshotOf(
             entry,
-            requireEvent(entry)
+            reconcileTerminalPresence(
+                entry
+            )
         );
+    }
+
+    private GlobalEventService.Snapshot
+        reconcileTerminalPresence(
+            Entry entry
+        ){
+        GlobalEventService.Snapshot event=
+            requireEvent(entry);
+
+        /*
+         * Backing GlobalEvent lifecycle may become terminal without passing
+         * through this service: end-deadline advancement and direct caller
+         * complete/cancel are both valid GlobalEvent operations. Presence is
+         * transient application state, so every Hotspot observation/projected
+         * snapshot must reconcile it to zero once that backing lifecycle is
+         * terminal. Historical kill/death counters remain untouched.
+         */
+        if(event.terminal())
+            clearPresence(entry);
+
+        return event;
     }
 
     private static Snapshot snapshotOf(
