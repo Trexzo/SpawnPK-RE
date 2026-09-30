@@ -600,7 +600,7 @@ final class TournamentService {
                         );
                 }finally{
                     if(!published){
-                        if(childLeaseAcquired)
+                        if(childLeaseAcquired){
                             matches.releaseWorldInstanceCompositionLease(
                                 instances,
                                 checkedMatchId,
@@ -610,6 +610,7 @@ final class TournamentService {
                                 )
                             );
                             tournamentMatch.childLease=null;
+                        }
 
                         events.releaseTerminalHold(
                             entry.eventId,
