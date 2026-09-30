@@ -6,6 +6,8 @@ import java.util.*;
 public final class NpcDropGroundSettlementServiceTest {
     public static void main(String[] args){
         ownerScopedSettlementAndIdempotency();
+        duplicateRowsCanonicalized();
+        duplicateRowsOverflowPreflight();
         zeroDropSettlement();
         conflictingResolutionRejected();
         batchFailureRetryExactlyOnce();
@@ -18,6 +20,7 @@ public final class NpcDropGroundSettlementServiceTest {
             "deathTile=true "+
             "deathTick=true "+
             "idempotent=true "+
+            "duplicateRowsCanonicalized=true "+
             "conflictFailClosed=true "+
             "retryAfterFailure=true "+
             "zeroDrop=true "+
@@ -119,6 +122,124 @@ public final class NpcDropGroundSettlementServiceTest {
                     first.groundItems.get(0)
                 ),
                 "receipt rows mutable"
+            );
+        }finally{
+            f.close();
+        }
+    }
+
+    private static void duplicateRowsCanonicalized(){
+        Fixture f=new Fixture(
+            Arrays.asList(
+                new NpcDropResolutionService.Drop(
+                    995,
+                    10
+                ),
+                new NpcDropResolutionService.Drop(
+                    995,
+                    15
+                ),
+                new NpcDropResolutionService.Drop(
+                    4151,
+                    1
+                )
+            ),
+            "CUSTOM_LOCALLAB_DROP_DUPLICATE"
+        );
+
+        try{
+            NpcDropResolutionService.Resolution resolution=
+                f.resolve(
+                    "player:duplicate"
+                );
+            NpcDropGroundSettlementService service=
+                f.settlement();
+
+            NpcDropGroundSettlementService.Receipt receipt=
+                service.settle(
+                    resolution
+                );
+
+            GroundItem coins=
+                f.world.groundItems()
+                    .findOwned(
+                        995,
+                        receipt.deathTile.x,
+                        receipt.deathTile.y,
+                        receipt.deathTile.plane,
+                        "player:duplicate"
+                    );
+            GroundItem whip=
+                f.world.groundItems()
+                    .findOwned(
+                        4151,
+                        receipt.deathTile.x,
+                        receipt.deathTile.y,
+                        receipt.deathTile.plane,
+                        "player:duplicate"
+                    );
+
+            require(
+                receipt.groundItems.size()==2&&
+                receipt.groundItems.get(0).itemId==995&&
+                receipt.groundItems.get(0).settledAmount==25&&
+                receipt.groundItems.get(1).itemId==4151&&
+                receipt.groundItems.get(1).settledAmount==1&&
+                coins!=null&&
+                coins.amount==25&&
+                whip!=null&&
+                whip.amount==1&&
+                f.world.groundItems().size()==2,
+                "duplicate drop rows were not canonicalized before settlement"
+            );
+
+            require(
+                service.settle(resolution)==receipt&&
+                coins.amount==25&&
+                whip.amount==1,
+                "canonical duplicate settlement was not idempotent"
+            );
+        }finally{
+            f.close();
+        }
+    }
+
+    private static void duplicateRowsOverflowPreflight(){
+        Fixture f=new Fixture(
+            Arrays.asList(
+                new NpcDropResolutionService.Drop(
+                    995,
+                    Integer.MAX_VALUE
+                ),
+                new NpcDropResolutionService.Drop(
+                    995,
+                    1
+                )
+            ),
+            "CUSTOM_LOCALLAB_DROP_DUPLICATE_OVERFLOW"
+        );
+
+        try{
+            NpcDropResolutionService.Resolution resolution=
+                f.resolve(
+                    "player:overflow"
+                );
+            NpcDropGroundSettlementService service=
+                f.settlement();
+
+            expect(
+                IllegalStateException.class,
+                ()->service.settle(
+                    resolution
+                ),
+                "duplicate-row amount overflow"
+            );
+
+            require(
+                service.size()==0&&
+                service.get(f.npc.id)==null&&
+                f.world.groundItems().size()==0,
+                "duplicate-row overflow mutated world state"
             );
         }finally{
             f.close();
