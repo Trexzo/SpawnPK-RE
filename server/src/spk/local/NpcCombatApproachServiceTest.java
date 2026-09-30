@@ -2,6 +2,8 @@ package spk.local;
 
 import java.lang.reflect.Field;
 import java.util.Locale;
+import java.util.concurrent.*;
+import java.util.concurrent.atomic.*;
 
 public final class NpcCombatApproachServiceTest {
     public static void main(String[] args)throws Exception{
@@ -12,6 +14,7 @@ public final class NpcCombatApproachServiceTest {
         differentPlaneNoMove();
         staleTargetNoMove();
         staleAttackerNoMove();
+        playerThenNpcLockOrder();
         invalidPolicyAtomic();
         authorityAndBoundary();
 
@@ -465,6 +468,177 @@ public final class NpcCombatApproachServiceTest {
             f.close();
         }
     }
+
+    private static void playerThenNpcLockOrder()
+        throws Exception{
+        Fixture f=new Fixture(
+            "approach-lock-order",
+            3089,
+            3495
+        );
+        ExecutorService workers=
+            Executors.newFixedThreadPool(3);
+        CountDownLatch npcLockHeld=
+            new CountDownLatch(1);
+        CountDownLatch releaseNpcLock=
+            new CountDownLatch(1);
+        AtomicReference<Thread> stepThread=
+            new AtomicReference<>();
+
+        try{
+            WorldNpc npc=
+                f.spawn(
+                    1488,
+                    3087,
+                    3495,
+                    0
+                );
+
+            Future<Boolean> blocker=
+                workers.submit(
+                    ()->f.world.npcs()
+                        .withCurrentMutationOwnershipIfCurrent(
+                            npc,
+                            ()->{
+                                npcLockHeld.countDown();
+
+                                if(!releaseNpcLock.await(
+                                        5L,
+                                        TimeUnit.SECONDS))
+                                    throw new AssertionError(
+                                        "NPC lock release timeout"
+                                    );
+                            }
+                        )
+                );
+
+            require(
+                npcLockHeld.await(
+                    5L,
+                    TimeUnit.SECONDS
+                ),
+                "NPC lock blocker did not start"
+            );
+
+            NpcCombatApproachService service=
+                new NpcCombatApproachService(
+                    f.world,
+                    policy(
+                        1,
+                        RouteRequest.Policy
+                            .HOME_RECOVERED_STATIC_AUTHORITY
+                    )
+                );
+
+            Future<NpcCombatApproachService.Result>
+                approach=
+                    workers.submit(
+                        ()->{
+                            stepThread.set(
+                                Thread.currentThread()
+                            );
+                            return service.step(
+                                npc,
+                                f.player,
+                                f.generation
+                            );
+                        }
+                    );
+
+            awaitBlocked(
+                stepThread,
+                "approach did not block on NPC ownership"
+            );
+
+            Future<Boolean> unregister=
+                workers.submit(
+                    ()->f.world.unregisterPlayer(
+                        f.player,
+                        f.generation
+                    )
+                );
+
+            requireBlocked(
+                unregister,
+                "player unregister crossed approach lock order"
+            );
+
+            releaseNpcLock.countDown();
+
+            require(
+                blocker.get(
+                    5L,
+                    TimeUnit.SECONDS
+                ),
+                "NPC lock blocker lost ownership"
+            );
+
+            NpcCombatApproachService.Result result=
+                approach.get(
+                    5L,
+                    TimeUnit.SECONDS
+                );
+
+            require(
+                result.status==
+                    NpcCombatApproachService.Status.MOVED,
+                "owned approach result"
+            );
+
+            require(
+                unregister.get(
+                    5L,
+                    TimeUnit.SECONDS
+                ),
+                "player unregister after approach"
+            );
+        }finally{
+            releaseNpcLock.countDown();
+            workers.shutdownNow();
+            workers.awaitTermination(
+                5L,
+                TimeUnit.SECONDS
+            );
+            f.close();
+        }
+    }
+
+    private static void awaitBlocked(
+        AtomicReference<Thread> thread,
+        String label
+    )throws Exception{
+        long deadline=
+            System.nanoTime()+
+            TimeUnit.SECONDS.toNanos(5L);
+
+        while(System.nanoTime()<deadline){
+            Thread current=thread.get();
+
+            if(current!=null&&
+               current.getState()==Thread.State.BLOCKED)
+                return;
+
+            Thread.sleep(5L);
+        }
+
+        throw new AssertionError(label);
+    }
+
+    private static void requireBlocked(
+        Future<?> future,
+        String label
+    )throws Exception{
+        try{
+            future.get(
+                150L,
+                TimeUnit.MILLISECONDS
+            );
+            throw new AssertionError(label);
+        }catch(TimeoutException expected){
+            // Expected while approach owns the player mutation lock.
+        }
+    }
+
 
     private static void invalidPolicyAtomic()
         throws Exception{
