@@ -41,6 +41,58 @@ final class GroundItemRegistry {
         }
     }
 
+    static final class BatchMutation {
+        final long groundItemId;
+        final int itemId;
+        final Tile tile;
+        final String owner;
+        final long spawnedTick;
+        final boolean devOwned;
+        final int addedAmount;
+        final int oldAmount;
+        final int newAmount;
+
+        BatchMutation(
+            GroundItem item,
+            int addedAmount,
+            int oldAmount
+        ){
+            GroundItem checked=
+                Objects.requireNonNull(
+                    item,
+                    "item"
+                );
+
+            if(addedAmount<=0)
+                throw new IllegalArgumentException(
+                    "addedAmount="+
+                    addedAmount
+                );
+            if(oldAmount<0||
+               oldAmount>=checked.amount)
+                throw new IllegalArgumentException(
+                    "oldAmount="+
+                    oldAmount+
+                    " newAmount="+
+                    checked.amount
+                );
+
+            this.groundItemId=checked.id;
+            this.itemId=checked.itemId;
+            this.tile=checked.tile;
+            this.owner=checked.owner;
+            this.spawnedTick=checked.spawnedTick;
+            this.devOwned=checked.devOwned;
+            this.addedAmount=addedAmount;
+            this.oldAmount=oldAmount;
+            this.newAmount=checked.amount;
+        }
+
+        boolean created(){
+            return oldAmount==0;
+        }
+    }
+
     private static final class StackKey {
         final int itemId;
         final Tile tile;
@@ -117,6 +169,42 @@ final class GroundItemRegistry {
     }
 
     synchronized List<GroundItem> addBatch(
+        List<AddRequest> requests
+    ){
+        List<BatchMutation> mutations=
+            addBatchDetailed(
+                requests
+            );
+
+        if(mutations.isEmpty())
+            return Collections.emptyList();
+
+        ArrayList<GroundItem> out=
+            new ArrayList<>(
+                mutations.size()
+            );
+
+        for(BatchMutation mutation:mutations){
+            GroundItem item=
+                byId.get(
+                    mutation.groundItemId
+                );
+
+            if(item==null)
+                throw new IllegalStateException(
+                    "committed ground item missing id="+
+                    mutation.groundItemId
+                );
+
+            out.add(item);
+        }
+
+        return Collections.unmodifiableList(
+            out
+        );
+    }
+
+    synchronized List<BatchMutation> addBatchDetailed(
         List<AddRequest> requests
     ){
         Objects.requireNonNull(
@@ -251,7 +339,7 @@ final class GroundItemRegistry {
                 );
         }
 
-        ArrayList<GroundItem> out=
+        ArrayList<BatchMutation> out=
             new ArrayList<>(
                 requestedAmounts.size()
             );
@@ -268,12 +356,21 @@ final class GroundItemRegistry {
                 existing.get(key);
 
             if(current!=null){
+                int oldAmount=
+                    current.amount;
+
                 current.amount=
                     Math.addExact(
                         current.amount,
                         requested
                     );
-                out.add(current);
+                out.add(
+                    new BatchMutation(
+                        current,
+                        requested,
+                        oldAmount
+                    )
+                );
                 continue;
             }
 
@@ -303,7 +400,13 @@ final class GroundItemRegistry {
                 created.id,
                 created
             );
-            out.add(created);
+            out.add(
+                new BatchMutation(
+                    created,
+                    requested,
+                    0
+                )
+            );
         }
 
         return Collections.unmodifiableList(
