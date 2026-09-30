@@ -4914,6 +4914,7 @@ tasks.named('check') {
     dependsOn tasks.named('npcCombatControllerServiceRegression')
     dependsOn tasks.named('npcTargetAcquisitionServiceRegression')
     dependsOn tasks.named('npcCombatAiServiceRegression')
+    dependsOn tasks.named('npcWorldPulseAiRegression')
     dependsOn tasks.named('npcPvmDelayedHitServiceRegression')
     dependsOn tasks.named('npcCombatDelayedCompositionRegression')
     dependsOn tasks.named('monsterSpawnerServiceRegression')
@@ -5446,6 +5447,20 @@ tasks.register('npcCombatAiServiceRegression', JavaExec) {
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass = 'spk.local.NpcCombatAiServiceTest'
+}
+
+
+tasks.register('npcWorldPulseAiRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves canonical NPC combat AI executes on the one authoritative WorldPulse through a separate NPC-owned tick-target contract.'
+    dependsOn(
+        tasks.named('testClasses'),
+        tasks.named('npcCombatAiServiceRegression')
+    )
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.NpcWorldPulseAiTest'
 }
 
 

@@ -26,6 +26,7 @@ final class World implements AutoCloseable {
     private final WorldCommandInbox commands;
     private final DomainEventBus domainEvents;
     private final LinkedHashMap<EntityId,WorldTickTarget> tickTargets=new LinkedHashMap<>();
+    private final LinkedHashMap<EntityId,WorldNpcTickTarget> npcTickTargets=new LinkedHashMap<>();
     private final WorldPulse pulse;
     private final WorldPlayerPersistence persistence;
     private final PlayerPrivilegeService playerPrivileges=
@@ -568,6 +569,101 @@ final class World implements AutoCloseable {
         }
     }
     List<WorldTickTarget> tickTargetsSnapshot(){synchronized(tickTargets){return new ArrayList<>(tickTargets.values());}}
+
+    void attachNpcTickTarget(
+        WorldNpc npc,
+        WorldNpcTickTarget target
+    )throws Exception{
+        WorldNpc checkedNpc=
+            Objects.requireNonNull(
+                npc,
+                "npc"
+            );
+        WorldNpcTickTarget checkedTarget=
+            Objects.requireNonNull(
+                target,
+                "target"
+            );
+
+        if(!checkedNpc.id.equals(
+                checkedTarget.npcId()))
+            throw new IllegalArgumentException(
+                "NPC tick target id mismatch npc="+
+                checkedNpc.id+
+                " target="+
+                checkedTarget.npcId()
+            );
+
+        requireOpen();
+
+        synchronized(lifecycleLock){
+            requireOpen();
+
+            boolean current=
+                npcs.withCurrentMutationOwnershipIfCurrent(
+                    checkedNpc,
+                    ()->{
+                        synchronized(npcTickTargets){
+                            if(npcTickTargets.containsKey(
+                                    checkedNpc.id))
+                                throw new IllegalStateException(
+                                    "NPC tick target already attached id="+
+                                    checkedNpc.id
+                                );
+
+                            npcTickTargets.put(
+                                checkedNpc.id,
+                                checkedTarget
+                            );
+                        }
+                    }
+                );
+
+            if(!current)
+                throw new IllegalStateException(
+                    "NPC tick target owner is not canonical id="+
+                    checkedNpc.id
+                );
+        }
+    }
+
+    boolean detachNpcTickTarget(
+        EntityId npcId,
+        WorldNpcTickTarget expected
+    ){
+        EntityId checkedId=
+            Objects.requireNonNull(
+                npcId,
+                "npcId"
+            );
+        WorldNpcTickTarget checkedExpected=
+            Objects.requireNonNull(
+                expected,
+                "expected"
+            );
+
+        synchronized(npcTickTargets){
+            return npcTickTargets.remove(
+                checkedId,
+                checkedExpected
+            );
+        }
+    }
+
+    List<WorldNpcTickTarget>
+        npcTickTargetsSnapshot(){
+        synchronized(npcTickTargets){
+            return new ArrayList<>(
+                npcTickTargets.values()
+            );
+        }
+    }
+
+    int npcTickTargetCount(){
+        synchronized(npcTickTargets){
+            return npcTickTargets.size();
+        }
+    }
 
     CompletableFuture<Void> submit(
         WorldPlayer player,
