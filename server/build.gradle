@@ -4901,7 +4901,19 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
     }
 }
 
+tasks.register('tournamentServiceRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves explicit LocalLab single-elimination Tournament composition over GlobalEvent + MatchSession + WorldInstance without reward or protocol ownership.'
+    dependsOn tasks.named('testClasses')
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.TournamentServiceTest'
+}
+
+
 tasks.named('check') {
+    dependsOn tasks.named('tournamentServiceRegression')
     dependsOn tasks.named('issue9LauncherContractRegression')
     dependsOn tasks.named('chat1CumulativeWrapperContractRegression')
     dependsOn tasks.named('chat1CurrentCumulativeServerIdentityRegression')
