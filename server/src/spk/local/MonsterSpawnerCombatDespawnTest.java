@@ -22,6 +22,7 @@ public final class MonsterSpawnerCombatDespawnTest {
             "unbindFailureNoRemoval=true "+
             "removalFailureRollback=true "+
             "postCommitFailureTerminal=true "+
+            "relayTrackingRemoved=true "+
             "lifecycleCoherent=true "+
             "presentationOwned=false "+
             "protocolIndependent=true"
@@ -196,6 +197,12 @@ public final class MonsterSpawnerCombatDespawnTest {
                 service.spawnAndBind(OWNER,3087,3495,0);
             EntityId id=bound.spawn.npc.id;
             int hpBefore=f.hp();
+
+            SharedNpcWorldRelay.trackCanonicalNpc(
+                f.world,
+                bound.spawn.npc
+            );
+
             final IllegalStateException primary=
                 new IllegalStateException(
                     "POST_COMMIT_TERMINAL_FAILURE"
@@ -227,8 +234,12 @@ public final class MonsterSpawnerCombatDespawnTest {
                 !f.spawner.getSession(OWNER).tracks(id)&&
                 binder.get(id)==null&&
                 binder.size()==0&&
-                f.world.npcTickTargetCount()==0,
-                "post-commit failure retained terminal runtime state"
+                f.world.npcTickTargetCount()==0&&
+                !SharedNpcWorldRelay.untrackCanonicalNpc(
+                    f.world,
+                    id
+                ),
+                "post-commit failure retained terminal runtime/presentation state"
             );
 
             f.world.pulse().pulseOnce(1000L);
