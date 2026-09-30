@@ -4923,6 +4923,7 @@ tasks.named('check') {
     dependsOn tasks.named('monsterSpawnerNpcSceneProjectionRegression')
     dependsOn tasks.named('canonicalNpcAttackClickRegression')
     dependsOn tasks.named('canonicalNpcAttackOwnershipRaceRegression')
+    dependsOn tasks.named('canonicalNpcAttackSpatialAtomicityRegression')
     dependsOn tasks.named('npcPvmDelayedHitServiceRegression')
     dependsOn tasks.named('npcCombatDelayedCompositionRegression')
     dependsOn tasks.named('monsterSpawnerServiceRegression')
@@ -5596,6 +5597,20 @@ tasks.register('canonicalNpcAttackOwnershipRaceRegression', JavaExec) {
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass = 'spk.local.LocalCanonicalNpcAttackOwnershipRaceTest'
+}
+
+
+tasks.register('canonicalNpcAttackSpatialAtomicityRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves player/NPC spatial legality is revalidated under exact mutation ownership at canonical PvM damage admission.'
+    dependsOn(
+        tasks.named('testClasses'),
+        tasks.named('canonicalNpcAttackOwnershipRaceRegression')
+    )
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.LocalCanonicalNpcAttackSpatialAtomicityTest'
 }
 
 
