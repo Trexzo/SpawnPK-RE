@@ -4902,6 +4902,7 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
 }
 
 tasks.named('check') {
+    dependsOn tasks.named('globalEventRegistrationCompositionRegression')
     dependsOn tasks.named('globalEventCompositionOwnershipRegression')
     dependsOn tasks.named('matchInstanceSessionCompositionAtomicityRegression')
     dependsOn tasks.named('clanWarSessionServiceRegression')
@@ -5225,6 +5226,17 @@ tasks.register('worldPulseStartFailureAtomicRegression', JavaExec) {
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass = 'spk.local.WorldPulseStartFailureAtomicTest'
+}
+
+
+tasks.register('globalEventRegistrationCompositionRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves GlobalEvent creation and consumer parent publication share one rollback-safe registration ownership boundary.'
+    dependsOn tasks.named('testClasses')
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.GlobalEventRegistrationCompositionTest'
 }
 
 

@@ -318,23 +318,57 @@ final class TournamentService {
                 "Tournament event authority mismatch"
             );
 
-        events.register(
-            checkedDefinition
-        );
-
         Entry entry=
             new Entry(
                 checkedDefinition.id,
                 checkedRules,
                 authority
             );
+        final Snapshot[] result=
+            new Snapshot[1];
 
-        tournaments.put(
-            entry.eventId,
-            entry
+        try{
+            events.registerWithCompositionOwnership(
+                checkedDefinition,
+                ()->{
+                    Snapshot created=
+                        snapshotOf(
+                            entry
+                        );
+                    tournaments.put(
+                        entry.eventId,
+                        entry
+                    );
+                    result[0]=created;
+                }
+            );
+        }catch(RuntimeException failure){
+            tournaments.remove(
+                entry.eventId,
+                entry
+            );
+            throw failure;
+        }catch(Error failure){
+            tournaments.remove(
+                entry.eventId,
+                entry
+            );
+            throw failure;
+        }catch(Exception failure){
+            tournaments.remove(
+                entry.eventId,
+                entry
+            );
+            throw new IllegalStateException(
+                "unexpected Tournament GlobalEvent registration ownership failure",
+                failure
+            );
+        }
+
+        return Objects.requireNonNull(
+            result[0],
+            "registered Tournament snapshot"
         );
-
-        return snapshotOf(entry);
     }
 
     synchronized Snapshot registerEntrant(
