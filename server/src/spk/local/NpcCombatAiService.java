@@ -17,6 +17,7 @@ final class NpcCombatAiService {
         NO_TARGET,
         ENGAGED,
         CONTROLLER,
+        ATTACKER_DEAD,
         STALE_ATTACKER,
         STALE_TARGET
     }
@@ -155,6 +156,56 @@ final class NpcCombatAiService {
         requireCurrentWorldTick(
             worldTick
         );
+
+        final NpcLifecycleService.Snapshot[] lifecycle={null};
+
+        boolean attackerCurrent=
+            world.npcs()
+                .withCurrentMutationOwnershipIfCurrent(
+                    checked,
+                    ()->
+                        lifecycle[0]=
+                            world.npcLifecycle()
+                                .get(
+                                    checked.id
+                                )
+                );
+
+        if(!attackerCurrent)
+            return result(
+                Status.STALE_ATTACKER,
+                null,
+                null,
+                null
+            );
+
+        if(lifecycle[0]!=null&&
+           lifecycle[0].dead()){
+            try{
+                controller.cancel(
+                    checked
+                );
+            }catch(IllegalStateException failure){
+                if(world.npcs().byId(
+                        checked.id
+                    )!=checked)
+                    return result(
+                        Status.STALE_ATTACKER,
+                        null,
+                        null,
+                        null
+                    );
+
+                throw failure;
+            }
+
+            return result(
+                Status.ATTACKER_DEAD,
+                null,
+                null,
+                null
+            );
+        }
 
         NpcCombatEngagementService.Snapshot active=
             controller.get(
