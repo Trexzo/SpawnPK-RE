@@ -130,6 +130,8 @@ final class GlobalEventService {
         Lifecycle lifecycle=Lifecycle.SCHEDULED;
         int phaseIndex=-1;
         long lastTransitionTick=NO_TRANSITION_TICK;
+        final LinkedHashSet<String> terminalHolds=
+            new LinkedHashSet<>();
 
         Entry(WorldEventDefinition definition){
             this.definition=definition;
@@ -171,6 +173,75 @@ final class GlobalEventService {
             action,
             "action"
         ).run();
+    }
+
+    synchronized void acquireTerminalHold(
+        WorldEventId eventId,
+        String holdKey
+    ){
+        Entry entry=
+            require(
+                Objects.requireNonNull(
+                    eventId,
+                    "eventId"
+                )
+            );
+        String key=
+            requireTerminalHoldKey(
+                holdKey
+            );
+
+        if(entry.lifecycle!=Lifecycle.ACTIVE)
+            throw new IllegalStateException(
+                "terminal hold requires ACTIVE event "+
+                eventId+
+                " lifecycle="+
+                entry.lifecycle
+            );
+
+        if(!entry.terminalHolds.add(key))
+            throw new IllegalStateException(
+                "duplicate terminal hold event="+
+                eventId+
+                " key="+
+                key
+            );
+    }
+
+    synchronized void releaseTerminalHold(
+        WorldEventId eventId,
+        String holdKey
+    ){
+        Entry entry=
+            require(
+                Objects.requireNonNull(
+                    eventId,
+                    "eventId"
+                )
+            );
+        String key=
+            requireTerminalHoldKey(
+                holdKey
+            );
+
+        if(!entry.terminalHolds.remove(key))
+            throw new IllegalStateException(
+                "missing terminal hold event="+
+                eventId+
+                " key="+
+                key
+            );
+    }
+
+    synchronized int terminalHoldCount(
+        WorldEventId eventId
+    ){
+        return require(
+            Objects.requireNonNull(
+                eventId,
+                "eventId"
+            )
+        ).terminalHolds.size();
     }
 
     synchronized Snapshot register(
@@ -265,6 +336,11 @@ final class GlobalEventService {
                 "cannot cancel completed event "+id
             );
 
+        requireNoTerminalHolds(
+            entry,
+            "cancel"
+        );
+
         ArrayList<Change> changes=new ArrayList<>();
         advance(entry,worldTick,changes);
 
@@ -318,6 +394,11 @@ final class GlobalEventService {
                 "cannot complete cancelled event "+id
             );
 
+        requireNoTerminalHolds(
+            entry,
+            "complete"
+        );
+
         ArrayList<Change> changes=new ArrayList<>();
         advance(entry,worldTick,changes);
 
@@ -357,6 +438,39 @@ final class GlobalEventService {
             WorldEventId.of(id),
             worldTick
         );
+    }
+
+    private static void requireNoTerminalHolds(
+        Entry entry,
+        String operation
+    ){
+        if(!entry.terminalHolds.isEmpty())
+            throw new IllegalStateException(
+                operation+
+                " blocked by terminal holds event="+
+                entry.definition.id+
+                " holds="+
+                entry.terminalHolds
+            );
+    }
+
+    private static String requireTerminalHoldKey(
+        String holdKey
+    ){
+        if(holdKey==null)
+            throw new NullPointerException(
+                "holdKey"
+            );
+
+        String normalized=
+            holdKey.trim();
+
+        if(normalized.isEmpty())
+            throw new IllegalArgumentException(
+                "holdKey blank"
+            );
+
+        return normalized;
     }
 
     private Entry require(WorldEventId id){
@@ -445,7 +559,8 @@ final class GlobalEventService {
                 next++;
             }
 
-            if(worldTick>=definition.endTick){
+            if(worldTick>=definition.endTick&&
+               entry.terminalHolds.isEmpty()){
                 Snapshot before=entry.snapshot();
                 entry.lifecycle=Lifecycle.COMPLETED;
                 entry.lastTransitionTick=
