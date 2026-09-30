@@ -55,11 +55,11 @@ public final class NpcCombatControllerServiceTest {
         Fixture f=
             new Fixture(
                 "controller-explicit",
-                3203,
-                3200,
+                3090,
+                3495,
                 0,
-                3200,
-                3200,
+                3087,
+                3495,
                 0
             );
 
@@ -290,12 +290,12 @@ public final class NpcCombatControllerServiceTest {
         Fixture f=
             new Fixture(
                 "controller-plane",
-                3201,
-                3200,
-                1,
-                3200,
-                3200,
-                0
+                3088,
+                3495,
+                0,
+                3087,
+                3495,
+                1
             );
 
         try{
@@ -315,8 +315,8 @@ public final class NpcCombatControllerServiceTest {
             require(
                 result.status==
                     NpcCombatControllerService.Status.DIFFERENT_PLANE&&
-                f.npc.x()==3200&&
-                f.npc.y()==3200&&
+                f.npc.x()==3087&&
+                f.npc.y()==3495&&
                 f.hp()==99&&
                 f.damage.calls==0&&
                 f.cadence.calls==0&&
@@ -335,11 +335,11 @@ public final class NpcCombatControllerServiceTest {
         Fixture f=
             new Fixture(
                 "controller-dead-before",
-                3203,
-                3200,
+                3090,
+                3495,
                 0,
-                3200,
-                3200,
+                3087,
+                3495,
                 0
             );
 
@@ -405,16 +405,16 @@ public final class NpcCombatControllerServiceTest {
             .restoreAccountState(
                 false,
                 100,
-                3201,
-                3200,
+                3088,
+                3495,
                 0
             );
 
         WorldNpc npc=
             world.npcs().spawn(
                 1503,
-                3200,
-                3200,
+                3087,
+                3495,
                 0
             );
         TrackingDamage damage=
@@ -498,16 +498,16 @@ public final class NpcCombatControllerServiceTest {
             .restoreAccountState(
                 false,
                 100,
-                3201,
-                3200,
+                3088,
+                3495,
                 0
             );
 
         WorldNpc npc=
             world.npcs().spawn(
                 1504,
-                3200,
-                3200,
+                3087,
+                3495,
                 0
             );
         final int[] damageCalls={0};
@@ -595,11 +595,11 @@ public final class NpcCombatControllerServiceTest {
         Fixture f=
             new Fixture(
                 "controller-stale-target",
-                3201,
-                3200,
+                3088,
+                3495,
                 0,
-                3200,
-                3200,
+                3087,
+                3495,
                 0
             );
 
@@ -643,11 +643,11 @@ public final class NpcCombatControllerServiceTest {
         Fixture f=
             new Fixture(
                 "controller-stale-attacker",
-                3201,
-                3200,
+                3088,
+                3495,
                 0,
-                3200,
-                3200,
+                3087,
+                3495,
                 0
             );
 
@@ -703,16 +703,16 @@ public final class NpcCombatControllerServiceTest {
             .restoreAccountState(
                 false,
                 100,
-                3203,
-                3200,
+                3090,
+                3495,
                 0
             );
 
         WorldNpc npc=
             world.npcs().spawn(
                 1502,
-                3200,
-                3200,
+                3087,
+                3495,
                 0
             );
 
@@ -787,8 +787,8 @@ public final class NpcCombatControllerServiceTest {
             require(
                 result.status==
                     NpcCombatControllerService.Status.NONE&&
-                npc.x()==3200&&
-                npc.y()==3200&&
+                npc.x()==3087&&
+                npc.y()==3495&&
                 hp(player)==99&&
                 holder[0].size()==0&&
                 damage.calls==0&&
@@ -818,16 +818,16 @@ public final class NpcCombatControllerServiceTest {
             .restoreAccountState(
                 false,
                 100,
-                3201,
-                3200,
+                3088,
+                3495,
                 0
             );
 
         WorldNpc npc=
             world.npcs().spawn(
                 1507,
-                3200,
-                3200,
+                3087,
+                3495,
                 0
             );
         final int[] approachCalls={0};
@@ -976,16 +976,16 @@ public final class NpcCombatControllerServiceTest {
             .restoreAccountState(
                 false,
                 100,
-                3201,
-                3200,
+                3088,
+                3495,
                 0
             );
 
         WorldNpc npc=
             world.npcs().spawn(
                 1505,
-                3200,
-                3200,
+                3087,
+                3495,
                 0
             );
         TrackingDamage damage=
@@ -1120,16 +1120,16 @@ public final class NpcCombatControllerServiceTest {
             .restoreAccountState(
                 false,
                 100,
-                3201,
-                3200,
+                3088,
+                3495,
                 0
             );
 
         WorldNpc npc=
             world.npcs().spawn(
                 1506,
-                3200,
-                3200,
+                3087,
+                3495,
                 0
             );
         final int[] damageCalls={0};
