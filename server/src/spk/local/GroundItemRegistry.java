@@ -331,6 +331,36 @@ final class GroundItemRegistry {
         return null;
     }
 
+    synchronized GroundItem findVisible(
+        int itemId,
+        int x,
+        int y,
+        int plane,
+        String viewer
+    ){
+        GroundItem publicFallback=null;
+
+        for(GroundItem g:byId.values()){
+            if(g.itemId!=itemId||
+               g.tile.x!=x||
+               g.tile.y!=y||
+               g.tile.plane!=plane)
+                continue;
+
+            if(g.owner==null){
+                if(publicFallback==null)
+                    publicFallback=g;
+                continue;
+            }
+
+            if(viewer!=null&&
+               g.owner.equalsIgnoreCase(viewer))
+                return g;
+        }
+
+        return publicFallback;
+    }
+
     synchronized GroundItem findOwned(
         int itemId,
         int x,
