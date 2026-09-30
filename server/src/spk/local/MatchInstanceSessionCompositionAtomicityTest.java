@@ -56,7 +56,7 @@ public final class MatchInstanceSessionCompositionAtomicityTest {
             "tournamentTerminalHoldOrder=true "+
             "durableChildLeaseStartup=true "+
             "durableChildLeaseTerminal=true "+
-            "ownerPublishBeforeMonitorRelease=true "+
+            "parentPublishProtectedByLease=true "+
             "ownerPublishAfterOwnedAction=true "+
             "terminalPreflightInsideOwnership=true"
         );
@@ -340,8 +340,14 @@ public final class MatchInstanceSessionCompositionAtomicityTest {
             )>
             start.indexOf(
                 "withCompositionOwnership("
+            )&&
+            start.indexOf(
+                "acquireWorldInstanceCompositionLease("
+            )<
+            start.indexOf(
+                startPublish
             ),
-            label+" startup lacks durable child lease acquisition"
+            label+" startup parent publication is not protected by durable child lease"
         );
         require(
             complete.indexOf(
