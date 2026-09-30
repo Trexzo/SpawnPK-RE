@@ -190,6 +190,8 @@ final class TournamentService {
         TournamentMatchState state=
             TournamentMatchState.ACTIVE;
         String winnerRef;
+        GlobalEventService.TerminalHold
+            terminalHold;
 
         TournamentMatch(
             MatchId matchId,
@@ -552,6 +554,17 @@ final class TournamentService {
                     checkedMatchId
                 );
 
+                /*
+                 * Acquire only after reusable child startup succeeds. The
+                 * GlobalEvent monitor is already held by the composition
+                 * boundary, so no terminal transition can interleave between
+                 * ACTIVE admission and publication of this exact child hold.
+                 */
+                tournamentMatch.terminalHold=
+                    events.acquireTerminalHold(
+                        entry.eventId
+                    );
+
                 first.state=
                     EntrantState.IN_MATCH;
                 first.activeMatchId=
@@ -629,7 +642,30 @@ final class TournamentService {
                 )
             );
 
-        withCompositionOwnership(
+        Entrant winningEntrant=
+            requireEntrant(
+                entry,
+                winner
+            );
+        Entrant losingEntrant=
+            requireEntrant(
+                entry,
+                loser
+            );
+        GlobalEventService.TerminalHold
+            terminalHold=
+                requireTerminalHold(
+                    tournamentMatch
+                );
+
+        /*
+         * Retain Tournament -> GlobalEvent -> Match -> Instance order through
+         * complete child publication and terminal-hold release. A competing
+         * direct/deadline GlobalEvent terminal transition cannot observe an
+         * ACTIVE Tournament child after its hold is released.
+         */
+        withEventAndCompositionOwnership(
+            entry.eventId,
             ()->{
                 preflightOwnedInstance(
                     tournamentMatch
@@ -641,34 +677,29 @@ final class TournamentService {
                 closeOwnedInstance(
                     tournamentMatch
                 );
+
+                winningEntrant.state=
+                    EntrantState.REGISTERED;
+                winningEntrant.activeMatchId=
+                    null;
+
+                losingEntrant.state=
+                    EntrantState.ELIMINATED;
+                losingEntrant.activeMatchId=
+                    null;
+
+                tournamentMatch.state=
+                    TournamentMatchState.COMPLETED;
+                tournamentMatch.winnerRef=
+                    winner;
+
+                events.releaseTerminalHold(
+                    terminalHold
+                );
+                tournamentMatch.terminalHold=
+                    null;
             }
         );
-
-        Entrant winningEntrant=
-            requireEntrant(
-                entry,
-                winner
-            );
-        Entrant losingEntrant=
-            requireEntrant(
-                entry,
-                loser
-            );
-
-        winningEntrant.state=
-            EntrantState.REGISTERED;
-        winningEntrant.activeMatchId=
-            null;
-
-        losingEntrant.state=
-            EntrantState.ELIMINATED;
-        losingEntrant.activeMatchId=
-            null;
-
-        tournamentMatch.state=
-            TournamentMatchState.COMPLETED;
-        tournamentMatch.winnerRef=
-            winner;
 
         return snapshotOf(entry);
     }
@@ -685,7 +716,24 @@ final class TournamentService {
                 matchId
             );
 
-        withCompositionOwnership(
+        Entrant first=
+            requireEntrant(
+                entry,
+                tournamentMatch.firstParticipant
+            );
+        Entrant second=
+            requireEntrant(
+                entry,
+                tournamentMatch.secondParticipant
+            );
+        GlobalEventService.TerminalHold
+            terminalHold=
+                requireTerminalHold(
+                    tournamentMatch
+                );
+
+        withEventAndCompositionOwnership(
+            entry.eventId,
             ()->{
                 preflightOwnedInstance(
                     tournamentMatch
@@ -697,29 +745,24 @@ final class TournamentService {
                 closeOwnedInstance(
                     tournamentMatch
                 );
+
+                first.state=
+                    EntrantState.REGISTERED;
+                first.activeMatchId=null;
+                second.state=
+                    EntrantState.REGISTERED;
+                second.activeMatchId=null;
+
+                tournamentMatch.state=
+                    TournamentMatchState.CANCELLED;
+
+                events.releaseTerminalHold(
+                    terminalHold
+                );
+                tournamentMatch.terminalHold=
+                    null;
             }
         );
-
-        Entrant first=
-            requireEntrant(
-                entry,
-                tournamentMatch.firstParticipant
-            );
-        Entrant second=
-            requireEntrant(
-                entry,
-                tournamentMatch.secondParticipant
-            );
-
-        first.state=
-            EntrantState.REGISTERED;
-        first.activeMatchId=null;
-        second.state=
-            EntrantState.REGISTERED;
-        second.activeMatchId=null;
-
-        tournamentMatch.state=
-            TournamentMatchState.CANCELLED;
 
         return snapshotOf(entry);
     }
@@ -986,6 +1029,22 @@ final class TournamentService {
             );
 
         return match;
+    }
+
+    private static GlobalEventService.TerminalHold
+        requireTerminalHold(
+            TournamentMatch tournamentMatch
+        ){
+        GlobalEventService.TerminalHold hold=
+            tournamentMatch.terminalHold;
+
+        if(hold==null)
+            throw new IllegalStateException(
+                "active tournament match missing GlobalEvent terminal hold "+
+                tournamentMatch.matchId
+            );
+
+        return hold;
     }
 
     private void preflightOwnedInstance(
