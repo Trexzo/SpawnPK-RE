@@ -348,6 +348,14 @@ final class NpcLifecycleService {
                             before
                         );
 
+                        if(npcs.byId(
+                                checked.id
+                            )!=checked)
+                            throw new IllegalStateException(
+                                "NPC registry ownership changed during owned action id="+
+                                checked.id
+                            );
+
                         Entry after=
                             entries.get(
                                 checked.id
