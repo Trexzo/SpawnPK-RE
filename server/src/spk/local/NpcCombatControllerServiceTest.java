@@ -12,6 +12,9 @@ public final class NpcCombatControllerServiceTest {
         explicitBeginAndSharedClock();
         approachThenAttackCadence();
         differentPlaneNoAttack();
+        deadTargetRetiredBeforeApproach();
+        lethalAttackRetiresEngagement();
+        ignoredDeadRaceNoCadence();
         staleTargetRetired();
         staleAttackerRetired();
         reentrantApproachCancelNoMove();
@@ -28,6 +31,9 @@ public final class NpcCombatControllerServiceTest {
             "canonicalDamage=true "+
             "cadenceAfterAttack=true "+
             "differentPlaneNoAttack=true "+
+            "deadTargetRetired=true "+
+            "lethalAttackRetires=true "+
+            "ignoredDeadRaceNoCadence=true "+
             "staleEngagementRetired=true "+
             "reentrantApproachCancelNoMove=true "+
             "sharedClockBound=true "+
@@ -313,6 +319,266 @@ public final class NpcCombatControllerServiceTest {
             );
         }finally{
             f.close();
+        }
+    }
+
+    private static void deadTargetRetiredBeforeApproach()
+        throws Exception{
+        Fixture f=
+            new Fixture(
+                "controller-dead-before",
+                3203,
+                3200,
+                0,
+                3200,
+                3200,
+                0
+            );
+
+        try{
+            PlayerLifecycleService.DamageResult lethal=
+                new PlayerLifecycleService(
+                    f.player
+                ).applyDamage(
+                    999,
+                    0L,
+                    "CONTROLLER_DEAD_BEFORE_FIXTURE"
+                );
+
+            require(
+                lethal.died&&
+                f.player.lifecycle().dead(),
+                "dead-before fixture did not kill target"
+            );
+
+            f.controller.begin(
+                f.npc,
+                f.player,
+                f.generation,
+                0L
+            );
+
+            NpcCombatControllerService.TickResult result=
+                f.controller.tick(
+                    f.npc.id,
+                    0L
+                );
+
+            require(
+                result.status==
+                    NpcCombatControllerService.Status.TARGET_DEAD&&
+                f.controller.size()==0&&
+                f.npc.x()==3200&&
+                f.npc.y()==3200&&
+                f.damage.calls==0&&
+                f.cadence.calls==0,
+                "dead target was approached/attacked"
+            );
+        }finally{
+            f.close();
+        }
+    }
+
+    private static void lethalAttackRetiresEngagement()
+        throws Exception{
+        World world=
+            World.isolatedForTest(
+                600L
+            );
+        WorldPlayer player=
+            new WorldPlayer();
+        long generation=
+            world.registerPlayer(
+                player,
+                "controller-lethal"
+            );
+
+        player.movement()
+            .restoreAccountState(
+                false,
+                100,
+                3201,
+                3200,
+                0
+            );
+
+        WorldNpc npc=
+            world.npcs().spawn(
+                1503,
+                3200,
+                3200,
+                0
+            );
+        TrackingDamage damage=
+            new TrackingDamage(
+                500
+            );
+        TrackingCadence cadence=
+            new TrackingCadence(
+                3
+            );
+        NpcCombatControllerService controller=
+            new NpcCombatControllerService(
+                world,
+                fixedApproach(),
+                cadence,
+                new NpcPlayerCombatResolutionService(
+                    damage
+                ),
+                ORCHESTRATION_AUTHORITY,
+                NpcCombatControllerService
+                    .APPROACH_BEFORE_ENGAGEMENT_TICK
+            );
+
+        try{
+            controller.begin(
+                npc,
+                player,
+                generation,
+                0L
+            );
+
+            NpcCombatControllerService.TickResult result=
+                controller.tick(
+                    npc.id,
+                    0L
+                );
+
+            require(
+                result.status==
+                    NpcCombatControllerService.Status.ATTACKED&&
+                hp(player)==0&&
+                player.lifecycle().dead()&&
+                damage.calls==1&&
+                cadence.calls==1&&
+                controller.size()==0&&
+                controller.get(
+                    npc.id
+                )==null,
+                "lethal attack retained engagement"
+            );
+
+            require(
+                controller.tick(
+                    npc.id,
+                    0L
+                ).status==
+                    NpcCombatControllerService.Status.NONE&&
+                damage.calls==1,
+                "retired lethal engagement attacked again"
+            );
+        }finally{
+            cleanup(world);
+        }
+    }
+
+    private static void ignoredDeadRaceNoCadence()
+        throws Exception{
+        World world=
+            World.isolatedForTest(
+                600L
+            );
+        WorldPlayer player=
+            new WorldPlayer();
+        long generation=
+            world.registerPlayer(
+                player,
+                "controller-dead-race"
+            );
+
+        player.movement()
+            .restoreAccountState(
+                false,
+                100,
+                3201,
+                3200,
+                0
+            );
+
+        WorldNpc npc=
+            world.npcs().spawn(
+                1504,
+                3200,
+                3200,
+                0
+            );
+        final int[] damageCalls={0};
+
+        NpcPlayerCombatResolutionService damage=
+            new NpcPlayerCombatResolutionService(
+                new NpcPlayerCombatResolutionService.DamageResolver(){
+                    @Override public int resolve(
+                        NpcPlayerCombatResolutionService.DamageContext context
+                    ){
+                        damageCalls[0]++;
+
+                        PlayerLifecycleService.DamageResult external=
+                            new PlayerLifecycleService(
+                                player
+                            ).applyDamage(
+                                999,
+                                context.worldTick,
+                                "CONTROLLER_DEAD_RACE_FIXTURE"
+                            );
+
+                        if(!external.died)
+                            throw new AssertionError(
+                                "dead-race fixture did not kill target"
+                            );
+
+                        return 10;
+                    }
+
+                    @Override public String authority(){
+                        return "CUSTOM_LOCALLAB_NPC_DAMAGE";
+                    }
+
+                    @Override public String formula(){
+                        return "DEAD_RACE";
+                    }
+                }
+            );
+        TrackingCadence cadence=
+            new TrackingCadence(
+                3
+            );
+        NpcCombatControllerService controller=
+            new NpcCombatControllerService(
+                world,
+                fixedApproach(),
+                cadence,
+                damage,
+                ORCHESTRATION_AUTHORITY,
+                NpcCombatControllerService
+                    .APPROACH_BEFORE_ENGAGEMENT_TICK
+            );
+
+        try{
+            controller.begin(
+                npc,
+                player,
+                generation,
+                0L
+            );
+
+            NpcCombatControllerService.TickResult result=
+                controller.tick(
+                    npc.id,
+                    0L
+                );
+
+            require(
+                result.status==
+                    NpcCombatControllerService.Status.TARGET_DEAD&&
+                hp(player)==0&&
+                player.lifecycle().dead()&&
+                damageCalls[0]==1&&
+                cadence.calls==1&&
+                controller.size()==0,
+                "ignored-dead race advanced/retained combat"
+            );
+        }finally{
+            cleanup(world);
         }
     }
 
