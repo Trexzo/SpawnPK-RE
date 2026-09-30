@@ -4919,6 +4919,7 @@ tasks.named('check') {
     dependsOn tasks.named('monsterSpawnerCombatBindingRegression')
     dependsOn tasks.named('monsterSpawnerCombatDespawnRegression')
     dependsOn tasks.named('monsterSpawnerNpcLifecycleBindingRegression')
+    dependsOn tasks.named('npcCombatDeadAttackerGuardRegression')
     dependsOn tasks.named('npcPvmDelayedHitServiceRegression')
     dependsOn tasks.named('npcCombatDelayedCompositionRegression')
     dependsOn tasks.named('monsterSpawnerServiceRegression')
@@ -5535,6 +5536,20 @@ tasks.register('monsterSpawnerNpcLifecycleBindingRegression', JavaExec) {
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass = 'spk.local.MonsterSpawnerNpcLifecycleBindingTest'
+}
+
+
+tasks.register('npcCombatDeadAttackerGuardRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves exact canonical dead NPCs cancel engagement and cannot acquire, approach or damage through autonomous combat AI.'
+    dependsOn(
+        tasks.named('testClasses'),
+        tasks.named('monsterSpawnerNpcLifecycleBindingRegression')
+    )
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.NpcCombatDeadAttackerGuardTest'
 }
 
 
