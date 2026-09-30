@@ -4939,6 +4939,7 @@ tasks.named('check') {
     dependsOn tasks.named('worldAdmissionPulseStartAtomicRegression')
     dependsOn tasks.named('worldNpcMutationOwnershipRegression')
     dependsOn tasks.named('npcLifecycleServiceRegression')
+    dependsOn tasks.named('npcDeadLifecycleOwnershipRegression')
     dependsOn tasks.named('npcRespawnServiceRegression')
     dependsOn tasks.named('localAuxHttpResponseRegression')
     dependsOn tasks.named('localAuxResponseLivenessRegression')
@@ -5248,6 +5249,20 @@ tasks.register('npcLifecycleServiceRegression', JavaExec) {
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass = 'spk.local.NpcLifecycleServiceTest'
+}
+
+
+tasks.register('npcDeadLifecycleOwnershipRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves exact DEAD NPC lifecycle identity remains owned across read-only caller execution and blocks lifecycle unregister interleaving.'
+    dependsOn(
+        tasks.named('testClasses'),
+        tasks.named('npcLifecycleServiceRegression')
+    )
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.NpcDeadLifecycleOwnershipTest'
 }
 
 
