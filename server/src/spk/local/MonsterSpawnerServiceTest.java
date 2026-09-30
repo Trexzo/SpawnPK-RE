@@ -239,6 +239,31 @@ public final class MonsterSpawnerServiceTest {
             "foreign Monster Spawner despawn"
         );
 
+        require(
+            registry.remove(
+                bSpawn.npc.id
+            ),
+            "remove tracked player:b NPC externally"
+        );
+
+        expect(
+            IllegalStateException.class,
+            ()->service.despawnTracked(
+                "player:b",
+                bSpawn.npc.id
+            ),
+            "missing canonical tracked NPC despawn"
+        );
+
+        require(
+            service.getSession(
+                "player:b"
+            ).tracks(
+                bSpawn.npc.id
+            ),
+            "failed exact-object despawn consumed tracking"
+        );
+
         MonsterSpawnerService.SessionSnapshot
             afterDespawn=
                 service.despawnTracked(
@@ -309,9 +334,12 @@ public final class MonsterSpawnerServiceTest {
             "callerBudget=true "+
             "x5Hardcoded=false "+
             "canonicalWorldNpcSpawn=true "+
+            "spawnTrackingLinearized=true "+
             "failedSpawnAtomic=true "+
             "budgetExhaustionDeactivates=true "+
             "trackedDespawn=true "+
+            "exactTrackedNpcDespawn=true "+
+            "missingCanonicalDespawnRetainsTracking=true "+
             "foreignDespawnRejected=true "+
             "ownerIdAbuse=false "+
             "sourceItemIdAbuse=false "+
