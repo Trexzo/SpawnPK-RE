@@ -394,6 +394,13 @@ final class MonsterSpawnerPvmRuntime {
                 finalized,
                 null
             );
+        }catch(Error failure){
+            synchronized(this){
+                if(entries.get(entry.npc.id)==entry)
+                    entry.terminalInProgress=false;
+            }
+
+            throw failure;
         }
 
         synchronized(this){
