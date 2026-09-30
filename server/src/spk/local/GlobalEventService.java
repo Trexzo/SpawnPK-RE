@@ -130,8 +130,10 @@ final class GlobalEventService {
         Lifecycle lifecycle=Lifecycle.SCHEDULED;
         int phaseIndex=-1;
         long lastTransitionTick=NO_TRANSITION_TICK;
-        final LinkedHashSet<String> terminalHolds=
-            new LinkedHashSet<>();
+        final Set<TerminalHold> terminalHolds=
+            Collections.newSetFromMap(
+                new IdentityHashMap<>()
+            );
 
         Entry(WorldEventDefinition definition){
             this.definition=definition;
@@ -146,6 +148,27 @@ final class GlobalEventService {
         new LinkedHashMap<>();
 
     private long lastObservedTick=-1L;
+
+    static final class TerminalHold {
+        private final GlobalEventService owner;
+        private final WorldEventId eventId;
+
+        private TerminalHold(
+            GlobalEventService owner,
+            WorldEventId eventId
+        ){
+            this.owner=
+                Objects.requireNonNull(
+                    owner,
+                    "owner"
+                );
+            this.eventId=
+                Objects.requireNonNull(
+                    eventId,
+                    "eventId"
+                );
+        }
+    }
 
     interface EventCompositionAction {
         void run() throws Exception;
@@ -175,9 +198,8 @@ final class GlobalEventService {
         ).run();
     }
 
-    synchronized void acquireTerminalHold(
-        WorldEventId eventId,
-        String holdKey
+    synchronized TerminalHold acquireTerminalHold(
+        WorldEventId eventId
     ){
         Entry entry=
             require(
@@ -185,10 +207,6 @@ final class GlobalEventService {
                     eventId,
                     "eventId"
                 )
-            );
-        String key=
-            requireTerminalHoldKey(
-                holdKey
             );
 
         if(entry.lifecycle!=Lifecycle.ACTIVE)
@@ -199,37 +217,45 @@ final class GlobalEventService {
                 entry.lifecycle
             );
 
-        if(!entry.terminalHolds.add(key))
-            throw new IllegalStateException(
-                "duplicate terminal hold event="+
-                eventId+
-                " key="+
-                key
+        TerminalHold hold=
+            new TerminalHold(
+                this,
+                entry.definition.id
             );
+
+        if(!entry.terminalHolds.add(hold))
+            throw new IllegalStateException(
+                "duplicate terminal hold identity event="+
+                eventId
+            );
+
+        return hold;
     }
 
     synchronized void releaseTerminalHold(
-        WorldEventId eventId,
-        String holdKey
+        TerminalHold hold
     ){
-        Entry entry=
-            require(
-                Objects.requireNonNull(
-                    eventId,
-                    "eventId"
-                )
-            );
-        String key=
-            requireTerminalHoldKey(
-                holdKey
+        TerminalHold checked=
+            Objects.requireNonNull(
+                hold,
+                "hold"
             );
 
-        if(!entry.terminalHolds.remove(key))
+        if(checked.owner!=this)
+            throw new IllegalStateException(
+                "terminal hold belongs to different GlobalEventService"
+            );
+
+        Entry entry=
+            require(
+                checked.eventId
+            );
+
+        if(!entry.terminalHolds.remove(
+                checked))
             throw new IllegalStateException(
                 "missing terminal hold event="+
-                eventId+
-                " key="+
-                key
+                checked.eventId
             );
     }
 
@@ -452,25 +478,6 @@ final class GlobalEventService {
                 " holds="+
                 entry.terminalHolds
             );
-    }
-
-    private static String requireTerminalHoldKey(
-        String holdKey
-    ){
-        if(holdKey==null)
-            throw new NullPointerException(
-                "holdKey"
-            );
-
-        String normalized=
-            holdKey.trim();
-
-        if(normalized.isEmpty())
-            throw new IllegalArgumentException(
-                "holdKey blank"
-            );
-
-        return normalized;
     }
 
     private Entry require(WorldEventId id){
