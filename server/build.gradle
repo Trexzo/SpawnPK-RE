@@ -4931,6 +4931,7 @@ tasks.named('check') {
     dependsOn tasks.named('npcCombatResolutionServiceRegression')
     dependsOn tasks.named('npcRespawnServiceRegression')
     dependsOn tasks.named('npcDeadLifecycleOwnershipRegression')
+    dependsOn tasks.named('npcDeadTerminalCompositionRegression')
     dependsOn tasks.named('worldNpcLifecycleAuthorityRegression')
     dependsOn tasks.named('npcLifecycleServiceRegression')
     dependsOn tasks.named('worldNpcMutationOwnershipRegression')
@@ -5324,6 +5325,20 @@ tasks.register('npcDeadLifecycleOwnershipRegression', JavaExec) {
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass = 'spk.local.NpcDeadLifecycleOwnershipTest'
+}
+
+
+tasks.register('npcDeadTerminalCompositionRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves exact DEAD canonical NPC terminal callbacks cannot split canonical registry identity from lifecycle retirement.'
+    dependsOn(
+        tasks.named('testClasses'),
+        tasks.named('npcDeadLifecycleOwnershipRegression')
+    )
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.NpcDeadTerminalCompositionTest'
 }
 
 
