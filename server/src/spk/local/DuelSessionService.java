@@ -405,71 +405,75 @@ final class DuelSessionService {
                 "instanceId"
             );
 
-        if(matches.get(
-                checkedMatchId)!=null)
-            throw new IllegalStateException(
-                "Duel match id already exists "+
-                checkedMatchId
-            );
+        withCompositionOwnership(
+            ()->{
+                if(matches.get(
+                        checkedMatchId)!=null)
+                    throw new IllegalStateException(
+                        "Duel match id already exists "+
+                        checkedMatchId
+                    );
 
-        if(instances.get(
-                checkedInstanceId)!=null)
-            throw new IllegalStateException(
-                "Duel instance id already exists "+
+                if(instances.get(
+                        checkedInstanceId)!=null)
+                    throw new IllegalStateException(
+                        "Duel instance id already exists "+
+                        checkedInstanceId
+                    );
+
+            matches.create(
+                checkedMatchId,
+                entry.rules
+            );
+            matches.addTeam(
+                checkedMatchId,
+                entry.challengerTeamId
+            );
+            matches.addTeam(
+                checkedMatchId,
+                entry.challengedTeamId
+            );
+            matches.join(
+                checkedMatchId,
+                entry.challengerTeamId,
+                entry.challengerRef
+            );
+            matches.join(
+                checkedMatchId,
+                entry.challengedTeamId,
+                entry.challengedRef
+            );
+    
+            instances.create(
+                checkedInstanceId,
+                checkedMatchId.toString(),
+                entry.policyAuthority
+            );
+            instances.attach(
+                checkedInstanceId,
+                entry.challengerRef
+            );
+            instances.attach(
+                checkedInstanceId,
+                entry.challengedRef
+            );
+    
+            matches.attachInstance(
+                checkedMatchId,
                 checkedInstanceId
             );
-
-        // All known failure conditions are preflighted above before mutating
-        // reusable Match/Instance services.
-        matches.create(
-            checkedMatchId,
-            entry.rules
-        );
-        matches.addTeam(
-            checkedMatchId,
-            entry.challengerTeamId
-        );
-        matches.addTeam(
-            checkedMatchId,
-            entry.challengedTeamId
-        );
-        matches.join(
-            checkedMatchId,
-            entry.challengerTeamId,
-            entry.challengerRef
-        );
-        matches.join(
-            checkedMatchId,
-            entry.challengedTeamId,
-            entry.challengedRef
-        );
-
-        instances.create(
-            checkedInstanceId,
-            checkedMatchId.toString(),
-            entry.policyAuthority
-        );
-        instances.attach(
-            checkedInstanceId,
-            entry.challengerRef
-        );
-        instances.attach(
-            checkedInstanceId,
-            entry.challengedRef
-        );
-
-        matches.attachInstance(
-            checkedMatchId,
-            checkedInstanceId
-        );
-        matches.markReady(
-            checkedMatchId
-        );
-        instances.activate(
-            checkedInstanceId
-        );
-        matches.activate(
-            checkedMatchId
+            matches.markReady(
+                checkedMatchId
+            );
+            instances.activate(
+                checkedInstanceId
+            );
+            matches.activate(
+                checkedMatchId
+            );
+    
+    
+            }
         );
 
         entry.matchId=checkedMatchId;
@@ -577,8 +581,6 @@ final class DuelSessionService {
                 "complete"
             );
 
-        preflightOwnedInstance(entry);
-
         MatchTeamId winner=null;
 
         if(winnerPlayerRef!=null)
@@ -588,8 +590,7 @@ final class DuelSessionService {
                     winnerPlayerRef
                 );
 
-        matches.complete(
-            entry.matchId,
+        MatchSession.Result result=
             new MatchSession.Result(
                 outcomeKey,
                 winner,
@@ -597,10 +598,18 @@ final class DuelSessionService {
                     decisionAuthority,
                     "decisionAuthority"
                 )
-            )
-        );
+            );
 
-        closeOwnedInstance(entry);
+        withCompositionOwnership(
+            ()->{
+                preflightOwnedInstance(entry);
+                matches.complete(
+                    entry.matchId,
+                    result
+                );
+                closeOwnedInstance(entry);
+            }
+        );
 
         entry.state=State.COMPLETED;
         releaseParticipants(entry);
@@ -619,14 +628,16 @@ final class DuelSessionService {
                 "cancelActive"
             );
 
-        preflightOwnedInstance(entry);
-
-        matches.cancel(
-            entry.matchId,
-            reasonKey
+        withCompositionOwnership(
+            ()->{
+                preflightOwnedInstance(entry);
+                matches.cancel(
+                    entry.matchId,
+                    reasonKey
+                );
+                closeOwnedInstance(entry);
+            }
         );
-
-        closeOwnedInstance(entry);
 
         entry.state=State.CANCELLED;
         releaseParticipants(entry);
@@ -847,6 +858,26 @@ final class DuelSessionService {
                 participant)
             ?entry.challengerTeamId
             :entry.challengedTeamId;
+    }
+
+    private void withCompositionOwnership(
+        MatchSessionService.MatchInstanceCompositionAction action
+    ){
+        try{
+            matches.withWorldInstanceCompositionOwnership(
+                instances,
+                action
+            );
+        }catch(RuntimeException failure){
+            throw failure;
+        }catch(Error failure){
+            throw failure;
+        }catch(Exception failure){
+            throw new IllegalStateException(
+                "unexpected Duel composition ownership failure",
+                failure
+            );
+        }
     }
 
     private Entry requireState(
