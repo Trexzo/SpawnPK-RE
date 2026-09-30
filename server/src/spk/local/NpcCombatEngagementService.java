@@ -104,6 +104,7 @@ final class NpcCombatEngagementService {
         final long targetGeneration;
         long nextAttackTick;
         long revision;
+        boolean executing;
 
         Engagement(
             EntityId attackerId,
@@ -258,148 +259,275 @@ final class NpcCombatEngagementService {
                 engagements.get(
                     checkedId
                 );
-        }
 
-        if(engagement==null)
-            return new TickResult(
-                TickStatus.NONE,
-                null
-            );
-
-        if(worldTick<engagement.nextAttackTick)
-            return new TickResult(
-                TickStatus.WAITING,
-                snapshot(engagement)
-            );
-
-        WorldNpc attacker=
-            world.npcs().byId(
-                engagement.attackerId
-            );
-
-        if(attacker==null){
-            synchronized(engagements){
-                engagements.remove(
-                    engagement.attackerId,
-                    engagement
+            if(engagement==null)
+                return new TickResult(
+                    TickStatus.NONE,
+                    null
                 );
-            }
-            return new TickResult(
-                TickStatus.STALE_ATTACKER,
-                null
-            );
-        }
 
-        WorldPlayer target=
-            world.players().byId(
-                engagement.targetId
-            );
-
-        if(target==null||
-           !world.players().owns(
-                target,
-                engagement.targetGeneration
-            )){
-            synchronized(engagements){
-                engagements.remove(
-                    engagement.attackerId,
-                    engagement
+            if(worldTick<engagement.nextAttackTick||
+               engagement.executing)
+                return new TickResult(
+                    TickStatus.WAITING,
+                    snapshot(engagement)
                 );
-            }
-            return new TickResult(
-                TickStatus.STALE_TARGET,
-                null
-            );
+
+            /*
+             * Reserve this exact due revision before releasing service state.
+             * Concurrent/reentrant ticks must not execute the same revision.
+             */
+            engagement.executing=true;
         }
-
-        Context context=
-            new Context(
-                attacker,
-                target,
-                engagement.targetGeneration,
-                worldTick,
-                engagement.nextAttackTick,
-                engagement.revision
-            );
-
-        int delay=
-            cadenceResolver.nextDelayTicks(
-                context
-            );
-
-        if(delay<=0)
-            throw new IllegalStateException(
-                "NPC cadence resolver returned non-positive delay="+
-                delay+
-                " authority="+
-                cadenceAuthority
-            );
-
-        final long nextAttackTick;
 
         try{
-            nextAttackTick=
-                Math.addExact(
-                    worldTick,
-                    (long)delay
-                );
-        }catch(ArithmeticException overflow){
-            throw new IllegalStateException(
-                "NPC next attack tick overflow worldTick="+
-                worldTick+
-                " delay="+
-                delay,
-                overflow
-            );
-        }
-
-        final long nextRevision;
-
-        try{
-            nextRevision=
-                Math.addExact(
-                    engagement.revision,
-                    1L
-                );
-        }catch(ArithmeticException overflow){
-            throw new IllegalStateException(
-                "NPC engagement revision overflow revision="+
-                engagement.revision,
-                overflow
-            );
-        }
-
-        attackExecutor.execute(
-            attacker,
-            target,
-            engagement.targetGeneration,
-            worldTick
-        );
-
-        /*
-         * Executor code is caller-owned and may reenter this service.
-         * Never publish a schedule advance onto an engagement that it
-         * removed/replaced while executing.
-         */
-        synchronized(engagements){
-            if(engagements.get(
+            WorldNpc attacker=
+                world.npcs().byId(
                     engagement.attackerId
-                )!=engagement)
+                );
+
+            if(attacker==null)
+                return staleResult(
+                    engagement,
+                    TickStatus.STALE_ATTACKER
+                );
+
+            WorldPlayer target=
+                world.players().byId(
+                    engagement.targetId
+                );
+
+            if(target==null)
+                return staleResult(
+                    engagement,
+                    TickStatus.STALE_TARGET
+                );
+
+            final TickResult[] result=
+                new TickResult[1];
+            final boolean[] npcLost={false};
+            final boolean[] engagementGone={false};
+
+            boolean playerOwned=
+                world.withOpenPlayerMutationOwnershipIfCurrent(
+                    target,
+                    engagement.targetGeneration,
+                    ()->{
+                        boolean npcOwned=
+                            world.npcs()
+                                .withCurrentMutationOwnershipIfCurrent(
+                                    attacker,
+                                    ()->{
+                                        final long scheduledTick;
+                                        final long revision;
+
+                                        synchronized(engagements){
+                                            if(engagements.get(
+                                                    engagement.attackerId
+                                                )!=engagement||
+                                               !engagement.executing){
+                                                engagementGone[0]=true;
+                                                return;
+                                            }
+
+                                            if(worldTick<
+                                               engagement.nextAttackTick){
+                                                engagement.executing=false;
+                                                result[0]=
+                                                    new TickResult(
+                                                        TickStatus.WAITING,
+                                                        snapshot(engagement)
+                                                    );
+                                                return;
+                                            }
+
+                                            scheduledTick=
+                                                engagement.nextAttackTick;
+                                            revision=
+                                                engagement.revision;
+                                        }
+
+                                        Context context=
+                                            new Context(
+                                                attacker,
+                                                target,
+                                                engagement.targetGeneration,
+                                                worldTick,
+                                                scheduledTick,
+                                                revision
+                                            );
+
+                                        int delay=
+                                            cadenceResolver.nextDelayTicks(
+                                                context
+                                            );
+
+                                        if(delay<=0)
+                                            throw new IllegalStateException(
+                                                "NPC cadence resolver returned non-positive delay="+
+                                                delay+
+                                                " authority="+
+                                                cadenceAuthority
+                                            );
+
+                                        /*
+                                         * Cadence is caller-owned and may
+                                         * reenter/cancel this engagement.
+                                         * Revalidate the exact reservation
+                                         * again before any attack side effect.
+                                         */
+                                        synchronized(engagements){
+                                            if(engagements.get(
+                                                    engagement.attackerId
+                                                )!=engagement||
+                                               !engagement.executing){
+                                                engagementGone[0]=true;
+                                                return;
+                                            }
+                                        }
+
+                                        final long nextAttackTick;
+
+                                        try{
+                                            nextAttackTick=
+                                                Math.addExact(
+                                                    worldTick,
+                                                    (long)delay
+                                                );
+                                        }catch(
+                                            ArithmeticException overflow
+                                        ){
+                                            throw new IllegalStateException(
+                                                "NPC next attack tick overflow worldTick="+
+                                                worldTick+
+                                                " delay="+
+                                                delay,
+                                                overflow
+                                            );
+                                        }
+
+                                        final long nextRevision;
+
+                                        try{
+                                            nextRevision=
+                                                Math.addExact(
+                                                    revision,
+                                                    1L
+                                                );
+                                        }catch(
+                                            ArithmeticException overflow
+                                        ){
+                                            throw new IllegalStateException(
+                                                "NPC engagement revision overflow revision="+
+                                                revision,
+                                                overflow
+                                            );
+                                        }
+
+                                        /*
+                                         * Exact target generation and exact
+                                         * canonical NPC ownership remain held
+                                         * across caller side effects.
+                                         */
+                                        attackExecutor.execute(
+                                            attacker,
+                                            target,
+                                            engagement.targetGeneration,
+                                            worldTick
+                                        );
+
+                                        /*
+                                         * Executor code may reenter this
+                                         * service. Publish only if this exact
+                                         * reserved engagement still owns the
+                                         * map entry.
+                                         */
+                                        synchronized(engagements){
+                                            if(engagements.get(
+                                                    engagement.attackerId
+                                                )!=engagement||
+                                               !engagement.executing)
+                                                throw new IllegalStateException(
+                                                    "NPC engagement ownership changed during attack id="+
+                                                    engagement.attackerId
+                                                );
+
+                                            engagement.nextAttackTick=
+                                                nextAttackTick;
+                                            engagement.revision=
+                                                nextRevision;
+                                            engagement.executing=false;
+
+                                            result[0]=
+                                                new TickResult(
+                                                    TickStatus.ATTACKED,
+                                                    snapshot(engagement)
+                                                );
+                                        }
+                                    }
+                                );
+
+                        if(!npcOwned)
+                            npcLost[0]=true;
+                    }
+                );
+
+            if(!playerOwned)
+                return staleResult(
+                    engagement,
+                    TickStatus.STALE_TARGET
+                );
+
+            if(npcLost[0])
+                return staleResult(
+                    engagement,
+                    TickStatus.STALE_ATTACKER
+                );
+
+            if(engagementGone[0])
+                return new TickResult(
+                    TickStatus.NONE,
+                    null
+                );
+
+            if(result[0]==null)
                 throw new IllegalStateException(
-                    "NPC engagement ownership changed during attack id="+
+                    "NPC engagement tick completed without a result id="+
                     engagement.attackerId
                 );
 
-            engagement.nextAttackTick=
-                nextAttackTick;
-            engagement.revision=
-                nextRevision;
+            return result[0];
+        }finally{
+            /*
+             * Cadence/executor/ownership failure must release the reservation
+             * without advancing schedule or revision. A removed/replaced
+             * engagement is deliberately left untouched.
+             */
+            synchronized(engagements){
+                if(engagements.get(
+                        engagement.attackerId
+                    )==engagement&&
+                   engagement.executing)
+                    engagement.executing=false;
+            }
+        }
+    }
 
-            return new TickResult(
-                TickStatus.ATTACKED,
-                snapshot(engagement)
+    private TickResult staleResult(
+        Engagement engagement,
+        TickStatus status
+    ){
+        synchronized(engagements){
+            engagements.remove(
+                engagement.attackerId,
+                engagement
             );
         }
+
+        return new TickResult(
+            status,
+            null
+        );
     }
 
     boolean cancel(
