@@ -123,6 +123,11 @@ final class ClanWarSessionService {
                 new LinkedHashSet<>();
         final String policyAuthority;
 
+        MatchSessionService.TerminalHold
+            matchTerminalHold;
+        WorldInstanceService.StructuralHold
+            instanceStructuralHold;
+
         Lifecycle lifecycle=
             Lifecycle.ACTIVE;
 
@@ -410,12 +415,8 @@ final class ClanWarSessionService {
                 entry.matchId
             );
 
-            String holdKey=
-                childHoldKey(entry);
             acquireChildHolds(
-                entry.matchId,
-                entry.instanceId,
-                holdKey
+                entry
             );
 
             boolean published=false;
@@ -429,9 +430,7 @@ final class ClanWarSessionService {
             }finally{
                 if(!published)
                     releaseChildHolds(
-                        entry.matchId,
-                        entry.instanceId,
-                        holdKey
+                        entry
                     );
             }
     
@@ -501,9 +500,7 @@ final class ClanWarSessionService {
                     entry
                 );
                 releaseChildHolds(
-                    entry.matchId,
-                    entry.instanceId,
-                    childHoldKey(entry)
+                    entry
                 );
                 matches.complete(
                     entry.matchId,
@@ -535,9 +532,7 @@ final class ClanWarSessionService {
                     entry
                 );
                 releaseChildHolds(
-                    entry.matchId,
-                    entry.instanceId,
-                    childHoldKey(entry)
+                    entry
                 );
                 matches.cancel(
                     entry.matchId,
@@ -727,52 +722,60 @@ final class ClanWarSessionService {
     }
 
     private void acquireChildHolds(
-        MatchId matchId,
-        WorldInstanceId instanceId,
-        String holdKey
+        Entry entry
     ){
-        matches.acquireTerminalHold(
-            matchId,
-            holdKey
-        );
+        MatchSessionService.TerminalHold matchHold=
+            matches.acquireTerminalHold(
+                entry.matchId
+            );
 
         boolean instanceHeld=false;
 
         try{
-            instances.acquireStructuralHold(
-                instanceId,
-                holdKey
-            );
+            WorldInstanceService.StructuralHold
+                instanceHold=
+                    instances.acquireStructuralHold(
+                        entry.instanceId
+                    );
+
+            entry.matchTerminalHold=
+                matchHold;
+            entry.instanceStructuralHold=
+                instanceHold;
             instanceHeld=true;
         }finally{
             if(!instanceHeld)
                 matches.releaseTerminalHold(
-                    matchId,
-                    holdKey
+                    matchHold
                 );
         }
     }
 
     private void releaseChildHolds(
-        MatchId matchId,
-        WorldInstanceId instanceId,
-        String holdKey
-    ){
-        instances.releaseStructuralHold(
-            instanceId,
-            holdKey
-        );
-        matches.releaseTerminalHold(
-            matchId,
-            holdKey
-        );
-    }
-
-    private static String childHoldKey(
         Entry entry
     ){
-        return "clan-war:"+
-            entry.challengeId.value();
+        MatchSessionService.TerminalHold
+            matchHold=
+                Objects.requireNonNull(
+                    entry.matchTerminalHold,
+                    "matchTerminalHold"
+                );
+        WorldInstanceService.StructuralHold
+            instanceHold=
+                Objects.requireNonNull(
+                    entry.instanceStructuralHold,
+                    "instanceStructuralHold"
+                );
+
+        instances.releaseStructuralHold(
+            instanceHold
+        );
+        matches.releaseTerminalHold(
+            matchHold
+        );
+
+        entry.instanceStructuralHold=null;
+        entry.matchTerminalHold=null;
     }
 
     private void closeOwnedInstance(
