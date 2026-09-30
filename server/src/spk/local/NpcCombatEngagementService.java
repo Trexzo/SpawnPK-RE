@@ -17,6 +17,13 @@ final class NpcCombatEngagementService {
         STALE_TARGET
     }
 
+    enum ValidationStatus {
+        CURRENT,
+        GONE,
+        STALE_ATTACKER,
+        STALE_TARGET
+    }
+
     interface CadenceResolver {
         int nextDelayTicks(Context context);
         String authority();
@@ -69,6 +76,7 @@ final class NpcCombatEngagementService {
         final long revision;
         final String cadenceAuthority;
         final String cadencePolicy;
+        private final Engagement identity;
 
         private Snapshot(
             Engagement engagement,
@@ -82,6 +90,7 @@ final class NpcCombatEngagementService {
             this.revision=engagement.revision;
             this.cadenceAuthority=cadenceAuthority;
             this.cadencePolicy=cadencePolicy;
+            this.identity=engagement;
         }
     }
 
@@ -613,6 +622,97 @@ final class NpcCombatEngagementService {
             return engagement==null
                 ?null
                 :snapshot(engagement);
+        }
+    }
+
+    boolean isCurrent(
+        Snapshot snapshot
+    ){
+        Snapshot checked=
+            Objects.requireNonNull(
+                snapshot,
+                "snapshot"
+            );
+
+        synchronized(engagements){
+            return engagements.get(
+                checked.attackerId
+            )==checked.identity;
+        }
+    }
+
+    ValidationStatus validateAndRetireStale(
+        Snapshot snapshot
+    ){
+        Snapshot checked=
+            Objects.requireNonNull(
+                snapshot,
+                "snapshot"
+            );
+        Engagement expected=
+            checked.identity;
+
+        synchronized(engagements){
+            if(engagements.get(
+                    checked.attackerId
+                )!=expected)
+                return ValidationStatus.GONE;
+        }
+
+        WorldNpc attacker=
+            world.npcs().byId(
+                checked.attackerId
+            );
+
+        if(attacker==null)
+            return retireValidatedStale(
+                checked,
+                expected,
+                ValidationStatus.STALE_ATTACKER
+            );
+
+        WorldPlayer target=
+            world.players().byId(
+                checked.targetId
+            );
+
+        if(target==null||
+           !world.players().owns(
+                target,
+                checked.targetGeneration
+            ))
+            return retireValidatedStale(
+                checked,
+                expected,
+                ValidationStatus.STALE_TARGET
+            );
+
+        synchronized(engagements){
+            return engagements.get(
+                checked.attackerId
+            )==expected
+                ?ValidationStatus.CURRENT
+                :ValidationStatus.GONE;
+        }
+    }
+
+    private ValidationStatus retireValidatedStale(
+        Snapshot snapshot,
+        Engagement expected,
+        ValidationStatus stale
+    ){
+        synchronized(engagements){
+            if(engagements.get(
+                    snapshot.attackerId
+                )!=expected)
+                return ValidationStatus.GONE;
+
+            engagements.remove(
+                snapshot.attackerId,
+                expected
+            );
+
+            return stale;
         }
     }
 
