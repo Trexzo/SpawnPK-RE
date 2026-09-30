@@ -54,6 +54,10 @@ public final class MatchInstanceSessionCompositionAtomicityTest {
             "tournamentGlobalEventTerminalOwnership=true "+
             "tournamentStartupHoldFailureSafe=true "+
             "tournamentTerminalHoldOrder=true "+
+            "durableChildOwnership=true "+
+            "clanChildOwnership=true "+
+            "duelChildOwnership=true "+
+            "tournamentChildOwnership=true "+
             "ownerPublishAfterOwnedAction=true "+
             "terminalPreflightInsideOwnership=true"
         );
@@ -215,6 +219,35 @@ public final class MatchInstanceSessionCompositionAtomicityTest {
             ),
             "TournamentService cancel releases terminal hold before local terminal publication"
         );
+
+        assertDurableChildOwnership(
+            start,
+            complete,
+            cancel,
+            "TournamentService",
+            "matches.activate(",
+            "matches.complete(",
+            "matches.cancel("
+        );
+
+        require(
+            complete.indexOf(
+                "releaseChildHolds("
+            )<
+            complete.indexOf(
+                "events.releaseTerminalHold("
+            ),
+            "TournamentService releases GlobalEvent hold before child ownership sequence"
+        );
+        require(
+            cancel.indexOf(
+                "releaseChildHolds("
+            )<
+            cancel.indexOf(
+                "events.releaseTerminalHold("
+            ),
+            "TournamentService cancel releases GlobalEvent hold before child ownership sequence"
+        );
     }
 
 
@@ -289,6 +322,84 @@ public final class MatchInstanceSessionCompositionAtomicityTest {
                 "withCompositionOwnership("
             ),
             label+" cancel preflight outside ownership"
+        );
+
+        assertDurableChildOwnership(
+            start,
+            complete,
+            cancel,
+            label,
+            "matches.activate(",
+            "matches.complete(",
+            "matches.cancel("
+        );
+    }
+
+    private static void assertDurableChildOwnership(
+        String start,
+        String complete,
+        String cancel,
+        String label,
+        String startupActivatedAnchor,
+        String completeMutationAnchor,
+        String cancelMutationAnchor
+    ){
+        int startActivated=
+            start.indexOf(
+                startupActivatedAnchor
+            );
+        int startAcquire=
+            start.indexOf(
+                "acquireChildHolds("
+            );
+
+        require(
+            startActivated>=0&&
+            startAcquire>startActivated,
+            label+
+                " does not acquire durable child ownership after activation"
+        );
+
+        int completePreflight=
+            complete.indexOf(
+                "preflightOwnedInstance"
+            );
+        int completeRelease=
+            complete.indexOf(
+                "releaseChildHolds("
+            );
+        int completeMutation=
+            complete.indexOf(
+                completeMutationAnchor
+            );
+
+        require(
+            completePreflight>=0&&
+            completeRelease>completePreflight&&
+            completeMutation>completeRelease,
+            label+
+                " complete does not retain child ownership through preflight"
+        );
+
+        int cancelPreflight=
+            cancel.indexOf(
+                "preflightOwnedInstance"
+            );
+        int cancelRelease=
+            cancel.indexOf(
+                "releaseChildHolds("
+            );
+        int cancelMutation=
+            cancel.indexOf(
+                cancelMutationAnchor
+            );
+
+        require(
+            cancelPreflight>=0&&
+            cancelRelease>cancelPreflight&&
+            cancelMutation>cancelRelease,
+            label+
+                " cancel does not retain child ownership through preflight"
         );
     }
 
