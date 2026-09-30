@@ -63,6 +63,28 @@ final class MatchSessionService {
     private final LinkedHashMap<MatchId,Entry> matches=
         new LinkedHashMap<>();
 
+    interface MatchInstanceCompositionAction {
+        void run() throws Exception;
+    }
+
+    synchronized void withWorldInstanceCompositionOwnership(
+        WorldInstanceService instances,
+        MatchInstanceCompositionAction action
+    )throws Exception{
+        Objects.requireNonNull(
+            instances,
+            "instances"
+        );
+        Objects.requireNonNull(
+            action,
+            "action"
+        );
+
+        instances.withMatchCompositionOwnership(
+            action
+        );
+    }
+
     synchronized MatchSession create(
         MatchId id,
         MatchRules rules

@@ -4902,6 +4902,13 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
 }
 
 tasks.named('check') {
+    dependsOn tasks.named('matchInstanceSessionCompositionAtomicityRegression')
+    dependsOn tasks.named('clanWarSessionServiceRegression')
+    dependsOn tasks.named('duelSessionServiceRegression')
+    dependsOn tasks.named('tournamentServiceRegression')
+    dependsOn tasks.named('matchInstanceCompositionOwnershipRegression')
+    dependsOn tasks.named('npcCombatEngagementServiceRegression')
+    dependsOn tasks.named('monsterSpawnerServiceRegression')
     dependsOn tasks.named('pvpHotspotServiceRegression')
     dependsOn tasks.named('npcDropResolutionServiceRegression')
     dependsOn tasks.named('npcPlayerCombatResolutionServiceRegression')
@@ -5335,6 +5342,106 @@ tasks.register('pvpHotspotServiceRegression', JavaExec) {
     classpath = sourceSets.test.runtimeClasspath
     mainClass = 'spk.local.PvpHotspotServiceTest'
 }
+
+
+tasks.register('npcCombatEngagementServiceRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves explicit NPC engagement/cadence state keeps target generation ownership and delegates attack execution without owning damage/pathing policy.'
+    dependsOn(
+        tasks.named('testClasses'),
+        tasks.named('npcPlayerCombatResolutionServiceRegression')
+    )
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.NpcCombatEngagementServiceTest'
+}
+
+
+
+
+tasks.register('matchInstanceCompositionOwnershipRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves MatchSession and WorldInstance mutation ownership is held together across one composition action.'
+    dependsOn tasks.named('testClasses')
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.MatchInstanceCompositionOwnershipTest'
+}
+
+
+
+
+tasks.register('clanWarSessionServiceRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves accepted Clan Wars compose into semantic MatchSession + WorldInstance lifecycles without inventing rewards or transport policy.'
+    dependsOn tasks.named('testClasses')
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.ClanWarSessionServiceTest'
+}
+
+
+
+
+tasks.register('duelSessionServiceRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves standard Duel challenge/session composition over MatchSession + WorldInstance without owning stakes, rewards, or transport.'
+    dependsOn tasks.named('testClasses')
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.DuelSessionServiceTest'
+}
+
+
+
+
+tasks.register('tournamentServiceRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves explicit LocalLab single-elimination Tournament composition over GlobalEvent + MatchSession + WorldInstance without reward or protocol ownership.'
+    dependsOn tasks.named('testClasses')
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.TournamentServiceTest'
+}
+
+
+
+
+tasks.register('matchInstanceSessionCompositionAtomicityRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves Clan War, Duel and Tournament startup/terminal composition remains inside shared MatchSession + WorldInstance ownership.'
+    dependsOn(
+        tasks.named('testClasses'),
+        tasks.named('matchInstanceCompositionOwnershipRegression')
+    )
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.MatchInstanceSessionCompositionAtomicityTest'
+}
+
+
+
+
+tasks.register('monsterSpawnerServiceRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves caller-defined Monster Spawner catalog/budget semantics with exact canonical WorldNpc tracking and despawn ownership.'
+    dependsOn(
+        tasks.named('testClasses'),
+        tasks.named('worldNpcMutationOwnershipRegression')
+    )
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.MonsterSpawnerServiceTest'
+}
+
+
 
 
 tasks.register('worldAdmissionPulseStartAtomicRegression', JavaExec) {
