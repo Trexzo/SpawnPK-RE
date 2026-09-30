@@ -16,12 +16,12 @@ $items = @(
     },
     [pscustomobject]@{
         RelativePath = 'local-client\client-airgap.jar'
-        ExpectedSha256 = '83b3e27e2aae50512d044ae4c74d84afb36df8b8a8051b5eb0c9275427363c33'
+        ExpectedSha256 = '024fad774453430bb964076b98d460a6dae821ee31100322d104e30d9a9c97a7'
         Label = 'AIRGAP_CLIENT'
     },
     [pscustomobject]@{
         RelativePath = 'local-client\client-localhost.jar'
-        ExpectedSha256 = '01c878a56ee25fb112dfe8b459dbd11ea26cfa8a92a7f287a4e5ee53f673cdbd'
+        ExpectedSha256 = '15ceb89669ddfe0a666e65b4a5291705af692a50e479bbde17e751eceb7fd23e'
         Label = 'LOCALHOST_CLIENT'
     }
 )
