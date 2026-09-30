@@ -4939,6 +4939,7 @@ tasks.named('check') {
     dependsOn tasks.named('worldAdmissionPulseStartAtomicRegression')
     dependsOn tasks.named('worldNpcMutationOwnershipRegression')
     dependsOn tasks.named('npcLifecycleServiceRegression')
+    dependsOn tasks.named('npcPlayerCombatResolutionServiceRegression')
     dependsOn tasks.named('localAuxHttpResponseRegression')
     dependsOn tasks.named('localAuxResponseLivenessRegression')
     dependsOn tasks.named('localAuxiliaryWorkerFailureRegression')
@@ -5247,6 +5248,20 @@ tasks.register('npcLifecycleServiceRegression', JavaExec) {
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass = 'spk.local.NpcLifecycleServiceTest'
+}
+
+
+tasks.register('npcPlayerCombatResolutionServiceRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves NPC-to-player damage holds exact player generation and canonical NPC ownership through caller policy and HP mutation.'
+    dependsOn(
+        tasks.named('testClasses'),
+        tasks.named('npcLifecycleServiceRegression')
+    )
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.NpcPlayerCombatResolutionServiceTest'
 }
 
 
