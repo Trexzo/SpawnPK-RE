@@ -125,11 +125,37 @@ final class GlobalEventService {
         }
     }
 
+    /**
+     * Opaque application-owned lease preventing terminal event transitions
+     * while a child runtime still requires the backing event to remain live.
+     * The token carries no callback into application state, so GlobalEvent
+     * never needs to acquire an application monitor while terminalizing.
+     */
+    static final class TerminalHold {
+        private final GlobalEventService owner;
+        private final WorldEventId eventId;
+
+        private TerminalHold(
+            GlobalEventService owner,
+            WorldEventId eventId
+        ){
+            this.owner=owner;
+            this.eventId=eventId;
+        }
+    }
+
     private static final class Entry {
         final WorldEventDefinition definition;
         Lifecycle lifecycle=Lifecycle.SCHEDULED;
         int phaseIndex=-1;
         long lastTransitionTick=NO_TRANSITION_TICK;
+        final Set<TerminalHold> terminalHolds=
+            Collections.newSetFromMap(
+                new IdentityHashMap<
+                    TerminalHold,
+                    Boolean
+                >()
+            );
 
         Entry(WorldEventDefinition definition){
             this.definition=definition;
@@ -171,6 +197,65 @@ final class GlobalEventService {
             action,
             "action"
         ).run();
+    }
+
+    synchronized TerminalHold acquireTerminalHold(
+        WorldEventId eventId
+    ){
+        Entry entry=require(
+            Objects.requireNonNull(
+                eventId,
+                "eventId"
+            )
+        );
+
+        if(entry.lifecycle!=Lifecycle.ACTIVE)
+            throw new IllegalStateException(
+                "terminal hold requires ACTIVE event "+
+                entry.definition.id+
+                " lifecycle="+
+                entry.lifecycle
+            );
+
+        TerminalHold hold=
+            new TerminalHold(
+                this,
+                entry.definition.id
+            );
+
+        if(!entry.terminalHolds.add(hold))
+            throw new IllegalStateException(
+                "duplicate terminal hold identity "+
+                entry.definition.id
+            );
+
+        return hold;
+    }
+
+    synchronized void releaseTerminalHold(
+        TerminalHold hold
+    ){
+        TerminalHold checked=
+            Objects.requireNonNull(
+                hold,
+                "hold"
+            );
+
+        if(checked.owner!=this)
+            throw new IllegalArgumentException(
+                "terminal hold belongs to another GlobalEventService"
+            );
+
+        Entry entry=require(
+            checked.eventId
+        );
+
+        if(!entry.terminalHolds.remove(
+                checked))
+            throw new IllegalStateException(
+                "terminal hold already released or unknown event="+
+                checked.eventId
+            );
     }
 
     synchronized Snapshot register(
@@ -265,6 +350,11 @@ final class GlobalEventService {
                 "cannot cancel completed event "+id
             );
 
+        requireTerminalizationUnblocked(
+            entry,
+            "cancel"
+        );
+
         ArrayList<Change> changes=new ArrayList<>();
         advance(entry,worldTick,changes);
 
@@ -318,6 +408,11 @@ final class GlobalEventService {
                 "cannot complete cancelled event "+id
             );
 
+        requireTerminalizationUnblocked(
+            entry,
+            "complete"
+        );
+
         ArrayList<Change> changes=new ArrayList<>();
         advance(entry,worldTick,changes);
 
@@ -357,6 +452,21 @@ final class GlobalEventService {
             WorldEventId.of(id),
             worldTick
         );
+    }
+
+    private static void requireTerminalizationUnblocked(
+        Entry entry,
+        String action
+    ){
+        if(!entry.terminalHolds.isEmpty())
+            throw new IllegalStateException(
+                "event terminalization blocked event="+
+                entry.definition.id+
+                " action="+
+                action+
+                " holds="+
+                entry.terminalHolds.size()
+            );
     }
 
     private Entry require(WorldEventId id){
@@ -445,7 +555,8 @@ final class GlobalEventService {
                 next++;
             }
 
-            if(worldTick>=definition.endTick){
+            if(worldTick>=definition.endTick&&
+               entry.terminalHolds.isEmpty()){
                 Snapshot before=entry.snapshot();
                 entry.lifecycle=Lifecycle.COMPLETED;
                 entry.lastTransitionTick=
