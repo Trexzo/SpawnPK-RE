@@ -228,25 +228,6 @@ final class World implements AutoCloseable {
     PluginManager plugins(){return plugins;}
     Object loginInitializationLock(){return loginInitializationLock;}
 
-    interface ExpectedClockTickAction {
-        void run() throws Exception;
-    }
-
-    void withExpectedClockTickOwnership(
-        long expectedTick,
-        ExpectedClockTickAction action
-    )throws Exception{
-        Objects.requireNonNull(
-            action,
-            "action"
-        );
-
-        clock.withExpectedTick(
-            expectedTick,
-            action::run
-        );
-    }
-
     interface ClockEventPublicationAction {
         void run(
             long authoritativeTick
