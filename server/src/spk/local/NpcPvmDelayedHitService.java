@@ -231,6 +231,58 @@ final class NpcPvmDelayedHitService {
         String damageAuthority,
         String damageFormula
     )throws Exception{
+        return scheduleInternal(
+            attacker,
+            attackerGeneration,
+            target,
+            resolvedDamage,
+            delayTicks,
+            damageAuthority,
+            damageFormula,
+            null
+        );
+    }
+
+    Snapshot scheduleAtTick(
+        WorldPlayer attacker,
+        long attackerGeneration,
+        WorldNpc target,
+        int resolvedDamage,
+        int delayTicks,
+        String damageAuthority,
+        String damageFormula,
+        long expectedScheduledFromTick
+    )throws Exception{
+        if(expectedScheduledFromTick<0L)
+            throw new IllegalArgumentException(
+                "expectedScheduledFromTick="+
+                expectedScheduledFromTick
+            );
+
+        return scheduleInternal(
+            attacker,
+            attackerGeneration,
+            target,
+            resolvedDamage,
+            delayTicks,
+            damageAuthority,
+            damageFormula,
+            Long.valueOf(
+                expectedScheduledFromTick
+            )
+        );
+    }
+
+    private Snapshot scheduleInternal(
+        WorldPlayer attacker,
+        long attackerGeneration,
+        WorldNpc target,
+        int resolvedDamage,
+        int delayTicks,
+        String damageAuthority,
+        String damageFormula,
+        Long expectedScheduledFromTick
+    )throws Exception{
         WorldPlayer checkedAttacker=
             Objects.requireNonNull(
                 attacker,
@@ -291,6 +343,16 @@ final class NpcPvmDelayedHitService {
 
                                     world.withClockEventPublicationOwnership(
                                         scheduledFromTick->{
+                                            if(expectedScheduledFromTick!=null&&
+                                               scheduledFromTick!=
+                                                    expectedScheduledFromTick.longValue())
+                                                throw new IllegalStateException(
+                                                    "delayed PvM publication tick moved expected="+
+                                                    expectedScheduledFromTick+
+                                                    " actual="+
+                                                    scheduledFromTick
+                                                );
+
                                             final long dueTick;
 
                                             try{
