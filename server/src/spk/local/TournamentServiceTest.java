@@ -29,6 +29,7 @@ public final class TournamentServiceTest {
             "eliminatedReentryRejected=true "+
             "activeMatchBlocksTerminalEvent=true "+
             "terminalHoldProtectsActiveMatch=true "+
+            "terminalHoldCapability=true "+
             "terminalHoldRelease=true "+
             "durableChildLease=true "+
             "directChildTerminalBlocked=true "+
@@ -1236,7 +1237,9 @@ public final class TournamentServiceTest {
                    name.contains("interface")||
                    name.contains("reward")||
                    name.contains("prize")||
-                   name.contains("shop"))
+                   name.contains("shop")||
+                   name.contains("terminalhold")||
+                   name.contains("compositionlease"))
                     throw new AssertionError(
                         "protocol/economy state leaked into Tournament "+
                         type.getSimpleName()+
