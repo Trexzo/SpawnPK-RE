@@ -4911,6 +4911,7 @@ tasks.named('check') {
     dependsOn tasks.named('matchInstanceCompositionOwnershipRegression')
     dependsOn tasks.named('npcCombatEngagementServiceRegression')
     dependsOn tasks.named('npcCombatApproachServiceRegression')
+    dependsOn tasks.named('npcCombatControllerServiceRegression')
     dependsOn tasks.named('npcPvmDelayedHitServiceRegression')
     dependsOn tasks.named('monsterSpawnerServiceRegression')
     dependsOn tasks.named('pvpHotspotServiceRegression')
@@ -5397,6 +5398,22 @@ tasks.register('npcCombatApproachServiceRegression', JavaExec) {
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass = 'spk.local.NpcCombatApproachServiceTest'
+}
+
+
+tasks.register('npcCombatControllerServiceRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves explicit NPC engagements approach collision-safely before cadence-gated canonical NPC-to-player damage.'
+    dependsOn(
+        tasks.named('testClasses'),
+        tasks.named('npcCombatApproachServiceRegression'),
+        tasks.named('npcCombatEngagementServiceRegression'),
+        tasks.named('npcPlayerCombatResolutionServiceRegression')
+    )
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.NpcCombatControllerServiceTest'
 }
 
 

@@ -101,6 +101,41 @@ final class NpcPlayerCombatResolutionService {
         long expectedTargetGeneration,
         long worldTick
     )throws Exception{
+        return resolveImmediateOwnedInternal(
+            world,
+            attacker,
+            target,
+            expectedTargetGeneration,
+            worldTick,
+            false
+        );
+    }
+
+    Result resolveImmediateOwnedAtExpectedTick(
+        World world,
+        WorldNpc attacker,
+        WorldPlayer target,
+        long expectedTargetGeneration,
+        long worldTick
+    )throws Exception{
+        return resolveImmediateOwnedInternal(
+            world,
+            attacker,
+            target,
+            expectedTargetGeneration,
+            worldTick,
+            true
+        );
+    }
+
+    private Result resolveImmediateOwnedInternal(
+        World world,
+        WorldNpc attacker,
+        WorldPlayer target,
+        long expectedTargetGeneration,
+        long worldTick,
+        boolean bindExpectedWorldTick
+    )throws Exception{
         World checkedWorld=
             Objects.requireNonNull(world,"world");
         WorldNpc checkedAttacker=
@@ -180,21 +215,58 @@ final class NpcPlayerCombatResolutionService {
                                                 damageAuthority
                                             );
 
-                                        PlayerLifecycleService.DamageResult lifecycle=
-                                            new PlayerLifecycleService(
-                                                checkedTarget
-                                            ).applyDamage(
-                                                resolvedDamage,
-                                                worldTick,
-                                                "NPC_ATTACK attacker="+
-                                                checkedAttacker.id+
-                                                " definition="+
-                                                checkedAttacker.definitionId+
-                                                " damageAuthority="+
-                                                damageAuthority+
-                                                " formula="+
-                                                damageFormula
-                                            );
+                                        PlayerLifecycleService.DamageResult lifecycle;
+
+                                        if(bindExpectedWorldTick){
+                                            synchronized(
+                                                checkedWorld.clock()
+                                            ){
+                                                long authoritativeTick=
+                                                    checkedWorld.clock()
+                                                        .tick();
+
+                                                if(authoritativeTick!=
+                                                        worldTick)
+                                                    throw new IllegalStateException(
+                                                        "NPC -> player damage tick drift expected="+
+                                                        worldTick+
+                                                        " actual="+
+                                                        authoritativeTick
+                                                    );
+
+                                                lifecycle=
+                                                    new PlayerLifecycleService(
+                                                        checkedTarget
+                                                    ).applyDamage(
+                                                        resolvedDamage,
+                                                        worldTick,
+                                                        "NPC_ATTACK attacker="+
+                                                        checkedAttacker.id+
+                                                        " definition="+
+                                                        checkedAttacker.definitionId+
+                                                        " damageAuthority="+
+                                                        damageAuthority+
+                                                        " formula="+
+                                                        damageFormula
+                                                    );
+                                            }
+                                        }else{
+                                            lifecycle=
+                                                new PlayerLifecycleService(
+                                                    checkedTarget
+                                                ).applyDamage(
+                                                    resolvedDamage,
+                                                    worldTick,
+                                                    "NPC_ATTACK attacker="+
+                                                    checkedAttacker.id+
+                                                    " definition="+
+                                                    checkedAttacker.definitionId+
+                                                    " damageAuthority="+
+                                                    damageAuthority+
+                                                    " formula="+
+                                                    damageFormula
+                                                );
+                                        }
 
                                         result[0]=
                                             new Result(
