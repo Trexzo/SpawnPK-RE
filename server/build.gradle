@@ -4928,6 +4928,7 @@ tasks.named('check') {
     dependsOn tasks.named('pvpHotspotServiceRegression')
     dependsOn tasks.named('npcDropResolutionServiceRegression')
     dependsOn tasks.named('groundItemBatchSettlementRegression')
+    dependsOn tasks.named('npcDropGroundSettlementRegression')
     dependsOn tasks.named('npcPlayerCombatResolutionServiceRegression')
     dependsOn tasks.named('npcCombatResolutionServiceRegression')
     dependsOn tasks.named('npcRespawnServiceRegression')
@@ -5378,6 +5379,21 @@ tasks.register('groundItemBatchSettlementRegression', JavaExec) {
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass = 'spk.local.GroundItemBatchSettlementTest'
+}
+
+
+tasks.register('npcDropGroundSettlementRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves immutable NPC drop resolutions settle exactly once into owner-scoped canonical World ground items with retry after atomic batch failure.'
+    dependsOn(
+        tasks.named('testClasses'),
+        tasks.named('groundItemBatchSettlementRegression'),
+        tasks.named('npcDropResolutionServiceRegression')
+    )
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.NpcDropGroundSettlementServiceTest'
 }
 
 
