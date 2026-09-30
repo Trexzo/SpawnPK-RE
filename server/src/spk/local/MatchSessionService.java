@@ -9,6 +9,25 @@ import java.util.*;
  * rewards and winner policy are external.
  */
 final class MatchSessionService {
+    static final class CompositionLease {
+        private final String ownerRef;
+
+        private CompositionLease(
+            String ownerRef
+        ){
+            this.ownerRef=
+                requireCompositionLeaseLabel(
+                    ownerRef
+                );
+        }
+
+        @Override public String toString(){
+            return "CompositionLease{"+
+                ownerRef+
+                "}";
+        }
+    }
+
     private static final class TeamState {
         final MatchTeamId id;
         final LinkedHashSet<String> members=
@@ -53,6 +72,7 @@ final class MatchSessionService {
         WorldInstanceId instanceId;
         MatchSession.Result result;
         String cancellationReasonKey;
+        CompositionLease compositionLease;
 
         Entry(MatchId id,MatchRules rules){
             this.id=id;
@@ -83,6 +103,148 @@ final class MatchSessionService {
         instances.withMatchCompositionOwnership(
             action
         );
+    }
+
+    synchronized CompositionLease acquireWorldInstanceCompositionLease(
+        WorldInstanceService instances,
+        MatchId matchId,
+        WorldInstanceId instanceId,
+        String ownerRef
+    )throws Exception{
+        Objects.requireNonNull(
+            instances,
+            "instances"
+        );
+
+        CompositionLease lease=
+            new CompositionLease(
+                ownerRef
+            );
+
+        instances.withMatchCompositionOwnership(
+            ()->{
+                Entry entry=
+                    require(
+                        matchId
+                    );
+                WorldInstanceId checkedInstanceId=
+                    Objects.requireNonNull(
+                        instanceId,
+                        "instanceId"
+                    );
+
+                requireState(
+                    entry,
+                    MatchSession.State.ACTIVE,
+                    "acquireCompositionLease"
+                );
+
+                if(entry.instanceId==null||
+                   !entry.instanceId.equals(
+                        checkedInstanceId))
+                    throw new IllegalStateException(
+                        "match/instance lease mismatch match="+
+                        entry.id+
+                        " expected="+
+                        entry.instanceId+
+                        " actual="+
+                        checkedInstanceId
+                    );
+
+                requireNoCompositionLease(
+                    entry,
+                    "acquireCompositionLease"
+                );
+                instances.requireCompositionLeaseAvailable(
+                    checkedInstanceId
+                );
+
+                entry.compositionLease=
+                    lease;
+
+                try{
+                    instances.acquireCompositionLease(
+                        checkedInstanceId,
+                        lease
+                    );
+                }catch(RuntimeException failure){
+                    entry.compositionLease=null;
+                    throw failure;
+                }catch(Error failure){
+                    entry.compositionLease=null;
+                    throw failure;
+                }
+            }
+        );
+
+        return lease;
+    }
+
+    synchronized void releaseWorldInstanceCompositionLease(
+        WorldInstanceService instances,
+        MatchId matchId,
+        WorldInstanceId instanceId,
+        CompositionLease lease
+    )throws Exception{
+        Objects.requireNonNull(
+            instances,
+            "instances"
+        );
+        CompositionLease checkedLease=
+            Objects.requireNonNull(
+                lease,
+                "lease"
+            );
+
+        instances.withMatchCompositionOwnership(
+            ()->{
+                Entry entry=
+                    require(
+                        matchId
+                    );
+                WorldInstanceId checkedInstanceId=
+                    Objects.requireNonNull(
+                        instanceId,
+                        "instanceId"
+                    );
+
+                if(entry.instanceId==null||
+                   !entry.instanceId.equals(
+                        checkedInstanceId))
+                    throw new IllegalStateException(
+                        "match/instance lease mismatch match="+
+                        entry.id+
+                        " expected="+
+                        entry.instanceId+
+                        " actual="+
+                        checkedInstanceId
+                    );
+
+                requireCompositionLease(
+                    entry,
+                    checkedLease
+                );
+                instances.requireCompositionLease(
+                    checkedInstanceId,
+                    checkedLease
+                );
+
+                instances.releaseCompositionLease(
+                    checkedInstanceId,
+                    checkedLease
+                );
+                entry.compositionLease=
+                    null;
+            }
+        );
+    }
+
+    synchronized boolean compositionLeaseHeld(
+        MatchId matchId
+    ){
+        return require(
+            matchId
+        ).compositionLease!=null;
     }
 
     synchronized MatchSession create(
@@ -455,24 +617,40 @@ final class MatchSessionService {
             MatchSession.State.ACTIVE,
             "complete"
         );
+        requireNoCompositionLease(
+            entry,
+            "complete"
+        );
 
-        MatchSession.Result checked=
+        return completeEntry(
+            entry,
+            result
+        );
+    }
+
+    synchronized MatchSession completeOwned(
+        MatchId matchId,
+        MatchSession.Result result,
+        CompositionLease lease
+    ){
+        Entry entry=require(matchId);
+        requireState(
+            entry,
+            MatchSession.State.ACTIVE,
+            "completeOwned"
+        );
+        requireCompositionLease(
+            entry,
             Objects.requireNonNull(
-                result,
-                "result"
-            );
+                lease,
+                "lease"
+            )
+        );
 
-        if(checked.winnerTeamId!=null&&
-           !entry.teams.containsKey(
-                checked.winnerTeamId))
-            throw new IllegalArgumentException(
-                "winner team not in match "+
-                checked.winnerTeamId
-            );
-
-        entry.result=checked;
-        entry.state=MatchSession.State.COMPLETED;
-        return snapshot(entry);
+        return completeEntry(
+            entry,
+            result
+        );
     }
 
     synchronized MatchSession cancel(
@@ -499,9 +677,46 @@ final class MatchSessionService {
         if(entry.state==MatchSession.State.COMPLETED)
             throw invalid(entry,"cancel");
 
-        entry.cancellationReasonKey=reason;
-        entry.state=MatchSession.State.CANCELLED;
-        return snapshot(entry);
+        requireNoCompositionLease(
+            entry,
+            "cancel"
+        );
+
+        return cancelEntry(
+            entry,
+            reason
+        );
+    }
+
+    synchronized MatchSession cancelOwned(
+        MatchId matchId,
+        String reasonKey,
+        CompositionLease lease
+    ){
+        Entry entry=require(matchId);
+        requireState(
+            entry,
+            MatchSession.State.ACTIVE,
+            "cancelOwned"
+        );
+        String reason=
+            MatchRules.normalizeKey(
+                reasonKey,
+                "reasonKey"
+            );
+
+        requireCompositionLease(
+            entry,
+            Objects.requireNonNull(
+                lease,
+                "lease"
+            )
+        );
+
+        return cancelEntry(
+            entry,
+            reason
+        );
     }
 
     synchronized MatchSession get(MatchId id){
@@ -532,6 +747,44 @@ final class MatchSessionService {
             out.add(snapshot(entry));
 
         return Collections.unmodifiableList(out);
+    }
+
+    private static MatchSession completeEntry(
+        Entry entry,
+        MatchSession.Result result
+    ){
+        MatchSession.Result checked=
+            Objects.requireNonNull(
+                result,
+                "result"
+            );
+
+        if(checked.winnerTeamId!=null&&
+           !entry.teams.containsKey(
+                checked.winnerTeamId))
+            throw new IllegalArgumentException(
+                "winner team not in match "+
+                checked.winnerTeamId
+            );
+
+        entry.result=checked;
+        entry.state=
+            MatchSession.State.COMPLETED;
+        return snapshot(entry);
+    }
+
+    private static MatchSession cancelEntry(
+        Entry entry,
+        String reason
+    ){
+        entry.cancellationReasonKey=
+            Objects.requireNonNull(
+                reason,
+                "reason"
+            );
+        entry.state=
+            MatchSession.State.CANCELLED;
+        return snapshot(entry);
     }
 
     private MatchSession markParticipant(
@@ -658,6 +911,50 @@ final class MatchSessionService {
             );
 
         scores.put(key,next);
+    }
+
+    private static void requireNoCompositionLease(
+        Entry entry,
+        String operation
+    ){
+        if(entry.compositionLease!=null)
+            throw new IllegalStateException(
+                operation+
+                " blocked by composition lease match="+
+                entry.id+
+                " lease="+
+                entry.compositionLease
+            );
+    }
+
+    private static void requireCompositionLease(
+        Entry entry,
+        CompositionLease lease
+    ){
+        if(entry.compositionLease!=lease)
+            throw new IllegalStateException(
+                "composition lease identity mismatch match="+
+                entry.id
+            );
+    }
+
+    private static String requireCompositionLeaseLabel(
+        String value
+    ){
+        if(value==null)
+            throw new NullPointerException(
+                "ownerRef"
+            );
+
+        String normalized=
+            value.trim();
+
+        if(normalized.isEmpty())
+            throw new IllegalArgumentException(
+                "ownerRef blank"
+            );
+
+        return normalized;
     }
 
     private static void requireState(

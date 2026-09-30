@@ -20,6 +20,10 @@ public final class ClanWarSessionServiceTest {
             "callerResolvedScoring=true "+
             "completionClosesInstance=true "+
             "cancellationClosesInstance=true "+
+            "durableChildLease=true "+
+            "directChildTerminalBlocked=true "+
+            "ownerTerminalReleasesChildLease=true "+
+            "terminalFailureRetainsChildLease=true "+
             "definitionPreserved=true "+
             "ruleResolverExternal=true "+
             "ruleAuthorityPolicy=true "+
@@ -118,6 +122,32 @@ public final class ClanWarSessionServiceTest {
         );
 
         require(
+            matches.compositionLeaseHeld(
+                matchId
+            )&&
+            instances.compositionLeaseHeld(
+                instanceId
+            ),
+            "Clan War child lease missing"
+        );
+
+        expect(
+            IllegalStateException.class,
+            ()->matches.cancel(
+                matchId,
+                "external_cancel"
+            ),
+            "external Clan War match cancel"
+        );
+        expect(
+            IllegalStateException.class,
+            ()->instances.beginClosing(
+                instanceId
+            ),
+            "external Clan War instance close"
+        );
+
+        require(
             match.team(
                 started.challengerTeamId
             ).members.containsAll(
@@ -200,7 +230,13 @@ public final class ClanWarSessionServiceTest {
             closed.lifecycle==
                 WorldInstanceService
                     .Lifecycle.CLOSED&&
-            closed.participants.isEmpty(),
+            closed.participants.isEmpty()&&
+            !matches.compositionLeaseHeld(
+                matchId
+            )&&
+            !instances.compositionLeaseHeld(
+                instanceId
+            ),
             "Clan War completion"
         );
 
@@ -280,6 +316,29 @@ public final class ClanWarSessionServiceTest {
                 )
             );
 
+        expect(
+            IllegalArgumentException.class,
+            ()->service.cancel(
+                started.challengeId,
+                "   "
+            ),
+            "invalid Clan War cancel reason"
+        );
+
+        require(
+            service.get(
+                started.challengeId
+            ).lifecycle==
+                ClanWarSessionService.Lifecycle.ACTIVE&&
+            matches.compositionLeaseHeld(
+                started.matchId
+            )&&
+            instances.compositionLeaseHeld(
+                started.instanceId
+            ),
+            "failed Clan War terminalization dropped child lease"
+        );
+
         ClanWarSessionService.Snapshot cancelled=
             service.cancel(
                 started.challengeId,
@@ -298,7 +357,13 @@ public final class ClanWarSessionServiceTest {
                 started.instanceId
             ).lifecycle==
                 WorldInstanceService
-                    .Lifecycle.CLOSED,
+                    .Lifecycle.CLOSED&&
+            !matches.compositionLeaseHeld(
+                started.matchId
+            )&&
+            !instances.compositionLeaseHeld(
+                started.instanceId
+            ),
             "Clan War cancellation"
         );
     }
@@ -675,6 +740,31 @@ public final class ClanWarSessionServiceTest {
                     );
             }
         }
+    }
+
+    private static void expect(
+        Class<? extends Throwable> type,
+        Runnable action,
+        String label
+    ){
+        try{
+            action.run();
+        }catch(Throwable failure){
+            if(type.isInstance(failure))
+                return;
+
+            throw new AssertionError(
+                label+
+                " wrong failure "+
+                failure,
+                failure
+            );
+        }
+
+        throw new AssertionError(
+            label+
+            " did not fail"
+        );
     }
 
     private static void require(

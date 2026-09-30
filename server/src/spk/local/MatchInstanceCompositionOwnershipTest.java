@@ -157,6 +157,11 @@ public final class MatchInstanceCompositionOwnershipTest {
                 "composition failure not propagated"
             );
 
+            durableLeaseBoundary(
+                matches,
+                instances
+            );
+
             matches.create(
                 MatchId.of(
                     "composition:after-failure-match"
@@ -177,6 +182,15 @@ public final class MatchInstanceCompositionOwnershipTest {
                 "instanceBlocked=true "+
                 "reentrantMutation=true "+
                 "actionFailureSafe=true "+
+                "durableChildLease=true "+
+                "directMatchTerminalBlocked=true "+
+                "directInstanceTopologyBlocked=true "+
+                "pairedLeaseRelease=true "+
+                "ownedTerminalUnderLease=true "+
+                "releaseAfterTerminal=true "+
+                "opaqueLeaseIdentity=true "+
+                "duplicateLeaseFailClosed=true "+
+                "missingLeaseFailClosed=true "+
                 "lockOrderMatchThenInstance=true "+
                 "protocolIndependent=true"
             );
@@ -192,6 +206,255 @@ public final class MatchInstanceCompositionOwnershipTest {
             );
         }
     }
+
+    private static void durableLeaseBoundary(
+        MatchSessionService matches,
+        WorldInstanceService instances
+    )throws Exception{
+        MatchId matchId=
+            MatchId.of(
+                "composition:leased"
+            );
+        WorldInstanceId instanceId=
+            WorldInstanceId.of(
+                "composition:leased"
+            );
+        MatchTeamId teamId=
+            MatchTeamId.of(
+                "team:leased"
+            );
+        AtomicReference<
+            MatchSessionService.CompositionLease
+        > lease=
+            new AtomicReference<>();
+
+        matches.withWorldInstanceCompositionOwnership(
+            instances,
+            ()->{
+                matches.create(
+                    matchId,
+                    rules()
+                );
+                matches.addTeam(
+                    matchId,
+                    teamId
+                );
+                matches.join(
+                    matchId,
+                    teamId,
+                    "player:leased"
+                );
+                instances.create(
+                    instanceId,
+                    matchId.toString(),
+                    "CUSTOM_LOCALLAB"
+                );
+                instances.attach(
+                    instanceId,
+                    "player:leased"
+                );
+                matches.attachInstance(
+                    matchId,
+                    instanceId
+                );
+                matches.markReady(
+                    matchId
+                );
+                instances.activate(
+                    instanceId
+                );
+                matches.activate(
+                    matchId
+                );
+                lease.set(
+                    matches.acquireWorldInstanceCompositionLease(
+                        instances,
+                        matchId,
+                        instanceId,
+                        "parent:leased"
+                    )
+                );
+            }
+        );
+
+        require(
+            matches.compositionLeaseHeld(
+                matchId
+            )&&
+            instances.compositionLeaseHeld(
+                instanceId
+            ),
+            "paired composition lease missing"
+        );
+
+        expect(
+            IllegalStateException.class,
+            ()->matches.complete(
+                matchId,
+                new MatchSession.Result(
+                    "caller_resolved",
+                    teamId,
+                    "CUSTOM_LOCALLAB"
+                )
+            ),
+            "direct leased match complete"
+        );
+        expect(
+            IllegalStateException.class,
+            ()->matches.cancel(
+                matchId,
+                "caller_cancelled"
+            ),
+            "direct leased match cancel"
+        );
+        expect(
+            IllegalStateException.class,
+            ()->instances.attach(
+                instanceId,
+                "player:intruder"
+            ),
+            "direct leased instance attach"
+        );
+        expect(
+            IllegalStateException.class,
+            ()->instances.detach(
+                instanceId,
+                "player:leased"
+            ),
+            "direct leased instance detach"
+        );
+        expect(
+            IllegalStateException.class,
+            ()->instances.beginClosing(
+                instanceId
+            ),
+            "direct leased instance beginClosing"
+        );
+
+        expect(
+            IllegalStateException.class,
+            ()->matches.acquireWorldInstanceCompositionLease(
+                instances,
+                matchId,
+                instanceId,
+                "parent:duplicate"
+            ),
+            "duplicate paired lease"
+        );
+        expect(
+            NullPointerException.class,
+            ()->matches.releaseWorldInstanceCompositionLease(
+                instances,
+                matchId,
+                instanceId,
+                null
+            ),
+            "missing paired lease token"
+        );
+
+        require(
+            matches.compositionLeaseHeld(
+                matchId
+            )&&
+            instances.compositionLeaseHeld(
+                instanceId
+            ),
+            "failed lease mutation dropped ownership"
+        );
+
+        matches.withWorldInstanceCompositionOwnership(
+            instances,
+            ()->{
+                MatchSessionService.CompositionLease token=
+                    lease.get();
+
+                matches.cancelOwned(
+                    matchId,
+                    "owner_cancelled",
+                    token
+                );
+                instances.beginClosingOwned(
+                    instanceId,
+                    token
+                );
+                instances.detachOwned(
+                    instanceId,
+                    "player:leased",
+                    token
+                );
+                instances.closeOwned(
+                    instanceId,
+                    token
+                );
+
+                matches.releaseWorldInstanceCompositionLease(
+                    instances,
+                    matchId,
+                    instanceId,
+                    token
+                );
+            }
+        );
+
+        require(
+            !matches.compositionLeaseHeld(
+                matchId
+            )&&
+            !instances.compositionLeaseHeld(
+                instanceId
+            )&&
+            matches.get(
+                matchId
+            ).state==
+                MatchSession.State.CANCELLED&&
+            instances.get(
+                instanceId
+            ).lifecycle==
+                WorldInstanceService.Lifecycle.CLOSED,
+            "paired composition lease release/terminalization"
+        );
+
+        expect(
+            IllegalStateException.class,
+            ()->matches.releaseWorldInstanceCompositionLease(
+                instances,
+                matchId,
+                instanceId,
+                lease.get()
+            ),
+            "double paired lease release"
+        );
+    }
+
+    private static void expect(
+        Class<? extends Throwable> type,
+        Throwing action,
+        String label
+    ){
+        try{
+            action.run();
+        }catch(Throwable failure){
+            if(type.isInstance(failure))
+                return;
+
+            throw new AssertionError(
+                label+
+                " wrong failure "+
+                failure,
+                failure
+            );
+        }
+
+        throw new AssertionError(
+            label+
+            " did not fail"
+        );
+    }
+
+    private interface Throwing {
+        void run() throws Exception;
+    }
+
 
     private static MatchRules rules(){
         return new MatchRules(

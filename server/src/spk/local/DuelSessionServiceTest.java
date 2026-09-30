@@ -26,6 +26,10 @@ public final class DuelSessionServiceTest {
             "drawSupported=true "+
             "completionClosesInstance=true "+
             "cancellationClosesInstance=true "+
+            "durableChildLease=true "+
+            "directChildTerminalBlocked=true "+
+            "ownerTerminalReleasesChildLease=true "+
+            "terminalFailureRetainsChildLease=true "+
             "participantIndexReleased=true "+
             "stakeMutation=false "+
             "rewardMutation=false "+
@@ -150,6 +154,37 @@ public final class DuelSessionServiceTest {
             "Duel active composition"
         );
 
+        require(
+            matches.compositionLeaseHeld(
+                matchId
+            )&&
+            instances.compositionLeaseHeld(
+                instanceId
+            ),
+            "Duel child lease missing"
+        );
+
+        expect(
+            IllegalStateException.class,
+            ()->matches.complete(
+                matchId,
+                new MatchSession.Result(
+                    "external",
+                    active.challengerTeamId,
+                    "LOCAL_LAB_POLICY"
+                )
+            ),
+            "external Duel match completion"
+        );
+        expect(
+            IllegalStateException.class,
+            ()->instances.detach(
+                instanceId,
+                "player:a"
+            ),
+            "external Duel instance detach"
+        );
+
         service.adjustParticipantScore(
             id,
             "player:a",
@@ -232,6 +267,12 @@ public final class DuelSessionServiceTest {
             closed.lifecycle==
                 WorldInstanceService.Lifecycle.CLOSED&&
             closed.participants.isEmpty()&&
+            !matches.compositionLeaseHeld(
+                matchId
+            )&&
+            !instances.compositionLeaseHeld(
+                instanceId
+            )&&
             service.openFor(
                 "player:a"
             )==null&&
@@ -413,6 +454,35 @@ public final class DuelSessionServiceTest {
                 )
             );
 
+        expect(
+            IllegalArgumentException.class,
+            ()->service.cancelActive(
+                activeCancel,
+                "   "
+            ),
+            "invalid active Duel cancel reason"
+        );
+
+        require(
+            service.get(
+                activeCancel
+            ).state==
+                DuelSessionService.State.ACTIVE&&
+            matches.compositionLeaseHeld(
+                active.matchId
+            )&&
+            instances.compositionLeaseHeld(
+                active.instanceId
+            )&&
+            service.openFor(
+                "player:e"
+            )!=null&&
+            service.openFor(
+                "player:f"
+            )!=null,
+            "failed Duel terminalization dropped child ownership"
+        );
+
         DuelSessionService.Snapshot cancelled=
             service.cancelActive(
                 activeCancel,
@@ -430,6 +500,12 @@ public final class DuelSessionServiceTest {
                 active.instanceId
             ).lifecycle==
                 WorldInstanceService.Lifecycle.CLOSED&&
+            !matches.compositionLeaseHeld(
+                active.matchId
+            )&&
+            !instances.compositionLeaseHeld(
+                active.instanceId
+            )&&
             service.openFor(
                 "player:e"
             )==null&&

@@ -168,6 +168,8 @@ final class DuelSessionService {
         State state=State.PROPOSED;
         MatchId matchId;
         WorldInstanceId instanceId;
+        MatchSessionService.CompositionLease
+            childLease;
 
         Entry(
             ChallengeId challengeId,
@@ -471,6 +473,16 @@ final class DuelSessionService {
             matches.activate(
                 checkedMatchId
             );
+
+            entry.childLease=
+                matches.acquireWorldInstanceCompositionLease(
+                    instances,
+                    checkedMatchId,
+                    checkedInstanceId,
+                    childLeaseLabel(
+                        checkedMatchId
+                    )
+                );
     
     
             }
@@ -603,16 +615,34 @@ final class DuelSessionService {
         withCompositionOwnership(
             ()->{
                 preflightOwnedInstance(entry);
-                matches.complete(
+
+                MatchSessionService.CompositionLease lease=
+                    requireChildLease(
+                        entry
+                    );
+
+                matches.completeOwned(
                     entry.matchId,
-                    result
+                    result,
+                    lease
                 );
-                closeOwnedInstance(entry);
+                closeOwnedInstance(
+                    entry,
+                    lease
+                );
+
+                entry.state=State.COMPLETED;
+                releaseParticipants(entry);
+
+                matches.releaseWorldInstanceCompositionLease(
+                    instances,
+                    entry.matchId,
+                    entry.instanceId,
+                    lease
+                );
+                entry.childLease=null;
             }
         );
-
-        entry.state=State.COMPLETED;
-        releaseParticipants(entry);
 
         return entry.snapshot();
     }
@@ -627,20 +657,43 @@ final class DuelSessionService {
                 State.ACTIVE,
                 "cancelActive"
             );
+        String reason=
+            MatchRules.normalizeKey(
+                reasonKey,
+                "reasonKey"
+            );
 
         withCompositionOwnership(
             ()->{
                 preflightOwnedInstance(entry);
-                matches.cancel(
+
+                MatchSessionService.CompositionLease lease=
+                    requireChildLease(
+                        entry
+                    );
+
+                matches.cancelOwned(
                     entry.matchId,
-                    reasonKey
+                    reason,
+                    lease
                 );
-                closeOwnedInstance(entry);
+                closeOwnedInstance(
+                    entry,
+                    lease
+                );
+
+                entry.state=State.CANCELLED;
+                releaseParticipants(entry);
+
+                matches.releaseWorldInstanceCompositionLease(
+                    instances,
+                    entry.matchId,
+                    entry.instanceId,
+                    lease
+                );
+                entry.childLease=null;
             }
         );
-
-        entry.state=State.CANCELLED;
-        releaseParticipants(entry);
 
         return entry.snapshot();
     }
@@ -709,6 +762,29 @@ final class DuelSessionService {
         );
     }
 
+    private static String childLeaseLabel(
+        MatchId matchId
+    ){
+        return "duel:"+
+            Objects.requireNonNull(
+                matchId,
+                "matchId"
+            );
+    }
+
+    private static MatchSessionService.CompositionLease
+        requireChildLease(
+            Entry entry
+        ){
+        if(entry.childLease==null)
+            throw new IllegalStateException(
+                "Duel child lease missing "+
+                entry.matchId
+            );
+
+        return entry.childLease;
+    }
+
     private void preflightOwnedInstance(
         Entry entry
     ){
@@ -769,21 +845,26 @@ final class DuelSessionService {
     }
 
     private void closeOwnedInstance(
-        Entry entry
+        Entry entry,
+        MatchSessionService.CompositionLease lease
     ){
-        instances.beginClosing(
-            entry.instanceId
-        );
-        instances.detach(
+        instances.beginClosingOwned(
             entry.instanceId,
-            entry.challengerRef
+            lease
         );
-        instances.detach(
+        instances.detachOwned(
             entry.instanceId,
-            entry.challengedRef
+            entry.challengerRef,
+            lease
         );
-        instances.close(
-            entry.instanceId
+        instances.detachOwned(
+            entry.instanceId,
+            entry.challengedRef,
+            lease
+        );
+        instances.closeOwned(
+            entry.instanceId,
+            lease
         );
     }
 

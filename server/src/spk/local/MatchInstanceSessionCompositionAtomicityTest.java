@@ -54,6 +54,10 @@ public final class MatchInstanceSessionCompositionAtomicityTest {
             "tournamentGlobalEventTerminalOwnership=true "+
             "tournamentStartupHoldFailureSafe=true "+
             "tournamentTerminalHoldOrder=true "+
+            "durableChildLeaseStartup=true "+
+            "durableChildLeaseTerminal=true "+
+            "terminalLeaseReleasedLast=true "+
+            "parentPublishProtectedByLease=true "+
             "ownerPublishAfterOwnedAction=true "+
             "terminalPreflightInsideOwnership=true"
         );
@@ -122,6 +126,15 @@ public final class MatchInstanceSessionCompositionAtomicityTest {
         require(
             startPublish>startOwned,
             "TournamentService publishes entrant state before owned startup action"
+        );
+        require(
+            start.indexOf(
+                "acquireWorldInstanceCompositionLease("
+            )>startOwned&&
+            start.indexOf(
+                "acquireWorldInstanceCompositionLease("
+            )<startPublish,
+            "TournamentService startup does not acquire child lease before parent publication"
         );
 
         int startHoldAcquire=
@@ -215,6 +228,56 @@ public final class MatchInstanceSessionCompositionAtomicityTest {
             ),
             "TournamentService cancel releases terminal hold before local terminal publication"
         );
+
+        int completeChildTerminal=
+            complete.indexOf(
+                "matches.completeOwned("
+            );
+        int completeParentPublish=
+            complete.indexOf(
+                "tournamentMatch.state="
+            );
+        int completeLeaseRelease=
+            complete.indexOf(
+                "releaseWorldInstanceCompositionLease("
+            );
+
+        require(
+            completeChildTerminal>
+                complete.indexOf(
+                    "preflightOwnedInstance"
+                )&&
+            completeParentPublish>
+                completeChildTerminal&&
+            completeLeaseRelease>
+                completeParentPublish,
+            "TournamentService complete must retain child lease through terminal publication"
+        );
+
+        int cancelChildTerminal=
+            cancel.indexOf(
+                "matches.cancelOwned("
+            );
+        int cancelParentPublish=
+            cancel.indexOf(
+                "tournamentMatch.state="
+            );
+        int cancelLeaseRelease=
+            cancel.indexOf(
+                "releaseWorldInstanceCompositionLease("
+            );
+
+        require(
+            cancelChildTerminal>
+                cancel.indexOf(
+                    "preflightOwnedInstance"
+                )&&
+            cancelParentPublish>
+                cancelChildTerminal&&
+            cancelLeaseRelease>
+                cancelParentPublish,
+            "TournamentService cancel must retain child lease through terminal publication"
+        );
     }
 
 
@@ -289,6 +352,71 @@ public final class MatchInstanceSessionCompositionAtomicityTest {
                 "withCompositionOwnership("
             ),
             label+" cancel preflight outside ownership"
+        );
+
+        require(
+            start.indexOf(
+                "acquireWorldInstanceCompositionLease("
+            )>
+            start.indexOf(
+                "withCompositionOwnership("
+            )&&
+            start.indexOf(
+                "acquireWorldInstanceCompositionLease("
+            )<
+            start.indexOf(
+                startPublish
+            ),
+            label+" startup parent publication is not protected by durable child lease"
+        );
+        int completeChildTerminal=
+            complete.indexOf(
+                "matches.completeOwned("
+            );
+        int completeParentPublish=
+            complete.indexOf(
+                completePublish
+            );
+        int completeLeaseRelease=
+            complete.indexOf(
+                "releaseWorldInstanceCompositionLease("
+            );
+
+        require(
+            completeChildTerminal>
+                complete.indexOf(
+                    "preflightOwnedInstance"
+                )&&
+            completeParentPublish>
+                completeChildTerminal&&
+            completeLeaseRelease>
+                completeParentPublish,
+            label+" complete must retain child lease through parent terminal publication"
+        );
+
+        int cancelChildTerminal=
+            cancel.indexOf(
+                "matches.cancelOwned("
+            );
+        int cancelParentPublish=
+            cancel.indexOf(
+                cancelPublish
+            );
+        int cancelLeaseRelease=
+            cancel.indexOf(
+                "releaseWorldInstanceCompositionLease("
+            );
+
+        require(
+            cancelChildTerminal>
+                cancel.indexOf(
+                    "preflightOwnedInstance"
+                )&&
+            cancelParentPublish>
+                cancelChildTerminal&&
+            cancelLeaseRelease>
+                cancelParentPublish,
+            label+" cancel must retain child lease through parent terminal publication"
         );
     }
 

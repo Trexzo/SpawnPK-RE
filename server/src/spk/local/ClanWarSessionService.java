@@ -125,6 +125,8 @@ final class ClanWarSessionService {
 
         Lifecycle lifecycle=
             Lifecycle.ACTIVE;
+        MatchSessionService.CompositionLease
+            childLease;
 
         Entry(
             ClanWarChallenge.Snapshot challenge,
@@ -409,6 +411,16 @@ final class ClanWarSessionService {
             matches.activate(
                 entry.matchId
             );
+
+            entry.childLease=
+                matches.acquireWorldInstanceCompositionLease(
+                    instances,
+                    entry.matchId,
+                    entry.instanceId,
+                    childLeaseLabel(
+                        entry.matchId
+                    )
+                );
     
     
             }
@@ -480,18 +492,34 @@ final class ClanWarSessionService {
                 preflightOwnedInstance(
                     entry
                 );
-                matches.complete(
+
+                MatchSessionService.CompositionLease lease=
+                    requireChildLease(
+                        entry
+                    );
+
+                matches.completeOwned(
                     entry.matchId,
-                    result
+                    result,
+                    lease
                 );
                 closeOwnedInstance(
-                    entry
+                    entry,
+                    lease
                 );
+
+                entry.lifecycle=
+                    Lifecycle.COMPLETED;
+
+                matches.releaseWorldInstanceCompositionLease(
+                    instances,
+                    entry.matchId,
+                    entry.instanceId,
+                    lease
+                );
+                entry.childLease=null;
             }
         );
-
-        entry.lifecycle=
-            Lifecycle.COMPLETED;
 
         return entry.snapshot();
     }
@@ -504,24 +532,45 @@ final class ClanWarSessionService {
             requireActive(
                 challengeId
             );
+        String reason=
+            MatchRules.normalizeKey(
+                reasonKey,
+                "reasonKey"
+            );
 
         withCompositionOwnership(
             ()->{
                 preflightOwnedInstance(
                     entry
                 );
-                matches.cancel(
+
+                MatchSessionService.CompositionLease lease=
+                    requireChildLease(
+                        entry
+                    );
+
+                matches.cancelOwned(
                     entry.matchId,
-                    reasonKey
+                    reason,
+                    lease
                 );
                 closeOwnedInstance(
-                    entry
+                    entry,
+                    lease
                 );
+
+                entry.lifecycle=
+                    Lifecycle.CANCELLED;
+
+                matches.releaseWorldInstanceCompositionLease(
+                    instances,
+                    entry.matchId,
+                    entry.instanceId,
+                    lease
+                );
+                entry.childLease=null;
             }
         );
-
-        entry.lifecycle=
-            Lifecycle.CANCELLED;
 
         return entry.snapshot();
     }
@@ -645,6 +694,29 @@ final class ClanWarSessionService {
         );
     }
 
+    private static String childLeaseLabel(
+        MatchId matchId
+    ){
+        return "clan-war:"+
+            Objects.requireNonNull(
+                matchId,
+                "matchId"
+            );
+    }
+
+    private static MatchSessionService.CompositionLease
+        requireChildLease(
+            Entry entry
+        ){
+        if(entry.childLease==null)
+            throw new IllegalStateException(
+                "Clan War child lease missing "+
+                entry.matchId
+            );
+
+        return entry.childLease;
+    }
+
     private void preflightOwnedInstance(
         Entry entry
     ){
@@ -686,28 +758,33 @@ final class ClanWarSessionService {
     }
 
     private void closeOwnedInstance(
-        Entry entry
+        Entry entry,
+        MatchSessionService.CompositionLease lease
     ){
-        instances.beginClosing(
-            entry.instanceId
+        instances.beginClosingOwned(
+            entry.instanceId,
+            lease
         );
 
         for(String participant:
                 entry.challengerParticipants)
-            instances.detach(
+            instances.detachOwned(
                 entry.instanceId,
-                participant
+                participant,
+                lease
             );
 
         for(String participant:
                 entry.challengedParticipants)
-            instances.detach(
+            instances.detachOwned(
                 entry.instanceId,
-                participant
+                participant,
+                lease
             );
 
-        instances.close(
-            entry.instanceId
+        instances.closeOwned(
+            entry.instanceId,
+            lease
         );
     }
 

@@ -190,6 +190,8 @@ final class TournamentService {
         TournamentMatchState state=
             TournamentMatchState.ACTIVE;
         String winnerRef;
+        MatchSessionService.CompositionLease
+            childLease;
 
         TournamentMatch(
             MatchId matchId,
@@ -512,6 +514,7 @@ final class TournamentService {
                 );
 
                 boolean published=false;
+                boolean childLeaseAcquired=false;
 
                 try{
                     matches.create(
@@ -565,6 +568,15 @@ final class TournamentService {
                         checkedMatchId
                     );
 
+                    tournamentMatch.childLease=
+                        matches.acquireWorldInstanceCompositionLease(
+                            instances,
+                            checkedMatchId,
+                            checkedInstanceId,
+                            holdKey
+                        );
+                    childLeaseAcquired=true;
+
                     first.state=
                         EntrantState.IN_MATCH;
                     first.activeMatchId=
@@ -587,11 +599,24 @@ final class TournamentService {
                             event
                         );
                 }finally{
-                    if(!published)
+                    if(!published){
+                        if(childLeaseAcquired){
+                            matches.releaseWorldInstanceCompositionLease(
+                                instances,
+                                checkedMatchId,
+                                checkedInstanceId,
+                                requireChildLease(
+                                    tournamentMatch
+                                )
+                            );
+                            tournamentMatch.childLease=null;
+                        }
+
                         events.releaseTerminalHold(
                             entry.eventId,
                             holdKey
                         );
+                    }
                 }
             }
         );
@@ -667,12 +692,20 @@ final class TournamentService {
                 preflightOwnedInstance(
                     tournamentMatch
                 );
-                matches.complete(
+
+                MatchSessionService.CompositionLease lease=
+                    requireChildLease(
+                        tournamentMatch
+                    );
+
+                matches.completeOwned(
                     tournamentMatch.matchId,
-                    result
+                    result,
+                    lease
                 );
                 closeOwnedInstance(
-                    tournamentMatch
+                    tournamentMatch,
+                    lease
                 );
 
                 Entrant winningEntrant=
@@ -701,6 +734,14 @@ final class TournamentService {
                 tournamentMatch.winnerRef=
                     winner;
 
+                matches.releaseWorldInstanceCompositionLease(
+                    instances,
+                    tournamentMatch.matchId,
+                    tournamentMatch.instanceId,
+                    lease
+                );
+                tournamentMatch.childLease=null;
+
                 events.releaseTerminalHold(
                     entry.eventId,
                     terminalHoldKey(
@@ -724,6 +765,11 @@ final class TournamentService {
                 entry,
                 matchId
             );
+        String reason=
+            MatchRules.normalizeKey(
+                reasonKey,
+                "reasonKey"
+            );
 
         withEventAndCompositionOwnership(
             entry.eventId,
@@ -742,12 +788,20 @@ final class TournamentService {
                 preflightOwnedInstance(
                     tournamentMatch
                 );
-                matches.cancel(
+
+                MatchSessionService.CompositionLease lease=
+                    requireChildLease(
+                        tournamentMatch
+                    );
+
+                matches.cancelOwned(
                     tournamentMatch.matchId,
-                    reasonKey
+                    reason,
+                    lease
                 );
                 closeOwnedInstance(
-                    tournamentMatch
+                    tournamentMatch,
+                    lease
                 );
 
                 Entrant first=
@@ -770,6 +824,14 @@ final class TournamentService {
 
                 tournamentMatch.state=
                     TournamentMatchState.CANCELLED;
+
+                matches.releaseWorldInstanceCompositionLease(
+                    instances,
+                    tournamentMatch.matchId,
+                    tournamentMatch.instanceId,
+                    lease
+                );
+                tournamentMatch.childLease=null;
 
                 events.releaseTerminalHold(
                     entry.eventId,
@@ -1099,22 +1161,40 @@ final class TournamentService {
     }
 
     private void closeOwnedInstance(
-        TournamentMatch tournamentMatch
+        TournamentMatch tournamentMatch,
+        MatchSessionService.CompositionLease lease
     ){
-        instances.beginClosing(
-            tournamentMatch.instanceId
-        );
-        instances.detach(
+        instances.beginClosingOwned(
             tournamentMatch.instanceId,
-            tournamentMatch.firstParticipant
+            lease
         );
-        instances.detach(
+        instances.detachOwned(
             tournamentMatch.instanceId,
-            tournamentMatch.secondParticipant
+            tournamentMatch.firstParticipant,
+            lease
         );
-        instances.close(
-            tournamentMatch.instanceId
+        instances.detachOwned(
+            tournamentMatch.instanceId,
+            tournamentMatch.secondParticipant,
+            lease
         );
+        instances.closeOwned(
+            tournamentMatch.instanceId,
+            lease
+        );
+    }
+
+    private static MatchSessionService.CompositionLease
+        requireChildLease(
+            TournamentMatch match
+        ){
+        if(match.childLease==null)
+            throw new IllegalStateException(
+                "Tournament child lease missing "+
+                match.matchId
+            );
+
+        return match.childLease;
     }
 
     private static String terminalHoldKey(
