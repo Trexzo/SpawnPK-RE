@@ -9,6 +9,25 @@ import java.util.*;
  * rewards and winner policy are external.
  */
 final class MatchSessionService {
+    static final class CompositionLease {
+        private final String ownerRef;
+
+        private CompositionLease(
+            String ownerRef
+        ){
+            this.ownerRef=
+                requireCompositionLeaseLabel(
+                    ownerRef
+                );
+        }
+
+        @Override public String toString(){
+            return "CompositionLease{"+
+                ownerRef+
+                "}";
+        }
+    }
+
     private static final class TeamState {
         final MatchTeamId id;
         final LinkedHashSet<String> members=
@@ -53,7 +72,7 @@ final class MatchSessionService {
         WorldInstanceId instanceId;
         MatchSession.Result result;
         String cancellationReasonKey;
-        String compositionLeaseKey;
+        CompositionLease compositionLease;
 
         Entry(MatchId id,MatchRules rules){
             this.id=id;
@@ -86,20 +105,20 @@ final class MatchSessionService {
         );
     }
 
-    synchronized void acquireWorldInstanceCompositionLease(
+    synchronized CompositionLease acquireWorldInstanceCompositionLease(
         WorldInstanceService instances,
         MatchId matchId,
         WorldInstanceId instanceId,
-        String leaseKey
+        String ownerRef
     )throws Exception{
         Objects.requireNonNull(
             instances,
             "instances"
         );
 
-        String key=
-            requireCompositionLeaseKey(
-                leaseKey
+        CompositionLease lease=
+            new CompositionLease(
+                ownerRef
             );
 
         instances.withMatchCompositionOwnership(
@@ -140,39 +159,41 @@ final class MatchSessionService {
                     checkedInstanceId
                 );
 
-                entry.compositionLeaseKey=
-                    key;
+                entry.compositionLease=
+                    lease;
 
                 try{
                     instances.acquireCompositionLease(
                         checkedInstanceId,
-                        key
+                        lease
                     );
                 }catch(RuntimeException failure){
-                    entry.compositionLeaseKey=null;
+                    entry.compositionLease=null;
                     throw failure;
                 }catch(Error failure){
-                    entry.compositionLeaseKey=null;
+                    entry.compositionLease=null;
                     throw failure;
                 }
             }
         );
+
+        return lease;
     }
 
     synchronized void releaseWorldInstanceCompositionLease(
         WorldInstanceService instances,
         MatchId matchId,
         WorldInstanceId instanceId,
-        String leaseKey
+        CompositionLease lease
     )throws Exception{
         Objects.requireNonNull(
             instances,
             "instances"
         );
-
-        String key=
-            requireCompositionLeaseKey(
-                leaseKey
+        CompositionLease checkedLease=
+            Objects.requireNonNull(
+                lease,
+                "lease"
             );
 
         instances.withMatchCompositionOwnership(
@@ -201,18 +222,18 @@ final class MatchSessionService {
 
                 requireCompositionLease(
                     entry,
-                    key
+                    checkedLease
                 );
                 instances.requireCompositionLease(
                     checkedInstanceId,
-                    key
+                    checkedLease
                 );
 
                 instances.releaseCompositionLease(
                     checkedInstanceId,
-                    key
+                    checkedLease
                 );
-                entry.compositionLeaseKey=
+                entry.compositionLease=
                     null;
             }
         );
@@ -223,7 +244,7 @@ final class MatchSessionService {
     ){
         return require(
             matchId
-        ).compositionLeaseKey!=null;
+        ).compositionLease!=null;
     }
 
     synchronized MatchSession create(
@@ -815,39 +836,33 @@ final class MatchSessionService {
         Entry entry,
         String operation
     ){
-        if(entry.compositionLeaseKey!=null)
+        if(entry.compositionLease!=null)
             throw new IllegalStateException(
                 operation+
                 " blocked by composition lease match="+
                 entry.id+
                 " lease="+
-                entry.compositionLeaseKey
+                entry.compositionLease
             );
     }
 
     private static void requireCompositionLease(
         Entry entry,
-        String leaseKey
+        CompositionLease lease
     ){
-        if(!Objects.equals(
-                entry.compositionLeaseKey,
-                leaseKey))
+        if(entry.compositionLease!=lease)
             throw new IllegalStateException(
-                "composition lease mismatch match="+
-                entry.id+
-                " expected="+
-                entry.compositionLeaseKey+
-                " actual="+
-                leaseKey
+                "composition lease identity mismatch match="+
+                entry.id
             );
     }
 
-    private static String requireCompositionLeaseKey(
+    private static String requireCompositionLeaseLabel(
         String value
     ){
         if(value==null)
             throw new NullPointerException(
-                "leaseKey"
+                "ownerRef"
             );
 
         String normalized=
@@ -855,7 +870,7 @@ final class MatchSessionService {
 
         if(normalized.isEmpty())
             throw new IllegalArgumentException(
-                "leaseKey blank"
+                "ownerRef blank"
             );
 
         return normalized;
