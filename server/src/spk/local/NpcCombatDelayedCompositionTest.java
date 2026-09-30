@@ -32,6 +32,7 @@ public final class NpcCombatDelayedCompositionTest {
             "damageOnce=true "+
             "sharedClockBound=true "+
             "policyClockDriftAtomic=true "+
+            "publicationTickBound=true "+
             "delayedServiceBinding=true "+
             "schedulerFailureAtomic=true "+
             "dueDamageOnce=true "+
