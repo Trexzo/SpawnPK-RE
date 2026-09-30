@@ -1,5 +1,7 @@
 package spk.local;
 
+import java.nio.charset.StandardCharsets;
+import java.nio.file.*;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.*;
@@ -9,6 +11,7 @@ public final class GlobalEventRegistrationCompositionTest {
     public static void main(String[] args)throws Exception{
         atomicPublicationBlocksObservationAndMutation();
         failureRollbackAndDuplicateFence();
+        consumerSourceShape();
 
         System.out.println(
             "GLOBAL_EVENT_REGISTRATION_COMPOSITION_PASS "+
@@ -19,6 +22,9 @@ public final class GlobalEventRegistrationCompositionTest {
             "duplicateActionSuppressed=true "+
             "reentrantRead=true "+
             "scheduledPostimage=true "+
+            "consumerSourceShape=true "+
+            "parentSnapshotInsideOwnership=true "+
+            "parentRollbackSymmetric=true "+
             "protocolIndependent=true"
         );
     }
@@ -324,6 +330,166 @@ public final class GlobalEventRegistrationCompositionTest {
                     .Lifecycle.SCHEDULED,
             "duplicate registration invoked action or mutated existing event"
         );
+    }
+
+    private static void consumerSourceShape()
+        throws Exception{
+        assertConsumerRegistration(
+            read(
+                "server/src/spk/local/TournamentService.java"
+            ),
+            "TournamentService",
+            "synchronized Snapshot registerTournament(",
+            "tournaments.put(",
+            "tournaments.remove("
+        );
+
+        assertConsumerRegistration(
+            read(
+                "server/src/spk/local/PvpHotspotService.java"
+            ),
+            "PvpHotspotService",
+            "synchronized Snapshot registerHotspot(",
+            "hotspots.put(",
+            "hotspots.remove("
+        );
+    }
+
+    private static void assertConsumerRegistration(
+        String source,
+        String label,
+        String signature,
+        String parentPut,
+        String parentRemove
+    ){
+        String registration=
+            method(
+                source,
+                signature
+            );
+
+        int owned=
+            registration.indexOf(
+                "registerWithCompositionOwnership("
+            );
+        int snapshot=
+            registration.indexOf(
+                "Snapshot created=",
+                owned
+            );
+        int put=
+            registration.indexOf(
+                parentPut,
+                owned
+            );
+        int resultPublish=
+            registration.indexOf(
+                "result[0]=created;",
+                put
+            );
+
+        check(
+            owned>=0,
+            label+
+            " registration does not use GlobalEvent registration ownership"
+        );
+        check(
+            !registration.contains(
+                "events.register("
+            ),
+            label+
+            " registration reverted to split GlobalEvent publication"
+        );
+        check(
+            snapshot>owned&&
+            put>snapshot&&
+            resultPublish>put,
+            label+
+            " registration ordering is not owned snapshot -> parent put -> result publication"
+        );
+        check(
+            count(
+                registration,
+                parentRemove
+            )>=3,
+            label+
+            " registration failure paths do not symmetrically remove exact parent entry"
+        );
+    }
+
+    private static String read(
+        String relative
+    )throws Exception{
+        return new String(
+            Files.readAllBytes(
+                Paths.get(relative)
+            ),
+            StandardCharsets.UTF_8
+        );
+    }
+
+    private static String method(
+        String source,
+        String signature
+    ){
+        int start=source.indexOf(signature);
+
+        check(
+            start>=0,
+            "missing source signature "+
+            signature
+        );
+
+        int open=source.indexOf('{',start);
+        check(
+            open>=0,
+            "missing method body "+
+            signature
+        );
+
+        int depth=0;
+
+        for(int i=open;i<source.length();i++){
+            char value=source.charAt(i);
+
+            if(value=='{')
+                depth++;
+            else if(value=='}'){
+                depth--;
+
+                if(depth==0)
+                    return source.substring(
+                        start,
+                        i+1
+                    );
+            }
+        }
+
+        throw new AssertionError(
+            "unterminated method "+
+            signature
+        );
+    }
+
+    private static int count(
+        String source,
+        String token
+    ){
+        int count=0;
+        int from=0;
+
+        while(true){
+            int found=source.indexOf(
+                token,
+                from
+            );
+
+            if(found<0)
+                return count;
+
+            count++;
+            from=found+token.length();
+        }
     }
 
     private static WorldEventDefinition definition(
