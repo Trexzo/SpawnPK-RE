@@ -379,14 +379,15 @@ final class NpcCombatResolutionService {
         }
 
         NpcPvmDelayedHitService.Snapshot scheduled=
-            checkedDelayedHits.schedule(
+            checkedDelayedHits.scheduleAtExpectedTick(
                 owner,
                 expectedAttackerGeneration,
                 checkedTarget,
                 prepared.damage.damage,
                 prepared.timing.hitDelayTicks,
                 prepared.damage.authority,
-                prepared.damage.formula
+                prepared.damage.formula,
+                worldTick
             );
 
         return new AttackResolution(
