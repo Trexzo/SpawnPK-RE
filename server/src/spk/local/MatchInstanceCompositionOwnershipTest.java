@@ -171,6 +171,11 @@ public final class MatchInstanceCompositionOwnershipTest {
                 "CUSTOM_LOCALLAB"
             );
 
+            durableChildHolds(
+                matches,
+                instances
+            );
+
             System.out.println(
                 "MATCH_INSTANCE_COMPOSITION_OWNERSHIP_PASS "+
                 "matchBlocked=true "+
@@ -178,6 +183,11 @@ public final class MatchInstanceCompositionOwnershipTest {
                 "reentrantMutation=true "+
                 "actionFailureSafe=true "+
                 "lockOrderMatchThenInstance=true "+
+                "durableChildHold=true "+
+                "directMatchTerminalBlocked=true "+
+                "directInstanceTopologyBlocked=true "+
+                "independentHoldIdentity=true "+
+                "holdReleaseAllowsOwnedTerminal=true "+
                 "protocolIndependent=true"
             );
         }finally{
@@ -192,6 +202,264 @@ public final class MatchInstanceCompositionOwnershipTest {
             );
         }
     }
+
+    private static void durableChildHolds(
+        MatchSessionService matches,
+        WorldInstanceService instances
+    )throws Exception{
+        MatchId firstMatch=
+            MatchId.of(
+                "composition:held:first"
+            );
+        WorldInstanceId firstInstance=
+            WorldInstanceId.of(
+                "composition:held:first"
+            );
+        String firstHold=
+            "owner:first";
+
+        matches.withWorldInstanceCompositionOwnership(
+            instances,
+            ()->{
+                createActivePair(
+                    matches,
+                    instances,
+                    firstMatch,
+                    firstInstance,
+                    "player:first"
+                );
+                matches.acquireTerminalHold(
+                    firstMatch,
+                    firstHold
+                );
+                instances.acquireStructuralHold(
+                    firstInstance,
+                    firstHold
+                );
+            }
+        );
+
+        require(
+            matches.terminalHoldCount(
+                firstMatch
+            )==1&&
+            instances.structuralHoldCount(
+                firstInstance
+            )==1,
+            "durable child holds not published"
+        );
+
+        expectIllegal(
+            ()->matches.complete(
+                firstMatch,
+                new MatchSession.Result(
+                    "external_complete",
+                    null,
+                    "CUSTOM_LOCALLAB"
+                )
+            ),
+            "direct match completion crossed durable hold"
+        );
+        expectIllegal(
+            ()->matches.cancel(
+                firstMatch,
+                "external_cancel"
+            ),
+            "direct match cancellation crossed durable hold"
+        );
+        expectIllegal(
+            ()->instances.attach(
+                firstInstance,
+                "player:foreign"
+            ),
+            "direct instance attach crossed durable hold"
+        );
+        expectIllegal(
+            ()->instances.detach(
+                firstInstance,
+                "player:first"
+            ),
+            "direct instance detach crossed durable hold"
+        );
+        expectIllegal(
+            ()->instances.beginClosing(
+                firstInstance
+            ),
+            "direct instance close admission crossed durable hold"
+        );
+
+        expectIllegal(
+            ()->matches.acquireTerminalHold(
+                firstMatch,
+                firstHold
+            ),
+            "duplicate match hold accepted"
+        );
+        expectIllegal(
+            ()->instances.acquireStructuralHold(
+                firstInstance,
+                firstHold
+            ),
+            "duplicate instance hold accepted"
+        );
+
+        MatchId secondMatch=
+            MatchId.of(
+                "composition:held:second"
+            );
+        WorldInstanceId secondInstance=
+            WorldInstanceId.of(
+                "composition:held:second"
+            );
+
+        matches.withWorldInstanceCompositionOwnership(
+            instances,
+            ()->{
+                createActivePair(
+                    matches,
+                    instances,
+                    secondMatch,
+                    secondInstance,
+                    "player:second"
+                );
+                matches.acquireTerminalHold(
+                    secondMatch,
+                    "owner:second"
+                );
+                instances.acquireStructuralHold(
+                    secondInstance,
+                    "owner:second"
+                );
+
+                instances.releaseStructuralHold(
+                    firstInstance,
+                    firstHold
+                );
+                matches.releaseTerminalHold(
+                    firstMatch,
+                    firstHold
+                );
+
+                matches.cancel(
+                    firstMatch,
+                    "owner_cancelled"
+                );
+                instances.beginClosing(
+                    firstInstance
+                );
+                instances.detach(
+                    firstInstance,
+                    "player:first"
+                );
+                instances.close(
+                    firstInstance
+                );
+            }
+        );
+
+        require(
+            matches.get(firstMatch).state==
+                MatchSession.State.CANCELLED&&
+            instances.get(firstInstance).lifecycle==
+                WorldInstanceService
+                    .Lifecycle.CLOSED,
+            "released owner could not terminalize child pair"
+        );
+
+        require(
+            matches.terminalHoldCount(
+                secondMatch
+            )==1&&
+            instances.structuralHoldCount(
+                secondInstance
+            )==1&&
+            matches.get(secondMatch).state==
+                MatchSession.State.ACTIVE&&
+            instances.get(secondInstance).lifecycle==
+                WorldInstanceService
+                    .Lifecycle.ACTIVE,
+            "independent child hold disturbed"
+        );
+
+        expectIllegal(
+            ()->matches.releaseTerminalHold(
+                firstMatch,
+                firstHold
+            ),
+            "double match hold release accepted"
+        );
+        expectIllegal(
+            ()->instances.releaseStructuralHold(
+                firstInstance,
+                firstHold
+            ),
+            "double instance hold release accepted"
+        );
+    }
+
+    private static void createActivePair(
+        MatchSessionService matches,
+        WorldInstanceService instances,
+        MatchId matchId,
+        WorldInstanceId instanceId,
+        String participant
+    ){
+        MatchTeamId team=
+            MatchTeamId.of(
+                matchId.toString()+":team"
+            );
+
+        matches.create(
+            matchId,
+            rules()
+        );
+        matches.addTeam(
+            matchId,
+            team
+        );
+        matches.join(
+            matchId,
+            team,
+            participant
+        );
+
+        instances.create(
+            instanceId,
+            matchId.toString(),
+            "CUSTOM_LOCALLAB"
+        );
+        instances.attach(
+            instanceId,
+            participant
+        );
+
+        matches.attachInstance(
+            matchId,
+            instanceId
+        );
+        matches.markReady(matchId);
+        instances.activate(instanceId);
+        matches.activate(matchId);
+    }
+
+    private static void expectIllegal(
+        ThrowingAction action,
+        String label
+    )throws Exception{
+        try{
+            action.run();
+        }catch(IllegalStateException expected){
+            return;
+        }
+
+        throw new AssertionError(label);
+    }
+
+    @FunctionalInterface
+    private interface ThrowingAction {
+        void run() throws Exception;
+    }
+
 
     private static MatchRules rules(){
         return new MatchRules(
