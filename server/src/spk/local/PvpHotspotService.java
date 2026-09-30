@@ -227,21 +227,34 @@ final class PvpHotspotService {
             events.registerWithCompositionOwnership(
                 checked,
                 ()->{
+                    Snapshot created=
+                        snapshotOf(
+                            entry
+                        );
                     hotspots.put(
                         entry.eventId,
                         entry
                     );
-                    result[0]=
-                        snapshotOf(
-                            entry
-                        );
+                    result[0]=created;
                 }
             );
         }catch(RuntimeException failure){
+            hotspots.remove(
+                entry.eventId,
+                entry
+            );
             throw failure;
         }catch(Error failure){
+            hotspots.remove(
+                entry.eventId,
+                entry
+            );
             throw failure;
         }catch(Exception failure){
+            hotspots.remove(
+                entry.eventId,
+                entry
+            );
             throw new IllegalStateException(
                 "unexpected PvP Hotspot GlobalEvent registration ownership failure",
                 failure
