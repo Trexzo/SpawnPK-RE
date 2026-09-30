@@ -21,6 +21,7 @@ public final class PvpHotspotServiceTest {
         System.out.println(
             "PVP_HOTSPOT_SERVICE_PASS "+
             "globalEventComposition=true "+
+            "registrationComposition=true "+
             "activePresenceOnly=true "+
             "duplicateEnterRejected=true "+
             "absentLeaveRejected=true "+
