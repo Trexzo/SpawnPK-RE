@@ -54,6 +54,7 @@ public final class MatchInstanceSessionCompositionAtomicityTest {
             "tournamentGlobalEventTerminalOwnership=true "+
             "tournamentStartupHoldFailureSafe=true "+
             "tournamentTerminalHoldOrder=true "+
+            "tournamentOpaqueEventCapability=true "+
             "durableChildLeaseStartup=true "+
             "durableChildLeaseTerminal=true "+
             "terminalLeaseReleasedLast=true "+
@@ -169,6 +170,19 @@ public final class MatchInstanceSessionCompositionAtomicityTest {
             startFinally>startPublished&&
             startHoldRelease>startFinally,
             "TournamentService startup terminal hold lacks failure-safe publication ordering"
+        );
+
+        require(
+            source.contains(
+                "GlobalEventService.TerminalHold"
+            )&&
+            source.contains(
+                "requireEventHold("
+            )&&
+            !source.contains(
+                "terminalHoldKey("
+            ),
+            "TournamentService GlobalEvent terminal ownership is not opaque capability based"
         );
 
         assertOwnedBeforePublishWith(
