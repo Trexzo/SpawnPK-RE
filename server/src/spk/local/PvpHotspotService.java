@@ -365,13 +365,16 @@ final class PvpHotspotService {
                 victim.participantRef
             );
 
+        final long nextAttackerKills;
+        final long nextVictimDeaths;
+
         try{
-            attacker.kills=
+            nextAttackerKills=
                 Math.addExact(
                     attacker.kills,
                     1L
                 );
-            victim.deaths=
+            nextVictimDeaths=
                 Math.addExact(
                     victim.deaths,
                     1L
@@ -384,6 +387,9 @@ final class PvpHotspotService {
                 overflow
             );
         }
+
+        attacker.kills=nextAttackerKills;
+        victim.deaths=nextVictimDeaths;
 
         return new KillResult(
             entry.eventId,
