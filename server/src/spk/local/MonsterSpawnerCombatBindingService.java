@@ -17,6 +17,13 @@ final class MonsterSpawnerCombatBindingService {
         ) throws Exception;
     }
 
+    interface DespawnCommitDecorator {
+        MonsterSpawnerService.SessionSnapshot commit(
+            WorldNpc npc,
+            MonsterSpawnerService.TrackedNpcDespawnCommit commit
+        ) throws Exception;
+    }
+
     static final class Result {
         final MonsterSpawnerService.SpawnResult spawn;
         final NpcCombatRuntimeBinder.BindingSnapshot binding;
@@ -215,62 +222,99 @@ final class MonsterSpawnerCombatBindingService {
         String ownerRef,
         EntityId npcId
     )throws Exception{
+        return despawnAndUnbindComposed(
+            ownerRef,
+            npcId,
+            (npc,commit)->
+                commit.commit()
+        );
+    }
+
+    DespawnResult despawnAndUnbindComposed(
+        String ownerRef,
+        EntityId npcId,
+        DespawnCommitDecorator decorator
+    )throws Exception{
         EntityId checkedId=
             Objects.requireNonNull(
                 npcId,
                 "npcId"
+            );
+        DespawnCommitDecorator checkedDecorator=
+            Objects.requireNonNull(
+                decorator,
+                "decorator"
             );
         final MonsterSpawnerService.SessionSnapshot[]
             session={null};
         final NpcCombatRuntimeBinder.BindingSnapshot[]
             released={null};
 
-        boolean open=
-            world.withOpenLifecycleOwnership(
-                ()->{
-                    session[0]=
-                        spawner.despawnTrackedComposed(
-                            ownerRef,
-                            checkedId,
-                            (npc,commit)->{
-                                final MonsterSpawnerService.SessionSnapshot[]
-                                    committed={null};
+        boolean open;
 
-                                NpcCombatRuntimeBinder.BindingSnapshot
-                                    binding=
-                                        binder.unbindComposed(
-                                            checkedId,
-                                            ()->
-                                                committed[0]=
-                                                    commit.commit()
+        try{
+            open=
+                world.withOpenLifecycleOwnership(
+                    ()->{
+                        session[0]=
+                            spawner.despawnTrackedComposed(
+                                ownerRef,
+                                checkedId,
+                                (npc,commit)->{
+                                    final MonsterSpawnerService.SessionSnapshot[]
+                                        committed={null};
+
+                                    NpcCombatRuntimeBinder.BindingSnapshot
+                                        binding=
+                                            binder.unbindComposed(
+                                                checkedId,
+                                                ()->
+                                                    committed[0]=
+                                                        checkedDecorator.commit(
+                                                            npc,
+                                                            commit
+                                                        )
+                                            );
+
+                                    if(binding==null)
+                                        throw new IllegalStateException(
+                                            "Monster Spawner combat runtime binding missing id="+
+                                            checkedId
                                         );
 
-                                if(binding==null)
-                                    throw new IllegalStateException(
-                                        "Monster Spawner combat runtime binding missing id="+
-                                        checkedId
+                                    released[0]=binding;
+
+                                    return Objects.requireNonNull(
+                                        committed[0],
+                                        "despawn commit result"
                                     );
-
-                                released[0]=binding;
-
-                                return Objects.requireNonNull(
-                                    committed[0],
-                                    "despawn commit result"
-                                );
-                            }
-                        );
-                }
-            );
+                                }
+                            );
+                    }
+                );
+        }finally{
+            /*
+             * Canonical removal is the irreversible terminal boundary. Retire
+             * presentation tracking whenever that boundary was crossed, even
+             * if a decorator throws after commit and the composed call itself
+             * cannot return successfully.
+             *
+             * Pre-commit failures keep the exact canonical NPC, so their relay
+             * tracking remains intact for the restored runtime.
+             */
+            if(world.npcs().byId(
+                    checkedId
+                )==null)
+                SharedNpcWorldRelay
+                    .untrackCanonicalNpc(
+                        world,
+                        checkedId
+                    );
+        }
 
         if(!open)
             throw new IllegalStateException(
                 "world closed before Monster Spawner combat despawn"
-            );
-
-        SharedNpcWorldRelay
-            .untrackCanonicalNpc(
-                world,
-                checkedId
             );
 
         return new DespawnResult(
