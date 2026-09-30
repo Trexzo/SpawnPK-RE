@@ -23,7 +23,8 @@ final class NpcCombatControllerService {
         WAITING,
         ATTACKED,
         STALE_ATTACKER,
-        STALE_TARGET
+        STALE_TARGET,
+        TARGET_DEAD
     }
 
     static final class TickResult {
@@ -54,6 +55,11 @@ final class NpcCombatControllerService {
         private static final long serialVersionUID=1L;
     }
 
+    private static final class TargetAlreadyDeadException
+        extends RuntimeException {
+        private static final long serialVersionUID=1L;
+    }
+
     private final World world;
     private final NpcCombatEngagementService engagements;
     private final NpcCombatApproachService approach;
@@ -62,6 +68,7 @@ final class NpcCombatControllerService {
     private final String orchestrationPolicy;
 
     private NpcCombatEngagementService.Snapshot activeApproachEngagement;
+    private NpcCombatEngagementService.Snapshot activeAttackEngagement;
     private boolean ticking;
 
     NpcCombatControllerService(
@@ -113,14 +120,7 @@ final class NpcCombatControllerService {
             new NpcCombatEngagementService(
                 this.world,
                 checkedCadence,
-                (attacker,target,targetGeneration,worldTick)->
-                    this.damage.resolveImmediateOwned(
-                        this.world,
-                        attacker,
-                        target,
-                        targetGeneration,
-                        worldTick
-                    )
+                this::executeCanonicalAttack
             );
 
         this.approach=
@@ -265,6 +265,23 @@ final class NpcCombatControllerService {
                     snapshot
                 );
 
+            if(target.lifecycle().dead()){
+                if(engagements.isCurrent(
+                        snapshot))
+                    engagements.cancel(
+                        attacker
+                    );
+
+                return result(
+                    Status.TARGET_DEAD,
+                    engagements.get(
+                        checkedId
+                    ),
+                    null,
+                    null
+                );
+            }
+
             NpcCombatApproachService.Result approachResult;
 
             activeApproachEngagement=
@@ -332,11 +349,29 @@ final class NpcCombatControllerService {
                     );
             }
 
-            NpcCombatEngagementService.TickResult cadence=
-                engagements.tick(
-                    checkedId,
-                    worldTick
+            NpcCombatEngagementService.TickResult cadence;
+
+            activeAttackEngagement=
+                snapshot;
+
+            try{
+                cadence=
+                    engagements.tick(
+                        checkedId,
+                        worldTick
+                    );
+            }catch(TargetAlreadyDeadException dead){
+                return result(
+                    Status.TARGET_DEAD,
+                    engagements.get(
+                        checkedId
+                    ),
+                    approachResult,
+                    null
                 );
+            }finally{
+                activeAttackEngagement=null;
+            }
 
             switch(cadence.status){
                 case NONE:
@@ -389,8 +424,54 @@ final class NpcCombatControllerService {
             }
         }finally{
             activeApproachEngagement=null;
+            activeAttackEngagement=null;
             ticking=false;
         }
+    }
+
+    private void executeCanonicalAttack(
+        WorldNpc attacker,
+        WorldPlayer target,
+        long targetGeneration,
+        long worldTick
+    )throws Exception{
+        NpcPlayerCombatResolutionService.Result resolved=
+            damage.resolveImmediateOwned(
+                world,
+                attacker,
+                target,
+                targetGeneration,
+                worldTick
+            );
+
+        if(resolved.lifecycle.died){
+            cancelActiveAttackEngagement(
+                attacker
+            );
+            return;
+        }
+
+        if(resolved.lifecycle.ignoredDead){
+            cancelActiveAttackEngagement(
+                attacker
+            );
+            throw new TargetAlreadyDeadException();
+        }
+    }
+
+    private void cancelActiveAttackEngagement(
+        WorldNpc attacker
+    ){
+        NpcCombatEngagementService.Snapshot expected=
+            activeAttackEngagement;
+
+        if(expected!=null&&
+           engagements.isCurrent(
+                expected
+            ))
+            engagements.cancel(
+                attacker
+            );
     }
 
     String orchestrationAuthority(){
