@@ -364,8 +364,16 @@ final class GlobalEventService {
         WorldEventId id,
         long worldTick
     ){
-        observeTick(worldTick);
         Entry entry=require(id);
+
+        if(entry.lifecycle!=Lifecycle.CANCELLED&&
+           entry.lifecycle!=Lifecycle.COMPLETED)
+            requireNoTerminalHolds(
+                entry,
+                "cancel"
+            );
+
+        observeTick(worldTick);
 
         if(entry.lifecycle==Lifecycle.CANCELLED)
             return new MutationResult(
@@ -377,11 +385,6 @@ final class GlobalEventService {
             throw new IllegalStateException(
                 "cannot cancel completed event "+id
             );
-
-        requireNoTerminalHolds(
-            entry,
-            "cancel"
-        );
 
         ArrayList<Change> changes=new ArrayList<>();
         advance(entry,worldTick,changes);
@@ -422,8 +425,16 @@ final class GlobalEventService {
         WorldEventId id,
         long worldTick
     ){
-        observeTick(worldTick);
         Entry entry=require(id);
+
+        if(entry.lifecycle!=Lifecycle.COMPLETED&&
+           entry.lifecycle!=Lifecycle.CANCELLED)
+            requireNoTerminalHolds(
+                entry,
+                "complete"
+            );
+
+        observeTick(worldTick);
 
         if(entry.lifecycle==Lifecycle.COMPLETED)
             return new MutationResult(
@@ -435,11 +446,6 @@ final class GlobalEventService {
             throw new IllegalStateException(
                 "cannot complete cancelled event "+id
             );
-
-        requireNoTerminalHolds(
-            entry,
-            "complete"
-        );
 
         ArrayList<Change> changes=new ArrayList<>();
         advance(entry,worldTick,changes);
