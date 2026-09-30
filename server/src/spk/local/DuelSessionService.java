@@ -168,6 +168,10 @@ final class DuelSessionService {
         State state=State.PROPOSED;
         MatchId matchId;
         WorldInstanceId instanceId;
+        MatchSessionService.TerminalHold
+            matchTerminalHold;
+        WorldInstanceService.StructuralHold
+            instanceStructuralHold;
 
         Entry(
             ChallengeId challengeId,
@@ -472,12 +476,10 @@ final class DuelSessionService {
                 checkedMatchId
             );
 
-            String holdKey=
-                childHoldKey(entry);
             acquireChildHolds(
+                entry,
                 checkedMatchId,
-                checkedInstanceId,
-                holdKey
+                checkedInstanceId
             );
 
             boolean published=false;
@@ -491,9 +493,7 @@ final class DuelSessionService {
             }finally{
                 if(!published)
                     releaseChildHolds(
-                        checkedMatchId,
-                        checkedInstanceId,
-                        holdKey
+                        entry
                     );
             }
     
@@ -624,9 +624,7 @@ final class DuelSessionService {
             ()->{
                 preflightOwnedInstance(entry);
                 releaseChildHolds(
-                    entry.matchId,
-                    entry.instanceId,
-                    childHoldKey(entry)
+                    entry
                 );
                 matches.complete(
                     entry.matchId,
@@ -656,9 +654,7 @@ final class DuelSessionService {
             ()->{
                 preflightOwnedInstance(entry);
                 releaseChildHolds(
-                    entry.matchId,
-                    entry.instanceId,
-                    childHoldKey(entry)
+                    entry
                 );
                 matches.cancel(
                     entry.matchId,
@@ -738,52 +734,62 @@ final class DuelSessionService {
     }
 
     private void acquireChildHolds(
+        Entry entry,
         MatchId matchId,
-        WorldInstanceId instanceId,
-        String holdKey
+        WorldInstanceId instanceId
     ){
-        matches.acquireTerminalHold(
-            matchId,
-            holdKey
-        );
+        MatchSessionService.TerminalHold matchHold=
+            matches.acquireTerminalHold(
+                matchId
+            );
 
         boolean instanceHeld=false;
 
         try{
-            instances.acquireStructuralHold(
-                instanceId,
-                holdKey
-            );
+            WorldInstanceService.StructuralHold
+                instanceHold=
+                    instances.acquireStructuralHold(
+                        instanceId
+                    );
+
+            entry.matchTerminalHold=
+                matchHold;
+            entry.instanceStructuralHold=
+                instanceHold;
             instanceHeld=true;
         }finally{
             if(!instanceHeld)
                 matches.releaseTerminalHold(
-                    matchId,
-                    holdKey
+                    matchHold
                 );
         }
     }
 
     private void releaseChildHolds(
-        MatchId matchId,
-        WorldInstanceId instanceId,
-        String holdKey
-    ){
-        instances.releaseStructuralHold(
-            instanceId,
-            holdKey
-        );
-        matches.releaseTerminalHold(
-            matchId,
-            holdKey
-        );
-    }
-
-    private static String childHoldKey(
         Entry entry
     ){
-        return "duel:"+
-            entry.challengeId.value();
+        MatchSessionService.TerminalHold
+            matchHold=
+                Objects.requireNonNull(
+                    entry.matchTerminalHold,
+                    "matchTerminalHold"
+                );
+        WorldInstanceService.StructuralHold
+            instanceHold=
+                Objects.requireNonNull(
+                    entry.instanceStructuralHold,
+                    "instanceStructuralHold"
+                );
+
+        instances.releaseStructuralHold(
+            instanceHold
+        );
+        matches.releaseTerminalHold(
+            matchHold
+        );
+
+        entry.instanceStructuralHold=null;
+        entry.matchTerminalHold=null;
     }
 
     private void preflightOwnedInstance(
