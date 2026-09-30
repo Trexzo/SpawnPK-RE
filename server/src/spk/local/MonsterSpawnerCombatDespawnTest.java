@@ -10,6 +10,7 @@ public final class MonsterSpawnerCombatDespawnTest {
         atomicUnbindDespawn();
         missingBindingNoRemoval();
         failedCommitRestoresRuntime();
+        postCommitFailureTerminalizesRuntime();
 
         System.out.println(
             "MONSTER_SPAWNER_COMBAT_DESPAWN_PASS "+
@@ -20,6 +21,7 @@ public final class MonsterSpawnerCombatDespawnTest {
             "noLaterAi=true "+
             "unbindFailureNoRemoval=true "+
             "removalFailureRollback=true "+
+            "postCommitFailureTerminal=true "+
             "lifecycleCoherent=true "+
             "presentationOwned=false "+
             "protocolIndependent=true"
@@ -174,6 +176,67 @@ public final class MonsterSpawnerCombatDespawnTest {
             require(
                 f.hp()==89,
                 "restored runtime no longer executes"
+            );
+        }finally{
+            f.close();
+        }
+    }
+
+    private static void postCommitFailureTerminalizesRuntime()
+        throws Exception{
+        Fixture f=new Fixture();
+        try{
+            NpcCombatRuntimeBinder binder=f.binder();
+            MonsterSpawnerCombatBindingService service=
+                new MonsterSpawnerCombatBindingService(
+                    f.world,f.spawner,binder
+                );
+
+            MonsterSpawnerCombatBindingService.Result bound=
+                service.spawnAndBind(OWNER,3087,3495,0);
+            EntityId id=bound.spawn.npc.id;
+            int hpBefore=f.hp();
+            final IllegalStateException primary=
+                new IllegalStateException(
+                    "POST_COMMIT_TERMINAL_FAILURE"
+                );
+
+            Throwable observed=
+                capture(
+                    ()->service.despawnAndUnbindComposed(
+                        OWNER,
+                        id,
+                        (npc,commit)->{
+                            MonsterSpawnerService.SessionSnapshot
+                                committed=
+                                    commit.commit();
+
+                            require(
+                                !committed.tracks(id),
+                                "post-commit fixture did not remove tracked NPC"
+                            );
+
+                            throw primary;
+                        }
+                    )
+                );
+
+            require(
+                observed==primary&&
+                f.world.npcs().byId(id)==null&&
+                !f.spawner.getSession(OWNER).tracks(id)&&
+                binder.get(id)==null&&
+                binder.size()==0&&
+                f.world.npcTickTargetCount()==0,
+                "post-commit failure retained terminal runtime state"
+            );
+
+            f.world.pulse().pulseOnce(1000L);
+            f.world.pulse().pulseOnce(1600L);
+
+            require(
+                f.hp()==hpBefore,
+                "post-commit terminal failure allowed later NPC AI"
             );
         }finally{
             f.close();
