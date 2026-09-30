@@ -9,12 +9,16 @@ public final class GlobalEventCompositionOwnershipTest {
     public static void main(String[] args)throws Exception{
         blockingAndReentrantAccess();
         actionFailureReleasesOwnership();
+        terminalHoldLifecycle();
 
         System.out.println(
             "GLOBAL_EVENT_COMPOSITION_OWNERSHIP_PASS "+
             "eventBlocked=true "+
             "reentrantAccess=true "+
             "actionFailureSafe=true "+
+            "terminalHoldExplicitBlocked=true "+
+            "terminalHoldDeadlineBlocked=true "+
+            "terminalHoldExactRelease=true "+
             "protocolIndependent=true"
         );
     }
@@ -195,6 +199,90 @@ public final class GlobalEventCompositionOwnershipTest {
             "ownership not released after caller failure"
         );
     }
+
+    private static void terminalHoldLifecycle(){
+        GlobalEventService service=
+            new GlobalEventService();
+        WorldEventDefinition definition=
+            definition(
+                "custom:terminal-hold",
+                10L,
+                20L
+            );
+
+        service.register(definition);
+        service.tick(10L);
+
+        GlobalEventService.TerminalHold first=
+            service.acquireTerminalHold(
+                definition.id
+            );
+        GlobalEventService.TerminalHold second=
+            service.acquireTerminalHold(
+                definition.id
+            );
+
+        expect(
+            IllegalStateException.class,
+            ()->service.complete(
+                definition.id,
+                12L
+            ),
+            "terminal hold explicit completion"
+        );
+        expect(
+            IllegalStateException.class,
+            ()->service.cancel(
+                definition.id,
+                12L
+            ),
+            "terminal hold explicit cancellation"
+        );
+
+        service.tick(20L);
+
+        check(
+            service.get(
+                definition.id
+            ).lifecycle==
+                GlobalEventService
+                    .Lifecycle.ACTIVE,
+            "deadline crossed terminal hold"
+        );
+
+        service.releaseTerminalHold(first);
+
+        expect(
+            IllegalStateException.class,
+            ()->service.complete(
+                definition.id,
+                20L
+            ),
+            "one remaining terminal hold"
+        );
+
+        service.releaseTerminalHold(second);
+
+        expect(
+            IllegalStateException.class,
+            ()->service.releaseTerminalHold(
+                second
+            ),
+            "terminal hold double release"
+        );
+
+        service.tick(20L);
+
+        check(
+            service.get(
+                definition.id
+            ).lifecycle==
+                GlobalEventService
+                    .Lifecycle.COMPLETED,
+            "deadline did not complete after terminal holds released"
+        );
+    }
+
 
     private static WorldEventDefinition definition(
         String id,
