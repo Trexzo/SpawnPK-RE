@@ -472,20 +472,34 @@ final class DuelSessionService {
                 checkedMatchId
             );
 
+            String holdKey=
+                childHoldKey(entry);
             acquireChildHolds(
                 checkedMatchId,
                 checkedInstanceId,
-                childHoldKey(entry)
+                holdKey
             );
+
+            boolean published=false;
+
+            try{
+                entry.matchId=checkedMatchId;
+                entry.instanceId=
+                    checkedInstanceId;
+                entry.state=State.ACTIVE;
+                published=true;
+            }finally{
+                if(!published)
+                    releaseChildHolds(
+                        checkedMatchId,
+                        checkedInstanceId,
+                        holdKey
+                    );
+            }
     
     
             }
         );
-
-        entry.matchId=checkedMatchId;
-        entry.instanceId=
-            checkedInstanceId;
-        entry.state=State.ACTIVE;
 
         return entry.snapshot();
     }
