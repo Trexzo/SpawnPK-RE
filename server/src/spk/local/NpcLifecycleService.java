@@ -50,6 +50,30 @@ final class NpcLifecycleService {
         }
     }
 
+    static final class LifecycleOwnershipException
+        extends IllegalArgumentException {
+        final EntityId npcId;
+
+        LifecycleOwnershipException(
+            EntityId npcId,
+            String reason
+        ){
+            super(
+                "NPC lifecycle ownership unavailable id="+
+                Objects.requireNonNull(
+                    npcId,
+                    "npcId"
+                )+
+                " reason="+
+                Objects.requireNonNull(
+                    reason,
+                    "reason"
+                )
+            );
+            this.npcId=npcId;
+        }
+    }
+
     static final class DamageResult {
         final EntityId npcId;
         final int requestedDamage;
@@ -211,8 +235,14 @@ final class NpcLifecycleService {
 
         synchronized(this){
             expected=
-                requireEntry(
+                entries.get(
                     key
+                );
+
+            if(expected==null)
+                throw new LifecycleOwnershipException(
+                    key,
+                    "missing-before-damage"
                 );
         }
 
@@ -230,9 +260,11 @@ final class NpcLifecycleService {
                             );
 
                         if(entry!=expected)
-                            throw new IllegalStateException(
-                                "NPC lifecycle ownership changed id="+
-                                key
+                            throw new LifecycleOwnershipException(
+                                key,
+                                entry==null
+                                    ?"removed-during-damage"
+                                    :"replaced-during-damage"
                             );
 
                         int before=
