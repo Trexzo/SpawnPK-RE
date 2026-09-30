@@ -327,24 +327,42 @@ final class GlobalEventService {
         WorldEventId id,
         long worldTick
     ){
-        observeTick(worldTick);
-        Entry entry=require(id);
+        Entry entry=entries.get(id);
 
-        if(entry.lifecycle==Lifecycle.CANCELLED)
+        /*
+         * Preserve the historical failure ordering for unknown/null ids:
+         * a valid worldTick is still observed before require(...) reports
+         * the unknown identity. Only active terminal-hold rejection moves
+         * ahead of clock publication.
+         */
+        if(entry==null){
+            observeTick(worldTick);
+            require(id);
+            throw new AssertionError(
+                "unreachable unknown GlobalEvent"
+            );
+        }
+
+        if(entry.lifecycle==Lifecycle.CANCELLED){
+            observeTick(worldTick);
             return new MutationResult(
                 entry.snapshot(),
                 Collections.emptyList()
             );
+        }
 
-        if(entry.lifecycle==Lifecycle.COMPLETED)
+        if(entry.lifecycle==Lifecycle.COMPLETED){
+            observeTick(worldTick);
             throw new IllegalStateException(
                 "cannot cancel completed event "+id
             );
+        }
 
         requireNoTerminalHolds(
             entry,
             "cancel"
         );
+        observeTick(worldTick);
 
         ArrayList<Change> changes=new ArrayList<>();
         advance(entry,worldTick,changes);
@@ -385,24 +403,36 @@ final class GlobalEventService {
         WorldEventId id,
         long worldTick
     ){
-        observeTick(worldTick);
-        Entry entry=require(id);
+        Entry entry=entries.get(id);
 
-        if(entry.lifecycle==Lifecycle.COMPLETED)
+        if(entry==null){
+            observeTick(worldTick);
+            require(id);
+            throw new AssertionError(
+                "unreachable unknown GlobalEvent"
+            );
+        }
+
+        if(entry.lifecycle==Lifecycle.COMPLETED){
+            observeTick(worldTick);
             return new MutationResult(
                 entry.snapshot(),
                 Collections.emptyList()
             );
+        }
 
-        if(entry.lifecycle==Lifecycle.CANCELLED)
+        if(entry.lifecycle==Lifecycle.CANCELLED){
+            observeTick(worldTick);
             throw new IllegalStateException(
                 "cannot complete cancelled event "+id
             );
+        }
 
         requireNoTerminalHolds(
             entry,
             "complete"
         );
+        observeTick(worldTick);
 
         ArrayList<Change> changes=new ArrayList<>();
         advance(entry,worldTick,changes);
