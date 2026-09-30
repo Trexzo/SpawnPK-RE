@@ -9,6 +9,19 @@ import java.util.*;
  * rewards and winner policy are external.
  */
 final class MatchSessionService {
+    static final class TerminalHold {
+        private final MatchSessionService owner;
+        private final MatchId matchId;
+
+        private TerminalHold(
+            MatchSessionService owner,
+            MatchId matchId
+        ){
+            this.owner=owner;
+            this.matchId=matchId;
+        }
+    }
+
     private static final class TeamState {
         final MatchTeamId id;
         final LinkedHashSet<String> members=
@@ -46,8 +59,13 @@ final class MatchSessionService {
             new LinkedHashMap<>();
         final LinkedHashMap<String,ParticipantState> participants=
             new LinkedHashMap<>();
-        final LinkedHashSet<String> terminalHolds=
-            new LinkedHashSet<>();
+        final Set<TerminalHold> terminalHolds=
+            Collections.newSetFromMap(
+                new IdentityHashMap<
+                    TerminalHold,
+                    Boolean
+                >()
+            );
 
         MatchSession.State state=
             MatchSession.State.CREATED;
@@ -87,33 +105,48 @@ final class MatchSessionService {
         );
     }
 
-    synchronized void acquireTerminalHold(
-        MatchId matchId,
-        String holdKey
+    synchronized TerminalHold acquireTerminalHold(
+        MatchId matchId
     ){
         Entry entry=requireActive(matchId);
-        String key=requireHoldKey(holdKey);
-
-        if(!entry.terminalHolds.add(key))
-            throw new IllegalStateException(
-                "duplicate MatchSession terminal hold match="+
-                entry.id+
-                " key="+key
+        TerminalHold hold=
+            new TerminalHold(
+                this,
+                entry.id
             );
+
+        if(!entry.terminalHolds.add(hold))
+            throw new IllegalStateException(
+                "duplicate MatchSession terminal hold identity match="+
+                entry.id
+            );
+
+        return hold;
     }
 
     synchronized void releaseTerminalHold(
-        MatchId matchId,
-        String holdKey
+        TerminalHold hold
     ){
-        Entry entry=require(matchId);
-        String key=requireHoldKey(holdKey);
+        TerminalHold checked=
+            Objects.requireNonNull(
+                hold,
+                "hold"
+            );
 
-        if(!entry.terminalHolds.remove(key))
+        if(checked.owner!=this)
+            throw new IllegalArgumentException(
+                "terminal hold belongs to another MatchSessionService"
+            );
+
+        Entry entry=require(
+            checked.matchId
+        );
+
+        if(!entry.terminalHolds.remove(
+                checked))
             throw new IllegalStateException(
-                "missing MatchSession terminal hold match="+
-                entry.id+
-                " key="+key
+                "terminal hold already released or unknown match="+
+                checked.matchId
             );
     }
 
@@ -720,22 +753,6 @@ final class MatchSessionService {
                 " holds="+
                 entry.terminalHolds
             );
-    }
-
-    private static String requireHoldKey(
-        String holdKey
-    ){
-        if(holdKey==null)
-            throw new NullPointerException("holdKey");
-
-        String key=holdKey.trim();
-
-        if(key.isEmpty())
-            throw new IllegalArgumentException(
-                "holdKey blank"
-            );
-
-        return key;
     }
 
     private static void requireState(
