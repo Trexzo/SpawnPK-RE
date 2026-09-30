@@ -477,7 +477,9 @@ public final class MonsterSpawnerNpcDeathFinalizationTest {
     ){
         return new ServerPacketWriter(
             bytes,
-            IsaacCipher.disabled()
+            new IsaacCipher(
+                new int[4]
+            )
         );
     }
 
