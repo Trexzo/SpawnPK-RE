@@ -17,6 +17,11 @@ public final class GlobalEventCompositionOwnershipTest {
             "reentrantAccess=true "+
             "terminalHold=true "+
             "terminalHoldDeadlineBlock=true "+
+            "opaqueTerminalCapability=true "+
+            "foreignTerminalCapabilityRejected=true "+
+            "multipleTerminalCapabilities=true "+
+            "keyReleaseApiAbsent=true "+
+            "snapshotCapabilityLeak=false "+
             "actionFailureSafe=true "+
             "protocolIndependent=true"
         );
@@ -153,16 +158,23 @@ public final class GlobalEventCompositionOwnershipTest {
         service.register(definition);
         service.tick(10L);
 
-        service.acquireTerminalHold(
-            definition.id,
-            "child:one"
-        );
+        GlobalEventService.TerminalHold first=
+            service.acquireTerminalHold(
+                definition.id,
+                "child:one"
+            );
+        GlobalEventService.TerminalHold second=
+            service.acquireTerminalHold(
+                definition.id,
+                "child:one"
+            );
 
         check(
+            first!=second&&
             service.terminalHoldCount(
                 definition.id
-            )==1,
-            "terminal hold count"
+            )==2,
+            "independent terminal capabilities"
         );
 
         expect(
@@ -193,29 +205,57 @@ public final class GlobalEventCompositionOwnershipTest {
             "end deadline crossed terminal hold"
         );
 
+        GlobalEventService foreignService=
+            new GlobalEventService();
+        WorldEventDefinition foreignDefinition=
+            definition(
+                "custom:foreign-terminal-held",
+                10L,
+                30L
+            );
+
+        foreignService.register(
+            foreignDefinition
+        );
+        foreignService.tick(10L);
+
+        GlobalEventService.TerminalHold foreign=
+            foreignService.acquireTerminalHold(
+                foreignDefinition.id,
+                "foreign"
+            );
+
         expect(
             IllegalStateException.class,
-            ()->service.acquireTerminalHold(
-                definition.id,
-                "child:one"
+            ()->service.releaseTerminalHold(
+                foreign
             ),
-            "duplicate terminal hold"
+            "foreign terminal capability"
         );
 
-        service.acquireTerminalHold(
-            definition.id,
-            "child:two"
+        check(
+            service.terminalHoldCount(
+                definition.id
+            )==2&&
+            foreignService.terminalHoldCount(
+                foreignDefinition.id
+            )==1,
+            "foreign terminal capability mutated owner"
         );
+
+        foreignService.releaseTerminalHold(
+            foreign
+        );
+
         service.releaseTerminalHold(
-            definition.id,
-            "child:one"
+            first
         );
 
         check(
             service.terminalHoldCount(
                 definition.id
             )==1,
-            "independent terminal hold count"
+            "first terminal capability release"
         );
 
         service.tick(20L);
@@ -226,19 +266,18 @@ public final class GlobalEventCompositionOwnershipTest {
             ).lifecycle==
                 GlobalEventService
                     .Lifecycle.ACTIVE,
-            "remaining hold did not block deadline"
+            "remaining capability did not block deadline"
         );
 
         service.releaseTerminalHold(
-            definition.id,
-            "child:two"
+            second
         );
 
         check(
             service.terminalHoldCount(
                 definition.id
             )==0,
-            "terminal holds not released"
+            "terminal capabilities not released"
         );
 
         service.tick(20L);
@@ -249,17 +288,53 @@ public final class GlobalEventCompositionOwnershipTest {
             ).lifecycle==
                 GlobalEventService
                     .Lifecycle.COMPLETED,
-            "deadline did not complete after hold release"
+            "deadline did not complete after capability release"
         );
 
         expect(
             IllegalStateException.class,
             ()->service.releaseTerminalHold(
-                definition.id,
-                "child:two"
+                second
             ),
-            "double terminal hold release"
+            "double terminal capability release"
         );
+        expect(
+            NullPointerException.class,
+            ()->service.releaseTerminalHold(
+                null
+            ),
+            "missing terminal capability"
+        );
+
+        for(java.lang.reflect.Method method:
+                GlobalEventService.class
+                    .getDeclaredMethods()){
+            if(!method.getName().equals(
+                    "releaseTerminalHold"))
+                continue;
+
+            Class<?>[] parameters=
+                method.getParameterTypes();
+
+            check(
+                parameters.length==1&&
+                parameters[0]==
+                    GlobalEventService
+                        .TerminalHold.class,
+                "key-based terminal hold release API remains"
+            );
+        }
+
+        for(java.lang.reflect.Field field:
+                GlobalEventService.Snapshot.class
+                    .getDeclaredFields())
+            check(
+                field.getType()!=
+                    GlobalEventService
+                        .TerminalHold.class,
+                "terminal capability leaked into snapshot "+
+                field.getName()
+            );
     }
 
 
