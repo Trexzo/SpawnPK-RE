@@ -32,6 +32,7 @@ public final class TournamentServiceTest {
             "terminalHoldRelease=true "+
             "durableChildLease=true "+
             "directChildTerminalBlocked=true "+
+            "directParticipantTransitionBlocked=true "+
             "childLeaseRelease=true "+
             "terminalFailureRetainsAllHolds=true "+
             "globalEventOwnershipLinearized=true "+
@@ -769,6 +770,46 @@ public final class TournamentServiceTest {
                 completeInstanceId
             ),
             "external Tournament instance close"
+        );
+        expect(
+            IllegalStateException.class,
+            ()->completeMatches.leave(
+                completeMatchId,
+                "player:a"
+            ),
+            "external Tournament participant leave"
+        );
+        expect(
+            IllegalStateException.class,
+            ()->completeMatches.forfeit(
+                completeMatchId,
+                "player:b"
+            ),
+            "external Tournament participant forfeit"
+        );
+        expect(
+            IllegalStateException.class,
+            ()->completeMatches.disconnect(
+                completeMatchId,
+                "player:a"
+            ),
+            "external Tournament participant disconnect"
+        );
+
+        require(
+            completeMatches.get(
+                completeMatchId
+            ).participant(
+                "player:a"
+            ).status==
+                MatchSession.ParticipantStatus.PRESENT&&
+            completeService.get(
+                completeEventId
+            ).entrant(
+                "player:a"
+            ).state==
+                TournamentService.EntrantState.IN_MATCH,
+            "Tournament participant diverged from entrant state"
         );
 
         expect(
