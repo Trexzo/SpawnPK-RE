@@ -10,6 +10,13 @@ import java.util.Objects;
  * World.lifecycle -> MonsterSpawnerService -> WorldNpcRegistry.
  */
 final class MonsterSpawnerCombatBindingService {
+    interface SpawnBindingAction {
+        void run(
+            WorldNpc npc,
+            NpcCombatRuntimeBinder.BindingSnapshot binding
+        ) throws Exception;
+    }
+
     static final class Result {
         final MonsterSpawnerService.SpawnResult spawn;
         final NpcCombatRuntimeBinder.BindingSnapshot binding;
@@ -84,6 +91,27 @@ final class MonsterSpawnerCombatBindingService {
         int y,
         int plane
     )throws Exception{
+        return spawnAndBindComposed(
+            ownerRef,
+            x,
+            y,
+            plane,
+            (npc,binding)->{}
+        );
+    }
+
+    Result spawnAndBindComposed(
+        String ownerRef,
+        int x,
+        int y,
+        int plane,
+        SpawnBindingAction action
+    )throws Exception{
+        SpawnBindingAction checkedAction=
+            Objects.requireNonNull(
+                action,
+                "action"
+            );
         final MonsterSpawnerService.SpawnResult[]
             spawn={null};
         final NpcCombatRuntimeBinder.BindingSnapshot[]
@@ -123,6 +151,31 @@ final class MonsterSpawnerCombatBindingService {
 
                                     binding[0]=
                                         bound.binding;
+
+                                    try{
+                                        checkedAction.run(
+                                            npc,
+                                            bound.binding
+                                        );
+                                    }catch(Throwable primary){
+                                        try{
+                                            if(!binder.unbind(
+                                                    npc.id))
+                                                throw new IllegalStateException(
+                                                    "Monster Spawner combat rollback binding missing id="+
+                                                    npc.id
+                                                );
+                                        }catch(Throwable rollbackFailure){
+                                            if(rollbackFailure!=primary)
+                                                primary.addSuppressed(
+                                                    rollbackFailure
+                                                );
+                                        }
+
+                                        rethrow(
+                                            primary
+                                        );
+                                    }
                                 }
                             );
                     }catch(Throwable failure){
