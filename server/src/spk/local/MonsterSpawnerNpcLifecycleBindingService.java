@@ -125,6 +125,9 @@ final class MonsterSpawnerNpcLifecycleBindingService {
                     y,
                     plane,
                     (npc,binding)->{
+                        boolean lifecycleRegistered=false;
+                        boolean projectionTracked=false;
+
                         try{
                             LifecyclePlan plan=
                                 Objects.requireNonNull(
@@ -140,17 +143,46 @@ final class MonsterSpawnerNpcLifecycleBindingService {
                                     plan.maxHitpoints,
                                     plan.sourceAuthority
                                 );
-                            planKey[0]=plan.planKey;
-                        }catch(Throwable primary){
-                            try{
-                                lifecycle.unregisterExact(
+                            lifecycleRegistered=true;
+
+                            SharedNpcWorldRelay
+                                .trackCanonicalNpc(
+                                    world,
                                     npc
                                 );
-                            }catch(Throwable rollbackFailure){
-                                if(rollbackFailure!=primary)
-                                    primary.addSuppressed(
-                                        rollbackFailure
-                                    );
+                            projectionTracked=true;
+                            planKey[0]=plan.planKey;
+                        }catch(Throwable primary){
+                            if(projectionTracked){
+                                try{
+                                    SharedNpcWorldRelay
+                                        .untrackCanonicalNpc(
+                                            world,
+                                            npc.id
+                                        );
+                                }catch(Throwable rollbackFailure){
+                                    if(rollbackFailure!=primary)
+                                        primary.addSuppressed(
+                                            rollbackFailure
+                                        );
+                                }
+                            }
+
+                            if(lifecycleRegistered){
+                                try{
+                                    if(!lifecycle.unregisterExact(
+                                            npc
+                                        ))
+                                        throw new IllegalStateException(
+                                            "Monster Spawner lifecycle rollback missing id="+
+                                            npc.id
+                                        );
+                                }catch(Throwable rollbackFailure){
+                                    if(rollbackFailure!=primary)
+                                        primary.addSuppressed(
+                                            rollbackFailure
+                                        );
+                                }
                             }
 
                             rethrow(
