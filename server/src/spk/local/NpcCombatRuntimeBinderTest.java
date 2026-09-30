@@ -3,6 +3,8 @@ package spk.local;
 import java.lang.reflect.Field;
 import java.util.Locale;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.*;
 
 public final class NpcCombatRuntimeBinderTest {
     public static void main(String[] args)throws Exception{
@@ -13,6 +15,7 @@ public final class NpcCombatRuntimeBinderTest {
         resolverFailureAtomic();
         staleAfterResolverFailsClosed();
         attachFailureNoPublication();
+        attachWithoutBinderLifecycleInversion();
         exactUnbindNoDespawn();
         authorityAndBoundary();
 
@@ -29,6 +32,7 @@ public final class NpcCombatRuntimeBinderTest {
             "resolverFailureAtomic=true "+
             "staleAfterResolverFailClosed=true "+
             "attachFailureAtomic=true "+
+            "attachWithoutBinderLifecycleInversion=true "+
             "exactUnbind=true "+
             "noDespawn=true "+
             "presentationOwned=false "+
@@ -359,6 +363,157 @@ public final class NpcCombatRuntimeBinderTest {
         }finally{
             f.close();
         }
+    }
+
+    private static void attachWithoutBinderLifecycleInversion()
+        throws Exception{
+        World world=
+            World.isolatedForTest(600L);
+        WorldNpc npcA=
+            world.npcs().spawn(
+                1523,
+                3087,
+                3495,
+                0
+            );
+        WorldNpc npcB=
+            world.npcs().spawn(
+                1524,
+                3090,
+                3495,
+                0
+            );
+        NpcCombatRuntimeBinder binder=
+            new NpcCombatRuntimeBinder(
+                world,
+                context->plan()
+            );
+        ExecutorService workers=
+            Executors.newFixedThreadPool(2);
+        CountDownLatch lifecycleHeld=
+            new CountDownLatch(1);
+        CountDownLatch allowOwnerBind=
+            new CountDownLatch(1);
+        AtomicReference<Thread> blockedBindThread=
+            new AtomicReference<>();
+        AtomicReference<NpcCombatRuntimeBinder.BindResult>
+            ownerResult=
+                new AtomicReference<>();
+
+        try{
+            Future<Boolean> lifecycleOwner=
+                workers.submit(
+                    ()->world.withOpenLifecycleOwnership(
+                        ()->{
+                            lifecycleHeld.countDown();
+
+                            if(!allowOwnerBind.await(
+                                    5L,
+                                    TimeUnit.SECONDS))
+                                throw new AssertionError(
+                                    "owner bind release timeout"
+                                );
+
+                            ownerResult.set(
+                                binder.bind(
+                                    npcA
+                                )
+                            );
+                        }
+                    )
+                );
+
+            require(
+                lifecycleHeld.await(
+                    5L,
+                    TimeUnit.SECONDS
+                ),
+                "lifecycle owner did not enter"
+            );
+
+            Future<NpcCombatRuntimeBinder.BindResult>
+                blockedBind=
+                    workers.submit(
+                        ()->{
+                            blockedBindThread.set(
+                                Thread.currentThread()
+                            );
+                            return binder.bind(
+                                npcB
+                            );
+                        }
+                    );
+
+            awaitBlocked(
+                blockedBindThread,
+                "second bind did not block on World lifecycle"
+            );
+
+            allowOwnerBind.countDown();
+
+            require(
+                lifecycleOwner.get(
+                    3L,
+                    TimeUnit.SECONDS
+                ),
+                "lifecycle owner failed"
+            );
+
+            NpcCombatRuntimeBinder.BindResult a=
+                ownerResult.get();
+
+            require(
+                a!=null&&
+                a.status==
+                    NpcCombatRuntimeBinder.BindStatus.BOUND,
+                "lifecycle owner could not enter binder while peer awaited lifecycle"
+            );
+
+            NpcCombatRuntimeBinder.BindResult b=
+                blockedBind.get(
+                    5L,
+                    TimeUnit.SECONDS
+                );
+
+            require(
+                b.status==
+                    NpcCombatRuntimeBinder.BindStatus.BOUND&&
+                binder.size()==2&&
+                world.npcTickTargetCount()==2,
+                "both non-inverting binds did not publish exactly once"
+            );
+        }finally{
+            allowOwnerBind.countDown();
+            workers.shutdownNow();
+            workers.awaitTermination(
+                5L,
+                TimeUnit.SECONDS
+            );
+            world.close();
+        }
+    }
+
+    private static void awaitBlocked(
+        AtomicReference<Thread> thread,
+        String label
+    )throws Exception{
+        long deadline=
+            System.nanoTime()+
+            TimeUnit.SECONDS.toNanos(5L);
+
+        while(System.nanoTime()<deadline){
+            Thread current=
+                thread.get();
+
+            if(current!=null&&
+               current.getState()==
+                    Thread.State.BLOCKED)
+                return;
+
+            Thread.sleep(5L);
+        }
+
+        throw new AssertionError(label);
     }
 
     private static void exactUnbindNoDespawn()
