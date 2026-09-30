@@ -23,6 +23,8 @@ public final class ClanWarSessionServiceTest {
             "durableChildLease=true "+
             "directChildTerminalBlocked=true "+
             "directParticipantMutationBlocked=true "+
+            "directScoreMutationBlocked=true "+
+            "ownerScoreUsesChildLease=true "+
             "ownerTerminalReleasesChildLease=true "+
             "terminalFailureRetainsChildLease=true "+
             "definitionPreserved=true "+
@@ -154,6 +156,16 @@ public final class ClanWarSessionServiceTest {
                 "player:a"
             ),
             "external Clan War participant leave"
+        );
+        expect(
+            IllegalStateException.class,
+            ()->matches.adjustTeamScore(
+                matchId,
+                started.challengerTeamId,
+                "external",
+                1L
+            ),
+            "external Clan War score mutation"
         );
 
         require(
