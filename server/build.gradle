@@ -4901,7 +4901,22 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
     }
 }
 
+tasks.register('npcDropResolutionServiceRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves deterministic NPC death drop resolution runs under exact canonical DEAD lifecycle ownership without mutating settlement/reward state.'
+    dependsOn(
+        tasks.named('testClasses'),
+        tasks.named('npcDeadLifecycleOwnershipRegression')
+    )
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.NpcDropResolutionServiceTest'
+}
+
+
 tasks.named('check') {
+    dependsOn tasks.named('npcDropResolutionServiceRegression')
     dependsOn tasks.named('issue9LauncherContractRegression')
     dependsOn tasks.named('chat1CumulativeWrapperContractRegression')
     dependsOn tasks.named('chat1CurrentCumulativeServerIdentityRegression')
