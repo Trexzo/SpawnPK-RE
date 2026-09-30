@@ -902,6 +902,17 @@ public final class NpcPvmDelayedHitServiceTest {
                 "unknown delivery authority"
             );
 
+            expect(
+                IllegalArgumentException.class,
+                ()->new NpcPvmDelayedHitService(
+                    f.world,
+                    f.lifecycle,
+                    "CUSTOM_LOCALLAB_DELAYED_HIT",
+                    "ALLOW_STALE_ATTACKER"
+                ),
+                "unsupported delivery policy"
+            );
+
             NpcPvmDelayedHitService service=
                 f.service();
 
