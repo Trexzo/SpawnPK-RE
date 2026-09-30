@@ -150,7 +150,7 @@ final class NpcCombatEngagementService {
         );
     }
 
-    synchronized Snapshot begin(
+    Snapshot begin(
         WorldNpc attacker,
         WorldPlayer target,
         long targetGeneration,
@@ -166,50 +166,77 @@ final class NpcCombatEngagementService {
                 "firstAttackTick="+firstAttackTick
             );
 
-        if(world.npcs().byId(
-                checkedAttacker.id
-            )!=checkedAttacker)
+        final Snapshot[] result=
+            new Snapshot[1];
+
+        try{
+            boolean playerOwned=
+                world.withOpenPlayerMutationOwnershipIfCurrent(
+                    checkedTarget,
+                    targetGeneration,
+                    ()->{
+                        boolean npcOwned=
+                            world.npcs()
+                                .withCurrentMutationOwnershipIfCurrent(
+                                    checkedAttacker,
+                                    ()->{
+                                        synchronized(engagements){
+                                            if(engagements.containsKey(
+                                                    checkedAttacker.id))
+                                                throw new IllegalStateException(
+                                                    "NPC already engaged id="+
+                                                    checkedAttacker.id
+                                                );
+
+                                            Engagement engagement=
+                                                new Engagement(
+                                                    checkedAttacker.id,
+                                                    checkedTarget.id(),
+                                                    targetGeneration,
+                                                    firstAttackTick
+                                                );
+
+                                            engagements.put(
+                                                checkedAttacker.id,
+                                                engagement
+                                            );
+
+                                            result[0]=
+                                                snapshot(engagement);
+                                        }
+                                    }
+                                );
+
+                        if(!npcOwned)
+                            throw new IllegalStateException(
+                                "NPC attacker is not exact canonical registry owner id="+
+                                checkedAttacker.id
+                            );
+                    }
+                );
+
+            if(!playerOwned)
+                throw new IllegalStateException(
+                    "player target is not exact current world generation id="+
+                    checkedTarget.id()+
+                    " expectedGeneration="+
+                    targetGeneration
+                );
+        }catch(RuntimeException failure){
+            throw failure;
+        }catch(Error failure){
+            throw failure;
+        }catch(Exception failure){
             throw new IllegalStateException(
-                "NPC attacker is not exact canonical registry owner id="+
-                checkedAttacker.id
+                "unexpected engagement ownership failure",
+                failure
             );
+        }
 
-        if(!world.players().owns(
-                checkedTarget,
-                targetGeneration
-            ))
-            throw new IllegalStateException(
-                "player target is not exact current world generation id="+
-                checkedTarget.id()+
-                " expectedGeneration="+
-                targetGeneration
-            );
-
-        if(engagements.containsKey(
-                checkedAttacker.id
-            ))
-            throw new IllegalStateException(
-                "NPC already engaged id="+
-                checkedAttacker.id
-            );
-
-        Engagement engagement=
-            new Engagement(
-                checkedAttacker.id,
-                checkedTarget.id(),
-                targetGeneration,
-                firstAttackTick
-            );
-
-        engagements.put(
-            checkedAttacker.id,
-            engagement
-        );
-
-        return snapshot(engagement);
+        return result[0];
     }
 
-    synchronized TickResult tick(
+    TickResult tick(
         EntityId attackerId,
         long worldTick
     )throws Exception{
@@ -224,10 +251,14 @@ final class NpcCombatEngagementService {
                 "worldTick="+worldTick
             );
 
-        Engagement engagement=
-            engagements.get(
-                checkedId
-            );
+        final Engagement engagement;
+
+        synchronized(engagements){
+            engagement=
+                engagements.get(
+                    checkedId
+                );
+        }
 
         if(engagement==null)
             return new TickResult(
@@ -247,9 +278,12 @@ final class NpcCombatEngagementService {
             );
 
         if(attacker==null){
-            engagements.remove(
-                engagement.attackerId
-            );
+            synchronized(engagements){
+                engagements.remove(
+                    engagement.attackerId,
+                    engagement
+                );
+            }
             return new TickResult(
                 TickStatus.STALE_ATTACKER,
                 null
@@ -266,9 +300,12 @@ final class NpcCombatEngagementService {
                 target,
                 engagement.targetGeneration
             )){
-            engagements.remove(
-                engagement.attackerId
-            );
+            synchronized(engagements){
+                engagements.remove(
+                    engagement.attackerId,
+                    engagement
+                );
+            }
             return new TickResult(
                 TickStatus.STALE_TARGET,
                 null
@@ -344,26 +381,28 @@ final class NpcCombatEngagementService {
          * Never publish a schedule advance onto an engagement that it
          * removed/replaced while executing.
          */
-        if(engagements.get(
-                engagement.attackerId
-            )!=engagement)
-            throw new IllegalStateException(
-                "NPC engagement ownership changed during attack id="+
-                engagement.attackerId
+        synchronized(engagements){
+            if(engagements.get(
+                    engagement.attackerId
+                )!=engagement)
+                throw new IllegalStateException(
+                    "NPC engagement ownership changed during attack id="+
+                    engagement.attackerId
+                );
+
+            engagement.nextAttackTick=
+                nextAttackTick;
+            engagement.revision=
+                nextRevision;
+
+            return new TickResult(
+                TickStatus.ATTACKED,
+                snapshot(engagement)
             );
-
-        engagement.nextAttackTick=
-            nextAttackTick;
-        engagement.revision=
-            nextRevision;
-
-        return new TickResult(
-            TickStatus.ATTACKED,
-            snapshot(engagement)
-        );
+        }
     }
 
-    synchronized boolean cancel(
+    boolean cancel(
         WorldNpc attacker
     ){
         WorldNpc checked=
@@ -372,46 +411,70 @@ final class NpcCombatEngagementService {
                 "attacker"
             );
 
-        Engagement engagement=
-            engagements.get(
-                checked.id
-            );
+        synchronized(engagements){
+            if(!engagements.containsKey(
+                    checked.id))
+                return false;
+        }
 
-        if(engagement==null)
-            return false;
+        final boolean[] removed={false};
 
-        if(world.npcs().byId(
-                checked.id
-            )!=checked)
+        try{
+            boolean npcOwned=
+                world.npcs()
+                    .withCurrentMutationOwnershipIfCurrent(
+                        checked,
+                        ()->{
+                            synchronized(engagements){
+                                removed[0]=
+                                    engagements.remove(
+                                        checked.id
+                                    )!=null;
+                            }
+                        }
+                    );
+
+            if(!npcOwned)
+                throw new IllegalStateException(
+                    "NPC attacker is not exact canonical registry owner id="+
+                    checked.id
+                );
+        }catch(RuntimeException failure){
+            throw failure;
+        }catch(Error failure){
+            throw failure;
+        }catch(Exception failure){
             throw new IllegalStateException(
-                "NPC attacker is not exact canonical registry owner id="+
-                checked.id
+                "unexpected engagement cancellation ownership failure",
+                failure
             );
+        }
 
-        engagements.remove(
-            checked.id
-        );
-        return true;
+        return removed[0];
     }
 
-    synchronized Snapshot get(
+    Snapshot get(
         EntityId attackerId
     ){
-        Engagement engagement=
-            engagements.get(
-                Objects.requireNonNull(
-                    attackerId,
-                    "attackerId"
-                )
-            );
+        synchronized(engagements){
+            Engagement engagement=
+                engagements.get(
+                    Objects.requireNonNull(
+                        attackerId,
+                        "attackerId"
+                    )
+                );
 
-        return engagement==null
-            ?null
-            :snapshot(engagement);
+            return engagement==null
+                ?null
+                :snapshot(engagement);
+        }
     }
 
-    synchronized int size(){
-        return engagements.size();
+    int size(){
+        synchronized(engagements){
+            return engagements.size();
+        }
     }
 
     String cadenceAuthority(){
