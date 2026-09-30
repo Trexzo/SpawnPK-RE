@@ -190,6 +190,12 @@ final class TournamentService {
         TournamentMatchState state=
             TournamentMatchState.ACTIVE;
         String winnerRef;
+        GlobalEventService.TerminalHold
+            eventTerminalHold;
+        MatchSessionService.TerminalHold
+            matchTerminalHold;
+        WorldInstanceService.StructuralHold
+            instanceStructuralHold;
 
         TournamentMatch(
             MatchId matchId,
@@ -501,15 +507,10 @@ final class TournamentService {
                         checkedInstanceId
                     );
 
-                String holdKey=
-                    terminalHoldKey(
-                        checkedMatchId
+                tournamentMatch.eventTerminalHold=
+                    events.acquireTerminalHold(
+                        entry.eventId
                     );
-
-                events.acquireTerminalHold(
-                    entry.eventId,
-                    holdKey
-                );
 
                 boolean published=false;
                 boolean childHoldsAcquired=false;
@@ -567,9 +568,7 @@ final class TournamentService {
                     );
 
                     acquireChildHolds(
-                        checkedMatchId,
-                        checkedInstanceId,
-                        holdKey
+                        tournamentMatch
                     );
                     childHoldsAcquired=true;
 
@@ -598,15 +597,16 @@ final class TournamentService {
                     if(!published){
                         if(childHoldsAcquired)
                             releaseChildHolds(
-                                checkedMatchId,
-                                checkedInstanceId,
-                                holdKey
+                                tournamentMatch
                             );
 
                         events.releaseTerminalHold(
-                            entry.eventId,
-                            holdKey
+                            Objects.requireNonNull(
+                                tournamentMatch.eventTerminalHold,
+                                "eventTerminalHold"
+                            )
                         );
+                        tournamentMatch.eventTerminalHold=null;
                     }
                 }
             }
@@ -684,11 +684,7 @@ final class TournamentService {
                     tournamentMatch
                 );
                 releaseChildHolds(
-                    tournamentMatch.matchId,
-                    tournamentMatch.instanceId,
-                    terminalHoldKey(
-                        tournamentMatch.matchId
-                    )
+                    tournamentMatch
                 );
                 matches.complete(
                     tournamentMatch.matchId,
@@ -725,11 +721,12 @@ final class TournamentService {
                     winner;
 
                 events.releaseTerminalHold(
-                    entry.eventId,
-                    terminalHoldKey(
-                        tournamentMatch.matchId
+                    Objects.requireNonNull(
+                        tournamentMatch.eventTerminalHold,
+                        "eventTerminalHold"
                     )
                 );
+                tournamentMatch.eventTerminalHold=null;
             }
         );
 
@@ -766,11 +763,7 @@ final class TournamentService {
                     tournamentMatch
                 );
                 releaseChildHolds(
-                    tournamentMatch.matchId,
-                    tournamentMatch.instanceId,
-                    terminalHoldKey(
-                        tournamentMatch.matchId
-                    )
+                    tournamentMatch
                 );
                 matches.cancel(
                     tournamentMatch.matchId,
@@ -802,11 +795,12 @@ final class TournamentService {
                     TournamentMatchState.CANCELLED;
 
                 events.releaseTerminalHold(
-                    entry.eventId,
-                    terminalHoldKey(
-                        tournamentMatch.matchId
+                    Objects.requireNonNull(
+                        tournamentMatch.eventTerminalHold,
+                        "eventTerminalHold"
                     )
                 );
+                tournamentMatch.eventTerminalHold=null;
             }
         );
 
@@ -1078,45 +1072,60 @@ final class TournamentService {
     }
 
     private void acquireChildHolds(
-        MatchId matchId,
-        WorldInstanceId instanceId,
-        String holdKey
+        TournamentMatch tournamentMatch
     ){
-        matches.acquireTerminalHold(
-            matchId,
-            holdKey
-        );
+        MatchSessionService.TerminalHold matchHold=
+            matches.acquireTerminalHold(
+                tournamentMatch.matchId
+            );
 
         boolean instanceHeld=false;
 
         try{
-            instances.acquireStructuralHold(
-                instanceId,
-                holdKey
-            );
+            WorldInstanceService.StructuralHold
+                instanceHold=
+                    instances.acquireStructuralHold(
+                        tournamentMatch.instanceId
+                    );
+
+            tournamentMatch.matchTerminalHold=
+                matchHold;
+            tournamentMatch.instanceStructuralHold=
+                instanceHold;
             instanceHeld=true;
         }finally{
             if(!instanceHeld)
                 matches.releaseTerminalHold(
-                    matchId,
-                    holdKey
+                    matchHold
                 );
         }
     }
 
     private void releaseChildHolds(
-        MatchId matchId,
-        WorldInstanceId instanceId,
-        String holdKey
+        TournamentMatch tournamentMatch
     ){
+        MatchSessionService.TerminalHold
+            matchHold=
+                Objects.requireNonNull(
+                    tournamentMatch.matchTerminalHold,
+                    "matchTerminalHold"
+                );
+        WorldInstanceService.StructuralHold
+            instanceHold=
+                Objects.requireNonNull(
+                    tournamentMatch.instanceStructuralHold,
+                    "instanceStructuralHold"
+                );
+
         instances.releaseStructuralHold(
-            instanceId,
-            holdKey
+            instanceHold
         );
         matches.releaseTerminalHold(
-            matchId,
-            holdKey
+            matchHold
         );
+
+        tournamentMatch.instanceStructuralHold=null;
+        tournamentMatch.matchTerminalHold=null;
     }
 
     private void preflightOwnedInstance(
@@ -1187,16 +1196,6 @@ final class TournamentService {
         instances.close(
             tournamentMatch.instanceId
         );
-    }
-
-    private static String terminalHoldKey(
-        MatchId matchId
-    ){
-        return "tournament-match:"+
-            Objects.requireNonNull(
-                matchId,
-                "matchId"
-            );
     }
 
     private static void requireNoActiveMatches(
