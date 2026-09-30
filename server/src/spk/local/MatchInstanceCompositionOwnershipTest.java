@@ -193,6 +193,8 @@ public final class MatchInstanceCompositionOwnershipTest {
                 "missingLeaseFailClosed=true "+
                 "participantTransitionsLeaseAware=true "+
                 "ownedParticipantTransition=true "+
+                "scoreMutationLeaseAware=true "+
+                "ownedScoreMutation=true "+
                 "lockOrderMatchThenInstance=true "+
                 "protocolIndependent=true"
             );
@@ -335,6 +337,46 @@ public final class MatchInstanceCompositionOwnershipTest {
         );
         expect(
             IllegalStateException.class,
+            ()->matches.adjustTeamScore(
+                matchId,
+                teamId,
+                "kills",
+                1L
+            ),
+            "direct leased team score"
+        );
+        expect(
+            IllegalStateException.class,
+            ()->matches.adjustParticipantScore(
+                matchId,
+                "player:leased",
+                "hits",
+                1L
+            ),
+            "direct leased participant score"
+        );
+        expect(
+            IllegalStateException.class,
+            ()->matches.tryAdjustPresentParticipantScore(
+                matchId,
+                "player:leased",
+                "combo",
+                1L
+            ),
+            "direct leased conditional participant score"
+        );
+        expect(
+            IllegalStateException.class,
+            ()->matches.tryAdjustPresentParticipantTeamScore(
+                matchId,
+                "player:leased",
+                "rounds",
+                1L
+            ),
+            "direct leased conditional team score"
+        );
+        expect(
+            IllegalStateException.class,
             ()->instances.attach(
                 instanceId,
                 "player:intruder"
@@ -466,6 +508,77 @@ public final class MatchInstanceCompositionOwnershipTest {
                 foreignLease.get()
             ),
             "foreign lease participant transition"
+        );
+        expect(
+            IllegalStateException.class,
+            ()->matches.adjustTeamScoreOwned(
+                matchId,
+                teamId,
+                "foreign",
+                1L,
+                foreignLease.get()
+            ),
+            "foreign lease score mutation"
+        );
+
+        MatchSessionService.CompositionLease exactLease=
+            lease.get();
+
+        MatchSession ownedTeamScore=
+            matches.adjustTeamScoreOwned(
+                matchId,
+                teamId,
+                "kills",
+                1L,
+                exactLease
+            );
+        MatchSession ownedParticipantScore=
+            matches.adjustParticipantScoreOwned(
+                matchId,
+                "player:leased",
+                "hits",
+                1L,
+                exactLease
+            );
+        boolean ownedConditionalParticipant=
+            matches.tryAdjustPresentParticipantScoreOwned(
+                matchId,
+                "player:leased",
+                "combo",
+                1L,
+                exactLease
+            );
+        boolean ownedConditionalTeam=
+            matches.tryAdjustPresentParticipantTeamScoreOwned(
+                matchId,
+                "player:leased",
+                "rounds",
+                1L,
+                exactLease
+            );
+
+        require(
+            Long.valueOf(1L).equals(
+                ownedTeamScore.team(teamId).scores.get("kills")
+            )&&
+            Long.valueOf(1L).equals(
+                ownedParticipantScore.participant(
+                    "player:leased"
+                ).scores.get("hits")
+            )&&
+            ownedConditionalParticipant&&
+            ownedConditionalTeam&&
+            Long.valueOf(1L).equals(
+                matches.get(matchId)
+                    .participant("player:leased")
+                    .scores.get("combo")
+            )&&
+            Long.valueOf(1L).equals(
+                matches.get(matchId)
+                    .team(teamId)
+                    .scores.get("rounds")
+            ),
+            "exact lease score mutation"
         );
 
         MatchSession ownedTransition=
