@@ -38,15 +38,8 @@ public final class MatchInstanceSessionCompositionAtomicityTest {
             "entry.state=State.CANCELLED;"
         );
 
-        assertService(
-            tournament,
-            "TournamentService",
-            "synchronized Snapshot startMatch(",
-            "first.state=EntrantState.IN_MATCH;",
-            "synchronized Snapshot completeMatch(",
-            "tournamentMatch.state=",
-            "synchronized Snapshot cancelMatch(",
-            "tournamentMatch.state="
+        assertTournamentService(
+            tournament
         );
 
         System.out.println(
@@ -57,10 +50,115 @@ public final class MatchInstanceSessionCompositionAtomicityTest {
             "duelTerminal=true "+
             "tournamentStartup=true "+
             "tournamentTerminal=true "+
+            "tournamentGlobalEventStartupOwnership=true "+
             "ownerPublishAfterOwnedAction=true "+
             "terminalPreflightInsideOwnership=true"
         );
     }
+
+    private static void assertTournamentService(
+        String source
+    ){
+        require(
+            count(
+                source,
+                "withCompositionOwnership("
+            )==3,
+            "TournamentService legacy composition ownership call/helper count"
+        );
+
+        require(
+            count(
+                source,
+                "withEventAndCompositionOwnership("
+            )==2,
+            "TournamentService GlobalEvent+match composition call/helper count"
+        );
+
+        String start=method(
+            source,
+            "synchronized Snapshot startMatch("
+        );
+        String complete=method(
+            source,
+            "synchronized Snapshot completeMatch("
+        );
+        String cancel=method(
+            source,
+            "synchronized Snapshot cancelMatch("
+        );
+
+        int startOwned=
+            start.indexOf(
+                "withEventAndCompositionOwnership("
+            );
+        int startLifecycle=
+            start.indexOf(
+                "GlobalEventService.Snapshot event="
+            );
+        int startPublish=
+            start.indexOf(
+                "first.state="
+            );
+
+        require(
+            startOwned>=0,
+            "TournamentService startup lacks GlobalEvent+match composition ownership"
+        );
+        require(
+            startLifecycle>startOwned,
+            "TournamentService checks GlobalEvent lifecycle before composition ownership"
+        );
+        require(
+            start.indexOf(
+                "Lifecycle.ACTIVE",
+                startLifecycle
+            )>startLifecycle,
+            "TournamentService startup lacks ACTIVE lifecycle check inside ownership"
+        );
+        require(
+            startPublish>startOwned,
+            "TournamentService publishes entrant state before owned startup action"
+        );
+
+        assertOwnedBeforePublish(
+            complete,
+            "tournamentMatch.state=",
+            "TournamentService complete"
+        );
+        assertOwnedBeforePublish(
+            cancel,
+            "tournamentMatch.state=",
+            "TournamentService cancel"
+        );
+
+        require(
+            complete.indexOf(
+                "withCompositionOwnership("
+            )>=0&&
+            complete.indexOf(
+                "preflightOwnedInstance"
+            )>
+            complete.indexOf(
+                "withCompositionOwnership("
+            ),
+            "TournamentService complete preflight outside ownership"
+        );
+
+        require(
+            cancel.indexOf(
+                "withCompositionOwnership("
+            )>=0&&
+            cancel.indexOf(
+                "preflightOwnedInstance"
+            )>
+            cancel.indexOf(
+                "withCompositionOwnership("
+            ),
+            "TournamentService cancel preflight outside ownership"
+        );
+    }
+
 
     private static void assertService(
         String source,
