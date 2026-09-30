@@ -143,22 +143,62 @@ public final class NpcCombatControllerServiceTest {
 
             require(
                 first.status==
-                    NpcCombatControllerService.Status.APPROACHED&&
-                first.approach!=null&&
+                    NpcCombatControllerService.Status.APPROACHED,
+                "first approach controller status="+
+                first.status
+            );
+            require(
+                first.approach!=null,
+                "first approach result missing"
+            );
+            require(
                 first.approach.status==
-                    NpcCombatApproachService.Status.MOVED&&
+                    NpcCombatApproachService.Status.MOVED,
+                "first approach route status="+
+                first.approach.status
+            );
+            require(
                 f.npc.x()==3201&&
-                f.npc.y()==3200&&
-                f.hp()==99&&
-                f.damage.calls==0&&
-                f.cadence.calls==0&&
+                f.npc.y()==3200,
+                "first approach position x="+
+                f.npc.x()+
+                " y="+
+                f.npc.y()
+            );
+            require(
+                f.hp()==99,
+                "first approach HP="+
+                f.hp()
+            );
+            require(
+                f.damage.calls==0,
+                "first approach damage calls="+
+                f.damage.calls
+            );
+            require(
+                f.cadence.calls==0,
+                "first approach cadence calls="+
+                f.cadence.calls
+            );
+
+            NpcCombatEngagementService.Snapshot firstEngagement=
                 f.controller.get(
                     f.npc.id
-                ).nextAttackTick==0L&&
-                f.controller.get(
-                    f.npc.id
-                ).revision==0L,
-                "first approach step advanced attack state"
+                );
+
+            require(
+                firstEngagement!=null,
+                "first approach engagement missing"
+            );
+            require(
+                firstEngagement.nextAttackTick==0L,
+                "first approach nextAttackTick="+
+                firstEngagement.nextAttackTick
+            );
+            require(
+                firstEngagement.revision==0L,
+                "first approach revision="+
+                firstEngagement.revision
             );
 
             long tick1=
