@@ -23,6 +23,7 @@ public final class ClanWarSessionServiceTest {
             "durableChildLease=true "+
             "directChildTerminalBlocked=true "+
             "ownerTerminalReleasesChildLease=true "+
+            "terminalFailureRetainsChildLease=true "+
             "definitionPreserved=true "+
             "ruleResolverExternal=true "+
             "ruleAuthorityPolicy=true "+
@@ -314,6 +315,29 @@ public final class ClanWarSessionServiceTest {
                     "instance:cw-cancel"
                 )
             );
+
+        expect(
+            IllegalArgumentException.class,
+            ()->service.cancel(
+                started.challengeId,
+                "   "
+            ),
+            "invalid Clan War cancel reason"
+        );
+
+        require(
+            service.get(
+                started.challengeId
+            ).lifecycle==
+                ClanWarSessionService.Lifecycle.ACTIVE&&
+            matches.compositionLeaseHeld(
+                started.matchId
+            )&&
+            instances.compositionLeaseHeld(
+                started.instanceId
+            ),
+            "failed Clan War terminalization dropped child lease"
+        );
 
         ClanWarSessionService.Snapshot cancelled=
             service.cancel(
