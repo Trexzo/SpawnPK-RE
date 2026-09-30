@@ -126,8 +126,9 @@ public final class NpcDeadLifecycleOwnershipTest {
         Thread.sleep(100L);
 
         require(
-            f.lifecycle.get(f.npc.id)!=null,
-            "unregister interleaved during owned action"
+            remover.isAlive()&&
+            !unregistered[0],
+            "unregister completed during owned action"
         );
 
         release.countDown();
