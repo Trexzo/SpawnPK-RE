@@ -33,6 +33,7 @@ public final class TournamentServiceTest {
             "durableChildLease=true "+
             "directChildTerminalBlocked=true "+
             "directParticipantTransitionBlocked=true "+
+            "directScoreMutationBlocked=true "+
             "childLeaseRelease=true "+
             "terminalFailureRetainsAllHolds=true "+
             "globalEventOwnershipLinearized=true "+
@@ -771,6 +772,31 @@ public final class TournamentServiceTest {
             ),
             "external Tournament instance close"
         );
+        expect(
+            IllegalStateException.class,
+            ()->completeMatches.adjustParticipantScore(
+                completeMatchId,
+                "player:a",
+                "external_score",
+                1L
+            ),
+            "external Tournament participant score"
+        );
+        expect(
+            IllegalStateException.class,
+            ()->completeMatches.adjustTeamScore(
+                completeMatchId,
+                completeService.get(
+                    completeEventId
+                ).match(
+                    completeMatchId
+                ).firstTeamId,
+                "external_team_score",
+                1L
+            ),
+            "external Tournament team score"
+        );
+
         expect(
             IllegalStateException.class,
             ()->completeMatches.leave(

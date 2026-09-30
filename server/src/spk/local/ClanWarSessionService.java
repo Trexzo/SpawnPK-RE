@@ -451,11 +451,14 @@ final class ClanWarSessionService {
                 clanId
             );
 
-        matches.adjustTeamScore(
+        matches.adjustTeamScoreOwned(
             entry.matchId,
             teamId,
             counterKey,
-            delta
+            delta,
+            requireChildLease(
+                entry
+            )
         );
 
         return entry.snapshot();

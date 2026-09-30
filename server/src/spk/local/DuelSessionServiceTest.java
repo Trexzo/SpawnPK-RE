@@ -30,6 +30,8 @@ public final class DuelSessionServiceTest {
             "directChildTerminalBlocked=true "+
             "directParticipantTransitionBlocked=true "+
             "ownedForfeitUnderLease=true "+
+            "directScoreMutationBlocked=true "+
+            "ownedScoreMutation=true "+
             "ownerTerminalReleasesChildLease=true "+
             "terminalFailureRetainsChildLease=true "+
             "participantIndexReleased=true "+
@@ -217,6 +219,27 @@ public final class DuelSessionServiceTest {
             ).status==
                 MatchSession.ParticipantStatus.PRESENT,
             "Duel participant changed outside owner"
+        );
+
+        expect(
+            IllegalStateException.class,
+            ()->matches.adjustParticipantScore(
+                matchId,
+                "player:a",
+                "external_hits",
+                1L
+            ),
+            "external Duel participant score"
+        );
+        expect(
+            IllegalStateException.class,
+            ()->matches.adjustTeamScore(
+                matchId,
+                active.challengedTeamId,
+                "external_rounds",
+                1L
+            ),
+            "external Duel team score"
         );
 
         service.adjustParticipantScore(

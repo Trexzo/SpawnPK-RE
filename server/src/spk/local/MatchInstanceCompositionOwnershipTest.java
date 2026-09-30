@@ -187,6 +187,9 @@ public final class MatchInstanceCompositionOwnershipTest {
                 "directInstanceTopologyBlocked=true "+
                 "directParticipantTransitionBlocked=true "+
                 "ownedParticipantTransition=true "+
+                "directScoreMutationBlocked=true "+
+                "ownedScoreMutation=true "+
+                "foreignScoreCapabilityRejected=true "+
                 "pairedLeaseRelease=true "+
                 "ownedTerminalUnderLease=true "+
                 "releaseAfterTerminal=true "+
@@ -332,6 +335,199 @@ public final class MatchInstanceCompositionOwnershipTest {
             ),
             "direct leased instance beginClosing"
         );
+        expect(
+            IllegalStateException.class,
+            ()->matches.adjustTeamScore(
+                matchId,
+                teamId,
+                "direct_team",
+                1L
+            ),
+            "direct leased team score"
+        );
+        expect(
+            IllegalStateException.class,
+            ()->matches.adjustParticipantScore(
+                matchId,
+                "player:leased",
+                "direct_participant",
+                1L
+            ),
+            "direct leased participant score"
+        );
+        expect(
+            IllegalStateException.class,
+            ()->matches.tryAdjustPresentParticipantScore(
+                matchId,
+                "player:leased",
+                "direct_try_participant",
+                1L
+            ),
+            "direct leased conditional participant score"
+        );
+        expect(
+            IllegalStateException.class,
+            ()->matches.tryAdjustPresentParticipantTeamScore(
+                matchId,
+                "player:leased",
+                "direct_try_team",
+                1L
+            ),
+            "direct leased conditional team score"
+        );
+
+        matches.adjustTeamScoreOwned(
+            matchId,
+            teamId,
+            "owned_team",
+            2L,
+            lease.get()
+        );
+        matches.adjustParticipantScoreOwned(
+            matchId,
+            "player:leased",
+            "owned_participant",
+            3L,
+            lease.get()
+        );
+
+        require(
+            matches.tryAdjustPresentParticipantScoreOwned(
+                matchId,
+                "player:leased",
+                "owned_try_participant",
+                4L,
+                lease.get()
+            )&&
+            matches.tryAdjustPresentParticipantTeamScoreOwned(
+                matchId,
+                "player:leased",
+                "owned_try_team",
+                5L,
+                lease.get()
+            ),
+            "owned conditional score mutation"
+        );
+
+        MatchSession ownedScored=
+            matches.get(
+                matchId
+            );
+
+        require(
+            Long.valueOf(2L).equals(
+                ownedScored.team(
+                    teamId
+                ).scores.get(
+                    "owned_team"
+                )
+            )&&
+            Long.valueOf(5L).equals(
+                ownedScored.team(
+                    teamId
+                ).scores.get(
+                    "owned_try_team"
+                )
+            )&&
+            Long.valueOf(3L).equals(
+                ownedScored.participant(
+                    "player:leased"
+                ).scores.get(
+                    "owned_participant"
+                )
+            )&&
+            Long.valueOf(4L).equals(
+                ownedScored.participant(
+                    "player:leased"
+                ).scores.get(
+                    "owned_try_participant"
+                )
+            ),
+            "owned score mutation result"
+        );
+
+        MatchSessionService foreignMatches=
+            new MatchSessionService();
+        WorldInstanceService foreignInstances=
+            new WorldInstanceService();
+        MatchId foreignMatchId=
+            MatchId.of(
+                "composition:foreign-lease"
+            );
+        WorldInstanceId foreignInstanceId=
+            WorldInstanceId.of(
+                "composition:foreign-lease"
+            );
+        MatchTeamId foreignTeamId=
+            MatchTeamId.of(
+                "team:foreign-lease"
+            );
+        AtomicReference<
+            MatchSessionService.CompositionLease
+        > foreignLease=
+            new AtomicReference<>();
+
+        foreignMatches.withWorldInstanceCompositionOwnership(
+            foreignInstances,
+            ()->{
+                foreignMatches.create(
+                    foreignMatchId,
+                    rules()
+                );
+                foreignMatches.addTeam(
+                    foreignMatchId,
+                    foreignTeamId
+                );
+                foreignMatches.join(
+                    foreignMatchId,
+                    foreignTeamId,
+                    "player:foreign"
+                );
+                foreignInstances.create(
+                    foreignInstanceId,
+                    foreignMatchId.toString(),
+                    "CUSTOM_LOCALLAB"
+                );
+                foreignInstances.attach(
+                    foreignInstanceId,
+                    "player:foreign"
+                );
+                foreignMatches.attachInstance(
+                    foreignMatchId,
+                    foreignInstanceId
+                );
+                foreignMatches.markReady(
+                    foreignMatchId
+                );
+                foreignInstances.activate(
+                    foreignInstanceId
+                );
+                foreignMatches.activate(
+                    foreignMatchId
+                );
+                foreignLease.set(
+                    foreignMatches.acquireWorldInstanceCompositionLease(
+                        foreignInstances,
+                        foreignMatchId,
+                        foreignInstanceId,
+                        "foreign:lease"
+                    )
+                );
+            }
+        );
+
+        expect(
+            IllegalStateException.class,
+            ()->matches.adjustTeamScoreOwned(
+                matchId,
+                teamId,
+                "foreign_capability",
+                1L,
+                foreignLease.get()
+            ),
+            "foreign score capability"
+        );
+
         expect(
             IllegalStateException.class,
             ()->matches.leave(

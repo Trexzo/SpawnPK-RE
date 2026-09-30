@@ -23,6 +23,8 @@ public final class ClanWarSessionServiceTest {
             "durableChildLease=true "+
             "directChildTerminalBlocked=true "+
             "directParticipantTransitionBlocked=true "+
+            "directScoreMutationBlocked=true "+
+            "ownedScoreMutation=true "+
             "ownerTerminalReleasesChildLease=true "+
             "terminalFailureRetainsChildLease=true "+
             "definitionPreserved=true "+
@@ -184,6 +186,17 @@ public final class ClanWarSessionServiceTest {
                 )
             ),
             "Clan War team membership"
+        );
+
+        expect(
+            IllegalStateException.class,
+            ()->matches.adjustTeamScore(
+                matchId,
+                started.challengerTeamId,
+                "external_score",
+                1L
+            ),
+            "external Clan War score mutation"
         );
 
         service.adjustClanScore(
