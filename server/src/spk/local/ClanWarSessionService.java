@@ -493,26 +493,31 @@ final class ClanWarSessionService {
                     entry
                 );
 
-                matches.releaseWorldInstanceCompositionLease(
-                    instances,
-                    entry.matchId,
-                    entry.instanceId,
+                MatchSessionService.CompositionLease lease=
                     requireChildLease(
                         entry
-                    )
-                );
-                entry.childLease=null;
+                    );
 
-                matches.complete(
+                matches.completeOwned(
                     entry.matchId,
-                    result
+                    result,
+                    lease
                 );
                 closeOwnedInstance(
-                    entry
+                    entry,
+                    lease
                 );
 
                 entry.lifecycle=
                     Lifecycle.COMPLETED;
+
+                matches.releaseWorldInstanceCompositionLease(
+                    instances,
+                    entry.matchId,
+                    entry.instanceId,
+                    lease
+                );
+                entry.childLease=null;
             }
         );
 
@@ -539,26 +544,31 @@ final class ClanWarSessionService {
                     entry
                 );
 
-                matches.releaseWorldInstanceCompositionLease(
-                    instances,
-                    entry.matchId,
-                    entry.instanceId,
+                MatchSessionService.CompositionLease lease=
                     requireChildLease(
                         entry
-                    )
-                );
-                entry.childLease=null;
+                    );
 
-                matches.cancel(
+                matches.cancelOwned(
                     entry.matchId,
-                    reason
+                    reason,
+                    lease
                 );
                 closeOwnedInstance(
-                    entry
+                    entry,
+                    lease
                 );
 
                 entry.lifecycle=
                     Lifecycle.CANCELLED;
+
+                matches.releaseWorldInstanceCompositionLease(
+                    instances,
+                    entry.matchId,
+                    entry.instanceId,
+                    lease
+                );
+                entry.childLease=null;
             }
         );
 
@@ -748,28 +758,33 @@ final class ClanWarSessionService {
     }
 
     private void closeOwnedInstance(
-        Entry entry
+        Entry entry,
+        MatchSessionService.CompositionLease lease
     ){
-        instances.beginClosing(
-            entry.instanceId
+        instances.beginClosingOwned(
+            entry.instanceId,
+            lease
         );
 
         for(String participant:
                 entry.challengerParticipants)
-            instances.detach(
+            instances.detachOwned(
                 entry.instanceId,
-                participant
+                participant,
+                lease
             );
 
         for(String participant:
                 entry.challengedParticipants)
-            instances.detach(
+            instances.detachOwned(
                 entry.instanceId,
-                participant
+                participant,
+                lease
             );
 
-        instances.close(
-            entry.instanceId
+        instances.closeOwned(
+            entry.instanceId,
+            lease
         );
     }
 
