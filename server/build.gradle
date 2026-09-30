@@ -4920,6 +4920,7 @@ tasks.named('check') {
     dependsOn tasks.named('monsterSpawnerCombatDespawnRegression')
     dependsOn tasks.named('monsterSpawnerNpcLifecycleBindingRegression')
     dependsOn tasks.named('npcCombatDeadAttackerGuardRegression')
+    dependsOn tasks.named('monsterSpawnerNpcSceneProjectionRegression')
     dependsOn tasks.named('npcPvmDelayedHitServiceRegression')
     dependsOn tasks.named('npcCombatDelayedCompositionRegression')
     dependsOn tasks.named('monsterSpawnerServiceRegression')
@@ -5550,6 +5551,20 @@ tasks.register('npcCombatDeadAttackerGuardRegression', JavaExec) {
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass = 'spk.local.NpcCombatDeadAttackerGuardTest'
+}
+
+
+tasks.register('monsterSpawnerNpcSceneProjectionRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves explicitly tracked canonical Monster Spawner NPCs project into independent viewer-local packet-65 scenes through NpcRegistry.'
+    dependsOn(
+        tasks.named('testClasses'),
+        tasks.named('npcCombatDeadAttackerGuardRegression')
+    )
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.MonsterSpawnerNpcSceneProjectionTest'
 }
 
 
