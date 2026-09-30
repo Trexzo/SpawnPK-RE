@@ -253,23 +253,45 @@ final class GlobalEventService {
             entry
         );
 
-        boolean published=false;
-
         try{
             checkedAction.run();
-            published=true;
             return entry.snapshot();
-        }finally{
-            if(!published){
-                if(!entries.remove(
-                        checked.id,
-                        entry))
-                    throw new IllegalStateException(
-                        "GlobalEvent registration rollback ownership lost id="+
-                        checked.id
-                    );
-            }
+        }catch(RuntimeException failure){
+            rollbackRegistration(
+                entry,
+                failure
+            );
+            throw failure;
+        }catch(Error failure){
+            rollbackRegistration(
+                entry,
+                failure
+            );
+            throw failure;
+        }catch(Exception failure){
+            rollbackRegistration(
+                entry,
+                failure
+            );
+            throw failure;
         }
+    }
+
+    private void rollbackRegistration(
+        Entry entry,
+        Throwable failure
+    ){
+        if(entries.remove(
+                entry.definition.id,
+                entry))
+            return;
+
+        failure.addSuppressed(
+            new IllegalStateException(
+                "GlobalEvent registration rollback ownership lost id="+
+                entry.definition.id
+            )
+        );
     }
 
     synchronized TerminalHold acquireTerminalHold(
