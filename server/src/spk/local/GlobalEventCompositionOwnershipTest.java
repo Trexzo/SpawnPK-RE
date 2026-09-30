@@ -16,6 +16,8 @@ public final class GlobalEventCompositionOwnershipTest {
             "eventBlocked=true "+
             "reentrantAccess=true "+
             "terminalHold=true "+
+            "terminalHoldCapability=true "+
+            "foreignCapabilityRejected=true "+
             "terminalHoldDeadlineBlock=true "+
             "actionFailureSafe=true "+
             "protocolIndependent=true"
@@ -153,10 +155,10 @@ public final class GlobalEventCompositionOwnershipTest {
         service.register(definition);
         service.tick(10L);
 
-        service.acquireTerminalHold(
-            definition.id,
-            "child:one"
-        );
+        GlobalEventService.TerminalHold first=
+            service.acquireTerminalHold(
+                definition.id
+            );
 
         check(
             service.terminalHoldCount(
@@ -193,22 +195,13 @@ public final class GlobalEventCompositionOwnershipTest {
             "end deadline crossed terminal hold"
         );
 
-        expect(
-            IllegalStateException.class,
-            ()->service.acquireTerminalHold(
-                definition.id,
-                "child:one"
-            ),
-            "duplicate terminal hold"
-        );
+        GlobalEventService.TerminalHold second=
+            service.acquireTerminalHold(
+                definition.id
+            );
 
-        service.acquireTerminalHold(
-            definition.id,
-            "child:two"
-        );
         service.releaseTerminalHold(
-            definition.id,
-            "child:one"
+            first
         );
 
         check(
@@ -216,6 +209,42 @@ public final class GlobalEventCompositionOwnershipTest {
                 definition.id
             )==1,
             "independent terminal hold count"
+        );
+
+        GlobalEventService foreign=
+            new GlobalEventService();
+        WorldEventDefinition foreignDefinition=
+            definition(
+                "custom:foreign-terminal-held",
+                10L,
+                20L
+            );
+        foreign.register(
+            foreignDefinition
+        );
+        foreign.tick(10L);
+
+        GlobalEventService.TerminalHold foreignHold=
+            foreign.acquireTerminalHold(
+                foreignDefinition.id
+            );
+
+        expect(
+            IllegalStateException.class,
+            ()->service.releaseTerminalHold(
+                foreignHold
+            ),
+            "foreign-service terminal hold release"
+        );
+
+        check(
+            service.terminalHoldCount(
+                definition.id
+            )==1&&
+            foreign.terminalHoldCount(
+                foreignDefinition.id
+            )==1,
+            "foreign terminal hold release mutated ownership"
         );
 
         service.tick(20L);
@@ -230,8 +259,7 @@ public final class GlobalEventCompositionOwnershipTest {
         );
 
         service.releaseTerminalHold(
-            definition.id,
-            "child:two"
+            second
         );
 
         check(
@@ -255,10 +283,13 @@ public final class GlobalEventCompositionOwnershipTest {
         expect(
             IllegalStateException.class,
             ()->service.releaseTerminalHold(
-                definition.id,
-                "child:two"
+                second
             ),
             "double terminal hold release"
+        );
+
+        foreign.releaseTerminalHold(
+            foreignHold
         );
     }
 
