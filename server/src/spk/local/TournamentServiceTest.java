@@ -30,6 +30,7 @@ public final class TournamentServiceTest {
             "activeMatchBlocksTerminalEvent=true "+
             "terminalHoldProtectsActiveMatch=true "+
             "terminalHoldRelease=true "+
+            "opaqueEventCapability=true "+
             "durableChildLease=true "+
             "directChildTerminalBlocked=true "+
             "directParticipantTransitionBlocked=true "+
