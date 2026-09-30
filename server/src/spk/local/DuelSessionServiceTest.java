@@ -28,6 +28,8 @@ public final class DuelSessionServiceTest {
             "cancellationClosesInstance=true "+
             "durableChildLease=true "+
             "directChildTerminalBlocked=true "+
+            "directParticipantMutationBlocked=true "+
+            "ownerForfeitUsesChildLease=true "+
             "ownerTerminalReleasesChildLease=true "+
             "terminalFailureRetainsChildLease=true "+
             "participantIndexReleased=true "+
@@ -217,6 +219,23 @@ public final class DuelSessionServiceTest {
                 )
             ),
             "Duel caller-resolved scoring"
+        );
+
+        expect(
+            IllegalStateException.class,
+            ()->matches.forfeit(
+                matchId,
+                "player:b"
+            ),
+            "external Duel participant forfeit"
+        );
+        expect(
+            IllegalStateException.class,
+            ()->matches.disconnect(
+                matchId,
+                "player:b"
+            ),
+            "external Duel participant disconnect"
         );
 
         service.forfeit(
