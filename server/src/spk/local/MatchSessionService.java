@@ -53,6 +53,7 @@ final class MatchSessionService {
         WorldInstanceId instanceId;
         MatchSession.Result result;
         String cancellationReasonKey;
+        String compositionLeaseKey;
 
         Entry(MatchId id,MatchRules rules){
             this.id=id;
@@ -83,6 +84,134 @@ final class MatchSessionService {
         instances.withMatchCompositionOwnership(
             action
         );
+    }
+
+    synchronized void acquireWorldInstanceCompositionLease(
+        WorldInstanceService instances,
+        MatchId matchId,
+        WorldInstanceId instanceId,
+        String leaseKey
+    )throws Exception{
+        Objects.requireNonNull(
+            instances,
+            "instances"
+        );
+
+        String key=
+            requireCompositionLeaseKey(
+                leaseKey
+            );
+
+        instances.withMatchCompositionOwnership(
+            ()->{
+                Entry entry=
+                    require(
+                        matchId
+                    );
+                WorldInstanceId checkedInstanceId=
+                    Objects.requireNonNull(
+                        instanceId,
+                        "instanceId"
+                    );
+
+                requireState(
+                    entry,
+                    MatchSession.State.ACTIVE,
+                    "acquireCompositionLease"
+                );
+
+                if(entry.instanceId==null||
+                   !entry.instanceId.equals(
+                        checkedInstanceId))
+                    throw new IllegalStateException(
+                        "match/instance lease mismatch match="+
+                        entry.id+
+                        " expected="+
+                        entry.instanceId+
+                        " actual="+
+                        checkedInstanceId
+                    );
+
+                requireNoCompositionLease(
+                    entry,
+                    "acquireCompositionLease"
+                );
+                instances.requireCompositionLeaseAvailable(
+                    checkedInstanceId
+                );
+
+                entry.compositionLeaseKey=
+                    key;
+
+                try{
+                    instances.acquireCompositionLease(
+                        checkedInstanceId,
+                        key
+                    );
+                }catch(RuntimeException failure){
+                    entry.compositionLeaseKey=null;
+                    throw failure;
+                }catch(Error failure){
+                    entry.compositionLeaseKey=null;
+                    throw failure;
+                }
+            }
+        );
+    }
+
+    synchronized void releaseWorldInstanceCompositionLease(
+        WorldInstanceService instances,
+        MatchId matchId,
+        WorldInstanceId instanceId,
+        String leaseKey
+    )throws Exception{
+        Objects.requireNonNull(
+            instances,
+            "instances"
+        );
+
+        String key=
+            requireCompositionLeaseKey(
+                leaseKey
+            );
+
+        instances.withMatchCompositionOwnership(
+            ()->{
+                Entry entry=
+                    require(
+                        matchId
+                    );
+                WorldInstanceId checkedInstanceId=
+                    Objects.requireNonNull(
+                        instanceId,
+                        "instanceId"
+                    );
+
+                requireCompositionLease(
+                    entry,
+                    key
+                );
+                instances.requireCompositionLease(
+                    checkedInstanceId,
+                    key
+                );
+
+                instances.releaseCompositionLease(
+                    checkedInstanceId,
+                    key
+                );
+                entry.compositionLeaseKey=
+                    null;
+            }
+        );
+    }
+
+    synchronized boolean compositionLeaseHeld(
+        MatchId matchId
+    ){
+        return require(
+            matchId
+        ).compositionLeaseKey!=null;
     }
 
     synchronized MatchSession create(
@@ -456,6 +585,11 @@ final class MatchSessionService {
             "complete"
         );
 
+        requireNoCompositionLease(
+            entry,
+            "complete"
+        );
+
         MatchSession.Result checked=
             Objects.requireNonNull(
                 result,
@@ -498,6 +632,11 @@ final class MatchSessionService {
 
         if(entry.state==MatchSession.State.COMPLETED)
             throw invalid(entry,"cancel");
+
+        requireNoCompositionLease(
+            entry,
+            "cancel"
+        );
 
         entry.cancellationReasonKey=reason;
         entry.state=MatchSession.State.CANCELLED;
@@ -658,6 +797,56 @@ final class MatchSessionService {
             );
 
         scores.put(key,next);
+    }
+
+    private static void requireNoCompositionLease(
+        Entry entry,
+        String operation
+    ){
+        if(entry.compositionLeaseKey!=null)
+            throw new IllegalStateException(
+                operation+
+                " blocked by composition lease match="+
+                entry.id+
+                " lease="+
+                entry.compositionLeaseKey
+            );
+    }
+
+    private static void requireCompositionLease(
+        Entry entry,
+        String leaseKey
+    ){
+        if(!Objects.equals(
+                entry.compositionLeaseKey,
+                leaseKey))
+            throw new IllegalStateException(
+                "composition lease mismatch match="+
+                entry.id+
+                " expected="+
+                entry.compositionLeaseKey+
+                " actual="+
+                leaseKey
+            );
+    }
+
+    private static String requireCompositionLeaseKey(
+        String value
+    ){
+        if(value==null)
+            throw new NullPointerException(
+                "leaseKey"
+            );
+
+        String normalized=
+            value.trim();
+
+        if(normalized.isEmpty())
+            throw new IllegalArgumentException(
+                "leaseKey blank"
+            );
+
+        return normalized;
     }
 
     private static void requireState(
