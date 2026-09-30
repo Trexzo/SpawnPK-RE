@@ -18,6 +18,7 @@ public final class NpcCombatControllerServiceTest {
         staleTargetRetired();
         staleAttackerRetired();
         reentrantApproachCancelNoMove();
+        reentrantCadenceClockAdvanceRejected();
         authorityGuards();
         boundaryGuard();
 
@@ -36,6 +37,8 @@ public final class NpcCombatControllerServiceTest {
             "ignoredDeadRaceNoCadence=true "+
             "staleEngagementRetired=true "+
             "reentrantApproachCancelNoMove=true "+
+            "reentrantClockAdvanceRejected=true "+
+            "attackTickOwned=true "+
             "sharedClockBound=true "+
             "targetSelectionOwned=false "+
             "aggroOwned=false "+
@@ -792,6 +795,108 @@ public final class NpcCombatControllerServiceTest {
         }
     }
 
+    private static void reentrantCadenceClockAdvanceRejected()
+        throws Exception{
+        Fixture f=
+            new Fixture(
+                "controller-clock-reentrant",
+                3201,
+                3200,
+                0,
+                3200,
+                3200,
+                0
+            );
+
+        try{
+            TrackingCadence cadence=
+                new TrackingCadence(
+                    3,
+                    ()->f.world.clock()
+                        .advance()
+                );
+
+            NpcCombatControllerService controller=
+                new NpcCombatControllerService(
+                    f.world,
+                    fixedApproach(),
+                    cadence,
+                    new NpcPlayerCombatResolutionService(
+                        f.damage
+                    ),
+                    ORCHESTRATION_AUTHORITY,
+                    NpcCombatControllerService
+                        .APPROACH_BEFORE_ENGAGEMENT_TICK
+                );
+
+            controller.begin(
+                f.npc,
+                f.player,
+                f.generation,
+                0L
+            );
+
+            NpcCombatEngagementService.Snapshot before=
+                controller.get(
+                    f.npc.id
+                );
+
+            boolean rejected=false;
+
+            try{
+                controller.tick(
+                    f.npc.id,
+                    0L
+                );
+            }catch(IllegalStateException expected){
+                rejected=true;
+            }
+
+            NpcCombatEngagementService.Snapshot after=
+                controller.get(
+                    f.npc.id
+                );
+
+            require(
+                rejected&&
+                f.world.clock().tick()==0L&&
+                cadence.calls==1&&
+                f.damage.calls==0&&
+                f.hp()==99&&
+                before!=null&&
+                after!=null&&
+                after.nextAttackTick==
+                    before.nextAttackTick&&
+                after.revision==
+                    before.revision,
+                "reentrant cadence clock advance escaped exact attack tick"
+            );
+
+            require(
+                f.world.clock().advance()==1L,
+                "clock did not resume after exact attack tick release"
+            );
+
+            NpcCombatControllerService.TickResult attacked=
+                controller.tick(
+                    f.npc.id,
+                    1L
+                );
+
+            require(
+                attacked.status==
+                    NpcCombatControllerService.Status.ATTACKED&&
+                cadence.calls==2&&
+                f.damage.calls==1&&
+                f.hp()==89,
+                "engagement did not remain usable after rejected clock drift"
+            );
+        }finally{
+            f.close();
+        }
+    }
+
+
     private static void authorityGuards(){
         World world=
             World.isolatedForTest(
@@ -948,16 +1053,32 @@ public final class NpcCombatControllerServiceTest {
     private static final class TrackingCadence
         implements NpcCombatEngagementService.CadenceResolver {
         final int delay;
+        final Runnable beforeReturn;
         int calls;
 
         TrackingCadence(int delay){
+            this(
+                delay,
+                null
+            );
+        }
+
+        TrackingCadence(
+            int delay,
+            Runnable beforeReturn
+        ){
             this.delay=delay;
+            this.beforeReturn=beforeReturn;
         }
 
         @Override public int nextDelayTicks(
             NpcCombatEngagementService.Context context
         ){
             calls++;
+
+            if(beforeReturn!=null)
+                beforeReturn.run();
+
             return delay;
         }
 
