@@ -4927,6 +4927,7 @@ tasks.named('check') {
     dependsOn tasks.named('monsterSpawnerServiceRegression')
     dependsOn tasks.named('pvpHotspotServiceRegression')
     dependsOn tasks.named('npcDropResolutionServiceRegression')
+    dependsOn tasks.named('groundItemBatchSettlementRegression')
     dependsOn tasks.named('npcPlayerCombatResolutionServiceRegression')
     dependsOn tasks.named('npcCombatResolutionServiceRegression')
     dependsOn tasks.named('npcRespawnServiceRegression')
@@ -5366,6 +5367,17 @@ tasks.register('npcCombatResolutionServiceRegression', JavaExec) {
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass = 'spk.local.NpcCombatResolutionServiceTest'
+}
+
+
+tasks.register('groundItemBatchSettlementRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves canonical ground-item drop bundles validate and commit atomically with deterministic stack merging and rollback on later-row failure.'
+    dependsOn tasks.named('testClasses')
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.GroundItemBatchSettlementTest'
 }
 
 
