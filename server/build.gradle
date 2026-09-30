@@ -4922,6 +4922,7 @@ tasks.named('check') {
     dependsOn tasks.named('npcCombatDeadAttackerGuardRegression')
     dependsOn tasks.named('monsterSpawnerNpcSceneProjectionRegression')
     dependsOn tasks.named('canonicalNpcAttackClickRegression')
+    dependsOn tasks.named('monsterSpawnerNpcDeathFinalizationRegression')
     dependsOn tasks.named('npcPvmDelayedHitServiceRegression')
     dependsOn tasks.named('npcCombatDelayedCompositionRegression')
     dependsOn tasks.named('monsterSpawnerServiceRegression')
@@ -5596,6 +5597,23 @@ tasks.register('canonicalNpcAttackClickRegression', JavaExec) {
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass = 'spk.local.LocalCanonicalNpcAttackHandlerTest'
+}
+
+
+tasks.register('monsterSpawnerNpcDeathFinalizationRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves exact DEAD Monster Spawner NPC drop resolution commits before atomic lifecycle/combat/canonical teardown without owning reward or respawn policy.'
+    dependsOn(
+        tasks.named('testClasses'),
+        tasks.named('canonicalNpcAttackClickRegression'),
+        tasks.named('npcDropResolutionServiceRegression'),
+        tasks.named('npcDeadTerminalCompositionRegression'),
+        tasks.named('monsterSpawnerCombatDespawnRegression')
+    )
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.MonsterSpawnerNpcDeathFinalizationTest'
 }
 
 
