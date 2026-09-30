@@ -316,6 +316,22 @@ final class NpcCombatEngagementService {
             );
         }
 
+        final long nextRevision;
+
+        try{
+            nextRevision=
+                Math.addExact(
+                    engagement.revision,
+                    1L
+                );
+        }catch(ArithmeticException overflow){
+            throw new IllegalStateException(
+                "NPC engagement revision overflow revision="+
+                engagement.revision,
+                overflow
+            );
+        }
+
         attackExecutor.execute(
             attacker,
             target,
@@ -339,10 +355,7 @@ final class NpcCombatEngagementService {
         engagement.nextAttackTick=
             nextAttackTick;
         engagement.revision=
-            Math.addExact(
-                engagement.revision,
-                1L
-            );
+            nextRevision;
 
         return new TickResult(
             TickStatus.ATTACKED,
