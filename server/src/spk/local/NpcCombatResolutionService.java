@@ -48,6 +48,34 @@ final class NpcCombatResolutionService {
         }
     }
 
+    @FunctionalInterface
+    interface ImmediateDamageAdmission {
+        boolean allow(
+            WorldPlayer attacker,
+            WorldNpc target
+        );
+    }
+
+    static final class ImmediateDamageAdmissionRejectedException
+        extends IllegalStateException {
+        final EntityId attackerId;
+        final EntityId targetId;
+
+        ImmediateDamageAdmissionRejectedException(
+            WorldPlayer attacker,
+            WorldNpc target
+        ){
+            super(
+                "PvM immediate damage admission rejected attacker="+
+                attacker.id()+
+                " target="+
+                target.id
+            );
+            this.attackerId=attacker.id();
+            this.targetId=target.id;
+        }
+    }
+
     static final class Result {
         final EntityId attackerId;
         final EntityId targetId;
@@ -231,9 +259,34 @@ final class NpcCombatResolutionService {
         CombatStyleRepository.Style style,
         long worldTick
     )throws java.io.IOException{
+        return resolveImmediateOwnedAdmitted(
+            world,
+            expectedAttackerGeneration,
+            target,
+            weaponId,
+            style,
+            worldTick,
+            (attacker,checkedTarget)->true
+        );
+    }
+
+    Result resolveImmediateOwnedAdmitted(
+        World world,
+        long expectedAttackerGeneration,
+        WorldNpc target,
+        int weaponId,
+        CombatStyleRepository.Style style,
+        long worldTick,
+        ImmediateDamageAdmission admission
+    )throws java.io.IOException{
         Objects.requireNonNull(world,"world");
         WorldNpc checkedTarget=
             Objects.requireNonNull(target,"target");
+        ImmediateDamageAdmission checkedAdmission=
+            Objects.requireNonNull(
+                admission,
+                "admission"
+            );
 
         if(worldTick<0L)
             throw new IllegalArgumentException("worldTick="+worldTick);
@@ -276,7 +329,8 @@ final class NpcCombatResolutionService {
                 expectedAttackerGeneration,
                 checkedTarget,
                 prepared,
-                worldTick
+                worldTick,
+                checkedAdmission
             );
 
         return new Result(
@@ -424,6 +478,24 @@ final class NpcCombatResolutionService {
         Prepared prepared,
         long worldTick
     )throws java.io.IOException{
+        return applyImmediateOwned(
+            world,
+            expectedAttackerGeneration,
+            checkedTarget,
+            prepared,
+            worldTick,
+            (attacker,target)->true
+        );
+    }
+
+    private NpcLifecycleService.DamageResult applyImmediateOwned(
+        World world,
+        long expectedAttackerGeneration,
+        WorldNpc checkedTarget,
+        Prepared prepared,
+        long worldTick,
+        ImmediateDamageAdmission admission
+    )throws java.io.IOException{
         final NpcLifecycleService.DamageResult[] lifecycleResult=
             new NpcLifecycleService.DamageResult[1];
 
@@ -432,18 +504,59 @@ final class NpcCombatResolutionService {
                 owner,
                 expectedAttackerGeneration,
                 ()->{
-                    requireTarget(
-                        world,
-                        checkedTarget,
-                        null
-                    );
+                    synchronized(owner.mutationLock()){
+                        if(!world.players().owns(
+                                owner,
+                                expectedAttackerGeneration
+                            ))
+                            throw new StaleAttackerOwnershipException(
+                                owner,
+                                expectedAttackerGeneration,
+                                null
+                            );
 
-                    lifecycleResult[0]=
-                        lifecycle.applyDamageOwned(
-                            checkedTarget.id,
-                            prepared.damage.damage,
-                            worldTick
-                        );
+                        final boolean targetCurrent;
+
+                        try{
+                            targetCurrent=
+                                world.npcs()
+                                    .withCurrentMutationOwnershipIfCurrent(
+                                        checkedTarget,
+                                        ()->{
+                                            if(!admission.allow(
+                                                    owner,
+                                                    checkedTarget
+                                                ))
+                                                throw new ImmediateDamageAdmissionRejectedException(
+                                                    owner,
+                                                    checkedTarget
+                                                );
+
+                                            lifecycleResult[0]=
+                                                lifecycle.applyDamageOwned(
+                                                    checkedTarget.id,
+                                                    prepared.damage.damage,
+                                                    worldTick
+                                                );
+                                        }
+                                    );
+                        }catch(RuntimeException failure){
+                            throw failure;
+                        }catch(Error failure){
+                            throw failure;
+                        }catch(Exception failure){
+                            throw new IllegalStateException(
+                                "unexpected checked immediate PvM admission failure",
+                                failure
+                            );
+                        }
+
+                        if(!targetCurrent)
+                            throw new StaleTargetOwnershipException(
+                                checkedTarget,
+                                null
+                            );
+                    }
                 }
             );
         }catch(IllegalStateException error){
