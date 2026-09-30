@@ -617,29 +617,40 @@ final class MatchSessionService {
             MatchSession.State.ACTIVE,
             "complete"
         );
-
         requireNoCompositionLease(
             entry,
             "complete"
         );
 
-        MatchSession.Result checked=
+        return completeEntry(
+            entry,
+            result
+        );
+    }
+
+    synchronized MatchSession completeOwned(
+        MatchId matchId,
+        MatchSession.Result result,
+        CompositionLease lease
+    ){
+        Entry entry=require(matchId);
+        requireState(
+            entry,
+            MatchSession.State.ACTIVE,
+            "completeOwned"
+        );
+        requireCompositionLease(
+            entry,
             Objects.requireNonNull(
-                result,
-                "result"
-            );
+                lease,
+                "lease"
+            )
+        );
 
-        if(checked.winnerTeamId!=null&&
-           !entry.teams.containsKey(
-                checked.winnerTeamId))
-            throw new IllegalArgumentException(
-                "winner team not in match "+
-                checked.winnerTeamId
-            );
-
-        entry.result=checked;
-        entry.state=MatchSession.State.COMPLETED;
-        return snapshot(entry);
+        return completeEntry(
+            entry,
+            result
+        );
     }
 
     synchronized MatchSession cancel(
@@ -671,9 +682,41 @@ final class MatchSessionService {
             "cancel"
         );
 
-        entry.cancellationReasonKey=reason;
-        entry.state=MatchSession.State.CANCELLED;
-        return snapshot(entry);
+        return cancelEntry(
+            entry,
+            reason
+        );
+    }
+
+    synchronized MatchSession cancelOwned(
+        MatchId matchId,
+        String reasonKey,
+        CompositionLease lease
+    ){
+        Entry entry=require(matchId);
+        requireState(
+            entry,
+            MatchSession.State.ACTIVE,
+            "cancelOwned"
+        );
+        String reason=
+            MatchRules.normalizeKey(
+                reasonKey,
+                "reasonKey"
+            );
+
+        requireCompositionLease(
+            entry,
+            Objects.requireNonNull(
+                lease,
+                "lease"
+            )
+        );
+
+        return cancelEntry(
+            entry,
+            reason
+        );
     }
 
     synchronized MatchSession get(MatchId id){
@@ -704,6 +747,44 @@ final class MatchSessionService {
             out.add(snapshot(entry));
 
         return Collections.unmodifiableList(out);
+    }
+
+    private static MatchSession completeEntry(
+        Entry entry,
+        MatchSession.Result result
+    ){
+        MatchSession.Result checked=
+            Objects.requireNonNull(
+                result,
+                "result"
+            );
+
+        if(checked.winnerTeamId!=null&&
+           !entry.teams.containsKey(
+                checked.winnerTeamId))
+            throw new IllegalArgumentException(
+                "winner team not in match "+
+                checked.winnerTeamId
+            );
+
+        entry.result=checked;
+        entry.state=
+            MatchSession.State.COMPLETED;
+        return snapshot(entry);
+    }
+
+    private static MatchSession cancelEntry(
+        Entry entry,
+        String reason
+    ){
+        entry.cancellationReasonKey=
+            Objects.requireNonNull(
+                reason,
+                "reason"
+            );
+        entry.state=
+            MatchSession.State.CANCELLED;
+        return snapshot(entry);
     }
 
     private MatchSession markParticipant(
