@@ -11,6 +11,7 @@ public final class TournamentServiceTest {
     public static void main(String[] args)throws Exception{
         tournamentLifecycle();
         globalEventOwnershipLinearized();
+        activeChildTerminalHold();
         cancellationLifecycle();
         authorityGuards();
         protocolBoundary();
@@ -28,6 +29,12 @@ public final class TournamentServiceTest {
             "eliminatedReentryRejected=true "+
             "activeMatchBlocksTerminalEvent=true "+
             "globalEventOwnershipLinearized=true "+
+            "activeChildTerminalHold=true "+
+            "deadlineTerminalHold=true "+
+            "childCompletionReleasesHold=true "+
+            "childCancellationReleasesHold=true "+
+            "failedStartupNoHold=true "+
+            "failedChildTerminalRetainsHold=true "+
             "lockOrderTournamentEventMatchInstance=true "+
             "explicitTournamentCompletion=true "+
             "singleEliminationPolicyExplicit=true "+
@@ -677,6 +684,402 @@ public final class TournamentServiceTest {
                 TimeUnit.SECONDS
             );
         }
+    }
+
+
+    private static void activeChildTerminalHold(){
+        completionTerminalHoldLifecycle();
+        cancellationTerminalHoldLifecycle();
+        failedStartupCreatesNoHold();
+        failedChildTerminalizationRetainsHold();
+    }
+
+    private static void completionTerminalHoldLifecycle(){
+        GlobalEventService events=
+            new GlobalEventService();
+        MatchSessionService matches=
+            new MatchSessionService();
+        WorldInstanceService instances=
+            new WorldInstanceService();
+        TournamentService service=
+            new TournamentService(
+                events,
+                matches,
+                instances
+            );
+
+        WorldEventId eventId=
+            WorldEventId.of(
+                "tournament:terminal-hold-complete"
+            );
+        MatchId matchId=
+            MatchId.of(
+                "match:tournament:terminal-hold-complete"
+            );
+        WorldInstanceId instanceId=
+            WorldInstanceId.of(
+                "instance:tournament:terminal-hold-complete"
+            );
+
+        service.registerTournament(
+            eventDefinition(
+                eventId,
+                10L,
+                30L
+            ),
+            localRules(),
+            POLICY
+        );
+        service.registerEntrant(
+            eventId,
+            "player:a"
+        );
+        service.registerEntrant(
+            eventId,
+            "player:b"
+        );
+        events.tick(10L);
+
+        service.startMatch(
+            eventId,
+            "player:a",
+            "player:b",
+            matchId,
+            instanceId
+        );
+
+        expect(
+            IllegalStateException.class,
+            ()->events.complete(
+                eventId,
+                20L
+            ),
+            "active child allowed direct event completion"
+        );
+        expect(
+            IllegalStateException.class,
+            ()->events.cancel(
+                eventId,
+                20L
+            ),
+            "active child allowed direct event cancellation"
+        );
+
+        events.tick(30L);
+
+        TournamentService.Snapshot blocked=
+            service.get(eventId);
+
+        require(
+            blocked.eventLifecycle==
+                GlobalEventService
+                    .Lifecycle.ACTIVE&&
+            blocked.match(matchId).state==
+                TournamentService
+                    .TournamentMatchState.ACTIVE&&
+            matches.get(matchId).state==
+                MatchSession.State.ACTIVE&&
+            instances.get(instanceId).lifecycle==
+                WorldInstanceService.Lifecycle.ACTIVE,
+            "deadline crossed active Tournament child hold"
+        );
+
+        service.completeMatch(
+            eventId,
+            matchId,
+            "player:a",
+            "caller_resolved",
+            POLICY
+        );
+
+        events.tick(30L);
+
+        TournamentService.Snapshot completed=
+            service.get(eventId);
+
+        require(
+            completed.eventLifecycle==
+                GlobalEventService
+                    .Lifecycle.COMPLETED&&
+            completed.match(matchId).state==
+                TournamentService
+                    .TournamentMatchState.COMPLETED&&
+            matches.get(matchId).state==
+                MatchSession.State.COMPLETED&&
+            instances.get(instanceId).lifecycle==
+                WorldInstanceService.Lifecycle.CLOSED,
+            "child completion did not release terminal hold cleanly"
+        );
+    }
+
+    private static void cancellationTerminalHoldLifecycle(){
+        GlobalEventService events=
+            new GlobalEventService();
+        MatchSessionService matches=
+            new MatchSessionService();
+        WorldInstanceService instances=
+            new WorldInstanceService();
+        TournamentService service=
+            new TournamentService(
+                events,
+                matches,
+                instances
+            );
+
+        WorldEventId eventId=
+            WorldEventId.of(
+                "tournament:terminal-hold-cancel"
+            );
+        MatchId matchId=
+            MatchId.of(
+                "match:tournament:terminal-hold-cancel"
+            );
+        WorldInstanceId instanceId=
+            WorldInstanceId.of(
+                "instance:tournament:terminal-hold-cancel"
+            );
+
+        service.registerTournament(
+            eventDefinition(
+                eventId,
+                10L,
+                30L
+            ),
+            localRules(),
+            POLICY
+        );
+        service.registerEntrant(
+            eventId,
+            "player:c"
+        );
+        service.registerEntrant(
+            eventId,
+            "player:d"
+        );
+        events.tick(10L);
+
+        service.startMatch(
+            eventId,
+            "player:c",
+            "player:d",
+            matchId,
+            instanceId
+        );
+
+        events.tick(30L);
+
+        require(
+            events.get(eventId).lifecycle==
+                GlobalEventService
+                    .Lifecycle.ACTIVE,
+            "cancellation fixture deadline crossed child hold"
+        );
+
+        service.cancelMatch(
+            eventId,
+            matchId,
+            "caller_cancelled"
+        );
+
+        events.cancel(
+            eventId,
+            30L
+        );
+
+        TournamentService.Snapshot cancelled=
+            service.get(eventId);
+
+        require(
+            cancelled.eventLifecycle==
+                GlobalEventService
+                    .Lifecycle.CANCELLED&&
+            cancelled.match(matchId).state==
+                TournamentService
+                    .TournamentMatchState.CANCELLED&&
+            instances.get(instanceId).lifecycle==
+                WorldInstanceService.Lifecycle.CLOSED,
+            "child cancellation did not release terminal hold"
+        );
+    }
+
+    private static void failedStartupCreatesNoHold(){
+        GlobalEventService events=
+            new GlobalEventService();
+        MatchSessionService matches=
+            new MatchSessionService();
+        WorldInstanceService instances=
+            new WorldInstanceService();
+        TournamentService service=
+            new TournamentService(
+                events,
+                matches,
+                instances
+            );
+
+        WorldEventId eventId=
+            WorldEventId.of(
+                "tournament:terminal-hold-start-failure"
+            );
+        MatchId duplicateMatchId=
+            MatchId.of(
+                "match:tournament:terminal-hold-duplicate"
+            );
+
+        service.registerTournament(
+            eventDefinition(
+                eventId,
+                10L,
+                40L
+            ),
+            localRules(),
+            POLICY
+        );
+        service.registerEntrant(
+            eventId,
+            "player:e"
+        );
+        service.registerEntrant(
+            eventId,
+            "player:f"
+        );
+        events.tick(10L);
+
+        matches.create(
+            duplicateMatchId,
+            localRules()
+        );
+
+        expect(
+            IllegalStateException.class,
+            ()->service.startMatch(
+                eventId,
+                "player:e",
+                "player:f",
+                duplicateMatchId,
+                WorldInstanceId.of(
+                    "instance:tournament:terminal-hold-start-failure"
+                )
+            ),
+            "failed startup fixture"
+        );
+
+        events.complete(
+            eventId,
+            20L
+        );
+
+        require(
+            events.get(eventId).lifecycle==
+                GlobalEventService
+                    .Lifecycle.COMPLETED,
+            "failed Tournament startup leaked terminal hold"
+        );
+    }
+
+    private static void failedChildTerminalizationRetainsHold(){
+        GlobalEventService events=
+            new GlobalEventService();
+        MatchSessionService matches=
+            new MatchSessionService();
+        WorldInstanceService instances=
+            new WorldInstanceService();
+        TournamentService service=
+            new TournamentService(
+                events,
+                matches,
+                instances
+            );
+
+        WorldEventId eventId=
+            WorldEventId.of(
+                "tournament:terminal-hold-terminal-failure"
+            );
+        MatchId matchId=
+            MatchId.of(
+                "match:tournament:terminal-hold-terminal-failure"
+            );
+        WorldInstanceId instanceId=
+            WorldInstanceId.of(
+                "instance:tournament:terminal-hold-terminal-failure"
+            );
+
+        service.registerTournament(
+            eventDefinition(
+                eventId,
+                10L,
+                40L
+            ),
+            localRules(),
+            POLICY
+        );
+        service.registerEntrant(
+            eventId,
+            "player:g"
+        );
+        service.registerEntrant(
+            eventId,
+            "player:h"
+        );
+        events.tick(10L);
+
+        service.startMatch(
+            eventId,
+            "player:g",
+            "player:h",
+            matchId,
+            instanceId
+        );
+
+        instances.beginClosing(
+            instanceId
+        );
+        instances.detach(
+            instanceId,
+            "player:g"
+        );
+        instances.detach(
+            instanceId,
+            "player:h"
+        );
+        instances.close(
+            instanceId
+        );
+
+        expect(
+            IllegalStateException.class,
+            ()->service.completeMatch(
+                eventId,
+                matchId,
+                "player:g",
+                "caller_resolved",
+                POLICY
+            ),
+            "failed child terminalization fixture"
+        );
+
+        expect(
+            IllegalStateException.class,
+            ()->events.complete(
+                eventId,
+                20L
+            ),
+            "failed child terminalization prematurely released hold"
+        );
+
+        TournamentService.Snapshot after=
+            service.get(eventId);
+
+        require(
+            after.eventLifecycle==
+                GlobalEventService
+                    .Lifecycle.ACTIVE&&
+            after.match(matchId).state==
+                TournamentService
+                    .TournamentMatchState.ACTIVE&&
+            matches.get(matchId).state==
+                MatchSession.State.ACTIVE,
+            "failed child terminalization mutated Tournament child state"
+        );
     }
 
 
