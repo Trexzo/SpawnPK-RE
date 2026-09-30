@@ -317,6 +317,14 @@ final class NpcCombatResolutionService {
                 worldTick
             );
 
+        if(!checkedDelayedHits.isBoundTo(
+                checkedWorld,
+                lifecycle
+            ))
+            throw new IllegalArgumentException(
+                "delayedHits must be bound to resolver World + NpcLifecycleService"
+            );
+
         requireAttacker(
             checkedWorld,
             expectedAttackerGeneration,
