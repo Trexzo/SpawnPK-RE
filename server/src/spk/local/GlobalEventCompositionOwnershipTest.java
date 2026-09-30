@@ -8,12 +8,15 @@ import java.util.concurrent.atomic.*;
 public final class GlobalEventCompositionOwnershipTest {
     public static void main(String[] args)throws Exception{
         blockingAndReentrantAccess();
+        terminalHoldBlocksTerminalization();
         actionFailureReleasesOwnership();
 
         System.out.println(
             "GLOBAL_EVENT_COMPOSITION_OWNERSHIP_PASS "+
             "eventBlocked=true "+
             "reentrantAccess=true "+
+            "terminalHold=true "+
+            "terminalHoldDeadlineBlock=true "+
             "actionFailureSafe=true "+
             "protocolIndependent=true"
         );
@@ -136,6 +139,129 @@ public final class GlobalEventCompositionOwnershipTest {
             );
         }
     }
+
+    private static void terminalHoldBlocksTerminalization(){
+        GlobalEventService service=
+            new GlobalEventService();
+        WorldEventDefinition definition=
+            definition(
+                "custom:terminal-held",
+                10L,
+                20L
+            );
+
+        service.register(definition);
+        service.tick(10L);
+
+        service.acquireTerminalHold(
+            definition.id,
+            "child:one"
+        );
+
+        check(
+            service.terminalHoldCount(
+                definition.id
+            )==1,
+            "terminal hold count"
+        );
+
+        expect(
+            IllegalStateException.class,
+            ()->service.complete(
+                definition.id,
+                12L
+            ),
+            "held explicit complete"
+        );
+        expect(
+            IllegalStateException.class,
+            ()->service.cancel(
+                definition.id,
+                12L
+            ),
+            "held explicit cancel"
+        );
+
+        service.tick(20L);
+
+        check(
+            service.get(
+                definition.id
+            ).lifecycle==
+                GlobalEventService
+                    .Lifecycle.ACTIVE,
+            "end deadline crossed terminal hold"
+        );
+
+        expect(
+            IllegalStateException.class,
+            ()->service.acquireTerminalHold(
+                definition.id,
+                "child:one"
+            ),
+            "duplicate terminal hold"
+        );
+
+        service.acquireTerminalHold(
+            definition.id,
+            "child:two"
+        );
+        service.releaseTerminalHold(
+            definition.id,
+            "child:one"
+        );
+
+        check(
+            service.terminalHoldCount(
+                definition.id
+            )==1,
+            "independent terminal hold count"
+        );
+
+        service.tick(20L);
+
+        check(
+            service.get(
+                definition.id
+            ).lifecycle==
+                GlobalEventService
+                    .Lifecycle.ACTIVE,
+            "remaining hold did not block deadline"
+        );
+
+        service.releaseTerminalHold(
+            definition.id,
+            "child:two"
+        );
+
+        check(
+            service.terminalHoldCount(
+                definition.id
+            )==0,
+            "terminal holds not released"
+        );
+
+        service.tick(20L);
+
+        check(
+            service.get(
+                definition.id
+            ).lifecycle==
+                GlobalEventService
+                    .Lifecycle.COMPLETED,
+            "deadline did not complete after hold release"
+        );
+
+        expect(
+            IllegalStateException.class,
+            ()->service.releaseTerminalHold(
+                definition.id,
+                "child:two"
+            ),
+            "double terminal hold release"
+        );
+    }
+
 
     private static void actionFailureReleasesOwnership()
         throws Exception{
