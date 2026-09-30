@@ -2,6 +2,9 @@ package spk.local;
 
 import java.lang.reflect.Field;
 import java.util.Locale;
+import java.util.Map;
+import java.util.concurrent.*;
+import java.util.concurrent.atomic.*;
 
 public final class NpcCombatEngagementServiceTest {
     public static void main(String[] args)throws Exception{
@@ -11,6 +14,7 @@ public final class NpcCombatEngagementServiceTest {
         cadenceAndExecutorFailureNoAdvance();
         overflowAtomic();
         revisionOverflowAtomic();
+        ownershipLinearized();
         authorityAndBoundary();
 
         System.out.println(
@@ -23,6 +27,8 @@ public final class NpcCombatEngagementServiceTest {
             "cadenceCallerOwned=true "+
             "cadenceOverflowAtomic=true "+
             "revisionOverflowAtomic=true "+
+            "beginOwnershipLinearized=true "+
+            "cancelOwnershipLinearized=true "+
             "executorDelegated=true "+
             "executorFailureNoAdvance=true "+
             "staleNpcCancels=true "+
@@ -371,6 +377,315 @@ public final class NpcCombatEngagementServiceTest {
             f.close();
         }
     }
+
+    @SuppressWarnings("unchecked")
+    private static void ownershipLinearized()throws Exception{
+        beginOwnershipLinearized();
+        cancelOwnershipLinearized();
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void beginOwnershipLinearized()throws Exception{
+        Fixture f=new Fixture("engage-owned-begin");
+        ExecutorService workers=
+            Executors.newFixedThreadPool(3);
+
+        try{
+            NpcCombatEngagementService service=
+                new NpcCombatEngagementService(
+                    f.world,
+                    cadence(2),
+                    (n,t,g,w)->{}
+                );
+
+            Map<EntityId,Object> engagements=
+                engagementMap(service);
+
+            AtomicReference<Thread> beginThread=
+                new AtomicReference<>();
+            CountDownLatch beginStarted=
+                new CountDownLatch(1);
+
+            Future<NpcCombatEngagementService.Snapshot> begin;
+
+            synchronized(engagements){
+                begin=
+                    workers.submit(
+                        ()->{
+                            beginThread.set(
+                                Thread.currentThread()
+                            );
+                            beginStarted.countDown();
+
+                            return service.begin(
+                                f.npc,
+                                f.player,
+                                f.generation,
+                                0L
+                            );
+                        }
+                    );
+
+                require(
+                    beginStarted.await(
+                        5L,
+                        TimeUnit.SECONDS
+                    ),
+                    "begin worker start"
+                );
+
+                awaitBlocked(
+                    beginThread,
+                    "begin publication did not reach engagement lock"
+                );
+
+                CountDownLatch removeStarted=
+                    new CountDownLatch(1);
+                CountDownLatch unregisterStarted=
+                    new CountDownLatch(1);
+
+                Future<Boolean> remove=
+                    workers.submit(
+                        ()->{
+                            removeStarted.countDown();
+                            return f.world.npcs()
+                                .remove(
+                                    f.npc.id
+                                );
+                        }
+                    );
+
+                Future<Boolean> unregister=
+                    workers.submit(
+                        ()->{
+                            unregisterStarted.countDown();
+                            return f.world
+                                .unregisterPlayer(
+                                    f.player,
+                                    f.generation
+                                );
+                        }
+                    );
+
+                require(
+                    removeStarted.await(
+                        5L,
+                        TimeUnit.SECONDS
+                    )&&
+                    unregisterStarted.await(
+                        5L,
+                        TimeUnit.SECONDS
+                    ),
+                    "begin competitors start"
+                );
+
+                requireBlocked(
+                    remove,
+                    "NPC removal crossed begin ownership"
+                );
+                requireBlocked(
+                    unregister,
+                    "target unregister crossed begin ownership"
+                );
+            }
+
+            NpcCombatEngagementService.Snapshot snapshot=
+                begin.get(
+                    5L,
+                    TimeUnit.SECONDS
+                );
+
+            require(
+                snapshot!=null&&
+                snapshot.attackerId.equals(
+                    f.npc.id
+                ),
+                "begin result"
+            );
+
+            /*
+             * Competitors are now allowed to proceed only after the owned
+             * publication boundary released its NPC/player ownership.
+             */
+            workers.shutdown();
+            require(
+                workers.awaitTermination(
+                    5L,
+                    TimeUnit.SECONDS
+                ),
+                "begin worker completion"
+            );
+        }finally{
+            workers.shutdownNow();
+            f.close();
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void cancelOwnershipLinearized()throws Exception{
+        Fixture f=new Fixture("engage-owned-cancel");
+        ExecutorService workers=
+            Executors.newFixedThreadPool(2);
+
+        try{
+            NpcCombatEngagementService service=
+                new NpcCombatEngagementService(
+                    f.world,
+                    cadence(2),
+                    (n,t,g,w)->{}
+                );
+
+            service.begin(
+                f.npc,
+                f.player,
+                f.generation,
+                0L
+            );
+
+            Map<EntityId,Object> engagements=
+                engagementMap(service);
+
+            AtomicReference<Thread> cancelThread=
+                new AtomicReference<>();
+            CountDownLatch cancelStarted=
+                new CountDownLatch(1);
+
+            Future<Boolean> cancel;
+
+            synchronized(engagements){
+                cancel=
+                    workers.submit(
+                        ()->{
+                            cancelThread.set(
+                                Thread.currentThread()
+                            );
+                            cancelStarted.countDown();
+
+                            return service.cancel(
+                                f.npc
+                            );
+                        }
+                    );
+
+                require(
+                    cancelStarted.await(
+                        5L,
+                        TimeUnit.SECONDS
+                    ),
+                    "cancel worker start"
+                );
+
+                awaitBlocked(
+                    cancelThread,
+                    "cancel removal did not reach engagement lock"
+                );
+
+                CountDownLatch removeStarted=
+                    new CountDownLatch(1);
+
+                Future<Boolean> remove=
+                    workers.submit(
+                        ()->{
+                            removeStarted.countDown();
+                            return f.world.npcs()
+                                .remove(
+                                    f.npc.id
+                                );
+                        }
+                    );
+
+                require(
+                    removeStarted.await(
+                        5L,
+                        TimeUnit.SECONDS
+                    ),
+                    "cancel competitor start"
+                );
+
+                requireBlocked(
+                    remove,
+                    "NPC removal crossed cancel ownership"
+                );
+            }
+
+            require(
+                cancel.get(
+                    5L,
+                    TimeUnit.SECONDS
+                ),
+                "cancel result"
+            );
+
+            workers.shutdown();
+            require(
+                workers.awaitTermination(
+                    5L,
+                    TimeUnit.SECONDS
+                ),
+                "cancel worker completion"
+            );
+
+            require(
+                service.size()==0,
+                "cancel left engagement"
+            );
+        }finally{
+            workers.shutdownNow();
+            f.close();
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<EntityId,Object> engagementMap(
+        NpcCombatEngagementService service
+    )throws Exception{
+        Field field=
+            NpcCombatEngagementService.class
+                .getDeclaredField(
+                    "engagements"
+                );
+        field.setAccessible(true);
+
+        return (Map<EntityId,Object>)
+            field.get(service);
+    }
+
+    private static void awaitBlocked(
+        AtomicReference<Thread> thread,
+        String label
+    )throws Exception{
+        long deadline=
+            System.nanoTime()+
+            TimeUnit.SECONDS.toNanos(5L);
+
+        while(System.nanoTime()<deadline){
+            Thread current=thread.get();
+
+            if(current!=null&&
+               current.getState()==Thread.State.BLOCKED)
+                return;
+
+            Thread.sleep(5L);
+        }
+
+        throw new AssertionError(label);
+    }
+
+    private static void requireBlocked(
+        Future<?> future,
+        String label
+    )throws Exception{
+        try{
+            future.get(
+                150L,
+                TimeUnit.MILLISECONDS
+            );
+            throw new AssertionError(label);
+        }catch(TimeoutException expected){
+            // Expected while canonical ownership is retained.
+        }
+    }
+
 
     @SuppressWarnings("unchecked")
     private static void setEngagementRevision(
