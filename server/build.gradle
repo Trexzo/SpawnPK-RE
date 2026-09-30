@@ -4912,6 +4912,7 @@ tasks.named('check') {
     dependsOn tasks.named('npcCombatEngagementServiceRegression')
     dependsOn tasks.named('npcCombatApproachServiceRegression')
     dependsOn tasks.named('npcCombatControllerServiceRegression')
+    dependsOn tasks.named('npcTargetAcquisitionServiceRegression')
     dependsOn tasks.named('npcPvmDelayedHitServiceRegression')
     dependsOn tasks.named('npcCombatDelayedCompositionRegression')
     dependsOn tasks.named('monsterSpawnerServiceRegression')
@@ -5415,6 +5416,20 @@ tasks.register('npcCombatControllerServiceRegression', JavaExec) {
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass = 'spk.local.NpcCombatControllerServiceTest'
+}
+
+
+tasks.register('npcTargetAcquisitionServiceRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves deterministic caller-policy NPC target acquisition over exact canonical player generations without owning aggro or combat.'
+    dependsOn(
+        tasks.named('testClasses'),
+        tasks.named('npcCombatControllerServiceRegression')
+    )
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.NpcTargetAcquisitionServiceTest'
 }
 
 
