@@ -4913,6 +4913,7 @@ tasks.named('check') {
     dependsOn tasks.named('npcCombatApproachServiceRegression')
     dependsOn tasks.named('npcCombatControllerServiceRegression')
     dependsOn tasks.named('npcTargetAcquisitionServiceRegression')
+    dependsOn tasks.named('npcCombatAiServiceRegression')
     dependsOn tasks.named('npcPvmDelayedHitServiceRegression')
     dependsOn tasks.named('npcCombatDelayedCompositionRegression')
     dependsOn tasks.named('monsterSpawnerServiceRegression')
@@ -5430,6 +5431,21 @@ tasks.register('npcTargetAcquisitionServiceRegression', JavaExec) {
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass = 'spk.local.NpcTargetAcquisitionServiceTest'
+}
+
+
+tasks.register('npcCombatAiServiceRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves idle canonical NPC target acquisition begins an engagement without same-tick combat, then delegates existing engagements to the combat controller.'
+    dependsOn(
+        tasks.named('testClasses'),
+        tasks.named('npcTargetAcquisitionServiceRegression'),
+        tasks.named('npcCombatControllerServiceRegression')
+    )
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.NpcCombatAiServiceTest'
 }
 
 
