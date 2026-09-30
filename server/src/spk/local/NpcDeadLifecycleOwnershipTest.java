@@ -7,6 +7,7 @@ public final class NpcDeadLifecycleOwnershipTest {
         exactDeadAdmitted();
         aliveMissingAndForeignRejected();
         unregisterCannotInterleave();
+        reentrantRegistryLossDetected();
         callerFailureLeavesState();
         System.out.println(
             "NPC_DEAD_LIFECYCLE_OWNERSHIP_PASS "+
@@ -15,6 +16,7 @@ public final class NpcDeadLifecycleOwnershipTest {
             "deathTickStable=true "+
             "sourceAuthorityStable=true "+
             "unregisterBlocked=true "+
+            "reentrantRegistryLossDetected=true "+
             "callerFailureSafe=true "+
             "protocolIndependent=true"
         );
@@ -143,6 +145,32 @@ public final class NpcDeadLifecycleOwnershipTest {
             unregistered[0]&&
             f.lifecycle.get(f.npc.id)==null,
             "unregister did not proceed after release"
+        );
+    }
+
+    private static void reentrantRegistryLossDetected()throws Exception{
+        Fixture f=deadFixture(15L);
+
+        expect(
+            IllegalStateException.class,
+            ()->f.lifecycle.withDeadCanonicalOwnershipIfCurrent(
+                f.npc,
+                snapshot->{
+                    require(
+                        f.registry.remove(f.npc.id),
+                        "reentrant registry removal fixture"
+                    );
+                }
+            ),
+            "reentrant registry ownership loss"
+        );
+
+        require(
+            f.registry.byId(f.npc.id)==null&&
+            f.lifecycle.get(f.npc.id)!=null&&
+            f.lifecycle.get(f.npc.id).dead()&&
+            f.lifecycle.get(f.npc.id).deathTick==15L,
+            "reentrant registry loss was not detected cleanly"
         );
     }
 
