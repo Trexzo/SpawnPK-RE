@@ -49,6 +49,7 @@ final class LocalWorldTickCoordinator {
     private final LocalBankObjectInteractionHandler bankObjectHandler;
     private final LocalRoutedNpcInteractionHandler routedNpcHandler;
     private final LocalGroundItemInteractionHandler groundItemHandler;
+    private final LocalGroundItemPresentationRelay groundItemPresentationRelay;
     private final LocalPetDropPickupHandler petDropPickup;
     private final LocalPetRuntimeCommandHandler petRuntimeCommands;
     private final SessionBridge bridge;
@@ -141,6 +142,12 @@ final class LocalWorldTickCoordinator {
             routedNpcHandler,"routedNpcHandler");
         this.groundItemHandler=Objects.requireNonNull(
             groundItemHandler,"groundItemHandler");
+        this.groundItemPresentationRelay=
+            new LocalGroundItemPresentationRelay(
+                this.world,
+                this.worldPlayer,
+                this.movement
+            );
         this.petDropPickup=Objects.requireNonNull(
             petDropPickup,"petDropPickup");
         this.petRuntimeCommands=Objects.requireNonNull(
@@ -220,6 +227,9 @@ final class LocalWorldTickCoordinator {
         }
 
         if(regionStreams.maybeStream(writer,tag)){
+            groundItemPresentationRelay.consumeSnapshotCovered(
+                now
+            );
             legacyTickCount++;
             return;
         }
@@ -329,6 +339,11 @@ final class LocalWorldTickCoordinator {
             System.out.println(
                 tag+makeoverTick
             );
+
+        groundItemPresentationRelay.publishPending(
+            now,
+            bridge.scenePublisher()
+        );
 
         applyGroundItemResult(
             groundItemHandler.tick(
@@ -527,6 +542,11 @@ final class LocalWorldTickCoordinator {
         if(movementTick!=null){
             movementTickCount++;
         }
+
+        groundItemPresentationRelay.publishPending(
+            now,
+            bridge.scenePublisher()
+        );
 
         petDropPickup.tick(
             writer,
