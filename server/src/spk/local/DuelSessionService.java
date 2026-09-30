@@ -571,9 +571,12 @@ final class DuelSessionService {
                 playerRef
             );
 
-        matches.forfeit(
+        matches.forfeitOwned(
             entry.matchId,
-            participant
+            participant,
+            requireChildLease(
+                entry
+            )
         );
 
         // Forfeit is bookkeeping only. Winner/outcome remains caller-owned.
