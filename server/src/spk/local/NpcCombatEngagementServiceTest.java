@@ -18,6 +18,7 @@ public final class NpcCombatEngagementServiceTest {
         concurrentTickSingleOwner();
         tickOwnershipLinearized();
         cadenceReentrantCancelPreventsExecutor();
+        executorReentrantCancelReportsAttackTruthfully();
         authorityAndBoundary();
 
         System.out.println(
@@ -35,6 +36,7 @@ public final class NpcCombatEngagementServiceTest {
             "tickSingleOwner=true "+
             "tickOwnershipLinearized=true "+
             "cadenceReentrantCancelPreventsExecutor=true "+
+            "executorReentrantCancelTruthful=true "+
             "executorDelegated=true "+
             "executorFailureNoAdvance=true "+
             "executorFailureReleasesReservation=true "+
@@ -1110,6 +1112,142 @@ public final class NpcCombatEngagementServiceTest {
             );
         }finally{
             f.close();
+        }
+    }
+
+
+    private static void executorReentrantCancelReportsAttackTruthfully()
+        throws Exception{
+        Fixture cancelFixture=
+            new Fixture(
+                "engage-executor-reentrant-cancel"
+            );
+
+        try{
+            AtomicReference<NpcCombatEngagementService>
+                serviceRef=
+                    new AtomicReference<>();
+            AtomicInteger attacks=
+                new AtomicInteger();
+
+            NpcCombatEngagementService service=
+                new NpcCombatEngagementService(
+                    cancelFixture.world,
+                    cadence(2),
+                    (npc,target,generation,tick)->{
+                        attacks.incrementAndGet();
+
+                        NpcCombatEngagementService current=
+                            serviceRef.get();
+
+                        require(
+                            current!=null&&
+                            current.cancel(cancelFixture.npc),
+                            "executor reentrant cancel did not win"
+                        );
+                    }
+                );
+
+            serviceRef.set(service);
+
+            service.begin(
+                cancelFixture.npc,
+                cancelFixture.player,
+                cancelFixture.generation,
+                0L
+            );
+
+            NpcCombatEngagementService.TickResult result=
+                service.tick(
+                    cancelFixture.npc.id,
+                    0L
+                );
+
+            require(
+                result.status==
+                    NpcCombatEngagementService.TickStatus.ATTACKED&&
+                result.snapshot==null&&
+                attacks.get()==1&&
+                service.get(
+                    cancelFixture.npc.id
+                )==null,
+                "executor reentrant cancel attack truth"
+            );
+        }finally{
+            cancelFixture.close();
+        }
+
+        Fixture replacementFixture=
+            new Fixture(
+                "engage-executor-reentrant-replace"
+            );
+
+        try{
+            AtomicReference<NpcCombatEngagementService>
+                serviceRef=
+                    new AtomicReference<>();
+            AtomicInteger attacks=
+                new AtomicInteger();
+
+            NpcCombatEngagementService service=
+                new NpcCombatEngagementService(
+                    replacementFixture.world,
+                    cadence(3),
+                    (npc,target,generation,tick)->{
+                        attacks.incrementAndGet();
+
+                        NpcCombatEngagementService current=
+                            serviceRef.get();
+
+                        require(
+                            current!=null&&
+                            current.cancel(
+                                replacementFixture.npc
+                            ),
+                            "executor replacement cancel did not win"
+                        );
+
+                        current.begin(
+                            replacementFixture.npc,
+                            replacementFixture.player,
+                            replacementFixture.generation,
+                            50L
+                        );
+                    }
+                );
+
+            serviceRef.set(service);
+
+            service.begin(
+                replacementFixture.npc,
+                replacementFixture.player,
+                replacementFixture.generation,
+                0L
+            );
+
+            NpcCombatEngagementService.TickResult result=
+                service.tick(
+                    replacementFixture.npc.id,
+                    0L
+                );
+
+            NpcCombatEngagementService.Snapshot replacement=
+                service.get(
+                    replacementFixture.npc.id
+                );
+
+            require(
+                result.status==
+                    NpcCombatEngagementService.TickStatus.ATTACKED&&
+                result.snapshot==null&&
+                attacks.get()==1&&
+                replacement!=null&&
+                replacement.nextAttackTick==50L&&
+                replacement.revision==0L,
+                "executor reentrant replacement schedule isolation"
+            );
+        }finally{
+            replacementFixture.close();
         }
     }
 
