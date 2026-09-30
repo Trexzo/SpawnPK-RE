@@ -17,6 +17,7 @@ public final class GlobalEventCompositionOwnershipTest {
             "reentrantAccess=true "+
             "terminalHold=true "+
             "terminalHoldDeadlineBlock=true "+
+            "heldMutationClockAtomic=true "+
             "opaqueTerminalCapability=true "+
             "foreignTerminalCapabilityRejected=true "+
             "multipleTerminalCapabilities=true "+
@@ -175,6 +176,61 @@ public final class GlobalEventCompositionOwnershipTest {
                 definition.id
             )==2,
             "independent terminal capabilities"
+        );
+
+        long beforeHeldMutation=
+            service.lastObservedTick();
+
+        expect(
+            IllegalStateException.class,
+            ()->service.complete(
+                definition.id,
+                Long.MAX_VALUE
+            ),
+            "held max-tick explicit complete"
+        );
+
+        check(
+            service.lastObservedTick()==
+                beforeHeldMutation&&
+            service.get(
+                definition.id
+            ).lifecycle==
+                GlobalEventService
+                    .Lifecycle.ACTIVE&&
+            service.terminalHoldCount(
+                definition.id
+            )==2,
+            "held completion poisoned event clock"
+        );
+
+        service.tick(11L);
+
+        check(
+            service.lastObservedTick()==11L,
+            "normal tick rejected after held completion"
+        );
+
+        expect(
+            IllegalStateException.class,
+            ()->service.cancel(
+                definition.id,
+                Long.MAX_VALUE
+            ),
+            "held max-tick explicit cancel"
+        );
+
+        check(
+            service.lastObservedTick()==11L&&
+            service.get(
+                definition.id
+            ).lifecycle==
+                GlobalEventService
+                    .Lifecycle.ACTIVE&&
+            service.terminalHoldCount(
+                definition.id
+            )==2,
+            "held cancellation poisoned event clock"
         );
 
         expect(
