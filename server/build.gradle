@@ -4918,6 +4918,7 @@ tasks.named('check') {
     dependsOn tasks.named('npcCombatRuntimeBinderRegression')
     dependsOn tasks.named('monsterSpawnerCombatBindingRegression')
     dependsOn tasks.named('monsterSpawnerCombatDespawnRegression')
+    dependsOn tasks.named('worldNpcLifecycleAuthorityRegression')
     dependsOn tasks.named('npcPvmDelayedHitServiceRegression')
     dependsOn tasks.named('npcCombatDelayedCompositionRegression')
     dependsOn tasks.named('monsterSpawnerServiceRegression')
@@ -5507,6 +5508,22 @@ tasks.register('monsterSpawnerCombatDespawnRegression', JavaExec) {
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass = 'spk.local.MonsterSpawnerCombatDespawnTest'
+}
+
+
+tasks.register('worldNpcLifecycleAuthorityRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves each World owns one stable canonical NPC HP/death lifecycle shared unchanged by runtime services.'
+
+    dependsOn(
+        tasks.named('testClasses'),
+        tasks.named('monsterSpawnerCombatDespawnRegression'),
+        tasks.named('npcLifecycleServiceRegression')
+    )
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.WorldNpcLifecycleAuthorityTest'
 }
 
 
