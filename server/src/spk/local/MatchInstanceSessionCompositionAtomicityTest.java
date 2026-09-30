@@ -54,6 +54,9 @@ public final class MatchInstanceSessionCompositionAtomicityTest {
             "tournamentGlobalEventTerminalOwnership=true "+
             "tournamentStartupHoldFailureSafe=true "+
             "tournamentTerminalHoldOrder=true "+
+            "durableChildLeaseStartup=true "+
+            "durableChildLeaseTerminal=true "+
+            "ownerPublishBeforeMonitorRelease=true "+
             "ownerPublishAfterOwnedAction=true "+
             "terminalPreflightInsideOwnership=true"
         );
@@ -122,6 +125,15 @@ public final class MatchInstanceSessionCompositionAtomicityTest {
         require(
             startPublish>startOwned,
             "TournamentService publishes entrant state before owned startup action"
+        );
+        require(
+            start.indexOf(
+                "acquireWorldInstanceCompositionLease("
+            )>startOwned&&
+            start.indexOf(
+                "acquireWorldInstanceCompositionLease("
+            )<startPublish,
+            "TournamentService startup does not acquire child lease before parent publication"
         );
 
         int startHoldAcquire=
@@ -215,6 +227,37 @@ public final class MatchInstanceSessionCompositionAtomicityTest {
             ),
             "TournamentService cancel releases terminal hold before local terminal publication"
         );
+
+        require(
+            complete.indexOf(
+                "releaseWorldInstanceCompositionLease("
+            )>
+            complete.indexOf(
+                "preflightOwnedInstance"
+            )&&
+            complete.indexOf(
+                "releaseWorldInstanceCompositionLease("
+            )<
+            complete.indexOf(
+                "matches.complete("
+            ),
+            "TournamentService complete child lease release order"
+        );
+        require(
+            cancel.indexOf(
+                "releaseWorldInstanceCompositionLease("
+            )>
+            cancel.indexOf(
+                "preflightOwnedInstance"
+            )&&
+            cancel.indexOf(
+                "releaseWorldInstanceCompositionLease("
+            )<
+            cancel.indexOf(
+                "matches.cancel("
+            ),
+            "TournamentService cancel child lease release order"
+        );
     }
 
 
@@ -289,6 +332,61 @@ public final class MatchInstanceSessionCompositionAtomicityTest {
                 "withCompositionOwnership("
             ),
             label+" cancel preflight outside ownership"
+        );
+
+        require(
+            start.indexOf(
+                "acquireWorldInstanceCompositionLease("
+            )>
+            start.indexOf(
+                "withCompositionOwnership("
+            ),
+            label+" startup lacks durable child lease acquisition"
+        );
+        require(
+            complete.indexOf(
+                "releaseWorldInstanceCompositionLease("
+            )>
+            complete.indexOf(
+                "preflightOwnedInstance"
+            )&&
+            complete.indexOf(
+                "releaseWorldInstanceCompositionLease("
+            )<
+            complete.indexOf(
+                "matches.complete("
+            ),
+            label+" complete durable child lease release order"
+        );
+        require(
+            cancel.indexOf(
+                "releaseWorldInstanceCompositionLease("
+            )>
+            cancel.indexOf(
+                "preflightOwnedInstance"
+            )&&
+            cancel.indexOf(
+                "releaseWorldInstanceCompositionLease("
+            )<
+            cancel.indexOf(
+                "matches.cancel("
+            ),
+            label+" cancel durable child lease release order"
+        );
+        require(
+            complete.indexOf(
+                completePublish
+            )>
+            complete.indexOf(
+                "matches.complete("
+            )&&
+            cancel.indexOf(
+                cancelPublish
+            )>
+            cancel.indexOf(
+                "matches.cancel("
+            ),
+            label+" parent terminal publication order"
         );
     }
 
