@@ -30,6 +30,9 @@ public final class TournamentServiceTest {
             "activeMatchBlocksTerminalEvent=true "+
             "terminalHoldProtectsActiveMatch=true "+
             "terminalHoldRelease=true "+
+            "durableChildOwnership=true "+
+            "directChildTerminalBlocked=true "+
+            "directInstanceTopologyBlocked=true "+
             "globalEventOwnershipLinearized=true "+
             "lockOrderTournamentEventMatchInstance=true "+
             "explicitTournamentCompletion=true "+
@@ -741,8 +744,50 @@ public final class TournamentServiceTest {
         require(
             completeEvents.terminalHoldCount(
                 completeEventId
+            )==1&&
+            completeMatches.terminalHoldCount(
+                completeMatchId
+            )==1&&
+            completeInstances.structuralHoldCount(
+                completeInstanceId
             )==1,
-            "Tournament child did not acquire terminal hold"
+            "Tournament child did not acquire durable holds"
+        );
+
+        expect(
+            IllegalStateException.class,
+            ()->completeMatches.complete(
+                completeMatchId,
+                new MatchSession.Result(
+                    "external_complete",
+                    null,
+                    POLICY
+                )
+            ),
+            "active Tournament child allowed direct MatchSession completion"
+        );
+        expect(
+            IllegalStateException.class,
+            ()->completeMatches.cancel(
+                completeMatchId,
+                "external_cancel"
+            ),
+            "active Tournament child allowed direct MatchSession cancellation"
+        );
+        expect(
+            IllegalStateException.class,
+            ()->completeInstances.detach(
+                completeInstanceId,
+                "player:a"
+            ),
+            "active Tournament child allowed direct instance detach"
+        );
+        expect(
+            IllegalStateException.class,
+            ()->completeInstances.beginClosing(
+                completeInstanceId
+            ),
+            "active Tournament child allowed direct instance close admission"
         );
 
         expect(
@@ -793,6 +838,12 @@ public final class TournamentServiceTest {
         require(
             completeEvents.terminalHoldCount(
                 completeEventId
+            )==0&&
+            completeMatches.terminalHoldCount(
+                completeMatchId
+            )==0&&
+            completeInstances.structuralHoldCount(
+                completeInstanceId
             )==0&&
             completeInstances.get(
                 completeInstanceId
@@ -876,6 +927,12 @@ public final class TournamentServiceTest {
         require(
             cancelEvents.terminalHoldCount(
                 cancelEventId
+            )==0&&
+            cancelMatches.terminalHoldCount(
+                cancelMatchId
+            )==0&&
+            cancelInstances.structuralHoldCount(
+                cancelInstanceId
             )==0&&
             cancelInstances.get(
                 cancelInstanceId
