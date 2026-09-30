@@ -244,17 +244,44 @@ final class MonsterSpawnerService {
                 );
         }
 
-        // Do not silently invalidate live selected rows.
+        // Do not silently invalidate or retarget live selections.
         for(Session session:
-                sessions.values())
-            if(session.selectedRowIndex!=null&&
-               !byRow.containsKey(
-                    session.selectedRowIndex))
+                sessions.values()){
+            if(session.selectedRowIndex==null)
+                continue;
+
+            CatalogEntry current=
+                catalog.get(
+                    session.selectedRowIndex
+                );
+            CatalogEntry replacementEntry=
+                byRow.get(
+                    session.selectedRowIndex
+                );
+
+            if(current==null||
+               replacementEntry==null)
                 throw new IllegalStateException(
                     "catalog replacement removes selected row "+
                     session.selectedRowIndex+
                     " owner="+session.ownerRef
                 );
+
+            if(current.definitionId!=
+                    replacementEntry.definitionId||
+               !current.semanticKey.equals(
+                    replacementEntry.semanticKey))
+                throw new IllegalStateException(
+                    "catalog replacement changes selected row identity "+
+                    session.selectedRowIndex+
+                    " owner="+session.ownerRef+
+                    " current="+current.semanticKey+
+                    "/"+current.definitionId+
+                    " replacement="+
+                    replacementEntry.semanticKey+
+                    "/"+replacementEntry.definitionId
+                );
+        }
 
         LinkedHashMap<Integer,CatalogEntry>
             replacement=
