@@ -15,6 +15,7 @@ public final class NpcCombatApproachServiceTest {
         staleTargetNoMove();
         staleAttackerNoMove();
         playerThenNpcLockOrder();
+        reentrantPolicyOwnershipLossNoMove();
         invalidPolicyAtomic();
         authorityAndBoundary();
 
@@ -636,6 +637,150 @@ public final class NpcCombatApproachServiceTest {
             throw new AssertionError(label);
         }catch(TimeoutException expected){
             // Expected while approach owns the player mutation lock.
+        }
+    }
+
+
+    private static void reentrantPolicyOwnershipLossNoMove()
+        throws Exception{
+        Fixture attackerFixture=
+            new Fixture(
+                "approach-reentrant-attacker",
+                3089,
+                3495
+            );
+
+        try{
+            WorldNpc npc=
+                attackerFixture.spawn(
+                    1488,
+                    3087,
+                    3495,
+                    0
+                );
+            Tile before=npc.tile();
+            AtomicInteger routeCalls=
+                new AtomicInteger();
+
+            NpcCombatApproachService service=
+                new NpcCombatApproachService(
+                    attackerFixture.world,
+                    new NpcCombatApproachService
+                        .ApproachPolicy(){
+                        public int stopRange(
+                            NpcCombatApproachService.Context context
+                        ){
+                            require(
+                                attackerFixture.world.npcs()
+                                    .remove(npc.id),
+                                "reentrant attacker removal"
+                            );
+                            return 1;
+                        }
+
+                        public RouteRequest.Policy routePolicy(
+                            NpcCombatApproachService.Context context
+                        ){
+                            routeCalls.incrementAndGet();
+                            return RouteRequest.Policy
+                                .HOME_RECOVERED_STATIC_AUTHORITY;
+                        }
+
+                        public String authority(){
+                            return "CUSTOM_LOCALLAB_NPC_APPROACH";
+                        }
+
+                        public String policy(){
+                            return "REENTRANT_ATTACKER_REMOVAL";
+                        }
+                    }
+                );
+
+            NpcCombatApproachService.Result result=
+                service.step(
+                    npc,
+                    attackerFixture.player,
+                    attackerFixture.generation
+                );
+
+            require(
+                result.status==
+                    NpcCombatApproachService.Status.STALE_ATTACKER&&
+                routeCalls.get()==0&&
+                before.equals(npc.tile()),
+                "reentrant attacker removal crossed ownership recheck"
+            );
+        }finally{
+            attackerFixture.close();
+        }
+
+        Fixture targetFixture=
+            new Fixture(
+                "approach-reentrant-target",
+                3089,
+                3495
+            );
+
+        try{
+            WorldNpc npc=
+                targetFixture.spawn(
+                    1488,
+                    3087,
+                    3495,
+                    0
+                );
+            Tile before=npc.tile();
+
+            NpcCombatApproachService service=
+                new NpcCombatApproachService(
+                    targetFixture.world,
+                    new NpcCombatApproachService
+                        .ApproachPolicy(){
+                        public int stopRange(
+                            NpcCombatApproachService.Context context
+                        ){
+                            return 1;
+                        }
+
+                        public RouteRequest.Policy routePolicy(
+                            NpcCombatApproachService.Context context
+                        ){
+                            require(
+                                targetFixture.world.unregisterPlayer(
+                                    targetFixture.player,
+                                    targetFixture.generation
+                                ),
+                                "reentrant target unregister"
+                            );
+                            return RouteRequest.Policy
+                                .HOME_RECOVERED_STATIC_AUTHORITY;
+                        }
+
+                        public String authority(){
+                            return "CUSTOM_LOCALLAB_NPC_APPROACH";
+                        }
+
+                        public String policy(){
+                            return "REENTRANT_TARGET_UNREGISTER";
+                        }
+                    }
+                );
+
+            NpcCombatApproachService.Result result=
+                service.step(
+                    npc,
+                    targetFixture.player,
+                    targetFixture.generation
+                );
+
+            require(
+                result.status==
+                    NpcCombatApproachService.Status.STALE_TARGET&&
+                before.equals(npc.tile()),
+                "reentrant target unregister crossed ownership recheck"
+            );
+        }finally{
+            targetFixture.close();
         }
     }
 
