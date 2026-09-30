@@ -501,76 +501,98 @@ final class TournamentService {
                         checkedInstanceId
                     );
 
-                matches.create(
-                    checkedMatchId,
-                    entry.rules
-                );
-                matches.addTeam(
-                    checkedMatchId,
-                    tournamentMatch.firstTeamId
-                );
-                matches.addTeam(
-                    checkedMatchId,
-                    tournamentMatch.secondTeamId
-                );
-                matches.join(
-                    checkedMatchId,
-                    tournamentMatch.firstTeamId,
-                    tournamentMatch.firstParticipant
-                );
-                matches.join(
-                    checkedMatchId,
-                    tournamentMatch.secondTeamId,
-                    tournamentMatch.secondParticipant
-                );
-
-                instances.create(
-                    checkedInstanceId,
-                    checkedMatchId.toString(),
-                    entry.policyAuthority
-                );
-                instances.attach(
-                    checkedInstanceId,
-                    tournamentMatch.firstParticipant
-                );
-                instances.attach(
-                    checkedInstanceId,
-                    tournamentMatch.secondParticipant
-                );
-
-                matches.attachInstance(
-                    checkedMatchId,
-                    checkedInstanceId
-                );
-                matches.markReady(
-                    checkedMatchId
-                );
-                instances.activate(
-                    checkedInstanceId
-                );
-                matches.activate(
-                    checkedMatchId
-                );
-
-                first.state=
-                    EntrantState.IN_MATCH;
-                first.activeMatchId=
-                    checkedMatchId;
-                second.state=
-                    EntrantState.IN_MATCH;
-                second.activeMatchId=
-                    checkedMatchId;
-
-                entry.matches.put(
-                    checkedMatchId,
-                    tournamentMatch
-                );
-
-                result[0]=
-                    new Snapshot(
-                        entry,
-                        event
+                String holdKey=
+                    terminalHoldKey(
+                        checkedMatchId
                     );
+
+                events.acquireTerminalHold(
+                    entry.eventId,
+                    holdKey
+                );
+
+                boolean published=false;
+
+                try{
+                    matches.create(
+                        checkedMatchId,
+                        entry.rules
+                    );
+                    matches.addTeam(
+                        checkedMatchId,
+                        tournamentMatch.firstTeamId
+                    );
+                    matches.addTeam(
+                        checkedMatchId,
+                        tournamentMatch.secondTeamId
+                    );
+                    matches.join(
+                        checkedMatchId,
+                        tournamentMatch.firstTeamId,
+                        tournamentMatch.firstParticipant
+                    );
+                    matches.join(
+                        checkedMatchId,
+                        tournamentMatch.secondTeamId,
+                        tournamentMatch.secondParticipant
+                    );
+
+                    instances.create(
+                        checkedInstanceId,
+                        checkedMatchId.toString(),
+                        entry.policyAuthority
+                    );
+                    instances.attach(
+                        checkedInstanceId,
+                        tournamentMatch.firstParticipant
+                    );
+                    instances.attach(
+                        checkedInstanceId,
+                        tournamentMatch.secondParticipant
+                    );
+
+                    matches.attachInstance(
+                        checkedMatchId,
+                        checkedInstanceId
+                    );
+                    matches.markReady(
+                        checkedMatchId
+                    );
+                    instances.activate(
+                        checkedInstanceId
+                    );
+                    matches.activate(
+                        checkedMatchId
+                    );
+
+                    first.state=
+                        EntrantState.IN_MATCH;
+                    first.activeMatchId=
+                        checkedMatchId;
+                    second.state=
+                        EntrantState.IN_MATCH;
+                    second.activeMatchId=
+                        checkedMatchId;
+
+                    entry.matches.put(
+                        checkedMatchId,
+                        tournamentMatch
+                    );
+
+                    published=true;
+
+                    result[0]=
+                        new Snapshot(
+                            entry,
+                            event
+                        );
+                }finally{
+                    if(!published)
+                        events.releaseTerminalHold(
+                            entry.eventId,
+                            holdKey
+                        );
+                }
             }
         );
 
@@ -597,7 +619,6 @@ final class TournamentService {
             );
 
         String loser;
-
         MatchTeamId winnerTeam;
 
         if(tournamentMatch.firstParticipant
@@ -629,8 +650,20 @@ final class TournamentService {
                 )
             );
 
-        withCompositionOwnership(
+        withEventAndCompositionOwnership(
+            entry.eventId,
             ()->{
+                GlobalEventService.Snapshot event=
+                    requireEvent(entry);
+
+                if(event.lifecycle!=
+                        GlobalEventService
+                            .Lifecycle.ACTIVE)
+                    throw new IllegalStateException(
+                        "Tournament child completion requires ACTIVE event lifecycle="+
+                        event.lifecycle
+                    );
+
                 preflightOwnedInstance(
                     tournamentMatch
                 );
@@ -641,34 +674,41 @@ final class TournamentService {
                 closeOwnedInstance(
                     tournamentMatch
                 );
+
+                Entrant winningEntrant=
+                    requireEntrant(
+                        entry,
+                        winner
+                    );
+                Entrant losingEntrant=
+                    requireEntrant(
+                        entry,
+                        loser
+                    );
+
+                winningEntrant.state=
+                    EntrantState.REGISTERED;
+                winningEntrant.activeMatchId=
+                    null;
+
+                losingEntrant.state=
+                    EntrantState.ELIMINATED;
+                losingEntrant.activeMatchId=
+                    null;
+
+                tournamentMatch.state=
+                    TournamentMatchState.COMPLETED;
+                tournamentMatch.winnerRef=
+                    winner;
+
+                events.releaseTerminalHold(
+                    entry.eventId,
+                    terminalHoldKey(
+                        tournamentMatch.matchId
+                    )
+                );
             }
         );
-
-        Entrant winningEntrant=
-            requireEntrant(
-                entry,
-                winner
-            );
-        Entrant losingEntrant=
-            requireEntrant(
-                entry,
-                loser
-            );
-
-        winningEntrant.state=
-            EntrantState.REGISTERED;
-        winningEntrant.activeMatchId=
-            null;
-
-        losingEntrant.state=
-            EntrantState.ELIMINATED;
-        losingEntrant.activeMatchId=
-            null;
-
-        tournamentMatch.state=
-            TournamentMatchState.COMPLETED;
-        tournamentMatch.winnerRef=
-            winner;
 
         return snapshotOf(entry);
     }
@@ -685,8 +725,20 @@ final class TournamentService {
                 matchId
             );
 
-        withCompositionOwnership(
+        withEventAndCompositionOwnership(
+            entry.eventId,
             ()->{
+                GlobalEventService.Snapshot event=
+                    requireEvent(entry);
+
+                if(event.lifecycle!=
+                        GlobalEventService
+                            .Lifecycle.ACTIVE)
+                    throw new IllegalStateException(
+                        "Tournament child cancellation requires ACTIVE event lifecycle="+
+                        event.lifecycle
+                    );
+
                 preflightOwnedInstance(
                     tournamentMatch
                 );
@@ -697,29 +749,36 @@ final class TournamentService {
                 closeOwnedInstance(
                     tournamentMatch
                 );
+
+                Entrant first=
+                    requireEntrant(
+                        entry,
+                        tournamentMatch.firstParticipant
+                    );
+                Entrant second=
+                    requireEntrant(
+                        entry,
+                        tournamentMatch.secondParticipant
+                    );
+
+                first.state=
+                    EntrantState.REGISTERED;
+                first.activeMatchId=null;
+                second.state=
+                    EntrantState.REGISTERED;
+                second.activeMatchId=null;
+
+                tournamentMatch.state=
+                    TournamentMatchState.CANCELLED;
+
+                events.releaseTerminalHold(
+                    entry.eventId,
+                    terminalHoldKey(
+                        tournamentMatch.matchId
+                    )
+                );
             }
         );
-
-        Entrant first=
-            requireEntrant(
-                entry,
-                tournamentMatch.firstParticipant
-            );
-        Entrant second=
-            requireEntrant(
-                entry,
-                tournamentMatch.secondParticipant
-            );
-
-        first.state=
-            EntrantState.REGISTERED;
-        first.activeMatchId=null;
-        second.state=
-            EntrantState.REGISTERED;
-        second.activeMatchId=null;
-
-        tournamentMatch.state=
-            TournamentMatchState.CANCELLED;
 
         return snapshotOf(entry);
     }
@@ -1056,6 +1115,16 @@ final class TournamentService {
         instances.close(
             tournamentMatch.instanceId
         );
+    }
+
+    private static String terminalHoldKey(
+        MatchId matchId
+    ){
+        return "tournament-match:"+
+            Objects.requireNonNull(
+                matchId,
+                "matchId"
+            );
     }
 
     private static void requireNoActiveMatches(

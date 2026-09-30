@@ -51,6 +51,9 @@ public final class MatchInstanceSessionCompositionAtomicityTest {
             "tournamentStartup=true "+
             "tournamentTerminal=true "+
             "tournamentGlobalEventStartupOwnership=true "+
+            "tournamentGlobalEventTerminalOwnership=true "+
+            "tournamentStartupHoldFailureSafe=true "+
+            "tournamentTerminalHoldOrder=true "+
             "ownerPublishAfterOwnedAction=true "+
             "terminalPreflightInsideOwnership=true"
         );
@@ -63,15 +66,15 @@ public final class MatchInstanceSessionCompositionAtomicityTest {
             count(
                 source,
                 "withCompositionOwnership("
-            )==3,
-            "TournamentService legacy composition ownership call/helper count"
+            )==1,
+            "TournamentService legacy composition helper count"
         );
 
         require(
             count(
                 source,
                 "withEventAndCompositionOwnership("
-            )==2,
+            )==4,
             "TournamentService GlobalEvent+match composition call/helper count"
         );
 
@@ -121,41 +124,96 @@ public final class MatchInstanceSessionCompositionAtomicityTest {
             "TournamentService publishes entrant state before owned startup action"
         );
 
-        assertOwnedBeforePublish(
+        int startHoldAcquire=
+            start.indexOf(
+                "events.acquireTerminalHold("
+            );
+        int startTry=
+            start.indexOf(
+                "try{",
+                startHoldAcquire
+            );
+        int startPublished=
+            start.indexOf(
+                "published=true;",
+                startTry
+            );
+        int startFinally=
+            start.indexOf(
+                "}finally{",
+                startPublished
+            );
+        int startHoldRelease=
+            start.indexOf(
+                "events.releaseTerminalHold(",
+                startFinally
+            );
+
+        require(
+            startHoldAcquire>startOwned&&
+            startTry>startHoldAcquire&&
+            startPublished>startTry&&
+            startFinally>startPublished&&
+            startHoldRelease>startFinally,
+            "TournamentService startup terminal hold lacks failure-safe publication ordering"
+        );
+
+        assertOwnedBeforePublishWith(
             complete,
+            "withEventAndCompositionOwnership(",
             "tournamentMatch.state=",
             "TournamentService complete"
         );
-        assertOwnedBeforePublish(
+        assertOwnedBeforePublishWith(
             cancel,
+            "withEventAndCompositionOwnership(",
             "tournamentMatch.state=",
             "TournamentService cancel"
         );
 
         require(
             complete.indexOf(
-                "withCompositionOwnership("
+                "withEventAndCompositionOwnership("
             )>=0&&
             complete.indexOf(
                 "preflightOwnedInstance"
             )>
             complete.indexOf(
-                "withCompositionOwnership("
+                "withEventAndCompositionOwnership("
             ),
-            "TournamentService complete preflight outside ownership"
+            "TournamentService complete preflight outside GlobalEvent+match ownership"
         );
 
         require(
             cancel.indexOf(
-                "withCompositionOwnership("
+                "withEventAndCompositionOwnership("
             )>=0&&
             cancel.indexOf(
                 "preflightOwnedInstance"
             )>
             cancel.indexOf(
-                "withCompositionOwnership("
+                "withEventAndCompositionOwnership("
             ),
-            "TournamentService cancel preflight outside ownership"
+            "TournamentService cancel preflight outside GlobalEvent+match ownership"
+        );
+
+        require(
+            complete.indexOf(
+                "events.releaseTerminalHold("
+            )>
+            complete.indexOf(
+                "tournamentMatch.state="
+            ),
+            "TournamentService complete releases terminal hold before local terminal publication"
+        );
+        require(
+            cancel.indexOf(
+                "events.releaseTerminalHold("
+            )>
+            cancel.indexOf(
+                "tournamentMatch.state="
+            ),
+            "TournamentService cancel releases terminal hold before local terminal publication"
         );
     }
 
@@ -231,6 +289,31 @@ public final class MatchInstanceSessionCompositionAtomicityTest {
                 "withCompositionOwnership("
             ),
             label+" cancel preflight outside ownership"
+        );
+    }
+
+    private static void assertOwnedBeforePublishWith(
+        String method,
+        String ownershipAnchor,
+        String publishAnchor,
+        String label
+    ){
+        int owned=
+            method.indexOf(
+                ownershipAnchor
+            );
+        int publish=
+            method.indexOf(
+                publishAnchor
+            );
+
+        require(
+            owned>=0,
+            label+" lacks requested composition ownership"
+        );
+        require(
+            publish>owned,
+            label+" publishes owner state before owned action"
         );
     }
 
