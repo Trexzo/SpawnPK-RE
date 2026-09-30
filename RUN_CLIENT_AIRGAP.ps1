@@ -42,7 +42,7 @@ try {
     }
 
     $expectedAirgapSha256 =
-        '83b3e27e2aae50512d044ae4c74d84afb36df8b8a8051b5eb0c9275427363c33'
+        '024fad774453430bb964076b98d460a6dae821ee31100322d104e30d9a9c97a7'
 
     Write-Host 'Launching the locally supplied AIRGAP client verified by scripts\Check-ExternalRuntime.ps1.' -ForegroundColor Cyan
     Write-Host 'The certified airgap runtime routes LocalLab socket/update/web authority to loopback.' -ForegroundColor Cyan
