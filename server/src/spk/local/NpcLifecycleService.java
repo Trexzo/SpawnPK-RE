@@ -112,6 +112,10 @@ final class NpcLifecycleService {
         void run(Snapshot snapshot) throws Exception;
     }
 
+    interface DeadNpcTerminalAction {
+        void run(Snapshot snapshot) throws Exception;
+    }
+
     private final WorldNpcRegistry npcs;
     private final LinkedHashMap<EntityId,Entry> entries=
         new LinkedHashMap<>();
@@ -449,6 +453,141 @@ final class NpcLifecycleService {
             );
     }
 
+    boolean consumeDeadCanonical(
+        WorldNpc npc,
+        DeadNpcTerminalAction action
+    )throws Exception{
+        WorldNpc checked=
+            Objects.requireNonNull(
+                npc,
+                "npc"
+            );
+        DeadNpcTerminalAction checkedAction=
+            Objects.requireNonNull(
+                action,
+                "action"
+            );
+
+        final boolean[] consumed={false};
+
+        boolean current=
+            npcs.withCurrentMutationOwnershipIfCurrent(
+                checked,
+                ()->{
+                    synchronized(this){
+                        Entry entry=
+                            entries.get(
+                                checked.id
+                            );
+
+                        if(entry==null)
+                            throw new IllegalStateException(
+                                "NPC lifecycle missing id="+
+                                checked.id
+                            );
+
+                        if(entry.npc!=checked)
+                            throw new IllegalStateException(
+                                "NPC lifecycle exact object changed id="+
+                                checked.id
+                            );
+
+                        if(entry.state!=State.DEAD||
+                           entry.deathTick==
+                                NO_DEATH_TICK)
+                            throw new IllegalStateException(
+                                "NPC lifecycle is not dead id="+
+                                checked.id
+                            );
+
+                        Snapshot before=
+                            entry.snapshot();
+                        Throwable primary=null;
+
+                        try{
+                            checkedAction.run(
+                                before
+                            );
+                        }catch(Throwable failure){
+                            primary=failure;
+                        }
+
+                        boolean canonicalRemoved=
+                            npcs.byId(
+                                checked.id
+                            )!=checked;
+
+                        Entry after=
+                            entries.get(
+                                checked.id
+                            );
+
+                        if(after!=entry){
+                            IllegalStateException invariant=
+                                new IllegalStateException(
+                                    "NPC lifecycle entry changed during terminal composition id="+
+                                    checked.id
+                                );
+
+                            if(primary!=null&&
+                               primary!=invariant)
+                                primary.addSuppressed(
+                                    invariant
+                                );
+                            else
+                                throw invariant;
+                        }else if(entry.state!=State.DEAD||
+                                 entry.deathTick!=
+                                    before.deathTick){
+                            IllegalStateException invariant=
+                                new IllegalStateException(
+                                    "NPC death identity changed during terminal composition id="+
+                                    checked.id
+                                );
+
+                            if(primary!=null&&
+                               primary!=invariant)
+                                primary.addSuppressed(
+                                    invariant
+                                );
+                            else
+                                throw invariant;
+                        }
+
+                        if(canonicalRemoved){
+                            if(entries.get(
+                                    checked.id
+                                )==entry)
+                                entries.remove(
+                                    checked.id
+                                );
+
+                            consumed[0]=true;
+                        }
+
+                        if(primary!=null)
+                            rethrowTerminal(
+                                primary
+                            );
+
+                        if(!canonicalRemoved)
+                            throw new IllegalStateException(
+                                "dead NPC terminal action returned without canonical removal id="+
+                                checked.id
+                            );
+                    }
+                }
+            );
+
+        if(!current)
+            throw new IllegalStateException(
+                "canonical NPC registry ownership lost id="+
+                checked.id
+            );
+
+        return consumed[0];
+    }
+
     synchronized Snapshot get(EntityId npcId){
         Entry entry=
             entries.get(
@@ -568,6 +707,21 @@ final class NpcLifecycleService {
                 failure
             );
         }
+    }
+
+    private static void rethrowTerminal(
+        Throwable failure
+    )throws Exception{
+        if(failure instanceof RuntimeException)
+            throw (RuntimeException)failure;
+        if(failure instanceof Error)
+            throw (Error)failure;
+        if(failure instanceof Exception)
+            throw (Exception)failure;
+
+        throw new RuntimeException(
+            failure
+        );
     }
 
     private static String requireAuthority(
