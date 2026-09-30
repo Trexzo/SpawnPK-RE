@@ -31,6 +31,27 @@ final class MonsterSpawnerCombatBindingService {
         }
     }
 
+    static final class DespawnResult {
+        final MonsterSpawnerService.SessionSnapshot session;
+        final NpcCombatRuntimeBinder.BindingSnapshot releasedBinding;
+
+        private DespawnResult(
+            MonsterSpawnerService.SessionSnapshot session,
+            NpcCombatRuntimeBinder.BindingSnapshot releasedBinding
+        ){
+            this.session=
+                Objects.requireNonNull(
+                    session,
+                    "session"
+                );
+            this.releasedBinding=
+                Objects.requireNonNull(
+                    releasedBinding,
+                    "releasedBinding"
+                );
+        }
+    }
+
     private final World world;
     private final MonsterSpawnerService spawner;
     private final NpcCombatRuntimeBinder binder;
@@ -133,6 +154,74 @@ final class MonsterSpawnerCombatBindingService {
             Objects.requireNonNull(
                 binding[0],
                 "binding result"
+            )
+        );
+    }
+
+    DespawnResult despawnAndUnbind(
+        String ownerRef,
+        EntityId npcId
+    )throws Exception{
+        EntityId checkedId=
+            Objects.requireNonNull(
+                npcId,
+                "npcId"
+            );
+        final MonsterSpawnerService.SessionSnapshot[]
+            session={null};
+        final NpcCombatRuntimeBinder.BindingSnapshot[]
+            released={null};
+
+        boolean open=
+            world.withOpenLifecycleOwnership(
+                ()->{
+                    session[0]=
+                        spawner.despawnTrackedComposed(
+                            ownerRef,
+                            checkedId,
+                            (npc,commit)->{
+                                final MonsterSpawnerService.SessionSnapshot[]
+                                    committed={null};
+
+                                NpcCombatRuntimeBinder.BindingSnapshot
+                                    binding=
+                                        binder.unbindComposed(
+                                            checkedId,
+                                            ()->
+                                                committed[0]=
+                                                    commit.commit()
+                                        );
+
+                                if(binding==null)
+                                    throw new IllegalStateException(
+                                        "Monster Spawner combat runtime binding missing id="+
+                                        checkedId
+                                    );
+
+                                released[0]=binding;
+
+                                return Objects.requireNonNull(
+                                    committed[0],
+                                    "despawn commit result"
+                                );
+                            }
+                        );
+                }
+            );
+
+        if(!open)
+            throw new IllegalStateException(
+                "world closed before Monster Spawner combat despawn"
+            );
+
+        return new DespawnResult(
+            Objects.requireNonNull(
+                session[0],
+                "despawn session"
+            ),
+            Objects.requireNonNull(
+                released[0],
+                "released binding"
             )
         );
     }
