@@ -217,9 +217,17 @@ final class NpcDropGroundSettlementService {
                 checked.context.deathTick
             );
 
-        ArrayList<GroundItemRegistry.AddRequest>
-            requests=
-                new ArrayList<>();
+        /*
+         * Canonicalize duplicate stack rows before mutating GroundItemRegistry.
+         * The current settlement policy gives every row the same tile/owner/
+         * devOwned identity, so itemId is the remaining stack-key component.
+         * GroundItemRegistry.addBatch() also canonicalizes duplicates, but doing
+         * it here first prevents discovering a shape mismatch after world
+         * mutation and lets the receipt retain the exact settled amount.
+         */
+        LinkedHashMap<Integer,Integer>
+            canonicalAmounts=
+                new LinkedHashMap<>();
 
         for(NpcDropResolutionService.Drop drop:
                 checked.drops){
@@ -229,17 +237,60 @@ final class NpcDropGroundSettlementService {
                     "drop"
                 );
 
+            int prior=
+                canonicalAmounts.getOrDefault(
+                    row.itemId,
+                    0
+                );
+
+            final int combined;
+
+            try{
+                combined=
+                    Math.addExact(
+                        prior,
+                        row.amount
+                    );
+            }catch(ArithmeticException overflow){
+                throw new IllegalStateException(
+                    "canonical drop amount overflow itemId="+
+                    row.itemId,
+                    overflow
+                );
+            }
+
+            if(combined<=0)
+                throw new IllegalStateException(
+                    "canonical drop amount invalid itemId="+
+                    row.itemId+
+                    " amount="+
+                    combined
+                );
+
+            canonicalAmounts.put(
+                row.itemId,
+                combined
+            );
+        }
+
+        ArrayList<GroundItemRegistry.AddRequest>
+            requests=
+                new ArrayList<>(
+                    canonicalAmounts.size()
+                );
+
+        for(Map.Entry<Integer,Integer> row:
+                canonicalAmounts.entrySet())
             requests.add(
                 new GroundItemRegistry.AddRequest(
-                    row.itemId,
-                    row.amount,
+                    row.getKey(),
+                    row.getValue(),
                     checked.context.deathTile,
                     checked.context.recipientRef,
                     checked.context.deathTick,
                     false
                 )
             );
-        }
 
         List<GroundItem> materialized=
             groundItems.addBatch(
@@ -247,10 +298,9 @@ final class NpcDropGroundSettlementService {
             );
 
         if(materialized.size()!=
-                checked.drops.size()&&
-           !checked.drops.isEmpty())
+                requests.size())
             throw new IllegalStateException(
-                "drop bundle canonicalization changed unexpectedly npc="+
+                "canonical ground settlement shape mismatch npc="+
                 npcId
             );
 
@@ -258,11 +308,14 @@ final class NpcDropGroundSettlementService {
             rows=
                 new ArrayList<>();
 
-        for(int i=0;i<materialized.size();i++)
+        int index=0;
+
+        for(Integer settledAmount:
+                canonicalAmounts.values())
             rows.add(
                 new SettledGroundItem(
-                    materialized.get(i),
-                    checked.drops.get(i).amount
+                    materialized.get(index++),
+                    settledAmount
                 )
             );
 
