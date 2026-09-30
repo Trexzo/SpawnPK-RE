@@ -16,6 +16,9 @@ public final class GlobalEventCompositionOwnershipTest {
             "eventBlocked=true "+
             "reentrantAccess=true "+
             "terminalHold=true "+
+            "terminalHoldCapability=true "+
+            "foreignCapabilityRejected=true "+
+            "heldMutationClockAtomic=true "+
             "terminalHoldDeadlineBlock=true "+
             "actionFailureSafe=true "+
             "protocolIndependent=true"
@@ -141,125 +144,130 @@ public final class GlobalEventCompositionOwnershipTest {
     }
 
     private static void terminalHoldBlocksTerminalization(){
-        GlobalEventService service=
-            new GlobalEventService();
+        GlobalEventService service=new GlobalEventService();
         WorldEventDefinition definition=
-            definition(
-                "custom:terminal-held",
-                10L,
-                20L
-            );
+            definition("custom:terminal-held",10L,20L);
 
         service.register(definition);
         service.tick(10L);
 
-        service.acquireTerminalHold(
-            definition.id,
-            "child:one"
-        );
+        GlobalEventService.TerminalHold first=
+            service.acquireTerminalHold(definition.id);
 
-        check(
-            service.terminalHoldCount(
-                definition.id
-            )==1,
-            "terminal hold count"
-        );
+        check(service.terminalHoldCount(definition.id)==1,"terminal hold count");
+
+        long beforeRejectedMutation=
+            service.lastObservedTick();
 
         expect(
             IllegalStateException.class,
             ()->service.complete(
                 definition.id,
-                12L
+                Long.MAX_VALUE
             ),
             "held explicit complete"
         );
+
+        check(
+            service.lastObservedTick()==
+                beforeRejectedMutation&&
+            service.get(
+                definition.id
+            ).lifecycle==
+                GlobalEventService.Lifecycle.ACTIVE&&
+            service.terminalHoldCount(
+                definition.id
+            )==1,
+            "held complete mutated clock/event/hold"
+        );
+
         expect(
             IllegalStateException.class,
             ()->service.cancel(
                 definition.id,
-                12L
+                Long.MAX_VALUE
             ),
             "held explicit cancel"
         );
 
-        service.tick(20L);
-
         check(
+            service.lastObservedTick()==
+                beforeRejectedMutation&&
             service.get(
                 definition.id
             ).lifecycle==
-                GlobalEventService
-                    .Lifecycle.ACTIVE,
-            "end deadline crossed terminal hold"
-        );
-
-        expect(
-            IllegalStateException.class,
-            ()->service.acquireTerminalHold(
-                definition.id,
-                "child:one"
-            ),
-            "duplicate terminal hold"
-        );
-
-        service.acquireTerminalHold(
-            definition.id,
-            "child:two"
-        );
-        service.releaseTerminalHold(
-            definition.id,
-            "child:one"
-        );
-
-        check(
+                GlobalEventService.Lifecycle.ACTIVE&&
             service.terminalHoldCount(
                 definition.id
             )==1,
-            "independent terminal hold count"
+            "held cancel mutated clock/event/hold"
         );
 
-        service.tick(20L);
+        service.tick(11L);
 
         check(
+            service.lastObservedTick()==11L&&
             service.get(
                 definition.id
             ).lifecycle==
-                GlobalEventService
-                    .Lifecycle.ACTIVE,
+                GlobalEventService.Lifecycle.ACTIVE,
+            "ordinary tick rejected after held mutation failure"
+        );
+
+        service.tick(20L);
+        check(
+            service.get(definition.id).lifecycle==GlobalEventService.Lifecycle.ACTIVE,
+            "end deadline crossed terminal hold"
+        );
+
+        GlobalEventService.TerminalHold second=
+            service.acquireTerminalHold(definition.id);
+        service.releaseTerminalHold(first);
+
+        check(service.terminalHoldCount(definition.id)==1,"independent terminal hold count");
+
+        GlobalEventService foreign=new GlobalEventService();
+        WorldEventDefinition foreignDefinition=
+            definition("custom:foreign-terminal-held",10L,20L);
+        foreign.register(foreignDefinition);
+        foreign.tick(10L);
+        GlobalEventService.TerminalHold foreignHold=
+            foreign.acquireTerminalHold(foreignDefinition.id);
+
+        expect(
+            IllegalStateException.class,
+            ()->service.releaseTerminalHold(foreignHold),
+            "foreign-service terminal hold release"
+        );
+
+        check(
+            service.terminalHoldCount(definition.id)==1&&
+            foreign.terminalHoldCount(foreignDefinition.id)==1,
+            "foreign terminal hold release mutated ownership"
+        );
+
+        service.tick(20L);
+        check(
+            service.get(definition.id).lifecycle==GlobalEventService.Lifecycle.ACTIVE,
             "remaining hold did not block deadline"
         );
 
-        service.releaseTerminalHold(
-            definition.id,
-            "child:two"
-        );
-
-        check(
-            service.terminalHoldCount(
-                definition.id
-            )==0,
-            "terminal holds not released"
-        );
+        service.releaseTerminalHold(second);
+        check(service.terminalHoldCount(definition.id)==0,"terminal holds not released");
 
         service.tick(20L);
-
         check(
-            service.get(
-                definition.id
-            ).lifecycle==
-                GlobalEventService
-                    .Lifecycle.COMPLETED,
+            service.get(definition.id).lifecycle==GlobalEventService.Lifecycle.COMPLETED,
             "deadline did not complete after hold release"
         );
 
         expect(
             IllegalStateException.class,
-            ()->service.releaseTerminalHold(
-                definition.id,
-                "child:two"
-            ),
+            ()->service.releaseTerminalHold(second),
             "double terminal hold release"
         );
+
+        foreign.releaseTerminalHold(foreignHold);
     }
 
 
