@@ -2,6 +2,7 @@ package spk.local;
 
 import java.lang.reflect.Field;
 import java.util.*;
+import java.util.concurrent.*;
 
 public final class PvpHotspotServiceTest {
     private static final String POLICY=
@@ -10,6 +11,7 @@ public final class PvpHotspotServiceTest {
     public static void main(String[] args)throws Exception{
         activePresenceAndKills();
         counterOverflowAtomic();
+        globalEventOwnershipLinearized();
         completionLifecycle();
         cancellationLifecycle();
         authorityGuards();
@@ -25,6 +27,7 @@ public final class PvpHotspotServiceTest {
             "selfKillRejected=true "+
             "participantScopedCounters=true "+
             "counterOverflowAtomic=true "+
+            "globalEventOwnershipLinearized=true "+
             "staleWorldTickRejected=true "+
             "leaveBlocksKillAttribution=true "+
             "completionClearsPresence=true "+
@@ -415,6 +418,143 @@ public final class PvpHotspotServiceTest {
             participant,
             deaths
         );
+    }
+
+
+    private static void globalEventOwnershipLinearized()
+        throws Exception{
+        GlobalEventService events=
+            new GlobalEventService();
+        PvpHotspotService service=
+            new PvpHotspotService(
+                events
+            );
+
+        WorldEventId id=
+            WorldEventId.of(
+                "pvp-hotspot:owned"
+            );
+
+        service.registerHotspot(
+            definition(
+                id,
+                10L,
+                100L
+            ),
+            "zone:owned",
+            POLICY
+        );
+
+        events.tick(10L);
+
+        ExecutorService workers=
+            Executors.newFixedThreadPool(2);
+        CountDownLatch eventOwned=
+            new CountDownLatch(1);
+        CountDownLatch allowTerminal=
+            new CountDownLatch(1);
+
+        try{
+            Future<?> terminal=
+                workers.submit(
+                    ()->{
+                        events.withEventCompositionOwnership(
+                            id,
+                            ()->{
+                                eventOwned.countDown();
+
+                                if(!allowTerminal.await(
+                                        5L,
+                                        TimeUnit.SECONDS))
+                                    throw new AssertionError(
+                                        "terminal ownership release timeout"
+                                    );
+
+                                events.complete(
+                                    id,
+                                    20L
+                                );
+                            }
+                        );
+
+                        return null;
+                    }
+                );
+
+            require(
+                eventOwned.await(
+                    5L,
+                    TimeUnit.SECONDS
+                ),
+                "GlobalEvent owner did not enter"
+            );
+
+            Future<PvpHotspotService.Snapshot> enter=
+                workers.submit(
+                    ()->service.enter(
+                        id,
+                        "player:blocked",
+                        20L
+                    )
+                );
+
+            try{
+                enter.get(
+                    200L,
+                    TimeUnit.MILLISECONDS
+                );
+                throw new AssertionError(
+                    "hotspot enter crossed GlobalEvent ownership"
+                );
+            }catch(TimeoutException expected){
+                // Expected: service holds its own monitor and blocks on
+                // the backing GlobalEvent ownership boundary.
+            }
+
+            allowTerminal.countDown();
+
+            terminal.get(
+                5L,
+                TimeUnit.SECONDS
+            );
+
+            try{
+                enter.get(
+                    5L,
+                    TimeUnit.SECONDS
+                );
+                throw new AssertionError(
+                    "terminal backing event allowed participant mutation"
+                );
+            }catch(ExecutionException failure){
+                require(
+                    failure.getCause() instanceof
+                        IllegalStateException,
+                    "blocked enter wrong terminal failure "+
+                    failure.getCause()
+                );
+            }
+
+            PvpHotspotService.Snapshot after=
+                service.get(id);
+
+            require(
+                after.lifecycle==
+                    GlobalEventService
+                        .Lifecycle.COMPLETED&&
+                after.participant(
+                    "player:blocked"
+                )==null,
+                "terminal transition crossed hotspot mutation"
+            );
+        }finally{
+            allowTerminal.countDown();
+            workers.shutdownNow();
+            workers.awaitTermination(
+                5L,
+                TimeUnit.SECONDS
+            );
+        }
     }
 
 
