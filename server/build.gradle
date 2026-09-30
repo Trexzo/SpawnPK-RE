@@ -4912,6 +4912,7 @@ tasks.named('check') {
     dependsOn tasks.named('npcCombatEngagementServiceRegression')
     dependsOn tasks.named('npcCombatApproachServiceRegression')
     dependsOn tasks.named('npcPvmDelayedHitServiceRegression')
+    dependsOn tasks.named('npcCombatDelayedCompositionRegression')
     dependsOn tasks.named('monsterSpawnerServiceRegression')
     dependsOn tasks.named('pvpHotspotServiceRegression')
     dependsOn tasks.named('npcDropResolutionServiceRegression')
@@ -5411,6 +5412,21 @@ tasks.register('npcPvmDelayedHitServiceRegression', JavaExec) {
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass = 'spk.local.NpcPvmDelayedHitServiceTest'
+}
+
+
+tasks.register('npcCombatDelayedCompositionRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves PvM resolution preserves immediate compatibility and composes positive hit delay into canonical WorldEventQueue delivery without recalculating damage.'
+    dependsOn(
+        tasks.named('testClasses'),
+        tasks.named('npcPvmDelayedHitServiceRegression'),
+        tasks.named('npcCombatResolutionServiceRegression')
+    )
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.NpcCombatDelayedCompositionTest'
 }
 
 
