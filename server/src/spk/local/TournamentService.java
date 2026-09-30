@@ -338,35 +338,49 @@ final class TournamentService {
         String participantRef
     ){
         Entry entry=require(eventId);
-        GlobalEventService.Snapshot event=
-            requireEvent(entry);
+        final Snapshot[] result=
+            new Snapshot[1];
 
-        if(event.lifecycle!=
-                GlobalEventService
-                    .Lifecycle.SCHEDULED)
-            throw new IllegalStateException(
-                "Tournament registration closed lifecycle="+
-                event.lifecycle
-            );
+        withEventCompositionOwnership(
+            entry.eventId,
+            ()->{
+                GlobalEventService.Snapshot event=
+                    requireEvent(entry);
 
-        String participant=
-            PartyService.requireRef(
-                participantRef
-            );
+                if(event.lifecycle!=
+                        GlobalEventService
+                            .Lifecycle.SCHEDULED)
+                    throw new IllegalStateException(
+                        "Tournament registration closed lifecycle="+
+                        event.lifecycle
+                    );
 
-        if(entry.entrants.containsKey(
-                participant))
-            throw new IllegalStateException(
-                "duplicate tournament entrant "+
-                participant
-            );
+                String participant=
+                    PartyService.requireRef(
+                        participantRef
+                    );
 
-        entry.entrants.put(
-            participant,
-            new Entrant(participant)
+                if(entry.entrants.containsKey(
+                        participant))
+                    throw new IllegalStateException(
+                        "duplicate tournament entrant "+
+                        participant
+                    );
+
+                entry.entrants.put(
+                    participant,
+                    new Entrant(participant)
+                );
+
+                result[0]=
+                    new Snapshot(
+                        entry,
+                        event
+                    );
+            }
         );
 
-        return snapshotOf(entry);
+        return result[0];
     }
 
     synchronized Snapshot withdrawEntrant(
@@ -407,16 +421,6 @@ final class TournamentService {
         WorldInstanceId instanceId
     ){
         Entry entry=require(eventId);
-        GlobalEventService.Snapshot event=
-            requireEvent(entry);
-
-        if(event.lifecycle!=
-                GlobalEventService
-                    .Lifecycle.ACTIVE)
-            throw new IllegalStateException(
-                "Tournament match requires ACTIVE event lifecycle="+
-                event.lifecycle
-            );
 
         Entrant first=
             requireRegistered(
@@ -461,10 +465,28 @@ final class TournamentService {
                 second.participantRef
             );
 
-        // Known failure conditions are preflighted before reusable-service
-        // mutation.
-        withCompositionOwnership(
+        final Snapshot[] result=
+            new Snapshot[1];
+
+        /*
+         * Explicit lock order:
+         * TournamentService -> GlobalEventService ->
+         * MatchSessionService -> WorldInstanceService.
+         */
+        withEventAndCompositionOwnership(
+            entry.eventId,
             ()->{
+                GlobalEventService.Snapshot event=
+                    requireEvent(entry);
+
+                if(event.lifecycle!=
+                        GlobalEventService
+                            .Lifecycle.ACTIVE)
+                    throw new IllegalStateException(
+                        "Tournament match requires ACTIVE event lifecycle="+
+                        event.lifecycle
+                    );
+
                 if(matches.get(
                         checkedMatchId)!=null)
                     throw new IllegalStateException(
@@ -479,74 +501,80 @@ final class TournamentService {
                         checkedInstanceId
                     );
 
-            matches.create(
-                checkedMatchId,
-                entry.rules
-            );
-            matches.addTeam(
-                checkedMatchId,
-                tournamentMatch.firstTeamId
-            );
-            matches.addTeam(
-                checkedMatchId,
-                tournamentMatch.secondTeamId
-            );
-            matches.join(
-                checkedMatchId,
-                tournamentMatch.firstTeamId,
-                tournamentMatch.firstParticipant
-            );
-            matches.join(
-                checkedMatchId,
-                tournamentMatch.secondTeamId,
-                tournamentMatch.secondParticipant
-            );
-    
-            instances.create(
-                checkedInstanceId,
-                checkedMatchId.toString(),
-                entry.policyAuthority
-            );
-            instances.attach(
-                checkedInstanceId,
-                tournamentMatch.firstParticipant
-            );
-            instances.attach(
-                checkedInstanceId,
-                tournamentMatch.secondParticipant
-            );
-    
-            matches.attachInstance(
-                checkedMatchId,
-                checkedInstanceId
-            );
-            matches.markReady(
-                checkedMatchId
-            );
-            instances.activate(
-                checkedInstanceId
-            );
-            matches.activate(
-                checkedMatchId
-            );
-    
-    
+                matches.create(
+                    checkedMatchId,
+                    entry.rules
+                );
+                matches.addTeam(
+                    checkedMatchId,
+                    tournamentMatch.firstTeamId
+                );
+                matches.addTeam(
+                    checkedMatchId,
+                    tournamentMatch.secondTeamId
+                );
+                matches.join(
+                    checkedMatchId,
+                    tournamentMatch.firstTeamId,
+                    tournamentMatch.firstParticipant
+                );
+                matches.join(
+                    checkedMatchId,
+                    tournamentMatch.secondTeamId,
+                    tournamentMatch.secondParticipant
+                );
+
+                instances.create(
+                    checkedInstanceId,
+                    checkedMatchId.toString(),
+                    entry.policyAuthority
+                );
+                instances.attach(
+                    checkedInstanceId,
+                    tournamentMatch.firstParticipant
+                );
+                instances.attach(
+                    checkedInstanceId,
+                    tournamentMatch.secondParticipant
+                );
+
+                matches.attachInstance(
+                    checkedMatchId,
+                    checkedInstanceId
+                );
+                matches.markReady(
+                    checkedMatchId
+                );
+                instances.activate(
+                    checkedInstanceId
+                );
+                matches.activate(
+                    checkedMatchId
+                );
+
+                first.state=
+                    EntrantState.IN_MATCH;
+                first.activeMatchId=
+                    checkedMatchId;
+                second.state=
+                    EntrantState.IN_MATCH;
+                second.activeMatchId=
+                    checkedMatchId;
+
+                entry.matches.put(
+                    checkedMatchId,
+                    tournamentMatch
+                );
+
+                result[0]=
+                    new Snapshot(
+                        entry,
+                        event
+                    );
             }
         );
 
-        first.state=EntrantState.IN_MATCH;
-        first.activeMatchId=
-            checkedMatchId;
-        second.state=EntrantState.IN_MATCH;
-        second.activeMatchId=
-            checkedMatchId;
-
-        entry.matches.put(
-            checkedMatchId,
-            tournamentMatch
-        );
-
-        return snapshotOf(entry);
+        return result[0];
     }
 
     synchronized Snapshot completeMatch(
@@ -701,14 +729,29 @@ final class TournamentService {
         long worldTick
     ){
         Entry entry=require(eventId);
-        requireNoActiveMatches(entry);
+        final Snapshot[] result=
+            new Snapshot[1];
 
-        events.complete(
+        withEventCompositionOwnership(
             entry.eventId,
-            worldTick
+            ()->{
+                requireNoActiveMatches(entry);
+
+                GlobalEventService.MutationResult mutation=
+                    events.complete(
+                        entry.eventId,
+                        worldTick
+                    );
+
+                result[0]=
+                    new Snapshot(
+                        entry,
+                        mutation.snapshot
+                    );
+            }
         );
 
-        return snapshotOf(entry);
+        return result[0];
     }
 
     synchronized Snapshot cancelTournament(
@@ -716,21 +759,36 @@ final class TournamentService {
         long worldTick
     ){
         Entry entry=require(eventId);
-        requireNoActiveMatches(entry);
+        final Snapshot[] result=
+            new Snapshot[1];
 
-        events.cancel(
+        withEventCompositionOwnership(
             entry.eventId,
-            worldTick
+            ()->{
+                requireNoActiveMatches(entry);
+
+                GlobalEventService.MutationResult mutation=
+                    events.cancel(
+                        entry.eventId,
+                        worldTick
+                    );
+
+                for(Entrant entrant:
+                        entry.entrants.values())
+                    if(entrant.state==
+                            EntrantState.REGISTERED)
+                        entrant.state=
+                            EntrantState.WITHDRAWN;
+
+                result[0]=
+                    new Snapshot(
+                        entry,
+                        mutation.snapshot
+                    );
+            }
         );
 
-        for(Entrant entrant:
-                entry.entrants.values())
-            if(entrant.state==
-                    EntrantState.REGISTERED)
-                entrant.state=
-                    EntrantState.WITHDRAWN;
-
-        return snapshotOf(entry);
+        return result[0];
     }
 
     synchronized Snapshot get(
@@ -751,6 +809,40 @@ final class TournamentService {
 
     synchronized int size(){
         return tournaments.size();
+    }
+
+    private void withEventCompositionOwnership(
+        WorldEventId eventId,
+        GlobalEventService.EventCompositionAction action
+    ){
+        try{
+            events.withEventCompositionOwnership(
+                eventId,
+                action
+            );
+        }catch(RuntimeException failure){
+            throw failure;
+        }catch(Error failure){
+            throw failure;
+        }catch(Exception failure){
+            throw new IllegalStateException(
+                "unexpected Tournament GlobalEvent ownership failure",
+                failure
+            );
+        }
+    }
+
+    private void withEventAndCompositionOwnership(
+        WorldEventId eventId,
+        MatchSessionService.MatchInstanceCompositionAction action
+    ){
+        withEventCompositionOwnership(
+            eventId,
+            ()->matches.withWorldInstanceCompositionOwnership(
+                instances,
+                action
+            )
+        );
     }
 
     private void withCompositionOwnership(

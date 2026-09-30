@@ -145,6 +145,34 @@ final class GlobalEventService {
 
     private long lastObservedTick=-1L;
 
+    interface EventCompositionAction {
+        void run() throws Exception;
+    }
+
+    /**
+     * Holds the GlobalEventService mutation monitor for one caller-owned
+     * composition action. The event entry is required to exist before the
+     * action begins, but mutable Entry state is never exposed.
+     *
+     * Service methods are synchronized/reentrant, so the action may call
+     * get/tick/complete/cancel while retaining this ownership boundary.
+     */
+    synchronized void withEventCompositionOwnership(
+        WorldEventId eventId,
+        EventCompositionAction action
+    )throws Exception{
+        require(
+            Objects.requireNonNull(
+                eventId,
+                "eventId"
+            )
+        );
+        Objects.requireNonNull(
+            action,
+            "action"
+        ).run();
+    }
+
     synchronized Snapshot register(
         WorldEventDefinition definition
     ){

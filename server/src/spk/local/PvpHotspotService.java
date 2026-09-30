@@ -235,50 +235,61 @@ final class PvpHotspotService {
         long worldTick
     ){
         Entry entry=require(eventId);
-        GlobalEventService.Snapshot event=
-            observe(
-                entry,
-                worldTick
-            );
+        final Snapshot[] result=
+            new Snapshot[1];
 
-        requireActive(
-            event,
-            "enter"
-        );
+        withEventCompositionOwnership(
+            entry.eventId,
+            ()->{
+                GlobalEventService.Snapshot event=
+                    observe(
+                        entry,
+                        worldTick
+                    );
 
-        String participantRefNormalized=
-            PartyService.requireRef(
-                participantRef
-            );
-
-        Participant participant=
-            entry.participants.get(
-                participantRefNormalized
-            );
-
-        if(participant==null){
-            participant=
-                new Participant(
-                    participantRefNormalized
+                requireActive(
+                    event,
+                    "enter"
                 );
-            entry.participants.put(
-                participantRefNormalized,
-                participant
-            );
-        }
 
-        if(participant.present)
-            throw new IllegalStateException(
-                "participant already present "+
-                participantRefNormalized
-            );
+                String participantRefNormalized=
+                    PartyService.requireRef(
+                        participantRef
+                    );
 
-        participant.present=true;
+                Participant participant=
+                    entry.participants.get(
+                        participantRefNormalized
+                    );
 
-        return snapshotOf(
-            entry,
-            event
+                if(participant==null){
+                    participant=
+                        new Participant(
+                            participantRefNormalized
+                        );
+                    entry.participants.put(
+                        participantRefNormalized,
+                        participant
+                    );
+                }
+
+                if(participant.present)
+                    throw new IllegalStateException(
+                        "participant already present "+
+                        participantRefNormalized
+                    );
+
+                participant.present=true;
+
+                result[0]=
+                    snapshotOf(
+                        entry,
+                        event
+                    );
+            }
         );
+
+        return result[0];
     }
 
     synchronized Snapshot leave(
@@ -287,35 +298,46 @@ final class PvpHotspotService {
         long worldTick
     ){
         Entry entry=require(eventId);
-        GlobalEventService.Snapshot event=
-            observe(
-                entry,
-                worldTick
-            );
+        final Snapshot[] result=
+            new Snapshot[1];
 
-        requireActive(
-            event,
-            "leave"
+        withEventCompositionOwnership(
+            entry.eventId,
+            ()->{
+                GlobalEventService.Snapshot event=
+                    observe(
+                        entry,
+                        worldTick
+                    );
+
+                requireActive(
+                    event,
+                    "leave"
+                );
+
+                Participant participant=
+                    requireParticipant(
+                        entry,
+                        participantRef
+                    );
+
+                if(!participant.present)
+                    throw new IllegalStateException(
+                        "participant not present "+
+                        participant.participantRef
+                    );
+
+                participant.present=false;
+
+                result[0]=
+                    snapshotOf(
+                        entry,
+                        event
+                    );
+            }
         );
 
-        Participant participant=
-            requireParticipant(
-                entry,
-                participantRef
-            );
-
-        if(!participant.present)
-            throw new IllegalStateException(
-                "participant not present "+
-                participant.participantRef
-            );
-
-        participant.present=false;
-
-        return snapshotOf(
-            entry,
-            event
-        );
+        return result[0];
     }
 
     synchronized KillResult recordValidatedKill(
@@ -325,78 +347,91 @@ final class PvpHotspotService {
         long worldTick
     ){
         Entry entry=require(eventId);
-        GlobalEventService.Snapshot event=
-            observe(
-                entry,
-                worldTick
-            );
+        final KillResult[] result=
+            new KillResult[1];
 
-        requireActive(
-            event,
-            "recordValidatedKill"
-        );
-
-        Participant attacker=
-            requireParticipant(
-                entry,
-                attackerRef
-            );
-        Participant victim=
-            requireParticipant(
-                entry,
-                victimRef
-            );
-
-        if(attacker.participantRef.equals(
-                victim.participantRef))
-            throw new IllegalArgumentException(
-                "PvP Hotspot self-kill"
-            );
-
-        if(!attacker.present)
-            throw new IllegalStateException(
-                "attacker not present "+
-                attacker.participantRef
-            );
-
-        if(!victim.present)
-            throw new IllegalStateException(
-                "victim not present "+
-                victim.participantRef
-            );
-
-        final long nextAttackerKills;
-        final long nextVictimDeaths;
-
-        try{
-            nextAttackerKills=
-                Math.addExact(
-                    attacker.kills,
-                    1L
-                );
-            nextVictimDeaths=
-                Math.addExact(
-                    victim.deaths,
-                    1L
-                );
-        }catch(
-            ArithmeticException overflow
-        ){
-            throw new IllegalStateException(
-                "PvP Hotspot counter overflow",
-                overflow
-            );
-        }
-
-        attacker.kills=nextAttackerKills;
-        victim.deaths=nextVictimDeaths;
-
-        return new KillResult(
+        withEventCompositionOwnership(
             entry.eventId,
-            attacker,
-            victim,
-            worldTick
+            ()->{
+                GlobalEventService.Snapshot event=
+                    observe(
+                        entry,
+                        worldTick
+                    );
+
+                requireActive(
+                    event,
+                    "recordValidatedKill"
+                );
+
+                Participant attacker=
+                    requireParticipant(
+                        entry,
+                        attackerRef
+                    );
+                Participant victim=
+                    requireParticipant(
+                        entry,
+                        victimRef
+                    );
+
+                if(attacker.participantRef.equals(
+                    victim.participantRef))
+                    throw new IllegalArgumentException(
+                        "PvP Hotspot self-kill"
+                    );
+
+                if(!attacker.present)
+                    throw new IllegalStateException(
+                        "attacker not present "+
+                        attacker.participantRef
+                    );
+
+                if(!victim.present)
+                    throw new IllegalStateException(
+                        "victim not present "+
+                        victim.participantRef
+                    );
+
+                final long nextAttackerKills;
+                final long nextVictimDeaths;
+
+                try{
+                    nextAttackerKills=
+                        Math.addExact(
+                            attacker.kills,
+                            1L
+                        );
+                    nextVictimDeaths=
+                        Math.addExact(
+                            victim.deaths,
+                            1L
+                        );
+                }catch(
+                    ArithmeticException overflow
+                ){
+                    throw new IllegalStateException(
+                        "PvP Hotspot counter overflow",
+                        overflow
+                    );
+                }
+
+                attacker.kills=
+                    nextAttackerKills;
+                victim.deaths=
+                    nextVictimDeaths;
+
+                result[0]=
+                    new KillResult(
+                        entry.eventId,
+                        attacker,
+                        victim,
+                        worldTick
+                    );
+            }
         );
+
+        return result[0];
     }
 
     synchronized Snapshot complete(
@@ -404,19 +439,29 @@ final class PvpHotspotService {
         long worldTick
     ){
         Entry entry=require(eventId);
+        final Snapshot[] result=
+            new Snapshot[1];
 
-        GlobalEventService.MutationResult result=
-            events.complete(
-                entry.eventId,
-                worldTick
-            );
+        withEventCompositionOwnership(
+            entry.eventId,
+            ()->{
+                GlobalEventService.MutationResult mutation=
+                    events.complete(
+                        entry.eventId,
+                        worldTick
+                    );
 
-        clearPresence(entry);
+                clearPresence(entry);
 
-        return snapshotOf(
-            entry,
-            result.snapshot
+                result[0]=
+                    snapshotOf(
+                        entry,
+                        mutation.snapshot
+                    );
+            }
         );
+
+        return result[0];
     }
 
     synchronized Snapshot cancel(
@@ -424,19 +469,29 @@ final class PvpHotspotService {
         long worldTick
     ){
         Entry entry=require(eventId);
+        final Snapshot[] result=
+            new Snapshot[1];
 
-        GlobalEventService.MutationResult result=
-            events.cancel(
-                entry.eventId,
-                worldTick
-            );
+        withEventCompositionOwnership(
+            entry.eventId,
+            ()->{
+                GlobalEventService.MutationResult mutation=
+                    events.cancel(
+                        entry.eventId,
+                        worldTick
+                    );
 
-        clearPresence(entry);
+                clearPresence(entry);
 
-        return snapshotOf(
-            entry,
-            result.snapshot
+                result[0]=
+                    snapshotOf(
+                        entry,
+                        mutation.snapshot
+                    );
+            }
         );
+
+        return result[0];
     }
 
     synchronized Snapshot get(
@@ -534,6 +589,27 @@ final class PvpHotspotService {
             );
 
         return entry;
+    }
+
+    private void withEventCompositionOwnership(
+        WorldEventId eventId,
+        GlobalEventService.EventCompositionAction action
+    ){
+        try{
+            events.withEventCompositionOwnership(
+                eventId,
+                action
+            );
+        }catch(RuntimeException failure){
+            throw failure;
+        }catch(Error failure){
+            throw failure;
+        }catch(Exception failure){
+            throw new IllegalStateException(
+                "unexpected PvP Hotspot GlobalEvent ownership failure",
+                failure
+            );
+        }
     }
 
     private GlobalEventService.Snapshot

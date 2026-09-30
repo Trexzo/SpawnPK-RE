@@ -2,13 +2,15 @@ package spk.local;
 
 import java.lang.reflect.Field;
 import java.util.*;
+import java.util.concurrent.*;
 
 public final class TournamentServiceTest {
     private static final String POLICY=
         "LOCAL_LAB_POLICY_SINGLE_ELIMINATION";
 
-    public static void main(String[] args){
+    public static void main(String[] args)throws Exception{
         tournamentLifecycle();
+        globalEventOwnershipLinearized();
         cancellationLifecycle();
         authorityGuards();
         protocolBoundary();
@@ -25,6 +27,8 @@ public final class TournamentServiceTest {
             "cancelledMatchRestoresEntrants=true "+
             "eliminatedReentryRejected=true "+
             "activeMatchBlocksTerminalEvent=true "+
+            "globalEventOwnershipLinearized=true "+
+            "lockOrderTournamentEventMatchInstance=true "+
             "explicitTournamentCompletion=true "+
             "singleEliminationPolicyExplicit=true "+
             "prizeMutation=false "+
@@ -360,6 +364,321 @@ public final class TournamentServiceTest {
             "terminal tournament registration"
         );
     }
+
+    private static void globalEventOwnershipLinearized()
+        throws Exception{
+        registrationCannotCrossLifecycleTransition();
+        matchStartupCannotCrossTerminalTransition();
+    }
+
+    private static void registrationCannotCrossLifecycleTransition()
+        throws Exception{
+        GlobalEventService events=
+            new GlobalEventService();
+        TournamentService service=
+            new TournamentService(
+                events,
+                new MatchSessionService(),
+                new WorldInstanceService()
+            );
+
+        WorldEventId eventId=
+            WorldEventId.of(
+                "tournament:owned-registration"
+            );
+
+        service.registerTournament(
+            eventDefinition(
+                eventId,
+                10L,
+                100L
+            ),
+            localRules(),
+            POLICY
+        );
+
+        ExecutorService workers=
+            Executors.newFixedThreadPool(2);
+        CountDownLatch eventOwned=
+            new CountDownLatch(1);
+        CountDownLatch allowTransition=
+            new CountDownLatch(1);
+
+        try{
+            Future<?> transition=
+                workers.submit(
+                    ()->{
+                        events.withEventCompositionOwnership(
+                            eventId,
+                            ()->{
+                                eventOwned.countDown();
+
+                                if(!allowTransition.await(
+                                        5L,
+                                        TimeUnit.SECONDS))
+                                    throw new AssertionError(
+                                        "registration transition release timeout"
+                                    );
+
+                                events.tick(10L);
+                            }
+                        );
+
+                        return null;
+                    }
+                );
+
+            require(
+                eventOwned.await(
+                    5L,
+                    TimeUnit.SECONDS
+                ),
+                "registration GlobalEvent owner did not enter"
+            );
+
+            Future<TournamentService.Snapshot> registration=
+                workers.submit(
+                    ()->service.registerEntrant(
+                        eventId,
+                        "player:blocked"
+                    )
+                );
+
+            try{
+                registration.get(
+                    200L,
+                    TimeUnit.MILLISECONDS
+                );
+                throw new AssertionError(
+                    "tournament registration crossed GlobalEvent ownership"
+                );
+            }catch(TimeoutException expected){
+                // Expected: TournamentService monitor is held while waiting
+                // for the backing GlobalEvent ownership boundary.
+            }
+
+            allowTransition.countDown();
+
+            transition.get(
+                5L,
+                TimeUnit.SECONDS
+            );
+
+            try{
+                registration.get(
+                    5L,
+                    TimeUnit.SECONDS
+                );
+                throw new AssertionError(
+                    "ACTIVE transition allowed stale registration"
+                );
+            }catch(ExecutionException failure){
+                require(
+                    failure.getCause() instanceof
+                        IllegalStateException,
+                    "blocked registration wrong failure "+
+                    failure.getCause()
+                );
+            }
+
+            TournamentService.Snapshot after=
+                service.get(eventId);
+
+            require(
+                after.eventLifecycle==
+                    GlobalEventService
+                        .Lifecycle.ACTIVE&&
+                after.entrant(
+                    "player:blocked"
+                )==null,
+                "lifecycle transition crossed tournament registration"
+            );
+        }finally{
+            allowTransition.countDown();
+            workers.shutdownNow();
+            workers.awaitTermination(
+                5L,
+                TimeUnit.SECONDS
+            );
+        }
+    }
+
+    private static void matchStartupCannotCrossTerminalTransition()
+        throws Exception{
+        GlobalEventService events=
+            new GlobalEventService();
+        MatchSessionService matches=
+            new MatchSessionService();
+        WorldInstanceService instances=
+            new WorldInstanceService();
+        TournamentService service=
+            new TournamentService(
+                events,
+                matches,
+                instances
+            );
+
+        WorldEventId eventId=
+            WorldEventId.of(
+                "tournament:owned-start"
+            );
+
+        service.registerTournament(
+            eventDefinition(
+                eventId,
+                10L,
+                100L
+            ),
+            localRules(),
+            POLICY
+        );
+        service.registerEntrant(
+            eventId,
+            "player:a"
+        );
+        service.registerEntrant(
+            eventId,
+            "player:b"
+        );
+        events.tick(10L);
+
+        MatchId matchId=
+            MatchId.of(
+                "match:tournament:owned"
+            );
+        WorldInstanceId instanceId=
+            WorldInstanceId.of(
+                "instance:tournament:owned"
+            );
+
+        ExecutorService workers=
+            Executors.newFixedThreadPool(2);
+        CountDownLatch eventOwned=
+            new CountDownLatch(1);
+        CountDownLatch allowTerminal=
+            new CountDownLatch(1);
+
+        try{
+            Future<?> terminal=
+                workers.submit(
+                    ()->{
+                        events.withEventCompositionOwnership(
+                            eventId,
+                            ()->{
+                                eventOwned.countDown();
+
+                                if(!allowTerminal.await(
+                                        5L,
+                                        TimeUnit.SECONDS))
+                                    throw new AssertionError(
+                                        "match terminal release timeout"
+                                    );
+
+                                events.complete(
+                                    eventId,
+                                    20L
+                                );
+                            }
+                        );
+
+                        return null;
+                    }
+                );
+
+            require(
+                eventOwned.await(
+                    5L,
+                    TimeUnit.SECONDS
+                ),
+                "match GlobalEvent owner did not enter"
+            );
+
+            Future<TournamentService.Snapshot> startup=
+                workers.submit(
+                    ()->service.startMatch(
+                        eventId,
+                        "player:a",
+                        "player:b",
+                        matchId,
+                        instanceId
+                    )
+                );
+
+            try{
+                startup.get(
+                    200L,
+                    TimeUnit.MILLISECONDS
+                );
+                throw new AssertionError(
+                    "Tournament startup crossed GlobalEvent ownership"
+                );
+            }catch(TimeoutException expected){
+                // Expected. GlobalEvent ownership precedes reusable match /
+                // instance composition.
+            }
+
+            require(
+                matches.size()==0&&
+                instances.size()==0,
+                "match/instance mutated before GlobalEvent ownership"
+            );
+
+            allowTerminal.countDown();
+
+            terminal.get(
+                5L,
+                TimeUnit.SECONDS
+            );
+
+            try{
+                startup.get(
+                    5L,
+                    TimeUnit.SECONDS
+                );
+                throw new AssertionError(
+                    "terminal event allowed stale Tournament startup"
+                );
+            }catch(ExecutionException failure){
+                require(
+                    failure.getCause() instanceof
+                        IllegalStateException,
+                    "blocked tournament startup wrong failure "+
+                    failure.getCause()
+                );
+            }
+
+            TournamentService.Snapshot after=
+                service.get(eventId);
+
+            require(
+                after.eventLifecycle==
+                    GlobalEventService
+                        .Lifecycle.COMPLETED&&
+                after.entrant(
+                    "player:a"
+                ).state==
+                    TournamentService
+                        .EntrantState.REGISTERED&&
+                after.entrant(
+                    "player:b"
+                ).state==
+                    TournamentService
+                        .EntrantState.REGISTERED&&
+                after.match(matchId)==null&&
+                matches.size()==0&&
+                instances.size()==0,
+                "terminal transition crossed Tournament startup composition"
+            );
+        }finally{
+            allowTerminal.countDown();
+            workers.shutdownNow();
+            workers.awaitTermination(
+                5L,
+                TimeUnit.SECONDS
+            );
+        }
+    }
+
 
     private static void cancellationLifecycle(){
         GlobalEventService events=

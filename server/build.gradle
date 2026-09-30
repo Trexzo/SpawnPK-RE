@@ -4902,6 +4902,7 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
 }
 
 tasks.named('check') {
+    dependsOn tasks.named('globalEventCompositionOwnershipRegression')
     dependsOn tasks.named('matchInstanceSessionCompositionAtomicityRegression')
     dependsOn tasks.named('clanWarSessionServiceRegression')
     dependsOn tasks.named('duelSessionServiceRegression')
@@ -5224,6 +5225,17 @@ tasks.register('worldPulseStartFailureAtomicRegression', JavaExec) {
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass = 'spk.local.WorldPulseStartFailureAtomicTest'
+}
+
+
+tasks.register('globalEventCompositionOwnershipRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves GlobalEvent composition actions retain reentrant event ownership and block concurrent lifecycle mutation.'
+    dependsOn tasks.named('testClasses')
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.GlobalEventCompositionOwnershipTest'
 }
 
 
