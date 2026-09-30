@@ -246,6 +246,13 @@ public final class NpcCombatDeadAttackerGuardTest {
     private static void aliveLifecycleUnchanged()
         throws Exception{
         World world=World.isolatedForTest(600L);
+        WorldPlayer player=
+            new WorldPlayer();
+        long generation=
+            world.registerPlayer(
+                player,
+                "alive-control-target"
+            );
         AtomicInteger acquisitionCalls=
             new AtomicInteger();
         WorldNpc npc=
@@ -257,6 +264,15 @@ public final class NpcCombatDeadAttackerGuardTest {
             );
 
         try{
+            player.movement()
+                .restoreAccountState(
+                    false,
+                    100,
+                    3088,
+                    3495,
+                    0
+                );
+
             world.npcLifecycle()
                 .register(
                     npc,
@@ -278,9 +294,16 @@ public final class NpcCombatDeadAttackerGuardTest {
                 result.status==
                     NpcCombatAiService.Status.NO_TARGET&&
                 acquisitionCalls.get()==1,
-                "alive lifecycle NPC behavior changed"
+                "alive lifecycle NPC behavior changed status="+
+                result.status+
+                " acquisitionCalls="+
+                acquisitionCalls.get()
             );
         }finally{
+            world.unregisterPlayer(
+                player,
+                generation
+            );
             world.close();
         }
     }
@@ -288,6 +311,13 @@ public final class NpcCombatDeadAttackerGuardTest {
     private static void legacyUnregisteredUnchanged()
         throws Exception{
         World world=World.isolatedForTest(600L);
+        WorldPlayer player=
+            new WorldPlayer();
+        long generation=
+            world.registerPlayer(
+                player,
+                "legacy-control-target"
+            );
         AtomicInteger acquisitionCalls=
             new AtomicInteger();
         WorldNpc npc=
@@ -299,6 +329,15 @@ public final class NpcCombatDeadAttackerGuardTest {
             );
 
         try{
+            player.movement()
+                .restoreAccountState(
+                    false,
+                    100,
+                    3088,
+                    3495,
+                    0
+                );
+
             require(
                 world.npcLifecycle()
                     .get(npc.id)==null,
@@ -319,9 +358,16 @@ public final class NpcCombatDeadAttackerGuardTest {
                 result.status==
                     NpcCombatAiService.Status.NO_TARGET&&
                 acquisitionCalls.get()==1,
-                "unregistered legacy NPC behavior changed"
+                "unregistered legacy NPC behavior changed status="+
+                result.status+
+                " acquisitionCalls="+
+                acquisitionCalls.get()
             );
         }finally{
+            world.unregisterPlayer(
+                player,
+                generation
+            );
             world.close();
         }
     }
