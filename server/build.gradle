@@ -4902,6 +4902,14 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
 }
 
 tasks.named('check') {
+    dependsOn tasks.named('pvpHotspotServiceRegression')
+    dependsOn tasks.named('npcDropResolutionServiceRegression')
+    dependsOn tasks.named('npcPlayerCombatResolutionServiceRegression')
+    dependsOn tasks.named('npcCombatResolutionServiceRegression')
+    dependsOn tasks.named('npcRespawnServiceRegression')
+    dependsOn tasks.named('npcDeadLifecycleOwnershipRegression')
+    dependsOn tasks.named('npcLifecycleServiceRegression')
+    dependsOn tasks.named('worldNpcMutationOwnershipRegression')
     dependsOn tasks.named('issue9LauncherContractRegression')
     dependsOn tasks.named('chat1CumulativeWrapperContractRegression')
     dependsOn tasks.named('chat1CurrentCumulativeServerIdentityRegression')
@@ -5220,6 +5228,112 @@ tasks.register('localSessionConstructionOwnershipRegression', JavaExec) {
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass = 'spk.local.LocalSessionConstructionOwnershipTest'
+}
+
+
+tasks.register('worldNpcMutationOwnershipRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves exact canonical WorldNpc mutation ownership linearizes concurrent remove/replace across the full caller action.'
+    dependsOn tasks.named('testClasses')
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.WorldNpcMutationOwnershipTest'
+}
+
+
+tasks.register('npcLifecycleServiceRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves canonical WorldNpc HP/death mutation is linearized by exact registry ownership and remains protocol independent.'
+    dependsOn(
+        tasks.named('testClasses'),
+        tasks.named('worldNpcMutationOwnershipRegression')
+    )
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.NpcLifecycleServiceTest'
+}
+
+
+tasks.register('npcDeadLifecycleOwnershipRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves exact DEAD NPC lifecycle identity remains owned across read-only caller execution and blocks lifecycle unregister interleaving.'
+    dependsOn(
+        tasks.named('testClasses'),
+        tasks.named('npcLifecycleServiceRegression')
+    )
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.NpcDeadLifecycleOwnershipTest'
+}
+
+
+tasks.register('npcRespawnServiceRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves dead canonical NPC retirement and fresh respawn registration are ownership-linearized and rollback-safe.'
+    dependsOn(
+        tasks.named('testClasses'),
+        tasks.named('npcLifecycleServiceRegression')
+    )
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.NpcRespawnServiceTest'
+}
+
+
+tasks.register('npcDropResolutionServiceRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves deterministic NPC death drop resolution runs under exact canonical DEAD lifecycle ownership without mutating settlement/reward state.'
+    dependsOn(
+        tasks.named('testClasses'),
+        tasks.named('npcDeadLifecycleOwnershipRegression')
+    )
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.NpcDropResolutionServiceTest'
+}
+
+
+tasks.register('npcCombatResolutionServiceRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves player-to-NPC PvM resolution holds attacker generation ownership and delegates final HP/death mutation to the exact canonical NPC lifecycle fence.'
+    dependsOn(
+        tasks.named('testClasses'),
+        tasks.named('npcLifecycleServiceRegression')
+    )
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.NpcCombatResolutionServiceTest'
+}
+
+
+tasks.register('npcPlayerCombatResolutionServiceRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves NPC-to-player damage holds exact player generation and canonical NPC ownership through caller policy and HP mutation.'
+    dependsOn(
+        tasks.named('testClasses'),
+        tasks.named('npcLifecycleServiceRegression')
+    )
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.NpcPlayerCombatResolutionServiceTest'
+}
+
+
+tasks.register('pvpHotspotServiceRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves PvP Hotspot semantic presence and caller-validated kill counters without reward, teleport, multiplier, or protocol ownership.'
+    dependsOn tasks.named('testClasses')
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.PvpHotspotServiceTest'
 }
 
 
