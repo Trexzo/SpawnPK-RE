@@ -409,6 +409,12 @@ final class ClanWarSessionService {
             matches.activate(
                 entry.matchId
             );
+
+            acquireChildHolds(
+                entry.matchId,
+                entry.instanceId,
+                childHoldKey(entry)
+            );
     
     
             }
@@ -480,6 +486,11 @@ final class ClanWarSessionService {
                 preflightOwnedInstance(
                     entry
                 );
+                releaseChildHolds(
+                    entry.matchId,
+                    entry.instanceId,
+                    childHoldKey(entry)
+                );
                 matches.complete(
                     entry.matchId,
                     result
@@ -487,11 +498,10 @@ final class ClanWarSessionService {
                 closeOwnedInstance(
                     entry
                 );
+                entry.lifecycle=
+                    Lifecycle.COMPLETED;
             }
         );
-
-        entry.lifecycle=
-            Lifecycle.COMPLETED;
 
         return entry.snapshot();
     }
@@ -510,6 +520,11 @@ final class ClanWarSessionService {
                 preflightOwnedInstance(
                     entry
                 );
+                releaseChildHolds(
+                    entry.matchId,
+                    entry.instanceId,
+                    childHoldKey(entry)
+                );
                 matches.cancel(
                     entry.matchId,
                     reasonKey
@@ -517,11 +532,10 @@ final class ClanWarSessionService {
                 closeOwnedInstance(
                     entry
                 );
+                entry.lifecycle=
+                    Lifecycle.CANCELLED;
             }
         );
-
-        entry.lifecycle=
-            Lifecycle.CANCELLED;
 
         return entry.snapshot();
     }
@@ -648,6 +662,19 @@ final class ClanWarSessionService {
     private void preflightOwnedInstance(
         Entry entry
     ){
+        MatchSession match=
+            matches.get(
+                entry.matchId
+            );
+
+        if(match==null||
+           match.state!=
+                MatchSession.State.ACTIVE)
+            throw new IllegalStateException(
+                "Clan War MatchSession not active "+
+                entry.matchId
+            );
+
         WorldInstanceService.Snapshot
             instance=
                 instances.get(
@@ -683,6 +710,55 @@ final class ClanWarSessionService {
                 expected+
                 " actual="+actual
             );
+    }
+
+    private void acquireChildHolds(
+        MatchId matchId,
+        WorldInstanceId instanceId,
+        String holdKey
+    ){
+        matches.acquireTerminalHold(
+            matchId,
+            holdKey
+        );
+
+        boolean instanceHeld=false;
+
+        try{
+            instances.acquireStructuralHold(
+                instanceId,
+                holdKey
+            );
+            instanceHeld=true;
+        }finally{
+            if(!instanceHeld)
+                matches.releaseTerminalHold(
+                    matchId,
+                    holdKey
+                );
+        }
+    }
+
+    private void releaseChildHolds(
+        MatchId matchId,
+        WorldInstanceId instanceId,
+        String holdKey
+    ){
+        instances.releaseStructuralHold(
+            instanceId,
+            holdKey
+        );
+        matches.releaseTerminalHold(
+            matchId,
+            holdKey
+        );
+    }
+
+    private static String childHoldKey(
+        Entry entry
+    ){
+        return "clan-war:"+
+            entry.challengeId.value();
     }
 
     private void closeOwnedInstance(
