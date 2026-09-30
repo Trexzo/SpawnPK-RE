@@ -20,6 +20,9 @@ public final class ClanWarSessionServiceTest {
             "callerResolvedScoring=true "+
             "completionClosesInstance=true "+
             "cancellationClosesInstance=true "+
+            "durableChildOwnership=true "+
+            "directChildTerminalBlocked=true "+
+            "directInstanceTopologyBlocked=true "+
             "definitionPreserved=true "+
             "ruleResolverExternal=true "+
             "ruleAuthorityPolicy=true "+
@@ -137,6 +140,48 @@ public final class ClanWarSessionServiceTest {
             "Clan War team membership"
         );
 
+        require(
+            matches.terminalHoldCount(
+                matchId
+            )==1&&
+            instances.structuralHoldCount(
+                instanceId
+            )==1,
+            "Clan War child ownership not retained"
+        );
+
+        expectIllegal(
+            ()->matches.complete(
+                matchId,
+                new MatchSession.Result(
+                    "external_complete",
+                    started.challengerTeamId,
+                    "LOCAL_LAB_POLICY"
+                )
+            ),
+            "direct Clan War MatchSession completion"
+        );
+        expectIllegal(
+            ()->matches.cancel(
+                matchId,
+                "external_cancel"
+            ),
+            "direct Clan War MatchSession cancellation"
+        );
+        expectIllegal(
+            ()->instances.detach(
+                instanceId,
+                "player:a1"
+            ),
+            "direct Clan War instance detach"
+        );
+        expectIllegal(
+            ()->instances.beginClosing(
+                instanceId
+            ),
+            "direct Clan War instance close admission"
+        );
+
         service.adjustClanScore(
             started.challengeId,
             challenger.id(),
@@ -200,7 +245,13 @@ public final class ClanWarSessionServiceTest {
             closed.lifecycle==
                 WorldInstanceService
                     .Lifecycle.CLOSED&&
-            closed.participants.isEmpty(),
+            closed.participants.isEmpty()&&
+            matches.terminalHoldCount(
+                matchId
+            )==0&&
+            instances.structuralHoldCount(
+                instanceId
+            )==0,
             "Clan War completion"
         );
 
@@ -675,6 +726,22 @@ public final class ClanWarSessionServiceTest {
                     );
             }
         }
+    }
+
+    private static void expectIllegal(
+        Runnable action,
+        String label
+    ){
+        try{
+            action.run();
+        }catch(IllegalStateException expected){
+            return;
+        }
+
+        throw new AssertionError(
+            label+
+            " did not fail"
+        );
     }
 
     private static void require(
