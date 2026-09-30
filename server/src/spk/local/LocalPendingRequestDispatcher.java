@@ -40,6 +40,15 @@ final class LocalPendingRequestDispatcher {
         default void handleRegionLoadAck(
             String tag
         ){}
+
+        default LocalCanonicalNpcAttackHandler.Result
+            handleCanonicalNpcAttack(
+                NpcAction action,
+                NpcEntity clicked,
+                ServerPacketWriter writer
+            )throws IOException{
+            return null;
+        }
     }
 
     private final WorldPlayer worldPlayer;
@@ -1128,6 +1137,27 @@ final class LocalPendingRequestDispatcher {
                 clicked+
                 " result="+result+
                 " approach="+approach
+            );
+            return;
+        }
+
+        LocalCanonicalNpcAttackHandler.Result
+            canonicalAttack=
+                bridge.handleCanonicalNpcAttack(
+                    action,
+                    clicked,
+                    serverPackets
+                );
+
+        if(canonicalAttack!=null){
+            System.out.println(
+                tag+
+                "CANONICAL_NPC_ATTACK_CLICK "+
+                action+
+                " clicked="+
+                clicked+
+                " result="+
+                canonicalAttack
             );
             return;
         }
