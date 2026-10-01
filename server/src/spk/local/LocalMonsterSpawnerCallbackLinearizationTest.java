@@ -1,6 +1,7 @@
 package spk.local;
 
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.util.Collections;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -30,6 +31,7 @@ public final class LocalMonsterSpawnerCallbackLinearizationTest {
         queuedWidgetRejectedAfterClosePublication();
         interfaceCloseWaitsForAdmittedWidgetTransaction();
         interfaceCloseWinningFirstRejectsWidgetTransaction();
+        rootReplacementAndMonsterOpenSerialize();
 
         System.out.println(
             "MONSTER_SPAWNER_CALLBACK_LINEARIZATION_PASS "+
@@ -52,7 +54,9 @@ public final class LocalMonsterSpawnerCallbackLinearizationTest {
             "widgetUnregisterWaits=true "+
             "widgetQueuedAfterCloseRejected=true "+
             "uiCloseWaitsForAdmittedWidget=true "+
-            "uiCloseWinningFirstRejectsWidget=true"
+            "uiCloseWinningFirstRejectsWidget=true "+
+            "rootReplacementOpenSerialized=true "+
+            "rootReplacementFinalGateMatchesRoot=true"
         );
     }
 
@@ -1896,6 +1900,290 @@ public final class LocalMonsterSpawnerCallbackLinearizationTest {
         }
     }
 
+    private static void rootReplacementAndMonsterOpenSerialize()
+        throws Exception{
+        World world=
+            World.isolatedForTest(
+                600L
+            );
+        WorldPlayer player=
+            new WorldPlayer();
+        long generation=
+            world.registerPlayer(
+                player,
+                OWNER
+            );
+        AtomicBoolean uiOpen=
+            new AtomicBoolean(
+                true
+            );
+        int[] root={41000};
+
+        CountDownLatch replacementEntered=
+            new CountDownLatch(
+                1
+            );
+        CountDownLatch releaseReplacement=
+            new CountDownLatch(
+                1
+            );
+        Throwable[] replacementFailure={null};
+        Throwable[] queuedOpenFailure={null};
+        String[] replacementResult={null};
+        boolean[] queuedOpenResult={false};
+
+        Thread replacement=
+            new Thread(
+                ()->{
+                    try{
+                        replacementResult[0]=
+                            LocalSession
+                                .replaceMonsterSpawnerRootForCurrentSession(
+                                    world,
+                                    player,
+                                    generation,
+                                    ()->{
+                                        uiOpen.set(
+                                            false
+                                        );
+                                        replacementEntered.countDown();
+
+                                        awaitIo(
+                                            releaseReplacement,
+                                            "root replacement release timeout"
+                                        );
+
+                                        root[0]=
+                                            NativeEquipmentDeathUi
+                                                .EQUIPMENT_STATS_ROOT;
+                                        return "ROOT_15106";
+                                    }
+                                );
+                    }catch(Throwable failure){
+                        replacementFailure[0]=failure;
+                    }
+                },
+                "monster-root-replacement-first"
+            );
+
+        Thread queuedOpen=
+            new Thread(
+                ()->{
+                    try{
+                        queuedOpenResult[0]=
+                            LocalSession
+                                .openMonsterSpawnerForCurrentSession(
+                                    world,
+                                    player,
+                                    generation,
+                                    ()->{
+                                        root[0]=
+                                            MonsterSpawnerPresentation
+                                                .ROOT_INTERFACE;
+                                        uiOpen.set(
+                                            true
+                                        );
+                                        return true;
+                                    }
+                                );
+                    }catch(Throwable failure){
+                        queuedOpenFailure[0]=failure;
+                    }
+                },
+                "monster-root-open-after-replacement"
+            );
+
+        try{
+            replacement.start();
+
+            await(
+                replacementEntered,
+                "root replacement did not enter World ownership"
+            );
+
+            queuedOpen.start();
+
+            awaitBlocked(
+                queuedOpen,
+                "Monster Spawner open did not wait behind root replacement"
+            );
+
+            require(
+                !uiOpen.get()&&
+                root[0]==
+                    MonsterSpawnerPresentation
+                        .ROOT_INTERFACE,
+                "replacement transaction exposed mismatched gate/root to competing World-owned open"
+            );
+
+            releaseReplacement.countDown();
+
+            join(
+                replacement,
+                "root replacement did not finish"
+            );
+            join(
+                queuedOpen,
+                "queued Monster Spawner open did not finish"
+            );
+
+            require(
+                replacementFailure[0]==null&&
+                queuedOpenFailure[0]==null&&
+                "ROOT_15106".equals(
+                    replacementResult[0]
+                )&&
+                queuedOpenResult[0]&&
+                uiOpen.get()&&
+                root[0]==
+                    MonsterSpawnerPresentation
+                        .ROOT_INTERFACE,
+                "replacement-first ordering did not leave final Monster Spawner root/gate"
+            );
+
+            uiOpen.set(
+                false
+            );
+            root[0]=
+                NativeEquipmentDeathUi
+                    .EQUIPMENT_STATS_ROOT;
+
+            CountDownLatch openEntered=
+                new CountDownLatch(
+                    1
+                );
+            CountDownLatch releaseOpen=
+                new CountDownLatch(
+                    1
+                );
+            Throwable[] openFailure={null};
+            Throwable[] queuedReplacementFailure={null};
+            boolean[] openResult={false};
+            String[] queuedReplacementResult={null};
+
+            Thread openFirst=
+                new Thread(
+                    ()->{
+                        try{
+                            openResult[0]=
+                                LocalSession
+                                    .openMonsterSpawnerForCurrentSession(
+                                        world,
+                                        player,
+                                        generation,
+                                        ()->{
+                                            openEntered.countDown();
+
+                                            awaitIo(
+                                                releaseOpen,
+                                                "Monster Spawner open release timeout"
+                                            );
+
+                                            root[0]=
+                                                MonsterSpawnerPresentation
+                                                    .ROOT_INTERFACE;
+                                            uiOpen.set(
+                                                true
+                                            );
+                                            return true;
+                                        }
+                                    );
+                        }catch(Throwable failure){
+                            openFailure[0]=failure;
+                        }
+                    },
+                    "monster-root-open-first"
+                );
+
+            Thread queuedReplacement=
+                new Thread(
+                    ()->{
+                        try{
+                            queuedReplacementResult[0]=
+                                LocalSession
+                                    .replaceMonsterSpawnerRootForCurrentSession(
+                                        world,
+                                        player,
+                                        generation,
+                                        ()->{
+                                            uiOpen.set(
+                                                false
+                                            );
+                                            root[0]=
+                                                NativeEquipmentDeathUi
+                                                    .DEATH_ROOT;
+                                            return "ROOT_17100";
+                                        }
+                                    );
+                        }catch(Throwable failure){
+                            queuedReplacementFailure[0]=failure;
+                        }
+                    },
+                    "monster-root-replacement-after-open"
+                );
+
+            openFirst.start();
+
+            await(
+                openEntered,
+                "Monster Spawner open did not enter World ownership"
+            );
+
+            queuedReplacement.start();
+
+            awaitBlocked(
+                queuedReplacement,
+                "root replacement did not wait behind Monster Spawner open"
+            );
+
+            require(
+                !uiOpen.get()&&
+                root[0]==
+                    NativeEquipmentDeathUi
+                        .EQUIPMENT_STATS_ROOT,
+                "queued replacement changed root/gate before admitted open completed"
+            );
+
+            releaseOpen.countDown();
+
+            join(
+                openFirst,
+                "Monster Spawner open-first transaction did not finish"
+            );
+            join(
+                queuedReplacement,
+                "queued root replacement did not finish"
+            );
+
+            require(
+                openFailure[0]==null&&
+                queuedReplacementFailure[0]==null&&
+                openResult[0]&&
+                "ROOT_17100".equals(
+                    queuedReplacementResult[0]
+                )&&
+                !uiOpen.get()&&
+                root[0]==
+                    NativeEquipmentDeathUi
+                        .DEATH_ROOT,
+                "open-first ordering did not leave final replacement root/gate"
+            );
+        }finally{
+            releaseReplacement.countDown();
+
+            if(world.players().owns(
+                    player,
+                    generation
+                ))
+                world.unregisterPlayer(
+                    player,
+                    generation
+                );
+
+            world.close();
+        }
+    }
+
     private static void widgetAndOpenRejectStaleGeneration()
         throws Exception{
         World world=
@@ -2300,6 +2588,28 @@ public final class LocalMonsterSpawnerCallbackLinearizationTest {
                     result.session.ownerRef
                 ),
                 "callback fixture result"
+            );
+        }
+    }
+
+    private static void awaitIo(
+        CountDownLatch latch,
+        String label
+    )throws IOException{
+        try{
+            if(!latch.await(
+                    5L,
+                    TimeUnit.SECONDS))
+                throw new AssertionError(
+                    label
+                );
+        }catch(InterruptedException failure){
+            Thread.currentThread()
+                .interrupt();
+
+            throw new IOException(
+                label,
+                failure
             );
         }
     }
