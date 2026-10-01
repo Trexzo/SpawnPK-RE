@@ -114,19 +114,12 @@ final class LocalDevPanelCoordinator {
             throw failure;
         }
 
-        try{
-            dialogKeys.publish(
-                2482,
-                2483,
-                2484,
-                2485
-            );
-        }catch(IOException sidecarFailure){
-            System.err.println(
-                "[dev-panel] dialog-key sidecar publish failed after committed target: "+
-                sidecarFailure.getMessage()
-            );
-        }
+        dialogKeys.publish(
+            2482,
+            2483,
+            2484,
+            2485
+        );
     }
 
     void render(
