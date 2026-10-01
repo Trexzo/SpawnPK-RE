@@ -98,6 +98,35 @@ final class BankState {
         }
     }
 
+    static final class PreparedPetInventoryMutation {
+        final Stack[] expectedInventory;
+        final Stack[] postimage;
+        final boolean expectedOpen;
+        final int newPetSlot;
+        final int oldPetReturnedSlot;
+        final String rejection;
+
+        PreparedPetInventoryMutation(
+            Stack[] expectedInventory,
+            Stack[] postimage,
+            boolean expectedOpen,
+            int newPetSlot,
+            int oldPetReturnedSlot,
+            String rejection
+        ){
+            this.expectedInventory=expectedInventory;
+            this.postimage=postimage;
+            this.expectedOpen=expectedOpen;
+            this.newPetSlot=newPetSlot;
+            this.oldPetReturnedSlot=oldPetReturnedSlot;
+            this.rejection=rejection;
+        }
+
+        boolean accepted(){
+            return rejection==null;
+        }
+    }
+
     static final class PreparedInventoryTransform {
         final int slot;
         final int expectedItemId;
@@ -660,6 +689,216 @@ final class BankState {
             amount,
             before,
             after
+        );
+    }
+
+    PreparedPetInventoryMutation preparePetDropInventory(
+        int slot,
+        int newItemId,
+        Integer oldItemId
+    ){
+        Stack[] expected=
+            copyStacks(inventory);
+
+        if(!validSlot(expected,slot)||
+           expected[slot]==null)
+            return new PreparedPetInventoryMutation(
+                expected,
+                null,
+                open,
+                slot,
+                -1,
+                "REJECTED_INVENTORY_SLOT"
+            );
+
+        Stack clicked=expected[slot];
+
+        if(clicked.itemId!=newItemId)
+            return new PreparedPetInventoryMutation(
+                expected,
+                null,
+                open,
+                slot,
+                -1,
+                "REJECTED_INVENTORY_ITEM_MISMATCH expected="+
+                    clicked.itemId
+            );
+
+        if(clicked.qty<=0)
+            return new PreparedPetInventoryMutation(
+                expected,
+                null,
+                open,
+                slot,
+                -1,
+                "REJECTED_INVENTORY_QTY"
+            );
+
+        Stack[] next=
+            copyStacks(expected);
+        next[slot].qty--;
+        if(next[slot].qty==0)
+            next[slot]=null;
+
+        int restored=-1;
+
+        if(oldItemId!=null&&oldItemId>=0){
+            int old=oldItemId;
+            int dst=-1;
+
+            if(validSlot(next,slot)){
+                Stack at=next[slot];
+                if(at==null)
+                    dst=slot;
+                else if(isStackable(old)&&
+                        at.itemId==old&&
+                        at.qty<Integer.MAX_VALUE)
+                    dst=slot;
+            }
+
+            if(dst<0&&isStackable(old))
+                dst=findItem(next,old);
+
+            if(dst<0)
+                dst=firstEmpty(next);
+
+            if(dst<0)
+                return new PreparedPetInventoryMutation(
+                    expected,
+                    null,
+                    open,
+                    slot,
+                    -1,
+                    "REJECTED_INVENTORY_FULL_FOR_OLD_PET"
+                );
+
+            if(next[dst]!=null&&
+               (next[dst].itemId!=old||
+                next[dst].qty==Integer.MAX_VALUE))
+                return new PreparedPetInventoryMutation(
+                    expected,
+                    null,
+                    open,
+                    slot,
+                    -1,
+                    "REJECTED_INVENTORY_FULL_FOR_OLD_PET"
+                );
+
+            if(next[dst]==null)
+                next[dst]=
+                    new Stack(
+                        old,
+                        0
+                    );
+
+            next[dst].qty++;
+            restored=dst;
+        }
+
+        return new PreparedPetInventoryMutation(
+            expected,
+            next,
+            open,
+            slot,
+            restored,
+            null
+        );
+    }
+
+    PreparedPetInventoryMutation preparePetPickupInventory(
+        int itemId
+    ){
+        Stack[] expected=
+            copyStacks(inventory);
+        Stack[] next=
+            copyStacks(expected);
+
+        int dst=
+            isStackable(itemId)
+                ?findItem(next,itemId)
+                :-1;
+
+        if(dst<0)
+            dst=firstEmpty(next);
+
+        if(dst<0)
+            return new PreparedPetInventoryMutation(
+                expected,
+                null,
+                open,
+                -1,
+                -1,
+                "REJECTED_INVENTORY_FULL"
+            );
+
+        if(next[dst]!=null&&
+           next[dst].qty==Integer.MAX_VALUE)
+            return new PreparedPetInventoryMutation(
+                expected,
+                null,
+                open,
+                -1,
+                -1,
+                "REJECTED_INVENTORY_QTY_OVERFLOW"
+            );
+
+        if(next[dst]==null)
+            next[dst]=
+                new Stack(
+                    itemId,
+                    0
+                );
+
+        next[dst].qty++;
+
+        return new PreparedPetInventoryMutation(
+            expected,
+            next,
+            open,
+            -1,
+            dst,
+            null
+        );
+    }
+
+    void publishPreparedPetInventory(
+        PreparedPetInventoryMutation prepared,
+        ServerPacketWriter w
+    )throws IOException{
+        if(prepared==null||
+           !prepared.accepted())
+            throw new IllegalArgumentException(
+                "accepted prepared pet inventory required"
+            );
+
+        publishNormalInventoryStructuralPostimage(
+            w,
+            prepared.postimage,
+            prepared.expectedOpen
+        );
+    }
+
+    void commitPreparedPetInventory(
+        PreparedPetInventoryMutation prepared
+    ){
+        if(prepared==null||
+           !prepared.accepted())
+            throw new IllegalArgumentException(
+                "accepted prepared pet inventory required"
+            );
+
+        if(open!=prepared.expectedOpen||
+           !sameStacks(
+                inventory,
+                prepared.expectedInventory
+           ))
+            throw new IllegalStateException(
+                "pet inventory preimage changed before commit"
+            );
+
+        replaceStacks(
+            inventory,
+            prepared.postimage
         );
     }
 
