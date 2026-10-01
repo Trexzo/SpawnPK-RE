@@ -676,6 +676,7 @@ public final class LocalBankObjectInteractionHandlerTest {
             testBankTransferPublicationAtomicity();
             testBankStructuralPublicationAtomicity();
             testBankTransferQuantityOverflow();
+            testGenericInventoryPublicationAtomicity();
 
             System.out.println(
                 "LOCAL_BANK_OBJECT_HANDLER_PASS "+
@@ -706,7 +707,9 @@ public final class LocalBankObjectInteractionHandlerTest {
                 "setBankTabFailureAtomic=true "+
                 "swapBankTabFailureAtomic=true "+
                 "bankTransferOverflowRejected=true "+
-                "bankTransferMaxBoundary=true"
+                "bankTransferMaxBoundary=true "+
+                "genericInventoryPublicationAtomic=true "+
+                "genericInventoryOpenBankMirrorAtomic=true"
             );
         }finally{
             if(player.registered())
@@ -1670,6 +1673,268 @@ public final class LocalBankObjectInteractionHandlerTest {
            tabs.bankAt(1).tab!=1)
             throw new AssertionError(
                 "swapbanktab retry did not commit"
+            );
+    }
+
+    private static void testGenericInventoryPublicationAtomicity()
+        throws Exception
+    {
+        BankState bank=new BankState();
+        ByteArrayOutputStream goodWire=
+            new ByteArrayOutputStream();
+        ServerPacketWriter good=
+            new ServerPacketWriter(
+                goodWire,
+                new IsaacCipher(
+                    new int[]{121,122,123,124}
+                )
+            );
+
+        // Stackable fixture: failed consume-one must preserve the exact count,
+        // then a working retry must commit one decrement.
+        if(bank.spawnItem(995,2,good)==null)
+            throw new AssertionError(
+                "generic inventory coin fixture failed"
+            );
+
+        int coinSlot=-1;
+        for(int i=0;i<bank.inventoryCapacity();i++){
+            BankState.Stack stack=bank.inventoryAt(i);
+            if(stack!=null&&stack.itemId==995){
+                coinSlot=i;
+                break;
+            }
+        }
+        if(coinSlot<0)
+            throw new AssertionError(
+                "generic inventory coin fixture missing"
+            );
+
+        int coinsBefore=bank.inventoryCount(995);
+        boolean consumeOneFailed=false;
+        try{
+            bank.consumeInventoryOne(
+                coinSlot,
+                995,
+                queueWriter(
+                    fullQueue(),
+                    new int[]{125,126,127,128}
+                )
+            );
+        }catch(java.io.IOException expected){
+            consumeOneFailed=true;
+        }
+        if(!consumeOneFailed||
+           bank.inventoryCount(995)!=coinsBefore)
+            throw new AssertionError(
+                "failed consume-one mutated canonical inventory"
+            );
+
+        String consumeRetry=
+            bank.consumeInventoryOne(
+                coinSlot,
+                995,
+                good
+            );
+        if(consumeRetry==null||
+           !consumeRetry.contains(
+                "INVENTORY_CONSUME_OK"
+           )||
+           bank.inventoryCount(995)!=
+                coinsBefore-1)
+            throw new AssertionError(
+                "consume-one retry did not commit"
+            );
+
+        // Add-one into a concrete non-stackable destination.
+        int sharksBefore=bank.inventoryCount(385);
+        boolean addOneFailed=false;
+        try{
+            bank.addInventoryOne(
+                385,
+                queueWriter(
+                    fullQueue(),
+                    new int[]{129,130,131,132}
+                )
+            );
+        }catch(java.io.IOException expected){
+            addOneFailed=true;
+        }
+        if(!addOneFailed||
+           bank.inventoryCount(385)!=sharksBefore)
+            throw new AssertionError(
+                "failed add-one mutated canonical inventory"
+            );
+
+        int sharkSlot=
+            bank.addInventoryOne(
+                385,
+                good
+            );
+        if(sharkSlot<0||
+           bank.inventoryCount(385)!=sharksBefore+1)
+            throw new AssertionError(
+                "add-one retry did not commit"
+            );
+
+        // Preferred-slot add must preserve its exact chosen destination on retry.
+        int preferred=-1;
+        for(int i=0;i<bank.inventoryCapacity();i++)
+            if(bank.inventoryAt(i)==null){
+                preferred=i;
+                break;
+            }
+        if(preferred<0)
+            throw new AssertionError(
+                "preferred-slot fixture has no empty slot"
+            );
+
+        int preferredCountBefore=
+            bank.inventoryCount(385);
+        boolean preferredFailed=false;
+        try{
+            bank.addInventoryOnePreferred(
+                385,
+                preferred,
+                queueWriter(
+                    fullQueue(),
+                    new int[]{133,134,135,136}
+                )
+            );
+        }catch(java.io.IOException expected){
+            preferredFailed=true;
+        }
+        if(!preferredFailed||
+           bank.inventoryAt(preferred)!=null||
+           bank.inventoryCount(385)!=
+                preferredCountBefore)
+            throw new AssertionError(
+                "failed preferred add mutated canonical inventory"
+            );
+
+        int preferredResult=
+            bank.addInventoryOnePreferred(
+                385,
+                preferred,
+                good
+            );
+        if(preferredResult!=preferred||
+           bank.inventoryAt(preferred)==null||
+           bank.inventoryAt(preferred).itemId!=385)
+            throw new AssertionError(
+                "preferred add retry changed destination"
+            );
+
+        // Consume-all must preserve the entire concrete stack when publication fails.
+        int consumeAllSlot=preferred;
+        int consumeAllQty=
+            bank.inventoryAt(
+                consumeAllSlot
+            ).qty;
+        boolean consumeAllFailed=false;
+        try{
+            bank.consumeInventoryAll(
+                consumeAllSlot,
+                385,
+                queueWriter(
+                    fullQueue(),
+                    new int[]{137,138,139,140}
+                )
+            );
+        }catch(java.io.IOException expected){
+            consumeAllFailed=true;
+        }
+        if(!consumeAllFailed||
+           bank.inventoryAt(consumeAllSlot)==null||
+           bank.inventoryAt(consumeAllSlot).qty!=
+                consumeAllQty)
+            throw new AssertionError(
+                "failed consume-all mutated canonical inventory"
+            );
+
+        int consumed=
+            bank.consumeInventoryAll(
+                consumeAllSlot,
+                385,
+                good
+            );
+        if(consumed!=consumeAllQty||
+           bank.inventoryAt(consumeAllSlot)!=null)
+            throw new AssertionError(
+                "consume-all retry did not commit exact stack"
+            );
+
+        // Add-amount uses the same prospective postimage while Bank is closed.
+        int coinsBeforeAmount=
+            bank.inventoryCount(995);
+        boolean addAmountFailed=false;
+        try{
+            bank.addInventoryAmount(
+                995,
+                3,
+                queueWriter(
+                    fullQueue(),
+                    new int[]{141,142,143,144}
+                )
+            );
+        }catch(java.io.IOException expected){
+            addAmountFailed=true;
+        }
+        if(!addAmountFailed||
+           bank.inventoryCount(995)!=
+                coinsBeforeAmount)
+            throw new AssertionError(
+                "failed add-amount mutated canonical inventory"
+            );
+
+        int amountSlot=
+            bank.addInventoryAmount(
+                995,
+                3,
+                good
+            );
+        if(amountSlot<0||
+           bank.inventoryCount(995)!=
+                coinsBeforeAmount+3)
+            throw new AssertionError(
+                "add-amount retry did not commit"
+            );
+
+        // Open-Bank mirror must be part of the same publication boundary.
+        bank.open(good);
+        int openCoinsBefore=
+            bank.inventoryCount(995);
+        boolean openMirrorFailed=false;
+        try{
+            bank.addInventoryAmount(
+                995,
+                2,
+                queueWriter(
+                    fullQueue(),
+                    new int[]{145,146,147,148}
+                )
+            );
+        }catch(java.io.IOException expected){
+            openMirrorFailed=true;
+        }
+        if(!openMirrorFailed||
+           bank.inventoryCount(995)!=
+                openCoinsBefore)
+            throw new AssertionError(
+                "failed open-bank mirrored add mutated canonical inventory"
+            );
+
+        int openRetry=
+            bank.addInventoryAmount(
+                995,
+                2,
+                good
+            );
+        if(openRetry<0||
+           bank.inventoryCount(995)!=
+                openCoinsBefore+2)
+            throw new AssertionError(
+                "open-bank mirrored retry did not commit"
             );
     }
 
