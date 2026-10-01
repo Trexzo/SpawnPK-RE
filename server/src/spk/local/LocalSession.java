@@ -423,9 +423,21 @@ final class LocalSession implements Runnable {
                 @Override public void openDevPanel(
                     ServerPacketWriter writer
                 )throws IOException{
-                    LocalSession.this.devPanelCoordinator.open(
-                        DevControlCenter.Page.MAIN,
-                        writer
+                    replaceMonsterSpawnerRootForCurrentSession(
+                        LocalSession.this.world,
+                        LocalSession.this.worldPlayer,
+                        LocalSession.this.worldPlayerGeneration,
+                        ()->
+                            LocalSession.this.uiActions
+                                .publishCompetingRootForOwnedSession(
+                                    ()->{
+                                        LocalSession.this.devPanelCoordinator.open(
+                                            DevControlCenter.Page.MAIN,
+                                            writer
+                                        );
+                                        return "DEV_PANEL_ROOT_OPENED";
+                                    }
+                                )
                     );
                 }
 
