@@ -1,13 +1,8 @@
 package spk.local;
 
 import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.OutputStream;
 import java.lang.reflect.Field;
 import java.util.Map;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
 
 public final class Player81BatchAbortAtomicityTest {
     public static void main(String[] args)throws Exception{
@@ -244,165 +239,168 @@ public final class Player81BatchAbortAtomicityTest {
     private static void testOwnershipCommitBarrier()
         throws Exception
     {
-        World world=
+        World staleWorld=
             World.isolatedForTest(601L);
-        WorldPlayer player=
+        WorldPlayer stalePlayer=
             new WorldPlayer();
 
-        world.registerPlayer(
-            player,
-            "player81-owner-barrier"
+        staleWorld.registerPlayer(
+            stalePlayer,
+            "player81-stale-owner"
         );
 
-        BlockingOutputStream output=
-            new BlockingOutputStream();
-        ServerPacketWriter writer=
+        OutboundPacketQueue staleQueue=
+            new OutboundPacketQueue();
+        ServerPacketWriter staleWriter=
             new ServerPacketWriter(
-                output,
+                staleQueue,
                 new IsaacCipher(
                     new int[]{9,10,11,12}
                 )
             );
 
         Player81WorldSync.register(
-            writer,
-            world,
-            player,
+            staleWriter,
+            staleWorld,
+            stalePlayer,
             new DevAuthorityWorkbench()
         );
 
         try{
-            writer.beginBatch();
-            writer.varShort(
+            long sequenceBefore=
+                sequence(staleWorld);
+
+            staleWriter.beginBatch();
+            staleWriter.varShort(
                 81,
                 BootstrapPackets.player81Idle()
             );
 
             Player81WorldSync.PreparedBatch prepared=
-                preparedBatch(writer);
+                preparedBatch(staleWriter);
 
             if(prepared==null||
                prepared.completed)
                 throw new AssertionError(
-                    "ownership barrier fixture did not stage Player81"
+                    "stale-owner fixture did not stage Player81"
                 );
 
-            AtomicReference<Throwable> commitFailure=
-                new AtomicReference<>();
-            AtomicReference<Throwable> unregisterFailure=
-                new AtomicReference<>();
-            boolean[] unregistered=
-                new boolean[]{false};
-
-            Thread commitThread=
-                new Thread(
-                    ()->{
-                        try{
-                            writer.endBatch();
-                        }catch(Throwable failure){
-                            commitFailure.set(
-                                failure
-                            );
-                        }
-                    },
-                    "player81-owner-commit"
-                );
-
-            CountDownLatch unregisterStarted=
-                new CountDownLatch(1);
-            Thread unregisterThread=
-                new Thread(
-                    ()->{
-                        unregisterStarted.countDown();
-
-                        try{
-                            unregistered[0]=
-                                world.unregisterPlayer(
-                                    player
-                                );
-                        }catch(Throwable failure){
-                            unregisterFailure.set(
-                                failure
-                            );
-                        }
-                    },
-                    "player81-owner-unregister"
-                );
-
-            commitThread.start();
-
-            if(!output.entered.await(
-                    5,
-                    TimeUnit.SECONDS))
+            if(!staleWorld.unregisterPlayer(
+                    stalePlayer))
                 throw new AssertionError(
-                    "packet81 transport did not reach blocking write"
+                    "failed to invalidate staged Player81 owner"
                 );
 
-            unregisterThread.start();
+            boolean staleRejected=false;
+            try{
+                staleWriter.endBatch();
+            }catch(java.io.IOException expected){
+                staleRejected=
+                    expected.getMessage()!=null&&
+                    expected.getMessage().contains(
+                        "owner stale"
+                    );
+            }
 
-            if(!unregisterStarted.await(
-                    5,
-                    TimeUnit.SECONDS))
+            if(!staleRejected)
                 throw new AssertionError(
-                    "unregister thread did not start"
+                    "stale staged Player81 commit was not rejected"
                 );
 
-            unregisterThread.join(200L);
-
-            if(!unregisterThread.isAlive())
+            if(staleQueue.queuedBytes()!=0)
                 throw new AssertionError(
-                    "unregister interleaved before transport/semantic commit completed"
+                    "stale staged Player81 admitted transport bytes"
                 );
 
-            output.release.countDown();
-
-            commitThread.join(5_000L);
-            unregisterThread.join(5_000L);
-
-            if(commitThread.isAlive()||
-               unregisterThread.isAlive())
+            if(prepared.completed)
                 throw new AssertionError(
-                    "ownership barrier threads did not complete"
+                    "stale staged Player81 committed semantic state"
                 );
 
-            if(commitFailure.get()!=null)
+            if(sequence(staleWorld)!=
+                    sequenceBefore)
                 throw new AssertionError(
-                    "packet81 ownership-coupled commit failed",
-                    commitFailure.get()
+                    "stale staged Player81 advanced shared sequence"
                 );
 
-            if(unregisterFailure.get()!=null)
-                throw new AssertionError(
-                    "player unregister failed",
-                    unregisterFailure.get()
-                );
-
-            if(!unregistered[0])
-                throw new AssertionError(
-                    "player unregister did not complete after commit"
-                );
-
-            if(!prepared.completed)
-                throw new AssertionError(
-                    "semantic Player81 postimage was not committed before unregister"
-                );
-
-            if(output.bytes.size()==0)
-                throw new AssertionError(
-                    "ownership-coupled packet81 commit emitted no bytes"
-                );
+            staleWriter.abortBatch();
         }finally{
-            output.release.countDown();
             Player81WorldSync.unregister(
-                writer
+                staleWriter
+            );
+            if(stalePlayer.registered())
+                staleWorld.unregisterPlayer(
+                    stalePlayer
+                );
+            staleWorld.close();
+        }
+
+        World freshWorld=
+            World.isolatedForTest(602L);
+        WorldPlayer freshPlayer=
+            new WorldPlayer();
+        freshWorld.registerPlayer(
+            freshPlayer,
+            "player81-fresh-owner"
+        );
+
+        OutboundPacketQueue freshQueue=
+            new OutboundPacketQueue();
+        ServerPacketWriter freshWriter=
+            new ServerPacketWriter(
+                freshQueue,
+                new IsaacCipher(
+                    new int[]{13,14,15,16}
+                )
             );
 
-            if(player.registered())
-                world.unregisterPlayer(
-                    player
+        Player81WorldSync.register(
+            freshWriter,
+            freshWorld,
+            freshPlayer,
+            new DevAuthorityWorkbench()
+        );
+
+        try{
+            long sequenceBefore=
+                sequence(freshWorld);
+
+            freshWriter.beginBatch();
+            freshWriter.varShort(
+                81,
+                BootstrapPackets.player81WalkStep(4)
+            );
+
+            Player81WorldSync.PreparedBatch prepared=
+                preparedBatch(freshWriter);
+
+            freshWriter.endBatch();
+
+            if(freshQueue.queuedBytes()==0)
+                throw new AssertionError(
+                    "fresh joint commit admitted no transport bytes"
                 );
 
-            world.close();
+            if(prepared==null||
+               !prepared.completed)
+                throw new AssertionError(
+                    "fresh joint commit did not commit semantic state"
+                );
+
+            if(sequence(freshWorld)<=
+                    sequenceBefore)
+                throw new AssertionError(
+                    "fresh joint commit did not advance shared sequence"
+                );
+        }finally{
+            Player81WorldSync.unregister(
+                freshWriter
+            );
+            if(freshPlayer.registered())
+                freshWorld.unregisterPlayer(
+                    freshPlayer
+                );
+            freshWorld.close();
         }
     }
 
@@ -417,56 +415,6 @@ public final class Player81BatchAbortAtomicityTest {
         field.setAccessible(true);
         return (Player81WorldSync.PreparedBatch)
             field.get(writer);
-    }
-
-    private static final class BlockingOutputStream
-        extends OutputStream
-    {
-        final ByteArrayOutputStream bytes=
-            new ByteArrayOutputStream();
-        final CountDownLatch entered=
-            new CountDownLatch(1);
-        final CountDownLatch release=
-            new CountDownLatch(1);
-
-        @Override public void write(int value)
-            throws IOException
-        {
-            write(
-                new byte[]{(byte)value},
-                0,
-                1
-            );
-        }
-
-        @Override public void write(
-            byte[] data,
-            int offset,
-            int length
-        )throws IOException{
-            entered.countDown();
-
-            try{
-                if(!release.await(
-                        5,
-                        TimeUnit.SECONDS))
-                    throw new IOException(
-                        "blocking transport release timeout"
-                    );
-            }catch(InterruptedException interrupted){
-                Thread.currentThread().interrupt();
-                throw new IOException(
-                    "blocking transport interrupted",
-                    interrupted
-                );
-            }
-
-            bytes.write(
-                data,
-                offset,
-                length
-            );
-        }
     }
 
     private static NpcEntity[] bootstrapSharedHome(
