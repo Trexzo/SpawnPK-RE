@@ -671,6 +671,11 @@ final class TradeService {
                     )
                 )
             );
+            if(context.pendingX!=null)
+                context.writer.fixed(
+                    27,
+                    new byte[0]
+                );
             return;
         }
 
