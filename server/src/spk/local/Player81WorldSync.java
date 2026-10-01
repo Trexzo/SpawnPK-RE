@@ -22,6 +22,193 @@ final class Player81WorldSync {
 
     private Player81WorldSync(){}
 
+    static final class BatchTransform {
+        final byte[] body;
+        final BatchTransaction transaction;
+
+        BatchTransform(
+            byte[] body,
+            BatchTransaction transaction
+        ){
+            this.body=body;
+            this.transaction=transaction;
+        }
+    }
+
+    static final class BatchTransaction {
+        final ServerPacketWriter writer;
+        final Context context;
+        PresentationSnapshot staged;
+
+        BatchTransaction(
+            ServerPacketWriter writer,
+            Context context
+        ){
+            this.writer=writer;
+            this.context=context;
+        }
+
+        void commit(){
+            Context candidate=context;
+
+            try{
+                candidate.state.world
+                    .withOpenPlayerOwnershipIfCurrent(
+                        candidate.owner,
+                        candidate.ownerGeneration,
+                        ()->{
+                            synchronized(Player81WorldSync.class){
+                                if(BY_WRITER.get(writer)!=candidate)
+                                    return;
+                            }
+
+                            synchronized(candidate){
+                                if(staged!=null)
+                                    staged.apply(candidate);
+                            }
+                        }
+                    );
+            }catch(Throwable failure){
+                throw new IllegalStateException(
+                    "batched Player81 presentation commit failed",
+                    failure
+                );
+            }
+        }
+    }
+
+    private static final class PresentationSnapshot {
+        final long sequence;
+        final HashMap<EntityId,Motion> motions;
+        final HashMap<EntityId,ArrayDeque<Event>> events;
+        final LinkedHashMap<EntityId,Track> visible;
+        final HashMap<EntityId,Integer> reservedIndexes;
+
+        PresentationSnapshot(
+            long sequence,
+            HashMap<EntityId,Motion> motions,
+            HashMap<EntityId,ArrayDeque<Event>> events,
+            LinkedHashMap<EntityId,Track> visible,
+            HashMap<EntityId,Integer> reservedIndexes
+        ){
+            this.sequence=sequence;
+            this.motions=motions;
+            this.events=events;
+            this.visible=visible;
+            this.reservedIndexes=reservedIndexes;
+        }
+
+        static PresentationSnapshot capture(
+            Context context
+        ){
+            synchronized(context){
+                WorldState state=context.state;
+
+                synchronized(state){
+                    HashMap<EntityId,Motion> motionCopy=
+                        new HashMap<>(
+                            state.motions
+                        );
+                    HashMap<EntityId,ArrayDeque<Event>> eventCopy=
+                        new HashMap<>();
+
+                    for(Map.Entry<EntityId,ArrayDeque<Event>> entry:
+                            state.events.entrySet())
+                        eventCopy.put(
+                            entry.getKey(),
+                            new ArrayDeque<>(
+                                entry.getValue()
+                            )
+                        );
+
+                    LinkedHashMap<EntityId,Track> visibleCopy=
+                        new LinkedHashMap<>();
+
+                    for(Map.Entry<EntityId,Track> entry:
+                            context.visible.entrySet())
+                        visibleCopy.put(
+                            entry.getKey(),
+                            copyTrack(
+                                entry.getValue()
+                            )
+                        );
+
+                    return new PresentationSnapshot(
+                        state.sequence,
+                        motionCopy,
+                        eventCopy,
+                        visibleCopy,
+                        new HashMap<>(
+                            context.reservedIndexes
+                        )
+                    );
+                }
+            }
+        }
+
+        void apply(
+            Context context
+        ){
+            synchronized(context){
+                WorldState state=context.state;
+
+                synchronized(state){
+                    state.sequence=sequence;
+                    state.motions.clear();
+                    state.motions.putAll(motions);
+                    state.events.clear();
+
+                    for(Map.Entry<EntityId,ArrayDeque<Event>> entry:
+                            events.entrySet())
+                        state.events.put(
+                            entry.getKey(),
+                            new ArrayDeque<>(
+                                entry.getValue()
+                            )
+                        );
+
+                    context.visible.clear();
+
+                    for(Map.Entry<EntityId,Track> entry:
+                            visible.entrySet())
+                        context.visible.put(
+                            entry.getKey(),
+                            copyTrack(
+                                entry.getValue()
+                            )
+                        );
+
+                    context.reservedIndexes.clear();
+                    context.reservedIndexes.putAll(
+                        reservedIndexes
+                    );
+                }
+            }
+        }
+    }
+
+    private static Track copyTrack(
+        Track source
+    ){
+        Track copy=
+            new Track(
+                source.id,
+                source.generation,
+                source.clientIndex,
+                source.x,
+                source.y,
+                source.plane
+            );
+
+        copy.appearanceHash=
+            source.appearanceHash;
+        copy.lastMotionSeq=
+            source.lastMotionSeq;
+        copy.lastEventSeq=
+            source.lastEventSeq;
+        return copy;
+    }
+
     static synchronized Context register(ServerPacketWriter writer,World world,WorldPlayer owner,DevAuthorityWorkbench dev){
         if(writer==null||world==null||owner==null)throw new NullPointerException();
 
@@ -236,6 +423,107 @@ final class Player81WorldSync {
         c.closed=true;
         if(c.state.contexts.isEmpty())
             BY_WORLD.remove(c.state.world);
+    }
+
+    static BatchTransform transformBatched(
+        ServerPacketWriter writer,
+        byte[] body,
+        BatchTransaction prior
+    ){
+        if(body==null)
+            return new BatchTransform(
+                null,
+                prior
+            );
+
+        final Context candidate;
+
+        synchronized(Player81WorldSync.class){
+            candidate=
+                BY_WRITER.get(writer);
+        }
+
+        if(candidate==null)
+            return new BatchTransform(
+                body,
+                prior
+            );
+
+        if(prior!=null&&
+           (prior.writer!=writer||
+            prior.context!=candidate))
+            throw new IllegalStateException(
+                "Player81 batch transaction owner changed"
+            );
+
+        final BatchTransaction transaction=
+            prior==null
+                ?new BatchTransaction(
+                    writer,
+                    candidate
+                )
+                :prior;
+        final byte[][] transformed=
+            new byte[][]{body};
+
+        try{
+            boolean accepted=
+                candidate.state.world
+                    .withOpenPlayerOwnershipIfCurrent(
+                        candidate.owner,
+                        candidate.ownerGeneration,
+                        ()->{
+                            synchronized(Player81WorldSync.class){
+                                if(BY_WRITER.get(writer)!=candidate)
+                                    return;
+                            }
+
+                            PresentationSnapshot live=
+                                PresentationSnapshot.capture(
+                                    candidate
+                                );
+
+                            try{
+                                if(transaction.staged!=null)
+                                    transaction.staged.apply(
+                                        candidate
+                                    );
+
+                                transformed[0]=
+                                    candidate.transform(
+                                        body
+                                    );
+
+                                transaction.staged=
+                                    PresentationSnapshot.capture(
+                                        candidate
+                                    );
+                            }finally{
+                                live.apply(candidate);
+                            }
+                        }
+                    );
+
+            return new BatchTransform(
+                accepted
+                    ?transformed[0]
+                    :body,
+                accepted
+                    ?transaction
+                    :prior
+            );
+        }catch(Throwable failure){
+            System.err.println(
+                "[ENGINE-R3] batched player81 merge failed for "+
+                candidate.owner.id()+": "+failure+
+                "; using certified local-only body"
+            );
+
+            return new BatchTransform(
+                body,
+                prior
+            );
+        }
     }
 
     static byte[] transform(
