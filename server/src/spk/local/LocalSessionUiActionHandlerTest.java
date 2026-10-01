@@ -1019,6 +1019,10 @@ public final class LocalSessionUiActionHandlerTest {
                 "Monster Spawner did not reopen before Dev Panel death root"
             );
 
+        routedDevPanel.open(
+            DevControlCenter.Page.ITEMS
+        );
+
         int devDeathWireBefore=
             wire.size();
         int devDeathResultsBefore=
