@@ -663,6 +663,14 @@ final class LocalSession implements Runnable {
                     LocalSession.this.logoutRequested=true;
                 }
             });
+
+        this.bankObjectHandler.installRootOwner(
+            action->
+                this.uiActions.replaceMonsterSpawnerRoot(
+                    ()->action.open()
+                )
+        );
+
         this.petDropPickup = new LocalPetDropPickupHandler(
             world,
             bank,
