@@ -1051,6 +1051,29 @@ final class LocalSession implements Runnable {
             WorldPlayer player,
             String canonicalUsername
         )throws Exception{
+        WorldPlayer checkedPlayer=
+            java.util.Objects.requireNonNull(
+                player,
+                "player"
+            );
+
+        return resolveMonsterSpawnerUiAfterLogin(
+            factory,
+            world,
+            checkedPlayer,
+            checkedPlayer.generation(),
+            canonicalUsername
+        );
+    }
+
+    static LocalMonsterSpawnerUiHandler
+        resolveMonsterSpawnerUiAfterLogin(
+            MonsterSpawnerUiFactory factory,
+            World world,
+            WorldPlayer player,
+            long expectedGeneration,
+            String canonicalUsername
+        )throws Exception{
         if(factory==null)
             return null;
 
@@ -1068,26 +1091,55 @@ final class LocalSession implements Runnable {
             PartyService.requireRef(
                 canonicalUsername
             );
+        final LocalMonsterSpawnerUiHandler[] resolved={
+            null
+        };
 
-        LocalMonsterSpawnerUiHandler adapter=
-            factory.create(
-                checkedWorld,
-                checkedPlayer,
-                username
+        boolean delivered=
+            checkedWorld
+                .withOpenPlayerMutationOwnershipIfCurrent(
+                    checkedPlayer,
+                    expectedGeneration,
+                    ()->{
+                        LocalMonsterSpawnerUiHandler adapter=
+                            factory.create(
+                                checkedWorld,
+                                checkedPlayer,
+                                username
+                            );
+
+                        if(adapter==null)
+                            return;
+
+                        if(!adapter.isBoundToOwner(
+                                username
+                            ))
+                            throw new IllegalArgumentException(
+                                "Monster Spawner UI owner differs from canonical session account "+
+                                username
+                            );
+
+                        if(!adapter.isBoundTo(
+                                checkedWorld
+                            ))
+                            throw new IllegalArgumentException(
+                                "Monster Spawner UI service belongs to another World account="+
+                                username
+                            );
+
+                        resolved[0]=adapter;
+                    }
+                );
+
+        if(!delivered)
+            throw new IllegalStateException(
+                "Monster Spawner UI factory rejected by World/player ownership fence owner="+
+                username+
+                " expectedGeneration="+
+                expectedGeneration
             );
 
-        if(adapter==null)
-            return null;
-
-        if(!adapter.isBoundToOwner(
-                username
-            ))
-            throw new IllegalArgumentException(
-                "Monster Spawner UI owner differs from canonical session account "+
-                username
-            );
-
-        return adapter;
+        return resolved[0];
     }
 
     @Override public void run() {
@@ -1115,6 +1167,7 @@ final class LocalSession implements Runnable {
                     monsterSpawnerUiFactory,
                     world,
                     worldPlayer,
+                    worldPlayerGeneration,
                     username
                 );
 
