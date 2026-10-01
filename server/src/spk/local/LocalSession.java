@@ -666,14 +666,14 @@ final class LocalSession implements Runnable {
 
         this.bankObjectHandler.installRootOwner(
             action->
-                this.uiActions.replaceMonsterSpawnerRoot(
+                this.uiActions.replaceMonsterSpawnerWithBankRoot(
                     ()->action.open()
                 )
         );
 
         this.routedNpcHandler.installBankRootOwner(
             action->
-                this.uiActions.replaceMonsterSpawnerRoot(
+                this.uiActions.replaceMonsterSpawnerWithBankRoot(
                     ()->action.open()
                 )
         );
