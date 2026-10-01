@@ -71,21 +71,55 @@ final class LocalDevPanelCoordinator {
         DevControlCenter.Page page,
         ServerPacketWriter writer
     )throws IOException{
-        if(bank.isOpen())
-            bank.close(writer);
+        DevControlCenter.StateSnapshot prior=
+            devPanel.snapshot();
 
-        TradeService.cancelIfActive(
-            worldPlayer,
-            "DEV_PANEL_OPEN"
+        writer.beginBatch();
+        boolean ended=false;
+
+        try{
+            writer.fixed(
+                219,
+                new byte[0]
+            );
+            devPanel.open(page);
+
+            if(!renderer.render(writer))
+                throw new IllegalStateException(
+                    "staged Dev Panel did not render"
+                );
+
+            writer.endBatch();
+            ended=true;
+        }catch(IOException failure){
+            devPanel.restore(prior);
+            if(!ended)
+                try{
+                    writer.endBatch();
+                }catch(Throwable ignored){}
+            throw failure;
+        }catch(RuntimeException failure){
+            devPanel.restore(prior);
+            if(!ended)
+                try{
+                    writer.endBatch();
+                }catch(Throwable ignored){}
+            throw failure;
+        }catch(Error failure){
+            devPanel.restore(prior);
+            if(!ended)
+                try{
+                    writer.endBatch();
+                }catch(Throwable ignored){}
+            throw failure;
+        }
+
+        dialogKeys.publish(
+            2482,
+            2483,
+            2484,
+            2485
         );
-
-        itemLibrary.close();
-        petDialogs.clearAll();
-        dialogKeys.clear();
-
-        writer.fixed(219,new byte[0]);
-        devPanel.open(page);
-        render(writer);
     }
 
     void render(
