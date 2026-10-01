@@ -75,8 +75,8 @@ final class ServerPacketWriter {
 
                         first.pending.reset();
                         second.pending.reset();
-                        first.batchDepth=0;
-                        second.batchDepth=0;
+                        first.completeBatchLocked();
+                        second.completeBatchLocked();
                         completed=true;
                     }
                 );
@@ -94,6 +94,7 @@ final class ServerPacketWriter {
     private final IsaacCipher cipher;
     private final ByteArrayOutputStream pending = new ByteArrayOutputStream(4096);
     private int batchDepth;
+    private IsaacCipher.Snapshot batchCipherCheckpoint;
 
     ServerPacketWriter(OutputStream out, IsaacCipher cipher) {
         this.out=out;
@@ -185,7 +186,42 @@ final class ServerPacketWriter {
         autoFlush();
     }
 
-    synchronized void beginBatch(){batchDepth++;}
+    synchronized void beginBatch(){
+        beginBatchLocked();
+    }
+
+    private void beginBatchLocked(){
+        if(batchDepth==0){
+            if(pending.size()!=0)
+                throw new IllegalStateException(
+                    "packet batch requires idle pending buffer"
+                );
+
+            batchCipherCheckpoint=
+                cipher.snapshot();
+        }
+
+        batchDepth++;
+    }
+
+    synchronized void abortBatch(){
+        if(batchDepth<=0)
+            throw new IllegalStateException(
+                "no packet batch"
+            );
+
+        if(batchCipherCheckpoint==null)
+            throw new IllegalStateException(
+                "packet batch has no cipher checkpoint"
+            );
+
+        pending.reset();
+        cipher.restore(
+            batchCipherCheckpoint
+        );
+        batchDepth=0;
+        batchCipherCheckpoint=null;
+    }
 
     static AtomicPairBatch beginAtomicQueuePair(
         ServerPacketWriter first,
@@ -232,8 +268,8 @@ final class ServerPacketWriter {
                                 "atomic pair requires idle writers"
                             );
 
-                        first.batchDepth=1;
-                        second.batchDepth=1;
+                        first.beginBatchLocked();
+                        second.beginBatchLocked();
                     }
                 );
             }
@@ -258,18 +294,61 @@ final class ServerPacketWriter {
     }
 
     synchronized void endBatch() throws IOException {
-        if(batchDepth<=0)throw new IllegalStateException("no packet batch");
-        batchDepth--;
-        if(batchDepth==0)flush();
+        if(batchDepth<=0)
+            throw new IllegalStateException(
+                "no packet batch"
+            );
+
+        if(batchDepth>1){
+            batchDepth--;
+            return;
+        }
+
+        /*
+         * Keep the outer batch active until admission/write succeeds. If flush
+         * fails, the caller can abort and restore the exact pre-batch cipher.
+         */
+        flush();
+        completeBatchLocked();
+    }
+
+    private void completeBatchLocked(){
+        batchDepth=0;
+        batchCipherCheckpoint=null;
     }
 
     synchronized void flush() throws IOException {
         if(pending.size()>0){
             byte[] bytes=pending.toByteArray();
+
+            try{
+                if(queue!=null)
+                    queue.offer(bytes);
+                else
+                    out.write(bytes);
+
+                if(out!=null)
+                    out.flush();
+            }catch(IOException failure){
+                if(batchDepth==0)
+                    pending.reset();
+                throw failure;
+            }catch(RuntimeException failure){
+                if(batchDepth==0)
+                    pending.reset();
+                throw failure;
+            }catch(Error failure){
+                if(batchDepth==0)
+                    pending.reset();
+                throw failure;
+            }
+
             pending.reset();
-            if(queue!=null)queue.offer(bytes);else out.write(bytes);
+            return;
         }
-        if(out!=null)out.flush();
+
+        if(out!=null)
+            out.flush();
     }
 
     private void autoFlush() throws IOException { if(batchDepth==0)flush(); }
