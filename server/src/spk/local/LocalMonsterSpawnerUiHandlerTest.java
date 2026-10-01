@@ -88,6 +88,18 @@ public final class LocalMonsterSpawnerUiHandlerTest {
             deactivationSnapshotRaceFailsClosed(
                 world
             );
+            rowLabelFailureAtomic(
+                world
+            );
+            rowAuthorityFailureAtomic(
+                world
+            );
+            rowCatalogRaceFailsClosed(
+                world
+            );
+            rowSessionRaceFailsClosed(
+                world
+            );
             unattachedControlsIgnored(
                 service,
                 handler
@@ -103,6 +115,8 @@ public final class LocalMonsterSpawnerUiHandlerTest {
                 "exactToggle=true "+
                 "callerBudget=true "+
                 "selectedText41019=true "+
+                "rowFailureAtomic=true "+
+                "catalogCompareSelect=true "+
                 "noSpawn=true "+
                 "unattachedIgnored=true "+
                 "policyOwned=false"
@@ -425,6 +439,286 @@ public final class LocalMonsterSpawnerUiHandlerTest {
             world.npcs().size()==0,
             "stale deactivation crossed newer activation"
         );
+    }
+
+    private static void rowLabelFailureAtomic(
+        World world
+    ){
+        final String owner="monster-ui-row-label-failure";
+        MonsterSpawnerService service=
+            rowAtomicService(
+                world,
+                owner
+            );
+
+        LocalMonsterSpawnerUiHandler handler=
+            new LocalMonsterSpawnerUiHandler(
+                service,
+                owner,
+                fixedBudget(),
+                new LocalMonsterSpawnerUiHandler
+                    .SelectedNpcLabelResolver(){
+                    @Override public String label(
+                        MonsterSpawnerService.CatalogEntry entry
+                    ){
+                        throw new IllegalStateException(
+                            "EXPECTED_ROW_LABEL_FAILURE"
+                        );
+                    }
+
+                    @Override public String authority(){
+                        return CATALOG_AUTHORITY;
+                    }
+                }
+            );
+
+        expect(
+            IllegalStateException.class,
+            ()->handler.handle(
+                MonsterSpawnerPresentation.rowWidget(0),
+                writer(new ByteArrayOutputStream())
+            ),
+            "row label failure"
+        );
+
+        require(
+            service.getSession(owner)
+                .selectedRowIndex==null,
+            "row label failure mutated selection"
+        );
+    }
+
+    private static void rowAuthorityFailureAtomic(
+        World world
+    ){
+        final String owner="monster-ui-row-authority-failure";
+        MonsterSpawnerService service=
+            rowAtomicService(
+                world,
+                owner
+            );
+        final int[] authorityCalls={0};
+
+        LocalMonsterSpawnerUiHandler handler=
+            new LocalMonsterSpawnerUiHandler(
+                service,
+                owner,
+                fixedBudget(),
+                new LocalMonsterSpawnerUiHandler
+                    .SelectedNpcLabelResolver(){
+                    @Override public String label(
+                        MonsterSpawnerService.CatalogEntry entry
+                    ){
+                        return "NPC-"+entry.definitionId;
+                    }
+
+                    @Override public String authority(){
+                        return authorityCalls[0]++==0
+                            ?CATALOG_AUTHORITY
+                            :"EXACT_CURRENT_CLIENT";
+                    }
+                }
+            );
+
+        expect(
+            IllegalArgumentException.class,
+            ()->handler.handle(
+                MonsterSpawnerPresentation.rowWidget(0),
+                writer(new ByteArrayOutputStream())
+            ),
+            "row label authority changed"
+        );
+
+        require(
+            service.getSession(owner)
+                .selectedRowIndex==null,
+            "row authority failure mutated selection"
+        );
+    }
+
+    private static void rowCatalogRaceFailsClosed(
+        World world
+    ){
+        final String owner="monster-ui-row-catalog-race";
+        MonsterSpawnerService service=
+            rowAtomicService(
+                world,
+                owner
+            );
+
+        LocalMonsterSpawnerUiHandler handler=
+            new LocalMonsterSpawnerUiHandler(
+                service,
+                owner,
+                fixedBudget(),
+                new LocalMonsterSpawnerUiHandler
+                    .SelectedNpcLabelResolver(){
+                    @Override public String label(
+                        MonsterSpawnerService.CatalogEntry entry
+                    ){
+                        List<MonsterSpawnerService.CatalogEntry>
+                            replacement=
+                                new ArrayList<>();
+
+                        replacement.add(
+                            new MonsterSpawnerService.CatalogEntry(
+                                0,
+                                "row-race-replaced",
+                                1620
+                            )
+                        );
+                        replacement.add(
+                            new MonsterSpawnerService.CatalogEntry(
+                                1,
+                                "row-race-1",
+                                1611
+                            )
+                        );
+
+                        service.replaceCatalog(
+                            replacement,
+                            CATALOG_AUTHORITY
+                        );
+
+                        return "NPC-"+entry.definitionId;
+                    }
+
+                    @Override public String authority(){
+                        return CATALOG_AUTHORITY;
+                    }
+                }
+            );
+
+        expect(
+            IllegalStateException.class,
+            ()->handler.handle(
+                MonsterSpawnerPresentation.rowWidget(0),
+                writer(new ByteArrayOutputStream())
+            ),
+            "row catalog changed"
+        );
+
+        MonsterSpawnerService.SessionSnapshot after=
+            service.getSession(
+                owner
+            );
+
+        require(
+            after.selectedRowIndex==null&&
+            service.catalog().row(0).definitionId==1620,
+            "stale row candidate crossed catalog replacement"
+        );
+    }
+
+    private static void rowSessionRaceFailsClosed(
+        World world
+    ){
+        final String owner="monster-ui-row-session-race";
+        MonsterSpawnerService service=
+            rowAtomicService(
+                world,
+                owner
+            );
+
+        LocalMonsterSpawnerUiHandler handler=
+            new LocalMonsterSpawnerUiHandler(
+                service,
+                owner,
+                fixedBudget(),
+                new LocalMonsterSpawnerUiHandler
+                    .SelectedNpcLabelResolver(){
+                    @Override public String label(
+                        MonsterSpawnerService.CatalogEntry entry
+                    ){
+                        service.selectRow(
+                            owner,
+                            1
+                        );
+
+                        return "NPC-"+entry.definitionId;
+                    }
+
+                    @Override public String authority(){
+                        return CATALOG_AUTHORITY;
+                    }
+                }
+            );
+
+        expect(
+            IllegalStateException.class,
+            ()->handler.handle(
+                MonsterSpawnerPresentation.rowWidget(0),
+                writer(new ByteArrayOutputStream())
+            ),
+            "row session changed"
+        );
+
+        MonsterSpawnerService.SessionSnapshot after=
+            service.getSession(
+                owner
+            );
+
+        require(
+            after.selectedRowIndex!=null&&
+            after.selectedRowIndex.intValue()==1&&
+            after.selectedDefinitionId!=null&&
+            after.selectedDefinitionId.intValue()==1611,
+            "stale row candidate overwrote newer selection"
+        );
+    }
+
+    private static MonsterSpawnerService rowAtomicService(
+        World world,
+        String owner
+    ){
+        MonsterSpawnerService service=
+            new MonsterSpawnerService(
+                world.npcs()
+            );
+        List<MonsterSpawnerService.CatalogEntry> rows=
+            new ArrayList<>();
+
+        rows.add(
+            new MonsterSpawnerService.CatalogEntry(
+                0,
+                "row-race-0",
+                1610
+            )
+        );
+        rows.add(
+            new MonsterSpawnerService.CatalogEntry(
+                1,
+                "row-race-1",
+                1611
+            )
+        );
+
+        service.replaceCatalog(
+            rows,
+            CATALOG_AUTHORITY
+        );
+        service.openSession(
+            owner,
+            POLICY_AUTHORITY
+        );
+
+        return service;
+    }
+
+    private static LocalMonsterSpawnerUiHandler
+        .ActivationBudgetResolver fixedBudget(){
+        return new LocalMonsterSpawnerUiHandler
+            .ActivationBudgetResolver(){
+            @Override public int spawnBudget(
+                LocalMonsterSpawnerUiHandler.Context context
+            ){
+                return 1;
+            }
+
+            @Override public String authority(){
+                return POLICY_AUTHORITY;
+            }
+        };
     }
 
     private static void unattachedControlsIgnored(
