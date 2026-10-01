@@ -416,7 +416,7 @@ final class ServerPacketWriter {
         if(prepared!=null){
             boolean committed=
                 Player81WorldSync
-                    .commitPreparedBatchWithTransport(
+                    .withPreparedBatchOwnership(
                         prepared,
                         ()->{
                             synchronized(ServerPacketWriter.this){
@@ -426,21 +426,47 @@ final class ServerPacketWriter {
                                         "packet-81 batch ownership changed before commit"
                                     );
 
-                                /*
-                                 * World lifecycle ownership is held by the
-                                 * caller of this transport callback. No player
-                                 * unregister can interleave between admission
-                                 * and the matching semantic postimage.
-                                 */
-                                flush();
-                                completeBatchLocked();
+                                if(queue==null)
+                                    throw new IOException(
+                                        "transactional packet-81 batch requires queue-backed writer"
+                                    );
+
+                                byte[] bytes=
+                                    pending.toByteArray();
+                                OutboundPacketQueue.BatchReservation reservation=
+                                    OutboundPacketQueue.reserveBatch(
+                                        queue,
+                                        bytes.length
+                                    );
+
+                                try{
+                                    Player81WorldSync
+                                        .commitPreparedBatchOwned(
+                                            prepared
+                                        );
+
+                                    reservation.commit(
+                                        bytes
+                                    );
+                                    pending.reset();
+                                    completeBatchLocked();
+                                }catch(IOException failure){
+                                    reservation.release();
+                                    throw failure;
+                                }catch(RuntimeException failure){
+                                    reservation.release();
+                                    throw failure;
+                                }catch(Error failure){
+                                    reservation.release();
+                                    throw failure;
+                                }
                             }
                         }
                     );
 
             if(!committed)
                 throw new IOException(
-                    "packet-81 batch owner stale before transport commit"
+                    "packet-81 batch owner stale before joint commit"
                 );
         }
 
