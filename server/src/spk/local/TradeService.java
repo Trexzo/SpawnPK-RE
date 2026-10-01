@@ -130,6 +130,9 @@ final class TradeService {
     }
 
     static synchronized String start(World world,WorldPlayer a,WorldPlayer b)throws IOException{
+        if(world==null||world.closed())
+            return "TRADE_UI_REJECTED_WORLD_CLOSED";
+
         State s=STATES.get(world);
         if(s==null)return "TRADE_UI_REJECTED_CONTEXT_MISSING";
         Context ca=s.contexts.get(a.id()),cb=s.contexts.get(b.id());
@@ -349,6 +352,9 @@ final class TradeService {
     private static Context context(WorldPlayer p){
         if(p==null)return null;
         for(State s:STATES.values()){
+            if(s.world.closed())
+                continue;
+
             Context c=s.contexts.get(p.id());
             if(c!=null&&
                c.player==p&&
