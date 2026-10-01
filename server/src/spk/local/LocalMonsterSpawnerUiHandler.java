@@ -234,7 +234,16 @@ final class LocalMonsterSpawnerUiHandler {
                 ownerRef,
                 before,
                 catalog,
-                entry
+                entry,
+                currentEntry->
+                    MonsterSpawnerPresentation
+                        .publishSelectedNpcText(
+                            Objects.requireNonNull(
+                                packets,
+                                "packets"
+                            ),
+                            label
+                        )
             );
 
         if(session.selectedRowIndex==null||
@@ -249,15 +258,6 @@ final class LocalMonsterSpawnerUiHandler {
             throw new IllegalStateException(
                 "Monster Spawner selected row identity changed row="+
                 rowIndex
-            );
-
-        MonsterSpawnerPresentation
-            .publishSelectedNpcText(
-                Objects.requireNonNull(
-                    packets,
-                    "packets"
-                ),
-                label
             );
 
         return new Result(
