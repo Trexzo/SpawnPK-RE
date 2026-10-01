@@ -677,6 +677,7 @@ public final class LocalBankObjectInteractionHandlerTest {
             testBankStructuralPublicationAtomicity();
             testBankTransferQuantityOverflow();
             testGenericInventoryPublicationAtomicity();
+            testInventoryTransformPublicationAtomicity();
 
             System.out.println(
                 "LOCAL_BANK_OBJECT_HANDLER_PASS "+
@@ -709,7 +710,11 @@ public final class LocalBankObjectInteractionHandlerTest {
                 "bankTransferOverflowRejected=true "+
                 "bankTransferMaxBoundary=true "+
                 "genericInventoryPublicationAtomic=true "+
-                "genericInventoryOpenBankMirrorAtomic=true"
+                "genericInventoryOpenBankMirrorAtomic=true "+
+                "inventoryTransformPublicationAtomic=true "+
+                "inventorySplitPublicationAtomic=true "+
+                "inventorySplitStackMergeAtomic=true "+
+                "inventoryCombinePublicationAtomic=true"
             );
         }finally{
             if(player.registered())
@@ -1935,6 +1940,285 @@ public final class LocalBankObjectInteractionHandlerTest {
                 openCoinsBefore+2)
             throw new AssertionError(
                 "open-bank mirrored retry did not commit"
+            );
+    }
+
+    private static void testInventoryTransformPublicationAtomicity()
+        throws Exception
+    {
+        java.lang.reflect.Field inventoryField=
+            BankState.class.getDeclaredField(
+                "inventory"
+            );
+        inventoryField.setAccessible(true);
+
+        // In-slot transform.
+        BankState transform=
+            new BankState();
+        BankState.Stack[] transformSlots=
+            (BankState.Stack[])inventoryField.get(
+                transform
+            );
+        transformSlots[0]=
+            new BankState.Stack(
+                385,
+                1
+            );
+        ServerPacketWriter transformGood=
+            new ServerPacketWriter(
+                new ByteArrayOutputStream(),
+                new IsaacCipher(
+                    new int[]{201,202,203,204}
+                )
+            );
+
+        boolean transformFailed=false;
+        try{
+            transform.transformInventoryOne(
+                0,
+                385,
+                995,
+                queueWriter(
+                    fullQueue(),
+                    new int[]{205,206,207,208}
+                )
+            );
+        }catch(java.io.IOException expected){
+            transformFailed=true;
+        }
+
+        if(!transformFailed||
+           transform.inventoryAt(0)==null||
+           transform.inventoryAt(0).itemId!=385)
+            throw new AssertionError(
+                "failed inventory transform mutated canonical slot"
+            );
+
+        String transformRetry=
+            transform.transformInventoryOne(
+                0,
+                385,
+                995,
+                transformGood
+            );
+
+        if(transformRetry==null||
+           !transformRetry.contains(
+                "INVENTORY_TRANSFORM_OK"
+           )||
+           transform.inventoryAt(0)==null||
+           transform.inventoryAt(0).itemId!=995)
+            throw new AssertionError(
+                "inventory transform retry did not commit"
+            );
+
+        // Split into an empty extra slot while Bank is open, proving the
+        // mirrored Bank presentation is part of the same failure boundary.
+        BankState splitEmpty=
+            new BankState();
+        ServerPacketWriter splitEmptyGood=
+            new ServerPacketWriter(
+                new ByteArrayOutputStream(),
+                new IsaacCipher(
+                    new int[]{209,210,211,212}
+                )
+            );
+        splitEmpty.open(
+            splitEmptyGood
+        );
+        BankState.Stack[] splitEmptySlots=
+            (BankState.Stack[])inventoryField.get(
+                splitEmpty
+            );
+        splitEmptySlots[0]=
+            new BankState.Stack(
+                385,
+                1
+            );
+
+        boolean splitEmptyFailed=false;
+        try{
+            splitEmpty.splitInventoryOne(
+                0,
+                385,
+                3144,
+                995,
+                queueWriter(
+                    fullQueue(),
+                    new int[]{213,214,215,216}
+                )
+            );
+        }catch(java.io.IOException expected){
+            splitEmptyFailed=true;
+        }
+
+        if(!splitEmptyFailed||
+           splitEmpty.inventoryAt(0)==null||
+           splitEmpty.inventoryAt(0).itemId!=385||
+           splitEmpty.inventoryCount(995)!=0)
+            throw new AssertionError(
+                "failed split-to-empty mutated canonical inventory"
+            );
+
+        String splitEmptyRetry=
+            splitEmpty.splitInventoryOne(
+                0,
+                385,
+                3144,
+                995,
+                splitEmptyGood
+            );
+
+        if(splitEmptyRetry==null||
+           !splitEmptyRetry.contains(
+                "INVENTORY_SPLIT_OK"
+           )||
+           splitEmpty.inventoryAt(0)==null||
+           splitEmpty.inventoryAt(0).itemId!=3144||
+           splitEmpty.inventoryCount(995)!=1)
+            throw new AssertionError(
+                "split-to-empty retry did not commit"
+            );
+
+        // Split with stackable extra output merging into an existing stack.
+        BankState splitMerge=
+            new BankState();
+        BankState.Stack[] splitMergeSlots=
+            (BankState.Stack[])inventoryField.get(
+                splitMerge
+            );
+        splitMergeSlots[0]=
+            new BankState.Stack(
+                385,
+                1
+            );
+        splitMergeSlots[2]=
+            new BankState.Stack(
+                995,
+                5
+            );
+        ServerPacketWriter splitMergeGood=
+            new ServerPacketWriter(
+                new ByteArrayOutputStream(),
+                new IsaacCipher(
+                    new int[]{217,218,219,220}
+                )
+            );
+
+        boolean splitMergeFailed=false;
+        try{
+            splitMerge.splitInventoryOne(
+                0,
+                385,
+                3144,
+                995,
+                queueWriter(
+                    fullQueue(),
+                    new int[]{221,222,223,224}
+                )
+            );
+        }catch(java.io.IOException expected){
+            splitMergeFailed=true;
+        }
+
+        if(!splitMergeFailed||
+           splitMerge.inventoryAt(0)==null||
+           splitMerge.inventoryAt(0).itemId!=385||
+           splitMerge.inventoryCount(995)!=5)
+            throw new AssertionError(
+                "failed split stack-merge mutated canonical inventory"
+            );
+
+        String splitMergeRetry=
+            splitMerge.splitInventoryOne(
+                0,
+                385,
+                3144,
+                995,
+                splitMergeGood
+            );
+
+        if(splitMergeRetry==null||
+           !splitMergeRetry.contains(
+                "INVENTORY_SPLIT_OK"
+           )||
+           splitMerge.inventoryAt(0)==null||
+           splitMerge.inventoryAt(0).itemId!=3144||
+           splitMerge.inventoryCount(995)!=6)
+            throw new AssertionError(
+                "split stack-merge retry did not commit"
+            );
+
+        // Combine one regular Doppel marker + one dye into a result item.
+        BankState combine=
+            new BankState();
+        BankState.Stack[] combineSlots=
+            (BankState.Stack[])inventoryField.get(
+                combine
+            );
+        combineSlots[0]=
+            new BankState.Stack(
+                3241,
+                1
+            );
+        combineSlots[1]=
+            new BankState.Stack(
+                995,
+                1
+            );
+        ServerPacketWriter combineGood=
+            new ServerPacketWriter(
+                new ByteArrayOutputStream(),
+                new IsaacCipher(
+                    new int[]{225,226,227,228}
+                )
+            );
+
+        boolean combineFailed=false;
+        try{
+            combine.combineInventoryOne(
+                0,
+                3241,
+                1,
+                995,
+                385,
+                queueWriter(
+                    fullQueue(),
+                    new int[]{229,230,231,232}
+                )
+            );
+        }catch(java.io.IOException expected){
+            combineFailed=true;
+        }
+
+        if(!combineFailed||
+           combine.inventoryAt(0)==null||
+           combine.inventoryAt(0).itemId!=3241||
+           combine.inventoryAt(1)==null||
+           combine.inventoryAt(1).itemId!=995)
+            throw new AssertionError(
+                "failed inventory combine mutated canonical sources"
+            );
+
+        String combineRetry=
+            combine.combineInventoryOne(
+                0,
+                3241,
+                1,
+                995,
+                385,
+                combineGood
+            );
+
+        if(combineRetry==null||
+           !combineRetry.contains(
+                "INVENTORY_COMBINE_OK"
+           )||
+           combine.inventoryAt(0)==null||
+           combine.inventoryAt(0).itemId!=385||
+           combine.inventoryAt(1)!=null)
+            throw new AssertionError(
+                "inventory combine retry did not commit"
             );
     }
 
