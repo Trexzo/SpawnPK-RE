@@ -227,9 +227,6 @@ final class LocalWorldTickCoordinator {
         }
 
         if(regionStreams.maybeStream(writer,tag)){
-            groundItemPresentationRelay.consumeSnapshotCovered(
-                now
-            );
             legacyTickCount++;
             return;
         }
@@ -340,10 +337,11 @@ final class LocalWorldTickCoordinator {
                 tag+makeoverTick
             );
 
-        groundItemPresentationRelay.publishPending(
-            now,
-            bridge.scenePublisher()
-        );
+        if(!regionStreams.regionLoadPending())
+            groundItemPresentationRelay.publishPending(
+                now,
+                bridge.scenePublisher()
+            );
 
         applyGroundItemResult(
             groundItemHandler.tick(
@@ -543,10 +541,11 @@ final class LocalWorldTickCoordinator {
             movementTickCount++;
         }
 
-        groundItemPresentationRelay.publishPending(
-            now,
-            bridge.scenePublisher()
-        );
+        if(!regionStreams.regionLoadPending())
+            groundItemPresentationRelay.publishPending(
+                now,
+                bridge.scenePublisher()
+            );
 
         petDropPickup.tick(
             writer,
@@ -582,6 +581,25 @@ final class LocalWorldTickCoordinator {
                 " staticCollision=true homeWorldNpcSystemsSuspended=true petLifecycleActive=true transientPositionSave=false"
             );
         }
+    }
+
+    void completeRegionLoad(
+        RegionLoadLifecycle.Completion completion,
+        ServerPacketWriter writer,
+        String tag,
+        long now
+    )throws IOException{
+        boolean groundSnapshotPublished=
+            regionStreams.completeRegionLoad(
+                completion,
+                writer,
+                tag
+            );
+
+        if(groundSnapshotPublished)
+            groundItemPresentationRelay.consumeSnapshotCovered(
+                now
+            );
     }
 
     private void publishMovement(
