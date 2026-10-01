@@ -79,6 +79,7 @@ public final class TradeServiceWorldStateCleanupTest {
                 "postCloseUnregisterIdempotent=true "+
                 "noStateResurrection=true "+
                 "closeBoundaryOperationsFenced=true "+
+                "closeBoundaryUnregisterSilent=true "+
                 "baseline="+baseline
             );
         }finally{
@@ -431,6 +432,23 @@ public final class TradeServiceWorldStateCleanupTest {
                qb.queuedBytes()!=bytesB)
                 throw new AssertionError(
                     "post-close-boundary trade operation emitted packet I/O"
+                );
+
+            TradeService.unregister(
+                a
+            );
+
+            if(qa.queuedPackets()!=packetsA||
+               qb.queuedPackets()!=packetsB||
+               qa.queuedBytes()!=bytesA||
+               qb.queuedBytes()!=bytesB)
+                throw new AssertionError(
+                    "post-close-boundary unregister emitted packet I/O"
+                );
+
+            if(trackedWorlds()!=baseline+1)
+                throw new AssertionError(
+                    "single post-close unregister removed peer TradeService context"
                 );
 
             releaseLifecycle.countDown();
