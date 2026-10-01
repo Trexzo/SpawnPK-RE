@@ -800,10 +800,103 @@ final class NpcRegistry {
     boolean followFrozen(){ return dev.petFollowFrozen(); }
 
     String devSetParticleSelector(Integer selector,MovementState movement,ServerPacketWriter w)throws IOException{
-        dev.setPetParticleSelector(selector);
-        if(pet==null) return "DEV_PET_FX_SET value="+(selector==null?"AUTO":selector)+" activePet=none";
-        respawnPetSameTile(movement,w);
-        return "DEV_PET_FX_SET value="+(selector==null?"AUTO":selector)+" item="+pet.petItemId+" npc="+pet.definitionId+" authority=TEMPORARY_OVERRIDE";
+        String result=
+            publishPetParticleSelector(
+                selector,
+                movement,
+                w
+            );
+        commitPetParticleSelector(
+            selector
+        );
+        return result;
+    }
+
+    String publishPetParticleSelector(
+        Integer selector,
+        MovementState movement,
+        ServerPacketWriter w
+    )throws IOException{
+        if(selector!=null&&
+           (selector<0||selector>255))
+            throw new IllegalArgumentException(
+                "particle selector 0..255"
+            );
+
+        if(pet==null)
+            return "DEV_PET_FX_SET value="+
+                (selector==null?"AUTO":selector)+
+                " activePet=none";
+
+        NpcEntity currentPet=pet;
+        ArrayList<NpcSyncEncoder.Update> remove=
+            new ArrayList<>();
+
+        for(NpcEntity n:visible)
+            remove.add(
+                n==currentPet
+                    ?NpcSyncEncoder.Update.remove(n)
+                    :NpcSyncEncoder.Update.retain(n)
+            );
+
+        w.varShort(
+            65,
+            NpcSyncEncoder.encode(
+                remove,
+                Collections.emptyList(),
+                0,
+                0
+            )
+        );
+
+        ArrayList<NpcSyncEncoder.Update> retained=
+            new ArrayList<>();
+
+        for(NpcEntity n:visible)
+            if(n!=currentPet)
+                retained.add(
+                    NpcSyncEncoder.Update.retain(n)
+                );
+
+        w.varShort(
+            65,
+            NpcSyncEncoder.encode(
+                retained,
+                Collections.singletonList(
+                    currentPet
+                ),
+                movement.x(),
+                movement.y(),
+                spawnPresentationFor(
+                    currentPet,
+                    selector
+                )
+            )
+        );
+
+        if(miniPet!=null)
+            sendMask(
+                miniPet,
+                NpcSyncEncoder.Mask
+                    .interactionTarget(
+                        currentPet.sceneIndex
+                    ),
+                w
+            );
+
+        return "DEV_PET_FX_SET value="+
+            (selector==null?"AUTO":selector)+
+            " item="+currentPet.petItemId+
+            " npc="+currentPet.definitionId+
+            " authority=TEMPORARY_OVERRIDE";
+    }
+
+    void commitPetParticleSelector(
+        Integer selector
+    ){
+        dev.setPetParticleSelector(
+            selector
+        );
     }
 
     String devFollowFreeze(boolean freeze){
@@ -973,9 +1066,25 @@ final class NpcRegistry {
     }
 
     private Map<Integer,NpcSpawnPresentation> spawnPresentationFor(NpcEntity n){
-        Integer selector=dev.petParticleSelector();
-        if(n==null || !n.pet || selector==null) return Collections.emptyMap();
-        return Collections.singletonMap(n.sceneIndex,NpcSpawnPresentation.particle(selector));
+        return spawnPresentationFor(
+            n,
+            dev.petParticleSelector()
+        );
+    }
+
+    private Map<Integer,NpcSpawnPresentation> spawnPresentationFor(
+        NpcEntity n,
+        Integer selector
+    ){
+        if(n==null || !n.pet || selector==null)
+            return Collections.emptyMap();
+
+        return Collections.singletonMap(
+            n.sceneIndex,
+            NpcSpawnPresentation.particle(
+                selector
+            )
+        );
     }
 
     private void enqueueTrail(int x,int y){ enqueueOwnerBreadcrumb(x,y); }
