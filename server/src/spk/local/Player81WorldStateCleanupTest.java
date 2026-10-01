@@ -3,6 +3,8 @@ package spk.local;
 import java.io.ByteArrayOutputStream;
 import java.lang.reflect.Field;
 import java.util.IdentityHashMap;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 public final class Player81WorldStateCleanupTest {
     public static void main(String[] args)throws Exception{
@@ -77,6 +79,10 @@ public final class Player81WorldStateCleanupTest {
                 baseline,
                 writerBaseline
             );
+            closeBoundaryContextFence(
+                baseline,
+                writerBaseline
+            );
 
             System.out.println(
                 "PLAYER81_WORLD_STATE_CLEANUP_PASS "+
@@ -89,6 +95,7 @@ public final class Player81WorldStateCleanupTest {
                 "postCloseRegisterRejected=true "+
                 "noStateResurrection=true "+
                 "postCloseUnregisterIdempotent=true "+
+                "closeBoundaryContextsFenced=true "+
                 "baseline="+baseline
             );
         }finally{
@@ -216,6 +223,271 @@ public final class Player81WorldStateCleanupTest {
                     "post-close Player81 unregister changed baseline"
                 );
         }finally{
+            Player81WorldSync.unregister(
+                wa
+            );
+            Player81WorldSync.unregister(
+                wb
+            );
+
+            if(a.registered())
+                world.unregisterPlayer(a);
+            if(b.registered())
+                world.unregisterPlayer(b);
+
+            world.close();
+        }
+    }
+
+    private static void closeBoundaryContextFence(
+        int worldBaseline,
+        int writerBaseline
+    )throws Exception{
+        World world=
+            World.isolatedForTest(
+                600L
+            );
+        WorldPlayer a=
+            new WorldPlayer();
+        WorldPlayer b=
+            new WorldPlayer();
+
+        world.registerPlayer(
+            a,
+            "player81-close-boundary-a"
+        );
+        world.registerPlayer(
+            b,
+            "player81-close-boundary-b"
+        );
+
+        OutboundPacketQueue qa=
+            new OutboundPacketQueue();
+        OutboundPacketQueue qb=
+            new OutboundPacketQueue();
+
+        ServerPacketWriter wa=
+            new ServerPacketWriter(
+                qa,
+                new IsaacCipher(
+                    new int[]{17,18,19,20}
+                )
+            );
+        ServerPacketWriter wb=
+            new ServerPacketWriter(
+                qb,
+                new IsaacCipher(
+                    new int[]{21,22,23,24}
+                )
+            );
+
+        Player81WorldSync.Context ca=null;
+        Player81WorldSync.Context cb=null;
+
+        CountDownLatch lifecycleHeld=
+            new CountDownLatch(1);
+        CountDownLatch releaseLifecycle=
+            new CountDownLatch(1);
+        Throwable[] blockerFailure={null};
+        Throwable[] closeFailure={null};
+        Thread blocker=null;
+        Thread closer=null;
+
+        try{
+            ca=
+                Player81WorldSync.register(
+                    wa,
+                    world,
+                    a,
+                    new DevAuthorityWorkbench()
+                );
+            cb=
+                Player81WorldSync.register(
+                    wb,
+                    world,
+                    b,
+                    new DevAuthorityWorkbench()
+                );
+
+            Player81WorldSync.Context contextA=ca;
+            Player81WorldSync.Context contextB=cb;
+
+            blocker=
+                new Thread(
+                    ()->{
+                        try{
+                            world.withOpenLifecycleOwnership(
+                                ()->{
+                                    lifecycleHeld.countDown();
+
+                                    if(!releaseLifecycle.await(
+                                            5L,
+                                            TimeUnit.SECONDS))
+                                        throw new AssertionError(
+                                            "Player81 close-boundary lifecycle release timeout"
+                                        );
+                                }
+                            );
+                        }catch(Throwable failure){
+                            blockerFailure[0]=failure;
+                        }
+                    },
+                    "player81-close-boundary-blocker"
+                );
+
+            blocker.start();
+
+            if(!lifecycleHeld.await(
+                    5L,
+                    TimeUnit.SECONDS))
+                throw new AssertionError(
+                    "Player81 close-boundary lifecycle blocker did not enter"
+                );
+
+            closer=
+                new Thread(
+                    ()->{
+                        try{
+                            world.close();
+                        }catch(Throwable failure){
+                            closeFailure[0]=failure;
+                        }
+                    },
+                    "player81-close-boundary-closer"
+                );
+
+            closer.start();
+
+            long deadline=
+                System.nanoTime()+
+                TimeUnit.SECONDS.toNanos(
+                    5L
+                );
+
+            while(!world.closed()&&
+                  System.nanoTime()<deadline)
+                Thread.yield();
+
+            if(!world.closed())
+                throw new AssertionError(
+                    "Player81 World close flag was not published"
+                );
+
+            if(trackedWorlds()!=
+                    worldBaseline+1||
+               trackedWriters()!=
+                    writerBaseline+2)
+                throw new AssertionError(
+                    "Player81 state swept before lifecycle barrier release"
+                );
+
+            int packetsA=
+                qa.queuedPackets();
+            int packetsB=
+                qb.queuedPackets();
+            int bytesA=
+                qa.queuedBytes();
+            int bytesB=
+                qb.queuedBytes();
+
+            if(contextA.ownerCurrent()||
+               contextB.ownerCurrent())
+                throw new AssertionError(
+                    "closed World still exposed current Player81 context"
+                );
+
+            String trade=
+                contextA.requestTrade(
+                    b,
+                    123L
+                );
+
+            if(!"TRADE_REJECTED_STALE_OWNER"
+                    .equals(trade))
+                throw new AssertionError(
+                    "closed World Player81 trade request was admitted: "+
+                    trade
+                );
+
+            if(Player81WorldSync.clientIndexFor(
+                    wa,
+                    b
+                )!=-1)
+                throw new AssertionError(
+                    "closed World exposed Player81 client index"
+                );
+
+            if(Player81WorldSync.sendSkillUpdate(
+                    world,
+                    a,
+                    0,
+                    1000,
+                    10
+                ))
+                throw new AssertionError(
+                    "closed World emitted Player81 skill update"
+                );
+
+            Player81WorldSync.sendPlayerOptionsIfMultiplayer(
+                world
+            );
+
+            if(qa.queuedPackets()!=packetsA||
+               qb.queuedPackets()!=packetsB||
+               qa.queuedBytes()!=bytesA||
+               qb.queuedBytes()!=bytesB)
+                throw new AssertionError(
+                    "closed World Player81 operation emitted packet I/O"
+                );
+
+            releaseLifecycle.countDown();
+
+            blocker.join(
+                5_000L
+            );
+            closer.join(
+                5_000L
+            );
+
+            if(blocker.isAlive()||
+               closer.isAlive())
+                throw new AssertionError(
+                    "Player81 close-boundary threads did not terminate"
+                );
+
+            if(blockerFailure[0]!=null)
+                throw new AssertionError(
+                    "Player81 lifecycle blocker failed",
+                    blockerFailure[0]
+                );
+
+            if(closeFailure[0]!=null)
+                throw new AssertionError(
+                    "Player81 World close failed",
+                    closeFailure[0]
+                );
+
+            if(trackedWorlds()!=
+                    worldBaseline||
+               trackedWriters()!=
+                    writerBaseline)
+                throw new AssertionError(
+                    "Player81 terminal sweep did not restore baseline"
+                );
+        }finally{
+            releaseLifecycle.countDown();
+
+            if(blocker!=null&&
+               blocker.isAlive())
+                blocker.join(
+                    5_000L
+                );
+            if(closer!=null&&
+               closer.isAlive())
+                closer.join(
+                    5_000L
+                );
+
             Player81WorldSync.unregister(
                 wa
             );
