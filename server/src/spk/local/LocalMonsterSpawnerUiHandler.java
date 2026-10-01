@@ -136,6 +136,20 @@ final class LocalMonsterSpawnerUiHandler {
         );
     }
 
+    boolean isBoundTo(
+        World expectedWorld
+    ){
+        World checked=
+            Objects.requireNonNull(
+                expectedWorld,
+                "expectedWorld"
+            );
+
+        return service.isBoundTo(
+            checked.npcs()
+        );
+    }
+
     Result handle(
         int widgetId,
         ServerPacketWriter packets
