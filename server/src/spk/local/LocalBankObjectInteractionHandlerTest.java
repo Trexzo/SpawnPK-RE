@@ -25,6 +25,14 @@ public final class LocalBankObjectInteractionHandlerTest {
                     world.content()
                 );
 
+            final int[] rootPublications={0};
+            h.installRootOwner(
+                action->{
+                    rootPublications[0]++;
+                    return action.open();
+                }
+            );
+
             ByteArrayOutputStream wire=
                 new ByteArrayOutputStream();
             ServerPacketWriter w=
@@ -71,6 +79,12 @@ public final class LocalBankObjectInteractionHandlerTest {
             if(wire.size()<=before)
                 throw new AssertionError(
                     "bank open emitted no packets"
+                );
+
+            if(rootPublications[0]!=1)
+                throw new AssertionError(
+                    "immediate bank open bypassed root owner count="+
+                    rootPublications[0]
                 );
 
             ObjectInteraction nonBank=
@@ -181,12 +195,74 @@ public final class LocalBankObjectInteractionHandlerTest {
                     "cancelled request still pending"
                 );
 
+            if(rootPublications[0]!=1)
+                throw new AssertionError(
+                    "non-opening bank paths entered root ownership count="+
+                    rootPublications[0]
+                );
+
+            ObjectInteraction deferredOpen=
+                new ObjectInteraction(
+                    132,
+                    BankState.BANK_OBJECT_ID,
+                    movement.x()+2,
+                    movement.y()
+                );
+
+            String queuedOpen=
+                onWorld(
+                    world,
+                    player,
+                    ()->h.handle(
+                        deferredOpen,
+                        w
+                    )
+                );
+
+            if(queuedOpen==null||
+               !queuedOpen.contains(
+                   "action=DEFERRED_UNTIL_ADJACENT"))
+                throw new AssertionError(
+                    "deferred-open route="+
+                    queuedOpen
+                );
+
+            MovementState.Tick approachStep=
+                movement.advance();
+
+            if(approachStep==null)
+                throw new AssertionError(
+                    "deferred-open approach produced no movement"
+                );
+
+            String openedAfterArrival=
+                onWorld(
+                    world,
+                    player,
+                    ()->h.tick(
+                        System.currentTimeMillis(),
+                        w
+                    )
+                );
+
+            if(openedAfterArrival==null||
+               !openedAfterArrival.contains(
+                   "action=OPENED_AFTER_AUTHORITATIVE_ARRIVAL")||
+               rootPublications[0]!=2)
+                throw new AssertionError(
+                    "deferred bank open bypassed root owner result="+
+                    openedAfterArrival+
+                    " count="+rootPublications[0]
+                );
+
             System.out.println(
                 "LOCAL_BANK_OBJECT_HANDLER_PASS "+
                 "contentOwned=true "+
                 "immediateOpen=true "+
+                "immediateRootOwnership=true "+
                 "nonBankFailClosed=true "+
                 "deferredOwnership=true "+
+                "deferredRootOwnership=true "+
                 "serverApproachQueued=true "+
                 "pathEndCancel=true"
             );
