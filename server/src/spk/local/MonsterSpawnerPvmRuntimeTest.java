@@ -16,6 +16,7 @@ public final class MonsterSpawnerPvmRuntimeTest {
             "MONSTER_SPAWNER_PVM_RUNTIME_PASS "+
             "singleRuntimeOwner=true "+
             "spawnOwnership=true "+
+            "spawnOwnershipAtomic=true "+
             "exactWorldLifecycle=true "+
             "deathFinalization=true "+
             "settlement=true "+
