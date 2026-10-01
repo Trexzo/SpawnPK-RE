@@ -633,7 +633,7 @@ final class LocalSessionUiActionHandler {
         return checked.publish();
     }
 
-    private String replaceMonsterSpawnerRoot(
+    String replaceMonsterSpawnerRoot(
         RootInterfaceAction publisher
     )throws IOException{
         RootInterfaceAction checked=
