@@ -761,6 +761,18 @@ public final class Player81BatchAbortAtomicityTest {
         );
     }
 
+    private static byte[] drain(
+        OutboundPacketQueue queue
+    )throws Exception{
+        ByteArrayOutputStream out=
+            new ByteArrayOutputStream();
+        queue.drainTo(
+            out,
+            1<<20
+        );
+        return out.toByteArray();
+    }
+
     private static long sequence(
         World world
     )throws Exception{
