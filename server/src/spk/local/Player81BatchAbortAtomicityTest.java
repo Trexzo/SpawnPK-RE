@@ -200,6 +200,7 @@ public final class Player81BatchAbortAtomicityTest {
 
             testOwnershipCommitBarrier();
             testStalePreparationFailClosed();
+            testUnbatchedPublicationAtomicity();
 
             System.out.println(
                 "PLAYER81_BATCH_ABORT_ATOMICITY_PASS "+
@@ -210,7 +211,10 @@ public final class Player81BatchAbortAtomicityTest {
                 "relayBarrierRetained=true "+
                 "transportSemanticOwnershipAtomic=true "+
                 "stalePrepareFailClosed=true "+
-                "noContextLocalOnlyPreserved=true"
+                "noContextLocalOnlyPreserved=true "+
+                "unbatchedQueueFailureAtomic=true "+
+                "unbatchedRetryCommitsOnce=true "+
+                "unbatchedDirectOutputFailClosed=true"
             );
         }finally{
             SharedNpcWorldRelay.unregister(
@@ -237,6 +241,184 @@ public final class Player81BatchAbortAtomicityTest {
 
             world.close();
         }
+    }
+
+    private static void testUnbatchedPublicationAtomicity()
+        throws Exception
+    {
+        World world=
+            World.isolatedForTest(604L);
+        WorldPlayer player=
+            new WorldPlayer();
+
+        world.registerPlayer(
+            player,
+            "player81-unbatched"
+        );
+
+        OutboundPacketQueue queue=
+            new OutboundPacketQueue(1024);
+        ServerPacketWriter writer=
+            new ServerPacketWriter(
+                queue,
+                new IsaacCipher(
+                    new int[]{25,26,27,28}
+                )
+            );
+
+        Player81WorldSync.register(
+            writer,
+            world,
+            player,
+            new DevAuthorityWorkbench()
+        );
+
+        try{
+            queue.offer(
+                new byte[1024]
+            );
+
+            long sequenceBefore=
+                sequence(world);
+
+            boolean failed=false;
+            try{
+                writer.varShort(
+                    81,
+                    BootstrapPackets.player81WalkStep(4)
+                );
+            }catch(java.io.IOException expected){
+                failed=
+                    expected.getMessage()!=null&&
+                    expected.getMessage().contains(
+                        "reservation unavailable"
+                    );
+            }
+
+            if(!failed)
+                throw new AssertionError(
+                    "full queue did not reject unbatched packet81"
+                );
+
+            if(queue.queuedBytes()!=1024)
+                throw new AssertionError(
+                    "failed unbatched packet81 changed queue bytes"
+                );
+
+            if(sequence(world)!=
+                    sequenceBefore)
+                throw new AssertionError(
+                    "failed unbatched packet81 committed semantic sequence"
+                );
+
+            drain(queue);
+
+            writer.varShort(
+                81,
+                BootstrapPackets.player81WalkStep(4)
+            );
+
+            if(queue.queuedBytes()==0)
+                throw new AssertionError(
+                    "unbatched packet81 retry emitted no bytes"
+                );
+
+            if(sequence(world)<=
+                    sequenceBefore)
+                throw new AssertionError(
+                    "unbatched packet81 retry did not commit semantic state"
+                );
+        }finally{
+            Player81WorldSync.unregister(
+                writer
+            );
+            if(player.registered())
+                world.unregisterPlayer(
+                    player
+                );
+            world.close();
+        }
+
+        World directWorld=
+            World.isolatedForTest(605L);
+        WorldPlayer directPlayer=
+            new WorldPlayer();
+        directWorld.registerPlayer(
+            directPlayer,
+            "player81-direct-output"
+        );
+
+        ByteArrayOutputStream directBytes=
+            new ByteArrayOutputStream();
+        ServerPacketWriter directWriter=
+            new ServerPacketWriter(
+                directBytes,
+                new IsaacCipher(
+                    new int[]{29,30,31,32}
+                )
+            );
+
+        Player81WorldSync.register(
+            directWriter,
+            directWorld,
+            directPlayer,
+            new DevAuthorityWorkbench()
+        );
+
+        try{
+            long sequenceBefore=
+                sequence(directWorld);
+
+            boolean rejected=false;
+            try{
+                directWriter.varShort(
+                    81,
+                    BootstrapPackets.player81WalkStep(4)
+                );
+            }catch(java.io.IOException expected){
+                rejected=
+                    expected.getMessage()!=null&&
+                    expected.getMessage().contains(
+                        "requires queue-backed writer"
+                    );
+            }
+
+            if(!rejected||
+               directBytes.size()!=0||
+               sequence(directWorld)!=sequenceBefore)
+                throw new AssertionError(
+                    "active-context direct OutputStream packet81 did not fail closed"
+                );
+        }finally{
+            Player81WorldSync.unregister(
+                directWriter
+            );
+            if(directPlayer.registered())
+                directWorld.unregisterPlayer(
+                    directPlayer
+                );
+            directWorld.close();
+        }
+
+        OutboundPacketQueue localQueue=
+            new OutboundPacketQueue();
+        ServerPacketWriter localWriter=
+            new ServerPacketWriter(
+                localQueue,
+                new IsaacCipher(
+                    new int[]{33,34,35,36}
+                )
+            );
+
+        localWriter.varShort(
+            81,
+            BootstrapPackets.player81Idle()
+        );
+
+        if(localQueue.queuedBytes()==0)
+            throw new AssertionError(
+                "unregistered unbatched local-only packet81 compatibility was lost"
+            );
     }
 
     private static void testStalePreparationFailClosed()
