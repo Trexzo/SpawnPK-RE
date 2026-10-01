@@ -855,11 +855,25 @@ final class LocalPendingRequestDispatcher {
             return;
         }
 
-        String compCapeItem=
-            compCapeCustomize.handleItemAction(
-                action,
-                serverPackets
-            );
+        String compCapeItem;
+
+        if(compCapeCustomize.willOpenRoot(
+                action
+            ))
+            compCapeItem=
+                uiActions.replaceMonsterSpawnerRoot(
+                    ()->
+                        compCapeCustomize.handleItemAction(
+                            action,
+                            serverPackets
+                        )
+                );
+        else
+            compCapeItem=
+                compCapeCustomize.handleItemAction(
+                    action,
+                    serverPackets
+                );
 
         if(compCapeItem!=null){
             System.out.println(tag+compCapeItem);
