@@ -130,6 +130,10 @@ final class ServerPacketWriter {
     private Player81WorldSync.PreparedBatch batchPlayer81;
     private boolean batchPlayer81Initialized;
     private boolean batchContainsPlayer81;
+    private boolean packet81InFlight;
+    private boolean packet81InFlightStaged;
+    private long packet81InFlightBatchGeneration=-1L;
+    private long batchGeneration;
 
     ServerPacketWriter(OutputStream out, IsaacCipher cipher) {
         this.out=out;
@@ -163,16 +167,28 @@ final class ServerPacketWriter {
         if(opcode==81){
             boolean staged;
             boolean initialized;
+            long operationBatchGeneration;
             Player81WorldSync.PreparedBatch prepared;
 
             synchronized(this){
+                awaitPacket81IdleLocked();
+                packet81InFlight=true;
                 staged=batchDepth>0;
+                packet81InFlightStaged=staged;
+                operationBatchGeneration=
+                    staged
+                        ?batchGeneration
+                        :-1L;
+                packet81InFlightBatchGeneration=
+                    operationBatchGeneration;
                 initialized=batchPlayer81Initialized;
                 prepared=batchPlayer81;
 
                 if(staged)
                     batchContainsPlayer81=true;
             }
+
+            try{
 
             if(staged&&!initialized){
                 Player81WorldSync.PreparedBatchStart start=
@@ -189,18 +205,19 @@ final class ServerPacketWriter {
                     );
 
                 synchronized(this){
-                    if(batchDepth<=0){
-                        staged=false;
-                    }else{
-                        if(!batchPlayer81Initialized){
-                            batchPlayer81=
-                                start.prepared;
-                            batchPlayer81Initialized=true;
-                        }
+                    requirePacket81LifetimeLocked(
+                        true,
+                        operationBatchGeneration
+                    );
 
-                        prepared=batchPlayer81;
-                        batchContainsPlayer81=true;
+                    if(!batchPlayer81Initialized){
+                        batchPlayer81=
+                            start.prepared;
+                        batchPlayer81Initialized=true;
                     }
+
+                    prepared=batchPlayer81;
+                    batchContainsPlayer81=true;
                 }
             }
 
@@ -218,6 +235,10 @@ final class ServerPacketWriter {
                     );
 
                 synchronized(this){
+                    requirePacket81LifetimeLocked(
+                        true,
+                        operationBatchGeneration
+                    );
                     writeOpcode(opcode);
                     pending.write(
                         (transformed.length>>>8)&255
@@ -262,6 +283,10 @@ final class ServerPacketWriter {
                     );
 
                 synchronized(this){
+                    requirePacket81LifetimeLocked(
+                        false,
+                        operationBatchGeneration
+                    );
                     writeOpcode(opcode);
                     pending.write(
                         (transformed.length>>>8)&255
@@ -298,6 +323,11 @@ final class ServerPacketWriter {
                         unbatchedPrepared,
                         ()->{
                             synchronized(ServerPacketWriter.this){
+                                requirePacket81LifetimeLocked(
+                                    false,
+                                    operationBatchGeneration
+                                );
+
                                 if(batchDepth!=0||
                                    pending.size()!=0)
                                     throw new IllegalStateException(
@@ -375,6 +405,14 @@ final class ServerPacketWriter {
             SharedNpcWorldRelay
                 .flushAfterPlayer81(this);
             return;
+            }finally{
+                synchronized(this){
+                    packet81InFlight=false;
+                    packet81InFlightStaged=false;
+                    packet81InFlightBatchGeneration=-1L;
+                    notifyAll();
+                }
+            }
         }
 
         if(checkedBody.length>65535)
@@ -406,16 +444,23 @@ final class ServerPacketWriter {
     }
 
     synchronized void beginBatch(){
+        awaitPacket81IdleLocked();
         beginBatchLocked();
     }
 
     private void beginBatchLocked(){
+        if(packet81InFlight)
+            throw new IllegalStateException(
+                "packet batch begin while packet-81 operation is in flight"
+            );
+
         if(batchDepth==0){
             if(pending.size()!=0)
                 throw new IllegalStateException(
                     "packet batch requires idle pending buffer"
                 );
 
+            batchGeneration++;
             batchCipherCheckpoint=
                 cipher.snapshot();
             batchPlayer81=null;
@@ -427,6 +472,7 @@ final class ServerPacketWriter {
     }
 
     synchronized void abortBatch(){
+        awaitRelevantPacket81Locked();
         abortBatchLocked();
     }
 
@@ -492,7 +538,9 @@ final class ServerPacketWriter {
                     first,
                     second,
                     ()->{
-                        if(first.batchDepth!=0||
+                        if(first.packet81InFlight||
+                           second.packet81InFlight||
+                           first.batchDepth!=0||
                            second.batchDepth!=0||
                            first.pending.size()!=0||
                            second.pending.size()!=0)
@@ -530,6 +578,8 @@ final class ServerPacketWriter {
         boolean flushPlayer81Relay;
 
         synchronized(this){
+            awaitRelevantPacket81Locked();
+
             if(batchDepth<=0)
                 throw new IllegalStateException(
                     "no packet batch"
@@ -618,6 +668,71 @@ final class ServerPacketWriter {
                     relayFailure
                 );
             }
+    }
+
+    private void awaitPacket81IdleLocked(){
+        boolean interrupted=false;
+
+        while(packet81InFlight){
+            try{
+                wait();
+            }catch(InterruptedException interruption){
+                interrupted=true;
+            }
+        }
+
+        if(interrupted)
+            Thread.currentThread().interrupt();
+    }
+
+    private void awaitRelevantPacket81Locked(){
+        boolean interrupted=false;
+
+        while(packet81InFlight&&
+              packet81InFlightStaged&&
+              packet81InFlightBatchGeneration==
+                  batchGeneration){
+            try{
+                wait();
+            }catch(InterruptedException interruption){
+                interrupted=true;
+            }
+        }
+
+        if(interrupted)
+            Thread.currentThread().interrupt();
+    }
+
+    private void requirePacket81LifetimeLocked(
+        boolean staged,
+        long expectedBatchGeneration
+    ){
+        if(!packet81InFlight||
+           packet81InFlightStaged!=staged)
+            throw new IllegalStateException(
+                "packet-81 operation lifetime changed"
+            );
+
+        if(staged){
+            if(batchDepth<=0||
+               batchGeneration!=
+                    expectedBatchGeneration||
+               packet81InFlightBatchGeneration!=
+                    expectedBatchGeneration)
+                throw new IllegalStateException(
+                    "packet-81 batch lifetime changed expected="+
+                    expectedBatchGeneration+
+                    " actual="+batchGeneration+
+                    " depth="+batchDepth
+                );
+            return;
+        }
+
+        if(batchDepth!=0||
+           packet81InFlightBatchGeneration!=-1L)
+            throw new IllegalStateException(
+                "unbatched packet-81 joined a batch"
+            );
     }
 
     private void completeBatchLocked(){
