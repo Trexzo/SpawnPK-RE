@@ -526,14 +526,88 @@ final class NpcRegistry {
             " mainPetScene="+pet.sceneIndex+" relation=PLAYER_TO_MAINPET_TO_MINIPET spawnPolicy=LOCAL_TRAILING_MAINPET authority="+d.authority;
     }
 
-    String removeMiniPet(ServerPacketWriter w)throws IOException {
-        if(miniPet==null)return "MINIPET_NONE_ACTIVE";
-        NpcEntity old=miniPet; ArrayList<NpcSyncEncoder.Update> updates=new ArrayList<>();
-        for(NpcEntity n:visible)updates.add(n==old?NpcSyncEncoder.Update.remove(n):NpcSyncEncoder.Update.retain(n));
-        w.varShort(65,NpcSyncEncoder.encode(updates,Collections.emptyList(),0,0));
-        visible.remove(old); miniPet=null; miniTrail.clear(); hasMiniTrail=false;
+    static final class PreparedMiniPetRemoval {
+        final NpcEntity oldMini;
+
+        PreparedMiniPetRemoval(
+            NpcEntity oldMini
+        ){
+            this.oldMini=oldMini;
+        }
+    }
+
+    PreparedMiniPetRemoval prepareMiniPetRemoval(){
+        return miniPet==null
+            ?null
+            :new PreparedMiniPetRemoval(
+                miniPet
+            );
+    }
+
+    String publishMiniPetRemoval(
+        PreparedMiniPetRemoval prepared,
+        ServerPacketWriter w
+    )throws IOException{
+        if(prepared==null)
+            return "MINIPET_NONE_ACTIVE";
+
+        ArrayList<NpcSyncEncoder.Update> updates=
+            new ArrayList<>();
+
+        for(NpcEntity n:visible)
+            updates.add(
+                n==prepared.oldMini
+                    ?NpcSyncEncoder.Update.remove(n)
+                    :NpcSyncEncoder.Update.retain(n)
+            );
+
+        w.varShort(
+            65,
+            NpcSyncEncoder.encode(
+                updates,
+                Collections.emptyList(),
+                0,
+                0
+            )
+        );
+
+        return "MINIPET_DESPAWN_OK npc="+
+            prepared.oldMini.definitionId+
+            " scene="+prepared.oldMini.sceneIndex;
+    }
+
+    void commitMiniPetRemoval(
+        PreparedMiniPetRemoval prepared
+    ){
+        if(prepared==null)
+            return;
+
+        if(miniPet!=prepared.oldMini)
+            throw new IllegalStateException(
+                "mini-pet changed before prepared removal commit"
+            );
+
+        visible.remove(
+            prepared.oldMini
+        );
+        miniPet=null;
+        miniTrail.clear();
+        hasMiniTrail=false;
         canonicalRemoveMini();
-        return "MINIPET_DESPAWN_OK npc="+old.definitionId+" scene="+old.sceneIndex;
+    }
+
+    String removeMiniPet(ServerPacketWriter w)throws IOException {
+        PreparedMiniPetRemoval prepared=
+            prepareMiniPetRemoval();
+        String result=
+            publishMiniPetRemoval(
+                prepared,
+                w
+            );
+        commitMiniPetRemoval(
+            prepared
+        );
+        return result;
     }
 
     String spawnPet(PetDefinitionRepository.Def d,MovementState movement,ServerPacketWriter w) throws IOException {
