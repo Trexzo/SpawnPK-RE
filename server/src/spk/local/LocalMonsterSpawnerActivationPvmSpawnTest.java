@@ -351,6 +351,16 @@ public final class LocalMonsterSpawnerActivationPvmSpawnTest {
                 "absent callback changed spawn behavior"
             );
 
+            disconnectedFinalizationRetirement(
+                world,
+                f,
+                factory,
+                player,
+                generation,
+                npc,
+                writer
+            );
+
             factoryCreateFailureAtomicity(
                 world,
                 f,
@@ -371,6 +381,8 @@ public final class LocalMonsterSpawnerActivationPvmSpawnTest {
                 "worldRuntimeInstalled=true "+
                 "trackedSessionRetained=true "+
                 "idleSessionRetired=true "+
+                "disconnectedFinalizationRetired=true "+
+                "reconnectedFinalizationPreserved=true "+
                 "sameOwnerReconnect=true "+
                 "exactGraphFence=true "+
                 "serverAuthorityFence=true "+
@@ -390,6 +402,245 @@ public final class LocalMonsterSpawnerActivationPvmSpawnTest {
                 world.unregisterPlayer(player,generation);
             world.close();
         }
+    }
+
+    private static void disconnectedFinalizationRetirement(
+        World world,
+        Fixture f,
+        LocalMonsterSpawnerActivationRuntime factory,
+        WorldPlayer originalPlayer,
+        long originalGeneration,
+        WorldNpc firstNpc,
+        ServerPacketWriter writer
+    )throws Exception{
+        require(
+            world.unregisterPlayer(
+                originalPlayer,
+                originalGeneration
+            ),
+            "disconnect retirement fixture unregister"
+        );
+
+        require(
+            world.npcLifecycle()
+                .applyDamage(
+                    firstNpc.id,
+                    99,
+                    81L
+                ).newlyDied,
+            "disconnect retirement fixture lethal damage"
+        );
+
+        MonsterSpawnerPvmRuntime.FinalizeResult
+            firstFinalized=
+                world.finalizeMonsterSpawnerPvmIfOwned(
+                    firstNpc
+                );
+
+        require(
+            firstFinalized!=null&&
+            firstFinalized.status==
+                MonsterSpawnerPvmRuntime.FinalizeStatus.FINALIZED&&
+            f.spawner.getSession(
+                OWNER
+            )==null&&
+            f.runtime.get(
+                firstNpc.id
+            )==null&&
+            world.npcs().byId(
+                firstNpc.id
+            )==null,
+            "disconnected final tracked NPC did not retire idle session"
+        );
+
+        WorldPlayer secondPlayer=
+            new WorldPlayer();
+        long secondGeneration=
+            world.registerPlayer(
+                secondPlayer,
+                OWNER
+            );
+
+        LocalMonsterSpawnerUiHandler secondUi=
+            LocalSession.resolveMonsterSpawnerUiAfterLogin(
+                factory,
+                world,
+                secondPlayer,
+                secondGeneration,
+                OWNER
+            );
+
+        require(
+            secondUi!=null&&
+            f.spawner.getSession(
+                OWNER
+            )!=null,
+            "same owner did not open fresh session after terminal retirement"
+        );
+
+        LocalMonsterSpawnerUiHandler.Result selected=
+            secondUi.handle(
+                MonsterSpawnerPresentation
+                    .rowWidget(
+                        0
+                    ),
+                writer
+            );
+
+        LocalSession.forwardMonsterSpawnerUiResult(
+            factory,
+            world,
+            secondPlayer,
+            secondGeneration,
+            OWNER,
+            selected,
+            writer,
+            "[activation-pvm-retirement] "
+        );
+
+        LocalMonsterSpawnerUiHandler.Result activated=
+            secondUi.handle(
+                MonsterSpawnerPresentation
+                    .TOGGLE_WIDGET,
+                writer
+            );
+
+        LocalSession.forwardMonsterSpawnerUiResult(
+            factory,
+            world,
+            secondPlayer,
+            secondGeneration,
+            OWNER,
+            activated,
+            writer,
+            "[activation-pvm-retirement] "
+        );
+
+        MonsterSpawnerService.SessionSnapshot spawned=
+            f.spawner.getSession(
+                OWNER
+            );
+
+        require(
+            spawned!=null&&
+            spawned.spawnedNpcIds.size()==1,
+            "reconnect-preservation fixture did not spawn"
+        );
+
+        WorldNpc secondNpc=
+            world.npcs().byId(
+                spawned.spawnedNpcIds.get(
+                    0
+                )
+            );
+
+        LocalSession.notifyMonsterSpawnerSessionClosed(
+            factory,
+            world,
+            secondPlayer,
+            secondGeneration,
+            OWNER
+        );
+
+        require(
+            f.spawner.getSession(
+                OWNER
+            )!=null&&
+            f.spawner.getSession(
+                OWNER
+            ).tracks(
+                secondNpc.id
+            ),
+            "tracked reconnect fixture session retired on close"
+        );
+
+        require(
+            world.unregisterPlayer(
+                secondPlayer,
+                secondGeneration
+            ),
+            "reconnect-preservation fixture unregister"
+        );
+
+        WorldPlayer reconnectedPlayer=
+            new WorldPlayer();
+        long reconnectedGeneration=
+            world.registerPlayer(
+                reconnectedPlayer,
+                OWNER
+            );
+
+        LocalMonsterSpawnerUiHandler retainedUi=
+            LocalSession.resolveMonsterSpawnerUiAfterLogin(
+                factory,
+                world,
+                reconnectedPlayer,
+                reconnectedGeneration,
+                OWNER
+            );
+
+        require(
+            retainedUi!=null&&
+            f.spawner.getSession(
+                OWNER
+            )!=null&&
+            f.spawner.getSession(
+                OWNER
+            ).tracks(
+                secondNpc.id
+            ),
+            "same-owner reconnect did not retain tracked session"
+        );
+
+        require(
+            world.npcLifecycle()
+                .applyDamage(
+                    secondNpc.id,
+                    99,
+                    82L
+                ).newlyDied,
+            "reconnected finalization fixture lethal damage"
+        );
+
+        MonsterSpawnerPvmRuntime.FinalizeResult
+            secondFinalized=
+                world.finalizeMonsterSpawnerPvmIfOwned(
+                    secondNpc
+                );
+
+        MonsterSpawnerService.SessionSnapshot
+            connectedIdle=
+                f.spawner.getSession(
+                    OWNER
+                );
+
+        require(
+            secondFinalized!=null&&
+            secondFinalized.status==
+                MonsterSpawnerPvmRuntime.FinalizeStatus.FINALIZED&&
+            connectedIdle!=null&&
+            connectedIdle.spawnedNpcIds.isEmpty(),
+            "connected owner session was retired after final tracked NPC"
+        );
+
+        LocalSession.notifyMonsterSpawnerSessionClosed(
+            factory,
+            world,
+            reconnectedPlayer,
+            reconnectedGeneration,
+            OWNER
+        );
+
+        require(
+            f.spawner.getSession(
+                OWNER
+            )==null&&
+            world.unregisterPlayer(
+                reconnectedPlayer,
+                reconnectedGeneration
+            ),
+            "connected idle session did not retire on later close"
+        );
     }
 
     private static void factoryCreateFailureAtomicity(
