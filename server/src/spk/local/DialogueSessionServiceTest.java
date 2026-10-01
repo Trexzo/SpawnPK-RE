@@ -290,6 +290,9 @@ public final class DialogueSessionServiceTest {
         resolverFailureAtomic(
             service
         );
+        rollbackTransitionMonotonic(
+            service
+        );
         unknownMoveAtomic(
             service
         );
@@ -314,6 +317,7 @@ public final class DialogueSessionServiceTest {
             "resolverOwnedTransitions=true " +
             "invalidIntentNoResolver=true " +
             "resolverFailureAtomic=true " +
+            "rollbackTransitionMonotonic=true " +
             "unknownMoveFailClosed=true " +
             "revisionedState=true " +
             "playerIsolation=true " +
@@ -459,6 +463,56 @@ public final class DialogueSessionServiceTest {
                 after.nodeKey
             ),
             "resolver failure mutated dialogue"
+        );
+    }
+
+    private static void rollbackTransitionMonotonic(
+        DialogueSessionService service
+    ) {
+        service.begin(
+            "player:rollback",
+            "dialogue:test"
+        );
+        DialogueSessionService.Snapshot options =
+            service.continueDialogue(
+                "player:rollback"
+            );
+        DialogueSessionService.Snapshot ended =
+            service.chooseOption(
+                "player:rollback",
+                2
+            );
+
+        require(
+            !ended.active &&
+            ended.revision ==
+                options.revision + 1L,
+            "rollback fixture did not end"
+        );
+
+        DialogueSessionService.Snapshot restored =
+            service.rollbackTransition(
+                options,
+                ended
+            );
+
+        require(
+            restored.active &&
+            "node:options".equals(
+                restored.nodeKey
+            ) &&
+            restored.revision ==
+                ended.revision + 1L,
+            "dialogue rollback was not monotonic"
+        );
+
+        expect(
+            IllegalStateException.class,
+            () -> service.rollbackTransition(
+                options,
+                ended
+            ),
+            "stale dialogue rollback"
         );
     }
 
