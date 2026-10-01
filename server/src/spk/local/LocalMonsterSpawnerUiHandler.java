@@ -136,6 +136,14 @@ final class LocalMonsterSpawnerUiHandler {
         );
     }
 
+    boolean isBoundToOwner(
+        String expectedOwnerRef
+    ){
+        return isOwnedBy(
+            expectedOwnerRef
+        );
+    }
+
     boolean isBoundTo(
         World expectedWorld
     ){
