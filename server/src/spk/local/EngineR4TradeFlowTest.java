@@ -87,8 +87,9 @@ public final class EngineR4TradeFlowTest{
    testConfirmRootPublicationFailureClosesTrade();
    testReplacementTradeStartFailureAtomicity();
    testFinalCommitPairAdmissionAtomicity();
+   testTradeXPromptFailureAtomicity();
 
-   System.out.println("V5140_ENGINE_R4_TRADE_FLOW_PASS roots=3323/3443 offerWidgets=3322/3415/3416 accepts=3420/3546 atomicExchange=true cancelReservationModel=true twoSessionRootOwners=true peerOnlyCompetingClose=true hiddenTradeRejected=true competingRootFailureAtomic=true lockOrderTradeBeforePlayer=true partialStartFailureClosed=true confirmPublicationFailClosed=true replacementStartFailureAtomic=true priorPeerPreserved=true replacementPeerCloseExact=true finalCommitPairAdmissionAtomic=true finalCommitRetryExactlyOnce=true");
+   System.out.println("V5140_ENGINE_R4_TRADE_FLOW_PASS roots=3323/3443 offerWidgets=3322/3415/3416 accepts=3420/3546 atomicExchange=true cancelReservationModel=true twoSessionRootOwners=true peerOnlyCompetingClose=true hiddenTradeRejected=true competingRootFailureAtomic=true lockOrderTradeBeforePlayer=true partialStartFailureClosed=true confirmPublicationFailClosed=true replacementStartFailureAtomic=true priorPeerPreserved=true replacementPeerCloseExact=true finalCommitPairAdmissionAtomic=true finalCommitRetryExactlyOnce=true tradeOfferXPromptFailureAtomic=true tradeRemoveXPromptFailureAtomic=true tradeXPromptReplacementPreservesPrior=true");
   }finally{TradeService.unregister(p1);TradeService.unregister(p2);w.unregisterPlayer(p1);w.unregisterPlayer(p2);w.close();}
  }
  static void testSecondRootPublicationFailureAtomicity()throws Exception{
@@ -460,6 +461,212 @@ public final class EngineR4TradeFlowTest{
    TradeService.unregister(b);
    if(a.registered())w.unregisterPlayer(a);
    if(b.registered())w.unregisterPlayer(b);
+   w.close();
+  }
+ }
+
+ static void testTradeXPromptFailureAtomicity()throws Exception{
+  World w=World.isolatedForTest(605L);
+  WorldPlayer a=new WorldPlayer(),b=new WorldPlayer();
+  w.registerPlayer(a,"xprompt-a");
+  w.registerPlayer(b,"xprompt-b");
+
+  SwitchFailOutputStream outA=
+   new SwitchFailOutputStream();
+  ByteArrayOutputStream outB=
+   new ByteArrayOutputStream();
+
+  ServerPacketWriter wa=
+   new ServerPacketWriter(
+    outA,
+    new IsaacCipher(
+     new int[]{81,82,83,84}
+    )
+   );
+  ServerPacketWriter wb=
+   new ServerPacketWriter(
+    outB,
+    new IsaacCipher(
+     new int[]{85,86,87,88}
+    )
+   );
+
+  try{
+   a.bank().spawnItem(
+    995,
+    1000,
+    wa
+   );
+
+   TradeService.register(
+    w,
+    a,
+    a.generation(),
+    a.bank(),
+    wa,
+    ()->{}
+   );
+   TradeService.register(
+    w,
+    b,
+    b.generation(),
+    b.bank(),
+    wb,
+    ()->{}
+   );
+
+   need(
+    TradeService.start(
+     w,
+     a,
+     b
+    ),
+    "TRADE_UI_OPEN"
+   );
+
+   int coinSlot=
+    find(
+     a.bank(),
+     995
+    );
+
+   outA.fail=true;
+   boolean offerPromptFailed=false;
+   try{
+    TradeService.handleItemAction(
+     a,
+     new ItemContainerAction(
+      135,
+      3322,
+      coinSlot,
+      995,
+      0,
+      "ITEM_ACTION_X"
+     )
+    );
+   }catch(IOException expected){
+    offerPromptFailed=
+     "SWITCH_FAIL".equals(
+      expected.getMessage()
+     );
+   }
+   outA.fail=false;
+
+   if(!offerPromptFailed||
+      TradeService.handleAmount(
+       a,
+       1
+      )!=null)
+    throw new AssertionError(
+     "failed Trade Offer-X left hidden pending authority"
+    );
+
+   need(
+    TradeService.handleItemAction(
+     a,
+     new ItemContainerAction(
+      145,
+      3322,
+      coinSlot,
+      995,
+      0,
+      "ITEM_ACTION_1"
+     )
+    ),
+    "TRADE_OFFER_OK"
+   );
+
+   outA.fail=true;
+   boolean removePromptFailed=false;
+   try{
+    TradeService.handleItemAction(
+     a,
+     new ItemContainerAction(
+      135,
+      3415,
+      0,
+      995,
+      0,
+      "ITEM_ACTION_X"
+     )
+    );
+   }catch(IOException expected){
+    removePromptFailed=
+     "SWITCH_FAIL".equals(
+      expected.getMessage()
+     );
+   }
+   outA.fail=false;
+
+   if(!removePromptFailed||
+      TradeService.handleAmount(
+       a,
+       1
+      )!=null)
+    throw new AssertionError(
+     "failed Trade Remove-X left hidden pending authority"
+    );
+
+   need(
+    TradeService.handleItemAction(
+     a,
+     new ItemContainerAction(
+      135,
+      3415,
+      0,
+      995,
+      0,
+      "ITEM_ACTION_X"
+     )
+    ),
+    "TRADE_REMOVE_X_PROMPT"
+   );
+
+   outA.fail=true;
+   boolean replacementFailed=false;
+   try{
+    TradeService.handleItemAction(
+     a,
+     new ItemContainerAction(
+      135,
+      3322,
+      coinSlot,
+      995,
+      0,
+      "ITEM_ACTION_X"
+     )
+    );
+   }catch(IOException expected){
+    replacementFailed=
+     "SWITCH_FAIL".equals(
+      expected.getMessage()
+     );
+   }
+   outA.fail=false;
+
+   String preserved=
+    TradeService.handleAmount(
+     a,
+     1
+    );
+
+   if(!replacementFailed||
+      preserved==null||
+      !preserved.contains(
+       "TRADE_REMOVE_X_OK"
+      ))
+    throw new AssertionError(
+     "failed Trade Offer-X replacement did not preserve old Remove-X result="+
+     preserved
+    );
+  }finally{
+   outA.fail=false;
+   TradeService.unregister(a);
+   TradeService.unregister(b);
+   if(a.registered())
+    w.unregisterPlayer(a);
+   if(b.registered())
+    w.unregisterPlayer(b);
    w.close();
   }
  }
