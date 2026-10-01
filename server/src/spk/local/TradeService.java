@@ -717,23 +717,34 @@ final class TradeService {
                 }
 
                 if(pair!=null){
-                    a.writer.varShort(
-                        53,
-                        inventoryA
-                    );
-                    a.writer.fixed(
-                        219,
-                        new byte[0]
-                    );
-                    b.writer.varShort(
-                        53,
-                        inventoryB
-                    );
-                    b.writer.fixed(
-                        219,
-                        new byte[0]
-                    );
-                    pair.commit();
+                    try{
+                        a.writer.varShort(
+                            53,
+                            inventoryA
+                        );
+                        a.writer.fixed(
+                            219,
+                            new byte[0]
+                        );
+                        b.writer.varShort(
+                            53,
+                            inventoryB
+                        );
+                        b.writer.fixed(
+                            219,
+                            new byte[0]
+                        );
+                        pair.commit();
+                    }catch(IOException failure){
+                        pair.abort();
+                        throw failure;
+                    }catch(RuntimeException failure){
+                        pair.abort();
+                        throw failure;
+                    }catch(Error failure){
+                        pair.abort();
+                        throw failure;
+                    }
                 }else{
                     /*
                      * Direct OutputStream writers exist only in focused legacy
@@ -899,15 +910,26 @@ final class TradeService {
         }
 
         if(pair!=null){
-            writeFirstStagePostimage(
-                trade.a.writer,
-                postA
-            );
-            writeFirstStagePostimage(
-                trade.b.writer,
-                postB
-            );
-            pair.commit();
+            try{
+                writeFirstStagePostimage(
+                    trade.a.writer,
+                    postA
+                );
+                writeFirstStagePostimage(
+                    trade.b.writer,
+                    postB
+                );
+                pair.commit();
+            }catch(IOException failure){
+                pair.abort();
+                throw failure;
+            }catch(RuntimeException failure){
+                pair.abort();
+                throw failure;
+            }catch(Error failure){
+                pair.abort();
+                throw failure;
+            }
             return null;
         }
 
@@ -1115,15 +1137,26 @@ final class TradeService {
         }
 
         if(pair!=null){
-            accepting.writer.varShort(
-                126,
-                acceptingBody
-            );
-            other.writer.varShort(
-                126,
-                peerBody
-            );
-            pair.commit();
+            try{
+                accepting.writer.varShort(
+                    126,
+                    acceptingBody
+                );
+                other.writer.varShort(
+                    126,
+                    peerBody
+                );
+                pair.commit();
+            }catch(IOException failure){
+                pair.abort();
+                throw failure;
+            }catch(RuntimeException failure){
+                pair.abort();
+                throw failure;
+            }catch(Error failure){
+                pair.abort();
+                throw failure;
+            }
             return null;
         }
 
