@@ -14,6 +14,14 @@ public final class MakeoverMageFlowTest {
                 player.equipment()
             );
 
+        final int[] designerRootPublishes={0};
+        handler.installDesignerRootOwner(
+            action->{
+                designerRootPublishes[0]++;
+                action.open();
+            }
+        );
+
         ByteArrayOutputStream wire=
             new ByteArrayOutputStream();
 
@@ -91,12 +99,23 @@ public final class MakeoverMageFlowTest {
                 "Continue was not consumed"
             );
 
+        if(designerRootPublishes[0]!=0)
+            throw new AssertionError(
+                "dialogue/chatbox transition entered designer root ownership"
+            );
+
         if(!handler.handleWidget(
                 StandardDialoguePresentationAdapter.twoOptionWidget(1),
                 packets,
                 "[makeover-flow-test] "))
             throw new AssertionError(
                 "Change-look option was not consumed"
+            );
+
+        if(designerRootPublishes[0]!=1)
+            throw new AssertionError(
+                "designer root 3559 did not enter root ownership exactly once count="+
+                designerRootPublishes[0]
             );
 
         CharacterDesignRequest request=
@@ -171,7 +190,7 @@ public final class MakeoverMageFlowTest {
             );
 
         System.out.println(
-            "MAKEOVER_MAGE_FLOW_PASS npc=599 route=TALK roots=4882->2459->3559 c2s101=true keyboardContinue4907=true keyboardDialogueOption1=true gender=FEMALE femaleJaw=-1 appearanceStateApplied=true wireBytes="+
+            "MAKEOVER_MAGE_FLOW_PASS npc=599 route=TALK roots=4882->2459->3559 c2s101=true keyboardContinue4907=true keyboardDialogueOption1=true chatboxPreservesMainRoot=true designerRootOwnership=true gender=FEMALE femaleJaw=-1 appearanceStateApplied=true wireBytes="+
             wire.size()
         );
     }
