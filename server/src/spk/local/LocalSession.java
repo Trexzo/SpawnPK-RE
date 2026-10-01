@@ -423,21 +423,18 @@ final class LocalSession implements Runnable {
                 @Override public void openDevPanel(
                     ServerPacketWriter writer
                 )throws IOException{
-                    replaceMonsterSpawnerRootForCurrentSession(
+                    openDevPanelForCurrentSession(
                         LocalSession.this.world,
                         LocalSession.this.worldPlayer,
                         LocalSession.this.worldPlayerGeneration,
-                        ()->
-                            LocalSession.this.uiActions
-                                .publishCompetingRootForOwnedSession(
-                                    ()->{
-                                        LocalSession.this.devPanelCoordinator.open(
-                                            DevControlCenter.Page.MAIN,
-                                            writer
-                                        );
-                                        return "DEV_PANEL_ROOT_OPENED";
-                                    }
-                                )
+                        LocalSession.this.uiActions,
+                        ()->{
+                            LocalSession.this.devPanelCoordinator.open(
+                                DevControlCenter.Page.MAIN,
+                                writer
+                            );
+                            return "DEV_PANEL_ROOT_OPENED";
+                        }
                     );
                 }
 
@@ -1098,6 +1095,35 @@ final class LocalSession implements Runnable {
                 failure
             );
         }
+    }
+
+    static String openDevPanelForCurrentSession(
+        World world,
+        WorldPlayer player,
+        long expectedGeneration,
+        LocalSessionUiActionHandler uiActions,
+        LocalSessionUiActionHandler.RootInterfaceAction action
+    )throws IOException{
+        LocalSessionUiActionHandler checkedUi=
+            java.util.Objects.requireNonNull(
+                uiActions,
+                "uiActions"
+            );
+        LocalSessionUiActionHandler.RootInterfaceAction checkedAction=
+            java.util.Objects.requireNonNull(
+                action,
+                "action"
+            );
+
+        return replaceMonsterSpawnerRootForCurrentSession(
+            world,
+            player,
+            expectedGeneration,
+            ()->
+                checkedUi.publishCompetingRootForOwnedSession(
+                    checkedAction
+                )
+        );
     }
 
     static String replaceMonsterSpawnerRootForCurrentSession(
