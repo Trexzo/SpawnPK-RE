@@ -1083,6 +1083,28 @@ final class MonsterSpawnerService {
             :snapshotOf(session);
     }
 
+    synchronized boolean retireSessionIfNoTrackedNpcs(
+        String ownerRef
+    ){
+        String owner=
+            PartyService.requireRef(
+                ownerRef
+            );
+
+        Session session=
+            sessions.get(owner);
+
+        if(session==null)
+            return false;
+
+        if(!session.spawnedNpcs.isEmpty())
+            return false;
+
+        return sessions.remove(
+            owner
+        )==session;
+    }
+
     synchronized int sessionCount(){
         return sessions.size();
     }
