@@ -456,8 +456,14 @@ public final class LocalSessionUiActionHandlerTest {
             );
         WorldPlayer latePlayer=
             new WorldPlayer();
+        long lateGeneration=
+            lateWorld.registerPlayer(
+                latePlayer,
+                "session-ui-owner"
+            );
         boolean[] factoryContext={false};
         boolean[] callbackContext={false};
+        int[] callbackCalls={0};
 
         try{
             LocalSession.MonsterSpawnerUiFactory callbackFactory=
@@ -484,6 +490,7 @@ public final class LocalSessionUiActionHandlerTest {
                         ServerPacketWriter callbackWriter,
                         String callbackTag
                     ){
+                        callbackCalls[0]++;
                         callbackContext[0]=
                             callbackWorld==lateWorld&&
                             callbackPlayer==latePlayer&&
@@ -519,13 +526,15 @@ public final class LocalSessionUiActionHandlerTest {
                 callbackFactory,
                 lateWorld,
                 latePlayer,
+                lateGeneration,
                 "session-ui-owner",
                 bridge.lastMonsterSpawnerResult,
                 w,
                 "[callback-test] "
             );
 
-            if(!callbackContext[0])
+            if(!callbackContext[0]||
+               callbackCalls[0]!=1)
                 throw new AssertionError(
                     "Monster Spawner callback exact LocalSession context"
                 );
@@ -534,11 +543,115 @@ public final class LocalSessionUiActionHandlerTest {
                 null,
                 lateWorld,
                 latePlayer,
+                lateGeneration,
                 "session-ui-owner",
                 bridge.lastMonsterSpawnerResult,
                 w,
                 "[callback-test] "
             );
+
+            if(callbackCalls[0]!=1)
+                throw new AssertionError(
+                    "null Monster Spawner callback factory invoked policy"
+                );
+
+            boolean callbackOwnerMismatchRejected=false;
+            try{
+                LocalSession.forwardMonsterSpawnerUiResult(
+                    callbackFactory,
+                    lateWorld,
+                    latePlayer,
+                    lateGeneration,
+                    "different-owner",
+                    bridge.lastMonsterSpawnerResult,
+                    w,
+                    "[callback-test] "
+                );
+            }catch(IllegalArgumentException expected){
+                callbackOwnerMismatchRejected=true;
+            }
+
+            if(!callbackOwnerMismatchRejected||
+               callbackCalls[0]!=1)
+                throw new AssertionError(
+                    "Monster Spawner committed-result owner mismatch was accepted"
+                );
+
+            if(!lateWorld.unregisterPlayer(
+                    latePlayer,
+                    lateGeneration
+                ))
+                throw new AssertionError(
+                    "late callback fixture did not unregister original generation"
+                );
+
+            long replacementGeneration=
+                lateWorld.registerPlayer(
+                    latePlayer,
+                    "session-ui-owner"
+                );
+
+            boolean staleGenerationRejected=false;
+            try{
+                LocalSession.forwardMonsterSpawnerUiResult(
+                    callbackFactory,
+                    lateWorld,
+                    latePlayer,
+                    lateGeneration,
+                    "session-ui-owner",
+                    bridge.lastMonsterSpawnerResult,
+                    w,
+                    "[callback-test] "
+                );
+            }catch(IllegalStateException expected){
+                staleGenerationRejected=true;
+            }
+
+            if(!staleGenerationRejected||
+               callbackCalls[0]!=1)
+                throw new AssertionError(
+                    "stale LocalSession generation invoked Monster Spawner callback"
+                );
+
+            LocalSession.forwardMonsterSpawnerUiResult(
+                callbackFactory,
+                lateWorld,
+                latePlayer,
+                replacementGeneration,
+                "session-ui-owner",
+                bridge.lastMonsterSpawnerResult,
+                w,
+                "[callback-test] "
+            );
+
+            if(callbackCalls[0]!=2)
+                throw new AssertionError(
+                    "replacement generation did not invoke explicit current callback"
+                );
+
+            lateWorld.close();
+
+            boolean terminalWorldRejected=false;
+            try{
+                LocalSession.forwardMonsterSpawnerUiResult(
+                    callbackFactory,
+                    lateWorld,
+                    latePlayer,
+                    replacementGeneration,
+                    "session-ui-owner",
+                    bridge.lastMonsterSpawnerResult,
+                    w,
+                    "[callback-test] "
+                );
+            }catch(IllegalStateException expected){
+                terminalWorldRejected=true;
+            }
+
+            if(!terminalWorldRejected||
+               callbackCalls[0]!=2)
+                throw new AssertionError(
+                    "closed World admitted Monster Spawner callback policy"
+                );
 
             if(LocalSession.resolveMonsterSpawnerUiAfterLogin(
                     null,
@@ -613,6 +726,9 @@ public final class LocalSessionUiActionHandlerTest {
             "oneTimeInstall=true "+
             "resultCallback=true "+
             "exactCallbackContext=true "+
+            "callbackOwnerFence=true "+
+            "callbackGenerationFence=true "+
+            "callbackWorldCloseFence=true "+
             "policyNeutral=true"
         );
     }
