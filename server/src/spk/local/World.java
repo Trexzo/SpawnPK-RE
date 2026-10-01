@@ -999,6 +999,9 @@ final class World implements AutoCloseable {
                     ()->pulse.closeWithTerminal(
                         plugins::closeResources
                     ),
+                    ()->SharedNpcWorldRelay.closeWorld(
+                        this
+                    ),
                     npcPresentationEvents::close,
                     groundItemPresentationEvents::close,
                     domainEvents::close,
