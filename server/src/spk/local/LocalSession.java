@@ -950,32 +950,29 @@ final class LocalSession implements Runnable {
                 result.session.ownerRef
             );
 
-        if(checkedWorld.closed())
-            throw new IllegalStateException(
-                "Monster Spawner callback rejected after World close owner="+
-                username
-            );
-
-        if(!checkedWorld.players().owns(
-                checkedPlayer,
-                expectedGeneration
-            ))
-            throw new IllegalStateException(
-                "Monster Spawner callback stale player generation owner="+
-                username+
-                " expectedGeneration="+
-                expectedGeneration
-            );
-
         try{
-            factory.onCommittedResult(
-                checkedWorld,
-                checkedPlayer,
-                username,
-                result,
-                writer,
-                tag
-            );
+            boolean delivered=
+                checkedWorld
+                    .withOpenPlayerMutationOwnershipIfCurrent(
+                        checkedPlayer,
+                        expectedGeneration,
+                        ()->factory.onCommittedResult(
+                            checkedWorld,
+                            checkedPlayer,
+                            username,
+                            result,
+                            writer,
+                            tag
+                        )
+                    );
+
+            if(!delivered)
+                throw new IllegalStateException(
+                    "Monster Spawner callback rejected by World/player ownership fence owner="+
+                    username+
+                    " expectedGeneration="+
+                    expectedGeneration
+                );
         }catch(IOException failure){
             throw failure;
         }catch(RuntimeException failure){
