@@ -511,7 +511,9 @@ final class LocalSession implements Runnable {
                         LocalMonsterSpawnerUiHandler handler,
                         int widget,
                         ServerPacketWriter writer,
-                        String tag
+                        String tag,
+                        LocalSessionUiActionHandler
+                            .MonsterSpawnerWidgetAction action
                     )throws IOException{
                     return dispatchMonsterSpawnerWidgetForCurrentSession(
                         LocalSession.this.monsterSpawnerUiFactory,
@@ -522,7 +524,20 @@ final class LocalSession implements Runnable {
                         handler,
                         widget,
                         writer,
-                        tag
+                        tag,
+                        action
+                    );
+                }
+
+                @Override public boolean revokeMonsterSpawnerUiOpen(
+                    LocalSessionUiActionHandler
+                        .MonsterSpawnerCloseAction action
+                )throws IOException{
+                    return revokeMonsterSpawnerForCurrentSession(
+                        LocalSession.this.world,
+                        LocalSession.this.worldPlayer,
+                        LocalSession.this.worldPlayerGeneration,
+                        action
                     );
                 }
 
@@ -996,6 +1011,57 @@ final class LocalSession implements Runnable {
         }
     }
 
+    static boolean revokeMonsterSpawnerForCurrentSession(
+        World world,
+        WorldPlayer player,
+        long expectedGeneration,
+        LocalSessionUiActionHandler.MonsterSpawnerCloseAction action
+    )throws IOException{
+        World checkedWorld=
+            java.util.Objects.requireNonNull(
+                world,
+                "world"
+            );
+        WorldPlayer checkedPlayer=
+            java.util.Objects.requireNonNull(
+                player,
+                "player"
+            );
+        LocalSessionUiActionHandler.MonsterSpawnerCloseAction
+            checkedAction=
+                java.util.Objects.requireNonNull(
+                    action,
+                    "action"
+                );
+        final boolean[] wasOpen={false};
+
+        try{
+            boolean delivered=
+                checkedWorld
+                    .withOpenPlayerMutationOwnershipIfCurrent(
+                        checkedPlayer,
+                        expectedGeneration,
+                        ()->
+                            wasOpen[0]=
+                                checkedAction.revoke()
+                    );
+
+            return delivered&&
+                wasOpen[0];
+        }catch(IOException failure){
+            throw failure;
+        }catch(RuntimeException failure){
+            throw failure;
+        }catch(Error failure){
+            throw failure;
+        }catch(Exception failure){
+            throw new IOException(
+                "Monster Spawner UI close failed",
+                failure
+            );
+        }
+    }
+
     static LocalSessionUiActionHandler.MonsterSpawnerDispatch
         dispatchMonsterSpawnerWidgetForCurrentSession(
             MonsterSpawnerUiFactory factory,
@@ -1007,6 +1073,42 @@ final class LocalSession implements Runnable {
             int widget,
             ServerPacketWriter writer,
             String tag
+        )throws IOException{
+        return dispatchMonsterSpawnerWidgetForCurrentSession(
+            factory,
+            world,
+            player,
+            expectedGeneration,
+            canonicalUsername,
+            handler,
+            widget,
+            writer,
+            tag,
+            ()->
+                LocalSessionUiActionHandler
+                    .MonsterSpawnerDispatch
+                    .admitted(
+                        handler.handle(
+                            widget,
+                            writer
+                        )
+                    )
+        );
+    }
+
+    static LocalSessionUiActionHandler.MonsterSpawnerDispatch
+        dispatchMonsterSpawnerWidgetForCurrentSession(
+            MonsterSpawnerUiFactory factory,
+            World world,
+            WorldPlayer player,
+            long expectedGeneration,
+            String canonicalUsername,
+            LocalMonsterSpawnerUiHandler handler,
+            int widget,
+            ServerPacketWriter writer,
+            String tag,
+            LocalSessionUiActionHandler
+                .MonsterSpawnerWidgetAction action
         )throws IOException{
         World checkedWorld=
             java.util.Objects.requireNonNull(
@@ -1035,6 +1137,12 @@ final class LocalSession implements Runnable {
             tag,
             "tag"
         );
+        LocalSessionUiActionHandler.MonsterSpawnerWidgetAction
+            checkedAction=
+                java.util.Objects.requireNonNull(
+                    action,
+                    "action"
+                );
 
         if(!checkedHandler.isBoundToOwner(
                 username
@@ -1047,7 +1155,7 @@ final class LocalSession implements Runnable {
                 username
             );
 
-        final LocalMonsterSpawnerUiHandler.Result[]
+        final LocalSessionUiActionHandler.MonsterSpawnerDispatch[]
             committed={null};
 
         try{
@@ -1058,18 +1166,20 @@ final class LocalSession implements Runnable {
                         expectedGeneration,
                         ()->{
                             committed[0]=
-                                checkedHandler.handle(
-                                    widget,
-                                    writer
+                                checkedAction.handle();
+
+                            if(committed[0]==null)
+                                throw new IllegalStateException(
+                                    "Monster Spawner widget action returned null dispatch"
                                 );
 
-                            if(committed[0]!=null)
+                            if(committed[0].result!=null)
                                 invokeMonsterSpawnerCommittedResult(
                                     factory,
                                     checkedWorld,
                                     checkedPlayer,
                                     username,
-                                    committed[0],
+                                    committed[0].result,
                                     writer,
                                     tag
                                 );
@@ -1081,11 +1191,7 @@ final class LocalSession implements Runnable {
                     .MonsterSpawnerDispatch
                     .rejected();
 
-            return LocalSessionUiActionHandler
-                .MonsterSpawnerDispatch
-                .admitted(
-                    committed[0]
-                );
+            return committed[0];
         }catch(IOException failure){
             throw failure;
         }catch(RuntimeException failure){
