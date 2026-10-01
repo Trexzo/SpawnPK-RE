@@ -251,50 +251,64 @@ final class MonsterSpawnerPvmRuntime {
             "recipientRef"
         );
 
+        final Entry[] published={null};
+
+        MonsterSpawnerNpcLifecycleBindingService
+            .RegistrationCommitAction publishRuntime=
+                (npc,lifecycle,planKey)->{
+                    Entry entry=
+                        new Entry(
+                            npc,
+                            owner,
+                            recipient
+                        );
+
+                    synchronized(this){
+                        if(entries.containsKey(
+                                npc.id))
+                            throw new IllegalStateException(
+                                "Monster Spawner PvM runtime duplicate NPC ownership id="+
+                                npc.id
+                            );
+
+                        entries.put(
+                            npc.id,
+                            entry
+                        );
+                        published[0]=entry;
+                    }
+                };
+
         MonsterSpawnerNpcLifecycleBindingService.Result
             spawned=
                 expected==null
-                    ?lifecycleBinding.spawnBindAndRegister(
+                    ?lifecycleBinding.spawnBindAndRegisterComposed(
                         owner,
                         x,
                         y,
-                        plane
+                        plane,
+                        publishRuntime
                     )
-                    :lifecycleBinding.spawnBindAndRegisterIfCurrent(
+                    :lifecycleBinding.spawnBindAndRegisterComposedIfCurrent(
                         owner,
                         expected,
                         x,
                         y,
-                        plane
+                        plane,
+                        publishRuntime
                     );
 
-        WorldNpc npc=
-            spawned.combat.spawn.npc;
-
         Entry entry=
-            new Entry(
-                npc,
-                owner,
-                recipient
+            Objects.requireNonNull(
+                published[0],
+                "runtime spawn ownership"
             );
 
-        synchronized(this){
-            Entry prior=entries.put(
-                npc.id,
-                entry
+        if(entry.npc!=spawned.combat.spawn.npc)
+            throw new IllegalStateException(
+                "Monster Spawner PvM runtime spawn identity changed id="+
+                entry.npc.id
             );
-
-            if(prior!=null){
-                entries.put(
-                    npc.id,
-                    prior
-                );
-                throw new IllegalStateException(
-                    "Monster Spawner PvM runtime duplicate NPC ownership id="+
-                    npc.id
-                );
-            }
-        }
 
         return new SpawnResult(
             spawned,
