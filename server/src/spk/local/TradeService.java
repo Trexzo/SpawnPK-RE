@@ -216,18 +216,10 @@ final class TradeService {
                                !cb.ownerCurrent())
                                 return;
 
-                            cancel0(
-                                s,
-                                ca,
-                                "REPLACED_BY_NEW_TRADE",
-                                tradeCurrent(ca.trade)
-                            );
-                            cancel0(
-                                s,
-                                cb,
-                                "REPLACED_BY_NEW_TRADE",
-                                tradeCurrent(cb.trade)
-                            );
+                            Trade priorA=
+                                liveTrade(ca);
+                            Trade priorB=
+                                liveTrade(cb);
 
                             Trade t=new Trade(ca,cb);
                             boolean[] rootPublicationEntered={
@@ -264,42 +256,62 @@ final class TradeService {
                                     }
                                 );
                             }catch(IOException failure){
-                                closeEnteredTradeRootAfterStartFailure(
+                                restoreOrCloseEnteredTradeRootAfterStartFailure(
                                     ca,
                                     rootPublicationEntered[0],
+                                    priorA,
                                     failure
                                 );
-                                closeEnteredTradeRootAfterStartFailure(
+                                restoreOrCloseEnteredTradeRootAfterStartFailure(
                                     cb,
                                     rootPublicationEntered[1],
+                                    priorB,
                                     failure
                                 );
                                 throw failure;
                             }catch(RuntimeException failure){
-                                closeEnteredTradeRootAfterStartFailure(
+                                restoreOrCloseEnteredTradeRootAfterStartFailure(
                                     ca,
                                     rootPublicationEntered[0],
+                                    priorA,
                                     failure
                                 );
-                                closeEnteredTradeRootAfterStartFailure(
+                                restoreOrCloseEnteredTradeRootAfterStartFailure(
                                     cb,
                                     rootPublicationEntered[1],
+                                    priorB,
                                     failure
                                 );
                                 throw failure;
                             }catch(Error failure){
-                                closeEnteredTradeRootAfterStartFailure(
+                                restoreOrCloseEnteredTradeRootAfterStartFailure(
                                     ca,
                                     rootPublicationEntered[0],
+                                    priorA,
                                     failure
                                 );
-                                closeEnteredTradeRootAfterStartFailure(
+                                restoreOrCloseEnteredTradeRootAfterStartFailure(
                                     cb,
                                     rootPublicationEntered[1],
+                                    priorB,
                                     failure
                                 );
                                 throw failure;
                             }
+
+                            retirePriorTradeForReplacement(
+                                s,
+                                priorA,
+                                ca,
+                                cb
+                            );
+                            if(priorB!=priorA)
+                                retirePriorTradeForReplacement(
+                                    s,
+                                    priorB,
+                                    ca,
+                                    cb
+                                );
 
                             s.trades.put(a.id(),t);
                             s.trades.put(b.id(),t);
@@ -565,12 +577,71 @@ final class TradeService {
         c.writer.varShort(126,BootstrapPackets.widgetText126(3558,recv[0].length==0?"Absolutely nothing!":""));
     }
 
-    private static void closeEnteredTradeRootAfterStartFailure(
+    private static void restoreOrCloseEnteredTradeRootAfterStartFailure(
         Context context,
         boolean entered,
+        Trade prior,
         Throwable primary
     ){
         if(!entered)
+            return;
+
+        try{
+            if(prior!=null&&
+               context.trade==prior&&
+               tradeCurrent(prior)){
+                publishCurrentStageFor(
+                    prior,
+                    context
+                );
+            }else{
+                context.writer.fixed(
+                    219,
+                    new byte[0]
+                );
+            }
+        }catch(Throwable cleanup){
+            primary.addSuppressed(
+                cleanup
+            );
+        }
+    }
+
+    private static void retirePriorTradeForReplacement(
+        State state,
+        Trade prior,
+        Context replacementA,
+        Context replacementB
+    ){
+        if(prior==null||
+           prior.stage==Stage.CANCELLED||
+           prior.stage==Stage.COMMITTED)
+            return;
+
+        prior.stage=Stage.CANCELLED;
+        detach(state,prior);
+
+        closeReplacedPeer(
+            prior.a,
+            replacementA,
+            replacementB
+        );
+        closeReplacedPeer(
+            prior.b,
+            replacementA,
+            replacementB
+        );
+    }
+
+    private static void closeReplacedPeer(
+        Context context,
+        Context replacementA,
+        Context replacementB
+    ){
+        if(context==replacementA||
+           context==replacementB||
+           context.world.closed()||
+           !context.ownerCurrent())
             return;
 
         try{
@@ -578,11 +649,87 @@ final class TradeService {
                 219,
                 new byte[0]
             );
-        }catch(Throwable cleanup){
-            primary.addSuppressed(
-                cleanup
+        }catch(Throwable ignored){}
+    }
+
+    private static void publishCurrentStageFor(
+        Trade trade,
+        Context context
+    )throws IOException{
+        if(trade.stage==Stage.OFFERING){
+            publishFirstFor(
+                trade,
+                context
+            );
+            context.writer.varShort(
+                126,
+                BootstrapPackets.widgetText126(
+                    STATUS_TEXT,
+                    firstAcceptStatusFor(
+                        trade,
+                        context
+                    )
+                )
+            );
+            return;
+        }
+
+        if(trade.stage==Stage.CONFIRMING){
+            publishConfirmFor(
+                trade,
+                context
+            );
+            context.writer.varShort(
+                126,
+                BootstrapPackets.widgetText126(
+                    CONFIRM_STATUS,
+                    finalAcceptStatusFor(
+                        trade,
+                        context
+                    )
+                )
             );
         }
+    }
+
+    private static String firstAcceptStatusFor(
+        Trade trade,
+        Context context
+    ){
+        boolean own=
+            context==trade.a
+                ?trade.firstAcceptedA
+                :trade.firstAcceptedB;
+        boolean other=
+            context==trade.a
+                ?trade.firstAcceptedB
+                :trade.firstAcceptedA;
+
+        return own
+            ?"Waiting for other player..."
+            :other
+                ?"Other player has accepted."
+                :"";
+    }
+
+    private static String finalAcceptStatusFor(
+        Trade trade,
+        Context context
+    ){
+        boolean own=
+            context==trade.a
+                ?trade.finalAcceptedA
+                :trade.finalAcceptedB;
+        boolean other=
+            context==trade.a
+                ?trade.finalAcceptedB
+                :trade.finalAcceptedA;
+
+        return own
+            ?"Waiting for other player..."
+            :other
+                ?"Other player has accepted."
+                :"Are you sure you want to make this trade?";
     }
 
     private static void cancel0(State s,Context c,String reason,boolean notify){
