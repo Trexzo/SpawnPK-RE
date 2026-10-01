@@ -350,13 +350,13 @@ final class TradeService {
             BankState.Stack slot=c.bank.inventoryAt(a.slot);
             if(slot==null||slot.itemId!=a.itemId)return "TRADE_OFFER_REJECTED_SLOT_MISMATCH slot="+a.slot+" item="+a.itemId;
             if(ItemPolicyRepository.explicitlyUntradeable(a.itemId))return "TRADE_OFFER_REJECTED_EXPLICIT_UNTRADEABLE item="+a.itemId;
-            if(amount<0){c.pendingX=new PendingX(XKind.OFFER,a.itemId);c.writer.fixed(27,new byte[0]);return "TRADE_OFFER_X_PROMPT item="+a.itemId;}
+            if(amount<0){c.writer.fixed(27,new byte[0]);c.pendingX=new PendingX(XKind.OFFER,a.itemId);return "TRADE_OFFER_X_PROMPT item="+a.itemId;}
             int available=Math.max(0,c.bank.inventoryCount(a.itemId)-t.offer(c).getOrDefault(a.itemId,0));
             int add=amount==Integer.MAX_VALUE?available:Math.min(amount,available);if(add<=0)return "TRADE_OFFER_REJECTED_NO_AVAILABLE item="+a.itemId;
             changeOffer(t,c,a.itemId,add);return "TRADE_OFFER_OK item="+a.itemId+" qty="+add+" explicitTradeable="+ItemPolicyRepository.explicitTradeable(a.itemId);
         }else{
             int item=offerItemAt(t,c,a.slot);if(item<0||item!=a.itemId)return "TRADE_REMOVE_REJECTED_SLOT_MISMATCH slot="+a.slot+" item="+a.itemId+" resolved="+item;
-            if(amount<0){c.pendingX=new PendingX(XKind.REMOVE,item);c.writer.fixed(27,new byte[0]);return "TRADE_REMOVE_X_PROMPT item="+item;}
+            if(amount<0){c.writer.fixed(27,new byte[0]);c.pendingX=new PendingX(XKind.REMOVE,item);return "TRADE_REMOVE_X_PROMPT item="+item;}
             int have=t.offer(c).getOrDefault(item,0);int rem=amount==Integer.MAX_VALUE?have:Math.min(amount,have);if(rem<=0)return "TRADE_REMOVE_REJECTED_EMPTY item="+item;
             changeOffer(t,c,item,-rem);return "TRADE_REMOVE_OK item="+item+" qty="+rem;
         }
