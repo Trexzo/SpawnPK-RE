@@ -297,12 +297,32 @@ final class MonsterSpawnerPvmRuntime {
             }
             throw failure;
         }catch(Exception failure){
+            NpcLifecycleService.Snapshot lifecycle=
+                world.npcLifecycle().get(
+                    entry.npc.id
+                );
+            boolean retryable=
+                world.npcs().byId(
+                    entry.npc.id
+                )==entry.npc&&
+                lifecycle!=null&&
+                lifecycle.dead();
+
             synchronized(this){
                 if(entries.get(entry.npc.id)==entry){
-                    entry.state=
-                        State.FINALIZATION_PENDING;
                     entry.terminalInProgress=false;
+
+                    if(retryable)
+                        entry.state=
+                            State.FINALIZATION_PENDING;
                 }
+            }
+
+            if(!retryable){
+                rethrow(
+                    failure
+                );
+                return null;
             }
 
             return new FinalizeResult(
