@@ -6,6 +6,7 @@ import java.lang.reflect.Field;
 public final class MakeoverSemanticDialogueSessionTest {
     public static void main(String[] args)throws Exception{
         designerHandoffUsesSemanticDialogue();
+        designerHandoffFailurePreservesOptions();
         nevermindEndsSemanticDialogue();
         clientCancelEndsSemanticDialogue();
         serverCancellationUsesAbortRevision();
@@ -16,6 +17,7 @@ public final class MakeoverSemanticDialogueSessionTest {
             "intro=true "+
             "options=true "+
             "designerHandoff=true "+
+            "designerFailureAtomic=true "+
             "nevermind=true "+
             "clientCancel=true "+
             "serverAbortRevision=true "+
@@ -128,6 +130,115 @@ public final class MakeoverSemanticDialogueSessionTest {
             !handler.semanticDialogueSnapshot()
                 .active,
             "designer cancel state"
+        );
+    }
+
+    private static void designerHandoffFailurePreservesOptions()
+        throws Exception
+    {
+        WorldPlayer player=
+            new WorldPlayer();
+        LocalMakeoverMageHandler handler=
+            handler(player);
+        ServerPacketWriter packets=
+            writer();
+        NpcEntity mage=
+            adjacentMage(player,34);
+        final boolean[] failAfterPacket={true};
+
+        handler.installDesignerRootOwner(
+            new LocalMakeoverMageHandler.DesignerRootOwner(){
+                @Override public void publish(
+                    LocalMakeoverMageHandler.DesignerRootAction action
+                )throws java.io.IOException{
+                    action.open();
+                }
+
+                @Override public void publish(
+                    LocalMakeoverMageHandler.DesignerRootAction action,
+                    LocalMakeoverMageHandler.DesignerRootCommit commit
+                )throws java.io.IOException{
+                    action.open();
+
+                    if(failAfterPacket[0]){
+                        failAfterPacket[0]=false;
+                        throw new java.io.IOException(
+                            "EXPECTED_DESIGNER_OWNER_POST_PACKET_FAILURE"
+                        );
+                    }
+
+                    commit.commit();
+                }
+            }
+        );
+
+        handler.beginIfSupported(
+            new NpcAction(
+                155,
+                mage.sceneIndex
+            ),
+            mage,
+            packets,
+            "[makeover-semantic-test] "
+        );
+        handler.handleContinue(
+            StandardDialoguePresentationAdapter
+                .namedNpcContinueWidget(1),
+            packets,
+            "[makeover-semantic-test] "
+        );
+
+        DialogueSessionService.Snapshot before=
+            handler.semanticDialogueSnapshot();
+
+        boolean failed=false;
+
+        try{
+            handler.handleOption(
+                1,
+                packets,
+                "[makeover-semantic-test] "
+            );
+        }catch(java.io.IOException expected){
+            failed=
+                "EXPECTED_DESIGNER_OWNER_POST_PACKET_FAILURE"
+                    .equals(
+                        expected.getMessage()
+                    );
+        }
+
+        DialogueSessionService.Snapshot afterFailure=
+            handler.semanticDialogueSnapshot();
+
+        require(
+            failed&&
+            afterFailure.active&&
+            "node:options".equals(
+                afterFailure.nodeKey)&&
+            afterFailure.revision==
+                before.revision&&
+            !handler.designActive(),
+            "designer failure did not preserve options"
+        );
+
+        require(
+            handler.handleOption(
+                1,
+                packets,
+                "[makeover-semantic-test] "
+            ),
+            "designer retry"
+        );
+
+        DialogueSessionService.Snapshot afterRetry=
+            handler.semanticDialogueSnapshot();
+
+        require(
+            !afterRetry.active&&
+            afterRetry.revision==
+                before.revision+1L&&
+            handler.designActive(),
+            "designer retry did not commit exactly once"
         );
     }
 
