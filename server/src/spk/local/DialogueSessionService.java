@@ -601,6 +601,87 @@ final class DialogueSessionService {
         );
     }
 
+    synchronized Snapshot rollbackTransition(
+        Snapshot before,
+        Snapshot failedAfter
+    ) {
+        Snapshot prior =
+            Objects.requireNonNull(
+                before,
+                "before"
+            );
+        Snapshot failed =
+            Objects.requireNonNull(
+                failedAfter,
+                "failedAfter"
+            );
+
+        if (!prior.playerRef.equals(
+                failed.playerRef)) {
+            throw new IllegalArgumentException(
+                "dialogue rollback player mismatch"
+            );
+        }
+
+        if (!prior.active) {
+            throw new IllegalArgumentException(
+                "dialogue rollback requires active prior state"
+            );
+        }
+
+        PlayerSession state =
+            players.get(
+                prior.playerRef
+            );
+
+        if (state == null ||
+            state.revision != failed.revision ||
+            state.active != failed.active ||
+            !Objects.equals(
+                state.dialogueKey,
+                failed.dialogueKey
+            ) ||
+            !Objects.equals(
+                state.nodeKey,
+                failed.nodeKey
+            )) {
+            throw new IllegalStateException(
+                "dialogue rollback current state mismatch player=" +
+                prior.playerRef
+            );
+        }
+
+        DialogueDefinition definition =
+            definitions.get(
+                prior.dialogueKey
+            );
+
+        if (definition == null ||
+            definition.node(
+                prior.nodeKey
+            ) == null) {
+            throw new IllegalStateException(
+                "dialogue rollback prior authority disappeared player=" +
+                prior.playerRef
+            );
+        }
+
+        state.active = true;
+        state.dialogueKey =
+            prior.dialogueKey;
+        state.nodeKey =
+            prior.nodeKey;
+        state.revision =
+            addOne(
+                state.revision,
+                "dialogue rollback revision"
+            );
+
+        return snapshotOf(
+            state
+        );
+    }
+
     synchronized List<DialogueDefinition>
         catalog() {
         return Collections.unmodifiableList(
