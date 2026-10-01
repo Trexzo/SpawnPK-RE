@@ -6274,3 +6274,18 @@ tasks.named('check') {
     dependsOn tasks.named('serverPacketWriterBatchAbortRegression')
     dependsOn tasks.named('outboundPacketQueueBatchAdmissionRegression')
 }
+
+
+tasks.register('player81BatchAbortAtomicityRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves batched packet81 presentation state and NPC relay barriers commit only after transport admission and survive abort.'
+    dependsOn tasks.named('testClasses')
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.Player81BatchAbortAtomicityTest'
+}
+
+tasks.named('check') {
+    dependsOn tasks.named('player81BatchAbortAtomicityRegression')
+}
