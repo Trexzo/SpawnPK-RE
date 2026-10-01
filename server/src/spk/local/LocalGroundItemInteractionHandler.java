@@ -201,27 +201,21 @@ final class LocalGroundItemInteractionHandler {
                 sceneBefore
             );
             if(!ended)
-                try{
-                    serverPackets.endBatch();
-                }catch(Throwable ignored){}
+                try{serverPackets.abortBatch();}catch(Throwable ignored){}
             throw failure;
         }catch(RuntimeException failure){
             scenePublisher.context().restore(
                 sceneBefore
             );
             if(!ended)
-                try{
-                    serverPackets.endBatch();
-                }catch(Throwable ignored){}
+                try{serverPackets.abortBatch();}catch(Throwable ignored){}
             throw failure;
         }catch(Error failure){
             scenePublisher.context().restore(
                 sceneBefore
             );
             if(!ended)
-                try{
-                    serverPackets.endBatch();
-                }catch(Throwable ignored){}
+                try{serverPackets.abortBatch();}catch(Throwable ignored){}
             throw failure;
         }
 
