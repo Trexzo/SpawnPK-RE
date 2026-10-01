@@ -911,14 +911,23 @@ final class LocalSession implements Runnable {
                 checkedAccount
             );
 
-        if(handler!=null&&
-           !handler.isOwnedBy(
-                checkedAccount
-            ))
-            throw new IllegalArgumentException(
-                "Monster Spawner UI owner does not match resolved account "+
-                checkedAccount
-            );
+        if(handler!=null){
+            if(!handler.isOwnedBy(
+                    checkedAccount
+                ))
+                throw new IllegalArgumentException(
+                    "Monster Spawner UI owner does not match resolved account "+
+                    checkedAccount
+                );
+
+            if(!handler.isBoundTo(
+                    checkedWorld
+                ))
+                throw new IllegalArgumentException(
+                    "Monster Spawner UI service belongs to another World account="+
+                    checkedAccount
+                );
+        }
 
         return handler;
     }
