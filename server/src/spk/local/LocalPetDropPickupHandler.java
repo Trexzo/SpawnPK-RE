@@ -326,21 +326,15 @@ final class LocalPetDropPickupHandler {
             ended=true;
         }catch(IOException failure){
             if(!ended)
-                try{
-                    serverPackets.endBatch();
-                }catch(Throwable ignored){}
+                try{serverPackets.abortBatch();}catch(Throwable ignored){}
             throw failure;
         }catch(RuntimeException failure){
             if(!ended)
-                try{
-                    serverPackets.endBatch();
-                }catch(Throwable ignored){}
+                try{serverPackets.abortBatch();}catch(Throwable ignored){}
             throw failure;
         }catch(Error failure){
             if(!ended)
-                try{
-                    serverPackets.endBatch();
-                }catch(Throwable ignored){}
+                try{serverPackets.abortBatch();}catch(Throwable ignored){}
             throw failure;
         }
 
@@ -750,27 +744,21 @@ final class LocalPetDropPickupHandler {
                 sceneBefore
             );
             if(!ended)
-                try{
-                    serverPackets.endBatch();
-                }catch(Throwable ignored){}
+                try{serverPackets.abortBatch();}catch(Throwable ignored){}
             throw failure;
         }catch(RuntimeException failure){
             scene.context().restore(
                 sceneBefore
             );
             if(!ended)
-                try{
-                    serverPackets.endBatch();
-                }catch(Throwable ignored){}
+                try{serverPackets.abortBatch();}catch(Throwable ignored){}
             throw failure;
         }catch(Error failure){
             scene.context().restore(
                 sceneBefore
             );
             if(!ended)
-                try{
-                    serverPackets.endBatch();
-                }catch(Throwable ignored){}
+                try{serverPackets.abortBatch();}catch(Throwable ignored){}
             throw failure;
         }
 
@@ -1089,21 +1077,15 @@ final class LocalPetDropPickupHandler {
             ended=true;
         }catch(IOException failure){
             if(!ended)
-                try{
-                    serverPackets.endBatch();
-                }catch(Throwable ignored){}
+                try{serverPackets.abortBatch();}catch(Throwable ignored){}
             throw failure;
         }catch(RuntimeException failure){
             if(!ended)
-                try{
-                    serverPackets.endBatch();
-                }catch(Throwable ignored){}
+                try{serverPackets.abortBatch();}catch(Throwable ignored){}
             throw failure;
         }catch(Error failure){
             if(!ended)
-                try{
-                    serverPackets.endBatch();
-                }catch(Throwable ignored){}
+                try{serverPackets.abortBatch();}catch(Throwable ignored){}
             throw failure;
         }
 
