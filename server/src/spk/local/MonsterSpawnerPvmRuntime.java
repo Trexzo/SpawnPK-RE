@@ -124,6 +124,8 @@ final class MonsterSpawnerPvmRuntime {
     private final World world;
     private final MonsterSpawnerNpcLifecycleBindingService
         lifecycleBinding;
+    private final MonsterSpawnerCombatBindingService
+        combat;
     private final MonsterSpawnerNpcDeathFinalizationService
         finalizer;
     private final NpcDropGroundSettlementService settlement;
@@ -154,16 +156,16 @@ final class MonsterSpawnerPvmRuntime {
             "settlement"
         );
 
-        MonsterSpawnerCombatBindingService combat=
+        this.combat=
             this.lifecycleBinding.combatAuthority();
 
         if(!this.lifecycleBinding.isBoundTo(
                 this.world,
-                combat
+                this.combat
             )||
            !this.finalizer.isBoundTo(
                 this.world,
-                combat
+                this.combat
             )||
            !this.settlement.isBoundTo(
                 this.world
@@ -589,6 +591,24 @@ final class MonsterSpawnerPvmRuntime {
             );
             entry.terminalInProgress=false;
         }
+
+        MonsterSpawnerService.SessionSnapshot
+            postTeardownSession=
+                finalized.teardown.session;
+
+        if(postTeardownSession.spawnedNpcIds.isEmpty())
+            world.runIfOpen(
+                ()->{
+                    if(world.players().byName(
+                            entry.ownerRef
+                        )==null)
+                        combat
+                            .retireSessionIfCurrentAndNoTrackedNpcs(
+                                entry.ownerRef,
+                                postTeardownSession
+                            );
+                }
+            );
 
         return new FinalizeResult(
             FinalizeStatus.FINALIZED,
