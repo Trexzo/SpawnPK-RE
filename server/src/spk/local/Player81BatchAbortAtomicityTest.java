@@ -3,6 +3,9 @@ package spk.local;
 import java.io.ByteArrayOutputStream;
 import java.lang.reflect.Field;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 public final class Player81BatchAbortAtomicityTest {
     public static void main(String[] args)throws Exception{
@@ -201,6 +204,7 @@ public final class Player81BatchAbortAtomicityTest {
             testOwnershipCommitBarrier();
             testStalePreparationFailClosed();
             testUnbatchedPublicationAtomicity();
+            testPacket81BatchLifetimeGate();
 
             System.out.println(
                 "PLAYER81_BATCH_ABORT_ATOMICITY_PASS "+
@@ -214,7 +218,11 @@ public final class Player81BatchAbortAtomicityTest {
                 "noContextLocalOnlyPreserved=true "+
                 "unbatchedQueueFailureAtomic=true "+
                 "unbatchedRetryCommitsOnce=true "+
-                "unbatchedDirectOutputFailClosed=true"
+                "unbatchedDirectOutputFailClosed=true "+
+                "stagedAbortWaitsForFraming=true "+
+                "stagedEndWaitsForFraming=true "+
+                "unbatchedBeginCannotCapture=true "+
+                "packet81LifetimeWaitersTerminate=true"
             );
         }finally{
             SharedNpcWorldRelay.unregister(
@@ -239,6 +247,512 @@ public final class Player81BatchAbortAtomicityTest {
                     viewer
                 );
 
+            world.close();
+        }
+    }
+
+    private static void testPacket81BatchLifetimeGate()
+        throws Exception
+    {
+        testStagedAbortLifetimeGate();
+        testStagedEndLifetimeGate();
+        testUnbatchedBeginLifetimeGate();
+    }
+
+    private static void testStagedAbortLifetimeGate()
+        throws Exception
+    {
+        LifetimeFixture fixture=
+            new LifetimeFixture(
+                606L,
+                "player81-lifetime-abort",
+                new int[]{37,38,39,40}
+            );
+
+        try{
+            fixture.writer.beginBatch();
+            fixture.writer.varShort(
+                81,
+                BootstrapPackets.player81Idle()
+            );
+
+            long sequenceBefore=
+                sequence(fixture.world);
+            int bytesBefore=
+                fixture.queue.queuedBytes();
+
+            WorldBarrier barrier=
+                holdWorldLifecycle(
+                    fixture.world
+                );
+
+            AtomicReference<Throwable> packetFailure=
+                new AtomicReference<>();
+            Thread packet=
+                new Thread(
+                    ()->{
+                        try{
+                            fixture.writer.varShort(
+                                81,
+                                BootstrapPackets.player81WalkStep(4)
+                            );
+                        }catch(Throwable failure){
+                            packetFailure.set(failure);
+                        }
+                    },
+                    "packet81-staged-abort"
+                );
+            packet.start();
+
+            awaitPacket81InFlight(
+                fixture.writer
+            );
+
+            AtomicReference<Throwable> abortFailure=
+                new AtomicReference<>();
+            CountDownLatch abortDone=
+                new CountDownLatch(1);
+            Thread abort=
+                new Thread(
+                    ()->{
+                        try{
+                            fixture.writer.abortBatch();
+                        }catch(Throwable failure){
+                            abortFailure.set(failure);
+                        }finally{
+                            abortDone.countDown();
+                        }
+                    },
+                    "packet81-abort-waiter"
+                );
+            abort.start();
+
+            if(abortDone.await(
+                    100,
+                    TimeUnit.MILLISECONDS))
+                throw new AssertionError(
+                    "abort retired batch while packet81 transform was in flight"
+                );
+
+            barrier.release();
+            packet.join(5000L);
+            abort.join(5000L);
+
+            if(packet.isAlive()||
+               abort.isAlive())
+                throw new AssertionError(
+                    "packet81 abort lifetime waiters did not terminate"
+                );
+            if(packetFailure.get()!=null)
+                throw new AssertionError(
+                    "staged packet81 failed during abort lifetime gate",
+                    packetFailure.get()
+                );
+            if(abortFailure.get()!=null)
+                throw new AssertionError(
+                    "abort waiter failed",
+                    abortFailure.get()
+                );
+            if(fixture.queue.queuedBytes()!=
+                    bytesBefore)
+                throw new AssertionError(
+                    "aborted in-flight packet81 leaked bytes"
+                );
+            if(sequence(fixture.world)!=
+                    sequenceBefore)
+                throw new AssertionError(
+                    "aborted in-flight packet81 committed semantic state"
+                );
+        }finally{
+            fixture.close();
+        }
+    }
+
+    private static void testStagedEndLifetimeGate()
+        throws Exception
+    {
+        LifetimeFixture fixture=
+            new LifetimeFixture(
+                607L,
+                "player81-lifetime-end",
+                new int[]{41,42,43,44}
+            );
+
+        try{
+            fixture.writer.beginBatch();
+            fixture.writer.varShort(
+                81,
+                BootstrapPackets.player81Idle()
+            );
+
+            long sequenceBefore=
+                sequence(fixture.world);
+
+            WorldBarrier barrier=
+                holdWorldLifecycle(
+                    fixture.world
+                );
+
+            AtomicReference<Throwable> packetFailure=
+                new AtomicReference<>();
+            Thread packet=
+                new Thread(
+                    ()->{
+                        try{
+                            fixture.writer.varShort(
+                                81,
+                                BootstrapPackets.player81WalkStep(4)
+                            );
+                        }catch(Throwable failure){
+                            packetFailure.set(failure);
+                        }
+                    },
+                    "packet81-staged-end"
+                );
+            packet.start();
+
+            awaitPacket81InFlight(
+                fixture.writer
+            );
+
+            AtomicReference<Throwable> endFailure=
+                new AtomicReference<>();
+            CountDownLatch endDone=
+                new CountDownLatch(1);
+            Thread end=
+                new Thread(
+                    ()->{
+                        try{
+                            fixture.writer.endBatch();
+                        }catch(Throwable failure){
+                            endFailure.set(failure);
+                        }finally{
+                            endDone.countDown();
+                        }
+                    },
+                    "packet81-end-waiter"
+                );
+            end.start();
+
+            if(endDone.await(
+                    100,
+                    TimeUnit.MILLISECONDS))
+                throw new AssertionError(
+                    "endBatch committed before in-flight packet81 joined pending bytes"
+                );
+
+            barrier.release();
+            packet.join(5000L);
+            end.join(5000L);
+
+            if(packet.isAlive()||
+               end.isAlive())
+                throw new AssertionError(
+                    "packet81 end lifetime waiters did not terminate"
+                );
+            if(packetFailure.get()!=null)
+                throw new AssertionError(
+                    "staged packet81 failed during end lifetime gate",
+                    packetFailure.get()
+                );
+            if(endFailure.get()!=null)
+                throw new AssertionError(
+                    "endBatch waiter failed",
+                    endFailure.get()
+                );
+            if(fixture.queue.queuedBytes()==0)
+                throw new AssertionError(
+                    "endBatch emitted no packet81 bytes"
+                );
+            if(sequence(fixture.world)<=
+                    sequenceBefore)
+                throw new AssertionError(
+                    "endBatch did not commit prepared packet81 semantics"
+                );
+        }finally{
+            fixture.close();
+        }
+    }
+
+    private static void testUnbatchedBeginLifetimeGate()
+        throws Exception
+    {
+        LifetimeFixture fixture=
+            new LifetimeFixture(
+                608L,
+                "player81-lifetime-unbatched",
+                new int[]{45,46,47,48}
+            );
+
+        try{
+            WorldBarrier barrier=
+                holdWorldLifecycle(
+                    fixture.world
+                );
+
+            AtomicReference<Throwable> packetFailure=
+                new AtomicReference<>();
+            Thread packet=
+                new Thread(
+                    ()->{
+                        try{
+                            fixture.writer.varShort(
+                                81,
+                                BootstrapPackets.player81WalkStep(4)
+                            );
+                        }catch(Throwable failure){
+                            packetFailure.set(failure);
+                        }
+                    },
+                    "packet81-unbatched-begin"
+                );
+            packet.start();
+
+            awaitPacket81InFlight(
+                fixture.writer
+            );
+
+            AtomicReference<Throwable> beginFailure=
+                new AtomicReference<>();
+            CountDownLatch beginDone=
+                new CountDownLatch(1);
+            Thread begin=
+                new Thread(
+                    ()->{
+                        try{
+                            fixture.writer.beginBatch();
+                        }catch(Throwable failure){
+                            beginFailure.set(failure);
+                        }finally{
+                            beginDone.countDown();
+                        }
+                    },
+                    "packet81-begin-waiter"
+                );
+            begin.start();
+
+            if(beginDone.await(
+                    100,
+                    TimeUnit.MILLISECONDS))
+                throw new AssertionError(
+                    "beginBatch captured initially-unbatched packet81"
+                );
+
+            barrier.release();
+            packet.join(5000L);
+            begin.join(5000L);
+
+            if(packet.isAlive()||
+               begin.isAlive())
+                throw new AssertionError(
+                    "packet81 begin lifetime waiters did not terminate"
+                );
+            if(packetFailure.get()!=null)
+                throw new AssertionError(
+                    "unbatched packet81 failed during begin lifetime gate",
+                    packetFailure.get()
+                );
+            if(beginFailure.get()!=null)
+                throw new AssertionError(
+                    "beginBatch waiter failed",
+                    beginFailure.get()
+                );
+            if(fixture.queue.queuedBytes()==0)
+                throw new AssertionError(
+                    "initially-unbatched packet81 emitted no bytes"
+                );
+            if(batchDepth(fixture.writer)!=1)
+                throw new AssertionError(
+                    "beginBatch did not start only after unbatched packet81 completed"
+                );
+
+            fixture.writer.abortBatch();
+        }finally{
+            fixture.close();
+        }
+    }
+
+    private static void awaitPacket81InFlight(
+        ServerPacketWriter writer
+    )throws Exception{
+        Field field=
+            ServerPacketWriter.class
+                .getDeclaredField(
+                    "packet81InFlight"
+                );
+        field.setAccessible(true);
+
+        long deadline=
+            System.nanoTime()+
+            TimeUnit.SECONDS.toNanos(5);
+
+        while(System.nanoTime()<deadline){
+            synchronized(writer){
+                if(field.getBoolean(writer))
+                    return;
+            }
+            Thread.sleep(1L);
+        }
+
+        throw new AssertionError(
+            "packet81 operation never entered in-flight gate"
+        );
+    }
+
+    private static int batchDepth(
+        ServerPacketWriter writer
+    )throws Exception{
+        Field field=
+            ServerPacketWriter.class
+                .getDeclaredField(
+                    "batchDepth"
+                );
+        field.setAccessible(true);
+        synchronized(writer){
+            return field.getInt(writer);
+        }
+    }
+
+    private static WorldBarrier holdWorldLifecycle(
+        World world
+    )throws Exception{
+        CountDownLatch entered=
+            new CountDownLatch(1);
+        CountDownLatch release=
+            new CountDownLatch(1);
+        AtomicReference<Throwable> failure=
+            new AtomicReference<>();
+
+        Thread holder=
+            new Thread(
+                ()->{
+                    try{
+                        boolean accepted=
+                            world.runIfOpen(
+                                ()->{
+                                    entered.countDown();
+                                    try{
+                                        if(!release.await(
+                                                5,
+                                                TimeUnit.SECONDS))
+                                            throw new AssertionError(
+                                                "world lifecycle barrier release timeout"
+                                            );
+                                    }catch(InterruptedException interruption){
+                                        Thread.currentThread().interrupt();
+                                        throw new AssertionError(
+                                            interruption
+                                        );
+                                    }
+                                }
+                            );
+
+                        if(!accepted)
+                            throw new AssertionError(
+                                "world lifecycle barrier rejected"
+                            );
+                    }catch(Throwable error){
+                        failure.set(error);
+                    }
+                },
+                "player81-world-lifecycle-holder"
+            );
+
+        holder.start();
+
+        if(!entered.await(
+                5,
+                TimeUnit.SECONDS))
+            throw new AssertionError(
+                "world lifecycle barrier did not enter"
+            );
+
+        return new WorldBarrier(
+            release,
+            holder,
+            failure
+        );
+    }
+
+    private static final class WorldBarrier {
+        final CountDownLatch latch;
+        final Thread holder;
+        final AtomicReference<Throwable> failure;
+
+        WorldBarrier(
+            CountDownLatch latch,
+            Thread holder,
+            AtomicReference<Throwable> failure
+        ){
+            this.latch=latch;
+            this.holder=holder;
+            this.failure=failure;
+        }
+
+        void release()throws Exception{
+            latch.countDown();
+            holder.join(5000L);
+
+            if(holder.isAlive())
+                throw new AssertionError(
+                    "world lifecycle barrier holder did not terminate"
+                );
+
+            if(failure.get()!=null)
+                throw new AssertionError(
+                    "world lifecycle barrier failed",
+                    failure.get()
+                );
+        }
+    }
+
+    private static final class LifetimeFixture {
+        final World world;
+        final WorldPlayer player;
+        final OutboundPacketQueue queue;
+        final ServerPacketWriter writer;
+
+        LifetimeFixture(
+            long seed,
+            String username,
+            int[] cipherSeed
+        )throws Exception{
+            world=
+                World.isolatedForTest(seed);
+            player=
+                new WorldPlayer();
+
+            world.registerPlayer(
+                player,
+                username
+            );
+
+            queue=
+                new OutboundPacketQueue();
+            writer=
+                new ServerPacketWriter(
+                    queue,
+                    new IsaacCipher(
+                        cipherSeed
+                    )
+                );
+
+            Player81WorldSync.register(
+                writer,
+                world,
+                player,
+                new DevAuthorityWorkbench()
+            );
+        }
+
+        void close(){
+            Player81WorldSync.unregister(
+                writer
+            );
+            if(player.registered())
+                world.unregisterPlayer(
+                    player
+                );
             world.close();
         }
     }
