@@ -212,9 +212,54 @@ final class LocalPetInventoryDialogHandler {
             }
 
             if(widget==2482){
-                String result=miniPets.configure(
-                    item,petState,npcs,movement,serverPackets);
-                serverPackets.fixed(219,new byte[0]);
+                MiniPetService.PreparedConfigure prepared=
+                    miniPets.prepareConfigure(
+                        item,
+                        petState,
+                        npcs,
+                        movement
+                    );
+
+                serverPackets.beginBatch();
+                boolean ended=false;
+                String actorResult;
+
+                try{
+                    actorResult=
+                        miniPets.publishPreparedConfigure(
+                            prepared,
+                            npcs,
+                            movement,
+                            serverPackets
+                        );
+                    serverPackets.fixed(
+                        219,
+                        new byte[0]
+                    );
+                    serverPackets.endBatch();
+                    ended=true;
+                }catch(IOException failure){
+                    if(!ended)
+                        try{serverPackets.endBatch();}catch(Throwable ignored){}
+                    throw failure;
+                }catch(RuntimeException failure){
+                    if(!ended)
+                        try{serverPackets.endBatch();}catch(Throwable ignored){}
+                    throw failure;
+                }catch(Error failure){
+                    if(!ended)
+                        try{serverPackets.endBatch();}catch(Throwable ignored){}
+                    throw failure;
+                }
+
+                String result=
+                    miniPets.commitPreparedConfigure(
+                        prepared,
+                        petState,
+                        npcs,
+                        serverPackets,
+                        actorResult
+                    );
                 clearMiniConfigureDialog();
 
                 return Result.saveClose(
@@ -225,9 +270,50 @@ final class LocalPetInventoryDialogHandler {
             }
 
             if(widget==2483){
-                String result=miniPets.off(
-                    petState,npcs,serverPackets);
-                serverPackets.fixed(219,new byte[0]);
+                MiniPetService.PreparedOff prepared=
+                    miniPets.prepareOff(
+                        petState,
+                        npcs
+                    );
+
+                serverPackets.beginBatch();
+                boolean ended=false;
+                String actorResult;
+
+                try{
+                    actorResult=
+                        miniPets.publishPreparedOff(
+                            prepared,
+                            npcs,
+                            serverPackets
+                        );
+                    serverPackets.fixed(
+                        219,
+                        new byte[0]
+                    );
+                    serverPackets.endBatch();
+                    ended=true;
+                }catch(IOException failure){
+                    if(!ended)
+                        try{serverPackets.endBatch();}catch(Throwable ignored){}
+                    throw failure;
+                }catch(RuntimeException failure){
+                    if(!ended)
+                        try{serverPackets.endBatch();}catch(Throwable ignored){}
+                    throw failure;
+                }catch(Error failure){
+                    if(!ended)
+                        try{serverPackets.endBatch();}catch(Throwable ignored){}
+                    throw failure;
+                }
+
+                String result=
+                    miniPets.commitPreparedOff(
+                        prepared,
+                        petState,
+                        npcs,
+                        actorResult
+                    );
                 clearMiniConfigureDialog();
 
                 return Result.saveClose(
@@ -422,16 +508,53 @@ final class LocalPetInventoryDialogHandler {
                 }
 
                 int replacement=pendingPetColorItems[choice];
-                String result=
+                BankState.PreparedInventoryTransform prepared=
                     current==replacement
-                        ?"INVENTORY_TRANSFORM_NOOP"
-                        :bank.transformInventoryOne(
+                        ?null
+                        :bank.prepareInventoryTransformOne(
                             pendingPetColorSlot,
                             current,
-                            replacement,
-                            serverPackets);
+                            replacement
+                        );
 
-                serverPackets.fixed(219,new byte[0]);
+                serverPackets.beginBatch();
+                boolean ended=false;
+                String result;
+
+                try{
+                    result=
+                        prepared==null
+                            ?"INVENTORY_TRANSFORM_NOOP"
+                            :bank.publishPreparedInventoryTransform(
+                                prepared,
+                                serverPackets
+                            );
+                    serverPackets.fixed(
+                        219,
+                        new byte[0]
+                    );
+                    serverPackets.endBatch();
+                    ended=true;
+                }catch(IOException failure){
+                    if(!ended)
+                        try{serverPackets.endBatch();}catch(Throwable ignored){}
+                    throw failure;
+                }catch(RuntimeException failure){
+                    if(!ended)
+                        try{serverPackets.endBatch();}catch(Throwable ignored){}
+                    throw failure;
+                }catch(Error failure){
+                    if(!ended)
+                        try{serverPackets.endBatch();}catch(Throwable ignored){}
+                    throw failure;
+                }
+
+                if(prepared!=null&&prepared.accepted())
+                    result=
+                        bank.commitPreparedInventoryTransform(
+                            prepared
+                        );
+
                 clearPetColorDialog();
 
                 String saveReason=
