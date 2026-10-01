@@ -326,6 +326,7 @@ public final class MonsterSpawnerServiceTest {
         sessionRetirement();
         exactSessionRetirement();
         sessionPresentationOwnership();
+        catalogPresentationOwnership();
         protocolBoundary();
 
         System.out.println(
@@ -353,6 +354,7 @@ public final class MonsterSpawnerServiceTest {
             "changedSessionRetirementRejected=true "+
             "sessionPresentationAtomic=true "+
             "stalePresentationRejected=true "+
+            "staleCatalogPresentationRejected=true "+
             "ownerIdAbuse=false "+
             "sourceItemIdAbuse=false "+
             "rewardMutation=false "+
@@ -783,6 +785,71 @@ public final class MonsterSpawnerServiceTest {
         require(
             staleCalls[0]==0,
             "stale presentation action executed"
+        );
+    }
+
+    private static void catalogPresentationOwnership(){
+        MonsterSpawnerService service=
+            new MonsterSpawnerService(
+                new WorldNpcRegistry()
+            );
+
+        MonsterSpawnerService.CatalogSnapshot expectedCatalog=
+            service.replaceCatalog(
+                Collections.singletonList(
+                    new MonsterSpawnerService.CatalogEntry(
+                        0,
+                        "npc:catalog-presentation-zero",
+                        420
+                    )
+                ),
+                "PRESENTATION_CATALOG_A"
+            );
+        MonsterSpawnerService.SessionSnapshot expectedSession=
+            service.openSession(
+                "player:catalog-presentation",
+                POLICY
+            );
+
+        final int[] calls={0};
+
+        service.presentSessionCatalogIfCurrent(
+            "player:catalog-presentation",
+            expectedSession,
+            expectedCatalog,
+            current->calls[0]++
+        );
+
+        require(
+            calls[0]==1,
+            "current catalog presentation did not execute"
+        );
+
+        service.replaceCatalog(
+            Collections.singletonList(
+                new MonsterSpawnerService.CatalogEntry(
+                    0,
+                    "npc:catalog-presentation-replaced",
+                    421
+                )
+            ),
+            "PRESENTATION_CATALOG_B"
+        );
+
+        expect(
+            IllegalStateException.class,
+            ()->service.presentSessionCatalogIfCurrent(
+                "player:catalog-presentation",
+                expectedSession,
+                expectedCatalog,
+                current->calls[0]++
+            ),
+            "stale catalog presentation"
+        );
+
+        require(
+            calls[0]==1,
+            "stale catalog presentation action executed"
         );
     }
 
