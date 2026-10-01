@@ -186,10 +186,20 @@ final class LocalMonsterSpawnerUiHandler {
         int rowIndex,
         ServerPacketWriter packets
     )throws IOException{
-        MonsterSpawnerService.SessionSnapshot session=
-            service.selectRow(
-                ownerRef,
-                rowIndex
+        MonsterSpawnerService.SessionSnapshot before=
+            service.getSession(
+                ownerRef
+            );
+
+        if(before==null)
+            throw new IllegalStateException(
+                "Monster Spawner session disappeared "+
+                ownerRef
+            );
+
+        if(before.active)
+            throw new IllegalStateException(
+                "cannot change Monster Spawner selection while active"
             );
 
         MonsterSpawnerService.CatalogSnapshot catalog=
@@ -200,18 +210,9 @@ final class LocalMonsterSpawnerUiHandler {
                 rowIndex
             );
 
-        if(entry==null||
-           session.selectedRowIndex==null||
-           session.selectedRowIndex.intValue()!=rowIndex||
-           session.selectedDefinitionId==null||
-           session.selectedDefinitionId.intValue()!=
-                entry.definitionId||
-           session.selectedSemanticKey==null||
-           !session.selectedSemanticKey.equals(
-                entry.semanticKey
-           ))
-            throw new IllegalStateException(
-                "Monster Spawner selected row identity changed row="+
+        if(entry==null)
+            throw new IllegalArgumentException(
+                "unconfigured Monster Spawner row "+
                 rowIndex
             );
 
@@ -223,6 +224,28 @@ final class LocalMonsterSpawnerUiHandler {
         String label=
             selectedLabel.label(
                 entry
+            );
+
+        MonsterSpawnerService.SessionSnapshot session=
+            service.selectRowIfCurrent(
+                ownerRef,
+                before,
+                catalog,
+                entry
+            );
+
+        if(session.selectedRowIndex==null||
+           session.selectedRowIndex.intValue()!=rowIndex||
+           session.selectedDefinitionId==null||
+           session.selectedDefinitionId.intValue()!=
+                entry.definitionId||
+           session.selectedSemanticKey==null||
+           !session.selectedSemanticKey.equals(
+                entry.semanticKey
+           ))
+            throw new IllegalStateException(
+                "Monster Spawner selected row identity changed row="+
+                rowIndex
             );
 
         MonsterSpawnerPresentation
