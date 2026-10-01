@@ -380,6 +380,29 @@ final class LocalSession implements Runnable {
                 ){
                     LocalSession.this.saveAccountQuiet(tag,reason);
                 }
+
+                @Override public LocalDevPanelAmountHandler.Outcome
+                    handleRootReplacingAmount(
+                        LocalDevPanelCoordinator
+                            .RootReplacingAmountAction action
+                    )throws IOException{
+                    final LocalDevPanelAmountHandler.Outcome[]
+                        outcome={null};
+
+                    String result=
+                        LocalSession.this.uiActions
+                            .replaceMonsterSpawnerRootCommand(
+                                ()->{
+                                    outcome[0]=
+                                        action.handle();
+                                    return true;
+                                }
+                            );
+
+                    return result==null
+                        ?null
+                        :outcome[0];
+                }
             });
         this.commandDispatcher = new LocalCommandDispatcher(
             bankRequests,
