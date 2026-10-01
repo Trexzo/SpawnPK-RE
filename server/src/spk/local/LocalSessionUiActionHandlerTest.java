@@ -1,6 +1,7 @@
 package spk.local;
 
 import java.io.ByteArrayOutputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 
 public final class LocalSessionUiActionHandlerTest {
@@ -303,6 +304,32 @@ public final class LocalSessionUiActionHandlerTest {
            bridge.lastMonsterSpawnerResult.session.active)
             throw new AssertionError(
                 "ROW_SELECTED result was not forwarded exactly once after commit"
+            );
+
+        int retainedReopenBefore=
+            wire.size();
+        if(!routed.openMonsterSpawnerIfConfigured(
+                w
+            ))
+            throw new AssertionError(
+                "retained Monster Spawner UI did not reopen"
+            );
+
+        byte[] retainedReopenWire=
+            wire.toByteArray();
+        String retainedReopenPayload=
+            new String(
+                retainedReopenWire,
+                retainedReopenBefore,
+                retainedReopenWire.length-retainedReopenBefore,
+                StandardCharsets.ISO_8859_1
+            );
+
+        if(!retainedReopenPayload.contains(
+                "You have selected: @yel@NPC-1700"
+            ))
+            throw new AssertionError(
+                "retained Monster Spawner selection was not restored on reopen"
             );
 
         routed.handleWidget(
@@ -893,7 +920,8 @@ public final class LocalSessionUiActionHandlerTest {
             "monsterSpawnerAbsentPreserved=true "+
             "monsterSpawnerResultForwarding=true "+
             "monsterSpawnerOpenConfigured=true "+
-            "monsterSpawnerOpenAbsentNoop=true"
+            "monsterSpawnerOpenAbsentNoop=true "+
+            "monsterSpawnerRetainedSelectionReopen=true"
         );
 
         System.out.println(
