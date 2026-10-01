@@ -671,6 +671,13 @@ final class LocalSession implements Runnable {
                 )
         );
 
+        this.routedNpcHandler.installBankRootOwner(
+            action->
+                this.uiActions.replaceMonsterSpawnerRoot(
+                    ()->action.open()
+                )
+        );
+
         this.petDropPickup = new LocalPetDropPickupHandler(
             world,
             bank,
