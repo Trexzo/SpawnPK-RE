@@ -4924,6 +4924,7 @@ tasks.named('check') {
     dependsOn tasks.named('canonicalNpcAttackClickRegression')
     dependsOn tasks.named('canonicalNpcAttackOwnershipRaceRegression')
     dependsOn tasks.named('canonicalNpcAttackSpatialAtomicityRegression')
+    dependsOn tasks.named('canonicalNpcAttackPvmRuntimeBridgeRegression')
     dependsOn tasks.named('npcPvmDelayedHitServiceRegression')
     dependsOn tasks.named('npcCombatDelayedCompositionRegression')
     dependsOn tasks.named('monsterSpawnerServiceRegression')
@@ -5731,6 +5732,22 @@ tasks.register('canonicalNpcAttackSpatialAtomicityRegression', JavaExec) {
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass = 'spk.local.LocalCanonicalNpcAttackSpatialAtomicityTest'
+}
+
+
+tasks.register('canonicalNpcAttackPvmRuntimeBridgeRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves a lethal canonical NPC Attack finalizes only through one explicitly configured exact-World Monster Spawner PvM runtime after hit publication.'
+    dependsOn(
+        tasks.named('testClasses'),
+        tasks.named('canonicalNpcAttackSpatialAtomicityRegression'),
+        tasks.named('monsterSpawnerPvmRuntimeRegression'),
+        tasks.named('npcDropLiveSettlementAtomicRegression')
+    )
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.LocalCanonicalNpcAttackPvmRuntimeBridgeTest'
 }
 
 
