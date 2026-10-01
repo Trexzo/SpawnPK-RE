@@ -37,7 +37,7 @@ final class LocalSessionUiActionHandler {
     private final LocalCompCapeCustomizeHandler compCapeCustomize;
     private final LocalPetInventoryDialogHandler petDialogs;
     private final LocalGameplayWidgetHandler gameplayWidgetHandler;
-    private final LocalMonsterSpawnerUiHandler monsterSpawnerUiHandler;
+    private volatile LocalMonsterSpawnerUiHandler monsterSpawnerUiHandler;
     private final MovementState movement;
     private final boolean movementEnabled;
     private final EquipmentState equipment;
@@ -100,6 +100,26 @@ final class LocalSessionUiActionHandler {
         this.movementEnabled=movementEnabled;
         this.equipment=Objects.requireNonNull(equipment,"equipment");
         this.bridge=Objects.requireNonNull(bridge,"bridge");
+    }
+
+    synchronized void installMonsterSpawnerUiHandler(
+        LocalMonsterSpawnerUiHandler adapter
+    ){
+        LocalMonsterSpawnerUiHandler checked=
+            Objects.requireNonNull(
+                adapter,
+                "adapter"
+            );
+
+        if(monsterSpawnerUiHandler==null){
+            monsterSpawnerUiHandler=checked;
+            return;
+        }
+
+        if(monsterSpawnerUiHandler!=checked)
+            throw new IllegalStateException(
+                "Monster Spawner UI adapter already installed"
+            );
     }
 
     void handleInterfaceClose(
@@ -224,9 +244,12 @@ final class LocalSessionUiActionHandler {
             return;
         }
 
-        if(monsterSpawnerUiHandler!=null){
+        LocalMonsterSpawnerUiHandler configuredMonsterSpawner=
+            monsterSpawnerUiHandler;
+
+        if(configuredMonsterSpawner!=null){
             LocalMonsterSpawnerUiHandler.Result monsterSpawner=
-                monsterSpawnerUiHandler.handle(
+                configuredMonsterSpawner.handle(
                     widget,
                     serverPackets
                 );
