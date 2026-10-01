@@ -297,6 +297,214 @@ public final class LocalBankObjectInteractionHandlerTest {
                     "successful bank close did not retire state"
                 );
 
+            BankState promptBank=
+                new BankState();
+            ByteArrayOutputStream promptWire=
+                new ByteArrayOutputStream();
+            ServerPacketWriter promptWriter=
+                new ServerPacketWriter(
+                    promptWire,
+                    new IsaacCipher(
+                        new int[]{33,34,35,36}
+                    )
+                );
+            promptBank.open(
+                promptWriter
+            );
+
+            OutboundPacketQueue failedWithdrawPromptQueue=
+                new OutboundPacketQueue(1024);
+            failedWithdrawPromptQueue.offer(
+                new byte[1024]
+            );
+            ServerPacketWriter failedWithdrawPromptWriter=
+                new ServerPacketWriter(
+                    failedWithdrawPromptQueue,
+                    new IsaacCipher(
+                        new int[]{37,38,39,40}
+                    )
+                );
+
+            boolean withdrawPromptFailed=false;
+            try{
+                promptBank.apply(
+                    new ItemContainerAction(
+                        135,
+                        BankState.BANK_CONTAINER,
+                        0,
+                        995,
+                        0,
+                        "ITEM_ACTION_X"
+                    ),
+                    failedWithdrawPromptWriter
+                );
+            }catch(java.io.IOException expected){
+                withdrawPromptFailed=true;
+            }
+
+            if(!withdrawPromptFailed)
+                throw new AssertionError(
+                    "failed Bank Withdraw-X prompt was not propagated"
+                );
+
+            String hiddenWithdrawAmount=
+                promptBank.applyAmount(
+                    1,
+                    promptWriter
+                );
+
+            if(hiddenWithdrawAmount==null||
+               !hiddenWithdrawAmount.contains(
+                    "IGNORED_NO_PENDING_X"
+               ))
+                throw new AssertionError(
+                    "failed Bank Withdraw-X left hidden pending authority result="+
+                    hiddenWithdrawAmount
+                );
+
+            promptBank.spawnItem(
+                995,
+                1,
+                promptWriter
+            );
+            int promptCoinSlot=-1;
+            for(int i=0;
+                i<promptBank.inventoryCapacity();
+                i++){
+                BankState.Stack stack=
+                    promptBank.inventoryAt(i);
+                if(stack!=null&&
+                   stack.itemId==995){
+                    promptCoinSlot=i;
+                    break;
+                }
+            }
+            if(promptCoinSlot<0)
+                throw new AssertionError(
+                    "Bank Store-X fixture coin missing"
+                );
+
+            OutboundPacketQueue failedStorePromptQueue=
+                new OutboundPacketQueue(1024);
+            failedStorePromptQueue.offer(
+                new byte[1024]
+            );
+            ServerPacketWriter failedStorePromptWriter=
+                new ServerPacketWriter(
+                    failedStorePromptQueue,
+                    new IsaacCipher(
+                        new int[]{41,42,43,44}
+                    )
+                );
+
+            boolean storePromptFailed=false;
+            try{
+                promptBank.apply(
+                    new ItemContainerAction(
+                        135,
+                        BankState.BANK_INVENTORY_CONTAINER,
+                        promptCoinSlot,
+                        995,
+                        0,
+                        "ITEM_ACTION_X"
+                    ),
+                    failedStorePromptWriter
+                );
+            }catch(java.io.IOException expected){
+                storePromptFailed=true;
+            }
+
+            if(!storePromptFailed)
+                throw new AssertionError(
+                    "failed Bank Store-X prompt was not propagated"
+                );
+
+            String hiddenStoreAmount=
+                promptBank.applyAmount(
+                    1,
+                    promptWriter
+                );
+
+            if(hiddenStoreAmount==null||
+               !hiddenStoreAmount.contains(
+                    "IGNORED_NO_PENDING_X"
+               ))
+                throw new AssertionError(
+                    "failed Bank Store-X left hidden pending authority result="+
+                    hiddenStoreAmount
+                );
+
+            String oldWithdrawPrompt=
+                promptBank.apply(
+                    new ItemContainerAction(
+                        135,
+                        BankState.BANK_CONTAINER,
+                        0,
+                        995,
+                        0,
+                        "ITEM_ACTION_X"
+                    ),
+                    promptWriter
+                );
+
+            if(oldWithdrawPrompt==null||
+               !oldWithdrawPrompt.contains(
+                    "WITHDRAW_X_PROMPT_SENT"
+               ))
+                throw new AssertionError(
+                    "Bank replacement fixture did not establish old Withdraw-X"
+                );
+
+            OutboundPacketQueue failedReplacementPromptQueue=
+                new OutboundPacketQueue(1024);
+            failedReplacementPromptQueue.offer(
+                new byte[1024]
+            );
+            ServerPacketWriter failedReplacementPromptWriter=
+                new ServerPacketWriter(
+                    failedReplacementPromptQueue,
+                    new IsaacCipher(
+                        new int[]{45,46,47,48}
+                    )
+                );
+
+            boolean replacementPromptFailed=false;
+            try{
+                promptBank.apply(
+                    new ItemContainerAction(
+                        135,
+                        BankState.BANK_INVENTORY_CONTAINER,
+                        promptCoinSlot,
+                        995,
+                        0,
+                        "ITEM_ACTION_X"
+                    ),
+                    failedReplacementPromptWriter
+                );
+            }catch(java.io.IOException expected){
+                replacementPromptFailed=true;
+            }
+
+            int coinsBeforeReplacementAmount=
+                promptBank.inventoryCount(995);
+            String replacementAmount=
+                promptBank.applyAmount(
+                    1,
+                    promptWriter
+                );
+
+            if(!replacementPromptFailed||
+               replacementAmount==null||
+               !replacementAmount.contains(
+                    "WITHDRAW_X_OK"
+               )||
+               promptBank.inventoryCount(995)!=
+                    coinsBeforeReplacementAmount+1)
+                throw new AssertionError(
+                    "failed Bank Store-X replacement did not preserve old Withdraw-X result="+
+                    replacementAmount
+                );
+
             ObjectInteraction nonBank=
                 new ObjectInteraction(
                     132,
@@ -479,7 +687,10 @@ public final class LocalBankObjectInteractionHandlerTest {
                 "bankRetryFailurePreservesPendingX=true "+
                 "bankHiddenMutationRejectedAfterFailedOpen=true "+
                 "bankCloseFailureAtomic=true "+
-                "bankCloseFailurePreservesPendingX=true"
+                "bankCloseFailurePreservesPendingX=true "+
+                "bankWithdrawXPromptFailureAtomic=true "+
+                "bankStoreXPromptFailureAtomic=true "+
+                "bankXPromptReplacementPreservesPrior=true"
             );
         }finally{
             if(player.registered())
