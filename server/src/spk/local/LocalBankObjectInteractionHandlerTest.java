@@ -18,6 +18,54 @@ public final class LocalBankObjectInteractionHandlerTest {
             BankState bank=player.bank();
             MovementState movement=player.movement();
 
+            BankState failedClosedBank=
+                new BankState();
+            OutboundPacketQueue failedClosedQueue=
+                new OutboundPacketQueue(1024);
+            ServerPacketWriter failedClosedWriter=
+                new ServerPacketWriter(
+                    failedClosedQueue,
+                    new IsaacCipher(
+                        new int[]{9,10,11,12}
+                    )
+                );
+
+            boolean closedOpenFailed=false;
+            try{
+                failedClosedBank.open(
+                    failedClosedWriter
+                );
+            }catch(java.io.IOException expected){
+                closedOpenFailed=true;
+            }
+
+            if(!closedOpenFailed||
+               failedClosedBank.isOpen())
+                throw new AssertionError(
+                    "failed closed->open committed BankState open"
+                );
+
+            boolean placeholdersBeforeFailedOpen=
+                failedClosedBank.placeholdersEnabled();
+            String hiddenAfterFailedOpen=
+                failedClosedBank.togglePlaceholders(
+                    new ServerPacketWriter(
+                        new ByteArrayOutputStream(),
+                        new IsaacCipher(
+                            new int[]{13,14,15,16}
+                        )
+                    )
+                );
+
+            if(!"IGNORED_BANK_CLOSED".equals(
+                    hiddenAfterFailedOpen
+                )||
+               failedClosedBank.placeholdersEnabled()!=
+                    placeholdersBeforeFailedOpen)
+                throw new AssertionError(
+                    "failed bank open left hidden bank mutation authority"
+                );
+
             LocalBankObjectInteractionHandler h=
                 new LocalBankObjectInteractionHandler(
                     bank,
@@ -85,6 +133,76 @@ public final class LocalBankObjectInteractionHandlerTest {
                 throw new AssertionError(
                     "immediate bank open bypassed root owner count="+
                     rootPublications[0]
+                );
+
+            int coinsBeforePending=
+                bank.inventoryCount(995);
+            String pendingX=
+                bank.apply(
+                    new ItemContainerAction(
+                        135,
+                        BankState.BANK_CONTAINER,
+                        0,
+                        995,
+                        0,
+                        "ITEM_ACTION_X"
+                    ),
+                    w
+                );
+
+            if(pendingX==null||
+               !pendingX.contains(
+                    "WITHDRAW_X_PROMPT_SENT"
+               ))
+                throw new AssertionError(
+                    "bank pending-X fixture failed result="+
+                    pendingX
+                );
+
+            OutboundPacketQueue failedRetryQueue=
+                new OutboundPacketQueue(1024);
+            ServerPacketWriter failedRetryWriter=
+                new ServerPacketWriter(
+                    failedRetryQueue,
+                    new IsaacCipher(
+                        new int[]{17,18,19,20}
+                    )
+                );
+
+            boolean retryFailed=false;
+            try{
+                bank.open(
+                    failedRetryWriter
+                );
+            }catch(java.io.IOException expected){
+                retryFailed=true;
+            }
+
+            if(!retryFailed||
+               !bank.isOpen())
+                throw new AssertionError(
+                    "failed bank reopen altered prior open state"
+                );
+
+            String pendingAfterFailedRetry=
+                bank.applyAmount(
+                    1,
+                    w
+                );
+
+            if(pendingAfterFailedRetry==null||
+               !pendingAfterFailedRetry.contains(
+                    "WITHDRAW_X_OK"
+               )||
+               bank.inventoryCount(995)!=
+                    coinsBeforePending+1)
+                throw new AssertionError(
+                    "failed bank reopen cleared pending-X result="+
+                    pendingAfterFailedRetry+
+                    " coinsBefore="+
+                    coinsBeforePending+
+                    " coinsAfter="+
+                    bank.inventoryCount(995)
                 );
 
             ObjectInteraction nonBank=
@@ -264,7 +382,10 @@ public final class LocalBankObjectInteractionHandlerTest {
                 "deferredOwnership=true "+
                 "deferredRootOwnership=true "+
                 "serverApproachQueued=true "+
-                "pathEndCancel=true"
+                "pathEndCancel=true "+
+                "bankClosedOpenFailureAtomic=true "+
+                "bankRetryFailurePreservesPendingX=true "+
+                "bankHiddenMutationRejectedAfterFailedOpen=true"
             );
         }finally{
             if(player.registered())
