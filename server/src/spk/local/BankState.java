@@ -5,6 +5,32 @@ import java.util.*;
 
 /** Clean-room local bank state for the v4 protocol milestone. */
 final class BankState {
+    static final class PreparedInventoryTransform {
+        final int slot;
+        final int expectedItemId;
+        final int replacementItemId;
+        final Stack[] inventoryPostimage;
+        final String rejection;
+
+        PreparedInventoryTransform(
+            int slot,
+            int expectedItemId,
+            int replacementItemId,
+            Stack[] inventoryPostimage,
+            String rejection
+        ){
+            this.slot=slot;
+            this.expectedItemId=expectedItemId;
+            this.replacementItemId=replacementItemId;
+            this.inventoryPostimage=inventoryPostimage;
+            this.rejection=rejection;
+        }
+
+        boolean accepted(){
+            return rejection==null;
+        }
+    }
+
     static final int COSMETIC_WIDGET = 27701; // exact client equipment-tab cosmetic item widget
 
     static final int BANK_ROOT = 5292;
@@ -963,12 +989,52 @@ final class BankState {
     }
 
     /** Exact in-slot non-stackable transform used by native Switch-colors actions. */
-    String transformInventoryOne(int slot,int expectedItemId,int replacementItemId,ServerPacketWriter w) throws IOException {
-        if(!validSlot(inventory,slot) || inventory[slot]==null) return "REJECTED_INVENTORY_SLOT";
+    PreparedInventoryTransform prepareInventoryTransformOne(
+        int slot,
+        int expectedItemId,
+        int replacementItemId
+    ){
+        if(!validSlot(inventory,slot) ||
+           inventory[slot]==null)
+            return new PreparedInventoryTransform(
+                slot,
+                expectedItemId,
+                replacementItemId,
+                null,
+                "REJECTED_INVENTORY_SLOT"
+            );
+
         Stack st=inventory[slot];
-        if(st.itemId!=expectedItemId) return "REJECTED_INVENTORY_ITEM_MISMATCH expected="+st.itemId;
-        if(st.qty!=1) return "REJECTED_TRANSFORM_QTY qty="+st.qty;
-        if(ItemDefinitionRepository.get(replacementItemId)==null) return "REJECTED_UNKNOWN_REPLACEMENT item="+replacementItemId;
+
+        if(st.itemId!=expectedItemId)
+            return new PreparedInventoryTransform(
+                slot,
+                expectedItemId,
+                replacementItemId,
+                null,
+                "REJECTED_INVENTORY_ITEM_MISMATCH expected="+
+                    st.itemId
+            );
+
+        if(st.qty!=1)
+            return new PreparedInventoryTransform(
+                slot,
+                expectedItemId,
+                replacementItemId,
+                null,
+                "REJECTED_TRANSFORM_QTY qty="+
+                    st.qty
+            );
+
+        if(ItemDefinitionRepository.get(replacementItemId)==null)
+            return new PreparedInventoryTransform(
+                slot,
+                expectedItemId,
+                replacementItemId,
+                null,
+                "REJECTED_UNKNOWN_REPLACEMENT item="+
+                    replacementItemId
+            );
 
         Stack[] nextInventory=
             copyStacks(inventory);
@@ -978,17 +1044,87 @@ final class BankState {
                 1
             );
 
+        return new PreparedInventoryTransform(
+            slot,
+            expectedItemId,
+            replacementItemId,
+            nextInventory,
+            null
+        );
+    }
+
+    String publishPreparedInventoryTransform(
+        PreparedInventoryTransform prepared,
+        ServerPacketWriter w
+    )throws IOException{
+        if(prepared==null)
+            throw new NullPointerException(
+                "prepared"
+            );
+
+        if(!prepared.accepted())
+            return prepared.rejection;
+
         publishNormalInventoryStructuralPostimage(
             w,
-            nextInventory,
+            prepared.inventoryPostimage,
             open
         );
+
+        return "INVENTORY_TRANSFORM_OK slot="+
+            prepared.slot+
+            " item="+
+            prepared.expectedItemId+
+            "->"+
+            prepared.replacementItemId;
+    }
+
+    void commitPreparedInventoryTransform(
+        PreparedInventoryTransform prepared
+    ){
+        if(prepared==null||
+           !prepared.accepted())
+            throw new IllegalArgumentException(
+                "accepted prepared transform required"
+            );
+
+        if(!validSlot(inventory,prepared.slot)||
+           inventory[prepared.slot]==null||
+           inventory[prepared.slot].itemId!=
+                prepared.expectedItemId||
+           inventory[prepared.slot].qty!=1)
+            throw new IllegalStateException(
+                "inventory transform preimage changed before commit"
+            );
+
         replaceStacks(
             inventory,
-            nextInventory
+            prepared.inventoryPostimage
         );
+    }
 
-        return "INVENTORY_TRANSFORM_OK slot="+slot+" item="+expectedItemId+"->"+replacementItemId;
+    String transformInventoryOne(int slot,int expectedItemId,int replacementItemId,ServerPacketWriter w) throws IOException {
+        PreparedInventoryTransform prepared=
+            prepareInventoryTransformOne(
+                slot,
+                expectedItemId,
+                replacementItemId
+            );
+
+        String result=
+            prepared.accepted()
+                ?publishPreparedInventoryTransform(
+                    prepared,
+                    w
+                )
+                :prepared.rejection;
+
+        if(prepared.accepted())
+            commitPreparedInventoryTransform(
+                prepared
+            );
+
+        return result;
     }
 
 
