@@ -339,6 +339,26 @@ final class DialogueSessionService {
         }
     }
 
+    static final class PreparedBegin {
+        private final DialogueSessionService owner;
+        private final String playerRef;
+        private final DialogueDefinition definition;
+        private final long beforeRevision;
+        private boolean committed;
+
+        PreparedBegin(
+            DialogueSessionService owner,
+            String playerRef,
+            DialogueDefinition definition,
+            long beforeRevision
+        ){
+            this.owner=Objects.requireNonNull(owner,"owner");
+            this.playerRef=playerRef;
+            this.definition=definition;
+            this.beforeRevision=beforeRevision;
+        }
+    }
+
     static final class PreparedTransition {
         private final DialogueSessionService owner;
         private final String playerRef;
@@ -455,6 +475,118 @@ final class DialogueSessionService {
         );
 
         return checked;
+    }
+
+    PreparedBegin prepareBegin(
+        String playerRef,
+        String dialogueKey
+    ){
+        String player=
+            normalizePlayer(playerRef);
+        String key=
+            normalizeKey(
+                dialogueKey,
+                "dialogueKey"
+            );
+
+        synchronized(this){
+            DialogueDefinition definition=
+                definitions.get(key);
+
+            if(definition==null)
+                throw new IllegalArgumentException(
+                    "unknown dialogue "+key
+                );
+
+            PlayerSession existing=
+                players.get(player);
+
+            if(existing!=null&&existing.active)
+                throw new IllegalStateException(
+                    "player already has active dialogue player="+
+                    player+
+                    " dialogue="+
+                    existing.dialogueKey
+                );
+
+            return new PreparedBegin(
+                this,
+                player,
+                definition,
+                existing==null
+                    ?0L
+                    :existing.revision
+            );
+        }
+    }
+
+    synchronized Snapshot commitPreparedBegin(
+        PreparedBegin prepared
+    ){
+        PreparedBegin checked=
+            Objects.requireNonNull(
+                prepared,
+                "prepared"
+            );
+
+        if(checked.owner!=this)
+            throw new IllegalArgumentException(
+                "prepared begin belongs to another dialogue service"
+            );
+
+        if(checked.committed)
+            throw new IllegalStateException(
+                "prepared dialogue begin already committed player="+
+                checked.playerRef
+            );
+
+        PlayerSession state=
+            players.get(
+                checked.playerRef
+            );
+
+        if(state!=null&&
+           (state.active||
+            state.revision!=
+                checked.beforeRevision))
+            throw new IllegalStateException(
+                "dialogue state changed before prepared begin commit player="+
+                checked.playerRef
+            );
+
+        if(state==null){
+            if(checked.beforeRevision!=0L)
+                throw new IllegalStateException(
+                    "dialogue state disappeared before prepared begin commit player="+
+                    checked.playerRef
+                );
+
+            state=
+                new PlayerSession(
+                    checked.playerRef
+                );
+            players.put(
+                checked.playerRef,
+                state
+            );
+        }
+
+        long nextRevision=
+            addOne(
+                checked.beforeRevision,
+                "dialogue revision"
+            );
+
+        state.active=true;
+        state.dialogueKey=
+            checked.definition.dialogueKey;
+        state.nodeKey=
+            checked.definition.startNodeKey;
+        state.revision=
+            nextRevision;
+        checked.committed=true;
+
+        return snapshotOf(state);
     }
 
     synchronized Snapshot begin(
