@@ -4971,6 +4971,7 @@ tasks.named('check') {
     dependsOn tasks.named('tournamentPresentationRegression')
     dependsOn tasks.named('normalDuelPresentationRegression')
     dependsOn tasks.named('monsterSpawnerPresentationRegression')
+    dependsOn tasks.named('monsterSpawnerUiServiceAdapterRegression')
     dependsOn tasks.named('itemEnchantmentServiceRegression')
     dependsOn tasks.named('itemEnchantmentPresentationRegression')
     dependsOn tasks.named('legendaryPetFusionServiceRegression')
@@ -5846,6 +5847,21 @@ tasks.register('matchInstanceSessionCompositionAtomicityRegression', JavaExec) {
 }
 
 
+
+
+tasks.register('monsterSpawnerUiServiceAdapterRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves exact-v308 Monster Spawner row/toggle widgets delegate only to caller-owned catalog/session/budget policy without spawning or inventing mechanics.'
+    dependsOn(
+        tasks.named('testClasses'),
+        tasks.named('monsterSpawnerPresentationRegression'),
+        tasks.named('monsterSpawnerServiceRegression')
+    )
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.LocalMonsterSpawnerUiHandlerTest'
+}
 
 
 tasks.register('monsterSpawnerServiceRegression', JavaExec) {
