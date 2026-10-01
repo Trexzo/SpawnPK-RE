@@ -202,7 +202,7 @@ final class LocalGroundItemInteractionHandler {
             );
             if(!ended)
                 try{
-                    serverPackets.endBatch();
+                    serverPackets.abortBatch();
                 }catch(Throwable ignored){}
             throw failure;
         }catch(RuntimeException failure){
@@ -211,7 +211,7 @@ final class LocalGroundItemInteractionHandler {
             );
             if(!ended)
                 try{
-                    serverPackets.endBatch();
+                    serverPackets.abortBatch();
                 }catch(Throwable ignored){}
             throw failure;
         }catch(Error failure){
@@ -220,7 +220,7 @@ final class LocalGroundItemInteractionHandler {
             );
             if(!ended)
                 try{
-                    serverPackets.endBatch();
+                    serverPackets.abortBatch();
                 }catch(Throwable ignored){}
             throw failure;
         }
