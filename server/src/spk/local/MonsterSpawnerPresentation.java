@@ -1,6 +1,7 @@
 package spk.local;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.Objects;
 
 /**
@@ -87,16 +88,42 @@ final class MonsterSpawnerPresentation {
             );
     }
 
+    static String prepareSelectedNpcName(
+        String npcName
+    ){
+        String clean=requireText(
+            npcName,
+            "npcName"
+        );
+
+        String payload=
+            "You have selected: @yel@"+
+            clean;
+
+        int bodyLength=
+            payload.getBytes(
+                StandardCharsets.ISO_8859_1
+            ).length+3;
+
+        if(bodyLength>65535)
+            throw new IllegalArgumentException(
+                "selected NPC text payload too large: "+
+                bodyLength
+            );
+
+        return clean;
+    }
+
     static void publishSelectedNpcText(
         ServerPacketWriter packets,
         String npcName
     )throws IOException{
         Objects.requireNonNull(packets,"packets");
 
-        String clean=requireText(
-            npcName,
-            "npcName"
-        );
+        String clean=
+            prepareSelectedNpcName(
+                npcName
+            );
 
         ApplicationBus126Publisher.send(
             packets,
