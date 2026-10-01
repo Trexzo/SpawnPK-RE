@@ -651,6 +651,15 @@ final class LocalSession implements Runnable {
                         makeover.retireDesignerRoot();
                 }
 
+                @Override public boolean retireTradeForCompetingRoot(
+                    String reason
+                )throws IOException{
+                    return TradeService.retireForCompetingRoot(
+                        LocalSession.this.worldPlayer,
+                        reason
+                    );
+                }
+
                 @Override public void handleMonsterSpawnerResult(
                     LocalMonsterSpawnerUiHandler.Result result,
                     ServerPacketWriter writer,
@@ -1078,10 +1087,29 @@ final class LocalSession implements Runnable {
             npcs,
             movement,
             bank,
-            (tag,reason)->LocalSession.this.saveAccountQuiet(
-                tag,
-                reason
-            )
+            new LocalSessionRuntimeBindings.SessionBridge(){
+                @Override public void saveAccount(
+                    String tag,
+                    String reason
+                ){
+                    LocalSession.this.saveAccountQuiet(
+                        tag,
+                        reason
+                    );
+                }
+
+                @Override public void publishTradeRoot(
+                    TradeService.RootPublication action
+                )throws IOException{
+                    LocalSession.this.uiActions
+                        .publishTradeRootForOwnedSession(
+                            ()->{
+                                action.publish();
+                                return "TRADE_ROOT_PUBLISHED";
+                            }
+                        );
+                }
+            }
         );
         if (movementEnabled && !bootstrap) throw new IllegalArgumentException("movement requires bootstrap");
     }
