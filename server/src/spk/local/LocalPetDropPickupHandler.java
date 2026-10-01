@@ -164,73 +164,217 @@ final class LocalPetDropPickupHandler {
             return;
         }
 
-        String inv=
-            bank.consumeInventoryOne(
-                a.slot,
-                a.itemId,
-                serverPackets
-            );
-        if(!inv.startsWith("INVENTORY_CONSUME_OK")){
+        BankState.PreparedPetInventoryMutation
+            inventoryMutation=
+                bank.preparePetDropInventory(
+                    a.slot,
+                    a.itemId,
+                    replacing
+                        ?Integer.valueOf(oldItem)
+                        :null
+                );
+
+        if(!inventoryMutation.accepted()){
             System.out.println(
                 tag+"V56_PET_DROP "+a+
-                " result="+inv+
+                " result="+inventoryMutation.rejection+
                 " itemRetained=true"
             );
             return;
         }
 
-        int restoredOldSlot=-1;
-        if(replacing){
-            String despawn=npcs.removePet(serverPackets);
-            if(voidglass.active()){
-                Integer restore=
-                    voidglass.clearAndRestoreSelector();
-                npcs.devSetParticleSelector(
-                    restore,
+        boolean replacingVoidglass=
+            replacing&&
+            voidglass.active();
+
+        Integer restoredVoidglassSelector=
+            replacingVoidglass
+                ?voidglass.selectorAfterClear()
+                :null;
+
+        Integer initialSelector=
+            replacingVoidglass
+                ?restoredVoidglassSelector
+                :dev.petParticleSelector();
+
+        Integer accessorySelector=
+            petAccessoryState.activeItem()!=0
+                ?PetAccessoryAuthority.selector(
+                    petAccessoryState.activeItem()
+                )
+                :null;
+
+        Integer finalSelector=
+            accessorySelector!=null
+                ?accessorySelector
+                :initialSelector;
+
+        Integer configuredMiniItem=
+            petState.miniConfigured()
+                ?Integer.valueOf(
+                    petState.miniItemId()
+                )
+                :null;
+
+        NpcRegistry.PreparedMainPetTransition
+            actorTransition=
+                npcs.prepareMainPetTransition(
+                    def,
+                    configuredMiniItem,
+                    movement,
+                    initialSelector
+                );
+
+        if(actorTransition==null){
+            System.out.println(
+                tag+"V56_PET_DROP "+a+
+                " result=REJECTED_MAIN_PET_TRANSITION itemRetained=true"
+            );
+            return;
+        }
+
+        boolean scopesightActive=
+            def.itemId==
+                ScopesightPetProfile.ITEM_ID&&
+            def.npcId==
+                ScopesightPetProfile.NPC_ID;
+
+        PlayerState.PreparedScopesightMaintenance
+            scopesight=
+                bridge.prepareScopesightPassive(
+                    scopesightActive
+                );
+
+        boolean clearFacing=
+            pendingPetFacingClearAtMs!=
+                Long.MAX_VALUE;
+
+        serverPackets.beginBatch();
+        boolean ended=false;
+        String spawn;
+        String accessorySpawn="NONE";
+        String miniSpawn;
+
+        try{
+            bank.publishPreparedPetInventory(
+                inventoryMutation,
+                serverPackets
+            );
+
+            if(clearFacing)
+                serverPackets.varShort(
+                    81,
+                    CombatSync.player81InteractionOnly(
+                        -1
+                    )
+                );
+
+            spawn=
+                npcs.publishPreparedMainPetCore(
+                    actorTransition,
                     movement,
                     serverPackets
                 );
-                System.out.println(
-                    tag+
-                    "CUSTOM_PET_R1_VOIDGLASS state=CLEARED reason=PET_REPLACE restoredFx="+
-                    (restore==null?"AUTO":restore)
-                );
-            }
 
-            restoredOldSlot=
-                bank.addInventoryOnePreferred(
-                    oldItem,
-                    a.slot,
-                    serverPackets
-                );
-            if(restoredOldSlot<0){
-                int rollbackNew=
-                    bank.addInventoryOne(
-                        a.itemId,
+            if(accessorySelector!=null)
+                accessorySpawn=
+                    npcs.publishPreparedMainPetSelector(
+                        actorTransition,
+                        finalSelector,
+                        movement,
                         serverPackets
                     );
-                throw new IllegalStateException(
-                    "pet replacement could not restore old item="+
-                    oldItem+
-                    " despawn="+despawn+
-                    " rollbackNew="+rollbackNew
+
+            miniSpawn=
+                npcs.publishPreparedMainPetMini(
+                    actorTransition,
+                    movement,
+                    serverPackets
                 );
-            }
-            petState.clear();
+
+            bridge.publishScopesightPassive(
+                scopesight,
+                serverPackets
+            );
+
+            serverPackets.varShort(
+                81,
+                CombatSync.player81AnimationOnly(
+                    PetPresentationProfile
+                        .OWNER_DROP_PICKUP_ANIMATION
+                )
+            );
+
+            serverPackets.endBatch();
+            ended=true;
+        }catch(IOException failure){
+            if(!ended)
+                try{
+                    serverPackets.endBatch();
+                }catch(Throwable ignored){}
+            throw failure;
+        }catch(RuntimeException failure){
+            if(!ended)
+                try{
+                    serverPackets.endBatch();
+                }catch(Throwable ignored){}
+            throw failure;
+        }catch(Error failure){
+            if(!ended)
+                try{
+                    serverPackets.endBatch();
+                }catch(Throwable ignored){}
+            throw failure;
         }
 
-        clearFacingNow(
-            serverPackets,
-            tag,
-            "PET_DROP_PRESPAWN"
+        bank.commitPreparedPetInventory(
+            inventoryMutation
+        );
+        npcs.commitPreparedMainPetTransition(
+            actorTransition
+        );
+        petState.activate(
+            def
+        );
+        petEffects.onPetChanged(
+            def.itemId,
+            def.npcId
         );
 
-        if(def.npcId==1334||def.npcId==8210){
+        if(replacingVoidglass){
+            Integer restored=
+                voidglass.clearAndRestoreSelector();
+
+            if(!Objects.equals(
+                    restored,
+                    restoredVoidglassSelector))
+                throw new IllegalStateException(
+                    "Voidglass selector preimage changed before pet commit"
+                );
+
+            System.out.println(
+                tag+
+                "CUSTOM_PET_R1_VOIDGLASS state=CLEARED reason=PET_REPLACE restoredFx="+
+                (restored==null
+                    ?"AUTO"
+                    :restored)
+            );
+        }
+
+        if(accessorySelector!=null||
+           replacingVoidglass)
+            npcs.commitPetParticleSelector(
+                finalSelector
+            );
+
+        if(def.npcId==1334||
+           def.npcId==8210){
             String resetFx=
                 LocalDevVisualOverrideStore.set(
                     "intrinsicfx",
                     null
                 );
+
             System.out.println(
                 tag+
                 "V5128_SPECIAL_PET_DEFAULT_ACCESSORY_NONE npc="+
@@ -241,63 +385,32 @@ final class LocalPetDropPickupHandler {
             );
         }
 
-        String spawn=
-            npcs.spawnPet(
-                def,
-                movement,
-                serverPackets
-            );
-        if(!spawn.startsWith("PET_SPAWN_OK")){
-            int rollbackNew=
-                bank.addInventoryOne(
-                    a.itemId,
-                    serverPackets
-                );
-            System.out.println(
-                tag+"V56_PET_DROP "+a+
-                " result="+spawn+
-                " rollbackNewSlot="+rollbackNew+
-                " oldPetItemAlreadyRestoredSlot="+restoredOldSlot
-            );
-            return;
-        }
-
-        petState.activate(def);
-        petEffects.onPetChanged(def.itemId,def.npcId);
-
-        String accessorySpawn="NONE";
-        if(petAccessoryState.activeItem()!=0){
-            Integer selector=
-                PetAccessoryAuthority.selector(
-                    petAccessoryState.activeItem()
-                );
-            accessorySpawn=
-                npcs.devSetParticleSelector(
-                    selector,
-                    movement,
-                    serverPackets
-                );
-        }
-
-        String miniSpawn=
-            petState.miniConfigured()
-                ?miniPets.onMainPetSpawn(
-                    petState,
-                    npcs,
-                    movement,
-                    serverPackets
-                )
-                :"MINIPET_NONE_CONFIGURED";
-
-        int passiveChanged=
-            bridge.syncScopesightPassive(serverPackets);
-
-        serverPackets.varShort(
-            81,
-            CombatSync.player81AnimationOnly(
-                PetPresentationProfile.OWNER_DROP_PICKUP_ANIMATION
-            )
+        bridge.commitScopesightPassive(
+            scopesight
         );
+
+        if(clearFacing){
+            pendingPetFacingClearAtMs=
+                Long.MAX_VALUE;
+
+            System.out.println(
+                tag+
+                "V5126_PET_PICKUP_FACING_CLEAR target=-1 reason=PET_DROP_PRESPAWN"
+            );
+        }
+
+        npcs.relayCommittedPreparedMainMiniTarget(
+            actorTransition,
+            serverPackets
+        );
+
+        int restoredOldSlot=
+            inventoryMutation.oldPetReturnedSlot;
+
+        String inv=
+            "INVENTORY_CONSUME_OK item="+
+            a.itemId+
+            " slot="+a.slot;
 
         bridge.saveAccount(
             tag,
@@ -308,19 +421,25 @@ final class LocalPetDropPickupHandler {
 
         System.out.println(
             tag+
-            (replacing?"V56_PET_REPLACE ":"V56_PET_DROP ")+
+            (replacing
+                ?"V56_PET_REPLACE "
+                :"V56_PET_DROP ")+
             a+
             " result="+spawn+
             " inventoryMutation="+inv+
             (replacing
                 ?" replaced="+oldItem+
                     "->"+oldNpc+
-                    " restoredOldItemSlot="+restoredOldSlot
+                    " restoredOldItemSlot="+
+                    restoredOldSlot
                 :"")+
             " scopesightSkillMask=0x"+
-                Integer.toHexString(passiveChanged)+
+                Integer.toHexString(
+                    scopesight.changedMask
+                )+
             " ownerAnim="+
-                PetPresentationProfile.OWNER_DROP_PICKUP_ANIMATION+
+                PetPresentationProfile
+                    .OWNER_DROP_PICKUP_ANIMATION+
             " ownerGfx=NONE"+
             " accessory="+
                 (petAccessoryState.activeItem()==0
@@ -333,7 +452,8 @@ final class LocalPetDropPickupHandler {
                         "/"+
                         accessorySpawn)+
             " mini="+miniSpawn+
-            " persistent="+bridge.persistentAccount()
+            " persistent="+
+                bridge.persistentAccount()
         );
     }
 
