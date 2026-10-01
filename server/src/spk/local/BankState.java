@@ -104,10 +104,15 @@ final class BankState {
     }
 
     void open(ServerPacketWriter w) throws IOException {
+        w.beginBatch();
+        try {
+            w.fixed(248, BootstrapPackets.interfaceOverlay248(BANK_ROOT, BANK_INVENTORY_ROOT));
+            sendContainers(w);
+        } finally {
+            w.endBatch();
+        }
         open = true;
         pendingX = null;
-        w.fixed(248, BootstrapPackets.interfaceOverlay248(BANK_ROOT, BANK_INVENTORY_ROOT));
-        sendContainers(w);
     }
 
     void close(ServerPacketWriter w) throws IOException {
