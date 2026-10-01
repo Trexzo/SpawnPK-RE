@@ -9,6 +9,66 @@ public final class IsaacCipher {
     private int lastResult;
     private int counter;
 
+    static final class State {
+        final int count;
+        final int[] results;
+        final int[] memory;
+        final int accumulator;
+        final int lastResult;
+        final int counter;
+
+        State(
+            int count,
+            int[] results,
+            int[] memory,
+            int accumulator,
+            int lastResult,
+            int counter
+        ){
+            this.count=count;
+            this.results=results;
+            this.memory=memory;
+            this.accumulator=accumulator;
+            this.lastResult=lastResult;
+            this.counter=counter;
+        }
+    }
+
+    State snapshot(){
+        return new State(
+            count,
+            results.clone(),
+            memory.clone(),
+            accumulator,
+            lastResult,
+            counter
+        );
+    }
+
+    void restore(State state){
+        if(state==null)
+            throw new NullPointerException("ISAAC state");
+
+        count=state.count;
+        System.arraycopy(
+            state.results,
+            0,
+            results,
+            0,
+            results.length
+        );
+        System.arraycopy(
+            state.memory,
+            0,
+            memory,
+            0,
+            memory.length
+        );
+        accumulator=state.accumulator;
+        lastResult=state.lastResult;
+        counter=state.counter;
+    }
+
     public IsaacCipher(int[] seed) {
         System.arraycopy(seed, 0, results, 0, Math.min(seed.length, results.length));
         init();
