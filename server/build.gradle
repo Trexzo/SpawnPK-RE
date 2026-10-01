@@ -6289,3 +6289,17 @@ tasks.register('player81BatchAbortAtomicityRegression', JavaExec) {
 tasks.named('check') {
     dependsOn tasks.named('player81BatchAbortAtomicityRegression')
 }
+
+tasks.register('player81NoContextLinearizationRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves packet81 NO_CONTEXT classification stays local-only across later Player81 registration.'
+    dependsOn tasks.named('testClasses')
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.Player81NoContextLinearizationTest'
+}
+
+tasks.named('check') {
+    dependsOn tasks.named('player81NoContextLinearizationRegression')
+}
