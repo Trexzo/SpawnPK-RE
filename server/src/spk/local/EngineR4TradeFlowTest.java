@@ -86,8 +86,10 @@ public final class EngineR4TradeFlowTest{
    testSecondRootPublicationFailureAtomicity();
    testConfirmRootPublicationFailureClosesTrade();
    testReplacementTradeStartFailureAtomicity();
+   testAtomicPairedWriterRollback();
+   testFinalExchangeQueueFailureAtomicity();
 
-   System.out.println("V5140_ENGINE_R4_TRADE_FLOW_PASS roots=3323/3443 offerWidgets=3322/3415/3416 accepts=3420/3546 atomicExchange=true cancelReservationModel=true twoSessionRootOwners=true peerOnlyCompetingClose=true hiddenTradeRejected=true competingRootFailureAtomic=true lockOrderTradeBeforePlayer=true partialStartFailureClosed=true confirmPublicationFailClosed=true replacementStartFailureAtomic=true priorPeerPreserved=true replacementPeerCloseExact=true");
+   System.out.println("V5140_ENGINE_R4_TRADE_FLOW_PASS roots=3323/3443 offerWidgets=3322/3415/3416 accepts=3420/3546 atomicExchange=true cancelReservationModel=true twoSessionRootOwners=true peerOnlyCompetingClose=true hiddenTradeRejected=true competingRootFailureAtomic=true lockOrderTradeBeforePlayer=true partialStartFailureClosed=true confirmPublicationFailClosed=true replacementStartFailureAtomic=true priorPeerPreserved=true replacementPeerCloseExact=true pairedQueueCommitAtomic=true pairedCipherRollback=true finalExchangeQueueFailureAtomic=true");
   }finally{TradeService.unregister(p1);TradeService.unregister(p2);w.unregisterPlayer(p1);w.unregisterPlayer(p2);w.close();}
  }
  static void testSecondRootPublicationFailureAtomicity()throws Exception{
@@ -312,6 +314,319 @@ public final class EngineR4TradeFlowTest{
    if(b.registered())w.unregisterPlayer(b);
    if(c.registered())w.unregisterPlayer(c);
    if(d.registered())w.unregisterPlayer(d);
+   w.close();
+  }
+ }
+
+ static void testAtomicPairedWriterRollback()throws Exception{
+  OutboundPacketQueue qa=
+   new OutboundPacketQueue(2048);
+  OutboundPacketQueue qb=
+   new OutboundPacketQueue(1024);
+  OutboundPacketQueue controlQueue=
+   new OutboundPacketQueue(2048);
+
+  ServerPacketWriter wa=
+   new ServerPacketWriter(
+    qa,
+    new IsaacCipher(
+     new int[]{61,62,63,64}
+    )
+   );
+  ServerPacketWriter wb=
+   new ServerPacketWriter(
+    qb,
+    new IsaacCipher(
+     new int[]{65,66,67,68}
+    )
+   );
+  ServerPacketWriter control=
+   new ServerPacketWriter(
+    controlQueue,
+    new IsaacCipher(
+     new int[]{61,62,63,64}
+    )
+   );
+
+  qb.offer(
+   new byte[1023]
+  );
+
+  ServerPacketWriter.StateSnapshot sa=
+   wa.snapshotState();
+  ServerPacketWriter.StateSnapshot sb=
+   wb.snapshotState();
+
+  wa.beginBatch();
+  wb.beginBatch();
+  wa.fixed(
+   219,
+   new byte[0]
+  );
+  wb.fixed(
+   219,
+   new byte[0]
+  );
+
+  boolean failed=false;
+  try{
+   ServerPacketWriter.endBatchesAtomically(
+    wa,
+    wb
+   );
+  }catch(IOException expected){
+   failed=
+    expected.getMessage()!=null&&
+    expected.getMessage().contains(
+     "pair overflow"
+    );
+  }
+
+  if(!failed)
+   throw new AssertionError(
+    "paired writer overflow was not propagated"
+   );
+
+  if(qa.queuedBytes()!=0||
+     qb.queuedBytes()!=1023)
+   throw new AssertionError(
+    "paired writer failure published partial bytes a="+
+    qa.queuedBytes()+
+    " b="+
+    qb.queuedBytes()
+   );
+
+  wa.restoreState(sa);
+  wb.restoreState(sb);
+
+  byte[] root=
+   BootstrapPackets.interface97(
+    15106
+   );
+  wa.fixed(
+   97,
+   root
+  );
+  control.fixed(
+   97,
+   root
+  );
+
+  byte[] actual=
+   drain(qa);
+  byte[] expected=
+   drain(controlQueue);
+
+  if(!java.util.Arrays.equals(
+        actual,
+        expected))
+   throw new AssertionError(
+    "paired writer rollback did not restore ISAAC state"
+   );
+ }
+
+ static void testFinalExchangeQueueFailureAtomicity()throws Exception{
+  World w=
+   World.isolatedForTest(604L);
+  WorldPlayer p1=
+   new WorldPlayer();
+  WorldPlayer p2=
+   new WorldPlayer();
+
+  w.registerPlayer(
+   p1,
+   "atomic-a"
+  );
+  w.registerPlayer(
+   p2,
+   "atomic-b"
+  );
+
+  OutboundPacketQueue q1=
+   new OutboundPacketQueue(4096);
+  OutboundPacketQueue q2=
+   new OutboundPacketQueue(1024);
+  ServerPacketWriter s1=
+   new ServerPacketWriter(
+    q1,
+    new IsaacCipher(
+     new int[]{69,70,71,72}
+    )
+   );
+  ServerPacketWriter s2=
+   new ServerPacketWriter(
+    q2,
+    new IsaacCipher(
+     new int[]{73,74,75,76}
+    )
+   );
+
+  try{
+   p1.bank().spawnItem(
+    995,
+    1000,
+    s1
+   );
+   p2.bank().spawnItem(
+    385,
+    2,
+    s2
+   );
+   drain(q1);
+   drain(q2);
+
+   TradeService.register(
+    w,
+    p1,
+    p1.generation(),
+    p1.bank(),
+    s1,
+    ()->{}
+   );
+   TradeService.register(
+    w,
+    p2,
+    p2.generation(),
+    p2.bank(),
+    s2,
+    ()->{}
+   );
+
+   need(
+    TradeService.start(
+     w,
+     p1,
+     p2
+    ),
+    "TRADE_UI_OPEN"
+   );
+
+   need(
+    TradeService.handleItemAction(
+     p1,
+     new ItemContainerAction(
+      145,
+      3322,
+      0,
+      995,
+      0,
+      "ITEM_ACTION_1"
+     )
+    ),
+    "TRADE_OFFER_OK"
+   );
+
+   int shark=
+    find(
+     p2.bank(),
+     385
+    );
+
+   need(
+    TradeService.handleItemAction(
+     p2,
+     new ItemContainerAction(
+      145,
+      3322,
+      shark,
+      385,
+      0,
+      "ITEM_ACTION_1"
+     )
+    ),
+    "TRADE_OFFER_OK"
+   );
+
+   need(
+    TradeService.handleWidget(
+     p1,
+     3420
+    ),
+    "WAITING_OTHER"
+   );
+   need(
+    TradeService.handleWidget(
+     p2,
+     3420
+    ),
+    "CONFIRM_OPEN"
+   );
+   need(
+    TradeService.handleWidget(
+     p1,
+     3546
+    ),
+    "WAITING_OTHER"
+   );
+
+   drain(q1);
+   drain(q2);
+
+   int aCoinsBefore=
+    p1.bank().inventoryCount(995);
+   int aSharksBefore=
+    p1.bank().inventoryCount(385);
+   int bCoinsBefore=
+    p2.bank().inventoryCount(995);
+   int bSharksBefore=
+    p2.bank().inventoryCount(385);
+
+   q2.offer(
+    new byte[1023]
+   );
+
+   boolean failed=false;
+   try{
+    TradeService.handleWidget(
+     p2,
+     3546
+    );
+   }catch(IOException expected){
+    failed=
+     expected.getMessage()!=null&&
+     expected.getMessage().contains(
+      "pair overflow"
+     );
+   }
+
+   if(!failed)
+    throw new AssertionError(
+     "final exchange queue failure was not propagated"
+    );
+
+   if(q1.queuedBytes()!=0||
+      q2.queuedBytes()!=1023)
+    throw new AssertionError(
+     "final exchange queue failure published partial commit bytes a="+
+     q1.queuedBytes()+
+     " b="+
+     q2.queuedBytes()
+    );
+
+   if(p1.bank().inventoryCount(995)!=
+        aCoinsBefore||
+      p1.bank().inventoryCount(385)!=
+        aSharksBefore||
+      p2.bank().inventoryCount(995)!=
+        bCoinsBefore||
+      p2.bank().inventoryCount(385)!=
+        bSharksBefore)
+    throw new AssertionError(
+     "final exchange queue failure mutated inventory"
+    );
+
+   if(!TradeService.active(p1)||
+      !TradeService.active(p2))
+    throw new AssertionError(
+     "failed final exchange detached Trade"
+    );
+  }finally{
+   TradeService.unregister(p1);
+   TradeService.unregister(p2);
+   if(p1.registered())
+    w.unregisterPlayer(p1);
+   if(p2.registered())
+    w.unregisterPlayer(p2);
    w.close();
   }
  }
