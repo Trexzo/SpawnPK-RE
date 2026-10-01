@@ -324,6 +324,7 @@ public final class MonsterSpawnerServiceTest {
 
         selectedRowIdentityStable();
         sessionRetirement();
+        exactSessionRetirement();
         protocolBoundary();
 
         System.out.println(
@@ -347,6 +348,8 @@ public final class MonsterSpawnerServiceTest {
             "idleSessionRetirement=true "+
             "trackedSessionRetained=true "+
             "sameOwnerReopen=true "+
+            "exactSessionRetirement=true "+
+            "changedSessionRetirementRejected=true "+
             "ownerIdAbuse=false "+
             "sourceItemIdAbuse=false "+
             "rewardMutation=false "+
@@ -595,6 +598,77 @@ public final class MonsterSpawnerServiceTest {
                 "missing-owner"
             ),
             "same owner reopen / absent retirement"
+        );
+    }
+
+    private static void exactSessionRetirement(){
+        WorldNpcRegistry registry=
+            new WorldNpcRegistry();
+        MonsterSpawnerService service=
+            new MonsterSpawnerService(
+                registry
+            );
+
+        service.replaceCatalog(
+            Collections.singletonList(
+                new MonsterSpawnerService.CatalogEntry(
+                    0,
+                    "npc:exact-retirement",
+                    311
+                )
+            ),
+            "EXACT_RETIREMENT_CATALOG"
+        );
+
+        MonsterSpawnerService.SessionSnapshot opened=
+            service.openSession(
+                "player:exact-retire",
+                POLICY
+            );
+
+        require(
+            service.retireSessionIfCurrentAndNoTrackedNpcs(
+                "player:exact-retire",
+                opened
+            )&&
+            service.getSession(
+                "player:exact-retire"
+            )==null,
+            "exact unchanged session retirement"
+        );
+
+        MonsterSpawnerService.SessionSnapshot staleOpening=
+            service.openSession(
+                "player:exact-retire",
+                POLICY
+            );
+
+        service.selectRow(
+            "player:exact-retire",
+            0
+        );
+
+        require(
+            !service.retireSessionIfCurrentAndNoTrackedNpcs(
+                "player:exact-retire",
+                staleOpening
+            )&&
+            service.getSession(
+                "player:exact-retire"
+            )!=null&&
+            service.getSession(
+                "player:exact-retire"
+            ).selectedRowIndex!=null,
+            "changed session was retired by stale exact snapshot"
+        );
+
+        expect(
+            IllegalArgumentException.class,
+            ()->service.retireSessionIfCurrentAndNoTrackedNpcs(
+                "different-owner",
+                staleOpening
+            ),
+            "exact retirement owner mismatch"
         );
     }
 
