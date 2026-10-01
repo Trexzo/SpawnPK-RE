@@ -19,17 +19,34 @@ final class LocalPetDropPickupHandler {
         long sessionWorldTick();
         SceneUpdatePublisher scenePublisher();
         void saveAccount(String tag,String reason);
-        PlayerState.PreparedScopesightMaintenance
+        default PlayerState.PreparedScopesightMaintenance
             prepareScopesightPassive(
                 boolean active
-            );
-        void publishScopesightPassive(
+            ){
+            return new PlayerState()
+                .prepareScopesightMaintenance(
+                    active
+                );
+        }
+
+        default void publishScopesightPassive(
             PlayerState.PreparedScopesightMaintenance prepared,
             ServerPacketWriter serverPackets
-        )throws IOException;
-        void commitScopesightPassive(
+        )throws IOException{}
+
+        default void commitScopesightPassive(
             PlayerState.PreparedScopesightMaintenance prepared
-        );
+        ){}
+
+        /**
+         * Compatibility seam for older focused test bridges. Production pet
+         * transactions use the prepared hooks above.
+         */
+        default int syncScopesightPassive(
+            ServerPacketWriter serverPackets
+        )throws IOException{
+            return 0;
+        }
         void resetPetFollowDeadline();
         void ensurePetFollowScheduled(long now);
     }
