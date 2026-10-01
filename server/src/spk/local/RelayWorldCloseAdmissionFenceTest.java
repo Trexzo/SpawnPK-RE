@@ -62,6 +62,8 @@ public final class RelayWorldCloseAdmissionFenceTest {
                 source.movement().y()
             );
 
+        WorldNpc trackedGeneric=null;
+
         CountDownLatch targetEntered=
             new CountDownLatch(1);
         CountDownLatch releaseTarget=
@@ -87,6 +89,27 @@ public final class RelayWorldCloseAdmissionFenceTest {
                 viewerNpcs,
                 viewer.movement()
             );
+
+            trackedGeneric=
+                world.npcs().spawn(
+                    1530,
+                    source.movement().x()+1,
+                    source.movement().y(),
+                    0
+                );
+
+            SharedNpcWorldRelay.trackCanonicalNpc(
+                world,
+                trackedGeneric
+            );
+
+            if(mapSize(
+                    SharedNpcWorldRelay.class,
+                    "BY_WORLD"
+                )<=relayWorldBaseline)
+                throw new AssertionError(
+                    "generic canonical NPC did not retain relay WorldState"
+                );
 
             SharedNpcWorldRelay.relayMask(
                 sourceWriter,
@@ -246,6 +269,19 @@ public final class RelayWorldCloseAdmissionFenceTest {
                     "presentation queue not terminal after World close"
                 );
 
+            if(mapSize(
+                    SharedNpcWorldRelay.class,
+                    "BY_WORLD"
+                )!=relayWorldBaseline||
+               mapSize(
+                    SharedNpcWorldRelay.class,
+                    "BY_WRITER"
+                )!=relayWriterBaseline)
+                throw new AssertionError(
+                    "World close did not release relay static state"
+                );
+
+            // Terminal detach makes later session cleanup harmless/idempotent.
             SharedNpcWorldRelay.unregister(
                 sourceWriter
             );
@@ -262,7 +298,7 @@ public final class RelayWorldCloseAdmissionFenceTest {
                     "BY_WRITER"
                 )!=relayWriterBaseline)
                 throw new AssertionError(
-                    "relay maps did not return to baseline"
+                    "post-close relay unregister changed baseline"
                 );
 
             System.out.println(
@@ -271,6 +307,9 @@ public final class RelayWorldCloseAdmissionFenceTest {
                 "closeWindowQueueOpen=true "+
                 "closeWindowRelayRejected=true "+
                 "terminalQueueEmpty=true "+
+                "worldCloseRelayCleanup=true "+
+                "genericNpcWorldReleased=true "+
+                "postCloseUnregisterIdempotent=true "+
                 "relayBaselineRestored=true"
             );
         }finally{
