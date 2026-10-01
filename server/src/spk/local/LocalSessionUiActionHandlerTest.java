@@ -438,6 +438,38 @@ public final class LocalSessionUiActionHandlerTest {
                 throw new AssertionError(
                     "absent Monster Spawner UI factory changed default behavior"
                 );
+
+            LocalSession.MonsterSpawnerUiFactory
+                matchingFactory=
+                    (exactWorld,exactPlayer,accountRef)->
+                        monsterSpawnerUi;
+
+            if(LocalSession.resolveMonsterSpawnerUi(
+                    matchingFactory,
+                    factoryWorld,
+                    factoryPlayer,
+                    "session-ui-owner"
+                )!=monsterSpawnerUi)
+                throw new AssertionError(
+                    "matching Monster Spawner UI owner was not retained"
+                );
+
+            boolean ownerMismatchRejected=false;
+            try{
+                LocalSession.resolveMonsterSpawnerUi(
+                    matchingFactory,
+                    factoryWorld,
+                    factoryPlayer,
+                    "different-account"
+                );
+            }catch(IllegalArgumentException expected){
+                ownerMismatchRejected=true;
+            }
+
+            if(!ownerMismatchRejected)
+                throw new AssertionError(
+                    "late-bound Monster Spawner UI owner mismatch was accepted"
+                );
         }finally{
             factoryWorld.close();
         }
@@ -464,7 +496,8 @@ public final class LocalSessionUiActionHandlerTest {
             "monsterSpawnerAbsentPreserved=true "+
             "monsterSpawnerLateInstall=true "+
             "monsterSpawnerReinstallGuard=true "+
-            "monsterSpawnerFactoryContract=true"
+            "monsterSpawnerFactoryContract=true "+
+            "monsterSpawnerOwnerFence=true"
         );
     }
 }
