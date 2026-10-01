@@ -267,7 +267,10 @@ final class LocalSessionUiActionHandler {
         LocalMonsterSpawnerUiHandler configuredMonsterSpawner=
             monsterSpawnerUiHandler;
 
-        if(configuredMonsterSpawner!=null){
+        if(configuredMonsterSpawner!=null&&
+           configuredMonsterSpawner.ownsWidget(
+                widget
+           )){
             LocalMonsterSpawnerUiHandler.Result monsterSpawner=
                 configuredMonsterSpawner.handle(
                     widget,
@@ -292,8 +295,16 @@ final class LocalSessionUiActionHandler {
                     serverPackets,
                     tag
                 );
-                return;
+            }else{
+                System.out.println(
+                    tag+
+                    "MONSTER_SPAWNER_UI widget="+
+                    widget+
+                    " status=NOOP_UNCONFIGURED"
+                );
             }
+
+            return;
         }
 
         String gameplayWidget=
