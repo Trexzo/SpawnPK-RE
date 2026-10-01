@@ -293,6 +293,106 @@ public final class LocalSessionUiActionHandlerTest {
                 "configured routing unexpectedly emitted Home Teleport packets"
             );
 
+        spawner.deactivate(
+            "session-ui-owner"
+        );
+
+        LocalSessionUiActionHandler lateBound=
+            new LocalSessionUiActionHandler(
+                player,
+                new NativeItemLibraryService(),
+                new DevControlCenter(),
+                bank,
+                compCape,
+                petDialogs,
+                gameplay,
+                movement,
+                true,
+                equipment,
+                bridge
+            );
+
+        lateBound.installMonsterSpawnerUiHandler(
+            monsterSpawnerUi
+        );
+        lateBound.installMonsterSpawnerUiHandler(
+            monsterSpawnerUi
+        );
+
+        LocalMonsterSpawnerUiHandler distinctAdapter=
+            new LocalMonsterSpawnerUiHandler(
+                spawner,
+                "session-ui-owner",
+                new LocalMonsterSpawnerUiHandler
+                    .ActivationBudgetResolver(){
+                    @Override public int spawnBudget(
+                        LocalMonsterSpawnerUiHandler.Context context
+                    ){
+                        return 2;
+                    }
+
+                    @Override public String authority(){
+                        return "CUSTOM_LOCALLAB_SESSION_UI_POLICY";
+                    }
+                },
+                new LocalMonsterSpawnerUiHandler
+                    .SelectedNpcLabelResolver(){
+                    @Override public String label(
+                        MonsterSpawnerService.CatalogEntry entry
+                    ){
+                        return "NPC-"+entry.definitionId;
+                    }
+
+                    @Override public String authority(){
+                        return "CUSTOM_LOCALLAB_SESSION_UI_CATALOG";
+                    }
+                }
+            );
+
+        boolean replacementRejected=false;
+        try{
+            lateBound.installMonsterSpawnerUiHandler(
+                distinctAdapter
+            );
+        }catch(IllegalStateException expected){
+            replacementRejected=true;
+        }
+
+        if(!replacementRejected)
+            throw new AssertionError(
+                "distinct Monster Spawner UI replacement was accepted"
+            );
+
+        int lateTextBefore=wire.size();
+
+        lateBound.handleWidget(
+            MonsterSpawnerPresentation.rowWidget(0),
+            w,
+            "[ui-test] "
+        );
+
+        if(wire.size()<=lateTextBefore)
+            throw new AssertionError(
+                "late-bound Monster Spawner route did not publish selected text"
+            );
+
+        lateBound.handleWidget(
+            MonsterSpawnerPresentation.TOGGLE_WIDGET,
+            w,
+            "[ui-test] "
+        );
+
+        MonsterSpawnerService.SessionSnapshot lateActivated=
+            spawner.getSession(
+                "session-ui-owner"
+            );
+
+        if(!lateActivated.active||
+           lateActivated.remainingSpawnBudget!=2)
+            throw new AssertionError(
+                "late-bound Monster Spawner toggle did not reach adapter"
+            );
+
         bridge.saveReason=null;
         bridge.clearedKeys=false;
         h.handleInterfaceClose(true,w,"[ui-test] ");
@@ -312,7 +412,9 @@ public final class LocalSessionUiActionHandlerTest {
             "LOCAL_SESSION_UI_ACTION_HANDLER_PASS "+
             "logout=true runToggle=true homeTeleport=true interfaceClose=true "+
             "panelBoundary=true monsterSpawnerRoute=true "+
-            "monsterSpawnerAbsentPreserved=true"
+            "monsterSpawnerAbsentPreserved=true "+
+            "monsterSpawnerLateInstall=true "+
+            "monsterSpawnerReinstallGuard=true"
         );
     }
 }
