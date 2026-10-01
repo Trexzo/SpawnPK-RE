@@ -2,6 +2,7 @@ package spk.local;
 
 import java.io.IOException;
 import java.util.Objects;
+import java.util.function.BooleanSupplier;
 
 /**
  * Owns the exact current interface-close and widget-action routing that was
@@ -13,13 +14,16 @@ import java.util.Objects;
 final class LocalSessionUiActionHandler {
     static final class MonsterSpawnerDispatch {
         final boolean admitted;
+        final boolean closedUi;
         final LocalMonsterSpawnerUiHandler.Result result;
 
         private MonsterSpawnerDispatch(
             boolean admitted,
+            boolean closedUi,
             LocalMonsterSpawnerUiHandler.Result result
         ){
             this.admitted=admitted;
+            this.closedUi=closedUi;
             this.result=result;
         }
 
@@ -28,12 +32,22 @@ final class LocalSessionUiActionHandler {
         ){
             return new MonsterSpawnerDispatch(
                 true,
+                false,
                 result
+            );
+        }
+
+        static MonsterSpawnerDispatch closedUi(){
+            return new MonsterSpawnerDispatch(
+                true,
+                true,
+                null
             );
         }
 
         static MonsterSpawnerDispatch rejected(){
             return new MonsterSpawnerDispatch(
+                false,
                 false,
                 null
             );
@@ -87,6 +101,36 @@ final class LocalSessionUiActionHandler {
             return MonsterSpawnerDispatch.admitted(
                 result
             );
+        }
+
+        default MonsterSpawnerDispatch handleMonsterSpawnerWidget(
+            LocalMonsterSpawnerUiHandler handler,
+            int widget,
+            ServerPacketWriter serverPackets,
+            String tag,
+            BooleanSupplier uiOpen
+        )throws IOException{
+            if(!Objects.requireNonNull(
+                    uiOpen,
+                    "uiOpen"
+                ).getAsBoolean())
+                return MonsterSpawnerDispatch.closedUi();
+
+            return handleMonsterSpawnerWidget(
+                handler,
+                widget,
+                serverPackets,
+                tag
+            );
+        }
+
+        default boolean closeMonsterSpawnerUi(
+            BooleanSupplier closeAction
+        )throws IOException{
+            return Objects.requireNonNull(
+                closeAction,
+                "closeAction"
+            ).getAsBoolean();
         }
 
         void requestLogout();
@@ -223,8 +267,14 @@ final class LocalSessionUiActionHandler {
         bridge.clearDialogNumberKeys();
 
         boolean monsterSpawnerWasOpen=
-            monsterSpawnerUiOpen;
-        monsterSpawnerUiOpen=false;
+            bridge.closeMonsterSpawnerUi(
+                ()->{
+                    boolean wasOpen=
+                        monsterSpawnerUiOpen;
+                    monsterSpawnerUiOpen=false;
+                    return wasOpen;
+                }
+            );
 
         boolean wasOpen=bank.clientClosed();
         boolean compWasOpen=compCapeCustomize.close();
@@ -338,22 +388,13 @@ final class LocalSessionUiActionHandler {
            configuredMonsterSpawner.ownsWidget(
                 widget
            )){
-            if(!monsterSpawnerUiOpen){
-                System.out.println(
-                    tag+
-                    "MONSTER_SPAWNER_UI widget="+
-                    widget+
-                    " status=CLOSED_UI_NOOP"
-                );
-                return;
-            }
-
             MonsterSpawnerDispatch dispatch=
                 bridge.handleMonsterSpawnerWidget(
                     configuredMonsterSpawner,
                     widget,
                     serverPackets,
-                    tag
+                    tag,
+                    ()->monsterSpawnerUiOpen
                 );
 
             if(!dispatch.admitted){
@@ -362,6 +403,16 @@ final class LocalSessionUiActionHandler {
                     "MONSTER_SPAWNER_UI widget="+
                     widget+
                     " status=LIFECYCLE_REJECTED"
+                );
+                return;
+            }
+
+            if(dispatch.closedUi){
+                System.out.println(
+                    tag+
+                    "MONSTER_SPAWNER_UI widget="+
+                    widget+
+                    " status=CLOSED_UI_NOOP"
                 );
                 return;
             }
