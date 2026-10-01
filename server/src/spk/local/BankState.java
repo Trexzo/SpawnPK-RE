@@ -551,11 +551,27 @@ final class BankState {
         Stack st=inventory[slot];
         if (st.itemId!=itemId) return "REJECTED_INVENTORY_ITEM_MISMATCH expected="+st.itemId;
         if (st.qty<=0) return "REJECTED_INVENTORY_QTY";
-        st.qty--;
-        if (st.qty==0) inventory[slot]=null;
-        sendNormalInventory(w);
-        if (open) sendContainers(w);
-        return "INVENTORY_CONSUME_OK item="+itemId+" slot="+slot+" remaining="+(inventory[slot]==null?0:inventory[slot].qty);
+
+        Stack[] nextInventory=copyStacks(inventory);
+        Stack next=nextInventory[slot];
+        next.qty--;
+        if(next.qty==0)
+            nextInventory[slot]=null;
+
+        publishNormalInventoryStructuralPostimage(
+            w,
+            nextInventory,
+            open
+        );
+        replaceStacks(
+            inventory,
+            nextInventory
+        );
+
+        return "INVENTORY_CONSUME_OK item="+itemId+
+            " slot="+slot+
+            " remaining="+
+            (inventory[slot]==null?0:inventory[slot].qty);
     }
 
     boolean canAddInventoryOne(int itemId) {
@@ -568,11 +584,24 @@ final class BankState {
         int dst = isStackable(itemId) ? findItem(inventory,itemId) : -1;
         if (dst<0) dst=firstEmpty(inventory);
         if (dst<0) return -1;
-        if (inventory[dst]==null) inventory[dst]=new Stack(itemId,0);
-        if (inventory[dst].qty==Integer.MAX_VALUE) return -1;
-        inventory[dst].qty++;
-        sendNormalInventory(w);
-        if (open) sendContainers(w);
+        if (inventory[dst]!=null &&
+            inventory[dst].qty==Integer.MAX_VALUE)
+            return -1;
+
+        Stack[] nextInventory=copyStacks(inventory);
+        if(nextInventory[dst]==null)
+            nextInventory[dst]=new Stack(itemId,0);
+        nextInventory[dst].qty++;
+
+        publishNormalInventoryStructuralPostimage(
+            w,
+            nextInventory,
+            open
+        );
+        replaceStacks(
+            inventory,
+            nextInventory
+        );
         return dst;
     }
 
@@ -591,19 +620,48 @@ final class BankState {
         if(dst<0 && isStackable(itemId)) dst=findItem(inventory,itemId);
         if(dst<0) dst=firstEmpty(inventory);
         if(dst<0) return -1;
-        if(inventory[dst]==null) inventory[dst]=new Stack(itemId,0);
-        if(inventory[dst].itemId!=itemId || inventory[dst].qty==Integer.MAX_VALUE) return -1;
-        inventory[dst].qty++;
-        sendNormalInventory(w);
-        if(open) sendContainers(w);
+        if(inventory[dst]!=null &&
+           (inventory[dst].itemId!=itemId ||
+            inventory[dst].qty==Integer.MAX_VALUE))
+            return -1;
+
+        Stack[] nextInventory=copyStacks(inventory);
+        if(nextInventory[dst]==null)
+            nextInventory[dst]=new Stack(itemId,0);
+        nextInventory[dst].qty++;
+
+        publishNormalInventoryStructuralPostimage(
+            w,
+            nextInventory,
+            open
+        );
+        replaceStacks(
+            inventory,
+            nextInventory
+        );
         return dst;
     }
 
     /** Consume the entire concrete inventory stack. Used by ordinary ground Drop. */
     int consumeInventoryAll(int slot,int itemId,ServerPacketWriter w) throws IOException {
         if(!validSlot(inventory,slot)||inventory[slot]==null)return -1;
-        Stack st=inventory[slot]; if(st.itemId!=itemId||st.qty<=0)return -1;
-        int qty=st.qty; inventory[slot]=null; sendNormalInventory(w); if(open)sendContainers(w); return qty;
+        Stack st=inventory[slot];
+        if(st.itemId!=itemId||st.qty<=0)return -1;
+        int qty=st.qty;
+
+        Stack[] nextInventory=copyStacks(inventory);
+        nextInventory[slot]=null;
+
+        publishNormalInventoryStructuralPostimage(
+            w,
+            nextInventory,
+            open
+        );
+        replaceStacks(
+            inventory,
+            nextInventory
+        );
+        return qty;
     }
 
     boolean canAddInventoryAmount(int itemId,int amount){
@@ -620,15 +678,34 @@ final class BankState {
     /** Add a positive amount atomically after canAddInventoryAmount preflight. Returns first destination slot or -1. */
     int addInventoryAmount(int itemId,int amount,ServerPacketWriter w)throws IOException{
         if(!canAddInventoryAmount(itemId,amount))return -1;
+
+        Stack[] nextInventory=copyStacks(inventory);
         int first=-1;
         if(isStackable(itemId)){
-            int dst=findItem(inventory,itemId); if(dst<0)dst=firstEmpty(inventory); first=dst;
-            if(inventory[dst]==null)inventory[dst]=new Stack(itemId,0);
-            inventory[dst].qty+=amount;
+            int dst=findItem(nextInventory,itemId);
+            if(dst<0)dst=firstEmpty(nextInventory);
+            first=dst;
+            if(nextInventory[dst]==null)
+                nextInventory[dst]=new Stack(itemId,0);
+            nextInventory[dst].qty+=amount;
         }else{
-            for(int n=0;n<amount;n++){int dst=firstEmpty(inventory);if(first<0)first=dst;inventory[dst]=new Stack(itemId,1);}
+            for(int n=0;n<amount;n++){
+                int dst=firstEmpty(nextInventory);
+                if(first<0)first=dst;
+                nextInventory[dst]=new Stack(itemId,1);
+            }
         }
-        sendNormalInventory(w); if(open)sendContainers(w); return first;
+
+        publishNormalInventoryStructuralPostimage(
+            w,
+            nextInventory,
+            open
+        );
+        replaceStacks(
+            inventory,
+            nextInventory
+        );
+        return first;
     }
 
     /** Equip a native icon into the dedicated COSMETIC channel, never AMMO. */
