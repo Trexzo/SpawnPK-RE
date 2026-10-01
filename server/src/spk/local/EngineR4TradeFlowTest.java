@@ -86,8 +86,9 @@ public final class EngineR4TradeFlowTest{
    testSecondRootPublicationFailureAtomicity();
    testConfirmRootPublicationFailureClosesTrade();
    testReplacementTradeStartFailureAtomicity();
+   testFinalCommitPairAdmissionAtomicity();
 
-   System.out.println("V5140_ENGINE_R4_TRADE_FLOW_PASS roots=3323/3443 offerWidgets=3322/3415/3416 accepts=3420/3546 atomicExchange=true cancelReservationModel=true twoSessionRootOwners=true peerOnlyCompetingClose=true hiddenTradeRejected=true competingRootFailureAtomic=true lockOrderTradeBeforePlayer=true partialStartFailureClosed=true confirmPublicationFailClosed=true replacementStartFailureAtomic=true priorPeerPreserved=true replacementPeerCloseExact=true");
+   System.out.println("V5140_ENGINE_R4_TRADE_FLOW_PASS roots=3323/3443 offerWidgets=3322/3415/3416 accepts=3420/3546 atomicExchange=true cancelReservationModel=true twoSessionRootOwners=true peerOnlyCompetingClose=true hiddenTradeRejected=true competingRootFailureAtomic=true lockOrderTradeBeforePlayer=true partialStartFailureClosed=true confirmPublicationFailClosed=true replacementStartFailureAtomic=true priorPeerPreserved=true replacementPeerCloseExact=true finalCommitPairAdmissionAtomic=true finalCommitRetryExactlyOnce=true");
   }finally{TradeService.unregister(p1);TradeService.unregister(p2);w.unregisterPlayer(p1);w.unregisterPlayer(p2);w.close();}
  }
  static void testSecondRootPublicationFailureAtomicity()throws Exception{
@@ -312,6 +313,153 @@ public final class EngineR4TradeFlowTest{
    if(b.registered())w.unregisterPlayer(b);
    if(c.registered())w.unregisterPlayer(c);
    if(d.registered())w.unregisterPlayer(d);
+   w.close();
+  }
+ }
+
+ static void testFinalCommitPairAdmissionAtomicity()throws Exception{
+  World w=World.isolatedForTest(604L);
+  WorldPlayer a=new WorldPlayer(),b=new WorldPlayer();
+  w.registerPlayer(a,"final-atomic-a");
+  w.registerPlayer(b,"final-atomic-b");
+
+  OutboundPacketQueue qa=new OutboundPacketQueue(1024);
+  OutboundPacketQueue qb=new OutboundPacketQueue(1024);
+  ServerPacketWriter wa=
+   new ServerPacketWriter(qa,new IsaacCipher(new int[]{41,42,43,44}));
+  ServerPacketWriter wb=
+   new ServerPacketWriter(qb,new IsaacCipher(new int[]{45,46,47,48}));
+  int[] saves={0,0};
+
+  try{
+   a.bank().spawnItem(995,1000,wa);
+   b.bank().spawnItem(385,2,wb);
+   drain(qa);drain(qb);
+
+   TradeService.register(
+    w,a,a.generation(),a.bank(),wa,()->saves[0]++
+   );
+   TradeService.register(
+    w,b,b.generation(),b.bank(),wb,()->saves[1]++
+   );
+
+   need(TradeService.start(w,a,b),"TRADE_UI_OPEN");
+   drain(qa);drain(qb);
+
+   int coinSlot=find(a.bank(),995);
+   int sharkSlot=find(b.bank(),385);
+
+   need(
+    TradeService.handleItemAction(
+     a,
+     new ItemContainerAction(
+      145,3322,coinSlot,995,0,"ITEM_ACTION_1"
+     )
+    ),
+    "TRADE_OFFER_OK"
+   );
+   need(
+    TradeService.handleItemAction(
+     b,
+     new ItemContainerAction(
+      145,3322,sharkSlot,385,0,"ITEM_ACTION_1"
+     )
+    ),
+    "TRADE_OFFER_OK"
+   );
+   drain(qa);drain(qb);
+
+   need(TradeService.handleWidget(a,3420),"WAITING_OTHER");
+   need(TradeService.handleWidget(b,3420),"CONFIRM_OPEN");
+   drain(qa);drain(qb);
+
+   need(TradeService.handleWidget(a,3546),"WAITING_OTHER");
+   drain(qa);drain(qb);
+
+   int aCoinsBefore=a.bank().inventoryCount(995);
+   int aSharksBefore=a.bank().inventoryCount(385);
+   int bCoinsBefore=b.bank().inventoryCount(995);
+   int bSharksBefore=b.bank().inventoryCount(385);
+
+   qb.offer(new byte[1000]);
+   int fillerBytes=qb.queuedBytes();
+
+   String rejected=
+    TradeService.handleWidget(
+     b,
+     3546
+    );
+
+   need(
+    rejected,
+    "TRADE_COMMIT_REJECTED_PRESENTATION_ADMISSION"
+   );
+
+   if(qa.queuedBytes()!=0||
+      qb.queuedBytes()!=fillerBytes)
+    throw new AssertionError(
+     "rejected final commit leaked one-sided packet bytes="+
+     qa.queuedBytes()+"/"+qb.queuedBytes()
+    );
+
+   if(a.bank().inventoryCount(995)!=aCoinsBefore||
+      a.bank().inventoryCount(385)!=aSharksBefore||
+      b.bank().inventoryCount(995)!=bCoinsBefore||
+      b.bank().inventoryCount(385)!=bSharksBefore)
+    throw new AssertionError(
+     "rejected final commit mutated inventory"
+    );
+
+   if(!TradeService.active(a)||
+      !TradeService.active(b)||
+      saves[0]!=0||
+      saves[1]!=0)
+    throw new AssertionError(
+     "rejected final commit changed trade/persistence state saves="+
+     saves[0]+"/"+saves[1]
+    );
+
+   drain(qb);
+
+   need(
+    TradeService.handleWidget(
+     b,
+     3546
+    ),
+    "TRADE_COMMITTED"
+   );
+
+   if(a.bank().inventoryCount(995)!=
+        aCoinsBefore-1||
+      a.bank().inventoryCount(385)!=
+        aSharksBefore+1||
+      b.bank().inventoryCount(995)!=
+        bCoinsBefore+1||
+      b.bank().inventoryCount(385)!=
+        bSharksBefore-1)
+    throw new AssertionError(
+     "successful final commit postimage wrong"
+    );
+
+   if(TradeService.active(a)||
+      TradeService.active(b)||
+      saves[0]!=1||
+      saves[1]!=1)
+    throw new AssertionError(
+     "successful final commit did not detach/save exactly once saves="+
+     saves[0]+"/"+saves[1]
+    );
+
+   if(qa.queuedBytes()==0||
+      qb.queuedBytes()==0)
+    throw new AssertionError(
+     "successful final commit emitted no paired postimage"
+    );
+  }finally{
+   TradeService.unregister(a);
+   TradeService.unregister(b);
+   if(a.registered())w.unregisterPlayer(a);
+   if(b.registered())w.unregisterPlayer(b);
    w.close();
   }
  }
