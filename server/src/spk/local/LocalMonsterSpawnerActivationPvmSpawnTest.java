@@ -194,6 +194,104 @@ public final class LocalMonsterSpawnerActivationPvmSpawnTest {
                 "DEACTIVATED callback triggered spawn"
             );
 
+            LocalSession.notifyMonsterSpawnerSessionClosed(
+                factory,
+                world,
+                player,
+                generation,
+                OWNER
+            );
+
+            require(
+                f.spawner.getSession(OWNER)!=null&&
+                f.spawner.getSession(OWNER).tracks(npc.id),
+                "tracked session retired on LocalSession close"
+            );
+
+            final String reconnectOwner=
+                "session-pvm-reconnect";
+            WorldPlayer reconnectPlayer=
+                new WorldPlayer();
+            long reconnectGeneration=
+                world.registerPlayer(
+                    reconnectPlayer,
+                    reconnectOwner
+                );
+
+            LocalMonsterSpawnerUiHandler firstReconnect=
+                LocalSession.resolveMonsterSpawnerUiAfterLogin(
+                    factory,
+                    world,
+                    reconnectPlayer,
+                    reconnectOwner
+                );
+
+            require(
+                firstReconnect!=null&&
+                f.spawner.getSession(reconnectOwner)!=null,
+                "shared runtime did not open reconnect fixture session"
+            );
+
+            LocalSession.notifyMonsterSpawnerSessionClosed(
+                factory,
+                world,
+                reconnectPlayer,
+                reconnectGeneration,
+                reconnectOwner
+            );
+
+            require(
+                f.spawner.getSession(reconnectOwner)==null,
+                "idle LocalSession close did not retire shared session"
+            );
+
+            require(
+                world.unregisterPlayer(
+                    reconnectPlayer,
+                    reconnectGeneration
+                ),
+                "reconnect fixture first generation unregister"
+            );
+
+            WorldPlayer replacementPlayer=
+                new WorldPlayer();
+            long replacementGeneration=
+                world.registerPlayer(
+                    replacementPlayer,
+                    reconnectOwner
+                );
+
+            LocalMonsterSpawnerUiHandler reopened=
+                LocalSession.resolveMonsterSpawnerUiAfterLogin(
+                    factory,
+                    world,
+                    replacementPlayer,
+                    reconnectOwner
+                );
+
+            require(
+                reopened!=null&&
+                f.spawner.getSession(reconnectOwner)!=null,
+                "same owner did not reopen after idle retirement"
+            );
+
+            LocalSession.notifyMonsterSpawnerSessionClosed(
+                factory,
+                world,
+                replacementPlayer,
+                replacementGeneration,
+                reconnectOwner
+            );
+
+            require(
+                f.spawner.getSession(reconnectOwner)==null&&
+                world.unregisterPlayer(
+                    replacementPlayer,
+                    replacementGeneration
+                ),
+                "reopened idle session cleanup"
+            );
+
             LocalSession.forwardMonsterSpawnerUiResult(
                 null,
                 world,
@@ -223,6 +321,9 @@ public final class LocalMonsterSpawnerActivationPvmSpawnTest {
                 "absentCallbackNoop=true "+
                 "sharedActivationRuntime=true "+
                 "worldRuntimeInstalled=true "+
+                "trackedSessionRetained=true "+
+                "idleSessionRetired=true "+
+                "sameOwnerReconnect=true "+
                 "placementCallerOwned=true "+
                 "recipientCallerOwned=true "+
                 "catalogCallerOwned=true "+
