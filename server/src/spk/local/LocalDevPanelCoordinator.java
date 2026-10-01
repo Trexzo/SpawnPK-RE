@@ -71,21 +71,62 @@ final class LocalDevPanelCoordinator {
         DevControlCenter.Page page,
         ServerPacketWriter writer
     )throws IOException{
-        if(bank.isOpen())
-            bank.close(writer);
+        DevControlCenter.StateSnapshot prior=
+            devPanel.snapshot();
 
-        TradeService.cancelIfActive(
-            worldPlayer,
-            "DEV_PANEL_OPEN"
-        );
+        writer.beginBatch();
+        boolean ended=false;
 
-        itemLibrary.close();
-        petDialogs.clearAll();
-        dialogKeys.clear();
+        try{
+            writer.fixed(
+                219,
+                new byte[0]
+            );
+            devPanel.open(page);
 
-        writer.fixed(219,new byte[0]);
-        devPanel.open(page);
-        render(writer);
+            if(!renderer.render(writer))
+                throw new IllegalStateException(
+                    "staged Dev Panel did not render"
+                );
+
+            writer.endBatch();
+            ended=true;
+        }catch(IOException failure){
+            devPanel.restore(prior);
+            if(!ended)
+                try{
+                    writer.endBatch();
+                }catch(Throwable ignored){}
+            throw failure;
+        }catch(RuntimeException failure){
+            devPanel.restore(prior);
+            if(!ended)
+                try{
+                    writer.endBatch();
+                }catch(Throwable ignored){}
+            throw failure;
+        }catch(Error failure){
+            devPanel.restore(prior);
+            if(!ended)
+                try{
+                    writer.endBatch();
+                }catch(Throwable ignored){}
+            throw failure;
+        }
+
+        try{
+            dialogKeys.publish(
+                2482,
+                2483,
+                2484,
+                2485
+            );
+        }catch(IOException sidecarFailure){
+            System.err.println(
+                "[dev-panel] dialog-key sidecar publish failed after committed target: "+
+                sidecarFailure.getMessage()
+            );
+        }
     }
 
     void render(
