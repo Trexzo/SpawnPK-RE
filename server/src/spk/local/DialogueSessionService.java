@@ -339,6 +339,39 @@ final class DialogueSessionService {
         }
     }
 
+    static final class PreparedTransition {
+        private final DialogueSessionService owner;
+        private final String playerRef;
+        private final DialogueDefinition definition;
+        private final NodeDefinition node;
+        private final Snapshot before;
+        private final Transition transition;
+        private final NodeDefinition nextNode;
+        private boolean committed;
+
+        PreparedTransition(
+            DialogueSessionService owner,
+            String playerRef,
+            DialogueDefinition definition,
+            NodeDefinition node,
+            Snapshot before,
+            Transition transition,
+            NodeDefinition nextNode
+        ) {
+            this.owner =
+                Objects.requireNonNull(
+                    owner,
+                    "owner"
+                );
+            this.playerRef = playerRef;
+            this.definition = definition;
+            this.node = node;
+            this.before = before;
+            this.transition = transition;
+            this.nextNode = nextNode;
+        }
+    }
+
     @FunctionalInterface
     interface TransitionResolver {
         Transition resolve(
@@ -505,6 +538,18 @@ final class DialogueSessionService {
         );
     }
 
+    PreparedTransition prepareOption(
+        String playerRef,
+        int optionIndex
+    ) {
+        return prepareIntent(
+            playerRef,
+            Intent.option(
+                optionIndex
+            )
+        );
+    }
+
     Snapshot chooseOption(
         String playerRef,
         int optionIndex
@@ -618,6 +663,18 @@ final class DialogueSessionService {
         String playerRef,
         Intent intent
     ) {
+        return commitPrepared(
+            prepareIntent(
+                playerRef,
+                intent
+            )
+        );
+    }
+
+    private PreparedTransition prepareIntent(
+        String playerRef,
+        Intent intent
+    ) {
         String player =
             normalizePlayer(
                 playerRef
@@ -635,6 +692,7 @@ final class DialogueSessionService {
         /*
          * Capture one exact semantic session state while holding the service
          * monitor. Caller-owned transition policy runs only after release.
+         * The returned prepared transition does not mutate session state.
          */
         synchronized (this) {
             PlayerSession state =
@@ -701,63 +759,97 @@ final class DialogueSessionService {
                 transition
             );
 
-        synchronized (this) {
-            PlayerSession state =
-                players.get(player);
+        return new PreparedTransition(
+            this,
+            player,
+            definition,
+            node,
+            before,
+            transition,
+            nextNode
+        );
+    }
 
-            if (state == null ||
-                !state.active ||
-                state.revision !=
-                    before.revision ||
-                !definition.dialogueKey
-                    .equals(
-                        state.dialogueKey
-                    ) ||
-                !node.nodeKey.equals(
-                    state.nodeKey
-                )) {
-                throw new IllegalStateException(
-                    "dialogue state changed during transition resolution player=" +
-                    player
-                );
-            }
+    synchronized Snapshot commitPrepared(
+        PreparedTransition prepared
+    ) {
+        PreparedTransition checked =
+            Objects.requireNonNull(
+                prepared,
+                "prepared"
+            );
 
-            if (transition.kind ==
-                    TransitionKind.STAY) {
-                return snapshotOf(
-                    state
-                );
-            }
+        if (checked.owner != this)
+            throw new IllegalArgumentException(
+                "prepared transition belongs to another dialogue service"
+            );
 
-            long nextRevision =
-                addOne(
-                    state.revision,
-                    "dialogue revision"
-                );
+        if (checked.committed)
+            throw new IllegalStateException(
+                "prepared dialogue transition already committed player=" +
+                checked.playerRef
+            );
 
-            if (transition.kind ==
-                    TransitionKind.END) {
-                state.active = false;
-                state.dialogueKey = null;
-                state.nodeKey = null;
-                state.revision =
-                    nextRevision;
+        PlayerSession state =
+            players.get(
+                checked.playerRef
+            );
 
-                return inactiveSnapshot(
-                    player,
-                    nextRevision
-                );
-            }
+        if (state == null ||
+            !state.active ||
+            state.revision !=
+                checked.before.revision ||
+            !checked.definition.dialogueKey
+                .equals(
+                    state.dialogueKey
+                ) ||
+            !checked.node.nodeKey.equals(
+                state.nodeKey
+            )) {
+            throw new IllegalStateException(
+                "dialogue state changed before prepared transition commit player=" +
+                checked.playerRef
+            );
+        }
 
-            state.nodeKey =
-                nextNode.nodeKey;
-            state.revision =
-                nextRevision;
-
+        if (checked.transition.kind ==
+                TransitionKind.STAY) {
+            checked.committed = true;
             return snapshotOf(
                 state
             );
         }
+
+        long nextRevision =
+            addOne(
+                state.revision,
+                "dialogue revision"
+            );
+
+        if (checked.transition.kind ==
+                TransitionKind.END) {
+            state.active = false;
+            state.dialogueKey = null;
+            state.nodeKey = null;
+            state.revision =
+                nextRevision;
+            checked.committed = true;
+
+            return inactiveSnapshot(
+                checked.playerRef,
+                nextRevision
+            );
+        }
+
+        state.nodeKey =
+            checked.nextNode.nodeKey;
+        state.revision =
+            nextRevision;
+        checked.committed = true;
+
+        return snapshotOf(
+            state
+        );
     }
 
     private static void validateIntent(
