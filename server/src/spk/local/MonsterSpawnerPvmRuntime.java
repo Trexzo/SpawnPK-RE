@@ -12,12 +12,14 @@ import java.util.*;
 final class MonsterSpawnerPvmRuntime {
     enum State {
         ACTIVE,
+        FINALIZATION_PENDING,
         SETTLEMENT_PENDING
     }
 
     enum FinalizeStatus {
         NOT_OWNED,
         FINALIZED,
+        FINALIZATION_PENDING,
         SETTLEMENT_PENDING
     }
 
@@ -36,11 +38,11 @@ final class MonsterSpawnerPvmRuntime {
             this.recipientRef=entry.recipientRef;
             this.state=entry.state;
             this.deathTick=
-                entry.finalization==null
-                    ?null
-                    :Long.valueOf(
+                entry.finalization!=null
+                    ?Long.valueOf(
                         entry.finalization.deathTick
-                    );
+                    )
+                    :entry.pendingDeathTick;
         }
     }
 
@@ -92,6 +94,7 @@ final class MonsterSpawnerPvmRuntime {
 
         State state=State.ACTIVE;
         boolean terminalInProgress;
+        Long pendingDeathTick;
         MonsterSpawnerNpcDeathFinalizationService.Result
             finalization;
 
@@ -288,13 +291,50 @@ final class MonsterSpawnerPvmRuntime {
                     entry.npc,
                     entry.recipientRef
                 );
-        }catch(Throwable failure){
+        }catch(Error failure){
             synchronized(this){
                 if(entries.get(entry.npc.id)==entry)
                     entry.terminalInProgress=false;
             }
-            rethrow(failure);
-            return null;
+            throw failure;
+        }catch(Exception failure){
+            NpcLifecycleService.Snapshot lifecycle=
+                world.npcLifecycle().get(
+                    entry.npc.id
+                );
+
+            boolean retryable=
+                world.npcs().byId(
+                    entry.npc.id
+                )==entry.npc&&
+                lifecycle!=null&&
+                lifecycle.dead()&&
+                lifecycle.hasDeathTick();
+
+            synchronized(this){
+                if(entries.get(entry.npc.id)==entry){
+                    entry.terminalInProgress=false;
+
+                    if(retryable){
+                        entry.state=
+                            State.FINALIZATION_PENDING;
+                        entry.pendingDeathTick=
+                            Long.valueOf(
+                                lifecycle.deathTick
+                            );
+
+                        return new FinalizeResult(
+                            FinalizeStatus
+                                .FINALIZATION_PENDING,
+                            entry.snapshot(),
+                            null,
+                            null
+                        );
+                    }
+                }
+            }
+
+            throw failure;
         }
 
         synchronized(this){
@@ -305,12 +345,53 @@ final class MonsterSpawnerPvmRuntime {
                 );
 
             entry.finalization=finalized;
+            entry.pendingDeathTick=
+                Long.valueOf(
+                    finalized.deathTick
+                );
             entry.state=State.SETTLEMENT_PENDING;
             entry.terminalInProgress=false;
         }
 
         return settlePending(
             entry
+        );
+    }
+
+    FinalizeResult retryFinalization(
+        EntityId npcId
+    )throws Exception{
+        final WorldNpc npc;
+
+        synchronized(this){
+            Entry entry=
+                entries.get(
+                    Objects.requireNonNull(
+                        npcId,
+                        "npcId"
+                    )
+                );
+
+            if(entry==null)
+                return new FinalizeResult(
+                    FinalizeStatus.NOT_OWNED,
+                    null,
+                    null,
+                    null
+                );
+
+            if(entry.state!=
+                    State.FINALIZATION_PENDING)
+                throw new IllegalStateException(
+                    "Monster Spawner PvM finalization is not pending id="+
+                    npcId
+                );
+
+            npc=entry.npc;
+        }
+
+        return finalizeIfOwned(
+            npc
         );
     }
 
