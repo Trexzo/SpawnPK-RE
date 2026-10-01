@@ -161,6 +161,11 @@ final class MonsterSpawnerService {
         void run(WorldNpc npc) throws Exception;
     }
 
+    @FunctionalInterface
+    interface RowSelectionCommitAction<E extends Exception> {
+        void run(CatalogEntry entry) throws E;
+    }
+
     interface TrackedNpcDespawnCommit {
         SessionSnapshot commit() throws Exception;
     }
@@ -388,12 +393,14 @@ final class MonsterSpawnerService {
         return snapshotOf(session);
     }
 
-    synchronized SessionSnapshot selectRowIfCurrent(
-        String ownerRef,
-        SessionSnapshot expectedSession,
-        CatalogSnapshot expectedCatalog,
-        CatalogEntry expectedEntry
-    ){
+    synchronized <E extends Exception>
+        SessionSnapshot selectRowIfCurrent(
+            String ownerRef,
+            SessionSnapshot expectedSession,
+            CatalogSnapshot expectedCatalog,
+            CatalogEntry expectedEntry,
+            RowSelectionCommitAction<E> commitAction
+        )throws E{
         SessionSnapshot checkedSession=
             Objects.requireNonNull(
                 expectedSession,
@@ -408,6 +415,11 @@ final class MonsterSpawnerService {
             Objects.requireNonNull(
                 expectedEntry,
                 "expectedEntry"
+            );
+        RowSelectionCommitAction<E> checkedAction=
+            Objects.requireNonNull(
+                commitAction,
+                "commitAction"
             );
 
         Session session=
@@ -477,6 +489,10 @@ final class MonsterSpawnerService {
                 "Monster Spawner catalog row changed before selection row="+
                 checkedEntry.rowIndex
             );
+
+        checkedAction.run(
+            currentEntry
+        );
 
         session.selectedRowIndex=
             currentEntry.rowIndex;
