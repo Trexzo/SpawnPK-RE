@@ -118,6 +118,32 @@ final class LocalGroundItemPresentationRelay {
         return published;
     }
 
+    int publishPendingIfSceneReady(
+        long now,
+        SceneUpdatePublisher publisher,
+        boolean regionLoadPending
+    )throws IOException{
+        if(regionLoadPending)
+            return 0;
+
+        return publishPending(
+            now,
+            publisher
+        );
+    }
+
+    int consumeSnapshotCoveredAfterSnapshot(
+        long now,
+        boolean groundSnapshotPublished
+    ){
+        if(!groundSnapshotPublished)
+            return 0;
+
+        return consumeSnapshotCovered(
+            now
+        );
+    }
+
     int consumeSnapshotCovered(
         long now
     ){
