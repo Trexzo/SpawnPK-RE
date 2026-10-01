@@ -133,7 +133,7 @@ final class LocalSessionUiActionHandler {
         if(monsterSpawnerUiHandler==null)
             return false;
 
-        MonsterSpawnerPresentation.open(
+        monsterSpawnerUiHandler.open(
             Objects.requireNonNull(
                 serverPackets,
                 "serverPackets"
