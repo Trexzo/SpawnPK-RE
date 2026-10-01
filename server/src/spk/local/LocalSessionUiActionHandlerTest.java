@@ -270,7 +270,11 @@ public final class LocalSessionUiActionHandlerTest {
            bridge.lastMonsterSpawnerResult==null||
            bridge.lastMonsterSpawnerResult.status!=
                 LocalMonsterSpawnerUiHandler.Status.ROW_SELECTED||
-           bridge.lastMonsterSpawnerResult.session!=selected)
+           bridge.lastMonsterSpawnerResult.session.selectedRowIndex==null||
+           bridge.lastMonsterSpawnerResult.session.selectedRowIndex.intValue()!=0||
+           bridge.lastMonsterSpawnerResult.session.selectedDefinitionId==null||
+           bridge.lastMonsterSpawnerResult.session.selectedDefinitionId.intValue()!=1700||
+           bridge.lastMonsterSpawnerResult.session.active)
             throw new AssertionError(
                 "ROW_SELECTED result was not forwarded exactly once after commit"
             );
@@ -297,7 +301,8 @@ public final class LocalSessionUiActionHandlerTest {
            bridge.lastMonsterSpawnerResult.status!=
                 LocalMonsterSpawnerUiHandler.Status.ACTIVATED||
            bridge.lastMonsterSpawnerResult.activationBudget!=2||
-           bridge.lastMonsterSpawnerResult.session!=activated)
+           !bridge.lastMonsterSpawnerResult.session.active||
+           bridge.lastMonsterSpawnerResult.session.remainingSpawnBudget!=2)
             throw new AssertionError(
                 "ACTIVATED result was not forwarded exactly once with committed budget"
             );
@@ -318,7 +323,8 @@ public final class LocalSessionUiActionHandlerTest {
            bridge.lastMonsterSpawnerResult==null||
            bridge.lastMonsterSpawnerResult.status!=
                 LocalMonsterSpawnerUiHandler.Status.DEACTIVATED||
-           bridge.lastMonsterSpawnerResult.session!=deactivated)
+           bridge.lastMonsterSpawnerResult.session.active||
+           bridge.lastMonsterSpawnerResult.session.remainingSpawnBudget!=0)
             throw new AssertionError(
                 "DEACTIVATED result was not forwarded exactly once after commit"
             );
