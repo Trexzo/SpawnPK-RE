@@ -184,6 +184,48 @@ final class Player81WorldSync {
         cleanupContext(c);
     }
 
+    static synchronized void closeWorld(
+        World world
+    ){
+        if(world==null)
+            return;
+
+        WorldState state=
+            BY_WORLD.remove(
+                world
+            );
+
+        if(state==null)
+            return;
+
+        Iterator<Map.Entry<ServerPacketWriter,Context>>
+            writers=
+                BY_WRITER.entrySet()
+                    .iterator();
+
+        while(writers.hasNext()){
+            Map.Entry<ServerPacketWriter,Context>
+                entry=
+                    writers.next();
+
+            if(entry.getValue().state==state){
+                entry.getValue().closed=true;
+                writers.remove();
+            }
+        }
+
+        synchronized(state){
+            for(Context context:
+                    state.contexts.values())
+                context.closed=true;
+
+            state.contexts.clear();
+            state.motions.clear();
+            state.events.clear();
+            state.tradeRequests.clear();
+        }
+    }
+
     private static void cleanupContext(Context c){
         c.state.removeOwner(c.owner.id());
         c.closed=true;
