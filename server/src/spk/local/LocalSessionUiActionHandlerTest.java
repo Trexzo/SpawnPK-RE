@@ -264,6 +264,51 @@ public final class LocalSessionUiActionHandlerTest {
         int spawnerTextBefore=wire.size();
         int homeRequestsBeforeSpawner=
             bridge.homeTeleportRequests;
+        int unconfiguredResultsBefore=
+            bridge.monsterSpawnerResults;
+        int unconfiguredWidget=
+            MonsterSpawnerPresentation.rowWidget(
+                1
+            );
+
+        if(!monsterSpawnerUi.ownsWidget(
+                unconfiguredWidget
+            ))
+            throw new AssertionError(
+                "exact unconfigured Monster Spawner row not owned"
+            );
+
+        if(monsterSpawnerUi.handle(
+                unconfiguredWidget,
+                w
+            )!=null)
+            throw new AssertionError(
+                "direct unconfigured Monster Spawner row produced result"
+            );
+
+        routed.handleWidget(
+            unconfiguredWidget,
+            w,
+            "[ui-test] "
+        );
+
+        MonsterSpawnerService.SessionSnapshot
+            afterUnconfigured=
+                spawner.getSession(
+                    "session-ui-owner"
+                );
+
+        if(afterUnconfigured.selectedRowIndex!=null||
+           afterUnconfigured.active||
+           afterUnconfigured.remainingSpawnBudget!=0||
+           wire.size()!=spawnerTextBefore||
+           bridge.homeTeleportRequests!=
+                homeRequestsBeforeSpawner||
+           bridge.monsterSpawnerResults!=
+                unconfiguredResultsBefore)
+            throw new AssertionError(
+                "unconfigured exact Monster Spawner row was not bounded/consumed"
+            );
 
         routed.handleWidget(
             MonsterSpawnerPresentation.rowWidget(0),
@@ -921,7 +966,8 @@ public final class LocalSessionUiActionHandlerTest {
             "monsterSpawnerResultForwarding=true "+
             "monsterSpawnerOpenConfigured=true "+
             "monsterSpawnerOpenAbsentNoop=true "+
-            "monsterSpawnerRetainedSelectionReopen=true"
+            "monsterSpawnerRetainedSelectionReopen=true "+
+            "monsterSpawnerUnconfiguredRowConsumed=true"
         );
 
         System.out.println(
