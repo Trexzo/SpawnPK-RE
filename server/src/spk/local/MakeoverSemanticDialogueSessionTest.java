@@ -7,6 +7,9 @@ public final class MakeoverSemanticDialogueSessionTest {
     public static void main(String[] args)throws Exception{
         designerHandoffUsesSemanticDialogue();
         designerHandoffFailurePreservesOptions();
+        continuePresentationFailurePreservesIntro();
+        nevermindPresentationFailurePreservesOptions();
+        clientClosePresentationFailurePreservesOptions();
         nevermindEndsSemanticDialogue();
         clientCancelEndsSemanticDialogue();
         serverCancellationUsesAbortRevision();
@@ -18,6 +21,9 @@ public final class MakeoverSemanticDialogueSessionTest {
             "options=true "+
             "designerHandoff=true "+
             "designerFailureAtomic=true "+
+            "continuePresentationFailureAtomic=true "+
+            "nevermindPresentationFailureAtomic=true "+
+            "clientClosePresentationFailureAtomic=true "+
             "nevermind=true "+
             "clientCancel=true "+
             "serverAbortRevision=true "+
@@ -239,6 +245,239 @@ public final class MakeoverSemanticDialogueSessionTest {
                 before.revision+1L&&
             handler.designActive(),
             "designer retry did not commit exactly once"
+        );
+    }
+
+    private static void continuePresentationFailurePreservesIntro()
+        throws Exception
+    {
+        WorldPlayer player=
+            new WorldPlayer();
+        LocalMakeoverMageHandler handler=
+            handler(player);
+        ServerPacketWriter healthy=
+            writer();
+        NpcEntity mage=
+            adjacentMage(player,35);
+
+        handler.beginIfSupported(
+            new NpcAction(
+                155,
+                mage.sceneIndex
+            ),
+            mage,
+            healthy,
+            "[makeover-semantic-test] "
+        );
+
+        DialogueSessionService.Snapshot before=
+            handler.semanticDialogueSnapshot();
+
+        boolean failed=false;
+        try{
+            handler.handleContinue(
+                StandardDialoguePresentationAdapter
+                    .namedNpcContinueWidget(1),
+                fullWriter(
+                    new int[]{65,66,67,68}
+                ),
+                "[makeover-semantic-test] "
+            );
+        }catch(java.io.IOException expected){
+            failed=true;
+        }
+
+        DialogueSessionService.Snapshot afterFailure=
+            handler.semanticDialogueSnapshot();
+
+        require(
+            failed&&
+            afterFailure.active&&
+            "node:intro".equals(
+                afterFailure.nodeKey
+            )&&
+            afterFailure.revision==
+                before.revision,
+            "failed Continue presentation did not preserve intro"
+        );
+
+        require(
+            handler.handleContinue(
+                StandardDialoguePresentationAdapter
+                    .namedNpcContinueWidget(1),
+                healthy,
+                "[makeover-semantic-test] "
+            ),
+            "Continue retry"
+        );
+
+        DialogueSessionService.Snapshot afterRetry=
+            handler.semanticDialogueSnapshot();
+
+        require(
+            afterRetry.active&&
+            "node:options".equals(
+                afterRetry.nodeKey
+            )&&
+            afterRetry.revision==
+                before.revision+1L,
+            "Continue retry did not commit exactly once"
+        );
+    }
+
+    private static void nevermindPresentationFailurePreservesOptions()
+        throws Exception
+    {
+        WorldPlayer player=
+            new WorldPlayer();
+        LocalMakeoverMageHandler handler=
+            handler(player);
+        ServerPacketWriter healthy=
+            writer();
+        NpcEntity mage=
+            adjacentMage(player,36);
+
+        handler.beginIfSupported(
+            new NpcAction(
+                155,
+                mage.sceneIndex
+            ),
+            mage,
+            healthy,
+            "[makeover-semantic-test] "
+        );
+        handler.handleContinue(
+            StandardDialoguePresentationAdapter
+                .namedNpcContinueWidget(1),
+            healthy,
+            "[makeover-semantic-test] "
+        );
+
+        DialogueSessionService.Snapshot before=
+            handler.semanticDialogueSnapshot();
+
+        boolean failed=false;
+        try{
+            handler.handleOption(
+                2,
+                fullWriter(
+                    new int[]{69,70,71,72}
+                ),
+                "[makeover-semantic-test] "
+            );
+        }catch(java.io.IOException expected){
+            failed=true;
+        }
+
+        DialogueSessionService.Snapshot afterFailure=
+            handler.semanticDialogueSnapshot();
+
+        require(
+            failed&&
+            afterFailure.active&&
+            "node:options".equals(
+                afterFailure.nodeKey
+            )&&
+            afterFailure.revision==
+                before.revision,
+            "failed Nevermind close did not preserve options"
+        );
+
+        require(
+            handler.handleOption(
+                2,
+                healthy,
+                "[makeover-semantic-test] "
+            ),
+            "Nevermind retry"
+        );
+
+        DialogueSessionService.Snapshot afterRetry=
+            handler.semanticDialogueSnapshot();
+
+        require(
+            !afterRetry.active&&
+            afterRetry.revision==
+                before.revision+1L,
+            "Nevermind retry did not commit exactly once"
+        );
+    }
+
+    private static void clientClosePresentationFailurePreservesOptions()
+        throws Exception
+    {
+        WorldPlayer player=
+            new WorldPlayer();
+        LocalMakeoverMageHandler handler=
+            handler(player);
+        ServerPacketWriter healthy=
+            writer();
+        NpcEntity mage=
+            adjacentMage(player,37);
+
+        handler.beginIfSupported(
+            new NpcAction(
+                155,
+                mage.sceneIndex
+            ),
+            mage,
+            healthy,
+            "[makeover-semantic-test] "
+        );
+        handler.handleContinue(
+            StandardDialoguePresentationAdapter
+                .namedNpcContinueWidget(1),
+            healthy,
+            "[makeover-semantic-test] "
+        );
+
+        DialogueSessionService.Snapshot before=
+            handler.semanticDialogueSnapshot();
+
+        boolean failed=false;
+        try{
+            handler.handleWidget(
+                54195,
+                fullWriter(
+                    new int[]{73,74,75,76}
+                ),
+                "[makeover-semantic-test] "
+            );
+        }catch(java.io.IOException expected){
+            failed=true;
+        }
+
+        DialogueSessionService.Snapshot afterFailure=
+            handler.semanticDialogueSnapshot();
+
+        require(
+            failed&&
+            afterFailure.active&&
+            "node:options".equals(
+                afterFailure.nodeKey
+            )&&
+            afterFailure.revision==
+                before.revision,
+            "failed client close did not preserve options"
+        );
+
+        require(
+            handler.handleWidget(
+                54195,
+                healthy,
+                "[makeover-semantic-test] "
+            ),
+            "client close retry"
+        );
+
+        DialogueSessionService.Snapshot afterRetry=
+            handler.semanticDialogueSnapshot();
+
+        require(
+            !afterRetry.active&&
+            afterRetry.revision==
+                before.revision+1L,
+            "client close retry did not commit exactly once"
         );
     }
 
@@ -491,6 +730,20 @@ public final class MakeoverSemanticDialogueSessionTest {
             new IsaacCipher(
                 new int[]{61,62,63,64}
             )
+        );
+    }
+
+    private static ServerPacketWriter fullWriter(
+        int[] seed
+    )throws Exception{
+        OutboundPacketQueue queue=
+            new OutboundPacketQueue(1024);
+        queue.offer(
+            new byte[1024]
+        );
+        return new ServerPacketWriter(
+            queue,
+            new IsaacCipher(seed)
         );
     }
 
