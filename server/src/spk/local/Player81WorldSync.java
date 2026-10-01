@@ -25,6 +25,11 @@ final class Player81WorldSync {
     static synchronized Context register(ServerPacketWriter writer,World world,WorldPlayer owner,DevAuthorityWorkbench dev){
         if(writer==null||world==null||owner==null)throw new NullPointerException();
 
+        if(world.closed())
+            throw new IllegalStateException(
+                "cannot register Player81WorldSync on closed World"
+            );
+
         Context oldWriter=BY_WRITER.remove(writer);
         if(oldWriter!=null)
             cleanupContext(oldWriter);
