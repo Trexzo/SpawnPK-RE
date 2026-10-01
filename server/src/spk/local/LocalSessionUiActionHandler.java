@@ -127,6 +127,21 @@ final class LocalSessionUiActionHandler {
             );
     }
 
+    boolean openMonsterSpawnerIfConfigured(
+        ServerPacketWriter serverPackets
+    )throws IOException{
+        if(monsterSpawnerUiHandler==null)
+            return false;
+
+        MonsterSpawnerPresentation.open(
+            Objects.requireNonNull(
+                serverPackets,
+                "serverPackets"
+            )
+        );
+        return true;
+    }
+
     void handleInterfaceClose(
         boolean decoderAligned,
         ServerPacketWriter serverPackets,
