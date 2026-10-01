@@ -871,7 +871,7 @@ final class LocalPendingRequestDispatcher {
                 action
             ))
             compCapeItem=
-                uiActions.replaceMonsterSpawnerRoot(
+                uiActions.replaceMonsterSpawnerWithCompCapeRoot(
                     ()->
                         compCapeCustomize.handleItemAction(
                             action,
