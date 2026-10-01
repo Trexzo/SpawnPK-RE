@@ -8,9 +8,10 @@ import java.util.function.LongSupplier;
  * One-click LocalLab bridge from a viewer-local NPC scene handle to canonical
  * World-owned PvM damage.
  *
- * This deliberately owns no cadence, chase, reward or death-finalization state.
- * The certified combat-dummy path remains in CombatEngine and is routed before
- * this handler.
+ * This owns only the per-session server-side cadence gate for exact canonical
+ * PvM clicks. Chase, auto-repeat, rewards and death finalization remain outside
+ * this handler. The certified combat-dummy path remains in CombatEngine and is
+ * routed before this handler.
  */
 final class LocalCanonicalNpcAttackHandler {
     enum Status {
@@ -23,6 +24,7 @@ final class LocalCanonicalNpcAttackHandler {
         STALE_PLAYER,
         OUT_OF_RANGE,
         PRESENTATION_UNREPRESENTABLE,
+        CADENCE_BLOCKED,
         HIT
     }
 
@@ -87,6 +89,14 @@ final class LocalCanonicalNpcAttackHandler {
 
     private static final int BASIC_HIT_TYPE=1;
 
+    @FunctionalInterface
+    interface BeforeResolutionHook {
+        void run(
+            WorldNpc target,
+            long expectedGeneration
+        );
+    }
+
     private final World world;
     private final WorldPlayer player;
     private final LongSupplier generationSupplier;
@@ -94,6 +104,8 @@ final class LocalCanonicalNpcAttackHandler {
     private final CombatStyleState combatStyles;
     private final NpcRegistry npcs;
     private final NpcCombatResolutionService resolution;
+    private final BeforeResolutionHook beforeResolution;
+    private long nextAllowedAttackTick;
 
     LocalCanonicalNpcAttackHandler(
         World world,
@@ -102,6 +114,26 @@ final class LocalCanonicalNpcAttackHandler {
         EquipmentState equipment,
         CombatStyleState combatStyles,
         NpcRegistry npcs
+    ){
+        this(
+            world,
+            player,
+            generationSupplier,
+            equipment,
+            combatStyles,
+            npcs,
+            (target,generation)->{}
+        );
+    }
+
+    LocalCanonicalNpcAttackHandler(
+        World world,
+        WorldPlayer player,
+        LongSupplier generationSupplier,
+        EquipmentState equipment,
+        CombatStyleState combatStyles,
+        NpcRegistry npcs,
+        BeforeResolutionHook beforeResolution
     ){
         this.world=Objects.requireNonNull(world,"world");
         this.player=Objects.requireNonNull(player,"player");
@@ -117,6 +149,11 @@ final class LocalCanonicalNpcAttackHandler {
                 "combatStyles"
             );
         this.npcs=Objects.requireNonNull(npcs,"npcs");
+        this.beforeResolution=
+            Objects.requireNonNull(
+                beforeResolution,
+                "beforeResolution"
+            );
 
         if(player.equipment()!=equipment||
            player.combatStyles()!=combatStyles)
@@ -378,15 +415,116 @@ final class LocalCanonicalNpcAttackHandler {
                 false
             );
 
-        NpcCombatResolutionService.Result hit=
-            resolution.resolveImmediateOwned(
-                world,
-                generation,
-                target,
-                weaponId,
-                style,
-                world.clock().tick()
+        long attackTick=
+            world.clock().tick();
+
+        if(attackTick<nextAllowedAttackTick)
+            return result(
+                Status.CADENCE_BLOCKED,
+                clicked,
+                canonicalId,
+                distance,
+                legalRange,
+                0,
+                before.hitpoints,
+                before.maxHitpoints,
+                false
             );
+
+        NpcCombatResolutionService.Result hit;
+
+        try{
+            beforeResolution.run(
+                target,
+                generation
+            );
+
+            hit=
+                resolution.resolveImmediateOwnedAdmitted(
+                    world,
+                    generation,
+                    target,
+                    weaponId,
+                    style,
+                    attackTick,
+                    (attacker,checkedTarget)->{
+                        MovementState currentMovement=
+                            attacker.movement();
+                        Tile currentTargetTile=
+                            checkedTarget.tile();
+
+                        return currentMovement.plane()==
+                                currentTargetTile.plane&&
+                            inLegalRange(
+                                currentMovement.x(),
+                                currentMovement.y(),
+                                currentTargetTile.x,
+                                currentTargetTile.y,
+                                legalRange
+                            );
+                    }
+                );
+        }catch(
+            NpcCombatResolutionService
+                .ImmediateDamageAdmissionRejectedException rejected
+        ){
+            return result(
+                Status.OUT_OF_RANGE,
+                clicked,
+                canonicalId,
+                distance,
+                legalRange,
+                0,
+                before.hitpoints,
+                before.maxHitpoints,
+                false
+            );
+        }catch(
+            NpcCombatResolutionService
+                .StaleAttackerOwnershipException stale
+        ){
+            return result(
+                Status.STALE_PLAYER,
+                clicked,
+                canonicalId,
+                distance,
+                legalRange,
+                0,
+                before.hitpoints,
+                before.maxHitpoints,
+                false
+            );
+        }catch(
+            NpcCombatResolutionService
+                .StaleTargetOwnershipException stale
+        ){
+            return result(
+                Status.STALE_CANONICAL,
+                clicked,
+                canonicalId,
+                distance,
+                legalRange,
+                0,
+                before.hitpoints,
+                before.maxHitpoints,
+                false
+            );
+        }catch(
+            NpcLifecycleService
+                .LifecycleOwnershipException stale
+        ){
+            return result(
+                Status.LIFECYCLE_MISSING,
+                clicked,
+                canonicalId,
+                distance,
+                legalRange,
+                0,
+                before.hitpoints,
+                before.maxHitpoints,
+                false
+            );
+        }
 
         NpcLifecycleService.DamageResult damage=
             hit.lifecycle;
@@ -425,6 +563,12 @@ final class LocalCanonicalNpcAttackHandler {
                 canonicalId
             );
 
+        nextAllowedAttackTick=
+            Math.addExact(
+                attackTick,
+                hit.nextAttackDelayTicks
+            );
+
         // Type 1 is explicit LocalLab basic-hit compatibility. It is not a
         // SpawnPK max-hit or original damage-family claim.
         npcs.sendMaskLocal(
@@ -452,6 +596,10 @@ final class LocalCanonicalNpcAttackHandler {
             after.maxHitpoints,
             damage.newlyDied
         );
+    }
+
+    long nextAllowedAttackTick(){
+        return nextAllowedAttackTick;
     }
 
     private static boolean inLegalRange(
