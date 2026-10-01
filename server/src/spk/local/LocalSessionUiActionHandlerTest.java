@@ -265,6 +265,60 @@ public final class LocalSessionUiActionHandlerTest {
         int homeRequestsBeforeSpawner=
             bridge.homeTeleportRequests;
 
+        int unconfiguredRowWidget=
+            MonsterSpawnerPresentation.rowWidget(
+                1
+            );
+        if(!monsterSpawnerUi.ownsWidget(
+                unconfiguredRowWidget
+            ))
+            throw new AssertionError(
+                "exact unconfigured Monster Spawner row not owned"
+            );
+
+        int unconfiguredWireBefore=
+            wire.size();
+        int unconfiguredResultsBefore=
+            bridge.monsterSpawnerResults;
+        MonsterSpawnerService.SessionSnapshot
+            beforeUnconfigured=
+                spawner.getSession(
+                    "session-ui-owner"
+                );
+
+        if(monsterSpawnerUi.handle(
+                unconfiguredRowWidget,
+                w
+            )!=null)
+            throw new AssertionError(
+                "direct unconfigured Monster Spawner row produced result"
+            );
+
+        routed.handleWidget(
+            unconfiguredRowWidget,
+            w,
+            "[ui-test] "
+        );
+
+        MonsterSpawnerService.SessionSnapshot
+            afterUnconfigured=
+                spawner.getSession(
+                    "session-ui-owner"
+                );
+
+        if(wire.size()!=unconfiguredWireBefore||
+           bridge.monsterSpawnerResults!=
+                unconfiguredResultsBefore||
+           bridge.homeTeleportRequests!=
+                homeRequestsBeforeSpawner||
+           beforeUnconfigured.selectedRowIndex!=null||
+           afterUnconfigured.selectedRowIndex!=null||
+           afterUnconfigured.active||
+           afterUnconfigured.remainingSpawnBudget!=0)
+            throw new AssertionError(
+                "unconfigured exact Monster Spawner row was not bounded/consumed"
+            );
+
         routed.handleWidget(
             MonsterSpawnerPresentation.rowWidget(0),
             w,
@@ -921,6 +975,7 @@ public final class LocalSessionUiActionHandlerTest {
             "monsterSpawnerResultForwarding=true "+
             "monsterSpawnerOpenConfigured=true "+
             "monsterSpawnerOpenAbsentNoop=true "+
+            "monsterSpawnerUnconfiguredRowConsumed=true "+
             "monsterSpawnerRetainedSelectionReopen=true"
         );
 
