@@ -910,6 +910,32 @@ public final class LocalPendingRequestDispatcherTest {
                     "comp cape root left Monster Spawner gate open"
                 );
 
+            if(!uiActions.openMonsterSpawnerIfConfigured(
+                    writer
+                ))
+                throw new AssertionError(
+                    "Monster Spawner did not replace Comp Cape root"
+                );
+
+            if(compCape.isOpen())
+                throw new AssertionError(
+                    "Monster Spawner root left Comp Cape ownership open"
+                );
+
+            int hiddenCompCapeWire=
+                wire.size();
+
+            uiActions.handleWidget(
+                63031,
+                writer,
+                "[pending-test] "
+            );
+
+            if(wire.size()!=hiddenCompCapeWire)
+                throw new AssertionError(
+                    "hidden Comp Cape cancel emitted close packet after root replacement"
+                );
+
             System.out.println(
                 "LOCAL_PENDING_REQUEST_DISPATCHER_PASS "+
                 "widgetConsumed=true dropConsumed=true "+
@@ -921,7 +947,9 @@ public final class LocalPendingRequestDispatcherTest {
                 "movementConsumed=true runToggleBeforeMovement=true "+
                 "classifierCompatibility=true "+
                 "compCapeRootRevokesMonsterSpawner=true "+
-                "invalidCompCapePreservesMonsterSpawner=true"
+                "invalidCompCapePreservesMonsterSpawner=true "+
+                "monsterSpawnerRevokesCompCape=true "+
+                "hiddenCompCapeWidgetRejected=true"
             );
         }finally{
             world.close();
