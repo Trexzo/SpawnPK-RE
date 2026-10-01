@@ -99,6 +99,12 @@ public final class LocalMonsterSpawnerUiHandlerTest {
             rowAuthorityFailureAtomic(
                 world
             );
+            rowAuthorityDriftDuringLabelFailsClosed(
+                world
+            );
+            retainedReopenAuthorityDriftFailsClosed(
+                world
+            );
             rowPacketFailureAtomic(
                 world
             );
@@ -125,6 +131,7 @@ public final class LocalMonsterSpawnerUiHandlerTest {
                 "selectedText41019=true "+
                 "rowFailureAtomic=true "+
                 "rowPacketFailureAtomic=true "+
+                "labelAuthorityStable=true "+
                 "catalogCompareSelect=true "+
                 "noSpawn=true "+
                 "unattachedIgnored=true "+
@@ -587,6 +594,129 @@ public final class LocalMonsterSpawnerUiHandlerTest {
             service.getSession(owner)
                 .selectedRowIndex==null,
             "row authority failure mutated selection"
+        );
+    }
+
+    private static void rowAuthorityDriftDuringLabelFailsClosed(
+        World world
+    ){
+        final String owner="monster-ui-row-authority-drift";
+        MonsterSpawnerService service=
+            rowAtomicService(
+                world,
+                owner
+            );
+        final boolean[] drifted={false};
+
+        LocalMonsterSpawnerUiHandler handler=
+            new LocalMonsterSpawnerUiHandler(
+                service,
+                owner,
+                fixedBudget(),
+                new LocalMonsterSpawnerUiHandler
+                    .SelectedNpcLabelResolver(){
+                    @Override public String label(
+                        MonsterSpawnerService.CatalogEntry entry
+                    ){
+                        drifted[0]=true;
+                        return "NPC-"+entry.definitionId;
+                    }
+
+                    @Override public String authority(){
+                        return drifted[0]
+                            ?"CUSTOM_LOCALLAB_MONSTER_UI_CATALOG_DRIFT"
+                            :CATALOG_AUTHORITY;
+                    }
+                }
+            );
+        ByteArrayOutputStream wire=
+            new ByteArrayOutputStream();
+
+        expect(
+            IllegalStateException.class,
+            ()->handler.handle(
+                MonsterSpawnerPresentation.rowWidget(0),
+                writer(wire)
+            ),
+            "row label authority drift"
+        );
+
+        require(
+            service.getSession(owner)
+                .selectedRowIndex==null&&
+            wire.size()==0,
+            "row label authority drift crossed commit/publication"
+        );
+    }
+
+    private static void retainedReopenAuthorityDriftFailsClosed(
+        World world
+    ){
+        final String owner="monster-ui-reopen-authority-drift";
+        MonsterSpawnerService service=
+            rowAtomicService(
+                world,
+                owner
+            );
+        service.selectRow(
+            owner,
+            0
+        );
+        MonsterSpawnerService.SessionSnapshot before=
+            service.getSession(
+                owner
+            );
+        final boolean[] drifted={false};
+
+        LocalMonsterSpawnerUiHandler handler=
+            new LocalMonsterSpawnerUiHandler(
+                service,
+                owner,
+                fixedBudget(),
+                new LocalMonsterSpawnerUiHandler
+                    .SelectedNpcLabelResolver(){
+                    @Override public String label(
+                        MonsterSpawnerService.CatalogEntry entry
+                    ){
+                        drifted[0]=true;
+                        return "NPC-"+entry.definitionId;
+                    }
+
+                    @Override public String authority(){
+                        return drifted[0]
+                            ?"CUSTOM_LOCALLAB_MONSTER_UI_CATALOG_DRIFT"
+                            :CATALOG_AUTHORITY;
+                    }
+                }
+            );
+        ByteArrayOutputStream wire=
+            new ByteArrayOutputStream();
+
+        expect(
+            IllegalStateException.class,
+            ()->handler.open(
+                writer(wire)
+            ),
+            "retained reopen label authority drift"
+        );
+
+        MonsterSpawnerService.SessionSnapshot after=
+            service.getSession(
+                owner
+            );
+
+        require(
+            before.selectedRowIndex.equals(
+                after.selectedRowIndex
+            )&&
+            before.selectedSemanticKey.equals(
+                after.selectedSemanticKey
+            )&&
+            before.selectedDefinitionId.equals(
+                after.selectedDefinitionId
+            )&&
+            wire.size()==0,
+            "retained reopen authority drift crossed state/publication"
         );
     }
 
