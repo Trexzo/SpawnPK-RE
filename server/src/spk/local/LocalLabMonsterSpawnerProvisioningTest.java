@@ -111,6 +111,57 @@ public final class LocalLabMonsterSpawnerProvisioningTest {
                 "row selection triggered spawn"
             );
 
+            require(
+                factory.service()
+                    .catalog()
+                    .entries
+                    .size()==
+                        MonsterSpawnerService
+                            .CLIENT_ROW_COUNT,
+                "production catalog does not cover every exact row"
+            );
+
+            LocalMonsterSpawnerUiHandler.Result lastRow=
+                ui.handle(
+                    MonsterSpawnerPresentation
+                        .rowWidget(
+                            MonsterSpawnerService
+                                .CLIENT_ROW_COUNT-1
+                        ),
+                    writer
+                );
+
+            require(
+                lastRow!=null&&
+                lastRow.status==
+                    LocalMonsterSpawnerUiHandler.Status.ROW_SELECTED&&
+                lastRow.rowIndex==
+                    MonsterSpawnerService
+                        .CLIENT_ROW_COUNT-1&&
+                lastRow.session.selectedDefinitionId!=null&&
+                lastRow.session.selectedDefinitionId.intValue()==
+                    LocalLabMonsterSpawnerProvisioning
+                        .NPC_DEFINITION_ID,
+                "last exact row was not safely selectable"
+            );
+
+            LocalSession.forwardMonsterSpawnerUiResult(
+                factory,
+                world,
+                player,
+                generation,
+                owner,
+                lastRow,
+                writer,
+                "[locallab-monster-provisioning] "
+            );
+
+            require(
+                world.npcs().size()==0&&
+                factory.runtime().size()==0,
+                "last-row selection triggered spawn"
+            );
+
             LocalMonsterSpawnerUiHandler.Result activated=
                 ui.handle(
                     MonsterSpawnerPresentation
@@ -178,6 +229,8 @@ public final class LocalLabMonsterSpawnerProvisioningTest {
                 "worldBound=true "+
                 "uiReachable=true "+
                 "customCatalog=true "+
+                "all22RowsSafe=true "+
+                "placeholderMappingExplicit=true "+
                 "customPolicy=true "+
                 "activationSpawn=true "+
                 "oneShotBudget=true "+
