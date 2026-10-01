@@ -140,6 +140,16 @@ final class LocalPendingRequestDispatcher {
                     movement,
                     npcs
                 );
+        this.makeoverMage.installDesignerRootOwner(
+            action->
+                this.uiActions.replaceMonsterSpawnerRoot(
+                    ()->{
+                        action.open();
+                        return "MAKEOVER_DESIGN_ROOT_OPENED";
+                    }
+                )
+        );
+
         this.compCapeCustomize=Objects.requireNonNull(
             compCapeCustomize,"compCapeCustomize");
         this.itemOnItemHandler=Objects.requireNonNull(
