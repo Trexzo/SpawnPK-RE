@@ -324,11 +324,10 @@ final class LocalSessionUiActionHandler {
         LocalMonsterSpawnerUiHandler configuredMonsterSpawner=
             monsterSpawnerUiHandler;
 
-        if(configuredMonsterSpawner!=null){
-            boolean monsterSpawnerWidget=
-                configuredMonsterSpawner.ownsWidget(
-                    widget
-                );
+        if(configuredMonsterSpawner!=null&&
+           configuredMonsterSpawner.ownsWidget(
+                widget
+           )){
             MonsterSpawnerDispatch dispatch=
                 bridge.handleMonsterSpawnerWidget(
                     configuredMonsterSpawner,
@@ -337,8 +336,7 @@ final class LocalSessionUiActionHandler {
                     tag
                 );
 
-            if(!dispatch.admitted&&
-               monsterSpawnerWidget){
+            if(!dispatch.admitted){
                 System.out.println(
                     tag+
                     "MONSTER_SPAWNER_UI widget="+
@@ -366,15 +364,13 @@ final class LocalSessionUiActionHandler {
                 return;
             }
 
-            if(monsterSpawnerWidget){
-                System.out.println(
-                    tag+
-                    "MONSTER_SPAWNER_UI widget="+
-                    widget+
-                    " status=UNCONFIGURED_ROW_NOOP"
-                );
-                return;
-            }
+            System.out.println(
+                tag+
+                "MONSTER_SPAWNER_UI widget="+
+                widget+
+                " status=UNCONFIGURED_ROW_NOOP"
+            );
+            return;
         }
 
         String gameplayWidget=
