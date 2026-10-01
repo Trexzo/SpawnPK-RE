@@ -337,11 +337,11 @@ final class LocalWorldTickCoordinator {
                 tag+makeoverTick
             );
 
-        if(!regionStreams.regionLoadPending())
-            groundItemPresentationRelay.publishPending(
-                now,
-                bridge.scenePublisher()
-            );
+        groundItemPresentationRelay.publishPendingIfSceneReady(
+            now,
+            bridge.scenePublisher(),
+            regionStreams.regionLoadPending()
+        );
 
         applyGroundItemResult(
             groundItemHandler.tick(
@@ -541,11 +541,11 @@ final class LocalWorldTickCoordinator {
             movementTickCount++;
         }
 
-        if(!regionStreams.regionLoadPending())
-            groundItemPresentationRelay.publishPending(
-                now,
-                bridge.scenePublisher()
-            );
+        groundItemPresentationRelay.publishPendingIfSceneReady(
+            now,
+            bridge.scenePublisher(),
+            regionStreams.regionLoadPending()
+        );
 
         petDropPickup.tick(
             writer,
@@ -596,9 +596,10 @@ final class LocalWorldTickCoordinator {
                 tag
             );
 
-        if(groundSnapshotPublished)
-            groundItemPresentationRelay.consumeSnapshotCovered(
-                now
+        groundItemPresentationRelay
+            .consumeSnapshotCoveredAfterSnapshot(
+                now,
+                groundSnapshotPublished
             );
     }
 
