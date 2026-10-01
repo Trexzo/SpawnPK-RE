@@ -19,9 +19,17 @@ final class LocalPetDropPickupHandler {
         long sessionWorldTick();
         SceneUpdatePublisher scenePublisher();
         void saveAccount(String tag,String reason);
-        int syncScopesightPassive(
+        PlayerState.PreparedScopesightMaintenance
+            prepareScopesightPassive(
+                boolean active
+            );
+        void publishScopesightPassive(
+            PlayerState.PreparedScopesightMaintenance prepared,
             ServerPacketWriter serverPackets
         )throws IOException;
+        void commitScopesightPassive(
+            PlayerState.PreparedScopesightMaintenance prepared
+        );
         void resetPetFollowDeadline();
         void ensurePetFollowScheduled(long now);
     }
