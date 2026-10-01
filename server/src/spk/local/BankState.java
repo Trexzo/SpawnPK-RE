@@ -104,10 +104,62 @@ final class BankState {
     }
 
     void open(ServerPacketWriter w) throws IOException {
+        byte[] root=
+            BootstrapPackets.interfaceOverlay248(
+                BANK_ROOT,
+                BANK_INVENTORY_ROOT
+            );
+        byte[] bankPayload=
+            containerPayload(
+                BANK_CONTAINER,
+                bank
+            );
+        byte[] inventoryPayload=
+            containerPayload(
+                BANK_INVENTORY_CONTAINER,
+                inventory
+            );
+
+        w.beginBatch();
+        boolean ended=false;
+
+        try{
+            w.fixed(
+                248,
+                root
+            );
+            w.varShort(
+                53,
+                bankPayload
+            );
+            w.varShort(
+                53,
+                inventoryPayload
+            );
+            w.endBatch();
+            ended=true;
+        }catch(IOException failure){
+            if(!ended)
+                try{
+                    w.endBatch();
+                }catch(Throwable ignored){}
+            throw failure;
+        }catch(RuntimeException failure){
+            if(!ended)
+                try{
+                    w.endBatch();
+                }catch(Throwable ignored){}
+            throw failure;
+        }catch(Error failure){
+            if(!ended)
+                try{
+                    w.endBatch();
+                }catch(Throwable ignored){}
+            throw failure;
+        }
+
         open = true;
         pendingX = null;
-        w.fixed(248, BootstrapPackets.interfaceOverlay248(BANK_ROOT, BANK_INVENTORY_ROOT));
-        sendContainers(w);
     }
 
     void close(ServerPacketWriter w) throws IOException {
