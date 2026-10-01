@@ -5,6 +5,7 @@ import java.lang.reflect.Field;
 
 public final class MakeoverSemanticDialogueSessionTest {
     public static void main(String[] args)throws Exception{
+        initialIntroPresentationFailurePreservesInactive();
         designerHandoffUsesSemanticDialogue();
         designerHandoffFailurePreservesOptions();
         continuePresentationFailurePreservesIntro();
@@ -18,6 +19,8 @@ public final class MakeoverSemanticDialogueSessionTest {
         System.out.println(
             "MAKEOVER_SEMANTIC_DIALOGUE_SESSION_PASS "+
             "intro=true "+
+            "introOpenFailureAtomic=true "+
+            "introRetryExact=true "+
             "options=true "+
             "designerHandoff=true "+
             "designerFailureAtomic=true "+
@@ -28,6 +31,97 @@ public final class MakeoverSemanticDialogueSessionTest {
             "clientCancel=true "+
             "serverAbortRevision=true "+
             "legacyStage=false"
+        );
+    }
+
+    private static void initialIntroPresentationFailurePreservesInactive()
+        throws Exception
+    {
+        WorldPlayer player=
+            new WorldPlayer();
+        LocalMakeoverMageHandler handler=
+            handler(player);
+        NpcEntity mage=
+            adjacentMage(player,38);
+
+        DialogueSessionService.Snapshot before=
+            handler.semanticDialogueSnapshot();
+
+        require(
+            !before.active&&
+            before.revision==0L,
+            "initial intro fixture preimage"
+        );
+
+        boolean failed=false;
+        try{
+            handler.beginIfSupported(
+                new NpcAction(
+                    155,
+                    mage.sceneIndex
+                ),
+                mage,
+                fullWriter(
+                    new int[]{77,78,79,80}
+                ),
+                "[makeover-semantic-test] "
+            );
+        }catch(java.io.IOException expected){
+            failed=true;
+        }
+
+        DialogueSessionService.Snapshot afterFailure=
+            handler.semanticDialogueSnapshot();
+
+        require(
+            failed&&
+            !afterFailure.active&&
+            afterFailure.revision==
+                before.revision&&
+            !handler.active()&&
+            !handler.designActive(),
+            "failed intro presentation committed hidden dialogue ownership"
+        );
+
+        require(
+            !fieldSet(
+                handler,
+                "activeScene"
+            )&&
+            !fieldSet(
+                handler,
+                "activeNpc"
+            ),
+            "failed intro presentation committed interaction ownership"
+        );
+
+        ServerPacketWriter healthy=
+            writer();
+
+        require(
+            handler.beginIfSupported(
+                new NpcAction(
+                    155,
+                    mage.sceneIndex
+                ),
+                mage,
+                healthy,
+                "[makeover-semantic-test] "
+            ),
+            "intro retry"
+        );
+
+        DialogueSessionService.Snapshot afterRetry=
+            handler.semanticDialogueSnapshot();
+
+        require(
+            afterRetry.active&&
+            "node:intro".equals(
+                afterRetry.nodeKey
+            )&&
+            afterRetry.revision==1L&&
+            handler.active(),
+            "intro retry did not commit exactly once"
         );
     }
 
@@ -745,6 +839,17 @@ public final class MakeoverSemanticDialogueSessionTest {
             queue,
             new IsaacCipher(seed)
         );
+    }
+
+    private static boolean fieldSet(
+        LocalMakeoverMageHandler handler,
+        String name
+    )throws Exception{
+        Field field=
+            LocalMakeoverMageHandler.class
+                .getDeclaredField(name);
+        field.setAccessible(true);
+        return field.get(handler)!=null;
     }
 
     private static void require(
