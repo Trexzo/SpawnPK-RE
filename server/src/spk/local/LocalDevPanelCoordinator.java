@@ -95,21 +95,21 @@ final class LocalDevPanelCoordinator {
             devPanel.restore(prior);
             if(!ended)
                 try{
-                    writer.endBatch();
+                    writer.abortBatch();
                 }catch(Throwable ignored){}
             throw failure;
         }catch(RuntimeException failure){
             devPanel.restore(prior);
             if(!ended)
                 try{
-                    writer.endBatch();
+                    writer.abortBatch();
                 }catch(Throwable ignored){}
             throw failure;
         }catch(Error failure){
             devPanel.restore(prior);
             if(!ended)
                 try{
-                    writer.endBatch();
+                    writer.abortBatch();
                 }catch(Throwable ignored){}
             throw failure;
         }
@@ -208,19 +208,19 @@ final class LocalDevPanelCoordinator {
         }catch(IOException failure){
             if(!ended)
                 try{
-                    writer.endBatch();
+                    writer.abortBatch();
                 }catch(Throwable ignored){}
             throw failure;
         }catch(RuntimeException failure){
             if(!ended)
                 try{
-                    writer.endBatch();
+                    writer.abortBatch();
                 }catch(Throwable ignored){}
             throw failure;
         }catch(Error failure){
             if(!ended)
                 try{
-                    writer.endBatch();
+                    writer.abortBatch();
                 }catch(Throwable ignored){}
             throw failure;
         }
@@ -304,22 +304,22 @@ final class LocalDevPanelCoordinator {
                 devPanel.restore(prior);
                 if(!ended)
                     try{
-                        writer.endBatch();
-                    }catch(Throwable ignored){}
+                    writer.abortBatch();
+                }catch(Throwable ignored){}
                 throw failure;
             }catch(RuntimeException failure){
                 devPanel.restore(prior);
                 if(!ended)
                     try{
-                        writer.endBatch();
-                    }catch(Throwable ignored){}
+                    writer.abortBatch();
+                }catch(Throwable ignored){}
                 throw failure;
             }catch(Error failure){
                 devPanel.restore(prior);
                 if(!ended)
                     try{
-                        writer.endBatch();
-                    }catch(Throwable ignored){}
+                    writer.abortBatch();
+                }catch(Throwable ignored){}
                 throw failure;
             }
 
