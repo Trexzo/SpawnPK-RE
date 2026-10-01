@@ -2,28 +2,6 @@ package spk.local;
 
 /** Per-session pet proc/charge state. Combat modifiers remain separate from the M2 fixture formula. */
 final class PetEffectState {
-    static final class Snapshot {
-        final int itemId;
-        final int npcId;
-        final int accumulatedDamage;
-        final int charge;
-        final long lastDamageAtMs;
-
-        Snapshot(
-            int itemId,
-            int npcId,
-            int accumulatedDamage,
-            int charge,
-            long lastDamageAtMs
-        ){
-            this.itemId=itemId;
-            this.npcId=npcId;
-            this.accumulatedDamage=accumulatedDamage;
-            this.charge=charge;
-            this.lastDamageAtMs=lastDamageAtMs;
-        }
-    }
-
     private int itemId=-1,npcId=-1;
     private int accumulatedDamage;
     private int charge;
@@ -34,25 +12,6 @@ final class PetEffectState {
     }
     void clear(){ onPetChanged(-1,-1); }
 
-    Snapshot snapshot(){
-        return new Snapshot(
-            itemId,
-            npcId,
-            accumulatedDamage,
-            charge,
-            lastDamageAtMs
-        );
-    }
-
-    void restore(Snapshot snapshot){
-        if(snapshot==null)
-            throw new NullPointerException("snapshot");
-        itemId=snapshot.itemId;
-        npcId=snapshot.npcId;
-        accumulatedDamage=snapshot.accumulatedDamage;
-        charge=snapshot.charge;
-        lastDamageAtMs=snapshot.lastDamageAtMs;
-    }
     int charge(){ return charge; }
     int accumulatedDamage(){ return accumulatedDamage; }
     long lastDamageAtMs(){ return lastDamageAtMs; }
