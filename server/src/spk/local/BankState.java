@@ -164,12 +164,51 @@ final class BankState {
 
     void close(ServerPacketWriter w) throws IOException {
         if (!open) return;
+
+        byte[] normalInventory=
+            containerPayload(
+                NORMAL_INVENTORY_CONTAINER,
+                inventory
+            );
+
+        w.beginBatch();
+        boolean ended=false;
+
+        try{
+            w.fixed(
+                219,
+                new byte[0]
+            );
+            // The bank overlay uses widget 5064 while normal inventory uses 3214.
+            // Re-send 3214 on close so withdrawn items remain visible after leaving bank.
+            w.varShort(
+                53,
+                normalInventory
+            );
+            w.endBatch();
+            ended=true;
+        }catch(IOException failure){
+            if(!ended)
+                try{
+                    w.endBatch();
+                }catch(Throwable ignored){}
+            throw failure;
+        }catch(RuntimeException failure){
+            if(!ended)
+                try{
+                    w.endBatch();
+                }catch(Throwable ignored){}
+            throw failure;
+        }catch(Error failure){
+            if(!ended)
+                try{
+                    w.endBatch();
+                }catch(Throwable ignored){}
+            throw failure;
+        }
+
         open = false;
         pendingX = null;
-        w.fixed(219, new byte[0]);
-        // The bank overlay uses widget 5064 while normal inventory uses 3214.
-        // Re-send 3214 on close so withdrawn items remain visible after leaving bank.
-        sendNormalInventory(w);
     }
 
     boolean clientClosed() {
