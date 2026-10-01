@@ -520,32 +520,41 @@ final class LocalPetInventoryDialogHandler {
         int itemId,
         ServerPacketWriter writer
     )throws IOException{
-        pendingMiniConfigureSlot=slot;
-        pendingMiniConfigureItem=itemId;
-
-        writer.varShort(
-            126,
-            BootstrapPackets.widgetText126(
-                2481,"Configure mini-pet"));
-        writer.varShort(
-            126,
-            BootstrapPackets.widgetText126(
-                2482,"Activate this mini-pet"));
-        writer.varShort(
-            126,
-            BootstrapPackets.widgetText126(
-                2483,"Disable current mini-pet"));
-        writer.varShort(
-            126,
-            BootstrapPackets.widgetText126(
-                2484,"Cancel"));
-        writer.varShort(
-            126,
-            BootstrapPackets.widgetText126(
-                2485,"Close"));
-        writer.fixed(
-            164,
-            BootstrapPackets.chatboxInterface164(2480));
+        publishDialogOpen(
+            writer,
+            out->{
+                out.varShort(
+                    126,
+                    BootstrapPackets.widgetText126(
+                        2481,"Configure mini-pet"));
+                out.varShort(
+                    126,
+                    BootstrapPackets.widgetText126(
+                        2482,"Activate this mini-pet"));
+                out.varShort(
+                    126,
+                    BootstrapPackets.widgetText126(
+                        2483,"Disable current mini-pet"));
+                out.varShort(
+                    126,
+                    BootstrapPackets.widgetText126(
+                        2484,"Cancel"));
+                out.varShort(
+                    126,
+                    BootstrapPackets.widgetText126(
+                        2485,"Close"));
+                out.fixed(
+                    164,
+                    BootstrapPackets.chatboxInterface164(
+                        2480
+                    )
+                );
+            },
+            ()->{
+                pendingMiniConfigureSlot=slot;
+                pendingMiniConfigureItem=itemId;
+            }
+        );
     }
 
     private void clearMiniConfigureDialog(){
@@ -558,33 +567,48 @@ final class LocalPetInventoryDialogHandler {
         int itemId,
         ServerPacketWriter writer
     )throws IOException{
-        pendingPetAccessorySlot=slot;
-        pendingPetAccessoryItem=itemId;
-
-        writer.varShort(
-            126,
-            BootstrapPackets.widgetText126(
-                2481,"Pet accessory"));
-        writer.varShort(
-            126,
-            BootstrapPackets.widgetText126(
-                2482,
-                "Activate "+PetAccessoryAuthority.name(itemId)));
-        writer.varShort(
-            126,
-            BootstrapPackets.widgetText126(
-                2483,"Remove active pet accessory"));
-        writer.varShort(
-            126,
-            BootstrapPackets.widgetText126(
-                2484,"Cancel"));
-        writer.varShort(
-            126,
-            BootstrapPackets.widgetText126(
-                2485,"Close"));
-        writer.fixed(
-            164,
-            BootstrapPackets.chatboxInterface164(2480));
+        publishDialogOpen(
+            writer,
+            out->{
+                out.varShort(
+                    126,
+                    BootstrapPackets.widgetText126(
+                        2481,"Pet accessory"));
+                out.varShort(
+                    126,
+                    BootstrapPackets.widgetText126(
+                        2482,
+                        "Activate "+
+                        PetAccessoryAuthority.name(
+                            itemId
+                        )
+                    )
+                );
+                out.varShort(
+                    126,
+                    BootstrapPackets.widgetText126(
+                        2483,
+                        "Remove active pet accessory"));
+                out.varShort(
+                    126,
+                    BootstrapPackets.widgetText126(
+                        2484,"Cancel"));
+                out.varShort(
+                    126,
+                    BootstrapPackets.widgetText126(
+                        2485,"Close"));
+                out.fixed(
+                    164,
+                    BootstrapPackets.chatboxInterface164(
+                        2480
+                    )
+                );
+            },
+            ()->{
+                pendingPetAccessorySlot=slot;
+                pendingPetAccessoryItem=itemId;
+            }
+        );
     }
 
     private void clearPetAccessoryDialog(){
@@ -598,60 +622,121 @@ final class LocalPetInventoryDialogHandler {
         String name,
         ServerPacketWriter writer
     )throws IOException{
-        pendingPetColorSlot=slot;
-        pendingPetColorItems=family.clone();
-        pendingPetColorFamily=name;
+        final int[] nextFamily=
+            family.clone();
 
-        writer.varShort(
-            126,
-            BootstrapPackets.widgetText126(
-                2481,"Select a color"));
+        publishDialogOpen(
+            writer,
+            out->{
+                out.varShort(
+                    126,
+                    BootstrapPackets.widgetText126(
+                        2481,"Select a color"));
 
-        if("SCOOBY_BEHEMOTH".equals(name)&&family.length==4){
-            writer.varShort(
-                126,
-                BootstrapPackets.widgetText126(
-                    2482,"Black / white"));
-            writer.varShort(
-                126,
-                BootstrapPackets.widgetText126(
-                    2483,"Black / orange"));
-            writer.varShort(
-                126,
-                BootstrapPackets.widgetText126(
-                    2484,"White / blue"));
-            writer.varShort(
-                126,
-                BootstrapPackets.widgetText126(
-                    2485,"Green / black"));
-        }else{
-            writer.varShort(
-                126,
-                BootstrapPackets.widgetText126(
-                    2482,"Color 1"));
-            writer.varShort(
-                126,
-                BootstrapPackets.widgetText126(
-                    2483,"Color 2"));
-            writer.varShort(
-                126,
-                BootstrapPackets.widgetText126(
-                    2484,"Color 3"));
-            writer.varShort(
-                126,
-                BootstrapPackets.widgetText126(
-                    2485,"Cancel"));
-        }
+                if("SCOOBY_BEHEMOTH".equals(name)&&
+                   nextFamily.length==4){
+                    out.varShort(
+                        126,
+                        BootstrapPackets.widgetText126(
+                            2482,"Black / white"));
+                    out.varShort(
+                        126,
+                        BootstrapPackets.widgetText126(
+                            2483,"Black / orange"));
+                    out.varShort(
+                        126,
+                        BootstrapPackets.widgetText126(
+                            2484,"White / blue"));
+                    out.varShort(
+                        126,
+                        BootstrapPackets.widgetText126(
+                            2485,"Green / black"));
+                }else{
+                    out.varShort(
+                        126,
+                        BootstrapPackets.widgetText126(
+                            2482,"Color 1"));
+                    out.varShort(
+                        126,
+                        BootstrapPackets.widgetText126(
+                            2483,"Color 2"));
+                    out.varShort(
+                        126,
+                        BootstrapPackets.widgetText126(
+                            2484,"Color 3"));
+                    out.varShort(
+                        126,
+                        BootstrapPackets.widgetText126(
+                            2485,"Cancel"));
+                }
 
-        writer.fixed(
-            164,
-            BootstrapPackets.chatboxInterface164(2480));
+                out.fixed(
+                    164,
+                    BootstrapPackets.chatboxInterface164(
+                        2480
+                    )
+                );
+            },
+            ()->{
+                pendingPetColorSlot=slot;
+                pendingPetColorItems=
+                    nextFamily;
+                pendingPetColorFamily=name;
+            }
+        );
     }
 
     private void clearPetColorDialog(){
         pendingPetColorSlot=-1;
         pendingPetColorItems=null;
         pendingPetColorFamily=null;
+    }
+
+    private void publishDialogOpen(
+        ServerPacketWriter writer,
+        DialogPresentation presentation,
+        Runnable commit
+    )throws IOException{
+        writer.beginBatch();
+        boolean ended=false;
+
+        try{
+            presentation.write(writer);
+            writer.endBatch();
+            ended=true;
+        }catch(IOException failure){
+            if(!ended)
+                try{
+                    writer.endBatch();
+                }catch(Throwable ignored){}
+            throw failure;
+        }catch(RuntimeException failure){
+            if(!ended)
+                try{
+                    writer.endBatch();
+                }catch(Throwable ignored){}
+            throw failure;
+        }catch(Error failure){
+            if(!ended)
+                try{
+                    writer.endBatch();
+                }catch(Throwable ignored){}
+            throw failure;
+        }
+
+        // A successful root replacement owns exactly one pending pet-dialog
+        // family. No pending authority is changed before packet admission.
+        clearPetColorDialog();
+        clearMiniConfigureDialog();
+        clearPetAccessoryDialog();
+        commit.run();
+    }
+
+    @FunctionalInterface
+    private interface DialogPresentation {
+        void write(
+            ServerPacketWriter writer
+        )throws IOException;
     }
 
     private static boolean contains(int[] values,int target){
