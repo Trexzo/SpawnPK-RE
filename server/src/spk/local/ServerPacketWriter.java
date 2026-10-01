@@ -350,9 +350,12 @@ final class ServerPacketWriter {
             byte[] bytes=pending.toByteArray();
 
             try{
-                if(queue!=null)
-                    queue.offer(bytes);
-                else
+                if(queue!=null){
+                    if(batchDepth>0)
+                        queue.offerBatch(bytes);
+                    else
+                        queue.offer(bytes);
+                }else
                     out.write(bytes);
 
                 if(out!=null)
