@@ -829,7 +829,7 @@ final class NpcRegistry {
         );
     }
 
-    String publishPreparedMainPetTransition(
+    String publishPreparedMainPetCore(
         PreparedMainPetTransition prepared,
         MovementState movement,
         ServerPacketWriter w
@@ -873,14 +873,9 @@ final class NpcRegistry {
                     :prepared.expectedOldMini.sceneIndex);
 
         ArrayList<NpcSyncEncoder.Update> retained=
-            new ArrayList<>();
-
-        for(NpcEntity n:visible)
-            if(n!=prepared.expectedOldPet&&
-               n!=prepared.expectedOldMini)
-                retained.add(
-                    NpcSyncEncoder.Update.retain(n)
-                );
+            prospectiveRetainedWithoutOld(
+                prepared
+            );
 
         w.varShort(
             65,
@@ -898,53 +893,6 @@ final class NpcRegistry {
             )
         );
 
-        if(prepared.newMini!=null){
-            ArrayList<NpcSyncEncoder.Update> miniRetained=
-                new ArrayList<>(
-                    retained
-                );
-            miniRetained.add(
-                NpcSyncEncoder.Update.retain(
-                    prepared.newPet
-                )
-            );
-
-            w.varShort(
-                65,
-                NpcSyncEncoder.encode(
-                    miniRetained,
-                    Collections.singletonList(
-                        prepared.newMini
-                    ),
-                    movement.x(),
-                    movement.y()
-                )
-            );
-
-            ArrayList<NpcSyncEncoder.Update> masked=
-                new ArrayList<>(
-                    miniRetained
-                );
-            masked.add(
-                NpcSyncEncoder.Update.mask(
-                    prepared.newMini,
-                    NpcSyncEncoder.Mask.interactionTarget(
-                        prepared.newPet.sceneIndex
-                    )
-                )
-            );
-
-            w.varShort(
-                65,
-                NpcSyncEncoder.encode(
-                    masked,
-                    Collections.emptyList(),
-                    0,
-                    0
-                )
-            );
-        }
-
         return "PET_SPAWN_OK item="+
             prepared.newPet.petItemId+
             " npc="+
@@ -959,6 +907,175 @@ final class NpcRegistry {
             prepared.egressX+
             ","+
             prepared.egressY;
+    }
+
+    String publishPreparedMainPetSelector(
+        PreparedMainPetTransition prepared,
+        Integer selector,
+        MovementState movement,
+        ServerPacketWriter w
+    )throws IOException{
+        if(prepared==null||
+           prepared.newPet==null)
+            return "DEV_PET_FX_SET value="+
+                (selector==null?"AUTO":selector)+
+                " activePet=none";
+
+        ArrayList<NpcSyncEncoder.Update> remove=
+            prospectiveRetainedWithoutOld(
+                prepared
+            );
+        remove.add(
+            NpcSyncEncoder.Update.remove(
+                prepared.newPet
+            )
+        );
+
+        w.varShort(
+            65,
+            NpcSyncEncoder.encode(
+                remove,
+                Collections.emptyList(),
+                0,
+                0
+            )
+        );
+
+        ArrayList<NpcSyncEncoder.Update> retained=
+            prospectiveRetainedWithoutOld(
+                prepared
+            );
+
+        w.varShort(
+            65,
+            NpcSyncEncoder.encode(
+                retained,
+                Collections.singletonList(
+                    prepared.newPet
+                ),
+                movement.x(),
+                movement.y(),
+                spawnPresentationFor(
+                    prepared.newPet,
+                    selector
+                )
+            )
+        );
+
+        return "DEV_PET_FX_SET value="+
+            (selector==null?"AUTO":selector)+
+            " item="+prepared.newPet.petItemId+
+            " npc="+prepared.newPet.definitionId+
+            " authority=TEMPORARY_OVERRIDE";
+    }
+
+    String publishPreparedMainPetMini(
+        PreparedMainPetTransition prepared,
+        MovementState movement,
+        ServerPacketWriter w
+    )throws IOException{
+        if(prepared==null||
+           prepared.newMini==null)
+            return "MINIPET_NONE_CONFIGURED";
+
+        ArrayList<NpcSyncEncoder.Update> retained=
+            prospectiveRetainedWithoutOld(
+                prepared
+            );
+        retained.add(
+            NpcSyncEncoder.Update.retain(
+                prepared.newPet
+            )
+        );
+
+        w.varShort(
+            65,
+            NpcSyncEncoder.encode(
+                retained,
+                Collections.singletonList(
+                    prepared.newMini
+                ),
+                movement.x(),
+                movement.y()
+            )
+        );
+
+        ArrayList<NpcSyncEncoder.Update> masked=
+            new ArrayList<>(
+                retained
+            );
+        masked.add(
+            NpcSyncEncoder.Update.mask(
+                prepared.newMini,
+                NpcSyncEncoder.Mask.interactionTarget(
+                    prepared.newPet.sceneIndex
+                )
+            )
+        );
+
+        w.varShort(
+            65,
+            NpcSyncEncoder.encode(
+                masked,
+                Collections.emptyList(),
+                0,
+                0
+            )
+        );
+
+        return "MINIPET_SPAWN_OK item="+
+            prepared.configuredMiniItemId+
+            " npc="+
+            prepared.newMini.definitionId+
+            " scene="+
+            prepared.newMini.sceneIndex+
+            " world="+
+            prepared.newMini.x+
+            ","+
+            prepared.newMini.y+
+            " mainPetScene="+
+            prepared.newPet.sceneIndex+
+            " relation=PLAYER_TO_MAINPET_TO_MINIPET spawnPolicy=LOCAL_TRAILING_MAINPET";
+    }
+
+    String publishPreparedMainPetTransition(
+        PreparedMainPetTransition prepared,
+        MovementState movement,
+        ServerPacketWriter w
+    )throws IOException{
+        String result=
+            publishPreparedMainPetCore(
+                prepared,
+                movement,
+                w
+            );
+
+        if(prepared!=null&&
+           prepared.newMini!=null)
+            publishPreparedMainPetMini(
+                prepared,
+                movement,
+                w
+            );
+
+        return result;
+    }
+
+    private ArrayList<NpcSyncEncoder.Update>
+        prospectiveRetainedWithoutOld(
+            PreparedMainPetTransition prepared
+        ){
+        ArrayList<NpcSyncEncoder.Update> retained=
+            new ArrayList<>();
+
+        for(NpcEntity n:visible)
+            if(n!=prepared.expectedOldPet&&
+               n!=prepared.expectedOldMini)
+                retained.add(
+                    NpcSyncEncoder.Update.retain(n)
+                );
+
+        return retained;
     }
 
     void commitPreparedMainPetTransition(
