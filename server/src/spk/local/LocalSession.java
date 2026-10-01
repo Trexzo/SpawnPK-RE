@@ -30,6 +30,11 @@ final class LocalSession implements Runnable {
         ) throws Exception{}
     }
 
+    @FunctionalInterface
+    interface MonsterSpawnerOpenAction {
+        boolean open() throws IOException;
+    }
+
     private final Socket socket;
     private final boolean bootstrap;
     private final boolean movementEnabled;
@@ -427,10 +432,16 @@ final class LocalSession implements Runnable {
                 @Override public boolean openMonsterSpawner(
                     ServerPacketWriter writer
                 )throws IOException{
-                    return LocalSession.this.uiActions
-                        .openMonsterSpawnerIfConfigured(
-                            writer
-                        );
+                    return openMonsterSpawnerForCurrentSession(
+                        LocalSession.this.world,
+                        LocalSession.this.worldPlayer,
+                        LocalSession.this.worldPlayerGeneration,
+                        ()->
+                            LocalSession.this.uiActions
+                                .openMonsterSpawnerIfConfigured(
+                                    writer
+                                )
+                    );
                 }
 
                 @Override public void applyPetDialog(
@@ -490,6 +501,26 @@ final class LocalSession implements Runnable {
                     String tag
                 )throws IOException{
                     LocalSession.this.handleHomeTeleportFromWidget(
+                        writer,
+                        tag
+                    );
+                }
+
+                @Override public LocalSessionUiActionHandler
+                    .MonsterSpawnerDispatch handleMonsterSpawnerWidget(
+                        LocalMonsterSpawnerUiHandler handler,
+                        int widget,
+                        ServerPacketWriter writer,
+                        String tag
+                    )throws IOException{
+                    return dispatchMonsterSpawnerWidgetForCurrentSession(
+                        LocalSession.this.monsterSpawnerUiFactory,
+                        LocalSession.this.world,
+                        LocalSession.this.worldPlayer,
+                        LocalSession.this.worldPlayerGeneration,
+                        LocalSession.this.username,
+                        handler,
+                        widget,
                         writer,
                         tag
                     );
@@ -915,6 +946,163 @@ final class LocalSession implements Runnable {
         if (movementEnabled && !bootstrap) throw new IllegalArgumentException("movement requires bootstrap");
     }
 
+    static boolean openMonsterSpawnerForCurrentSession(
+        World world,
+        WorldPlayer player,
+        long expectedGeneration,
+        MonsterSpawnerOpenAction action
+    )throws IOException{
+        World checkedWorld=
+            java.util.Objects.requireNonNull(
+                world,
+                "world"
+            );
+        WorldPlayer checkedPlayer=
+            java.util.Objects.requireNonNull(
+                player,
+                "player"
+            );
+        MonsterSpawnerOpenAction checkedAction=
+            java.util.Objects.requireNonNull(
+                action,
+                "action"
+            );
+        final boolean[] opened={false};
+
+        try{
+            boolean delivered=
+                checkedWorld
+                    .withOpenPlayerMutationOwnershipIfCurrent(
+                        checkedPlayer,
+                        expectedGeneration,
+                        ()->
+                            opened[0]=
+                                checkedAction.open()
+                    );
+
+            return delivered&&
+                opened[0];
+        }catch(IOException failure){
+            throw failure;
+        }catch(RuntimeException failure){
+            throw failure;
+        }catch(Error failure){
+            throw failure;
+        }catch(Exception failure){
+            throw new IOException(
+                "Monster Spawner UI open failed",
+                failure
+            );
+        }
+    }
+
+    static LocalSessionUiActionHandler.MonsterSpawnerDispatch
+        dispatchMonsterSpawnerWidgetForCurrentSession(
+            MonsterSpawnerUiFactory factory,
+            World world,
+            WorldPlayer player,
+            long expectedGeneration,
+            String canonicalUsername,
+            LocalMonsterSpawnerUiHandler handler,
+            int widget,
+            ServerPacketWriter writer,
+            String tag
+        )throws IOException{
+        World checkedWorld=
+            java.util.Objects.requireNonNull(
+                world,
+                "world"
+            );
+        WorldPlayer checkedPlayer=
+            java.util.Objects.requireNonNull(
+                player,
+                "player"
+            );
+        LocalMonsterSpawnerUiHandler checkedHandler=
+            java.util.Objects.requireNonNull(
+                handler,
+                "handler"
+            );
+        String username=
+            PartyService.requireRef(
+                canonicalUsername
+            );
+        java.util.Objects.requireNonNull(
+            writer,
+            "writer"
+        );
+        java.util.Objects.requireNonNull(
+            tag,
+            "tag"
+        );
+
+        if(!checkedHandler.isBoundToOwner(
+                username
+            )||
+           !checkedHandler.isBoundTo(
+                checkedWorld
+            ))
+            throw new IllegalArgumentException(
+                "Monster Spawner widget handler differs from exact session context owner="+
+                username
+            );
+
+        final LocalMonsterSpawnerUiHandler.Result[]
+            committed={null};
+
+        try{
+            boolean delivered=
+                checkedWorld
+                    .withOpenPlayerMutationOwnershipIfCurrent(
+                        checkedPlayer,
+                        expectedGeneration,
+                        ()->{
+                            committed[0]=
+                                checkedHandler.handle(
+                                    widget,
+                                    writer
+                                );
+
+                            if(committed[0]!=null)
+                                invokeMonsterSpawnerCommittedResult(
+                                    factory,
+                                    checkedWorld,
+                                    checkedPlayer,
+                                    username,
+                                    committed[0],
+                                    writer,
+                                    tag
+                                );
+                        }
+                    );
+
+            if(!delivered)
+                return LocalSessionUiActionHandler
+                    .MonsterSpawnerDispatch
+                    .rejected();
+
+            return LocalSessionUiActionHandler
+                .MonsterSpawnerDispatch
+                .admitted(
+                    committed[0]
+                );
+        }catch(IOException failure){
+            throw failure;
+        }catch(RuntimeException failure){
+            throw failure;
+        }catch(Error failure){
+            throw failure;
+        }catch(Exception failure){
+            throw new IllegalStateException(
+                "Monster Spawner widget transaction failed owner="+
+                username+
+                " widget="+
+                widget,
+                failure
+            );
+        }
+    }
+
     static void forwardMonsterSpawnerUiResult(
         MonsterSpawnerUiFactory factory,
         World world,
@@ -943,36 +1131,14 @@ final class LocalSession implements Runnable {
                 canonicalUsername
             );
 
-        java.util.Objects.requireNonNull(
-            result,
-            "result"
-        );
-        java.util.Objects.requireNonNull(
-            writer,
-            "writer"
-        );
-        java.util.Objects.requireNonNull(
-            tag,
-            "tag"
-        );
-
-        if(!result.session.ownerRef.equals(
-                username
-            ))
-            throw new IllegalArgumentException(
-                "Monster Spawner committed result owner differs from canonical session account expected="+
-                username+
-                " actual="+
-                result.session.ownerRef
-            );
-
         try{
             boolean delivered=
                 checkedWorld
                     .withOpenPlayerMutationOwnershipIfCurrent(
                         checkedPlayer,
                         expectedGeneration,
-                        ()->factory.onCommittedResult(
+                        ()->invokeMonsterSpawnerCommittedResult(
+                            factory,
                             checkedWorld,
                             checkedPlayer,
                             username,
@@ -1000,7 +1166,82 @@ final class LocalSession implements Runnable {
                 "Monster Spawner post-commit callback failed owner="+
                 username+
                 " status="+
-                result.status,
+                java.util.Objects.requireNonNull(
+                    result,
+                    "result"
+                ).status,
+                failure
+            );
+        }
+    }
+
+    private static void invokeMonsterSpawnerCommittedResult(
+        MonsterSpawnerUiFactory factory,
+        World world,
+        WorldPlayer player,
+        String canonicalUsername,
+        LocalMonsterSpawnerUiHandler.Result result,
+        ServerPacketWriter writer,
+        String tag
+    )throws IOException{
+        if(factory==null)
+            return;
+
+        String username=
+            PartyService.requireRef(
+                canonicalUsername
+            );
+        LocalMonsterSpawnerUiHandler.Result checkedResult=
+            java.util.Objects.requireNonNull(
+                result,
+                "result"
+            );
+        java.util.Objects.requireNonNull(
+            writer,
+            "writer"
+        );
+        java.util.Objects.requireNonNull(
+            tag,
+            "tag"
+        );
+
+        if(!checkedResult.session.ownerRef.equals(
+                username
+            ))
+            throw new IllegalArgumentException(
+                "Monster Spawner committed result owner differs from canonical session account expected="+
+                username+
+                " actual="+
+                checkedResult.session.ownerRef
+            );
+
+        try{
+            factory.onCommittedResult(
+                java.util.Objects.requireNonNull(
+                    world,
+                    "world"
+                ),
+                java.util.Objects.requireNonNull(
+                    player,
+                    "player"
+                ),
+                username,
+                checkedResult,
+                writer,
+                tag
+            );
+        }catch(IOException failure){
+            throw failure;
+        }catch(RuntimeException failure){
+            throw failure;
+        }catch(Error failure){
+            throw failure;
+        }catch(Exception failure){
+            throw new IllegalStateException(
+                "Monster Spawner post-commit callback failed owner="+
+                username+
+                " status="+
+                checkedResult.status,
                 failure
             );
         }
