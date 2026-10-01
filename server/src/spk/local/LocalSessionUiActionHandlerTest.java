@@ -439,19 +439,25 @@ public final class LocalSessionUiActionHandlerTest {
                     "absent Monster Spawner UI factory changed default behavior"
                 );
 
+            LocalMonsterSpawnerUiHandler exactWorldUi=
+                configuredSpawnerUi(
+                    factoryWorld.npcs(),
+                    "session-ui-owner"
+                );
+
             LocalSession.MonsterSpawnerUiFactory
                 matchingFactory=
                     (exactWorld,exactPlayer,accountRef)->
-                        monsterSpawnerUi;
+                        exactWorldUi;
 
             if(LocalSession.resolveMonsterSpawnerUi(
                     matchingFactory,
                     factoryWorld,
                     factoryPlayer,
                     "session-ui-owner"
-                )!=monsterSpawnerUi)
+                )!=exactWorldUi)
                 throw new AssertionError(
-                    "matching Monster Spawner UI owner was not retained"
+                    "matching Monster Spawner UI owner/World was not retained"
                 );
 
             boolean ownerMismatchRejected=false;
@@ -469,6 +475,62 @@ public final class LocalSessionUiActionHandlerTest {
             if(!ownerMismatchRejected)
                 throw new AssertionError(
                     "late-bound Monster Spawner UI owner mismatch was accepted"
+                );
+
+            World foreignWorld=
+                World.isolatedForTest(
+                    600L
+                );
+            try{
+                LocalMonsterSpawnerUiHandler foreignWorldUi=
+                    configuredSpawnerUi(
+                        foreignWorld.npcs(),
+                        "session-ui-owner"
+                    );
+
+                boolean foreignWorldRejected=false;
+                try{
+                    LocalSession.resolveMonsterSpawnerUi(
+                        (exactWorld,exactPlayer,accountRef)->
+                            foreignWorldUi,
+                        factoryWorld,
+                        factoryPlayer,
+                        "session-ui-owner"
+                    );
+                }catch(IllegalArgumentException expected){
+                    foreignWorldRejected=true;
+                }
+
+                if(!foreignWorldRejected)
+                    throw new AssertionError(
+                        "foreign-World Monster Spawner UI was accepted"
+                    );
+            }finally{
+                foreignWorld.close();
+            }
+
+            LocalMonsterSpawnerUiHandler detachedUi=
+                configuredSpawnerUi(
+                    new WorldNpcRegistry(),
+                    "session-ui-owner"
+                );
+
+            boolean detachedRejected=false;
+            try{
+                LocalSession.resolveMonsterSpawnerUi(
+                    (exactWorld,exactPlayer,accountRef)->
+                        detachedUi,
+                    factoryWorld,
+                    factoryPlayer,
+                    "session-ui-owner"
+                );
+            }catch(IllegalArgumentException expected){
+                detachedRejected=true;
+            }
+
+            if(!detachedRejected)
+                throw new AssertionError(
+                    "detached-registry Monster Spawner UI was accepted"
                 );
         }finally{
             factoryWorld.close();
@@ -497,7 +559,63 @@ public final class LocalSessionUiActionHandlerTest {
             "monsterSpawnerLateInstall=true "+
             "monsterSpawnerReinstallGuard=true "+
             "monsterSpawnerFactoryContract=true "+
-            "monsterSpawnerOwnerFence=true"
+            "monsterSpawnerOwnerFence=true "+
+            "monsterSpawnerWorldFence=true"
+        );
+    }
+
+    private static LocalMonsterSpawnerUiHandler
+        configuredSpawnerUi(
+            WorldNpcRegistry registry,
+            String owner
+        ){
+        MonsterSpawnerService service=
+            new MonsterSpawnerService(
+                registry
+            );
+
+        service.replaceCatalog(
+            Collections.singletonList(
+                new MonsterSpawnerService.CatalogEntry(
+                    0,
+                    "world-fence-row",
+                    1700
+                )
+            ),
+            "CUSTOM_LOCALLAB_SESSION_UI_CATALOG"
+        );
+        service.openSession(
+            owner,
+            "CUSTOM_LOCALLAB_SESSION_UI_POLICY"
+        );
+
+        return new LocalMonsterSpawnerUiHandler(
+            service,
+            owner,
+            new LocalMonsterSpawnerUiHandler
+                .ActivationBudgetResolver(){
+                @Override public int spawnBudget(
+                    LocalMonsterSpawnerUiHandler.Context context
+                ){
+                    return 2;
+                }
+
+                @Override public String authority(){
+                    return "CUSTOM_LOCALLAB_SESSION_UI_POLICY";
+                }
+            },
+            new LocalMonsterSpawnerUiHandler
+                .SelectedNpcLabelResolver(){
+                @Override public String label(
+                    MonsterSpawnerService.CatalogEntry entry
+                ){
+                    return "NPC-"+entry.definitionId;
+                }
+
+                @Override public String authority(){
+                    return "CUSTOM_LOCALLAB_SESSION_UI_CATALOG";
+                }
+            }
         );
     }
 }
