@@ -55,6 +55,14 @@ final class ServerPacketWriter {
                         byte[] secondData=
                             second.pending.toByteArray();
 
+                        if(first.batchPlayer81!=null||
+                           second.batchPlayer81!=null){
+                            reservation.release();
+                            throw new IllegalStateException(
+                                "atomic pair batch cannot contain staged packet-81 presentation"
+                            );
+                        }
+
                         if(firstData.length!=
                                 firstBytes||
                            secondData.length!=
@@ -119,6 +127,7 @@ final class ServerPacketWriter {
     private final ByteArrayOutputStream pending = new ByteArrayOutputStream(4096);
     private int batchDepth;
     private IsaacCipher.Snapshot batchCipherCheckpoint;
+    private Player81WorldSync.BatchTransaction batchPlayer81;
 
     ServerPacketWriter(OutputStream out, IsaacCipher cipher) {
         this.out=out;
@@ -150,11 +159,34 @@ final class ServerPacketWriter {
                 :body;
 
         if(opcode==81){
-            byte[] transformed=
-                Player81WorldSync.transform(
-                    this,
-                    checkedBody
-                );
+            final boolean batched;
+            final Player81WorldSync.BatchTransaction prior;
+
+            synchronized(this){
+                batched=batchDepth>0;
+                prior=batchPlayer81;
+            }
+
+            final byte[] transformed;
+            final Player81WorldSync.BatchTransaction staged;
+
+            if(batched){
+                Player81WorldSync.BatchTransform result=
+                    Player81WorldSync.transformBatched(
+                        this,
+                        checkedBody,
+                        prior
+                    );
+                transformed=result.body;
+                staged=result.transaction;
+            }else{
+                transformed=
+                    Player81WorldSync.transform(
+                        this,
+                        checkedBody
+                    );
+                staged=null;
+            }
 
             if(transformed.length>65535)
                 throw new IllegalArgumentException(
@@ -163,6 +195,15 @@ final class ServerPacketWriter {
                 );
 
             synchronized(this){
+                if(batched){
+                    if(batchDepth<=0||
+                       batchPlayer81!=prior)
+                        throw new IllegalStateException(
+                            "packet-81 batch ownership changed during transform"
+                        );
+                    batchPlayer81=staged;
+                }
+
                 writeOpcode(opcode);
                 pending.write(
                     (transformed.length>>>8)&255
@@ -174,11 +215,13 @@ final class ServerPacketWriter {
                 autoFlush();
             }
 
-            // Never call back into World/Player81 ownership while
-            // holding the writer monitor.  The packet-81 bytes are
-            // already ordered ahead of any released packet-65 work.
-            SharedNpcWorldRelay
-                .flushAfterPlayer81(this);
+            if(!batched){
+                // Never call back into World/Player81 ownership while
+                // holding the writer monitor.  The packet-81 bytes are
+                // already ordered ahead of any released packet-65 work.
+                SharedNpcWorldRelay
+                    .flushAfterPlayer81(this);
+            }
             return;
         }
 
@@ -249,6 +292,7 @@ final class ServerPacketWriter {
         );
         batchDepth=0;
         batchCipherCheckpoint=null;
+        batchPlayer81=null;
     }
 
     static AtomicPairBatch beginAtomicQueuePair(
@@ -321,28 +365,40 @@ final class ServerPacketWriter {
         );
     }
 
-    synchronized void endBatch() throws IOException {
-        if(batchDepth<=0)
-            throw new IllegalStateException(
-                "no packet batch"
-            );
+    void endBatch() throws IOException {
+        Player81WorldSync.BatchTransaction player81;
 
-        if(batchDepth>1){
-            batchDepth--;
-            return;
+        synchronized(this){
+            if(batchDepth<=0)
+                throw new IllegalStateException(
+                    "no packet batch"
+                );
+
+            if(batchDepth>1){
+                batchDepth--;
+                return;
+            }
+
+            /*
+             * Keep the outer batch active until admission/write succeeds. If
+             * flush fails, the caller can still abort the byte/cipher batch.
+             */
+            flush();
+            player81=batchPlayer81;
+            completeBatchLocked();
         }
 
-        /*
-         * Keep the outer batch active until admission/write succeeds. If flush
-         * fails, the caller can abort and restore the exact pre-batch cipher.
-         */
-        flush();
-        completeBatchLocked();
+        if(player81!=null){
+            player81.commit();
+            SharedNpcWorldRelay
+                .flushAfterPlayer81(this);
+        }
     }
 
     private void completeBatchLocked(){
         batchDepth=0;
         batchCipherCheckpoint=null;
+        batchPlayer81=null;
     }
 
     synchronized void flush() throws IOException {
