@@ -10,6 +10,7 @@ public final class NpcDropLiveSceneTest {
         offlineAndStaleRecipients();
         sceneBoundsConsumedSafely();
         publishFailureRetries();
+        regionPresentationBarrier();
 
         System.out.println(
             "NPC_DROP_LIVE_SCENE_PASS "+
@@ -21,6 +22,7 @@ public final class NpcDropLiveSceneTest {
             "offlineSettlement=true "+
             "sceneBoundsSafe=true "+
             "retryOnPublishFailure=true "+
+            "regionPresentationBarrier=true "+
             "protocolAdapterOnly=true"
         );
     }
@@ -570,6 +572,200 @@ public final class NpcDropLiveSceneTest {
                     "mutable GroundItem leaked into event "+
                     field.getName()
                 );
+        }finally{
+            world.unregisterPlayer(killer);
+            world.close();
+        }
+    }
+
+    private static void regionPresentationBarrier()
+        throws Exception{
+        World world=
+            World.isolatedForTest(600L);
+        WorldPlayer killer=
+            new WorldPlayer();
+
+        try{
+            long generation=
+                world.registerPlayer(
+                    killer,
+                    "killer"
+                );
+
+            NpcLifecycleService lifecycle=
+                world.npcLifecycle();
+            NpcDropResolutionService drops=
+                dropService(
+                    world,
+                    lifecycle,
+                    995,
+                    6,
+                    "CUSTOM_LOCALLAB_DROP_REGION_BARRIER"
+                );
+            NpcDropGroundSettlementService settlement=
+                new NpcDropGroundSettlementService(
+                    world,
+                    "CUSTOM_LOCALLAB_OWNER_SCOPED_LOOT",
+                    NpcDropGroundSettlementService
+                        .OWNER_SCOPED_DEATH_TILE
+                );
+
+            WorldNpc npc=
+                deadNpc(
+                    world,
+                    lifecycle,
+                    1640,
+                    killer.movement().x(),
+                    killer.movement().y(),
+                    0,
+                    50L
+                );
+
+            settlement.settle(
+                drops.resolve(
+                    npc,
+                    "killer"
+                )
+            );
+
+            long now=System.currentTimeMillis();
+            LocalGroundItemPresentationRelay relay=
+                new LocalGroundItemPresentationRelay(
+                    world,
+                    killer,
+                    killer.movement()
+                );
+            ByteArrayOutputStream wire=
+                new ByteArrayOutputStream();
+            SceneUpdatePublisher live=
+                publisher(
+                    wire,
+                    0
+                );
+
+            require(
+                world.groundItemPresentationEvents()
+                    .pendingFor(
+                        killer.id(),
+                        generation,
+                        now
+                    )
+                    .size()==1,
+                "region barrier fixture event"
+            );
+
+            require(
+                relay.publishPendingIfSceneReady(
+                    now,
+                    live,
+                    true
+                )==0&&
+                wire.size()==0&&
+                world.groundItemPresentationEvents()
+                    .pendingFor(
+                        killer.id(),
+                        generation,
+                        now
+                    )
+                    .size()==1,
+                "pending region load published live ground event"
+            );
+
+            require(
+                relay.consumeSnapshotCoveredAfterSnapshot(
+                    now,
+                    false
+                )==0&&
+                world.groundItemPresentationEvents()
+                    .pendingFor(
+                        killer.id(),
+                        generation,
+                        now
+                    )
+                    .size()==1,
+                "region begin falsely consumed snapshot-covered event"
+            );
+
+            GroundItem item=
+                world.groundItems()
+                    .snapshot()
+                    .get(0);
+
+            OutputStream failing=
+                new OutputStream(){
+                    @Override public void write(int value)
+                        throws IOException{
+                        throw new IOException(
+                            "synthetic snapshot failure"
+                        );
+                    }
+
+                    @Override public void write(
+                        byte[] bytes,
+                        int offset,
+                        int length
+                    )throws IOException{
+                        throw new IOException(
+                            "synthetic snapshot failure"
+                        );
+                    }
+                };
+
+            SceneUpdatePublisher broken=
+                publisher(
+                    failing,
+                    0
+                );
+
+            expect(
+                IOException.class,
+                ()->broken.groundSpawn(item),
+                "snapshot publication failure"
+            );
+
+            require(
+                relay.consumeSnapshotCoveredAfterSnapshot(
+                    now,
+                    false
+                )==0&&
+                world.groundItemPresentationEvents()
+                    .pendingFor(
+                        killer.id(),
+                        generation,
+                        now
+                    )
+                    .size()==1,
+                "failed snapshot consumed pending event"
+            );
+
+            live.groundSpawn(item);
+
+            require(
+                relay.consumeSnapshotCoveredAfterSnapshot(
+                    now,
+                    true
+                )==1&&
+                world.groundItemPresentationEvents()
+                    .pendingFor(
+                        killer.id(),
+                        generation,
+                        now
+                    )
+                    .isEmpty(),
+                "successful snapshot did not consume covered event"
+            );
+
+            int afterSnapshot=wire.size();
+
+            require(
+                relay.publishPendingIfSceneReady(
+                    now,
+                    live,
+                    false
+                )==0&&
+                wire.size()==afterSnapshot,
+                "post-snapshot duplicate live publication"
+            );
         }finally{
             world.unregisterPlayer(killer);
             world.close();
