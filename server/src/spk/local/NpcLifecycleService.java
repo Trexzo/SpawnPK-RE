@@ -50,6 +50,30 @@ final class NpcLifecycleService {
         }
     }
 
+    static final class LifecycleOwnershipException
+        extends IllegalStateException {
+        final EntityId npcId;
+
+        LifecycleOwnershipException(
+            EntityId npcId,
+            String reason
+        ){
+            super(
+                "NPC lifecycle ownership unavailable id="+
+                Objects.requireNonNull(
+                    npcId,
+                    "npcId"
+                )+
+                " reason="+
+                Objects.requireNonNull(
+                    reason,
+                    "reason"
+                )
+            );
+            this.npcId=npcId;
+        }
+    }
+
     static final class DamageResult {
         final EntityId npcId;
         final int requestedDamage;
@@ -195,6 +219,33 @@ final class NpcLifecycleService {
         int amount,
         long worldTick
     ){
+        return applyDamageInternal(
+            npcId,
+            amount,
+            worldTick,
+            false
+        );
+    }
+
+    DamageResult applyDamageOwned(
+        EntityId npcId,
+        int amount,
+        long worldTick
+    ){
+        return applyDamageInternal(
+            npcId,
+            amount,
+            worldTick,
+            true
+        );
+    }
+
+    private DamageResult applyDamageInternal(
+        EntityId npcId,
+        int amount,
+        long worldTick,
+        boolean typedOwnershipFailure
+    ){
         if(amount<0)
             throw new IllegalArgumentException(
                 "damage amount="+amount
@@ -215,9 +266,22 @@ final class NpcLifecycleService {
 
         synchronized(this){
             expected=
-                requireEntry(
+                entries.get(
                     key
                 );
+
+            if(expected==null){
+                if(typedOwnershipFailure)
+                    throw new LifecycleOwnershipException(
+                        key,
+                        "missing-before-damage"
+                    );
+
+                throw new IllegalArgumentException(
+                    "NPC lifecycle not registered id="+
+                    key
+                );
+            }
         }
 
         DamageResult[] result=
@@ -233,11 +297,20 @@ final class NpcLifecycleService {
                                 key
                             );
 
-                        if(entry!=expected)
+                        if(entry!=expected){
+                            if(typedOwnershipFailure)
+                                throw new LifecycleOwnershipException(
+                                    key,
+                                    entry==null
+                                        ?"removed-during-damage"
+                                        :"replaced-during-damage"
+                                );
+
                             throw new IllegalStateException(
                                 "NPC lifecycle ownership changed id="+
                                 key
                             );
+                        }
 
                         int before=
                             entry.hitpoints;
