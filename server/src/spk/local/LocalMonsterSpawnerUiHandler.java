@@ -250,16 +250,25 @@ final class LocalMonsterSpawnerUiHandler {
                 );
         }
 
-        MonsterSpawnerPresentation.open(
-            checkedPackets
-        );
+        final String presentationLabel=
+            retainedLabel;
 
-        if(retainedLabel!=null)
-            MonsterSpawnerPresentation
-                .publishSelectedNpcText(
-                    checkedPackets,
-                    retainedLabel
+        service.presentSessionIfCurrent(
+            ownerRef,
+            before,
+            current->{
+                MonsterSpawnerPresentation.open(
+                    checkedPackets
                 );
+
+                if(presentationLabel!=null)
+                    MonsterSpawnerPresentation
+                        .publishSelectedNpcText(
+                            checkedPackets,
+                            presentationLabel
+                        );
+            }
+        );
     }
 
     Result handle(
