@@ -505,7 +505,7 @@ final class ServerPacketWriter {
 
         try{
             synchronized(ATOMIC_PAIR_LOCK){
-                lockWriters(
+                lockPacket81LifetimesAndWriters(
                     first,
                     second,
                     ()->{
