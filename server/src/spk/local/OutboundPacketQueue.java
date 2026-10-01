@@ -110,6 +110,24 @@ final class OutboundPacketQueue {
         bytes+=data.length;
     }
 
+    synchronized void offerBatch(byte[] data)throws IOException{
+        if(data==null||data.length==0)return;
+        if(overflowed)
+            throw new IOException(
+                "outbound queue already overflowed"
+            );
+        if(bytes+reservedBytes+data.length>maxBytes)
+            throw new IOException(
+                "outbound queue batch admission unavailable bytes="+
+                bytes+
+                " reserved="+reservedBytes+
+                " add="+data.length+
+                " max="+maxBytes
+            );
+        q.addLast(data.clone());
+        bytes+=data.length;
+    }
+
     static PairReservation reservePair(
         OutboundPacketQueue first,
         int firstBytes,
