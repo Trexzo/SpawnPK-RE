@@ -47,6 +47,7 @@ final class World implements AutoCloseable {
     private final CountDownLatch closeCompleted=new CountDownLatch(1);
     private final AtomicBoolean closed=new AtomicBoolean();
     private volatile Throwable closeFailure;
+    private MonsterSpawnerPvmRuntime monsterSpawnerPvmRuntime;
 
     private World(long tickMillis){
         this(
@@ -185,6 +186,64 @@ final class World implements AutoCloseable {
     WorldNpcRegistry npcs(){return npcs;}
     NpcLifecycleService npcLifecycle(){return npcLifecycle;}
     WorldHomeNpcService homeNpcs(){return homeNpcs;}
+    void installMonsterSpawnerPvmRuntime(
+        MonsterSpawnerPvmRuntime runtime
+    ){
+        MonsterSpawnerPvmRuntime checked=
+            Objects.requireNonNull(
+                runtime,
+                "runtime"
+            );
+
+        requireOpen();
+
+        synchronized(lifecycleLock){
+            requireOpen();
+
+            if(!checked.isBoundTo(this))
+                throw new IllegalArgumentException(
+                    "Monster Spawner PvM runtime belongs to another World"
+                );
+
+            if(monsterSpawnerPvmRuntime==null){
+                monsterSpawnerPvmRuntime=checked;
+                return;
+            }
+
+            if(monsterSpawnerPvmRuntime!=checked)
+                throw new IllegalStateException(
+                    "Monster Spawner PvM runtime already installed"
+                );
+        }
+    }
+
+    MonsterSpawnerPvmRuntime.FinalizeResult
+        finalizeMonsterSpawnerPvmIfOwned(
+            WorldNpc npc
+        )throws Exception{
+        WorldNpc checked=
+            Objects.requireNonNull(
+                npc,
+                "npc"
+            );
+
+        requireOpen();
+
+        synchronized(lifecycleLock){
+            requireOpen();
+
+            MonsterSpawnerPvmRuntime runtime=
+                monsterSpawnerPvmRuntime;
+
+            if(runtime==null)
+                return null;
+
+            return runtime.finalizeIfOwned(
+                checked
+            );
+        }
+    }
+
     WorldPetNpcService petNpcs(){return petNpcs;}
     WorldNpcPresentationEvents npcPresentationEvents(){return npcPresentationEvents;}
     WorldGroundItemPresentationEvents groundItemPresentationEvents(){
