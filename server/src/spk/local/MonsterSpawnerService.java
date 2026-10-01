@@ -567,6 +567,73 @@ final class MonsterSpawnerService {
         return current;
     }
 
+    synchronized <E extends Exception>
+        SessionSnapshot presentSessionCatalogIfCurrent(
+            String ownerRef,
+            SessionSnapshot expectedSession,
+            CatalogSnapshot expectedCatalog,
+            SessionPresentationAction<E> action
+        )throws E{
+        SessionSnapshot expected=
+            Objects.requireNonNull(
+                expectedSession,
+                "expectedSession"
+            );
+        CatalogSnapshot catalogExpected=
+            Objects.requireNonNull(
+                expectedCatalog,
+                "expectedCatalog"
+            );
+        SessionPresentationAction<E> checkedAction=
+            Objects.requireNonNull(
+                action,
+                "action"
+            );
+
+        Session session=
+            requireSession(
+                ownerRef
+            );
+
+        if(!session.ownerRef.equals(
+                expected.ownerRef))
+            throw new IllegalArgumentException(
+                "Monster Spawner expected presentation owner mismatch expected="+
+                expected.ownerRef+
+                " actual="+session.ownerRef
+            );
+
+        SessionSnapshot current=
+            snapshotOf(
+                session
+            );
+
+        if(!sameSessionState(
+                current,
+                expected))
+            throw new IllegalStateException(
+                "Monster Spawner session changed before catalog presentation owner="+
+                session.ownerRef
+            );
+
+        CatalogSnapshot currentCatalog=
+            catalogSnapshot();
+
+        if(!sameCatalogState(
+                currentCatalog,
+                catalogExpected))
+            throw new IllegalStateException(
+                "Monster Spawner catalog changed before presentation owner="+
+                session.ownerRef
+            );
+
+        checkedAction.run(
+            current
+        );
+
+        return current;
+    }
+
     synchronized SessionSnapshot activate(
         String ownerRef,
         int spawnBudget
@@ -1209,6 +1276,34 @@ final class MonsterSpawnerService {
 
     synchronized int sessionCount(){
         return sessions.size();
+    }
+
+    private static boolean sameCatalogState(
+        CatalogSnapshot left,
+        CatalogSnapshot right
+    ){
+        if(!left.sourceAuthority.equals(
+                right.sourceAuthority)||
+           left.entries.size()!=
+                right.entries.size())
+            return false;
+
+        for(int i=0;
+            i<left.entries.size();
+            i++){
+            CatalogEntry a=
+                left.entries.get(i);
+            CatalogEntry b=
+                right.entries.get(i);
+
+            if(a.rowIndex!=b.rowIndex||
+               a.definitionId!=b.definitionId||
+               !a.semanticKey.equals(
+                    b.semanticKey))
+                return false;
+        }
+
+        return true;
     }
 
     private static boolean sameSessionState(
