@@ -159,6 +159,15 @@ final class LocalMonsterSpawnerUiHandler {
         );
     }
 
+    boolean ownsWidget(
+        int widgetId
+    ){
+        return MonsterSpawnerPresentation
+            .resolveWidget(
+                widgetId
+            )!=null;
+    }
+
     void open(
         ServerPacketWriter packets
     )throws IOException{
@@ -305,11 +314,6 @@ final class LocalMonsterSpawnerUiHandler {
                 ownerRef
             );
 
-        if(before.active)
-            throw new IllegalStateException(
-                "cannot change Monster Spawner selection while active"
-            );
-
         MonsterSpawnerService.CatalogSnapshot catalog=
             service.catalog();
 
@@ -319,9 +323,11 @@ final class LocalMonsterSpawnerUiHandler {
             );
 
         if(entry==null)
-            throw new IllegalArgumentException(
-                "unconfigured Monster Spawner row "+
-                rowIndex
+            return null;
+
+        if(before.active)
+            throw new IllegalStateException(
+                "cannot change Monster Spawner selection while active"
             );
 
         String label=
