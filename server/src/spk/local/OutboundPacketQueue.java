@@ -9,6 +9,59 @@ final class OutboundPacketQueue {
     private static final Object PAIR_RESERVATION_LOCK=
         new Object();
 
+    static final class BatchReservation {
+        private final OutboundPacketQueue queue;
+        private final int reserved;
+        private boolean active=true;
+
+        private BatchReservation(
+            OutboundPacketQueue queue,
+            int reserved
+        ){
+            this.queue=queue;
+            this.reserved=reserved;
+        }
+
+        void commit(
+            byte[] data
+        ){
+            byte[] checked=
+                data==null
+                    ?new byte[0]
+                    :data;
+
+            synchronized(queue){
+                if(!active)
+                    throw new IllegalStateException(
+                        "outbound batch reservation already completed"
+                    );
+
+                if(checked.length!=reserved)
+                    throw new IllegalStateException(
+                        "outbound batch reservation size mismatch expected="+
+                        reserved+
+                        " actual="+checked.length
+                    );
+
+                queue.reservedBytes-=reserved;
+                queue.enqueueReservedLocked(
+                    checked
+                );
+                active=false;
+            }
+        }
+
+        void release(){
+            synchronized(queue){
+                if(!active)
+                    return;
+
+                queue.reservedBytes-=reserved;
+                active=false;
+            }
+        }
+    }
+
     static final class PairReservation {
         private final OutboundPacketQueue first;
         private final OutboundPacketQueue second;
@@ -126,6 +179,31 @@ final class OutboundPacketQueue {
             );
         q.addLast(data.clone());
         bytes+=data.length;
+    }
+
+    static BatchReservation reserveBatch(
+        OutboundPacketQueue queue,
+        int bytes
+    )throws IOException{
+        if(queue==null)
+            throw new NullPointerException(
+                "batch queue"
+            );
+        if(bytes<0)
+            throw new IllegalArgumentException(
+                "batch reservation bytes"
+            );
+
+        synchronized(queue){
+            queue.requireReservableLocked(
+                bytes
+            );
+            queue.reservedBytes+=bytes;
+            return new BatchReservation(
+                queue,
+                bytes
+            );
+        }
     }
 
     static PairReservation reservePair(
