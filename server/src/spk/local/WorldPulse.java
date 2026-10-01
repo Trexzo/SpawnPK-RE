@@ -219,6 +219,20 @@ final class WorldPulse implements AutoCloseable,Runnable {
             if(world.closed())
                 return;
 
+            try{
+                world.retryMonsterSpawnerPendingSettlements();
+            }catch(Throwable t){
+                System.err.println(
+                    "[world] Monster Spawner pending settlement retry failed tick="+
+                    tick+
+                    " error="+
+                    t
+                );
+            }
+
+            if(world.closed())
+                return;
+
             for(WorldPlayer player:world.players().snapshot()){
                 if(world.closed())
                     return;
