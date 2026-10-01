@@ -191,10 +191,42 @@ final class LocalDevPanelCoordinator {
         DevControlCenter.PendingAmount pending,
         ServerPacketWriter writer
     )throws IOException{
-        writer.fixed(219,new byte[0]);
-        dialogKeys.clear();
+        writer.beginBatch();
+        boolean ended=false;
+
+        try{
+            writer.fixed(
+                219,
+                new byte[0]
+            );
+            writer.fixed(
+                27,
+                new byte[0]
+            );
+            writer.endBatch();
+            ended=true;
+        }catch(IOException failure){
+            if(!ended)
+                try{
+                    writer.endBatch();
+                }catch(Throwable ignored){}
+            throw failure;
+        }catch(RuntimeException failure){
+            if(!ended)
+                try{
+                    writer.endBatch();
+                }catch(Throwable ignored){}
+            throw failure;
+        }catch(Error failure){
+            if(!ended)
+                try{
+                    writer.endBatch();
+                }catch(Throwable ignored){}
+            throw failure;
+        }
+
         devPanel.prompt(pending);
-        writer.fixed(27,new byte[0]);
+        dialogKeys.clear();
     }
 
     void handleAmount(
