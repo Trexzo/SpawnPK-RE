@@ -86,10 +86,18 @@ public final class Player81NoContextLinearizationTest {
             );
         WorldPlayer player=
             new WorldPlayer();
+        WorldPlayer remote=
+            new WorldPlayer();
+
         long generation=
             world.registerPlayer(
                 player,
                 "packet81-no-context"
+            );
+        long remoteGeneration=
+            world.registerPlayer(
+                remote,
+                "packet81-no-context-remote"
             );
 
         OutboundPacketQueue queue=
@@ -109,18 +117,15 @@ public final class Player81NoContextLinearizationTest {
                     .player81Idle()
             );
 
-            if(queue.queuedBytes()==0)
+            int localOnlyBytes=
+                queue.queuedBytes();
+
+            if(localOnlyBytes==0)
                 throw new AssertionError(
                     "unregistered local-only packet81 did not publish"
                 );
 
             drain(queue);
-
-            long before=
-                Player81WorldSync
-                    .latestPublishedEventSequence(
-                        writer
-                    );
 
             Player81WorldSync.register(
                 writer,
@@ -135,28 +140,34 @@ public final class Player81NoContextLinearizationTest {
                     .player81Idle()
             );
 
-            if(queue.queuedBytes()==0)
+            int registeredBytes=
+                queue.queuedBytes();
+
+            if(registeredBytes<=localOnlyBytes)
                 throw new AssertionError(
-                    "registered packet81 did not publish"
+                    "registration did not affect next packet81 localOnlyBytes="+
+                    localOnlyBytes+
+                    " registeredBytes="+
+                    registeredBytes
                 );
 
-            long after=
-                Player81WorldSync
-                    .latestPublishedEventSequence(
-                        writer
-                    );
-
-            if(after<=before)
+            if(Player81WorldSync.clientIndexFor(
+                    writer,
+                    remote
+                )<0)
                 throw new AssertionError(
-                    "registration did not affect next packet81 before="+
-                    before+
-                    " after="+
-                    after
+                    "registered next packet81 did not materialize remote player"
                 );
         }finally{
             Player81WorldSync.unregister(
                 writer
             );
+
+            if(remote.registered())
+                world.unregisterPlayer(
+                    remote,
+                    remoteGeneration
+                );
 
             if(player.registered())
                 world.unregisterPlayer(
