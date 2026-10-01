@@ -722,12 +722,52 @@ final class LocalSession implements Runnable {
                     LocalSession.this.saveAccountQuiet(tag,reason);
                 }
 
-                @Override public int syncScopesightPassive(
+                @Override public PlayerState.PreparedScopesightMaintenance
+                    prepareScopesightPassive(
+                        boolean active
+                    ){
+                    return playerState
+                        .prepareScopesightMaintenance(
+                            active
+                        );
+                }
+
+                @Override public void publishScopesightPassive(
+                    PlayerState.PreparedScopesightMaintenance prepared,
                     ServerPacketWriter writer
                 )throws IOException{
-                    return LocalSession.this.syncScopesightPassive(
-                        writer
-                    );
+                    if(prepared==null)
+                        throw new NullPointerException(
+                            "prepared"
+                        );
+
+                    for(int skill=0;
+                        skill<PlayerState.COMBAT_SKILL_COUNT;
+                        skill++){
+                        if((prepared.changedMask&
+                            (1<<skill))==0)
+                            continue;
+
+                        writer.fixed(
+                            134,
+                            BootstrapPackets.skill134(
+                                skill,
+                                playerState.xp(skill),
+                                prepared.levelForSkill(
+                                    skill
+                                )
+                            )
+                        );
+                    }
+                }
+
+                @Override public void commitScopesightPassive(
+                    PlayerState.PreparedScopesightMaintenance prepared
+                ){
+                    playerState
+                        .commitScopesightMaintenance(
+                            prepared
+                        );
                 }
 
                 @Override public void resetPetFollowDeadline(){
