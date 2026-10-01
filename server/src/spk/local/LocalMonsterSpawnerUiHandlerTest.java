@@ -117,6 +117,9 @@ public final class LocalMonsterSpawnerUiHandlerTest {
             rowSessionRaceFailsClosed(
                 world
             );
+            unconfiguredRowBoundedNoop(
+                world
+            );
             unattachedControlsIgnored(
                 service,
                 handler
@@ -137,6 +140,7 @@ public final class LocalMonsterSpawnerUiHandlerTest {
                 "rowPacketFailureAtomic=true "+
                 "labelAuthorityStable=true "+
                 "catalogCompareSelect=true "+
+                "unconfiguredRowBounded=true "+
                 "noSpawn=true "+
                 "unattachedIgnored=true "+
                 "policyOwned=false"
@@ -1009,6 +1013,90 @@ public final class LocalMonsterSpawnerUiHandlerTest {
                 return POLICY_AUTHORITY;
             }
         };
+    }
+
+    private static void unconfiguredRowBoundedNoop(
+        World world
+    )throws Exception{
+        final String owner=
+            "monster-ui-unconfigured-row";
+        MonsterSpawnerService service=
+            new MonsterSpawnerService(
+                world.npcs()
+            );
+        List<MonsterSpawnerService.CatalogEntry>
+            catalog=
+                new ArrayList<>();
+
+        catalog.add(
+            new MonsterSpawnerService.CatalogEntry(
+                0,
+                "configured-row-zero",
+                1660
+            )
+        );
+
+        service.replaceCatalog(
+            catalog,
+            CATALOG_AUTHORITY
+        );
+        service.openSession(
+            owner,
+            POLICY_AUTHORITY
+        );
+
+        LocalMonsterSpawnerUiHandler handler=
+            new LocalMonsterSpawnerUiHandler(
+                service,
+                owner,
+                fixedBudget(),
+                labels()
+            );
+        ByteArrayOutputStream wire=
+            new ByteArrayOutputStream();
+
+        LocalMonsterSpawnerUiHandler.Result result=
+            handler.handle(
+                MonsterSpawnerPresentation.rowWidget(1),
+                writer(wire)
+            );
+
+        MonsterSpawnerService.SessionSnapshot after=
+            service.getSession(
+                owner
+            );
+
+        require(
+            result==null&&
+            after.selectedRowIndex==null&&
+            after.selectedDefinitionId==null&&
+            after.selectedSemanticKey==null&&
+            wire.size()==0&&
+            handler.ownsWidget(
+                MonsterSpawnerPresentation.rowWidget(1)
+            )&&
+            !handler.ownsWidget(
+                MonsterSpawnerPresentation
+                    .UNATTACHED_X3_WIDGET
+            ),
+            "unconfigured exact row was not bounded no-op"
+        );
+
+        LocalMonsterSpawnerUiHandler.Result configured=
+            handler.handle(
+                MonsterSpawnerPresentation.rowWidget(0),
+                writer(wire)
+            );
+
+        require(
+            configured!=null&&
+            configured.status==
+                LocalMonsterSpawnerUiHandler.Status.ROW_SELECTED&&
+            service.getSession(owner)
+                .selectedDefinitionId.intValue()==1660&&
+            wire.size()>0,
+            "configured row failed after bounded unconfigured row"
+        );
     }
 
     private static void unattachedControlsIgnored(
