@@ -3,6 +3,7 @@ package spk.local;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.lang.reflect.Method;
 
 public final class LocalPendingRequestDispatcherTest {
     public static void main(String[] args)throws Exception{
@@ -293,6 +294,8 @@ public final class LocalPendingRequestDispatcherTest {
             DevControlCenter devPanel=
                 new DevControlCenter();
 
+            final int[] rootReplacements={0};
+
             LocalSessionUiActionHandler uiActions=
                 new LocalSessionUiActionHandler(
                     player,
@@ -320,6 +323,12 @@ public final class LocalPendingRequestDispatcherTest {
                             LocalPetInventoryDialogHandler.Result result,
                             String tag
                         ){}
+                        @Override public String replaceMonsterSpawnerRoot(
+                            LocalSessionUiActionHandler.RootInterfaceAction action
+                        )throws IOException{
+                            rootReplacements[0]++;
+                            return action.publish();
+                        }
                         @Override public void requestLogout(){}
                     }
                 );
@@ -749,6 +758,158 @@ public final class LocalPendingRequestDispatcherTest {
                 );
             }
 
+            MonsterSpawnerService rootSpawner=
+                new MonsterSpawnerService(
+                    world.npcs()
+                );
+            rootSpawner.replaceCatalog(
+                java.util.Collections.singletonList(
+                    new MonsterSpawnerService.CatalogEntry(
+                        0,
+                        "pending-comp-root",
+                        1530
+                    )
+                ),
+                "CUSTOM_LOCALLAB_PENDING_COMP_ROOT_CATALOG"
+            );
+            rootSpawner.openSession(
+                "opensrc",
+                "CUSTOM_LOCALLAB_PENDING_COMP_ROOT_POLICY"
+            );
+
+            LocalMonsterSpawnerUiHandler rootUi=
+                new LocalMonsterSpawnerUiHandler(
+                    rootSpawner,
+                    "opensrc",
+                    new LocalMonsterSpawnerUiHandler.ActivationBudgetResolver(){
+                        @Override public int spawnBudget(
+                            LocalMonsterSpawnerUiHandler.Context context
+                        ){
+                            return 1;
+                        }
+
+                        @Override public String authority(){
+                            return "CUSTOM_LOCALLAB_PENDING_COMP_ROOT_POLICY";
+                        }
+                    },
+                    new LocalMonsterSpawnerUiHandler.SelectedNpcLabelResolver(){
+                        @Override public String label(
+                            MonsterSpawnerService.CatalogEntry entry
+                        ){
+                            return "NPC-"+entry.definitionId;
+                        }
+
+                        @Override public String authority(){
+                            return "CUSTOM_LOCALLAB_PENDING_COMP_ROOT_CATALOG";
+                        }
+                    }
+                );
+
+            uiActions.installMonsterSpawnerUiHandler(
+                rootUi
+            );
+            uiActions.openMonsterSpawnerIfConfigured(
+                writer
+            );
+
+            bank.spawnItem(
+                23063,
+                1,
+                writer
+            );
+
+            int compSlot=-1;
+            for(int i=0;
+                i<bank.inventoryCapacity();
+                i++){
+                BankState.Stack stack=
+                    bank.inventoryAt(
+                        i
+                    );
+                if(stack!=null&&
+                   stack.itemId==23063&&
+                   stack.qty>0){
+                    compSlot=i;
+                    break;
+                }
+            }
+
+            if(compSlot<0)
+                throw new AssertionError(
+                    "comp cape root integration fixture missing item"
+                );
+
+            Method routeItemAction=
+                LocalPendingRequestDispatcher.class
+                    .getDeclaredMethod(
+                        "routeItemAction",
+                        ItemContainerAction.class,
+                        ServerPacketWriter.class,
+                        String.class
+                    );
+            routeItemAction.setAccessible(
+                true
+            );
+
+            int rootBeforeInvalid=
+                rootReplacements[0];
+
+            routeItemAction.invoke(
+                dispatcher,
+                new ItemContainerAction(
+                    75,
+                    BankState.NORMAL_INVENTORY_CONTAINER,
+                    compSlot,
+                    21963,
+                    0,
+                    "INVENTORY_OPTION_3"
+                ),
+                writer,
+                "[pending-test] "
+            );
+
+            if(rootReplacements[0]!=
+                    rootBeforeInvalid)
+                throw new AssertionError(
+                    "invalid comp cape action revoked Monster Spawner"
+                );
+
+            routeItemAction.invoke(
+                dispatcher,
+                new ItemContainerAction(
+                    75,
+                    BankState.NORMAL_INVENTORY_CONTAINER,
+                    compSlot,
+                    23063,
+                    0,
+                    "INVENTORY_OPTION_3"
+                ),
+                writer,
+                "[pending-test] "
+            );
+
+            if(rootReplacements[0]!=
+                    rootBeforeInvalid+1||
+               !compCape.isOpen())
+                throw new AssertionError(
+                    "valid comp cape root bypassed Monster ownership"
+                );
+
+            int postCompRootWire=
+                wire.size();
+
+            uiActions.handleWidget(
+                MonsterSpawnerPresentation.TOGGLE_WIDGET,
+                writer,
+                "[pending-test] "
+            );
+
+            if(wire.size()!=
+                    postCompRootWire)
+                throw new AssertionError(
+                    "comp cape root left Monster Spawner gate open"
+                );
+
             System.out.println(
                 "LOCAL_PENDING_REQUEST_DISPATCHER_PASS "+
                 "widgetConsumed=true dropConsumed=true "+
@@ -758,7 +919,9 @@ public final class LocalPendingRequestDispatcherTest {
                 "spellTargetConsumed=true genericInteractionConsumed=true "+
                 "itemActionConsumed=true groundItemConsumed=true "+
                 "movementConsumed=true runToggleBeforeMovement=true "+
-                "classifierCompatibility=true"
+                "classifierCompatibility=true "+
+                "compCapeRootRevokesMonsterSpawner=true "+
+                "invalidCompCapePreservesMonsterSpawner=true"
             );
         }finally{
             world.close();
