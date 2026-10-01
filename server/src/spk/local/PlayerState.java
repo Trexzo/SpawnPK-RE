@@ -32,6 +32,19 @@ final class PlayerState {
             this.nextMagic=nextMagic;
             this.changedMask=changedMask;
         }
+
+        int levelForSkill(
+            int skill
+        ){
+            if(skill==RANGED)
+                return nextRanged;
+            if(skill==MAGIC)
+                return nextMagic;
+            throw new IllegalArgumentException(
+                "Scopesight prepared skill "+
+                skill
+            );
+        }
     }
 
     static final int ATTACK=0, DEFENCE=1, STRENGTH=2, HITPOINTS=3, RANGED=4, PRAYER=5, MAGIC=6;
