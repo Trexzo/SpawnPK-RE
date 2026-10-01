@@ -713,19 +713,56 @@ final class BankState {
         if(cosmetic==null)return "REJECTED_NO_COSMETIC_STATE";
         if(!ItemCatalog.isNativePlayerIcon(itemId))return "REJECTED_NOT_NATIVE_COSMETIC item="+itemId;
         if(!validSlot(inventory,slot)||inventory[slot]==null||inventory[slot].itemId!=itemId||inventory[slot].qty<=0)return "REJECTED_INVENTORY_MISMATCH";
-        int old=cosmetic.itemId();
-        // Consuming one from the selected slot always creates capacity for a previous non-stackable cosmetic.
-        Stack st=inventory[slot]; st.qty--; if(st.qty==0)inventory[slot]=null;
+
+        int old=
+            cosmetic.itemId();
+        Stack[] nextInventory=
+            copyStacks(inventory);
+        Stack selected=
+            nextInventory[slot];
+
+        selected.qty--;
+        if(selected.qty==0)
+            nextInventory[slot]=null;
+
         if(old>=0){
-            int dst=(inventory[slot]==null)?slot:(isStackable(old)?findItem(inventory,old):-1);
-            if(dst<0)dst=firstEmpty(inventory);
-            if(dst<0){ // rollback
-                if(inventory[slot]==null)inventory[slot]=new Stack(itemId,1); else inventory[slot].qty++;
+            int dst=
+                nextInventory[slot]==null
+                    ?slot
+                    :(isStackable(old)
+                        ?findItem(nextInventory,old)
+                        :-1);
+
+            if(dst<0)
+                dst=firstEmpty(nextInventory);
+
+            if(dst<0)
                 return "REJECTED_INVENTORY_FULL_ROLLBACK";
-            }
-            if(inventory[dst]==null)inventory[dst]=new Stack(old,0); inventory[dst].qty++;
+
+            if(nextInventory[dst]==null)
+                nextInventory[dst]=
+                    new Stack(
+                        old,
+                        0
+                    );
+
+            if(nextInventory[dst].qty==Integer.MAX_VALUE)
+                return "REJECTED_INVENTORY_FULL_ROLLBACK";
+
+            nextInventory[dst].qty++;
         }
-        cosmetic.set(itemId); sendNormalInventory(w); if(open)sendContainers(w);
+
+        publishNormalInventoryStructuralPostimage(
+            w,
+            nextInventory,
+            open
+        );
+        replaceStacks(
+            inventory,
+            nextInventory
+        );
+        cosmetic.set(itemId);
+
         return "COSMETIC_EQUIP_OK item="+itemId+" old="+old+" slot="+slot+" channel=DEDICATED_BS ammoIndependent=true";
     }
 
