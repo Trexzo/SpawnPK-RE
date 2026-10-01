@@ -6260,6 +6260,17 @@ tasks.register('serverPacketWriterBatchAbortRegression', JavaExec) {
     mainClass = 'spk.local.ServerPacketWriterBatchAbortTest'
 }
 
+tasks.register('outboundPacketQueueBatchAdmissionRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves active single-writer batch queue admission is non-poisoning and retry-safe.'
+    dependsOn tasks.named('testClasses')
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.OutboundPacketQueueTest'
+}
+
 tasks.named('check') {
     dependsOn tasks.named('serverPacketWriterBatchAbortRegression')
+    dependsOn tasks.named('outboundPacketQueueBatchAdmissionRegression')
 }
