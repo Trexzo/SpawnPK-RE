@@ -43,7 +43,6 @@ public final class LocalMonsterSpawnerUiHandlerTest {
 
                             require(
                                 context.session!=null&&
-                                context.catalog!=null&&
                                 OWNER.equals(
                                     context.ownerRef
                                 ),
@@ -82,6 +81,9 @@ public final class LocalMonsterSpawnerUiHandlerTest {
                 service,
                 handler,
                 activationCalls
+            );
+            activationSnapshotRaceFailsClosed(
+                world
             );
             unattachedControlsIgnored(
                 service,
@@ -254,6 +256,98 @@ public final class LocalMonsterSpawnerUiHandlerTest {
             activationCalls[0]==1&&
             world.npcs().size()==0,
             "deactivation"
+        );
+    }
+
+    private static void activationSnapshotRaceFailsClosed(
+        World world
+    )throws Exception{
+        final String owner="monster-ui-race-owner";
+        MonsterSpawnerService service=
+            new MonsterSpawnerService(
+                world.npcs()
+            );
+
+        List<MonsterSpawnerService.CatalogEntry>
+            catalog=
+                new ArrayList<>();
+
+        catalog.add(
+            new MonsterSpawnerService.CatalogEntry(
+                0,
+                "race-row-0",
+                1600
+            )
+        );
+        catalog.add(
+            new MonsterSpawnerService.CatalogEntry(
+                1,
+                "race-row-1",
+                1601
+            )
+        );
+
+        service.replaceCatalog(
+            catalog,
+            CATALOG_AUTHORITY
+        );
+        service.openSession(
+            owner,
+            POLICY_AUTHORITY
+        );
+        service.selectRow(
+            owner,
+            0
+        );
+
+        LocalMonsterSpawnerUiHandler handler=
+            new LocalMonsterSpawnerUiHandler(
+                service,
+                owner,
+                new LocalMonsterSpawnerUiHandler
+                    .ActivationBudgetResolver(){
+                    @Override public int spawnBudget(
+                        LocalMonsterSpawnerUiHandler
+                            .Context context
+                    ){
+                        service.selectRow(
+                            owner,
+                            1
+                        );
+                        return 7;
+                    }
+
+                    @Override public String authority(){
+                        return POLICY_AUTHORITY;
+                    }
+                },
+                labels()
+            );
+
+        expect(
+            IllegalStateException.class,
+            ()->handler.handle(
+                MonsterSpawnerPresentation
+                    .TOGGLE_WIDGET,
+                writer(
+                    new ByteArrayOutputStream()
+                )
+            ),
+            "activation snapshot changed"
+        );
+
+        MonsterSpawnerService.SessionSnapshot after=
+            service.getSession(
+                owner
+            );
+
+        require(
+            !after.active&&
+            after.remainingSpawnBudget==0&&
+            after.selectedRowIndex!=null&&
+            after.selectedRowIndex.intValue()==1&&
+            world.npcs().size()==0,
+            "stale activation policy crossed row change"
         );
     }
 
