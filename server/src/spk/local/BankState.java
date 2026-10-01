@@ -222,19 +222,19 @@ final class BankState {
         }catch(IOException failure){
             if(!ended)
                 try{
-                    w.endBatch();
+                    w.abortBatch();
                 }catch(Throwable ignored){}
             throw failure;
         }catch(RuntimeException failure){
             if(!ended)
                 try{
-                    w.endBatch();
+                    w.abortBatch();
                 }catch(Throwable ignored){}
             throw failure;
         }catch(Error failure){
             if(!ended)
                 try{
-                    w.endBatch();
+                    w.abortBatch();
                 }catch(Throwable ignored){}
             throw failure;
         }
@@ -271,19 +271,19 @@ final class BankState {
         }catch(IOException failure){
             if(!ended)
                 try{
-                    w.endBatch();
+                    w.abortBatch();
                 }catch(Throwable ignored){}
             throw failure;
         }catch(RuntimeException failure){
             if(!ended)
                 try{
-                    w.endBatch();
+                    w.abortBatch();
                 }catch(Throwable ignored){}
             throw failure;
         }catch(Error failure){
             if(!ended)
                 try{
-                    w.endBatch();
+                    w.abortBatch();
                 }catch(Throwable ignored){}
             throw failure;
         }
@@ -549,7 +549,7 @@ final class BankState {
         }finally{
             if(!ended)
                 try{
-                    writer.endBatch();
+                    writer.abortBatch();
                 }catch(Throwable ignored){}
         }
     }
@@ -2613,7 +2613,7 @@ final class BankState {
         }finally{
             if(!ended)
                 try{
-                    writer.endBatch();
+                    writer.abortBatch();
                 }catch(Throwable ignored){}
         }
     }
@@ -2678,7 +2678,7 @@ final class BankState {
         }finally{
             if(!ended)
                 try{
-                    writer.endBatch();
+                    writer.abortBatch();
                 }catch(Throwable ignored){}
         }
     }
@@ -2746,7 +2746,7 @@ final class BankState {
         }finally{
             if(!ended)
                 try{
-                    writer.endBatch();
+                    writer.abortBatch();
                 }catch(Throwable ignored){}
         }
     }
