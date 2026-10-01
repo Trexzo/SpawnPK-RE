@@ -535,6 +535,26 @@ public final class LocalSessionUiActionHandlerTest {
                     "Monster Spawner callback exact LocalSession context"
                 );
 
+            boolean resultOwnerMismatchRejected=false;
+            try{
+                LocalSession.forwardMonsterSpawnerUiResult(
+                    callbackFactory,
+                    lateWorld,
+                    latePlayer,
+                    "different-owner",
+                    bridge.lastMonsterSpawnerResult,
+                    w,
+                    "[callback-test] "
+                );
+            }catch(IllegalArgumentException expected){
+                resultOwnerMismatchRejected=true;
+            }
+
+            if(!resultOwnerMismatchRejected)
+                throw new AssertionError(
+                    "Monster Spawner callback accepted result/session owner mismatch"
+                );
+
             LocalSession.forwardMonsterSpawnerUiResult(
                 null,
                 lateWorld,
@@ -703,6 +723,7 @@ public final class LocalSessionUiActionHandlerTest {
             "oneTimeInstall=true "+
             "resultCallback=true "+
             "exactCallbackContext=true "+
+            "resultOwnerFence=true "+
             "currentPlayerFence=true "+
             "closedWorldFence=true "+
             "policyNeutral=true"
