@@ -357,6 +357,9 @@ public final class LocalMonsterSpawnerActivationPvmSpawnTest {
                 selectedLabel
             );
 
+            deferredRetirementAfterFinalTrackedNpc();
+            reconnectCancelsDeferredRetirement();
+
             System.out.println(
                 "LOCAL_SESSION_MONSTER_SPAWNER_PVM_ACTIVATION_PASS "+
                 "rowNoSpawn=true "+
@@ -371,6 +374,8 @@ public final class LocalMonsterSpawnerActivationPvmSpawnTest {
                 "worldRuntimeInstalled=true "+
                 "trackedSessionRetained=true "+
                 "idleSessionRetired=true "+
+                "deferredTrackedRetirement=true "+
+                "reconnectCancelsDeferredRetirement=true "+
                 "sameOwnerReconnect=true "+
                 "exactGraphFence=true "+
                 "serverAuthorityFence=true "+
@@ -390,6 +395,429 @@ public final class LocalMonsterSpawnerActivationPvmSpawnTest {
                 world.unregisterPlayer(player,generation);
             world.close();
         }
+    }
+
+    private static void deferredRetirementAfterFinalTrackedNpc()
+        throws Exception{
+        World world=
+            World.isolatedForTest(
+                600L
+            );
+        WorldPlayer player=
+            new WorldPlayer();
+        long generation=
+            world.registerPlayer(
+                player,
+                OWNER
+            );
+
+        try{
+            Fixture f=
+                new Fixture(
+                    world
+                );
+            LocalMonsterSpawnerActivationRuntime factory=
+                retirementFactory(
+                    world,
+                    f
+                );
+            WorldNpc npc=
+                spawnOne(
+                    world,
+                    f,
+                    factory,
+                    player,
+                    generation
+                );
+
+            LocalSession.notifyMonsterSpawnerSessionClosed(
+                factory,
+                world,
+                player,
+                generation,
+                OWNER
+            );
+
+            MonsterSpawnerService.SessionSnapshot pending=
+                f.spawner.getSession(
+                    OWNER
+                );
+
+            require(
+                pending!=null&&
+                pending.retireWhenIdle&&
+                pending.tracks(
+                    npc.id
+                ),
+                "tracked disconnect did not arm deferred retirement"
+            );
+
+            require(
+                world.unregisterPlayer(
+                    player,
+                    generation
+                ),
+                "deferred retirement fixture unregister"
+            );
+
+            NpcLifecycleService.DamageResult death=
+                world.npcLifecycle().applyDamage(
+                    npc.id,
+                    10,
+                    1L
+                );
+
+            require(
+                death.newlyDied,
+                "deferred retirement fixture did not kill NPC"
+            );
+
+            MonsterSpawnerPvmRuntime.FinalizeResult finalized=
+                f.runtime.finalizeIfOwned(
+                    npc
+                );
+            int settledGroundItems=
+                world.groundItems().size();
+
+            require(
+                finalized.status==
+                    MonsterSpawnerPvmRuntime.FinalizeStatus.FINALIZED&&
+                finalized.settlement!=null&&
+                f.spawner.getSession(
+                    OWNER
+                )==null&&
+                f.runtime.size()==0&&
+                world.npcs().byId(
+                    npc.id
+                )==null&&
+                world.npcLifecycle().get(
+                    npc.id
+                )==null&&
+                settledGroundItems==1,
+                "final tracked NPC did not retire disconnected session"
+            );
+
+            MonsterSpawnerPvmRuntime.FinalizeResult repeated=
+                f.runtime.finalizeIfOwned(
+                    npc
+                );
+
+            require(
+                repeated.status==
+                    MonsterSpawnerPvmRuntime.FinalizeStatus.NOT_OWNED&&
+                world.groundItems().size()==
+                    settledGroundItems,
+                "repeated terminalization duplicated settlement"
+            );
+        }finally{
+            if(world.players().owns(
+                    player,
+                    generation))
+                world.unregisterPlayer(
+                    player,
+                    generation
+                );
+            world.close();
+        }
+    }
+
+    private static void reconnectCancelsDeferredRetirement()
+        throws Exception{
+        World world=
+            World.isolatedForTest(
+                600L
+            );
+        WorldPlayer firstPlayer=
+            new WorldPlayer();
+        long firstGeneration=
+            world.registerPlayer(
+                firstPlayer,
+                OWNER
+            );
+
+        WorldPlayer replacementPlayer=null;
+        long replacementGeneration=0L;
+
+        try{
+            Fixture f=
+                new Fixture(
+                    world
+                );
+            LocalMonsterSpawnerActivationRuntime factory=
+                retirementFactory(
+                    world,
+                    f
+                );
+            WorldNpc npc=
+                spawnOne(
+                    world,
+                    f,
+                    factory,
+                    firstPlayer,
+                    firstGeneration
+                );
+
+            LocalSession.notifyMonsterSpawnerSessionClosed(
+                factory,
+                world,
+                firstPlayer,
+                firstGeneration,
+                OWNER
+            );
+
+            require(
+                f.spawner.getSession(
+                    OWNER
+                ).retireWhenIdle,
+                "reconnect fixture did not arm deferred retirement"
+            );
+
+            require(
+                world.unregisterPlayer(
+                    firstPlayer,
+                    firstGeneration
+                ),
+                "reconnect fixture first unregister"
+            );
+
+            replacementPlayer=
+                new WorldPlayer();
+            replacementGeneration=
+                world.registerPlayer(
+                    replacementPlayer,
+                    OWNER
+                );
+
+            LocalMonsterSpawnerUiHandler resumed=
+                LocalSession.resolveMonsterSpawnerUiAfterLogin(
+                    factory,
+                    world,
+                    replacementPlayer,
+                    replacementGeneration,
+                    OWNER
+                );
+            MonsterSpawnerService.SessionSnapshot claimed=
+                f.spawner.getSession(
+                    OWNER
+                );
+
+            require(
+                resumed!=null&&
+                claimed!=null&&
+                !claimed.retireWhenIdle&&
+                claimed.tracks(
+                    npc.id
+                ),
+                "reconnect did not atomically cancel deferred retirement"
+            );
+
+            NpcLifecycleService.DamageResult death=
+                world.npcLifecycle().applyDamage(
+                    npc.id,
+                    10,
+                    2L
+                );
+
+            require(
+                death.newlyDied,
+                "reconnect fixture did not kill NPC"
+            );
+
+            MonsterSpawnerPvmRuntime.FinalizeResult finalized=
+                f.runtime.finalizeIfOwned(
+                    npc
+                );
+            MonsterSpawnerService.SessionSnapshot after=
+                f.spawner.getSession(
+                    OWNER
+                );
+
+            require(
+                finalized.status==
+                    MonsterSpawnerPvmRuntime.FinalizeStatus.FINALIZED&&
+                after!=null&&
+                !after.retireWhenIdle&&
+                after.spawnedNpcIds.isEmpty()&&
+                f.runtime.size()==0,
+                "final tracked NPC deleted reconnected session"
+            );
+
+            LocalSession.notifyMonsterSpawnerSessionClosed(
+                factory,
+                world,
+                replacementPlayer,
+                replacementGeneration,
+                OWNER
+            );
+
+            require(
+                f.spawner.getSession(
+                    OWNER
+                )==null,
+                "reconnected idle session did not retire on later close"
+            );
+
+            require(
+                world.unregisterPlayer(
+                    replacementPlayer,
+                    replacementGeneration
+                ),
+                "reconnect fixture replacement unregister"
+            );
+            replacementGeneration=0L;
+        }finally{
+            if(world.players().owns(
+                    firstPlayer,
+                    firstGeneration))
+                world.unregisterPlayer(
+                    firstPlayer,
+                    firstGeneration
+                );
+
+            if(replacementPlayer!=null&&
+               replacementGeneration!=0L&&
+               world.players().owns(
+                    replacementPlayer,
+                    replacementGeneration))
+                world.unregisterPlayer(
+                    replacementPlayer,
+                    replacementGeneration
+                );
+
+            world.close();
+        }
+    }
+
+    private static LocalMonsterSpawnerActivationRuntime retirementFactory(
+        World world,
+        Fixture f
+    ){
+        return new LocalMonsterSpawnerActivationRuntime(
+            world,
+            f.spawner,
+            f.runtime,
+            f.executor,
+            POLICY,
+            new LocalMonsterSpawnerUiHandler.ActivationBudgetResolver(){
+                @Override public int spawnBudget(
+                    LocalMonsterSpawnerUiHandler.Context context
+                ){
+                    require(
+                        OWNER.equals(
+                            context.ownerRef
+                        )&&
+                        context.session!=null&&
+                        !context.session.active,
+                        "retirement activation context"
+                    );
+                    return 2;
+                }
+
+                @Override public String authority(){
+                    return POLICY;
+                }
+            },
+            new LocalMonsterSpawnerUiHandler.SelectedNpcLabelResolver(){
+                @Override public String label(
+                    MonsterSpawnerService.CatalogEntry entry
+                ){
+                    return "NPC-"+entry.definitionId;
+                }
+
+                @Override public String authority(){
+                    return CATALOG;
+                }
+            }
+        );
+    }
+
+    private static WorldNpc spawnOne(
+        World world,
+        Fixture f,
+        LocalMonsterSpawnerActivationRuntime factory,
+        WorldPlayer player,
+        long generation
+    )throws Exception{
+        LocalMonsterSpawnerUiHandler ui=
+            LocalSession.resolveMonsterSpawnerUiAfterLogin(
+                factory,
+                world,
+                player,
+                generation,
+                OWNER
+            );
+        ServerPacketWriter writer=
+            new ServerPacketWriter(
+                new ByteArrayOutputStream(),
+                new IsaacCipher(
+                    new int[]{1,2,3,4}
+                )
+            );
+
+        LocalMonsterSpawnerUiHandler.Result row=
+            ui.handle(
+                MonsterSpawnerPresentation.rowWidget(
+                    0
+                ),
+                writer
+            );
+
+        LocalSession.forwardMonsterSpawnerUiResult(
+            factory,
+            world,
+            player,
+            generation,
+            OWNER,
+            row,
+            writer,
+            "[deferred-retirement] "
+        );
+
+        LocalMonsterSpawnerUiHandler.Result activated=
+            ui.handle(
+                MonsterSpawnerPresentation.TOGGLE_WIDGET,
+                writer
+            );
+
+        LocalSession.forwardMonsterSpawnerUiResult(
+            factory,
+            world,
+            player,
+            generation,
+            OWNER,
+            activated,
+            writer,
+            "[deferred-retirement] "
+        );
+
+        MonsterSpawnerService.SessionSnapshot session=
+            f.spawner.getSession(
+                OWNER
+            );
+
+        require(
+            session!=null&&
+            session.spawnedNpcIds.size()==1&&
+            f.runtime.size()==1,
+            "deferred retirement fixture did not spawn exactly one NPC"
+        );
+
+        WorldNpc npc=
+            world.npcs().byId(
+                session.spawnedNpcIds.get(
+                    0
+                )
+            );
+
+        require(
+            npc!=null&&
+            f.runtime.get(
+                npc.id
+            )!=null,
+            "deferred retirement fixture spawn not runtime-owned"
+        );
+
+        return npc;
     }
 
     private static void factoryCreateFailureAtomicity(
