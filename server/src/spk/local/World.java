@@ -1002,6 +1002,9 @@ final class World implements AutoCloseable {
                     ()->SharedNpcWorldRelay.closeWorld(
                         this
                     ),
+                    ()->Player81WorldSync.closeWorld(
+                        this
+                    ),
                     npcPresentationEvents::close,
                     groundItemPresentationEvents::close,
                     domainEvents::close,
