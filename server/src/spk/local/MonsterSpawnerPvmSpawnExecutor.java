@@ -170,6 +170,19 @@ final class MonsterSpawnerPvmSpawnExecutor {
                 "spawn request"
             );
 
+        String postResolveAuthority=
+            requireServerAuthority(
+                requestResolver.authority()
+            );
+
+        if(!requestAuthority.equals(
+                postResolveAuthority))
+            throw new IllegalStateException(
+                "Monster Spawner spawn request authority changed during resolve expected="+
+                requestAuthority+
+                " actual="+postResolveAuthority
+            );
+
         try{
             MonsterSpawnerPvmRuntime.SpawnResult
                 spawned=
