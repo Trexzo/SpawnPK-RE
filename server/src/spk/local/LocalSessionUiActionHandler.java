@@ -262,6 +262,8 @@ final class LocalSessionUiActionHandler {
                 "serverPackets"
             )
         );
+        devPanel.close();
+        bridge.clearDialogNumberKeys();
         monsterSpawnerUiOpen=true;
         return true;
     }
@@ -621,7 +623,7 @@ final class LocalSessionUiActionHandler {
         );
     }
 
-    String publishCompetingRootForOwnedSession(
+    String publishDevPanelRootForOwnedSession(
         RootInterfaceAction publisher
     )throws IOException{
         RootInterfaceAction checked=
@@ -633,6 +635,26 @@ final class LocalSessionUiActionHandler {
         monsterSpawnerUiOpen=false;
         itemLibrary.close();
         return checked.publish();
+    }
+
+    String publishCompetingRootForOwnedSession(
+        RootInterfaceAction publisher
+    )throws IOException{
+        RootInterfaceAction checked=
+            Objects.requireNonNull(
+                publisher,
+                "publisher"
+            );
+
+        monsterSpawnerUiOpen=false;
+        itemLibrary.close();
+
+        String result=
+            checked.publish();
+
+        devPanel.close();
+        bridge.clearDialogNumberKeys();
+        return result;
     }
 
     String replaceMonsterSpawnerRoot(
