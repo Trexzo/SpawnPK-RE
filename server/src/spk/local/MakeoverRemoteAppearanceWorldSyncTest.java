@@ -23,16 +23,21 @@ public final class MakeoverRemoteAppearanceWorldSyncTest {
         ByteArrayOutputStream viewerWire=
             new ByteArrayOutputStream();
 
+        OutboundPacketQueue sourceQueue=
+            new OutboundPacketQueue();
+        OutboundPacketQueue viewerQueue=
+            new OutboundPacketQueue();
+
         ServerPacketWriter sourceWriter=
             new ServerPacketWriter(
-                sourceWire,
+                sourceQueue,
                 new IsaacCipher(
                     new int[]{1,2,3,4}
                 )
             );
         ServerPacketWriter viewerWriter=
             new ServerPacketWriter(
-                viewerWire,
+                viewerQueue,
                 new IsaacCipher(
                     new int[]{5,6,7,8}
                 )
@@ -82,6 +87,10 @@ public final class MakeoverRemoteAppearanceWorldSyncTest {
                 source.playerState(),
                 sourceWriter
             );
+            drain(
+                sourceQueue,
+                sourceWire
+            );
 
             long initialSourceEvent=
                 Player81WorldSync
@@ -100,6 +109,10 @@ public final class MakeoverRemoteAppearanceWorldSyncTest {
                 viewer.equipment(),
                 viewer.playerState(),
                 viewerWriter
+            );
+            drain(
+                viewerQueue,
+                viewerWire
             );
 
             long initiallyConsumed=
@@ -145,6 +158,10 @@ public final class MakeoverRemoteAppearanceWorldSyncTest {
                 source.playerState(),
                 sourceWriter
             );
+            drain(
+                sourceQueue,
+                sourceWire
+            );
 
             long makeoverSourceEvent=
                 Player81WorldSync
@@ -166,6 +183,10 @@ public final class MakeoverRemoteAppearanceWorldSyncTest {
                 viewer.equipment(),
                 viewer.playerState(),
                 viewerWriter
+            );
+            drain(
+                viewerQueue,
+                viewerWire
             );
 
             long makeoverConsumed=
@@ -234,6 +255,18 @@ public final class MakeoverRemoteAppearanceWorldSyncTest {
                 source
             );
             world.close();
+        }
+    }
+
+    private static void drain(
+        OutboundPacketQueue queue,
+        ByteArrayOutputStream out
+    )throws Exception{
+        while(queue.drainTo(
+                out,
+                1<<20
+            )>0){
+            // Drain all queued transport bytes into the existing wire fixture.
         }
     }
 
