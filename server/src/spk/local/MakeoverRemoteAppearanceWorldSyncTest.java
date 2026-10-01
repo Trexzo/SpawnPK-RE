@@ -23,16 +23,21 @@ public final class MakeoverRemoteAppearanceWorldSyncTest {
         ByteArrayOutputStream viewerWire=
             new ByteArrayOutputStream();
 
+        OutboundPacketQueue sourceQueue=
+            new OutboundPacketQueue();
+        OutboundPacketQueue viewerQueue=
+            new OutboundPacketQueue();
+
         ServerPacketWriter sourceWriter=
             new ServerPacketWriter(
-                sourceWire,
+                sourceQueue,
                 new IsaacCipher(
                     new int[]{1,2,3,4}
                 )
             );
         ServerPacketWriter viewerWriter=
             new ServerPacketWriter(
-                viewerWire,
+                viewerQueue,
                 new IsaacCipher(
                     new int[]{5,6,7,8}
                 )
@@ -82,6 +87,14 @@ public final class MakeoverRemoteAppearanceWorldSyncTest {
                 source.playerState(),
                 sourceWriter
             );
+            drain(
+                sourceQueue,
+                sourceWire
+            );
+            drain(
+                sourceQueue,
+                sourceWire
+            );
 
             long initialSourceEvent=
                 Player81WorldSync
@@ -100,6 +113,14 @@ public final class MakeoverRemoteAppearanceWorldSyncTest {
                 viewer.equipment(),
                 viewer.playerState(),
                 viewerWriter
+            );
+            drain(
+                viewerQueue,
+                viewerWire
+            );
+            drain(
+                viewerQueue,
+                viewerWire
             );
 
             long initiallyConsumed=
@@ -235,6 +256,17 @@ public final class MakeoverRemoteAppearanceWorldSyncTest {
             );
             world.close();
         }
+    }
+
+    private static void drain(
+        OutboundPacketQueue queue,
+        ByteArrayOutputStream wire
+    )throws Exception{
+        while(queue.queuedBytes()>0)
+            queue.drainTo(
+                wire,
+                1<<20
+            );
     }
 
     private static boolean contains(
