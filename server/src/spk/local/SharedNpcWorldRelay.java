@@ -138,6 +138,38 @@ final class SharedNpcWorldRelay {
         );
     }
 
+    static synchronized void closeWorld(
+        World world
+    ){
+        if(world==null)
+            return;
+
+        WorldState state=
+            BY_WORLD.remove(
+                world
+            );
+
+        if(state==null)
+            return;
+
+        Iterator<Map.Entry<ServerPacketWriter,Context>>
+            writers=
+                BY_WRITER.entrySet()
+                    .iterator();
+
+        while(writers.hasNext()){
+            Map.Entry<ServerPacketWriter,Context>
+                entry=
+                    writers.next();
+
+            if(entry.getValue().state==state)
+                writers.remove();
+        }
+
+        state.contexts.clear();
+        state.genericNpcIds.clear();
+    }
+
     static synchronized boolean untrackCanonicalNpc(
         World world,
         EntityId npcId
