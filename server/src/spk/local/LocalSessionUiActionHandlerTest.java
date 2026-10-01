@@ -529,6 +529,7 @@ public final class LocalSessionUiActionHandlerTest {
                     callbackFactory,
                     lateWorld,
                     latePlayer,
+                    lateGeneration,
                     "session-ui-owner"
                 );
 
@@ -539,6 +540,47 @@ public final class LocalSessionUiActionHandlerTest {
                 ))
                 throw new AssertionError(
                     "late Monster Spawner UI factory context"
+                );
+
+            if(LocalSession.resolveMonsterSpawnerUiAfterLogin(
+                    null,
+                    lateWorld,
+                    latePlayer,
+                    lateGeneration,
+                    "session-ui-owner"
+                )!=null)
+                throw new AssertionError(
+                    "absent late Monster Spawner UI factory changed behavior"
+                );
+
+            if(LocalSession.resolveMonsterSpawnerUiAfterLogin(
+                    (factoryWorld,factoryPlayer,canonicalUsername)->null,
+                    lateWorld,
+                    latePlayer,
+                    lateGeneration,
+                    "session-ui-owner"
+                )!=null)
+                throw new AssertionError(
+                    "null late Monster Spawner UI factory result changed behavior"
+                );
+
+            boolean ownerMismatchRejected=false;
+            try{
+                LocalSession.resolveMonsterSpawnerUiAfterLogin(
+                    (factoryWorld,factoryPlayer,canonicalUsername)->
+                        monsterSpawnerUi,
+                    lateWorld,
+                    latePlayer,
+                    lateGeneration,
+                    "different-owner"
+                );
+            }catch(IllegalArgumentException expected){
+                ownerMismatchRejected=true;
+            }
+
+            if(!ownerMismatchRejected)
+                throw new AssertionError(
+                    "late Monster Spawner UI owner mismatch was accepted"
                 );
 
             LocalSession.forwardMonsterSpawnerUiResult(
@@ -722,38 +764,29 @@ public final class LocalSessionUiActionHandlerTest {
                     null,
                     lateWorld,
                     latePlayer,
+                    replacementGeneration,
                     "session-ui-owner"
                 )!=null)
                 throw new AssertionError(
                     "absent late Monster Spawner UI factory changed behavior"
                 );
 
-            if(LocalSession.resolveMonsterSpawnerUiAfterLogin(
+            boolean terminalFactoryRejected=false;
+            try{
+                LocalSession.resolveMonsterSpawnerUiAfterLogin(
                     (factoryWorld,factoryPlayer,canonicalUsername)->null,
                     lateWorld,
                     latePlayer,
+                    replacementGeneration,
                     "session-ui-owner"
-                )!=null)
-                throw new AssertionError(
-                    "null late Monster Spawner UI factory result changed behavior"
                 );
-
-            boolean ownerMismatchRejected=false;
-            try{
-                LocalSession.resolveMonsterSpawnerUiAfterLogin(
-                    (factoryWorld,factoryPlayer,canonicalUsername)->
-                        monsterSpawnerUi,
-                    lateWorld,
-                    latePlayer,
-                    "different-owner"
-                );
-            }catch(IllegalArgumentException expected){
-                ownerMismatchRejected=true;
+            }catch(IllegalStateException expected){
+                terminalFactoryRejected=true;
             }
 
-            if(!ownerMismatchRejected)
+            if(!terminalFactoryRejected)
                 throw new AssertionError(
-                    "late Monster Spawner UI owner mismatch was accepted"
+                    "closed World admitted Monster Spawner post-login factory"
                 );
         }finally{
             lateWorld.close();
@@ -794,6 +827,8 @@ public final class LocalSessionUiActionHandlerTest {
             "callbackOwnerFence=true "+
             "callbackGenerationFence=true "+
             "callbackWorldCloseFence=true "+
+            "loginFactoryGenerationFence=true "+
+            "loginFactoryWorldCloseFence=true "+
             "sessionCloseHook=true "+
             "sessionCloseGenerationFence=true "+
             "factoryStillFunctional=true "+
