@@ -263,6 +263,7 @@ final class LocalSessionUiActionHandler {
             )
         );
         bank.clientClosed();
+        compCapeCustomize.close();
         devPanel.close();
         bridge.clearDialogNumberKeys();
         monsterSpawnerUiOpen=true;
@@ -640,6 +641,7 @@ final class LocalSessionUiActionHandler {
             checked.publish();
 
         bank.clientClosed();
+        compCapeCustomize.close();
         return result;
     }
 
@@ -658,6 +660,28 @@ final class LocalSessionUiActionHandler {
         String result=
             checked.publish();
 
+        compCapeCustomize.close();
+        devPanel.close();
+        bridge.clearDialogNumberKeys();
+        return result;
+    }
+
+    String publishCompCapeRootForOwnedSession(
+        RootInterfaceAction publisher
+    )throws IOException{
+        RootInterfaceAction checked=
+            Objects.requireNonNull(
+                publisher,
+                "publisher"
+            );
+
+        monsterSpawnerUiOpen=false;
+        itemLibrary.close();
+
+        String result=
+            checked.publish();
+
+        bank.clientClosed();
         devPanel.close();
         bridge.clearDialogNumberKeys();
         return result;
@@ -679,9 +703,27 @@ final class LocalSessionUiActionHandler {
             checked.publish();
 
         bank.clientClosed();
+        compCapeCustomize.close();
         devPanel.close();
         bridge.clearDialogNumberKeys();
         return result;
+    }
+
+    String replaceMonsterSpawnerWithCompCapeRoot(
+        RootInterfaceAction publisher
+    )throws IOException{
+        RootInterfaceAction checked=
+            Objects.requireNonNull(
+                publisher,
+                "publisher"
+            );
+
+        return bridge.replaceMonsterSpawnerRoot(
+            ()->
+                publishCompCapeRootForOwnedSession(
+                    checked
+                )
+        );
     }
 
     String replaceMonsterSpawnerWithBankRoot(
