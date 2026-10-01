@@ -146,9 +146,18 @@ final class MonsterSpawnerPvmSpawnExecutor {
                 null
             );
 
-        requireServerAuthority(
-            requestResolver.authority()
-        );
+        String currentAuthority=
+            requireServerAuthority(
+                requestResolver.authority()
+            );
+
+        if(!requestAuthority.equals(
+                currentAuthority))
+            throw new IllegalStateException(
+                "Monster Spawner spawn request authority changed expected="+
+                requestAuthority+
+                " actual="+currentAuthority
+            );
 
         Request request=
             Objects.requireNonNull(
