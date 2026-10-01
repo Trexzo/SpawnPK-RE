@@ -270,16 +270,16 @@ final class ServerPacketWriter {
                     Player81WorldSync
                         .PreparedBatchStartStatus
                         .NO_CONTEXT){
-                byte[] transformed=
-                    Player81WorldSync.transform(
-                        this,
-                        checkedBody
-                    );
-
-                if(transformed.length>65535)
+                /*
+                 * NO_CONTEXT is the semantic linearization point for this
+                 * exact packet-81 operation. A context registered after this
+                 * classification affects only a later packet; do not perform
+                 * a second live context lookup or relay flush here.
+                 */
+                if(checkedBody.length>65535)
                     throw new IllegalArgumentException(
                         "varShort payload too large: "+
-                        transformed.length
+                        checkedBody.length
                     );
 
                 synchronized(this){
@@ -289,17 +289,15 @@ final class ServerPacketWriter {
                     );
                     writeOpcode(opcode);
                     pending.write(
-                        (transformed.length>>>8)&255
+                        (checkedBody.length>>>8)&255
                     );
                     pending.write(
-                        transformed.length&255
+                        checkedBody.length&255
                     );
-                    pending.write(transformed);
+                    pending.write(checkedBody);
                     autoFlush();
                 }
 
-                SharedNpcWorldRelay
-                    .flushAfterPlayer81(this);
                 return;
             }
 
