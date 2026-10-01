@@ -1,5 +1,6 @@
 package spk.local;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
@@ -44,14 +45,24 @@ final class LocalLabMonsterSpawnerProvisioning {
                 checkedWorld.npcs()
             );
 
-        service.replaceCatalog(
-            Collections.singletonList(
+        List<MonsterSpawnerService.CatalogEntry>
+            catalog=
+                new ArrayList<>();
+
+        for(int row=0;
+            row<MonsterSpawnerService.CLIENT_ROW_COUNT;
+            row++)
+            catalog.add(
                 new MonsterSpawnerService.CatalogEntry(
-                    0,
-                    "locallab:monster-spawner:1530",
+                    row,
+                    "locallab:monster-spawner:placeholder:"+
+                        row,
                     NPC_DEFINITION_ID
                 )
-            ),
+            );
+
+        service.replaceCatalog(
+            catalog,
             CATALOG_AUTHORITY
         );
 
@@ -188,8 +199,11 @@ final class LocalLabMonsterSpawnerProvisioning {
                 @Override public String label(
                     MonsterSpawnerService.CatalogEntry entry
                 ){
-                    return "LocalLab NPC "+
-                        entry.definitionId;
+                    return "LocalLab placeholder "+
+                        (entry.rowIndex+1)+
+                        " (NPC "+
+                        entry.definitionId+
+                        ")";
                 }
 
                 @Override public String authority(){
