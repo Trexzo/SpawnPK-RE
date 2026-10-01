@@ -100,6 +100,16 @@ final class MonsterSpawnerCombatBindingService {
             spawner==expectedSpawner;
     }
 
+    boolean retireSessionIfCurrentAndNoTrackedNpcs(
+        String ownerRef,
+        MonsterSpawnerService.SessionSnapshot expectedSession
+    ){
+        return spawner.retireSessionIfCurrentAndNoTrackedNpcs(
+            ownerRef,
+            expectedSession
+        );
+    }
+
     Result spawnAndBind(
         String ownerRef,
         int x,
