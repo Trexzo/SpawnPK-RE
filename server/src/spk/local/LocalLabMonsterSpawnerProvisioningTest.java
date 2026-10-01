@@ -1,6 +1,7 @@
 package spk.local;
 
 import java.io.ByteArrayOutputStream;
+import java.nio.charset.StandardCharsets;
 
 public final class LocalLabMonsterSpawnerProvisioningTest {
     public static void main(String[] args)throws Exception{
@@ -72,6 +73,26 @@ public final class LocalLabMonsterSpawnerProvisioningTest {
             require(
                 wire.size()>openBefore,
                 "provisioned UI open packet"
+            );
+
+            byte[] openWire=
+                wire.toByteArray();
+            String openPayload=
+                new String(
+                    openWire,
+                    openBefore,
+                    openWire.length-openBefore,
+                    StandardCharsets.ISO_8859_1
+                );
+
+            require(
+                openPayload.contains(
+                    "LocalLab placeholder 1 (NPC 1530)"
+                )&&
+                openPayload.contains(
+                    "LocalLab placeholder 22 (NPC 1530)"
+                ),
+                "provisioned UI did not publish explicit first/last placeholder labels"
             );
 
             LocalMonsterSpawnerUiHandler.Result selected=
@@ -231,6 +252,7 @@ public final class LocalLabMonsterSpawnerProvisioningTest {
                 "customCatalog=true "+
                 "all22RowsSafe=true "+
                 "placeholderMappingExplicit=true "+
+                "rowLabelsPublished=true "+
                 "customPolicy=true "+
                 "activationSpawn=true "+
                 "oneShotBudget=true "+
