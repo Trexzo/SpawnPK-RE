@@ -184,6 +184,11 @@ final class LocalSession implements Runnable {
                     LocalSession.this.world
                         .finalizeMonsterSpawnerPvmIfOwned(
                             target
+                        ),
+                target->
+                    LocalSession.this.world
+                        .retryMonsterSpawnerPvmFinalizationIfPending(
+                            target
                         )
             );
         this.equipmentItemActions = new LocalEquipmentItemActionHandler(
