@@ -29,13 +29,28 @@ public final class EngineR4TradeFlowTest{
    if(rootPublishes[0]!=2||rootPublishes[1]!=2)throw new AssertionError("reopened trade root owners "+rootPublishes[0]+"/"+rootPublishes[1]);
    drain(q1);drain(q2);
 
-   if(!TradeService.retireForCompetingRoot(p1,"TEST_COMPETING_ROOT"))
-    throw new AssertionError("competing root did not retire live trade");
+   boolean[] lockOrder={false,false};
+   String competing=
+    LocalSession.replaceMonsterSpawnerRootForCurrentSession(
+     w,
+     p1,
+     p1.generation(),
+     ()->{
+      lockOrder[0]=Thread.holdsLock(TradeService.class);
+      lockOrder[1]=Thread.holdsLock(p1.mutationLock());
+      s1.fixed(97,BootstrapPackets.interface97(15106));
+      return "TEST_COMPETING_ROOT";
+     }
+    );
+   need(competing,"TEST_COMPETING_ROOT");
+   if(!lockOrder[0]||!lockOrder[1])
+    throw new AssertionError("competing root lock order ownership missing trade="+lockOrder[0]+" player="+lockOrder[1]);
+
    byte[] currentAfterRetire=drain(q1),peerAfterRetire=drain(q2);
-   if(currentAfterRetire.length!=0)
-    throw new AssertionError("competing root closed current replacement bytes="+currentAfterRetire.length);
-   if(peerAfterRetire.length==0)
-    throw new AssertionError("competing root did not close peer trade root");
+   if(currentAfterRetire.length!=3)
+    throw new AssertionError("competing root current bytes expected root-only 3 got="+currentAfterRetire.length);
+   if(peerAfterRetire.length!=1)
+    throw new AssertionError("competing root peer close bytes expected 1 got="+peerAfterRetire.length);
    if(TradeService.active(p1)||TradeService.active(p2))
     throw new AssertionError("retired trade remained active");
    if(TradeService.handleWidget(p1,3420)!=null||
@@ -46,7 +61,29 @@ public final class EngineR4TradeFlowTest{
       )!=null)
     throw new AssertionError("hidden trade action accepted after competing root");
 
-   System.out.println("V5140_ENGINE_R4_TRADE_FLOW_PASS roots=3323/3443 offerWidgets=3322/3415/3416 accepts=3420/3546 atomicExchange=true cancelReservationModel=true twoSessionRootOwners=true peerOnlyCompetingClose=true hiddenTradeRejected=true");
+   String failureTrade=TradeService.start(w,p1,p2);need(failureTrade,"TRADE_UI_OPEN");
+   drain(q1);drain(q2);
+   boolean failedRootThrown=false;
+   try{
+    LocalSession.replaceMonsterSpawnerRootForCurrentSession(
+     w,
+     p1,
+     p1.generation(),
+     ()->{throw new IOException("EXPECTED_TRADE_ROOT_FAILURE");}
+    );
+   }catch(IOException expected){
+    failedRootThrown="EXPECTED_TRADE_ROOT_FAILURE".equals(expected.getMessage());
+   }
+   if(!failedRootThrown)
+    throw new AssertionError("throwing competing root was not propagated");
+   if(!TradeService.active(p1)||!TradeService.active(p2))
+    throw new AssertionError("throwing competing root retired live trade");
+   if(drain(q1).length!=0||drain(q2).length!=0)
+    throw new AssertionError("throwing competing root emitted trade close/output");
+   TradeService.cancelIfActive(p1,"TEST_CLEANUP");
+   drain(q1);drain(q2);
+
+   System.out.println("V5140_ENGINE_R4_TRADE_FLOW_PASS roots=3323/3443 offerWidgets=3322/3415/3416 accepts=3420/3546 atomicExchange=true cancelReservationModel=true twoSessionRootOwners=true peerOnlyCompetingClose=true hiddenTradeRejected=true competingRootFailureAtomic=true lockOrderTradeBeforePlayer=true");
   }finally{TradeService.unregister(p1);TradeService.unregister(p2);w.unregisterPlayer(p1);w.unregisterPlayer(p2);w.close();}
  }
  static byte[] drain(OutboundPacketQueue q)throws Exception{java.io.ByteArrayOutputStream o=new java.io.ByteArrayOutputStream();q.drainTo(o,1<<20);return o.toByteArray();}
