@@ -56,7 +56,9 @@ public final class LocalSessionUiActionHandlerTest {
                 LocalMonsterSpawnerUiHandler handler,
                 int widget,
                 ServerPacketWriter serverPackets,
-                String tag
+                String tag,
+                LocalSessionUiActionHandler
+                    .MonsterSpawnerWidgetAction action
             )throws java.io.IOException{
             monsterSpawnerWidgetTransactions++;
             return LocalSessionUiActionHandler.SessionBridge.super
@@ -64,7 +66,8 @@ public final class LocalSessionUiActionHandlerTest {
                     handler,
                     widget,
                     serverPackets,
-                    tag
+                    tag,
+                    action
                 );
         }
 
