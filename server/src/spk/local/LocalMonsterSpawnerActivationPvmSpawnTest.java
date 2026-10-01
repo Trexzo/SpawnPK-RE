@@ -53,6 +53,48 @@ public final class LocalMonsterSpawnerActivationPvmSpawnTest {
                         }
                     };
 
+            boolean foreignServiceRejected=false;
+            try{
+                new LocalMonsterSpawnerActivationRuntime(
+                    world,
+                    new MonsterSpawnerService(
+                        new WorldNpcRegistry()
+                    ),
+                    f.runtime,
+                    f.executor,
+                    POLICY,
+                    activationBudget,
+                    selectedLabel
+                );
+            }catch(IllegalArgumentException expected){
+                foreignServiceRejected=true;
+            }
+
+            require(
+                foreignServiceRejected,
+                "shared activation runtime accepted foreign service registry"
+            );
+
+            boolean clientAuthorityRejected=false;
+            try{
+                new LocalMonsterSpawnerActivationRuntime(
+                    world,
+                    f.spawner,
+                    f.runtime,
+                    f.executor,
+                    "EXACT_CURRENT_CLIENT",
+                    activationBudget,
+                    selectedLabel
+                );
+            }catch(IllegalArgumentException expected){
+                clientAuthorityRejected=true;
+            }
+
+            require(
+                clientAuthorityRejected,
+                "shared activation runtime accepted client session authority"
+            );
+
             LocalMonsterSpawnerActivationRuntime factory=
                 new LocalMonsterSpawnerActivationRuntime(
                     world,
@@ -324,6 +366,8 @@ public final class LocalMonsterSpawnerActivationPvmSpawnTest {
                 "trackedSessionRetained=true "+
                 "idleSessionRetired=true "+
                 "sameOwnerReconnect=true "+
+                "exactGraphFence=true "+
+                "serverAuthorityFence=true "+
                 "placementCallerOwned=true "+
                 "recipientCallerOwned=true "+
                 "catalogCallerOwned=true "+
