@@ -186,10 +186,22 @@ final class LocalMonsterSpawnerUiHandler {
         int rowIndex,
         ServerPacketWriter packets
     )throws IOException{
-        MonsterSpawnerService.SessionSnapshot session=
-            service.selectRow(
-                ownerRef,
-                rowIndex
+        MonsterSpawnerService.SessionSnapshot before=
+            service.getSession(
+                ownerRef
+            );
+
+        if(before==null)
+            throw new IllegalStateException(
+                "Monster Spawner session disappeared "+
+                ownerRef
+            );
+
+        // Preserve the existing active-session rejection before invoking any
+        // caller-owned label policy.
+        if(before.active)
+            throw new IllegalStateException(
+                "cannot change Monster Spawner selection while active"
             );
 
         MonsterSpawnerService.CatalogSnapshot catalog=
@@ -200,28 +212,41 @@ final class LocalMonsterSpawnerUiHandler {
                 rowIndex
             );
 
-        if(entry==null||
-           session.selectedRowIndex==null||
-           session.selectedRowIndex.intValue()!=rowIndex||
-           session.selectedDefinitionId==null||
-           session.selectedDefinitionId.intValue()!=
-                entry.definitionId||
-           session.selectedSemanticKey==null||
-           !session.selectedSemanticKey.equals(
-                entry.semanticKey
-           ))
-            throw new IllegalStateException(
-                "Monster Spawner selected row identity changed row="+
+        if(entry==null)
+            throw new IllegalArgumentException(
+                "unconfigured Monster Spawner row "+
                 rowIndex
             );
 
-        requireServerAuthority(
-            selectedLabel.authority(),
-            "selected label authority"
-        );
+        String labelAuthority=
+            requireServerAuthority(
+                selectedLabel.authority(),
+                "selected label authority"
+            );
 
+        if(!labelAuthority.equals(
+                catalog.sourceAuthority
+            ))
+            throw new IllegalStateException(
+                "Monster Spawner selected label authority mismatch catalog="+
+                catalog.sourceAuthority+
+                " adapter="+labelAuthority
+            );
+
+        /*
+         * Caller-owned label code executes before authoritative selection
+         * mutation and outside the MonsterSpawnerService monitor.
+         */
         String label=
             selectedLabel.label(
+                entry
+            );
+
+        MonsterSpawnerService.SessionSnapshot session=
+            service.selectRowIfCurrent(
+                ownerRef,
+                before,
+                catalog.sourceAuthority,
                 entry
             );
 
