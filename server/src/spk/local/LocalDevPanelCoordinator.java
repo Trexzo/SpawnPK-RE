@@ -94,23 +94,17 @@ final class LocalDevPanelCoordinator {
         }catch(IOException failure){
             devPanel.restore(prior);
             if(!ended)
-                try{
-                    writer.endBatch();
-                }catch(Throwable ignored){}
+                try{writer.abortBatch();}catch(Throwable ignored){}
             throw failure;
         }catch(RuntimeException failure){
             devPanel.restore(prior);
             if(!ended)
-                try{
-                    writer.endBatch();
-                }catch(Throwable ignored){}
+                try{writer.abortBatch();}catch(Throwable ignored){}
             throw failure;
         }catch(Error failure){
             devPanel.restore(prior);
             if(!ended)
-                try{
-                    writer.endBatch();
-                }catch(Throwable ignored){}
+                try{writer.abortBatch();}catch(Throwable ignored){}
             throw failure;
         }
 
@@ -207,21 +201,15 @@ final class LocalDevPanelCoordinator {
             ended=true;
         }catch(IOException failure){
             if(!ended)
-                try{
-                    writer.endBatch();
-                }catch(Throwable ignored){}
+                try{writer.abortBatch();}catch(Throwable ignored){}
             throw failure;
         }catch(RuntimeException failure){
             if(!ended)
-                try{
-                    writer.endBatch();
-                }catch(Throwable ignored){}
+                try{writer.abortBatch();}catch(Throwable ignored){}
             throw failure;
         }catch(Error failure){
             if(!ended)
-                try{
-                    writer.endBatch();
-                }catch(Throwable ignored){}
+                try{writer.abortBatch();}catch(Throwable ignored){}
             throw failure;
         }
 
@@ -303,23 +291,17 @@ final class LocalDevPanelCoordinator {
             }catch(IOException failure){
                 devPanel.restore(prior);
                 if(!ended)
-                    try{
-                        writer.endBatch();
-                    }catch(Throwable ignored){}
+                    try{writer.abortBatch();}catch(Throwable ignored){}
                 throw failure;
             }catch(RuntimeException failure){
                 devPanel.restore(prior);
                 if(!ended)
-                    try{
-                        writer.endBatch();
-                    }catch(Throwable ignored){}
+                    try{writer.abortBatch();}catch(Throwable ignored){}
                 throw failure;
             }catch(Error failure){
                 devPanel.restore(prior);
                 if(!ended)
-                    try{
-                        writer.endBatch();
-                    }catch(Throwable ignored){}
+                    try{writer.abortBatch();}catch(Throwable ignored){}
                 throw failure;
             }
 
