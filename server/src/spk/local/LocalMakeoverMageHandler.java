@@ -675,17 +675,30 @@ final class LocalMakeoverMageHandler {
 
         PlayerState player=
             worldPlayer.playerState();
+        int gender=
+            request.gender();
+        int[] kits=
+            request.kits();
+        int[] colours=
+            request.colours();
+
+        /*
+         * The exact designer remains authoritative until its close packet has
+         * committed. The request above was already validated with the same
+         * CharacterDesignProfile contract used by PlayerState, so the state
+         * mutation after successful publication is deterministic.
+         */
+        StandardDialoguePresentationAdapter
+            .close(packets);
 
         if(!player.setCharacterAppearance(
-                request.gender(),
-                request.kits(),
-                request.colours()))
+                gender,
+                kits,
+                colours))
             throw new IllegalStateException(
                 "validated character design was rejected"
             );
 
-        StandardDialoguePresentationAdapter
-            .close(packets);
         clearActive();
 
         return Result.handled(
