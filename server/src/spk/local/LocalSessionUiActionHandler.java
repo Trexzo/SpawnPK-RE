@@ -27,6 +27,11 @@ final class LocalSessionUiActionHandler {
             ServerPacketWriter serverPackets,
             String tag
         )throws IOException{}
+        default void handleMonsterSpawnerUiResult(
+            LocalMonsterSpawnerUiHandler.Result result,
+            ServerPacketWriter serverPackets,
+            String tag
+        )throws IOException{}
         void requestLogout();
     }
 
@@ -265,6 +270,12 @@ final class LocalSessionUiActionHandler {
                     monsterSpawner.rowIndex+
                     " budget="+
                     monsterSpawner.activationBudget
+                );
+
+                bridge.handleMonsterSpawnerUiResult(
+                    monsterSpawner,
+                    serverPackets,
+                    tag
                 );
                 return;
             }
