@@ -146,6 +146,211 @@ final class GroundItemRegistry {
     private final AtomicLong ids=
         new AtomicLong();
 
+    static final class PreparedAdd {
+        final GroundItem expectedExisting;
+        final int expectedOldAmount;
+        final int itemId;
+        final int amount;
+        final Tile tile;
+        final String owner;
+        final long tick;
+        final boolean devOwned;
+        final int newAmount;
+
+        PreparedAdd(
+            GroundItem expectedExisting,
+            int expectedOldAmount,
+            int itemId,
+            int amount,
+            Tile tile,
+            String owner,
+            long tick,
+            boolean devOwned,
+            int newAmount
+        ){
+            this.expectedExisting=expectedExisting;
+            this.expectedOldAmount=expectedOldAmount;
+            this.itemId=itemId;
+            this.amount=amount;
+            this.tile=tile;
+            this.owner=owner;
+            this.tick=tick;
+            this.devOwned=devOwned;
+            this.newAmount=newAmount;
+        }
+
+        boolean merge(){
+            return expectedExisting!=null;
+        }
+    }
+
+    static final class PreparedRemove {
+        final GroundItem expected;
+
+        PreparedRemove(
+            GroundItem expected
+        ){
+            this.expected=expected;
+        }
+    }
+
+    synchronized PreparedAdd prepareAdd(
+        int itemId,
+        int amount,
+        Tile tile,
+        String owner,
+        long tick,
+        boolean devOwned
+    ){
+        if(itemId<0||
+           amount<=0||
+           tile==null)
+            throw new IllegalArgumentException(
+                "invalid prepared ground add"
+            );
+
+        GroundItem existing=null;
+
+        for(GroundItem item:byId.values()){
+            if(item.itemId==itemId&&
+               item.tile.equals(tile)&&
+               Objects.equals(item.owner,owner)&&
+               item.devOwned==devOwned){
+                existing=item;
+                break;
+            }
+        }
+
+        int oldAmount=
+            existing==null
+                ?0
+                :existing.amount;
+
+        long next=
+            Math.addExact(
+                (long)oldAmount,
+                (long)amount
+            );
+
+        if(next>Integer.MAX_VALUE)
+            throw new IllegalStateException(
+                "ground amount overflow"
+            );
+
+        if(existing==null&&ids.get()==Long.MAX_VALUE)
+            throw new IllegalStateException(
+                "ground item id sequence exhausted"
+            );
+
+        return new PreparedAdd(
+            existing,
+            oldAmount,
+            itemId,
+            amount,
+            tile,
+            owner,
+            tick,
+            devOwned,
+            (int)next
+        );
+    }
+
+    synchronized GroundItem commitPreparedAdd(
+        PreparedAdd prepared
+    ){
+        Objects.requireNonNull(
+            prepared,
+            "prepared"
+        );
+
+        if(prepared.expectedExisting!=null){
+            GroundItem current=
+                byId.get(
+                    prepared.expectedExisting.id
+                );
+
+            if(current!=prepared.expectedExisting||
+               current.amount!=prepared.expectedOldAmount)
+                throw new IllegalStateException(
+                    "ground add preimage changed before commit"
+                );
+
+            current.amount=
+                prepared.newAmount;
+            return current;
+        }
+
+        for(GroundItem current:byId.values()){
+            if(current.itemId==prepared.itemId&&
+               current.tile.equals(prepared.tile)&&
+               Objects.equals(current.owner,prepared.owner)&&
+               current.devOwned==prepared.devOwned)
+                throw new IllegalStateException(
+                    "ground add preimage changed before commit"
+                );
+        }
+
+        long id=
+            ids.incrementAndGet();
+
+        if(id<=0L)
+            throw new IllegalStateException(
+                "ground item id sequence exhausted"
+            );
+
+        GroundItem created=
+            new GroundItem(
+                id,
+                prepared.itemId,
+                prepared.amount,
+                prepared.tile,
+                prepared.owner,
+                prepared.tick,
+                prepared.devOwned
+            );
+
+        byId.put(
+            created.id,
+            created
+        );
+        return created;
+    }
+
+    synchronized PreparedRemove prepareRemove(
+        long id
+    ){
+        return new PreparedRemove(
+            byId.get(id)
+        );
+    }
+
+    synchronized boolean commitPreparedRemove(
+        PreparedRemove prepared
+    ){
+        Objects.requireNonNull(
+            prepared,
+            "prepared"
+        );
+
+        if(prepared.expected==null)
+            return false;
+
+        GroundItem current=
+            byId.get(
+                prepared.expected.id
+            );
+
+        if(current!=prepared.expected)
+            throw new IllegalStateException(
+                "ground remove preimage changed before commit"
+            );
+
+        byId.remove(
+            prepared.expected.id
+        );
+        return true;
+    }
+
     synchronized GroundItem add(
         int itemId,
         int amount,
