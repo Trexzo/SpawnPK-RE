@@ -116,9 +116,195 @@ public final class LocalPetInventoryDialogHandlerTest {
             throw new AssertionError("close state");
 
         testPetAccessoryPublicationAtomicity();
+        testPetDialogOpenAtomicity();
 
         System.out.println(
-            "LOCAL_PET_INVENTORY_DIALOG_HANDLER_PASS mini=true color=true compat=true pendingStateOwned=true accessoryNoPetAtomic=true accessoryActivePetAtomic=true accessoryDetachAtomic=true accessoryDialogFailurePreserved=true");
+            "LOCAL_PET_INVENTORY_DIALOG_HANDLER_PASS mini=true color=true compat=true pendingStateOwned=true accessoryNoPetAtomic=true accessoryActivePetAtomic=true accessoryDetachAtomic=true accessoryDialogFailurePreserved=true petDialogOpenFailureAtomic=true petDialogReplacementPreservesPrior=true petDialogRetryExact=true");
+    }
+
+    private static void testPetDialogOpenAtomicity()
+        throws Exception
+    {
+        WorldPlayer player=
+            new WorldPlayer();
+        BankState bank=player.bank();
+        DevAuthorityWorkbench dev=
+            new DevAuthorityWorkbench();
+        LocalPetInventoryDialogHandler handler=
+            new LocalPetInventoryDialogHandler(
+                bank,
+                player.miniPets(),
+                player.petState(),
+                new NpcRegistry(dev),
+                player.movement(),
+                new PetAccessoryState()
+            );
+
+        ServerPacketWriter healthy=
+            new ServerPacketWriter(
+                new ByteArrayOutputStream(),
+                new IsaacCipher(
+                    new int[]{45,46,47,48}
+                )
+            );
+
+        bank.spawnItem(22088,1,healthy);
+        bank.spawnItem(20543,1,healthy);
+        bank.spawnItem(24016,1,healthy);
+
+        int miniSlot=findSlot(bank,22088);
+        int accessorySlot=findSlot(bank,20543);
+        int colorSlot=findSlot(bank,24016);
+
+        boolean miniFailed=false;
+        try{
+            handler.handleItemAction(
+                new ItemContainerAction(
+                    122,
+                    BankState.NORMAL_INVENTORY_CONTAINER,
+                    miniSlot,
+                    22088,
+                    0,
+                    "INVENTORY_OPTION_1"
+                ),
+                queueWriter(
+                    fullQueue(),
+                    new int[]{49,50,51,52}
+                )
+            );
+        }catch(java.io.IOException expected){
+            miniFailed=true;
+        }
+
+        LocalPetInventoryDialogHandler.CloseState afterMiniFailure=
+            handler.clearAll();
+
+        if(!miniFailed||
+           afterMiniFailure.hadAny())
+            throw new AssertionError(
+                "failed mini dialog open created hidden authority"
+            );
+
+        LocalPetInventoryDialogHandler.Result miniOpened=
+            handler.handleItemAction(
+                new ItemContainerAction(
+                    122,
+                    BankState.NORMAL_INVENTORY_CONTAINER,
+                    miniSlot,
+                    22088,
+                    0,
+                    "INVENTORY_OPTION_1"
+                ),
+                healthy
+            );
+
+        if(miniOpened==null||
+           miniOpened.keyAction!=
+                LocalPetInventoryDialogHandler
+                    .KeyAction.PUBLISH_2482_2485)
+            throw new AssertionError(
+                "mini dialog retry did not open"
+            );
+
+        boolean accessoryReplaceFailed=false;
+        try{
+            handler.handleItemAction(
+                new ItemContainerAction(
+                    122,
+                    BankState.NORMAL_INVENTORY_CONTAINER,
+                    accessorySlot,
+                    20543,
+                    0,
+                    "INVENTORY_OPTION_1"
+                ),
+                queueWriter(
+                    fullQueue(),
+                    new int[]{53,54,55,56}
+                )
+            );
+        }catch(java.io.IOException expected){
+            accessoryReplaceFailed=true;
+        }
+
+        LocalPetInventoryDialogHandler.CloseState afterAccessoryFailure=
+            handler.clearAll();
+
+        if(!accessoryReplaceFailed||
+           !afterAccessoryFailure.miniConfigWasOpen||
+           afterAccessoryFailure.petAccessoryWasOpen||
+           afterAccessoryFailure.petColorWasOpen)
+            throw new AssertionError(
+                "failed accessory replacement did not preserve prior mini dialog"
+            );
+
+        openAccessory(
+            handler,
+            accessorySlot,
+            20543,
+            healthy
+        );
+
+        boolean colorReplaceFailed=false;
+        try{
+            handler.handleItemAction(
+                new ItemContainerAction(
+                    75,
+                    BankState.NORMAL_INVENTORY_CONTAINER,
+                    colorSlot,
+                    24016,
+                    0,
+                    "INVENTORY_OPTION_3"
+                ),
+                queueWriter(
+                    fullQueue(),
+                    new int[]{57,58,59,60}
+                )
+            );
+        }catch(java.io.IOException expected){
+            colorReplaceFailed=true;
+        }
+
+        LocalPetInventoryDialogHandler.CloseState afterColorFailure=
+            handler.clearAll();
+
+        if(!colorReplaceFailed||
+           afterColorFailure.miniConfigWasOpen||
+           !afterColorFailure.petAccessoryWasOpen||
+           afterColorFailure.petColorWasOpen)
+            throw new AssertionError(
+                "failed color replacement did not preserve prior accessory dialog"
+            );
+
+        LocalPetInventoryDialogHandler.Result colorOpened=
+            handler.handleItemAction(
+                new ItemContainerAction(
+                    75,
+                    BankState.NORMAL_INVENTORY_CONTAINER,
+                    colorSlot,
+                    24016,
+                    0,
+                    "INVENTORY_OPTION_3"
+                ),
+                healthy
+            );
+
+        if(colorOpened==null||
+           colorOpened.keyAction!=
+                LocalPetInventoryDialogHandler
+                    .KeyAction.PUBLISH_2482_2485)
+            throw new AssertionError(
+                "color dialog retry did not open"
+            );
+
+        LocalPetInventoryDialogHandler.CloseState finalState=
+            handler.clearAll();
+
+        if(finalState.miniConfigWasOpen||
+           finalState.petAccessoryWasOpen||
+           !finalState.petColorWasOpen)
+            throw new AssertionError(
+                "successful dialog replacement did not leave exact color authority"
+            );
     }
 
     private static void testPetAccessoryPublicationAtomicity()
