@@ -230,32 +230,76 @@ final class TradeService {
                             );
 
                             Trade t=new Trade(ca,cb);
+                            boolean[] rootPublicationEntered={
+                                false,
+                                false
+                            };
 
-                            ca.rootOwner.publish(
-                                ()->{
-                                    publishFirstFor(t,ca);
-                                    ca.writer.varShort(
-                                        126,
-                                        BootstrapPackets.widgetText126(
-                                            STATUS_TEXT,
-                                            ""
-                                        )
-                                    );
-                                }
-                            );
+                            try{
+                                ca.rootOwner.publish(
+                                    ()->{
+                                        rootPublicationEntered[0]=true;
+                                        publishFirstFor(t,ca);
+                                        ca.writer.varShort(
+                                            126,
+                                            BootstrapPackets.widgetText126(
+                                                STATUS_TEXT,
+                                                ""
+                                            )
+                                        );
+                                    }
+                                );
 
-                            cb.rootOwner.publish(
-                                ()->{
-                                    publishFirstFor(t,cb);
-                                    cb.writer.varShort(
-                                        126,
-                                        BootstrapPackets.widgetText126(
-                                            STATUS_TEXT,
-                                            ""
-                                        )
-                                    );
-                                }
-                            );
+                                cb.rootOwner.publish(
+                                    ()->{
+                                        rootPublicationEntered[1]=true;
+                                        publishFirstFor(t,cb);
+                                        cb.writer.varShort(
+                                            126,
+                                            BootstrapPackets.widgetText126(
+                                                STATUS_TEXT,
+                                                ""
+                                            )
+                                        );
+                                    }
+                                );
+                            }catch(IOException failure){
+                                closeEnteredTradeRootAfterStartFailure(
+                                    ca,
+                                    rootPublicationEntered[0],
+                                    failure
+                                );
+                                closeEnteredTradeRootAfterStartFailure(
+                                    cb,
+                                    rootPublicationEntered[1],
+                                    failure
+                                );
+                                throw failure;
+                            }catch(RuntimeException failure){
+                                closeEnteredTradeRootAfterStartFailure(
+                                    ca,
+                                    rootPublicationEntered[0],
+                                    failure
+                                );
+                                closeEnteredTradeRootAfterStartFailure(
+                                    cb,
+                                    rootPublicationEntered[1],
+                                    failure
+                                );
+                                throw failure;
+                            }catch(Error failure){
+                                closeEnteredTradeRootAfterStartFailure(
+                                    ca,
+                                    rootPublicationEntered[0],
+                                    failure
+                                );
+                                closeEnteredTradeRootAfterStartFailure(
+                                    cb,
+                                    rootPublicationEntered[1],
+                                    failure
+                                );
+                                throw failure;
+                            }
 
                             s.trades.put(a.id(),t);
                             s.trades.put(b.id(),t);
@@ -327,7 +371,35 @@ final class TradeService {
             if(t.stage!=Stage.OFFERING)return "TRADE_FIRST_ACCEPT_REJECTED_STAGE_"+t.stage;
             t.setFirstAccepted(c,true);
             if(t.firstAcceptedA&&t.firstAcceptedB){
-                t.stage=Stage.CONFIRMING;t.a.pendingX=t.b.pendingX=null;publishConfirm(t);
+                t.a.pendingX=t.b.pendingX=null;
+                try{
+                    publishConfirm(t);
+                }catch(IOException failure){
+                    cancel0(
+                        state(c.world),
+                        c,
+                        "CONFIRM_ROOT_PUBLICATION_FAILED",
+                        true
+                    );
+                    throw failure;
+                }catch(RuntimeException failure){
+                    cancel0(
+                        state(c.world),
+                        c,
+                        "CONFIRM_ROOT_PUBLICATION_FAILED",
+                        true
+                    );
+                    throw failure;
+                }catch(Error failure){
+                    cancel0(
+                        state(c.world),
+                        c,
+                        "CONFIRM_ROOT_PUBLICATION_FAILED",
+                        true
+                    );
+                    throw failure;
+                }
+                t.stage=Stage.CONFIRMING;
                 return "TRADE_FIRST_ACCEPT_BOTH_CONFIRM_OPEN root=3443";
             }
             publishFirstAcceptStatus(t);
@@ -491,6 +563,26 @@ final class TradeService {
         // 3557/3558 are only empty-list fallback labels; never overlay helper text.
         c.writer.varShort(126,BootstrapPackets.widgetText126(3557,give[0].length==0?"Absolutely nothing!":""));
         c.writer.varShort(126,BootstrapPackets.widgetText126(3558,recv[0].length==0?"Absolutely nothing!":""));
+    }
+
+    private static void closeEnteredTradeRootAfterStartFailure(
+        Context context,
+        boolean entered,
+        Throwable primary
+    ){
+        if(!entered)
+            return;
+
+        try{
+            context.writer.fixed(
+                219,
+                new byte[0]
+            );
+        }catch(Throwable cleanup){
+            primary.addSuppressed(
+                cleanup
+            );
+        }
     }
 
     private static void cancel0(State s,Context c,String reason,boolean notify){
