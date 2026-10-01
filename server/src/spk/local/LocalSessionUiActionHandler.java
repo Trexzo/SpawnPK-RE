@@ -154,6 +154,12 @@ final class LocalSessionUiActionHandler {
             return false;
         }
 
+        default boolean retireTradeForCompetingRoot(
+            String reason
+        )throws IOException{
+            return false;
+        }
+
         void requestLogout();
     }
 
@@ -265,6 +271,9 @@ final class LocalSessionUiActionHandler {
                 serverPackets,
                 "serverPackets"
             )
+        );
+        bridge.retireTradeForCompetingRoot(
+            "MONSTER_SPAWNER_ROOT"
         );
         bridge.retireMakeoverDesignerRoot();
         bank.clientClosed();
@@ -645,6 +654,9 @@ final class LocalSessionUiActionHandler {
         String result=
             checked.publish();
 
+        bridge.retireTradeForCompetingRoot(
+            "DEV_PANEL_ROOT"
+        );
         bridge.retireMakeoverDesignerRoot();
         bank.clientClosed();
         compCapeCustomize.close();
@@ -666,6 +678,9 @@ final class LocalSessionUiActionHandler {
         String result=
             checked.publish();
 
+        bridge.retireTradeForCompetingRoot(
+            "BANK_ROOT"
+        );
         bridge.retireMakeoverDesignerRoot();
         compCapeCustomize.close();
         devPanel.close();
@@ -688,6 +703,9 @@ final class LocalSessionUiActionHandler {
         String result=
             checked.publish();
 
+        bridge.retireTradeForCompetingRoot(
+            "COMP_CAPE_ROOT"
+        );
         bridge.retireMakeoverDesignerRoot();
         bank.clientClosed();
         devPanel.close();
@@ -710,6 +728,32 @@ final class LocalSessionUiActionHandler {
         String result=
             checked.publish();
 
+        bridge.retireTradeForCompetingRoot(
+            "MAKEOVER_ROOT"
+        );
+        bank.clientClosed();
+        compCapeCustomize.close();
+        devPanel.close();
+        bridge.clearDialogNumberKeys();
+        return result;
+    }
+
+    String publishTradeRootForOwnedSession(
+        RootInterfaceAction publisher
+    )throws IOException{
+        RootInterfaceAction checked=
+            Objects.requireNonNull(
+                publisher,
+                "publisher"
+            );
+
+        monsterSpawnerUiOpen=false;
+        itemLibrary.close();
+
+        String result=
+            checked.publish();
+
+        bridge.retireMakeoverDesignerRoot();
         bank.clientClosed();
         compCapeCustomize.close();
         devPanel.close();
@@ -732,6 +776,9 @@ final class LocalSessionUiActionHandler {
         String result=
             checked.publish();
 
+        bridge.retireTradeForCompetingRoot(
+            "COMPETING_ROOT"
+        );
         bridge.retireMakeoverDesignerRoot();
         bank.clientClosed();
         compCapeCustomize.close();
