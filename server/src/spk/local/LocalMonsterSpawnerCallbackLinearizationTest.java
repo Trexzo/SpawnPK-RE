@@ -32,6 +32,7 @@ public final class LocalMonsterSpawnerCallbackLinearizationTest {
         interfaceCloseWaitsForAdmittedWidgetTransaction();
         interfaceCloseWinningFirstRejectsWidgetTransaction();
         rootReplacementAndMonsterOpenSerialize();
+        rootReplacementRejectsStaleGenerationAndClosedWorld();
 
         System.out.println(
             "MONSTER_SPAWNER_CALLBACK_LINEARIZATION_PASS "+
@@ -56,7 +57,9 @@ public final class LocalMonsterSpawnerCallbackLinearizationTest {
             "uiCloseWaitsForAdmittedWidget=true "+
             "uiCloseWinningFirstRejectsWidget=true "+
             "rootReplacementOpenSerialized=true "+
-            "rootReplacementFinalGateMatchesRoot=true"
+            "rootReplacementFinalGateMatchesRoot=true "+
+            "rootReplacementExactGeneration=true "+
+            "rootReplacementClosedWorld=true"
         );
     }
 
@@ -2178,6 +2181,85 @@ public final class LocalMonsterSpawnerCallbackLinearizationTest {
 
             world.close();
         }
+    }
+
+    private static void rootReplacementRejectsStaleGenerationAndClosedWorld()
+        throws Exception{
+        World staleWorld=
+            World.isolatedForTest(
+                600L
+            );
+        WorldPlayer stalePlayer=
+            new WorldPlayer();
+        long staleGeneration=
+            staleWorld.registerPlayer(
+                stalePlayer,
+                OWNER
+            );
+        int[] stalePublishes={0};
+
+        try{
+            require(
+                staleWorld.unregisterPlayer(
+                    stalePlayer,
+                    staleGeneration
+                ),
+                "root replacement stale generation unregister"
+            );
+
+            String staleResult=
+                LocalSession
+                    .replaceMonsterSpawnerRootForCurrentSession(
+                        staleWorld,
+                        stalePlayer,
+                        staleGeneration,
+                        ()->{
+                            stalePublishes[0]++;
+                            return "STALE_ROOT_PUBLISHED";
+                        }
+                    );
+
+            require(
+                staleResult==null&&
+                stalePublishes[0]==0,
+                "stale generation published competing root"
+            );
+        }finally{
+            staleWorld.close();
+        }
+
+        World closedWorld=
+            World.isolatedForTest(
+                600L
+            );
+        WorldPlayer closedPlayer=
+            new WorldPlayer();
+        long closedGeneration=
+            closedWorld.registerPlayer(
+                closedPlayer,
+                OWNER
+            );
+        int[] closedPublishes={0};
+
+        closedWorld.close();
+
+        String closedResult=
+            LocalSession
+                .replaceMonsterSpawnerRootForCurrentSession(
+                    closedWorld,
+                    closedPlayer,
+                    closedGeneration,
+                    ()->{
+                        closedPublishes[0]++;
+                        return "CLOSED_ROOT_PUBLISHED";
+                    }
+                );
+
+        require(
+            closedResult==null&&
+            closedPublishes[0]==0,
+            "closed World published competing root"
+        );
     }
 
     private static void widgetAndOpenRejectStaleGeneration()
