@@ -229,10 +229,164 @@ public final class LocalGroundItemInteractionHandlerTest {
             if(studyResult.saveReason!=null)
                 throw new AssertionError("unimplemented semantic must not save");
 
+            testTakeTransactionAtomicity();
+
             System.out.println(
-                "LOCAL_GROUND_ITEM_HANDLER_PASS immediateTake=true deferredOwnership=true pathEndCancel=true nonTakeFailClosed=true ownerAwareLookup=true currentPlane=true privatePreferred=true publicFallback=true");
+                "LOCAL_GROUND_ITEM_HANDLER_PASS immediateTake=true deferredOwnership=true pathEndCancel=true nonTakeFailClosed=true ownerAwareLookup=true currentPlane=true privatePreferred=true publicFallback=true takeTransactionAtomic=true takeSceneContextRollback=true");
         }finally{
             world.close();
         }
     }
+
+    private static void testTakeTransactionAtomicity()
+        throws Exception
+    {
+        World world=
+            World.isolatedForTest(52L);
+
+        try{
+            WorldPlayer player=
+                new WorldPlayer();
+            BankState bank=
+                player.bank();
+            MovementState movement=
+                player.movement();
+            LocalGroundItemInteractionHandler handler=
+                new LocalGroundItemInteractionHandler(
+                    world,
+                    bank,
+                    movement
+                );
+
+            Tile tile=
+                new Tile(
+                    movement.x(),
+                    movement.y(),
+                    0
+                );
+
+            GroundItem ground=
+                world.groundItems().add(
+                    4151,
+                    1,
+                    tile,
+                    "opensrc",
+                    20L,
+                    false
+                );
+
+            OutboundPacketQueue failedQueue=
+                fullQueue();
+            ServerPacketWriter failedWriter=
+                queueWriter(
+                    failedQueue,
+                    new int[]{21,22,23,24}
+                );
+            SceneCoordinateContext failedContext=
+                new SceneCoordinateContext(
+                    MovementState.REGION_BASE_X,
+                    MovementState.REGION_BASE_Y,
+                    0
+                );
+            SceneUpdatePublisher failedScene=
+                new SceneUpdatePublisher(
+                    failedWriter,
+                    failedContext
+                );
+
+            boolean failed=false;
+
+            try{
+                handler.handle(
+                    new GroundItemInteraction(
+                        236,
+                        3,
+                        4151,
+                        tile.x,
+                        tile.y
+                    ),
+                    "opensrc",
+                    failedScene,
+                    failedWriter
+                );
+            }catch(java.io.IOException expected){
+                failed=true;
+            }
+
+            if(!failed||
+               bank.inventoryCount(4151)!=0||
+               world.groundItems().byId(ground.id)!=ground||
+               failedContext.currentChunkX()!=-1||
+               failedContext.currentChunkY()!=-1||
+               failedQueue.queuedBytes()!=1024)
+                throw new AssertionError(
+                    "failed Take changed cross-domain preimage"
+                );
+
+            ServerPacketWriter healthy=
+                new ServerPacketWriter(
+                    new ByteArrayOutputStream(),
+                    new IsaacCipher(
+                        new int[]{25,26,27,28}
+                    )
+                );
+            SceneUpdatePublisher healthyScene=
+                new SceneUpdatePublisher(
+                    healthy,
+                    new SceneCoordinateContext(
+                        MovementState.REGION_BASE_X,
+                        MovementState.REGION_BASE_Y,
+                        0
+                    )
+                );
+
+            LocalGroundItemInteractionHandler.Result retry=
+                handler.handle(
+                    new GroundItemInteraction(
+                        236,
+                        3,
+                        4151,
+                        tile.x,
+                        tile.y
+                    ),
+                    "opensrc",
+                    healthyScene,
+                    healthy
+                );
+
+            if(retry==null||
+               !"GROUND_TAKE".equals(
+                    retry.saveReason
+               )||
+               bank.inventoryCount(4151)!=1||
+               world.groundItems().byId(ground.id)!=null)
+                throw new AssertionError(
+                    "Take retry did not commit exactly once"
+                );
+        }finally{
+            world.close();
+        }
+    }
+
+    private static OutboundPacketQueue fullQueue()
+        throws Exception
+    {
+        OutboundPacketQueue queue=
+            new OutboundPacketQueue(1024);
+        queue.offer(
+            new byte[1024]
+        );
+        return queue;
+    }
+
+    private static ServerPacketWriter queueWriter(
+        OutboundPacketQueue queue,
+        int[] seed
+    ){
+        return new ServerPacketWriter(
+            queue,
+            new IsaacCipher(seed)
+        );
+    }
+
 }
