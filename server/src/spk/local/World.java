@@ -1005,6 +1005,9 @@ final class World implements AutoCloseable {
                     ()->Player81WorldSync.closeWorld(
                         this
                     ),
+                    ()->TradeService.closeWorld(
+                        this
+                    ),
                     npcPresentationEvents::close,
                     groundItemPresentationEvents::close,
                     domainEvents::close,
