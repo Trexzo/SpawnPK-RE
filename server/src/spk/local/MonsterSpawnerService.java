@@ -416,6 +416,69 @@ final class MonsterSpawnerService {
         return snapshotOf(session);
     }
 
+    synchronized SessionSnapshot activateIfCurrent(
+        String ownerRef,
+        SessionSnapshot expected,
+        int spawnBudget
+    ){
+        SessionSnapshot checked=
+            Objects.requireNonNull(
+                expected,
+                "expected"
+            );
+
+        Session session=
+            requireSession(
+                ownerRef
+            );
+
+        if(!session.ownerRef.equals(
+                checked.ownerRef))
+            throw new IllegalArgumentException(
+                "Monster Spawner expected session owner mismatch expected="+
+                checked.ownerRef+
+                " actual="+session.ownerRef
+            );
+
+        SessionSnapshot current=
+            snapshotOf(
+                session
+            );
+
+        if(!sameSessionState(
+                current,
+                checked))
+            throw new IllegalStateException(
+                "Monster Spawner session changed before activation owner="+
+                session.ownerRef
+            );
+
+        if(current.active)
+            throw new IllegalStateException(
+                "Monster Spawner already active "+
+                session.ownerRef
+            );
+
+        if(current.selectedRowIndex==null)
+            throw new IllegalStateException(
+                "Monster Spawner has no selected row "+
+                session.ownerRef
+            );
+
+        if(spawnBudget<=0)
+            throw new IllegalArgumentException(
+                "spawnBudget="+spawnBudget
+            );
+
+        session.remainingSpawnBudget=
+            spawnBudget;
+        session.active=true;
+
+        return snapshotOf(
+            session
+        );
+    }
+
     synchronized SessionSnapshot deactivate(
         String ownerRef
     ){
@@ -806,6 +869,36 @@ final class MonsterSpawnerService {
 
     synchronized int sessionCount(){
         return sessions.size();
+    }
+
+    private static boolean sameSessionState(
+        SessionSnapshot left,
+        SessionSnapshot right
+    ){
+        return left.ownerRef.equals(
+                right.ownerRef
+            )&&
+            left.policyAuthority.equals(
+                right.policyAuthority
+            )&&
+            Objects.equals(
+                left.selectedRowIndex,
+                right.selectedRowIndex
+            )&&
+            Objects.equals(
+                left.selectedSemanticKey,
+                right.selectedSemanticKey
+            )&&
+            Objects.equals(
+                left.selectedDefinitionId,
+                right.selectedDefinitionId
+            )&&
+            left.active==right.active&&
+            left.remainingSpawnBudget==
+                right.remainingSpawnBudget&&
+            left.spawnedNpcIds.equals(
+                right.spawnedNpcIds
+            );
     }
 
     private CatalogSnapshot catalogSnapshot(){
