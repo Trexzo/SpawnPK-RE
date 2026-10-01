@@ -459,6 +459,121 @@ public final class LocalSessionUiActionHandlerTest {
                 "Monster Spawner toggle fell through to unrelated widget route"
             );
 
+        MonsterSpawnerService.SessionSnapshot
+            beforeEquipmentRoot=
+                spawner.getSession(
+                    "session-ui-owner"
+                );
+        int equipmentRootWireBefore=
+            wire.size();
+
+        routed.handleWidget(
+            NativeEquipmentDeathUi.EQUIPMENT_STATS_BUTTON,
+            w,
+            "[ui-test] "
+        );
+
+        int equipmentRootWireAfter=
+            wire.size();
+        int equipmentRootResults=
+            bridge.monsterSpawnerResults;
+        int equipmentRootTransactions=
+            bridge.monsterSpawnerWidgetTransactions;
+
+        if(equipmentRootWireAfter<=equipmentRootWireBefore)
+            throw new AssertionError(
+                "equipment-stats root replacement emitted no packets"
+            );
+
+        routed.handleWidget(
+            MonsterSpawnerPresentation.TOGGLE_WIDGET,
+            w,
+            "[ui-test] "
+        );
+
+        MonsterSpawnerService.SessionSnapshot
+            afterEquipmentClosedWidget=
+                spawner.getSession(
+                    "session-ui-owner"
+                );
+
+        if(afterEquipmentClosedWidget.active!=
+                beforeEquipmentRoot.active||
+           afterEquipmentClosedWidget.remainingSpawnBudget!=
+                beforeEquipmentRoot.remainingSpawnBudget||
+           !afterEquipmentClosedWidget.selectedRowIndex.equals(
+                beforeEquipmentRoot.selectedRowIndex
+            )||
+           wire.size()!=equipmentRootWireAfter||
+           bridge.monsterSpawnerResults!=
+                equipmentRootResults||
+           bridge.monsterSpawnerWidgetTransactions!=
+                equipmentRootTransactions)
+            throw new AssertionError(
+                "equipment-stats root replacement left Monster Spawner gate open"
+            );
+
+        if(!routed.openMonsterSpawnerIfConfigured(
+                w
+            ))
+            throw new AssertionError(
+                "Monster Spawner did not reopen before death-root replacement"
+            );
+
+        MonsterSpawnerService.SessionSnapshot
+            beforeDeathRoot=
+                spawner.getSession(
+                    "session-ui-owner"
+                );
+        int deathRootWireBefore=
+            wire.size();
+
+        routed.handleWidget(
+            NativeEquipmentDeathUi.DEATH_BUTTON,
+            w,
+            "[ui-test] "
+        );
+
+        int deathRootWireAfter=
+            wire.size();
+        int deathRootResults=
+            bridge.monsterSpawnerResults;
+        int deathRootTransactions=
+            bridge.monsterSpawnerWidgetTransactions;
+
+        if(deathRootWireAfter<=deathRootWireBefore)
+            throw new AssertionError(
+                "death-preview root replacement emitted no packets"
+            );
+
+        routed.handleWidget(
+            MonsterSpawnerPresentation.TOGGLE_WIDGET,
+            w,
+            "[ui-test] "
+        );
+
+        MonsterSpawnerService.SessionSnapshot
+            afterDeathClosedWidget=
+                spawner.getSession(
+                    "session-ui-owner"
+                );
+
+        if(afterDeathClosedWidget.active!=
+                beforeDeathRoot.active||
+           afterDeathClosedWidget.remainingSpawnBudget!=
+                beforeDeathRoot.remainingSpawnBudget||
+           !afterDeathClosedWidget.selectedRowIndex.equals(
+                beforeDeathRoot.selectedRowIndex
+            )||
+           wire.size()!=deathRootWireAfter||
+           bridge.monsterSpawnerResults!=
+                deathRootResults||
+           bridge.monsterSpawnerWidgetTransactions!=
+                deathRootTransactions)
+            throw new AssertionError(
+                "death-preview root replacement left Monster Spawner gate open"
+            );
+
         int configuredHomeBefore=wire.size();
         int monsterTransactionsBeforeHome=
             bridge.monsterSpawnerWidgetTransactions;
@@ -1078,7 +1193,9 @@ public final class LocalSessionUiActionHandlerTest {
             "monsterSpawnerUnrelatedBypass=true "+
             "monsterSpawnerPreOpenRejected=true "+
             "monsterSpawnerPostCloseRejected=true "+
-            "monsterSpawnerLateInstallClosed=true"
+            "monsterSpawnerLateInstallClosed=true "+
+            "monsterSpawnerEquipmentRootRevokes=true "+
+            "monsterSpawnerDeathRootRevokes=true"
         );
 
         System.out.println(
