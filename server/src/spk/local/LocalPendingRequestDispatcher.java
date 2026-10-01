@@ -142,7 +142,7 @@ final class LocalPendingRequestDispatcher {
                 );
         this.makeoverMage.installDesignerRootOwner(
             action->
-                this.uiActions.replaceMonsterSpawnerRoot(
+                this.uiActions.replaceMonsterSpawnerWithMakeoverRoot(
                     ()->{
                         action.open();
                         return "MAKEOVER_DESIGN_ROOT_OPENED";
