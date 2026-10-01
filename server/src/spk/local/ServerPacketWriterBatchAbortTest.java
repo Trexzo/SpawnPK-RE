@@ -9,13 +9,14 @@ public final class ServerPacketWriterBatchAbortTest {
         explicitAbortDiscardsAndRewindsCipher();
         failedQueueCommitRemainsAbortable();
         nestedAbortDiscardsWholeOuterBatch();
+        atomicPairAbortReleasesReservationAndRewindsCipher();
         successfulBatchPreservesWireBytes();
 
         System.out.println(
             "SERVER_PACKET_WRITER_BATCH_ABORT_PASS "+
             "zeroLeak=true isaacRewind=true "+
             "queueFailureAbortable=true nestedWholeAbort=true "+
-            "successWireParity=true"
+            "pairAbort=true successWireParity=true"
         );
     }
 
@@ -193,6 +194,107 @@ public final class ServerPacketWriterBatchAbortTest {
                 expectedOut.toByteArray()))
             throw new AssertionError(
                 "nested abort did not rewind whole outer batch"
+            );
+    }
+
+    private static void atomicPairAbortReleasesReservationAndRewindsCipher()
+        throws Exception
+    {
+        int[] seedA={41,42,43,44};
+        int[] seedB={51,52,53,54};
+        OutboundPacketQueue queueA=
+            new OutboundPacketQueue(1024);
+        OutboundPacketQueue queueB=
+            new OutboundPacketQueue(1024);
+        ServerPacketWriter writerA=
+            new ServerPacketWriter(
+                queueA,
+                new IsaacCipher(seedA)
+            );
+        ServerPacketWriter writerB=
+            new ServerPacketWriter(
+                queueB,
+                new IsaacCipher(seedB)
+            );
+
+        ServerPacketWriter.AtomicPairBatch pair=
+            ServerPacketWriter.beginAtomicQueuePair(
+                writerA,
+                2,
+                writerB,
+                2
+            );
+
+        if(pair==null)
+            throw new AssertionError(
+                "queue-backed pair was not reserved"
+            );
+
+        writerA.fixed(
+            60,
+            new byte[]{1}
+        );
+        writerB.fixed(
+            61,
+            new byte[]{2}
+        );
+        pair.abort();
+
+        if(queueA.queuedBytes()!=0||
+           queueB.queuedBytes()!=0)
+            throw new AssertionError(
+                "pair abort leaked queued bytes"
+            );
+
+        writerA.fixed(
+            62,
+            new byte[]{3}
+        );
+        writerB.fixed(
+            63,
+            new byte[]{4}
+        );
+
+        ByteArrayOutputStream actualA=
+            new ByteArrayOutputStream();
+        ByteArrayOutputStream actualB=
+            new ByteArrayOutputStream();
+        queueA.drainTo(
+            actualA,
+            1024
+        );
+        queueB.drainTo(
+            actualB,
+            1024
+        );
+
+        ByteArrayOutputStream expectedA=
+            new ByteArrayOutputStream();
+        ByteArrayOutputStream expectedB=
+            new ByteArrayOutputStream();
+        new ServerPacketWriter(
+            expectedA,
+            new IsaacCipher(seedA)
+        ).fixed(
+            62,
+            new byte[]{3}
+        );
+        new ServerPacketWriter(
+            expectedB,
+            new IsaacCipher(seedB)
+        ).fixed(
+            63,
+            new byte[]{4}
+        );
+
+        if(!Arrays.equals(
+                actualA.toByteArray(),
+                expectedA.toByteArray())||
+           !Arrays.equals(
+                actualB.toByteArray(),
+                expectedB.toByteArray()))
+            throw new AssertionError(
+                "pair abort did not rewind cipher/reservation state"
             );
     }
 
