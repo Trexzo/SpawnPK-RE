@@ -201,6 +201,7 @@ public final class Player81BatchAbortAtomicityTest {
             testOwnershipCommitBarrier();
             testStalePreparationFailClosed();
             testUnbatchedPublicationAtomicity();
+            testWriterLifetimeGate();
 
             System.out.println(
                 "PLAYER81_BATCH_ABORT_ATOMICITY_PASS "+
@@ -214,7 +215,10 @@ public final class Player81BatchAbortAtomicityTest {
                 "noContextLocalOnlyPreserved=true "+
                 "unbatchedQueueFailureAtomic=true "+
                 "unbatchedRetryCommitsOnce=true "+
-                "unbatchedDirectOutputFailClosed=true"
+                "unbatchedDirectOutputFailClosed=true "+
+                "stagedAbortWaitsForPacket81=true "+
+                "stagedEndWaitsForPacket81=true "+
+                "unbatchedBeginWaitsForPacket81=true"
             );
         }finally{
             SharedNpcWorldRelay.unregister(
@@ -241,6 +245,308 @@ public final class Player81BatchAbortAtomicityTest {
 
             world.close();
         }
+    }
+
+    private static void testWriterLifetimeGate()
+        throws Exception
+    {
+        World world=
+            World.isolatedForTest(606L);
+        WorldPlayer player=
+            new WorldPlayer();
+
+        world.registerPlayer(
+            player,
+            "player81-writer-lifetime"
+        );
+
+        OutboundPacketQueue queue=
+            new OutboundPacketQueue();
+        ServerPacketWriter writer=
+            new ServerPacketWriter(
+                queue,
+                new IsaacCipher(
+                    new int[]{37,38,39,40}
+                )
+            );
+
+        Player81WorldSync.register(
+            writer,
+            world,
+            player,
+            new DevAuthorityWorkbench()
+        );
+
+        Object lifecycle=
+            lifecycleLock(world);
+
+        try{
+            // 1) Abort cannot retire the outer batch while packet81
+            // semantic work is in flight outside the writer monitor.
+            writer.beginBatch();
+            long abortSequenceBefore=
+                sequence(world);
+            Throwable[] packetFailure=
+                new Throwable[1];
+            Throwable[] abortFailure=
+                new Throwable[1];
+
+            Thread packet=
+                new Thread(
+                    ()->{
+                        try{
+                            writer.varShort(
+                                81,
+                                BootstrapPackets.player81WalkStep(4)
+                            );
+                        }catch(Throwable failure){
+                            packetFailure[0]=failure;
+                        }
+                    },
+                    "player81-lifetime-abort-packet"
+                );
+            Thread abort=
+                new Thread(
+                    ()->{
+                        try{
+                            writer.abortBatch();
+                        }catch(Throwable failure){
+                            abortFailure[0]=failure;
+                        }
+                    },
+                    "player81-lifetime-abort"
+                );
+
+            synchronized(lifecycle){
+                packet.start();
+                waitForPlayer81InFlight(
+                    writer
+                );
+                abort.start();
+                abort.join(150L);
+
+                if(!abort.isAlive())
+                    throw new AssertionError(
+                        "abort retired batch while packet81 transform was in flight"
+                    );
+            }
+
+            packet.join(5_000L);
+            abort.join(5_000L);
+
+            if(packet.isAlive()||
+               abort.isAlive()||
+               packetFailure[0]!=null||
+               abortFailure[0]!=null)
+                throw new AssertionError(
+                    "abort interleave failed packet="+
+                    packetFailure[0]+
+                    " abort="+
+                    abortFailure[0]
+                );
+
+            if(queue.queuedBytes()!=0||
+               sequence(world)!=
+                    abortSequenceBefore)
+                throw new AssertionError(
+                    "abort interleave leaked bytes or semantic state"
+                );
+
+            // 2) endBatch must wait until the exact packet81 bytes have
+            // joined that batch before committing its prepared semantics.
+            writer.beginBatch();
+            long endSequenceBefore=
+                sequence(world);
+            Throwable[] stagedPacketFailure=
+                new Throwable[1];
+            Throwable[] endFailure=
+                new Throwable[1];
+
+            Thread stagedPacket=
+                new Thread(
+                    ()->{
+                        try{
+                            writer.varShort(
+                                81,
+                                BootstrapPackets.player81WalkStep(4)
+                            );
+                        }catch(Throwable failure){
+                            stagedPacketFailure[0]=failure;
+                        }
+                    },
+                    "player81-lifetime-end-packet"
+                );
+            Thread end=
+                new Thread(
+                    ()->{
+                        try{
+                            writer.endBatch();
+                        }catch(Throwable failure){
+                            endFailure[0]=failure;
+                        }
+                    },
+                    "player81-lifetime-end"
+                );
+
+            synchronized(lifecycle){
+                stagedPacket.start();
+                waitForPlayer81InFlight(
+                    writer
+                );
+                end.start();
+                end.join(150L);
+
+                if(!end.isAlive())
+                    throw new AssertionError(
+                        "endBatch committed while packet81 transform was in flight"
+                    );
+            }
+
+            stagedPacket.join(5_000L);
+            end.join(5_000L);
+
+            if(stagedPacket.isAlive()||
+               end.isAlive()||
+               stagedPacketFailure[0]!=null||
+               endFailure[0]!=null)
+                throw new AssertionError(
+                    "end interleave failed packet="+
+                    stagedPacketFailure[0]+
+                    " end="+
+                    endFailure[0]
+                );
+
+            if(queue.queuedBytes()==0||
+               sequence(world)<=
+                    endSequenceBefore)
+                throw new AssertionError(
+                    "end interleave did not commit exact packet81 batch"
+                );
+
+            drain(queue);
+
+            // 3) An initially-unbatched packet81 cannot be silently
+            // captured by a concurrently-started new batch.
+            long unbatchedSequenceBefore=
+                sequence(world);
+            Throwable[] unbatchedFailure=
+                new Throwable[1];
+            Throwable[] beginFailure=
+                new Throwable[1];
+
+            Thread unbatched=
+                new Thread(
+                    ()->{
+                        try{
+                            writer.varShort(
+                                81,
+                                BootstrapPackets.player81WalkStep(4)
+                            );
+                        }catch(Throwable failure){
+                            unbatchedFailure[0]=failure;
+                        }
+                    },
+                    "player81-lifetime-unbatched"
+                );
+            Thread begin=
+                new Thread(
+                    ()->{
+                        try{
+                            writer.beginBatch();
+                        }catch(Throwable failure){
+                            beginFailure[0]=failure;
+                        }
+                    },
+                    "player81-lifetime-begin"
+                );
+
+            synchronized(lifecycle){
+                unbatched.start();
+                waitForPlayer81InFlight(
+                    writer
+                );
+                begin.start();
+                begin.join(150L);
+
+                if(!begin.isAlive())
+                    throw new AssertionError(
+                        "beginBatch changed lifetime while unbatched packet81 was in flight"
+                    );
+            }
+
+            unbatched.join(5_000L);
+            begin.join(5_000L);
+
+            if(unbatched.isAlive()||
+               begin.isAlive()||
+               unbatchedFailure[0]!=null||
+               beginFailure[0]!=null)
+                throw new AssertionError(
+                    "begin interleave failed packet="+
+                    unbatchedFailure[0]+
+                    " begin="+
+                    beginFailure[0]
+                );
+
+            if(queue.queuedBytes()==0||
+               sequence(world)<=
+                    unbatchedSequenceBefore)
+                throw new AssertionError(
+                    "unbatched packet81 did not commit before new batch lifetime"
+                );
+
+            writer.abortBatch();
+        }finally{
+            Player81WorldSync.unregister(
+                writer
+            );
+            if(player.registered())
+                world.unregisterPlayer(
+                    player
+                );
+            world.close();
+        }
+    }
+
+    private static void waitForPlayer81InFlight(
+        ServerPacketWriter writer
+    )throws Exception{
+        Field field=
+            ServerPacketWriter.class
+                .getDeclaredField(
+                    "player81OperationInFlight"
+                );
+        field.setAccessible(true);
+
+        long deadline=
+            System.nanoTime()+
+            5_000_000_000L;
+
+        while(System.nanoTime()<deadline){
+            synchronized(writer){
+                if(field.getBoolean(
+                        writer))
+                    return;
+            }
+
+            Thread.sleep(5L);
+        }
+
+        throw new AssertionError(
+            "packet81 operation did not enter in-flight state"
+        );
+    }
+
+    private static Object lifecycleLock(
+        World world
+    )throws Exception{
+        Field field=
+            World.class
+                .getDeclaredField(
+                    "lifecycleLock"
+                );
+        field.setAccessible(true);
+        return field.get(world);
     }
 
     private static void testUnbatchedPublicationAtomicity()
