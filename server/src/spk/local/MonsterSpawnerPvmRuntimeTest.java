@@ -22,6 +22,8 @@ public final class MonsterSpawnerPvmRuntimeTest {
             "deathFinalization=true "+
             "settlement=true "+
             "settlementPendingRetry=true "+
+            "settlementWorldPulseRetry=true "+
+            "settlementRetryExactlyOnce=true "+
             "settlementWorldCloseFence=true "+
             "terminalRetryNoMutation=true "+
             "dropResolutionOnce=true "+
@@ -175,6 +177,10 @@ public final class MonsterSpawnerPvmRuntimeTest {
         Fixture f=new Fixture(false);
 
         try{
+            f.world.installMonsterSpawnerPvmRuntime(
+                f.runtime
+            );
+
             MonsterSpawnerPvmRuntime.SpawnResult spawned=
                 f.runtime.spawnAndBind(
                     OWNER,
@@ -243,26 +249,53 @@ public final class MonsterSpawnerPvmRuntimeTest {
                 "remove overflow blocker"
             );
 
-            MonsterSpawnerPvmRuntime.FinalizeResult retried=
-                f.runtime.retrySettlement(
-                    npc.id
-                );
+            long tickBefore=
+                f.world.clock().tick();
 
-            require(
-                retried.status==
-                    MonsterSpawnerPvmRuntime.FinalizeStatus.FINALIZED&&
-                retried.settlement!=null&&
-                f.runtime.get(npc.id)==null&&
-                f.runtime.size()==0&&
-                f.dropCalls==1&&
+            f.world.pulse().pulseOnce(
+                1_000L
+            );
+
+            GroundItem settled=
                 f.world.groundItems().findOwned(
                     995,
                     deathTile.x,
                     deathTile.y,
                     deathTile.plane,
                     "killer"
-                )!=null,
-                "pending settlement retry"
+                );
+            int settledSize=
+                f.world.groundItems().size();
+
+            require(
+                f.world.clock().tick()==
+                    tickBefore+1L&&
+                f.runtime.get(npc.id)==null&&
+                f.runtime.size()==0&&
+                f.dropCalls==1&&
+                settled!=null&&
+                settledSize==1,
+                "WorldPulse did not retry pending settlement"
+            );
+
+            f.world.pulse().pulseOnce(
+                1_600L
+            );
+
+            require(
+                f.runtime.get(npc.id)==null&&
+                f.runtime.size()==0&&
+                f.dropCalls==1&&
+                f.world.groundItems().size()==
+                    settledSize&&
+                f.world.groundItems().findOwned(
+                    995,
+                    deathTile.x,
+                    deathTile.y,
+                    deathTile.plane,
+                    "killer"
+                )==settled,
+                "later WorldPulse retried settled entry"
             );
         }finally{
             f.close();
