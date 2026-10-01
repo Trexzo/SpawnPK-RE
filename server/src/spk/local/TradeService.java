@@ -381,48 +381,94 @@ final class TradeService {
         }
         if(widget==FIRST_ACCEPT){
             if(t.stage!=Stage.OFFERING)return "TRADE_FIRST_ACCEPT_REJECTED_STAGE_"+t.stage;
-            t.setFirstAccepted(c,true);
-            if(t.firstAcceptedA&&t.firstAcceptedB){
-                t.a.pendingX=t.b.pendingX=null;
-                try{
-                    publishConfirm(t);
-                }catch(IOException failure){
-                    cancel0(
-                        state(c.world),
-                        c,
-                        "CONFIRM_ROOT_PUBLICATION_FAILED",
-                        true
-                    );
-                    throw failure;
-                }catch(RuntimeException failure){
-                    cancel0(
-                        state(c.world),
-                        c,
-                        "CONFIRM_ROOT_PUBLICATION_FAILED",
-                        true
-                    );
-                    throw failure;
-                }catch(Error failure){
-                    cancel0(
-                        state(c.world),
-                        c,
-                        "CONFIRM_ROOT_PUBLICATION_FAILED",
-                        true
-                    );
-                    throw failure;
-                }
-                t.stage=Stage.CONFIRMING;
-                return "TRADE_FIRST_ACCEPT_BOTH_CONFIRM_OPEN root=3443";
+
+            boolean peerAccepted=
+                c==t.a
+                    ?t.firstAcceptedB
+                    :t.firstAcceptedA;
+
+            if(!peerAccepted){
+                boolean acceptedA=
+                    c==t.a||
+                    t.firstAcceptedA;
+                boolean acceptedB=
+                    c==t.b||
+                    t.firstAcceptedB;
+
+                publishFirstAcceptStatus(
+                    t,
+                    acceptedA,
+                    acceptedB
+                );
+                t.setFirstAccepted(
+                    c,
+                    true
+                );
+                return "TRADE_FIRST_ACCEPT_WAITING_OTHER";
             }
-            publishFirstAcceptStatus(t);
-            return "TRADE_FIRST_ACCEPT_WAITING_OTHER";
+
+            t.setFirstAccepted(c,true);
+            t.a.pendingX=t.b.pendingX=null;
+            try{
+                publishConfirm(t);
+            }catch(IOException failure){
+                cancel0(
+                    state(c.world),
+                    c,
+                    "CONFIRM_ROOT_PUBLICATION_FAILED",
+                    true
+                );
+                throw failure;
+            }catch(RuntimeException failure){
+                cancel0(
+                    state(c.world),
+                    c,
+                    "CONFIRM_ROOT_PUBLICATION_FAILED",
+                    true
+                );
+                throw failure;
+            }catch(Error failure){
+                cancel0(
+                    state(c.world),
+                    c,
+                    "CONFIRM_ROOT_PUBLICATION_FAILED",
+                    true
+                );
+                throw failure;
+            }
+            t.stage=Stage.CONFIRMING;
+            return "TRADE_FIRST_ACCEPT_BOTH_CONFIRM_OPEN root=3443";
         }
         if(widget==FINAL_ACCEPT){
             if(t.stage!=Stage.CONFIRMING)return "TRADE_FINAL_ACCEPT_REJECTED_STAGE_"+t.stage;
+
+            boolean peerAccepted=
+                c==t.a
+                    ?t.finalAcceptedB
+                    :t.finalAcceptedA;
+
+            if(!peerAccepted){
+                boolean acceptedA=
+                    c==t.a||
+                    t.finalAcceptedA;
+                boolean acceptedB=
+                    c==t.b||
+                    t.finalAcceptedB;
+
+                publishFinalAcceptStatus(
+                    t,
+                    acceptedA,
+                    acceptedB
+                );
+                t.setFinalAccepted(
+                    c,
+                    true
+                );
+                return "TRADE_FINAL_ACCEPT_WAITING_OTHER";
+            }
+
             t.setFinalAccepted(c,true);
-            if(t.finalAcceptedA&&t.finalAcceptedB)return commit(t);
-            publishFinalAcceptStatus(t);
-            return "TRADE_FINAL_ACCEPT_WAITING_OTHER";
+            return commit(t);
         }
         return null;
     }
@@ -712,17 +758,104 @@ final class TradeService {
         int[][] own=offerUi(t.offer(c)),other=offerUi(t.offer(o));c.writer.varShort(53,BootstrapPackets.itemContainer53(OWN_OFFER,own[0],own[1]));c.writer.varShort(53,BootstrapPackets.itemContainer53(OTHER_OFFER,other[0],other[1]));
         c.writer.varShort(126,BootstrapPackets.widgetText126(PARTNER_TEXT,"Trading With: "+o.player.username()));
     }
-    private static void publishFirstAcceptStatus(Trade t)throws IOException{
-        String sa=t.firstAcceptedA?"Waiting for other player...":(t.firstAcceptedB?"Other player has accepted.":"");
-        String sb=t.firstAcceptedB?"Waiting for other player...":(t.firstAcceptedA?"Other player has accepted.":"");
-        t.a.writer.varShort(126,BootstrapPackets.widgetText126(STATUS_TEXT,sa));
-        t.b.writer.varShort(126,BootstrapPackets.widgetText126(STATUS_TEXT,sb));
+    private static void publishFirstAcceptStatus(
+        Trade t,
+        boolean acceptedA,
+        boolean acceptedB
+    )throws IOException{
+        String sa=
+            acceptedA
+                ?"Waiting for other player..."
+                :acceptedB
+                    ?"Other player has accepted."
+                    :"";
+        String sb=
+            acceptedB
+                ?"Waiting for other player..."
+                :acceptedA
+                    ?"Other player has accepted."
+                    :"";
+
+        publishStatusPair(
+            t,
+            STATUS_TEXT,
+            sa,
+            sb
+        );
     }
-    private static void publishFinalAcceptStatus(Trade t)throws IOException{
-        String sa=t.finalAcceptedA?"Waiting for other player...":(t.finalAcceptedB?"Other player has accepted.":"Are you sure you want to make this trade?");
-        String sb=t.finalAcceptedB?"Waiting for other player...":(t.finalAcceptedA?"Other player has accepted.":"Are you sure you want to make this trade?");
-        t.a.writer.varShort(126,BootstrapPackets.widgetText126(CONFIRM_STATUS,sa));
-        t.b.writer.varShort(126,BootstrapPackets.widgetText126(CONFIRM_STATUS,sb));
+
+    private static void publishFinalAcceptStatus(
+        Trade t,
+        boolean acceptedA,
+        boolean acceptedB
+    )throws IOException{
+        String sa=
+            acceptedA
+                ?"Waiting for other player..."
+                :acceptedB
+                    ?"Other player has accepted."
+                    :"Are you sure you want to make this trade?";
+        String sb=
+            acceptedB
+                ?"Waiting for other player..."
+                :acceptedA
+                    ?"Other player has accepted."
+                    :"Are you sure you want to make this trade?";
+
+        publishStatusPair(
+            t,
+            CONFIRM_STATUS,
+            sa,
+            sb
+        );
+    }
+
+    private static void publishStatusPair(
+        Trade t,
+        int widget,
+        String textA,
+        String textB
+    )throws IOException{
+        byte[] bodyA=
+            BootstrapPackets.widgetText126(
+                widget,
+                textA
+            );
+        byte[] bodyB=
+            BootstrapPackets.widgetText126(
+                widget,
+                textB
+            );
+
+        ServerPacketWriter.AtomicPairBatch pair=
+            ServerPacketWriter.beginAtomicQueuePair(
+                t.a.writer,
+                bodyA.length+3,
+                t.b.writer,
+                bodyB.length+3
+            );
+
+        if(pair!=null){
+            t.a.writer.varShort(
+                126,
+                bodyA
+            );
+            t.b.writer.varShort(
+                126,
+                bodyB
+            );
+            pair.commit();
+            return;
+        }
+
+        t.a.writer.varShort(
+            126,
+            bodyA
+        );
+        t.b.writer.varShort(
+            126,
+            bodyB
+        );
     }
     private static void publishConfirm(Trade t)throws IOException{publishConfirmFor(t,t.a);publishConfirmFor(t,t.b);}
     private static void publishConfirmFor(Trade t,Context c)throws IOException{
