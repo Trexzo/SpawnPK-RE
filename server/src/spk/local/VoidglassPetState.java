@@ -4,6 +4,25 @@ package spk.local;
  * not account-persisted: the underlying ordinary Vasa pet remains the canonical
  * persisted item/NPC identity until a real client/cache content definition is made. */
 final class VoidglassPetState {
+    static final class Snapshot {
+        final boolean active;
+        final Integer previousParticleSelector;
+        final int selectedParticle;
+        final int procCount;
+
+        Snapshot(
+            boolean active,
+            Integer previousParticleSelector,
+            int selectedParticle,
+            int procCount
+        ){
+            this.active=active;
+            this.previousParticleSelector=previousParticleSelector;
+            this.selectedParticle=selectedParticle;
+            this.procCount=procCount;
+        }
+    }
+
     private boolean active;
     private Integer previousParticleSelector;
     private int selectedParticle=VoidglassPetProfile.DEFAULT_PARTICLE_SELECTOR;
@@ -13,6 +32,28 @@ final class VoidglassPetState {
     int selectedParticle(){return selectedParticle;}
     int procCount(){return procCount;}
     Integer previousParticleSelector(){return previousParticleSelector;}
+
+    Snapshot snapshot(){
+        return new Snapshot(
+            active,
+            previousParticleSelector,
+            selectedParticle,
+            procCount
+        );
+    }
+
+    void restore(Snapshot snapshot){
+        if(snapshot==null)
+            throw new NullPointerException("snapshot");
+        active=snapshot.active;
+        previousParticleSelector=snapshot.previousParticleSelector;
+        selectedParticle=snapshot.selectedParticle;
+        procCount=snapshot.procCount;
+    }
+
+    Integer selectorAfterClear(){
+        return previousParticleSelector;
+    }
 
     void activate(Integer previous){
         active=true;
