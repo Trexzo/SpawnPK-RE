@@ -161,6 +161,13 @@ public final class LocalMonsterSpawnerActivationPvmSpawnTest {
                     new IsaacCipher(new int[]{1,2,3,4})
                 );
 
+            require(
+                routed.openMonsterSpawnerIfConfigured(
+                    writer
+                ),
+                "activation PvM fixture did not explicitly open Monster Spawner UI"
+            );
+
             routed.handleWidget(
                 MonsterSpawnerPresentation.rowWidget(0),
                 writer,
