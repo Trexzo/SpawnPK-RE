@@ -281,6 +281,42 @@ public final class RelayWorldCloseAdmissionFenceTest {
                     "World close did not release relay static state"
                 );
 
+            expect(
+                IllegalStateException.class,
+                ()->SharedNpcWorldRelay.register(
+                    sourceWriter,
+                    world,
+                    source,
+                    sourceNpcs,
+                    source.movement()
+                ),
+                "post-close relay writer registration"
+            );
+
+            WorldNpc finalTrackedGeneric=
+                trackedGeneric;
+
+            expect(
+                IllegalStateException.class,
+                ()->SharedNpcWorldRelay.trackCanonicalNpc(
+                    world,
+                    finalTrackedGeneric
+                ),
+                "post-close canonical NPC tracking"
+            );
+
+            if(mapSize(
+                    SharedNpcWorldRelay.class,
+                    "BY_WORLD"
+                )!=relayWorldBaseline||
+               mapSize(
+                    SharedNpcWorldRelay.class,
+                    "BY_WRITER"
+                )!=relayWriterBaseline)
+                throw new AssertionError(
+                    "post-close relay admission resurrected terminal World"
+                );
+
             // Terminal detach makes later session cleanup harmless/idempotent.
             SharedNpcWorldRelay.unregister(
                 sourceWriter
@@ -309,6 +345,8 @@ public final class RelayWorldCloseAdmissionFenceTest {
                 "terminalQueueEmpty=true "+
                 "worldCloseRelayCleanup=true "+
                 "genericNpcWorldReleased=true "+
+                "postCloseRegisterRejected=true "+
+                "postCloseTrackRejected=true "+
                 "postCloseUnregisterIdempotent=true "+
                 "relayBaselineRestored=true"
             );
@@ -340,6 +378,37 @@ public final class RelayWorldCloseAdmissionFenceTest {
 
             world.close();
         }
+    }
+
+    private static void expect(
+        Class<? extends Throwable> type,
+        ThrowingRunnable action,
+        String label
+    )throws Exception{
+        try{
+            action.run();
+        }catch(Throwable failure){
+            if(type.isInstance(
+                    failure))
+                return;
+
+            throw new AssertionError(
+                label+
+                " wrong failure "+
+                failure,
+                failure
+            );
+        }
+
+        throw new AssertionError(
+            label+
+            " did not fail"
+        );
+    }
+
+    @FunctionalInterface
+    private interface ThrowingRunnable {
+        void run() throws Exception;
     }
 
     private static ServerPacketWriter writer(
