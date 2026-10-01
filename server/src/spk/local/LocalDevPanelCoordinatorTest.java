@@ -272,6 +272,111 @@ public final class LocalDevPanelCoordinatorTest {
                 );
             }
 
+            WorldPlayer tradePeer=
+                new WorldPlayer();
+            world.registerPlayer(
+                tradePeer,
+                "dev-panel-peer"
+            );
+            OutboundPacketQueue tradePeerQueue=
+                new OutboundPacketQueue();
+            ServerPacketWriter tradePeerWriter=
+                new ServerPacketWriter(
+                    tradePeerQueue,
+                    new IsaacCipher(
+                        new int[]{9,10,11,12}
+                    )
+                );
+
+            TradeService.register(
+                world,
+                player,
+                player.generation(),
+                bank,
+                writer,
+                ()->{}
+            );
+            TradeService.register(
+                world,
+                tradePeer,
+                tradePeer.generation(),
+                tradePeer.bank(),
+                tradePeerWriter,
+                ()->{}
+            );
+            if(!TradeService.start(
+                    world,
+                    player,
+                    tradePeer
+                ).contains("TRADE_UI_OPEN"))
+                throw new AssertionError(
+                    "Dev Panel failure fixture Trade did not open"
+                );
+
+            bank.open(writer);
+            itemLibrary.open(
+                writer,
+                28860
+            );
+            coordinator.promptAmount(
+                DevControlCenter.PendingAmount.HIT_DAMAGE,
+                writer
+            );
+
+            OutboundPacketQueue failedPanelQueue=
+                new OutboundPacketQueue(1024);
+            failedPanelQueue.offer(
+                new byte[900]
+            );
+            ServerPacketWriter failedPanelWriter=
+                new ServerPacketWriter(
+                    failedPanelQueue,
+                    new IsaacCipher(
+                        new int[]{13,14,15,16}
+                    )
+                );
+
+            boolean panelOpenFailed=false;
+            try{
+                coordinator.open(
+                    DevControlCenter.Page.MORE,
+                    failedPanelWriter
+                );
+            }catch(java.io.IOException expected){
+                panelOpenFailed=true;
+            }
+
+            if(!panelOpenFailed||
+               panel.isOpen()||
+               !panel.hasPending()||
+               panel.pending()!=
+                    DevControlCenter.PendingAmount.HIT_DAMAGE)
+                throw new AssertionError(
+                    "failed Dev Panel target did not restore prior panel state"
+                );
+
+            if(!bank.isOpen()||
+               !itemLibrary.isOpen()||
+               itemLibrary.selectedItem()!=28860||
+               !TradeService.active(player)||
+               !TradeService.active(tradePeer))
+                throw new AssertionError(
+                    "failed Dev Panel target retired an existing owner"
+                );
+
+            TradeService.cancelIfActive(
+                player,
+                "DEV_PANEL_FAILURE_FIXTURE_CLEANUP"
+            );
+            TradeService.unregister(
+                tradePeer
+            );
+            world.unregisterPlayer(
+                tradePeer
+            );
+            bank.clientClosed();
+            itemLibrary.close();
+
             coordinator.promptAmount(
                 DevControlCenter.PendingAmount.ITEM_LIBRARY_ID,
                 writer
@@ -376,7 +481,11 @@ public final class LocalDevPanelCoordinatorTest {
                 "openRender=true keyPublication=true "+
                 "itemLibraryRootReplacement=true "+
                 "invalidItemLibraryPreserved=true "+
-                "numericPrompt=true sessionClose=true"
+                "numericPrompt=true sessionClose=true "+
+                "targetFailureAtomic=true "+
+                "failedTargetPreservesBank=true "+
+                "failedTargetPreservesItemLibrary=true "+
+                "failedTargetPreservesTrade=true"
             );
         }finally{
             world.close();
