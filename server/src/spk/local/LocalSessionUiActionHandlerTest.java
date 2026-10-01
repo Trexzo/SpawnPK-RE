@@ -264,10 +264,13 @@ public final class LocalSessionUiActionHandlerTest {
         DevControlCenter routedDevPanel=
             new DevControlCenter();
 
+        NativeItemLibraryService routedItemLibrary=
+            new NativeItemLibraryService();
+
         LocalSessionUiActionHandler routed=
             new LocalSessionUiActionHandler(
                 player,
-                new NativeItemLibraryService(),
+                routedItemLibrary,
                 routedDevPanel,
                 bank,
                 compCape,
@@ -320,6 +323,96 @@ public final class LocalSessionUiActionHandlerTest {
         if(wire.size()<=configuredSpawnerOpenBefore)
             throw new AssertionError(
                 "configured Monster Spawner UI open packet missing"
+            );
+
+        String initialItemLibraryRoot=
+            routed.replaceMonsterSpawnerRoot(
+                ()->routedItemLibrary.open(
+                    w,
+                    28860
+                )
+            );
+
+        if(initialItemLibraryRoot==null||
+           !routedItemLibrary.isOpen())
+            throw new AssertionError(
+                "Item Library root did not claim widget ownership"
+            );
+
+        int visibleItemLibraryWidgetBefore=
+            wire.size();
+
+        routed.handleWidget(
+            NativeItemLibraryService.BONUS_BUTTON,
+            w,
+            "[ui-test] "
+        );
+
+        if(wire.size()<=visibleItemLibraryWidgetBefore)
+            throw new AssertionError(
+                "visible Item Library widget was not handled"
+            );
+
+        if(!routed.openMonsterSpawnerIfConfigured(
+                w
+            ))
+            throw new AssertionError(
+                "Monster Spawner did not replace Item Library root"
+            );
+
+        if(routedItemLibrary.isOpen())
+            throw new AssertionError(
+                "Monster Spawner root left Item Library ownership open"
+            );
+
+        int hiddenItemLibraryWidgetBefore=
+            wire.size();
+
+        routed.handleWidget(
+            NativeItemLibraryService.BONUS_BUTTON,
+            w,
+            "[ui-test] "
+        );
+
+        if(wire.size()!=hiddenItemLibraryWidgetBefore)
+            throw new AssertionError(
+                "hidden Item Library widget mutated after Monster Spawner replacement"
+            );
+
+        String reopenedItemLibraryRoot=
+            routed.replaceMonsterSpawnerRoot(
+                ()->routedItemLibrary.open(
+                    w,
+                    28860
+                )
+            );
+
+        if(reopenedItemLibraryRoot==null||
+           !routedItemLibrary.isOpen())
+            throw new AssertionError(
+                "Item Library root did not reopen after replacement"
+            );
+
+        int reopenedItemLibraryWidgetBefore=
+            wire.size();
+
+        routed.handleWidget(
+            NativeItemLibraryService.BONUS_BUTTON,
+            w,
+            "[ui-test] "
+        );
+
+        if(wire.size()<=reopenedItemLibraryWidgetBefore)
+            throw new AssertionError(
+                "reopened Item Library widget handling was not restored"
+            );
+
+        if(!routed.openMonsterSpawnerIfConfigured(
+                w
+            )||
+           routedItemLibrary.isOpen())
+            throw new AssertionError(
+                "Monster Spawner did not re-own root after Item Library reopen"
             );
 
         World commandRootWorld=
@@ -630,6 +723,43 @@ public final class LocalSessionUiActionHandlerTest {
                 "equipment-stats root replacement left Monster Spawner gate open"
             );
 
+        routed.replaceMonsterSpawnerRoot(
+            ()->routedItemLibrary.open(
+                w,
+                28860
+            )
+        );
+
+        if(!routedItemLibrary.isOpen())
+            throw new AssertionError(
+                "Item Library did not open before equipment-root replacement"
+            );
+
+        routed.handleWidget(
+            NativeEquipmentDeathUi.EQUIPMENT_STATS_BUTTON,
+            w,
+            "[ui-test] "
+        );
+
+        if(routedItemLibrary.isOpen())
+            throw new AssertionError(
+                "equipment-stats root left Item Library ownership open"
+            );
+
+        int hiddenAfterEquipmentBefore=
+            wire.size();
+
+        routed.handleWidget(
+            NativeItemLibraryService.BONUS_BUTTON,
+            w,
+            "[ui-test] "
+        );
+
+        if(wire.size()!=hiddenAfterEquipmentBefore)
+            throw new AssertionError(
+                "equipment-root replacement left hidden Item Library widget active"
+            );
+
         if(!routed.openMonsterSpawnerIfConfigured(
                 w
             ))
@@ -689,6 +819,43 @@ public final class LocalSessionUiActionHandlerTest {
                 deathRootTransactions)
             throw new AssertionError(
                 "death-preview root replacement left Monster Spawner gate open"
+            );
+
+        routed.replaceMonsterSpawnerRoot(
+            ()->routedItemLibrary.open(
+                w,
+                28860
+            )
+        );
+
+        if(!routedItemLibrary.isOpen())
+            throw new AssertionError(
+                "Item Library did not open before death-root replacement"
+            );
+
+        routed.handleWidget(
+            NativeEquipmentDeathUi.DEATH_BUTTON,
+            w,
+            "[ui-test] "
+        );
+
+        if(routedItemLibrary.isOpen())
+            throw new AssertionError(
+                "death-preview root left Item Library ownership open"
+            );
+
+        int hiddenAfterDeathBefore=
+            wire.size();
+
+        routed.handleWidget(
+            NativeItemLibraryService.BONUS_BUTTON,
+            w,
+            "[ui-test] "
+        );
+
+        if(wire.size()!=hiddenAfterDeathBefore)
+            throw new AssertionError(
+                "death-root replacement left hidden Item Library widget active"
             );
 
         if(!routed.openMonsterSpawnerIfConfigured(
@@ -1456,7 +1623,11 @@ public final class LocalSessionUiActionHandlerTest {
             "monsterSpawnerDevPanelDeathRootRevokes=true "+
             "monsterSpawnerDevPanelNavigationPreserved=true "+
             "monsterSpawnerDevPanelCommandRootRevokes=true "+
-            "monsterSpawnerDevPanelCommandStaleRejected=true"
+            "monsterSpawnerDevPanelCommandStaleRejected=true "+
+            "itemLibraryMonsterRootRevokes=true "+
+            "itemLibraryEquipmentRootRevokes=true "+
+            "itemLibraryDeathRootRevokes=true "+
+            "itemLibraryReopenRestores=true"
         );
 
         System.out.println(
