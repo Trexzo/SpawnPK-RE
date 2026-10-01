@@ -86,6 +86,8 @@ public final class Player81WorldStateCleanupTest {
                 "worldCloseReleasedState=true "+
                 "worldCloseReleasedWriters=true "+
                 "worldCloseContextsClosed=true "+
+                "postCloseRegisterRejected=true "+
+                "noStateResurrection=true "+
                 "postCloseUnregisterIdempotent=true "+
                 "baseline="+baseline
             );
@@ -180,6 +182,25 @@ public final class Player81WorldStateCleanupTest {
                     "World close did not terminalize Player81 contexts"
                 );
 
+            expect(
+                IllegalStateException.class,
+                ()->Player81WorldSync.register(
+                    wa,
+                    world,
+                    a,
+                    new DevAuthorityWorkbench()
+                ),
+                "post-close Player81 registration"
+            );
+
+            if(trackedWorlds()!=
+                    worldBaseline||
+               trackedWriters()!=
+                    writerBaseline)
+                throw new AssertionError(
+                    "post-close Player81 registration resurrected terminal state"
+                );
+
             Player81WorldSync.unregister(
                 wa
             );
@@ -209,6 +230,37 @@ public final class Player81WorldStateCleanupTest {
 
             world.close();
         }
+    }
+
+    private static void expect(
+        Class<? extends Throwable> type,
+        ThrowingRunnable action,
+        String label
+    )throws Exception{
+        try{
+            action.run();
+        }catch(Throwable failure){
+            if(type.isInstance(
+                    failure))
+                return;
+
+            throw new AssertionError(
+                label+
+                " wrong failure "+
+                failure,
+                failure
+            );
+        }
+
+        throw new AssertionError(
+            label+
+            " did not fail"
+        );
+    }
+
+    @FunctionalInterface
+    private interface ThrowingRunnable {
+        void run() throws Exception;
     }
 
     private static int trackedWriters()
