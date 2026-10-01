@@ -1022,23 +1022,26 @@ final class LocalSession implements Runnable {
                 canonicalUsername
             );
 
-        if(!checkedWorld.players().owns(
-                checkedPlayer,
-                expectedGeneration
-            ))
+        boolean delivered=
+            checkedWorld
+                .withOpenPlayerMutationOwnershipIfCurrent(
+                    checkedPlayer,
+                    expectedGeneration,
+                    ()->factory.onSessionClosed(
+                        checkedWorld,
+                        checkedPlayer,
+                        expectedGeneration,
+                        username
+                    )
+                );
+
+        if(!delivered)
             throw new IllegalStateException(
-                "Monster Spawner session-close callback requires exact current player generation owner="+
+                "Monster Spawner session-close callback rejected by World/player ownership fence owner="+
                 username+
                 " expectedGeneration="+
                 expectedGeneration
             );
-
-        factory.onSessionClosed(
-            checkedWorld,
-            checkedPlayer,
-            expectedGeneration,
-            username
-        );
     }
 
     static LocalMonsterSpawnerUiHandler
