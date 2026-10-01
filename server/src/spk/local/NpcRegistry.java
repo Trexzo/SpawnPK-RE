@@ -508,6 +508,34 @@ final class NpcRegistry {
         );
     }
 
+    void relayCommittedMiniPetInteractionTarget(
+        PreparedMiniPetReplacement prepared,
+        ServerPacketWriter sourceWriter
+    ){
+        if(prepared==null)
+            throw new NullPointerException(
+                "prepared"
+            );
+        if(sourceWriter==null)
+            throw new NullPointerException(
+                "sourceWriter"
+            );
+        if(pet!=prepared.expectedMainPet||
+           miniPet!=prepared.newMini)
+            throw new IllegalStateException(
+                "prepared mini replacement not committed"
+            );
+
+        SharedNpcWorldRelay.relayMask(
+            sourceWriter,
+            this,
+            miniPet,
+            NpcSyncEncoder.Mask.interactionTarget(
+                pet.sceneIndex
+            )
+        );
+    }
+
     String spawnOrReplaceMiniPet(MiniPetDefinitionRepository.Def d,MovementState movement,ServerPacketWriter w)throws IOException {
         if(d==null)return "REJECTED_NULL_MINI_DEFINITION";
         if(pet==null)return "REJECTED_NO_MAIN_PET";
