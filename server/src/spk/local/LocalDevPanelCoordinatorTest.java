@@ -11,6 +11,7 @@ public final class LocalDevPanelCoordinatorTest {
     {
         SceneUpdatePublisher publisher;
         String saveReason;
+        int rootReplacingAmounts;
 
         @Override public String username(){
             return "opensrc";
@@ -31,6 +32,15 @@ public final class LocalDevPanelCoordinatorTest {
             String reason
         ){
             saveReason=reason;
+        }
+
+        @Override public LocalDevPanelAmountHandler.Outcome
+            handleRootReplacingAmount(
+                LocalDevPanelCoordinator
+                    .RootReplacingAmountAction action
+            )throws java.io.IOException{
+            rootReplacingAmounts++;
+            return action.handle();
         }
     }
 
@@ -263,6 +273,51 @@ public final class LocalDevPanelCoordinatorTest {
             }
 
             coordinator.promptAmount(
+                DevControlCenter.PendingAmount.ITEM_LIBRARY_ID,
+                writer
+            );
+            int rootReplacingBeforeInvalid=
+                bridge.rootReplacingAmounts;
+
+            coordinator.handleAmount(
+                -1,
+                writer,
+                "[dev-panel-test] "
+            );
+
+            if(bridge.rootReplacingAmounts!=
+                    rootReplacingBeforeInvalid||
+               itemLibrary.isOpen())
+                throw new AssertionError(
+                    "invalid Item Library amount entered root replacement"
+                );
+
+            coordinator.promptAmount(
+                DevControlCenter.PendingAmount.ITEM_LIBRARY_ID,
+                writer
+            );
+
+            coordinator.handleAmount(
+                28860,
+                writer,
+                "[dev-panel-test] "
+            );
+
+            if(bridge.rootReplacingAmounts!=
+                    rootReplacingBeforeInvalid+1||
+               !itemLibrary.isOpen()||
+               itemLibrary.selectedItem()!=28860)
+                throw new AssertionError(
+                    "valid Item Library amount bypassed root replacement"
+                );
+
+            itemLibrary.close();
+            coordinator.open(
+                DevControlCenter.Page.MAIN,
+                writer
+            );
+
+            coordinator.promptAmount(
                 DevControlCenter.PendingAmount.HIT_DAMAGE,
                 writer
             );
@@ -319,6 +374,8 @@ public final class LocalDevPanelCoordinatorTest {
             System.out.println(
                 "LOCAL_DEV_PANEL_COORDINATOR_PASS "+
                 "openRender=true keyPublication=true "+
+                "itemLibraryRootReplacement=true "+
+                "invalidItemLibraryPreserved=true "+
                 "numericPrompt=true sessionClose=true"
             );
         }finally{
