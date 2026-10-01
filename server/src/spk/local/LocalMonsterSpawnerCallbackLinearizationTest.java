@@ -19,6 +19,9 @@ public final class LocalMonsterSpawnerCallbackLinearizationTest {
         sessionCloseUnregisterWaits();
         sessionCloseWorldCloseWaits();
         queuedSessionCloseRejectedAfterClosePublication();
+        loginFactoryUnregisterWaits();
+        loginFactoryWorldCloseWaits();
+        queuedLoginFactoryRejectedAfterClosePublication();
 
         System.out.println(
             "MONSTER_SPAWNER_CALLBACK_LINEARIZATION_PASS "+
@@ -29,7 +32,10 @@ public final class LocalMonsterSpawnerCallbackLinearizationTest {
             "callbackOnce=true "+
             "sessionCloseUnregisterWaits=true "+
             "sessionCloseCloseWaits=true "+
-            "sessionCloseQueuedAfterCloseRejected=true"
+            "sessionCloseQueuedAfterCloseRejected=true "+
+            "loginFactoryUnregisterWaits=true "+
+            "loginFactoryCloseWaits=true "+
+            "loginFactoryQueuedAfterCloseRejected=true"
         );
     }
 
@@ -759,6 +765,382 @@ public final class LocalMonsterSpawnerCallbackLinearizationTest {
             releaseLifecycle.countDown();
             world.close();
         }
+    }
+
+    private static void loginFactoryUnregisterWaits()
+        throws Exception{
+        World world=World.isolatedForTest(600L);
+        WorldPlayer player=new WorldPlayer();
+        long generation=world.registerPlayer(player,OWNER);
+
+        CountDownLatch factoryEntered=new CountDownLatch(1);
+        CountDownLatch releaseFactory=new CountDownLatch(1);
+        CountDownLatch unregisterDone=new CountDownLatch(1);
+
+        Throwable[] factoryFailure={null};
+        Throwable[] unregisterFailure={null};
+        boolean[] unregisterResult={false};
+        int[] factoryCalls={0};
+
+        LocalSession.MonsterSpawnerUiFactory factory=
+            blockingCreateFactory(
+                factoryEntered,
+                releaseFactory,
+                factoryCalls
+            );
+
+        Thread resolver=
+            new Thread(
+                ()->{
+                    try{
+                        LocalSession.resolveMonsterSpawnerUiAfterLogin(
+                            factory,
+                            world,
+                            player,
+                            generation,
+                            OWNER
+                        );
+                    }catch(Throwable failure){
+                        factoryFailure[0]=failure;
+                    }
+                },
+                "monster-login-factory-unregister"
+            );
+
+        Thread unregister=
+            new Thread(
+                ()->{
+                    try{
+                        unregisterResult[0]=
+                            world.unregisterPlayer(
+                                player,
+                                generation
+                            );
+                    }catch(Throwable failure){
+                        unregisterFailure[0]=failure;
+                    }finally{
+                        unregisterDone.countDown();
+                    }
+                },
+                "monster-login-factory-unregister-owner"
+            );
+
+        try{
+            resolver.start();
+
+            await(
+                factoryEntered,
+                "login factory did not enter before unregister"
+            );
+
+            unregister.start();
+
+            awaitBlocked(
+                unregister,
+                "unregister did not block behind admitted login factory"
+            );
+
+            if(unregisterDone.getCount()==0L)
+                throw new AssertionError(
+                    "unregister completed while login factory owned mutation boundary"
+                );
+
+            releaseFactory.countDown();
+
+            join(
+                resolver,
+                "login factory did not complete after release"
+            );
+            join(
+                unregister,
+                "unregister did not complete after login factory release"
+            );
+
+            require(
+                factoryFailure[0]==null&&
+                unregisterFailure[0]==null&&
+                unregisterResult[0]&&
+                factoryCalls[0]==1&&
+                !world.players().owns(
+                    player,
+                    generation
+                ),
+                "login factory unregister linearization result"
+            );
+        }finally{
+            releaseFactory.countDown();
+
+            if(world.players().owns(
+                    player,
+                    generation
+                ))
+                world.unregisterPlayer(
+                    player,
+                    generation
+                );
+
+            world.close();
+        }
+    }
+
+    private static void loginFactoryWorldCloseWaits()
+        throws Exception{
+        World world=World.isolatedForTest(600L);
+        WorldPlayer player=new WorldPlayer();
+        long generation=world.registerPlayer(player,OWNER);
+
+        CountDownLatch factoryEntered=new CountDownLatch(1);
+        CountDownLatch releaseFactory=new CountDownLatch(1);
+        CountDownLatch closeDone=new CountDownLatch(1);
+
+        Throwable[] factoryFailure={null};
+        Throwable[] closeFailure={null};
+        int[] factoryCalls={0};
+
+        LocalSession.MonsterSpawnerUiFactory factory=
+            blockingCreateFactory(
+                factoryEntered,
+                releaseFactory,
+                factoryCalls
+            );
+
+        Thread resolver=
+            new Thread(
+                ()->{
+                    try{
+                        LocalSession.resolveMonsterSpawnerUiAfterLogin(
+                            factory,
+                            world,
+                            player,
+                            generation,
+                            OWNER
+                        );
+                    }catch(Throwable failure){
+                        factoryFailure[0]=failure;
+                    }
+                },
+                "monster-login-factory-world-close"
+            );
+
+        Thread closer=
+            new Thread(
+                ()->{
+                    try{
+                        world.close();
+                    }catch(Throwable failure){
+                        closeFailure[0]=failure;
+                    }finally{
+                        closeDone.countDown();
+                    }
+                },
+                "monster-login-factory-world-closer"
+            );
+
+        try{
+            resolver.start();
+
+            await(
+                factoryEntered,
+                "login factory did not enter before World close"
+            );
+
+            closer.start();
+
+            awaitClosed(
+                world,
+                "login factory World terminal flag was not published"
+            );
+
+            awaitBlocked(
+                closer,
+                "World close did not wait behind admitted login factory"
+            );
+
+            if(closeDone.getCount()==0L)
+                throw new AssertionError(
+                    "World close completed while login factory was admitted"
+                );
+
+            releaseFactory.countDown();
+
+            join(
+                resolver,
+                "login factory did not finish after release"
+            );
+            join(
+                closer,
+                "World close did not finish after login factory release"
+            );
+
+            require(
+                factoryFailure[0]==null&&
+                closeFailure[0]==null&&
+                factoryCalls[0]==1&&
+                world.closed()&&
+                closeDone.getCount()==0L,
+                "login factory World-close linearization result"
+            );
+        }finally{
+            releaseFactory.countDown();
+            world.close();
+        }
+    }
+
+    private static void queuedLoginFactoryRejectedAfterClosePublication()
+        throws Exception{
+        World world=World.isolatedForTest(600L);
+        WorldPlayer player=new WorldPlayer();
+        long generation=world.registerPlayer(player,OWNER);
+
+        CountDownLatch lifecycleHeld=new CountDownLatch(1);
+        CountDownLatch releaseLifecycle=new CountDownLatch(1);
+
+        Throwable[] blockerFailure={null};
+        Throwable[] factoryFailure={null};
+        Throwable[] closeFailure={null};
+        int[] factoryCalls={0};
+
+        LocalSession.MonsterSpawnerUiFactory factory=
+            new LocalSession.MonsterSpawnerUiFactory(){
+                @Override public LocalMonsterSpawnerUiHandler create(
+                    World factoryWorld,
+                    WorldPlayer factoryPlayer,
+                    String canonicalUsername
+                ){
+                    factoryCalls[0]++;
+                    return null;
+                }
+            };
+
+        Thread blocker=
+            new Thread(
+                ()->{
+                    try{
+                        world.withOpenLifecycleOwnership(
+                            ()->{
+                                lifecycleHeld.countDown();
+
+                                if(!releaseLifecycle.await(
+                                        5L,
+                                        TimeUnit.SECONDS))
+                                    throw new AssertionError(
+                                        "login factory lifecycle release timeout"
+                                    );
+                            }
+                        );
+                    }catch(Throwable failure){
+                        blockerFailure[0]=failure;
+                    }
+                },
+                "monster-login-factory-lifecycle-blocker"
+            );
+
+        Thread resolver=
+            new Thread(
+                ()->{
+                    try{
+                        LocalSession.resolveMonsterSpawnerUiAfterLogin(
+                            factory,
+                            world,
+                            player,
+                            generation,
+                            OWNER
+                        );
+                    }catch(Throwable failure){
+                        factoryFailure[0]=failure;
+                    }
+                },
+                "monster-login-factory-queued"
+            );
+
+        Thread closer=
+            new Thread(
+                ()->{
+                    try{
+                        world.close();
+                    }catch(Throwable failure){
+                        closeFailure[0]=failure;
+                    }
+                },
+                "monster-login-factory-queued-world-close"
+            );
+
+        try{
+            blocker.start();
+
+            await(
+                lifecycleHeld,
+                "login factory lifecycle blocker did not enter"
+            );
+
+            resolver.start();
+
+            awaitBlocked(
+                resolver,
+                "queued login factory did not wait for lifecycle ownership"
+            );
+
+            closer.start();
+
+            awaitClosed(
+                world,
+                "queued login factory World terminal flag was not published"
+            );
+
+            releaseLifecycle.countDown();
+
+            join(
+                blocker,
+                "login factory lifecycle blocker did not exit"
+            );
+            join(
+                resolver,
+                "queued login factory did not terminate"
+            );
+            join(
+                closer,
+                "queued login factory World close did not terminate"
+            );
+
+            require(
+                blockerFailure[0]==null&&
+                closeFailure[0]==null&&
+                factoryFailure[0] instanceof IllegalStateException&&
+                factoryCalls[0]==0&&
+                world.closed(),
+                "queued login factory crossed World terminal publication"
+            );
+        }finally{
+            releaseLifecycle.countDown();
+            world.close();
+        }
+    }
+
+    private static LocalSession.MonsterSpawnerUiFactory
+        blockingCreateFactory(
+            CountDownLatch entered,
+            CountDownLatch release,
+            int[] calls
+        ){
+        return new LocalSession.MonsterSpawnerUiFactory(){
+            @Override public LocalMonsterSpawnerUiHandler create(
+                World factoryWorld,
+                WorldPlayer factoryPlayer,
+                String canonicalUsername
+            )throws Exception{
+                calls[0]++;
+                entered.countDown();
+
+                if(!release.await(
+                        5L,
+                        TimeUnit.SECONDS))
+                    throw new AssertionError(
+                        "login factory release timeout"
+                    );
+
+                return null;
+            }
+        };
     }
 
     private static LocalSession.MonsterSpawnerUiFactory
