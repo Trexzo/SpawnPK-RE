@@ -21,6 +21,13 @@ final class LocalSession implements Runnable {
             ServerPacketWriter writer,
             String tag
         ) throws Exception{}
+
+        default void onSessionClosed(
+            World world,
+            WorldPlayer player,
+            long expectedGeneration,
+            String canonicalUsername
+        ) throws Exception{}
     }
 
     private final Socket socket;
@@ -990,6 +997,50 @@ final class LocalSession implements Runnable {
         }
     }
 
+    static void notifyMonsterSpawnerSessionClosed(
+        MonsterSpawnerUiFactory factory,
+        World world,
+        WorldPlayer player,
+        long expectedGeneration,
+        String canonicalUsername
+    )throws Exception{
+        if(factory==null)
+            return;
+
+        World checkedWorld=
+            java.util.Objects.requireNonNull(
+                world,
+                "world"
+            );
+        WorldPlayer checkedPlayer=
+            java.util.Objects.requireNonNull(
+                player,
+                "player"
+            );
+        String username=
+            PartyService.requireRef(
+                canonicalUsername
+            );
+
+        if(!checkedWorld.players().owns(
+                checkedPlayer,
+                expectedGeneration
+            ))
+            throw new IllegalStateException(
+                "Monster Spawner session-close callback requires exact current player generation owner="+
+                username+
+                " expectedGeneration="+
+                expectedGeneration
+            );
+
+        factory.onSessionClosed(
+            checkedWorld,
+            checkedPlayer,
+            expectedGeneration,
+            username
+        );
+    }
+
     static LocalMonsterSpawnerUiHandler
         resolveMonsterSpawnerUiAfterLogin(
             MonsterSpawnerUiFactory factory,
@@ -1202,6 +1253,35 @@ final class LocalSession implements Runnable {
                             );
                         }finally{
                             worldTickAttached=false;
+                        }
+                    }
+                );
+            }
+
+            if(monsterSpawnerUiFactory!=null&&
+               worldRegistered){
+                LocalSessionTeardown.run(
+                    tag,
+                    "MONSTER_SPAWNER_SESSION_CLOSE",
+                    ()->{
+                        try{
+                            notifyMonsterSpawnerSessionClosed(
+                                monsterSpawnerUiFactory,
+                                world,
+                                worldPlayer,
+                                worldPlayerGeneration,
+                                username
+                            );
+                        }catch(RuntimeException failure){
+                            throw failure;
+                        }catch(Error failure){
+                            throw failure;
+                        }catch(Exception failure){
+                            throw new IllegalStateException(
+                                "Monster Spawner session-close callback failed owner="+
+                                username,
+                                failure
+                            );
                         }
                     }
                 );
