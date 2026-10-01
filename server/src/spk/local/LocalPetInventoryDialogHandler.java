@@ -212,9 +212,78 @@ final class LocalPetInventoryDialogHandler {
             }
 
             if(widget==2482){
-                String result=miniPets.configure(
-                    item,petState,npcs,movement,serverPackets);
-                serverPackets.fixed(219,new byte[0]);
+                MiniPetService.PreparedConfigure prepared=
+                    miniPets.prepareConfigure(
+                        item,
+                        petState,
+                        npcs,
+                        movement
+                    );
+
+                if(prepared==null){
+                    serverPackets.fixed(
+                        219,
+                        new byte[0]
+                    );
+                    clearMiniConfigureDialog();
+
+                    return Result.saveClose(
+                        "V5127_MINIPET_CONFIGURE_DIALOG item="+item+
+                        " action=ACTIVATE result=REJECTED_NOT_MINI_PET item="+item+
+                        " actorRequiresMainPet=true",
+                        "MINIPET_CONFIGURE");
+                }
+
+                boolean commit=
+                    prepared.replacement!=null||
+                    npcs.pet()==null;
+
+                serverPackets.beginBatch();
+                boolean ended=false;
+                String result;
+
+                try{
+                    result=
+                        miniPets.publishPreparedConfigure(
+                            prepared,
+                            npcs,
+                            movement,
+                            serverPackets
+                        );
+                    serverPackets.fixed(
+                        219,
+                        new byte[0]
+                    );
+                    serverPackets.endBatch();
+                    ended=true;
+                }catch(IOException failure){
+                    if(!ended)
+                        try{
+                            serverPackets.endBatch();
+                        }catch(Throwable ignored){}
+                    throw failure;
+                }catch(RuntimeException failure){
+                    if(!ended)
+                        try{
+                            serverPackets.endBatch();
+                        }catch(Throwable ignored){}
+                    throw failure;
+                }catch(Error failure){
+                    if(!ended)
+                        try{
+                            serverPackets.endBatch();
+                        }catch(Throwable ignored){}
+                    throw failure;
+                }
+
+                if(commit)
+                    miniPets.commitPreparedConfigure(
+                        prepared,
+                        petState,
+                        npcs,
+                        serverPackets
+                    );
+
                 clearMiniConfigureDialog();
 
                 return Result.saveClose(
@@ -225,14 +294,61 @@ final class LocalPetInventoryDialogHandler {
             }
 
             if(widget==2483){
-                String result=miniPets.off(
-                    petState,npcs,serverPackets);
-                serverPackets.fixed(219,new byte[0]);
+                MiniPetService.PreparedDisable prepared=
+                    miniPets.prepareDisable(
+                        petState,
+                        npcs
+                    );
+
+                serverPackets.beginBatch();
+                boolean ended=false;
+                String actor;
+
+                try{
+                    actor=
+                        miniPets.publishPreparedDisable(
+                            prepared,
+                            npcs,
+                            serverPackets
+                        );
+                    serverPackets.fixed(
+                        219,
+                        new byte[0]
+                    );
+                    serverPackets.endBatch();
+                    ended=true;
+                }catch(IOException failure){
+                    if(!ended)
+                        try{
+                            serverPackets.endBatch();
+                        }catch(Throwable ignored){}
+                    throw failure;
+                }catch(RuntimeException failure){
+                    if(!ended)
+                        try{
+                            serverPackets.endBatch();
+                        }catch(Throwable ignored){}
+                    throw failure;
+                }catch(Error failure){
+                    if(!ended)
+                        try{
+                            serverPackets.endBatch();
+                        }catch(Throwable ignored){}
+                    throw failure;
+                }
+
+                miniPets.commitPreparedDisable(
+                    prepared,
+                    petState,
+                    npcs
+                );
                 clearMiniConfigureDialog();
 
                 return Result.saveClose(
                     "V5127_MINIPET_CONFIGURE_DIALOG item="+item+
-                    " action=DISABLE result="+result,
+                    " action=DISABLE result=MINIPET_DISABLED oldItem="+
+                    prepared.oldItem+
+                    " actor="+actor,
                     "MINIPET_DISABLE");
             }
         }
@@ -422,16 +538,63 @@ final class LocalPetInventoryDialogHandler {
                 }
 
                 int replacement=pendingPetColorItems[choice];
-                String result=
+                BankState.PreparedInventoryTransform prepared=
                     current==replacement
-                        ?"INVENTORY_TRANSFORM_NOOP"
-                        :bank.transformInventoryOne(
+                        ?null
+                        :bank.prepareInventoryTransformOne(
                             pendingPetColorSlot,
                             current,
-                            replacement,
-                            serverPackets);
+                            replacement
+                        );
 
-                serverPackets.fixed(219,new byte[0]);
+                serverPackets.beginBatch();
+                boolean ended=false;
+                String result;
+
+                try{
+                    if(current==replacement)
+                        result="INVENTORY_TRANSFORM_NOOP";
+                    else if(prepared.accepted())
+                        result=
+                            bank.publishPreparedInventoryTransform(
+                                prepared,
+                                serverPackets
+                            );
+                    else
+                        result=prepared.rejection;
+
+                    serverPackets.fixed(
+                        219,
+                        new byte[0]
+                    );
+                    serverPackets.endBatch();
+                    ended=true;
+                }catch(IOException failure){
+                    if(!ended)
+                        try{
+                            serverPackets.endBatch();
+                        }catch(Throwable ignored){}
+                    throw failure;
+                }catch(RuntimeException failure){
+                    if(!ended)
+                        try{
+                            serverPackets.endBatch();
+                        }catch(Throwable ignored){}
+                    throw failure;
+                }catch(Error failure){
+                    if(!ended)
+                        try{
+                            serverPackets.endBatch();
+                        }catch(Throwable ignored){}
+                    throw failure;
+                }
+
+                if(prepared!=null&&
+                   prepared.accepted())
+                    bank.commitPreparedInventoryTransform(
+                        prepared
+                    );
+
                 clearPetColorDialog();
 
                 String saveReason=
