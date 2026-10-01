@@ -293,6 +293,130 @@ public final class LocalSessionUiActionHandlerTest {
                 "configured routing unexpectedly emitted Home Teleport packets"
             );
 
+        // Late-install is one-time: same instance is idempotent, replacement is rejected.
+        routed.installMonsterSpawnerUiHandler(
+            monsterSpawnerUi
+        );
+
+        LocalMonsterSpawnerUiHandler replacementUi=
+            new LocalMonsterSpawnerUiHandler(
+                spawner,
+                "session-ui-owner",
+                new LocalMonsterSpawnerUiHandler
+                    .ActivationBudgetResolver(){
+                    @Override public int spawnBudget(
+                        LocalMonsterSpawnerUiHandler.Context context
+                    ){
+                        return 2;
+                    }
+
+                    @Override public String authority(){
+                        return "CUSTOM_LOCALLAB_SESSION_UI_POLICY";
+                    }
+                },
+                new LocalMonsterSpawnerUiHandler
+                    .SelectedNpcLabelResolver(){
+                    @Override public String label(
+                        MonsterSpawnerService.CatalogEntry entry
+                    ){
+                        return "NPC-"+entry.definitionId;
+                    }
+
+                    @Override public String authority(){
+                        return "CUSTOM_LOCALLAB_SESSION_UI_CATALOG";
+                    }
+                }
+            );
+
+        boolean replacementRejected=false;
+        try{
+            routed.installMonsterSpawnerUiHandler(
+                replacementUi
+            );
+        }catch(IllegalStateException expected){
+            replacementRejected=true;
+        }
+
+        if(!replacementRejected)
+            throw new AssertionError(
+                "Monster Spawner UI replacement was not rejected"
+            );
+
+        World lateWorld=
+            World.isolatedForTest(
+                600L
+            );
+        WorldPlayer latePlayer=
+            new WorldPlayer();
+        boolean[] factoryContext={false};
+
+        try{
+            LocalMonsterSpawnerUiHandler resolved=
+                LocalSession.resolveMonsterSpawnerUiAfterLogin(
+                    (factoryWorld,factoryPlayer,canonicalUsername)->{
+                        factoryContext[0]=
+                            factoryWorld==lateWorld&&
+                            factoryPlayer==latePlayer&&
+                            "session-ui-owner".equals(
+                                canonicalUsername
+                            );
+                        return monsterSpawnerUi;
+                    },
+                    lateWorld,
+                    latePlayer,
+                    "session-ui-owner"
+                );
+
+            if(resolved!=monsterSpawnerUi||
+               !factoryContext[0]||
+               !resolved.isBoundToOwner(
+                    "session-ui-owner"
+                ))
+                throw new AssertionError(
+                    "late Monster Spawner UI factory context"
+                );
+
+            if(LocalSession.resolveMonsterSpawnerUiAfterLogin(
+                    null,
+                    lateWorld,
+                    latePlayer,
+                    "session-ui-owner"
+                )!=null)
+                throw new AssertionError(
+                    "absent late Monster Spawner UI factory changed behavior"
+                );
+
+            if(LocalSession.resolveMonsterSpawnerUiAfterLogin(
+                    (factoryWorld,factoryPlayer,canonicalUsername)->null,
+                    lateWorld,
+                    latePlayer,
+                    "session-ui-owner"
+                )!=null)
+                throw new AssertionError(
+                    "null late Monster Spawner UI factory result changed behavior"
+                );
+
+            boolean ownerMismatchRejected=false;
+            try{
+                LocalSession.resolveMonsterSpawnerUiAfterLogin(
+                    (factoryWorld,factoryPlayer,canonicalUsername)->
+                        monsterSpawnerUi,
+                    lateWorld,
+                    latePlayer,
+                    "different-owner"
+                );
+            }catch(IllegalArgumentException expected){
+                ownerMismatchRejected=true;
+            }
+
+            if(!ownerMismatchRejected)
+                throw new AssertionError(
+                    "late Monster Spawner UI owner mismatch was accepted"
+                );
+        }finally{
+            lateWorld.close();
+        }
+
         bridge.saveReason=null;
         bridge.clearedKeys=false;
         h.handleInterfaceClose(true,w,"[ui-test] ");
@@ -313,6 +437,16 @@ public final class LocalSessionUiActionHandlerTest {
             "logout=true runToggle=true homeTeleport=true interfaceClose=true "+
             "panelBoundary=true monsterSpawnerRoute=true "+
             "monsterSpawnerAbsentPreserved=true"
+        );
+
+        System.out.println(
+            "LOCAL_SESSION_MONSTER_SPAWNER_LATE_BIND_PASS "+
+            "factoryAfterIdentity=true "+
+            "exactWorldPlayer=true "+
+            "ownerFence=true "+
+            "nullPreserved=true "+
+            "oneTimeInstall=true "+
+            "policyNeutral=true"
         );
     }
 }
