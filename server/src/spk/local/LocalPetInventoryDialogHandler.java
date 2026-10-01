@@ -263,11 +263,48 @@ final class LocalPetInventoryDialogHandler {
                         " action=ACTIVATE result=REJECTED_ITEM_MOVED");
                 }
 
+                Integer selector=
+                    PetAccessoryAuthority.selector(item);
+
+                serverPackets.beginBatch();
+                boolean ended=false;
+                String visual;
+
+                try{
+                    visual=
+                        npcs.publishPetParticleSelectorPostimage(
+                            selector,
+                            movement,
+                            serverPackets
+                        );
+                    serverPackets.fixed(
+                        219,
+                        new byte[0]
+                    );
+                    serverPackets.endBatch();
+                    ended=true;
+                }catch(IOException failure){
+                    if(!ended)
+                        try{
+                            serverPackets.endBatch();
+                        }catch(Throwable ignored){}
+                    throw failure;
+                }catch(RuntimeException failure){
+                    if(!ended)
+                        try{
+                            serverPackets.endBatch();
+                        }catch(Throwable ignored){}
+                    throw failure;
+                }catch(Error failure){
+                    if(!ended)
+                        try{
+                            serverPackets.endBatch();
+                        }catch(Throwable ignored){}
+                    throw failure;
+                }
+
                 petAccessoryState.setActiveItem(item);
-                Integer selector=PetAccessoryAuthority.selector(item);
-                String visual=npcs.devSetParticleSelector(
-                    selector,movement,serverPackets);
-                serverPackets.fixed(219,new byte[0]);
+                npcs.commitPetParticleSelector(selector);
                 clearPetAccessoryDialog();
 
                 return Result.saveClose(
@@ -281,10 +318,45 @@ final class LocalPetInventoryDialogHandler {
             }
 
             if(widget==2483){
+                serverPackets.beginBatch();
+                boolean ended=false;
+                String visual;
+
+                try{
+                    visual=
+                        npcs.publishPetParticleSelectorPostimage(
+                            null,
+                            movement,
+                            serverPackets
+                        );
+                    serverPackets.fixed(
+                        219,
+                        new byte[0]
+                    );
+                    serverPackets.endBatch();
+                    ended=true;
+                }catch(IOException failure){
+                    if(!ended)
+                        try{
+                            serverPackets.endBatch();
+                        }catch(Throwable ignored){}
+                    throw failure;
+                }catch(RuntimeException failure){
+                    if(!ended)
+                        try{
+                            serverPackets.endBatch();
+                        }catch(Throwable ignored){}
+                    throw failure;
+                }catch(Error failure){
+                    if(!ended)
+                        try{
+                            serverPackets.endBatch();
+                        }catch(Throwable ignored){}
+                    throw failure;
+                }
+
                 petAccessoryState.clear();
-                String visual=npcs.devSetParticleSelector(
-                    null,movement,serverPackets);
-                serverPackets.fixed(219,new byte[0]);
+                npcs.commitPetParticleSelector(null);
                 clearPetAccessoryDialog();
 
                 return Result.saveClose(
