@@ -362,7 +362,7 @@ public final class LocalSessionUiActionHandlerTest {
             );
 
         routed.handleWidget(
-            MonsterSpawnerPresentation.rowWidget(0),
+            MonsterSpawnerPresentation.rowWidget(1),
             w,
             "[ui-test] "
         );
@@ -373,13 +373,12 @@ public final class LocalSessionUiActionHandlerTest {
                     "session-ui-owner"
                 );
 
-        if(afterFailedItemTarget.selectedRowIndex==null||
-           afterFailedItemTarget.selectedRowIndex.intValue()!=0||
-           wire.size()<=failedItemTargetWireBefore||
-           bridge.monsterSpawnerResults<=
+        if(afterFailedItemTarget.selectedRowIndex!=null||
+           wire.size()!=failedItemTargetWireBefore||
+           bridge.monsterSpawnerResults!=
                 failedItemTargetResultsBefore||
-           bridge.monsterSpawnerWidgetTransactions<=
-                failedItemTargetTransactionsBefore)
+           bridge.monsterSpawnerWidgetTransactions!=
+                failedItemTargetTransactionsBefore+1)
             throw new AssertionError(
                 "failed Item Library target retired Monster Spawner ownership"
             );
