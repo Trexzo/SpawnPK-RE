@@ -316,7 +316,19 @@ final class LocalCanonicalNpcAttackHandler {
                 false
             );
 
-        if(before.dead())
+        if(before.dead()){
+            /*
+             * A prior lethal click may have committed DEAD lifecycle state
+             * before its optional terminal finalizer failed. Give that exact
+             * finalizer one retry opportunity on a later dead-target click so
+             * recoverable drop/teardown failures cannot strand runtime-owned
+             * canonical NPCs forever. Unconfigured/foreign targets remain a
+             * no-op through the injected finalizer policy.
+             */
+            finalizeLethal(
+                target
+            );
+
             return result(
                 Status.TARGET_DEAD,
                 clicked,
@@ -328,6 +340,7 @@ final class LocalCanonicalNpcAttackHandler {
                 before.maxHitpoints,
                 false
             );
+        }
 
         long generation=
             generationSupplier.getAsLong();
