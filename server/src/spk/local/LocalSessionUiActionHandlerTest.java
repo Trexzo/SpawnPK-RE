@@ -17,6 +17,7 @@ public final class LocalSessionUiActionHandlerTest {
         int monsterSpawnerResults;
         int monsterSpawnerWidgetTransactions;
         int monsterSpawnerRootReplacements;
+        int makeoverDesignerRetireCalls;
         LocalMonsterSpawnerUiHandler.Result lastMonsterSpawnerResult;
 
         @Override public void saveAccount(
@@ -77,6 +78,11 @@ public final class LocalSessionUiActionHandlerTest {
                 .replaceMonsterSpawnerRoot(
                     action
                 );
+        }
+
+        @Override public boolean retireMakeoverDesignerRoot(){
+            makeoverDesignerRetireCalls++;
+            return true;
         }
 
         @Override public void handleMonsterSpawnerResult(
@@ -475,6 +481,47 @@ public final class LocalSessionUiActionHandlerTest {
                 "INVENTORY_OPTION_3"
             );
 
+        int makeoverRetiresBeforeTarget=
+            bridge.makeoverDesignerRetireCalls;
+
+        String makeoverTargetResult=
+            routed.replaceMonsterSpawnerWithMakeoverRoot(
+                ()->"MAKEOVER_TARGET_OPENED"
+            );
+
+        if(!"MAKEOVER_TARGET_OPENED".equals(
+                makeoverTargetResult
+            )||
+           bridge.makeoverDesignerRetireCalls!=
+                makeoverRetiresBeforeTarget)
+            throw new AssertionError(
+                "Make-over target root retired its own designer ownership"
+            );
+
+        boolean failedMakeoverCompetingThrown=false;
+        try{
+            routed.replaceMonsterSpawnerRoot(
+                ()->{
+                    throw new java.io.IOException(
+                        "EXPECTED_MAKEOVER_COMPETING_FAILURE"
+                    );
+                }
+            );
+        }catch(java.io.IOException expected){
+            failedMakeoverCompetingThrown=
+                "EXPECTED_MAKEOVER_COMPETING_FAILURE"
+                    .equals(
+                        expected.getMessage()
+                    );
+        }
+
+        if(!failedMakeoverCompetingThrown||
+           bridge.makeoverDesignerRetireCalls!=
+                makeoverRetiresBeforeTarget)
+            throw new AssertionError(
+                "failed competing root retired Make-over designer ownership"
+            );
+
         String compTargetResult=
             routed.replaceMonsterSpawnerWithCompCapeRoot(
                 ()->
@@ -489,9 +536,11 @@ public final class LocalSessionUiActionHandlerTest {
                 "OPENED_NATIVE_ROOT_63036"
            )||
            !compCape.isOpen()||
-           bank.isOpen())
+           bank.isOpen()||
+           bridge.makeoverDesignerRetireCalls!=
+                makeoverRetiresBeforeTarget+1)
             throw new AssertionError(
-                "Comp Cape target root was not preserved or failed to retire BankState result="+
+                "Comp Cape target root was not preserved / failed to retire BankState or Make-over designer result="+
                 compTargetResult
             );
 
@@ -2022,7 +2071,10 @@ public final class LocalSessionUiActionHandlerTest {
             "compCapeItemLibraryRootRevokes=true "+
             "compCapeEquipmentRootRevokes=true "+
             "compCapeDeathRootRevokes=true "+
-            "compCapeHiddenWidgetRejected=true"
+            "compCapeHiddenWidgetRejected=true "+
+            "makeoverTargetRootPreserved=true "+
+            "makeoverFailedRootPreserved=true "+
+            "makeoverCompCapeRootRevokes=true"
         );
 
         System.out.println(
