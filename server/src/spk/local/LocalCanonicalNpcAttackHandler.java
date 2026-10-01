@@ -97,6 +97,13 @@ final class LocalCanonicalNpcAttackHandler {
         );
     }
 
+    @FunctionalInterface
+    interface LethalFinalizer {
+        void run(
+            WorldNpc target
+        ) throws Exception;
+    }
+
     private final World world;
     private final WorldPlayer player;
     private final LongSupplier generationSupplier;
@@ -105,6 +112,7 @@ final class LocalCanonicalNpcAttackHandler {
     private final NpcRegistry npcs;
     private final NpcCombatResolutionService resolution;
     private final BeforeResolutionHook beforeResolution;
+    private final LethalFinalizer lethalFinalizer;
     private long nextAllowedAttackTick;
 
     LocalCanonicalNpcAttackHandler(
@@ -122,7 +130,8 @@ final class LocalCanonicalNpcAttackHandler {
             equipment,
             combatStyles,
             npcs,
-            (target,generation)->{}
+            (target,generation)->{},
+            target->{}
         );
     }
 
@@ -134,6 +143,28 @@ final class LocalCanonicalNpcAttackHandler {
         CombatStyleState combatStyles,
         NpcRegistry npcs,
         BeforeResolutionHook beforeResolution
+    ){
+        this(
+            world,
+            player,
+            generationSupplier,
+            equipment,
+            combatStyles,
+            npcs,
+            beforeResolution,
+            target->{}
+        );
+    }
+
+    LocalCanonicalNpcAttackHandler(
+        World world,
+        WorldPlayer player,
+        LongSupplier generationSupplier,
+        EquipmentState equipment,
+        CombatStyleState combatStyles,
+        NpcRegistry npcs,
+        BeforeResolutionHook beforeResolution,
+        LethalFinalizer lethalFinalizer
     ){
         this.world=Objects.requireNonNull(world,"world");
         this.player=Objects.requireNonNull(player,"player");
@@ -153,6 +184,11 @@ final class LocalCanonicalNpcAttackHandler {
             Objects.requireNonNull(
                 beforeResolution,
                 "beforeResolution"
+            );
+        this.lethalFinalizer=
+            Objects.requireNonNull(
+                lethalFinalizer,
+                "lethalFinalizer"
             );
 
         if(player.equipment()!=equipment||
@@ -585,6 +621,11 @@ final class LocalCanonicalNpcAttackHandler {
             )
         );
 
+        if(damage.newlyDied)
+            finalizeLethal(
+                target
+            );
+
         return result(
             Status.HIT,
             clicked,
@@ -600,6 +641,31 @@ final class LocalCanonicalNpcAttackHandler {
 
     long nextAllowedAttackTick(){
         return nextAllowedAttackTick;
+    }
+
+    private void finalizeLethal(
+        WorldNpc target
+    )throws IOException{
+        try{
+            lethalFinalizer.run(
+                Objects.requireNonNull(
+                    target,
+                    "target"
+                )
+            );
+        }catch(IOException failure){
+            throw failure;
+        }catch(RuntimeException failure){
+            throw failure;
+        }catch(Error failure){
+            throw failure;
+        }catch(Exception failure){
+            throw new IllegalStateException(
+                "canonical NPC lethal finalizer failed target="+
+                target.id,
+                failure
+            );
+        }
     }
 
     private static boolean inLegalRange(
