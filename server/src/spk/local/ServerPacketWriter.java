@@ -94,6 +94,8 @@ final class ServerPacketWriter {
     private final IsaacCipher cipher;
     private final ByteArrayOutputStream pending = new ByteArrayOutputStream(4096);
     private int batchDepth;
+    private IsaacCipher.State batchCipherState;
+    private byte[] batchPendingPrefix;
 
     ServerPacketWriter(OutputStream out, IsaacCipher cipher) {
         this.out=out;
@@ -185,7 +187,33 @@ final class ServerPacketWriter {
         autoFlush();
     }
 
-    synchronized void beginBatch(){batchDepth++;}
+    synchronized void beginBatch(){
+        if(batchDepth==0){
+            batchCipherState=cipher.snapshot();
+            batchPendingPrefix=pending.toByteArray();
+        }
+        batchDepth++;
+    }
+
+    synchronized void abortBatch(){
+        if(batchCipherState==null)
+            throw new IllegalStateException(
+                "no abortable packet batch"
+            );
+
+        pending.reset();
+        if(batchPendingPrefix!=null&&
+           batchPendingPrefix.length>0)
+            pending.write(
+                batchPendingPrefix,
+                0,
+                batchPendingPrefix.length
+            );
+
+        cipher.restore(batchCipherState);
+        batchDepth=0;
+        clearBatchCheckpoint();
+    }
 
     static AtomicPairBatch beginAtomicQueuePair(
         ServerPacketWriter first,
@@ -258,18 +286,49 @@ final class ServerPacketWriter {
     }
 
     synchronized void endBatch() throws IOException {
-        if(batchDepth<=0)throw new IllegalStateException("no packet batch");
-        batchDepth--;
-        if(batchDepth==0)flush();
+        if(batchDepth<=0)
+            throw new IllegalStateException(
+                "no packet batch"
+            );
+
+        if(batchDepth>1){
+            batchDepth--;
+            return;
+        }
+
+        /*
+         * Keep the outer batch active until flush succeeds.  If queue admission
+         * or direct output fails, callers can still abort and restore both the
+         * staged-byte preimage and the exact ISAAC state.
+         */
+        flush();
+        batchDepth=0;
+        clearBatchCheckpoint();
     }
 
     synchronized void flush() throws IOException {
         if(pending.size()>0){
             byte[] bytes=pending.toByteArray();
+
+            if(queue!=null)
+                queue.offer(bytes);
+            else{
+                out.write(bytes);
+                out.flush();
+            }
+
+            /*
+             * Do not destroy staged bytes until publication succeeds.  This is
+             * what leaves an outer failed endBatch() abortable.
+             */
             pending.reset();
-            if(queue!=null)queue.offer(bytes);else out.write(bytes);
-        }
-        if(out!=null)out.flush();
+        }else if(out!=null)
+            out.flush();
+    }
+
+    private void clearBatchCheckpoint(){
+        batchCipherState=null;
+        batchPendingPrefix=null;
     }
 
     private void autoFlush() throws IOException { if(batchDepth==0)flush(); }
