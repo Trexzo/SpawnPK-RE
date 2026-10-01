@@ -717,23 +717,31 @@ final class TradeService {
                 }
 
                 if(pair!=null){
-                    a.writer.varShort(
-                        53,
-                        inventoryA
-                    );
-                    a.writer.fixed(
-                        219,
-                        new byte[0]
-                    );
-                    b.writer.varShort(
-                        53,
-                        inventoryB
-                    );
-                    b.writer.fixed(
-                        219,
-                        new byte[0]
-                    );
-                    pair.commit();
+                    boolean committed=false;
+
+                    try{
+                        a.writer.varShort(
+                            53,
+                            inventoryA
+                        );
+                        a.writer.fixed(
+                            219,
+                            new byte[0]
+                        );
+                        b.writer.varShort(
+                            53,
+                            inventoryB
+                        );
+                        b.writer.fixed(
+                            219,
+                            new byte[0]
+                        );
+                        pair.commit();
+                        committed=true;
+                    }finally{
+                        if(!committed)
+                            pair.abort();
+                    }
                 }else{
                     /*
                      * Direct OutputStream writers exist only in focused legacy
@@ -769,11 +777,11 @@ final class TradeService {
                     }finally{
                         if(!endedA)
                             try{
-                                a.writer.endBatch();
+                                a.writer.abortBatch();
                             }catch(Throwable ignored){}
                         if(!endedB)
                             try{
-                                b.writer.endBatch();
+                                b.writer.abortBatch();
                             }catch(Throwable ignored){}
                     }
                 }
@@ -903,15 +911,24 @@ final class TradeService {
         }
 
         if(pair!=null){
-            writeFirstStagePostimage(
-                trade.a.writer,
-                postA
-            );
-            writeFirstStagePostimage(
-                trade.b.writer,
-                postB
-            );
-            pair.commit();
+            boolean committed=false;
+
+            try{
+                writeFirstStagePostimage(
+                    trade.a.writer,
+                    postA
+                );
+                writeFirstStagePostimage(
+                    trade.b.writer,
+                    postB
+                );
+                pair.commit();
+                committed=true;
+            }finally{
+                if(!committed)
+                    pair.abort();
+            }
+
             return null;
         }
 
@@ -936,11 +953,11 @@ final class TradeService {
         }finally{
             if(!endedA)
                 try{
-                    trade.a.writer.endBatch();
+                    trade.a.writer.abortBatch();
                 }catch(Throwable ignored){}
             if(!endedB)
                 try{
-                    trade.b.writer.endBatch();
+                    trade.b.writer.abortBatch();
                 }catch(Throwable ignored){}
         }
 
@@ -1123,15 +1140,24 @@ final class TradeService {
         }
 
         if(pair!=null){
-            accepting.writer.varShort(
-                126,
-                acceptingBody
-            );
-            other.writer.varShort(
-                126,
-                peerBody
-            );
-            pair.commit();
+            boolean committed=false;
+
+            try{
+                accepting.writer.varShort(
+                    126,
+                    acceptingBody
+                );
+                other.writer.varShort(
+                    126,
+                    peerBody
+                );
+                pair.commit();
+                committed=true;
+            }finally{
+                if(!committed)
+                    pair.abort();
+            }
+
             return null;
         }
 
