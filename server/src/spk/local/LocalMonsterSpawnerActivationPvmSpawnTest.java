@@ -19,10 +19,8 @@ public final class LocalMonsterSpawnerActivationPvmSpawnTest {
         try{
             Fixture f=new Fixture(world);
 
-            LocalMonsterSpawnerUiHandler ui=
-                new LocalMonsterSpawnerUiHandler(
-                    f.spawner,
-                    OWNER,
+            LocalMonsterSpawnerUiHandler.ActivationBudgetResolver
+                activationBudget=
                     new LocalMonsterSpawnerUiHandler.ActivationBudgetResolver(){
                         @Override public int spawnBudget(
                             LocalMonsterSpawnerUiHandler.Context context
@@ -39,7 +37,10 @@ public final class LocalMonsterSpawnerActivationPvmSpawnTest {
                         @Override public String authority(){
                             return POLICY;
                         }
-                    },
+                    };
+
+            LocalMonsterSpawnerUiHandler.SelectedNpcLabelResolver
+                selectedLabel=
                     new LocalMonsterSpawnerUiHandler.SelectedNpcLabelResolver(){
                         @Override public String label(
                             MonsterSpawnerService.CatalogEntry entry
@@ -50,53 +51,18 @@ public final class LocalMonsterSpawnerActivationPvmSpawnTest {
                         @Override public String authority(){
                             return CATALOG;
                         }
-                    }
+                    };
+
+            LocalMonsterSpawnerActivationRuntime factory=
+                new LocalMonsterSpawnerActivationRuntime(
+                    world,
+                    f.spawner,
+                    f.runtime,
+                    f.executor,
+                    POLICY,
+                    activationBudget,
+                    selectedLabel
                 );
-
-            final int[] callbackCalls={0};
-            final int[] executorCalls={0};
-            final MonsterSpawnerPvmSpawnExecutor.Result[] spawned={null};
-
-            LocalSession.MonsterSpawnerUiFactory factory=
-                new LocalSession.MonsterSpawnerUiFactory(){
-                    @Override public LocalMonsterSpawnerUiHandler create(
-                        World factoryWorld,
-                        WorldPlayer factoryPlayer,
-                        String canonicalUsername
-                    ){
-                        require(
-                            factoryWorld==world&&
-                            factoryPlayer==player&&
-                            OWNER.equals(canonicalUsername),
-                            "factory exact context"
-                        );
-                        return ui;
-                    }
-
-                    @Override public void onCommittedResult(
-                        World callbackWorld,
-                        WorldPlayer callbackPlayer,
-                        String canonicalUsername,
-                        LocalMonsterSpawnerUiHandler.Result result,
-                        ServerPacketWriter writer,
-                        String tag
-                    )throws Exception{
-                        callbackCalls[0]++;
-
-                        require(
-                            callbackWorld==world&&
-                            callbackPlayer==player&&
-                            OWNER.equals(canonicalUsername),
-                            "callback exact context"
-                        );
-
-                        if(result.status==
-                                LocalMonsterSpawnerUiHandler.Status.ACTIVATED){
-                            executorCalls[0]++;
-                            spawned[0]=f.executor.execute(canonicalUsername);
-                        }
-                    }
-                };
 
             LocalMonsterSpawnerUiHandler resolved=
                 LocalSession.resolveMonsterSpawnerUiAfterLogin(
@@ -106,7 +72,12 @@ public final class LocalMonsterSpawnerActivationPvmSpawnTest {
                     OWNER
                 );
 
-            require(resolved==ui,"late-bound UI adapter");
+            require(
+                resolved!=null&&
+                resolved.isBoundToOwner(OWNER)&&
+                resolved.isBoundTo(world),
+                "late-bound shared activation runtime UI adapter"
+            );
 
             Bridge bridge=new Bridge(
                 factory,
@@ -156,8 +127,6 @@ public final class LocalMonsterSpawnerActivationPvmSpawnTest {
 
             require(
                 bridge.forwarded==1&&
-                callbackCalls[0]==1&&
-                executorCalls[0]==0&&
                 world.npcs().size()==0&&
                 f.runtime.size()==0,
                 "row selection spawned or skipped callback"
@@ -174,11 +143,6 @@ public final class LocalMonsterSpawnerActivationPvmSpawnTest {
 
             require(
                 bridge.forwarded==2&&
-                callbackCalls[0]==2&&
-                executorCalls[0]==1&&
-                spawned[0]!=null&&
-                spawned[0].status==
-                    MonsterSpawnerPvmSpawnExecutor.Status.SPAWNED&&
                 afterSpawn.active&&
                 afterSpawn.remainingSpawnBudget==1&&
                 afterSpawn.spawnedNpcIds.size()==1&&
@@ -187,7 +151,10 @@ public final class LocalMonsterSpawnerActivationPvmSpawnTest {
                 "ACTIVATED callback did not execute exactly one atomic spawn"
             );
 
-            WorldNpc npc=spawned[0].spawn.spawn.combat.spawn.npc;
+            WorldNpc npc=
+                world.npcs().byId(
+                    afterSpawn.spawnedNpcIds.get(0)
+                );
 
             require(
                 afterSpawn.tracks(npc.id)&&
@@ -204,7 +171,6 @@ public final class LocalMonsterSpawnerActivationPvmSpawnTest {
             );
 
             require(
-                executorCalls[0]==1&&
                 world.npcs().size()==1&&
                 f.runtime.size()==1,
                 "unrelated widget triggered second spawn"
@@ -221,8 +187,6 @@ public final class LocalMonsterSpawnerActivationPvmSpawnTest {
 
             require(
                 bridge.forwarded==3&&
-                callbackCalls[0]==3&&
-                executorCalls[0]==1&&
                 !deactivated.active&&
                 deactivated.remainingSpawnBudget==0&&
                 world.npcs().size()==1&&
@@ -242,8 +206,8 @@ public final class LocalMonsterSpawnerActivationPvmSpawnTest {
             );
 
             require(
-                executorCalls[0]==1&&
-                callbackCalls[0]==3,
+                world.npcs().size()==1&&
+                f.runtime.size()==1,
                 "absent callback changed spawn behavior"
             );
 
@@ -257,6 +221,8 @@ public final class LocalMonsterSpawnerActivationPvmSpawnTest {
                 "unrelatedNoSpawn=true "+
                 "deactivatedNoSpawn=true "+
                 "absentCallbackNoop=true "+
+                "sharedActivationRuntime=true "+
+                "worldRuntimeInstalled=true "+
                 "placementCallerOwned=true "+
                 "recipientCallerOwned=true "+
                 "catalogCallerOwned=true "+
