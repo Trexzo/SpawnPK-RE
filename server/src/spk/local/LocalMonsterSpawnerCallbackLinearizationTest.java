@@ -25,6 +25,8 @@ public final class LocalMonsterSpawnerCallbackLinearizationTest {
         factoryCreateRejectsStaleGeneration();
         widgetAndOpenRejectStaleGeneration();
         widgetAndOpenRejectClosedWorld();
+        unregisterWaitsForAdmittedWidgetTransaction();
+        queuedWidgetRejectedAfterClosePublication();
 
         System.out.println(
             "MONSTER_SPAWNER_CALLBACK_LINEARIZATION_PASS "+
@@ -43,7 +45,9 @@ public final class LocalMonsterSpawnerCallbackLinearizationTest {
             "widgetTransactionExactGeneration=true "+
             "widgetTransactionClosedWorld=true "+
             "commandOpenExactGeneration=true "+
-            "commandOpenClosedWorld=true"
+            "commandOpenClosedWorld=true "+
+            "widgetUnregisterWaits=true "+
+            "widgetQueuedAfterCloseRejected=true"
         );
     }
 
@@ -1212,6 +1216,352 @@ public final class LocalMonsterSpawnerCallbackLinearizationTest {
                 "factory current generation unregister"
             );
         }finally{
+            world.close();
+        }
+    }
+
+    private static void unregisterWaitsForAdmittedWidgetTransaction()
+        throws Exception{
+        World world=
+            World.isolatedForTest(
+                600L
+            );
+        WorldPlayer player=
+            new WorldPlayer();
+        long generation=
+            world.registerPlayer(
+                player,
+                OWNER
+            );
+        Fixture fixture=
+            new Fixture(
+                world
+            );
+        CountDownLatch callbackEntered=
+            new CountDownLatch(
+                1
+            );
+        CountDownLatch releaseCallback=
+            new CountDownLatch(
+                1
+            );
+        CountDownLatch unregisterDone=
+            new CountDownLatch(
+                1
+            );
+        Throwable[] widgetFailure={null};
+        Throwable[] unregisterFailure={null};
+        boolean[] unregisterResult={false};
+        int[] callbackCalls={0};
+
+        LocalSession.MonsterSpawnerUiFactory factory=
+            blockingFactory(
+                callbackEntered,
+                releaseCallback,
+                callbackCalls
+            );
+
+        Thread widget=
+            new Thread(
+                ()->{
+                    try{
+                        LocalSessionUiActionHandler.MonsterSpawnerDispatch
+                            dispatch=
+                                LocalSession
+                                    .dispatchMonsterSpawnerWidgetForCurrentSession(
+                                        factory,
+                                        world,
+                                        player,
+                                        generation,
+                                        OWNER,
+                                        fixture.ui,
+                                        MonsterSpawnerPresentation
+                                            .TOGGLE_WIDGET,
+                                        fixture.writer,
+                                        "[widget-unregister] "
+                                    );
+
+                        require(
+                            dispatch.admitted&&
+                            dispatch.result!=null&&
+                            dispatch.result.status==
+                                LocalMonsterSpawnerUiHandler
+                                    .Status.ACTIVATED,
+                            "admitted widget transaction result"
+                        );
+                    }catch(Throwable failure){
+                        widgetFailure[0]=failure;
+                    }
+                },
+                "monster-widget-unregister"
+            );
+
+        Thread unregister=
+            new Thread(
+                ()->{
+                    try{
+                        unregisterResult[0]=
+                            world.unregisterPlayer(
+                                player,
+                                generation
+                            );
+                    }catch(Throwable failure){
+                        unregisterFailure[0]=failure;
+                    }finally{
+                        unregisterDone.countDown();
+                    }
+                },
+                "monster-widget-unregister-owner"
+            );
+
+        try{
+            widget.start();
+
+            await(
+                callbackEntered,
+                "widget callback did not enter before unregister"
+            );
+
+            unregister.start();
+
+            awaitBlocked(
+                unregister,
+                "unregister did not wait behind admitted widget transaction"
+            );
+
+            if(unregisterDone.getCount()==0L)
+                throw new AssertionError(
+                    "unregister completed while widget transaction was admitted"
+                );
+
+            releaseCallback.countDown();
+
+            join(
+                widget,
+                "widget transaction did not finish after release"
+            );
+            join(
+                unregister,
+                "unregister did not finish after widget release"
+            );
+
+            MonsterSpawnerService.SessionSnapshot after=
+                fixture.spawner.getSession(
+                    OWNER
+                );
+
+            require(
+                widgetFailure[0]==null&&
+                unregisterFailure[0]==null&&
+                unregisterResult[0]&&
+                callbackCalls[0]==1&&
+                after.active&&
+                after.remainingSpawnBudget==1&&
+                !world.players().owns(
+                    player,
+                    generation
+                ),
+                "widget/unregister transaction linearization"
+            );
+        }finally{
+            releaseCallback.countDown();
+
+            if(world.players().owns(
+                    player,
+                    generation
+                ))
+                world.unregisterPlayer(
+                    player,
+                    generation
+                );
+
+            world.close();
+        }
+    }
+
+    private static void queuedWidgetRejectedAfterClosePublication()
+        throws Exception{
+        World world=
+            World.isolatedForTest(
+                600L
+            );
+        WorldPlayer player=
+            new WorldPlayer();
+        long generation=
+            world.registerPlayer(
+                player,
+                OWNER
+            );
+        Fixture fixture=
+            new Fixture(
+                world
+            );
+        CountDownLatch lifecycleHeld=
+            new CountDownLatch(
+                1
+            );
+        CountDownLatch releaseLifecycle=
+            new CountDownLatch(
+                1
+            );
+        Throwable[] blockerFailure={null};
+        Throwable[] widgetFailure={null};
+        Throwable[] closeFailure={null};
+        LocalSessionUiActionHandler.MonsterSpawnerDispatch[]
+            dispatch={null};
+        int[] callbackCalls={0};
+        int wireBefore=
+            fixture.wire.size();
+        MonsterSpawnerService.SessionSnapshot before=
+            fixture.spawner.getSession(
+                OWNER
+            );
+
+        LocalSession.MonsterSpawnerUiFactory factory=
+            new LocalSession.MonsterSpawnerUiFactory(){
+                @Override public LocalMonsterSpawnerUiHandler create(
+                    World factoryWorld,
+                    WorldPlayer factoryPlayer,
+                    String canonicalUsername
+                ){
+                    return fixture.ui;
+                }
+
+                @Override public void onCommittedResult(
+                    World callbackWorld,
+                    WorldPlayer callbackPlayer,
+                    String canonicalUsername,
+                    LocalMonsterSpawnerUiHandler.Result result,
+                    ServerPacketWriter writer,
+                    String tag
+                ){
+                    callbackCalls[0]++;
+                }
+            };
+
+        Thread blocker=
+            new Thread(
+                ()->{
+                    try{
+                        world.withOpenLifecycleOwnership(
+                            ()->{
+                                lifecycleHeld.countDown();
+
+                                if(!releaseLifecycle.await(
+                                        5L,
+                                        TimeUnit.SECONDS))
+                                    throw new AssertionError(
+                                        "widget lifecycle release timeout"
+                                    );
+                            }
+                        );
+                    }catch(Throwable failure){
+                        blockerFailure[0]=failure;
+                    }
+                },
+                "monster-widget-lifecycle-blocker"
+            );
+
+        Thread widget=
+            new Thread(
+                ()->{
+                    try{
+                        dispatch[0]=
+                            LocalSession
+                                .dispatchMonsterSpawnerWidgetForCurrentSession(
+                                    factory,
+                                    world,
+                                    player,
+                                    generation,
+                                    OWNER,
+                                    fixture.ui,
+                                    MonsterSpawnerPresentation
+                                        .TOGGLE_WIDGET,
+                                    fixture.writer,
+                                    "[widget-queued-close] "
+                                );
+                    }catch(Throwable failure){
+                        widgetFailure[0]=failure;
+                    }
+                },
+                "monster-widget-queued-close"
+            );
+
+        Thread closer=
+            new Thread(
+                ()->{
+                    try{
+                        world.close();
+                    }catch(Throwable failure){
+                        closeFailure[0]=failure;
+                    }
+                },
+                "monster-widget-queued-closer"
+            );
+
+        try{
+            blocker.start();
+
+            await(
+                lifecycleHeld,
+                "widget lifecycle blocker did not enter"
+            );
+
+            widget.start();
+
+            awaitBlocked(
+                widget,
+                "queued widget did not wait for lifecycle ownership"
+            );
+
+            closer.start();
+
+            awaitClosed(
+                world,
+                "queued-widget World terminal flag was not published"
+            );
+
+            releaseLifecycle.countDown();
+
+            join(
+                blocker,
+                "widget lifecycle blocker did not exit"
+            );
+            join(
+                widget,
+                "queued widget did not terminate"
+            );
+            join(
+                closer,
+                "queued-widget World close did not terminate"
+            );
+
+            MonsterSpawnerService.SessionSnapshot after=
+                fixture.spawner.getSession(
+                    OWNER
+                );
+
+            require(
+                blockerFailure[0]==null&&
+                widgetFailure[0]==null&&
+                closeFailure[0]==null&&
+                dispatch[0]!=null&&
+                !dispatch[0].admitted&&
+                dispatch[0].result==null&&
+                callbackCalls[0]==0&&
+                !before.active&&
+                !after.active&&
+                before.remainingSpawnBudget==
+                    after.remainingSpawnBudget&&
+                before.selectedRowIndex.equals(
+                    after.selectedRowIndex
+                )&&
+                fixture.wire.size()==wireBefore&&
+                world.closed(),
+                "queued widget crossed World terminal publication"
+            );
+        }finally{
+            releaseLifecycle.countDown();
             world.close();
         }
     }
