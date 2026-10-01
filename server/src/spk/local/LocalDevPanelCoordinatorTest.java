@@ -498,6 +498,85 @@ public final class LocalDevPanelCoordinatorTest {
                 );
             }
 
+            OutboundPacketQueue failedReopenQueue=
+                new OutboundPacketQueue(1024);
+            failedReopenQueue.offer(
+                new byte[1024]
+            );
+            ServerPacketWriter failedReopenWriter=
+                new ServerPacketWriter(
+                    failedReopenQueue,
+                    new IsaacCipher(
+                        new int[]{25,26,27,28}
+                    )
+                );
+
+            boolean reopenFailed=false;
+            try{
+                coordinator.handleAmount(
+                    42,
+                    failedReopenWriter,
+                    "[dev-panel-test] "
+                );
+            }catch(java.io.IOException expected){
+                reopenFailed=true;
+            }
+
+            if(!reopenFailed||
+               panel.isOpen()||
+               !panel.hasPending()||
+               panel.pending()!=
+                    DevControlCenter.PendingAmount.HIT_DAMAGE||
+               panel.page()!=
+                    DevControlCenter.Page.MAIN)
+                throw new AssertionError(
+                    "failed amount-result reopen did not restore exact prompt state"
+                );
+
+            String keysAfterFailedReopen=
+                Files.readString(
+                    keys.file(),
+                    StandardCharsets.UTF_8
+                );
+
+            if(!keysAfterFailedReopen.startsWith(
+                    "active=false\nwidgets=\n"
+               ))
+                throw new AssertionError(
+                    "failed amount-result reopen published dialog keys: "+
+                    keysAfterFailedReopen
+                );
+
+            coordinator.handleAmount(
+                42,
+                writer,
+                "[dev-panel-test] "
+            );
+
+            if(!panel.isOpen()||
+               panel.hasPending()||
+               panel.page()!=
+                    DevControlCenter.Page.MAIN)
+                throw new AssertionError(
+                    "amount-result reopen retry did not commit exact return page"
+                );
+
+            String keysAfterReopenRetry=
+                Files.readString(
+                    keys.file(),
+                    StandardCharsets.UTF_8
+                );
+
+            if(!keysAfterReopenRetry.contains(
+                    "active=true")||
+               !keysAfterReopenRetry.contains(
+                    "widgets=2482,2483,2484,2485"
+               ))
+                throw new AssertionError(
+                    "successful amount-result reopen did not publish dialog keys: "+
+                    keysAfterReopenRetry
+                );
+
             coordinator.open(
                 DevControlCenter.Page.MORE,
                 writer
@@ -536,7 +615,11 @@ public final class LocalDevPanelCoordinatorTest {
                 "targetFailureAtomic=true "+
                 "failedTargetPreservesBank=true "+
                 "failedTargetPreservesItemLibrary=true "+
-                "failedTargetPreservesTrade=true"
+                "failedTargetPreservesTrade=true "+
+                "amountReopenFailureAtomic=true "+
+                "amountReopenPreservesPending=true "+
+                "amountReopenPreservesKeys=true "+
+                "amountReopenRetryExact=true"
             );
         }finally{
             world.close();
