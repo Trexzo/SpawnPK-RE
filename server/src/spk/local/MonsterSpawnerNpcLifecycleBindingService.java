@@ -13,6 +13,15 @@ final class MonsterSpawnerNpcLifecycleBindingService {
         LifecyclePlan resolve(Context context) throws Exception;
     }
 
+    @FunctionalInterface
+    interface RegistrationCommitAction {
+        void run(
+            WorldNpc npc,
+            NpcLifecycleService.Snapshot lifecycle,
+            String lifecyclePlanKey
+        ) throws Exception;
+    }
+
     static final class Context {
         final EntityId npcId;
         final int definitionId;
@@ -126,12 +135,29 @@ final class MonsterSpawnerNpcLifecycleBindingService {
         int y,
         int plane
     )throws Exception{
+        return spawnBindAndRegisterComposed(
+            ownerRef,
+            x,
+            y,
+            plane,
+            (npc,lifecycle,planKey)->{}
+        );
+    }
+
+    Result spawnBindAndRegisterComposed(
+        String ownerRef,
+        int x,
+        int y,
+        int plane,
+        RegistrationCommitAction commitAction
+    )throws Exception{
         return spawnBindAndRegisterExpected(
             ownerRef,
             null,
             x,
             y,
-            plane
+            plane,
+            commitAction
         );
     }
 
@@ -142,6 +168,24 @@ final class MonsterSpawnerNpcLifecycleBindingService {
         int y,
         int plane
     )throws Exception{
+        return spawnBindAndRegisterComposedIfCurrent(
+            ownerRef,
+            expected,
+            x,
+            y,
+            plane,
+            (npc,lifecycle,planKey)->{}
+        );
+    }
+
+    Result spawnBindAndRegisterComposedIfCurrent(
+        String ownerRef,
+        MonsterSpawnerService.SessionSnapshot expected,
+        int x,
+        int y,
+        int plane,
+        RegistrationCommitAction commitAction
+    )throws Exception{
         return spawnBindAndRegisterExpected(
             ownerRef,
             Objects.requireNonNull(
@@ -150,7 +194,8 @@ final class MonsterSpawnerNpcLifecycleBindingService {
             ),
             x,
             y,
-            plane
+            plane,
+            commitAction
         );
     }
 
@@ -159,11 +204,18 @@ final class MonsterSpawnerNpcLifecycleBindingService {
         MonsterSpawnerService.SessionSnapshot expected,
         int x,
         int y,
-        int plane
+        int plane,
+        RegistrationCommitAction commitAction
     )throws Exception{
         final NpcLifecycleService.Snapshot[]
             lifecycleResult={null};
         final String[] planKey={null};
+
+        RegistrationCommitAction checkedCommit=
+            Objects.requireNonNull(
+                commitAction,
+                "commitAction"
+            );
 
         MonsterSpawnerCombatBindingService.SpawnBindingAction
             bindingAction=
@@ -189,6 +241,12 @@ final class MonsterSpawnerNpcLifecycleBindingService {
                                 npc
                             );
                         planKey[0]=plan.planKey;
+
+                        checkedCommit.run(
+                            npc,
+                            lifecycleResult[0],
+                            planKey[0]
+                        );
                     }catch(Throwable primary){
                         try{
                             SharedNpcWorldRelay
