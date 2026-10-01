@@ -351,6 +351,12 @@ public final class LocalMonsterSpawnerActivationPvmSpawnTest {
                 "absent callback changed spawn behavior"
             );
 
+            factoryCreateFailureAtomicity(
+                world,
+                f,
+                selectedLabel
+            );
+
             System.out.println(
                 "LOCAL_SESSION_MONSTER_SPAWNER_PVM_ACTIVATION_PASS "+
                 "rowNoSpawn=true "+
@@ -368,6 +374,9 @@ public final class LocalMonsterSpawnerActivationPvmSpawnTest {
                 "sameOwnerReconnect=true "+
                 "exactGraphFence=true "+
                 "serverAuthorityFence=true "+
+                "failedFreshCreateRollback=true "+
+                "retainedFailurePreserved=true "+
+                "changedFreshStatePreserved=true "+
                 "placementCallerOwned=true "+
                 "recipientCallerOwned=true "+
                 "catalogCallerOwned=true "+
@@ -381,6 +390,239 @@ public final class LocalMonsterSpawnerActivationPvmSpawnTest {
                 world.unregisterPlayer(player,generation);
             world.close();
         }
+    }
+
+    private static void factoryCreateFailureAtomicity(
+        World world,
+        Fixture f,
+        LocalMonsterSpawnerUiHandler.SelectedNpcLabelResolver selectedLabel
+    )throws Exception{
+        final String freshOwner=
+            "session-pvm-failed-fresh";
+        final String retainedOwner=
+            "session-pvm-failed-retained";
+        final String changedOwner=
+            "session-pvm-failed-changed";
+
+        int baseline=
+            f.spawner.sessionCount();
+
+        LocalMonsterSpawnerUiHandler.ActivationBudgetResolver
+            invalidAuthority=
+                new LocalMonsterSpawnerUiHandler.ActivationBudgetResolver(){
+                    @Override public int spawnBudget(
+                        LocalMonsterSpawnerUiHandler.Context context
+                    ){
+                        return 1;
+                    }
+
+                    @Override public String authority(){
+                        return "UNCONFIGURED";
+                    }
+                };
+
+        LocalMonsterSpawnerActivationRuntime failingFactory=
+            new LocalMonsterSpawnerActivationRuntime(
+                world,
+                f.spawner,
+                f.runtime,
+                f.executor,
+                POLICY,
+                invalidAuthority,
+                selectedLabel
+            );
+
+        WorldPlayer freshPlayer=
+            new WorldPlayer();
+        long freshGeneration=
+            world.registerPlayer(
+                freshPlayer,
+                freshOwner
+            );
+
+        Throwable freshFailure=null;
+        try{
+            LocalSession.resolveMonsterSpawnerUiAfterLogin(
+                failingFactory,
+                world,
+                freshPlayer,
+                freshGeneration,
+                freshOwner
+            );
+        }catch(Throwable failure){
+            freshFailure=failure;
+        }
+
+        require(
+            freshFailure instanceof IllegalArgumentException&&
+            f.spawner.getSession(
+                freshOwner
+            )==null&&
+            f.spawner.sessionCount()==baseline,
+            "failed fresh UI create leaked Monster Spawner session"
+        );
+
+        require(
+            world.unregisterPlayer(
+                freshPlayer,
+                freshGeneration
+            ),
+            "fresh failure fixture unregister"
+        );
+
+        MonsterSpawnerService.SessionSnapshot retained=
+            f.spawner.openSession(
+                retainedOwner,
+                POLICY
+            );
+        WorldPlayer retainedPlayer=
+            new WorldPlayer();
+        long retainedGeneration=
+            world.registerPlayer(
+                retainedPlayer,
+                retainedOwner
+            );
+
+        Throwable retainedFailure=null;
+        try{
+            LocalSession.resolveMonsterSpawnerUiAfterLogin(
+                failingFactory,
+                world,
+                retainedPlayer,
+                retainedGeneration,
+                retainedOwner
+            );
+        }catch(Throwable failure){
+            retainedFailure=failure;
+        }
+
+        MonsterSpawnerService.SessionSnapshot retainedAfter=
+            f.spawner.getSession(
+                retainedOwner
+            );
+
+        require(
+            retainedFailure instanceof IllegalArgumentException&&
+            retainedAfter!=null&&
+            retainedAfter.ownerRef.equals(
+                retained.ownerRef
+            )&&
+            retainedAfter.policyAuthority.equals(
+                retained.policyAuthority
+            )&&
+            retainedAfter.selectedRowIndex==null&&
+            !retainedAfter.active&&
+            retainedAfter.spawnedNpcIds.isEmpty(),
+            "pre-existing retained session was consumed by failed UI create"
+        );
+
+        require(
+            f.spawner.retireSessionIfCurrentAndNoTrackedNpcs(
+                retainedOwner,
+                retainedAfter
+            )&&
+            world.unregisterPlayer(
+                retainedPlayer,
+                retainedGeneration
+            ),
+            "retained failure fixture cleanup"
+        );
+
+        LocalMonsterSpawnerUiHandler.ActivationBudgetResolver
+            mutatingInvalidAuthority=
+                new LocalMonsterSpawnerUiHandler.ActivationBudgetResolver(){
+                    @Override public int spawnBudget(
+                        LocalMonsterSpawnerUiHandler.Context context
+                    ){
+                        return 1;
+                    }
+
+                    @Override public String authority(){
+                        MonsterSpawnerService.SessionSnapshot current=
+                            f.spawner.getSession(
+                                changedOwner
+                            );
+
+                        if(current!=null&&
+                           current.selectedRowIndex==null)
+                            f.spawner.selectRow(
+                                changedOwner,
+                                0
+                            );
+
+                        return "UNCONFIGURED";
+                    }
+                };
+
+        LocalMonsterSpawnerActivationRuntime mutatingFactory=
+            new LocalMonsterSpawnerActivationRuntime(
+                world,
+                f.spawner,
+                f.runtime,
+                f.executor,
+                POLICY,
+                mutatingInvalidAuthority,
+                selectedLabel
+            );
+
+        WorldPlayer changedPlayer=
+            new WorldPlayer();
+        long changedGeneration=
+            world.registerPlayer(
+                changedPlayer,
+                changedOwner
+            );
+
+        Throwable changedFailure=null;
+        try{
+            LocalSession.resolveMonsterSpawnerUiAfterLogin(
+                mutatingFactory,
+                world,
+                changedPlayer,
+                changedGeneration,
+                changedOwner
+            );
+        }catch(Throwable failure){
+            changedFailure=failure;
+        }
+
+        MonsterSpawnerService.SessionSnapshot changedAfter=
+            f.spawner.getSession(
+                changedOwner
+            );
+        boolean rollbackRefused=false;
+
+        if(changedFailure!=null)
+            for(Throwable suppressed:
+                    changedFailure.getSuppressed())
+                if(suppressed instanceof IllegalStateException&&
+                   suppressed.getMessage()!=null&&
+                   suppressed.getMessage().contains(
+                       "rollback refused"
+                   ))
+                    rollbackRefused=true;
+
+        require(
+            changedFailure instanceof IllegalArgumentException&&
+            rollbackRefused&&
+            changedAfter!=null&&
+            changedAfter.selectedRowIndex!=null&&
+            changedAfter.selectedRowIndex.intValue()==0,
+            "changed fresh session was deleted by stale rollback"
+        );
+
+        require(
+            f.spawner.retireSessionIfCurrentAndNoTrackedNpcs(
+                changedOwner,
+                changedAfter
+            )&&
+            world.unregisterPlayer(
+                changedPlayer,
+                changedGeneration
+            )&&
+            f.spawner.sessionCount()==baseline,
+            "changed failure fixture cleanup"
+        );
     }
 
     private static LocalPetInventoryDialogHandler petDialogs(
