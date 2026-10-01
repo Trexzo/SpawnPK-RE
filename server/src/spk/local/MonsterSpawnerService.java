@@ -94,6 +94,7 @@ final class MonsterSpawnerService {
         final Integer selectedDefinitionId;
         final boolean active;
         final int remainingSpawnBudget;
+        final boolean retireWhenIdle;
         final List<EntityId> spawnedNpcIds;
 
         SessionSnapshot(
@@ -124,6 +125,8 @@ final class MonsterSpawnerService {
             this.active=session.active;
             this.remainingSpawnBudget=
                 session.remainingSpawnBudget;
+            this.retireWhenIdle=
+                session.retireWhenIdle;
             this.spawnedNpcIds=
                 Collections.unmodifiableList(
                     new ArrayList<>(
@@ -143,6 +146,24 @@ final class MonsterSpawnerService {
                     "npcId"
                 )
             );
+        }
+    }
+
+    static final class ResumeResult {
+        final SessionSnapshot session;
+        final boolean retirementWasPending;
+
+        ResumeResult(
+            SessionSnapshot session,
+            boolean retirementWasPending
+        ){
+            this.session=
+                Objects.requireNonNull(
+                    session,
+                    "session"
+                );
+            this.retirementWasPending=
+                retirementWasPending;
         }
     }
 
@@ -202,6 +223,7 @@ final class MonsterSpawnerService {
         Integer selectedRowIndex;
         boolean active;
         int remainingSpawnBudget;
+        boolean retireWhenIdle;
 
         Session(
             String ownerRef,
@@ -379,6 +401,46 @@ final class MonsterSpawnerService {
         );
 
         return snapshotOf(session);
+    }
+
+    synchronized ResumeResult resumeSessionIfPresent(
+        String ownerRef,
+        String policyAuthority
+    ){
+        String owner=
+            PartyService.requireRef(
+                ownerRef
+            );
+        String authority=
+            MatchRules.requireText(
+                policyAuthority,
+                "policyAuthority"
+            );
+        Session session=
+            sessions.get(
+                owner
+            );
+
+        if(session==null)
+            return null;
+
+        if(!authority.equals(
+                session.policyAuthority))
+            throw new IllegalStateException(
+                "Monster Spawner retained session authority mismatch owner="+
+                owner+
+                " expected="+authority+
+                " actual="+session.policyAuthority
+            );
+
+        boolean retirementWasPending=
+            session.retireWhenIdle;
+        session.retireWhenIdle=false;
+
+        return new ResumeResult(
+            snapshotOf(session),
+            retirementWasPending
+        );
     }
 
     synchronized SessionSnapshot selectRow(
@@ -1138,6 +1200,14 @@ final class MonsterSpawnerService {
                                     id
                                 );
 
+                            if(sessions.get(
+                                    session.ownerRef
+                                )!=session)
+                                throw new IllegalStateException(
+                                    "Monster Spawner session ownership drifted before tracked despawn owner="+
+                                    session.ownerRef
+                                );
+
                             if(!npcs.remove(id))
                                 throw new IllegalStateException(
                                     "tracked Monster Spawner NPC disappeared during owned removal "+
@@ -1150,6 +1220,20 @@ final class MonsterSpawnerService {
 
                             committedSnapshot[0]=
                                 snapshotOf(session);
+
+                            if(session.retireWhenIdle&&
+                               session.spawnedNpcs.isEmpty()){
+                                Session removed=
+                                    sessions.remove(
+                                        session.ownerRef
+                                    );
+
+                                if(removed!=session)
+                                    throw new IllegalStateException(
+                                        "Monster Spawner deferred retirement lost exact session owner="+
+                                        session.ownerRef
+                                    );
+                            }
                         }
                     );
 
@@ -1203,6 +1287,31 @@ final class MonsterSpawnerService {
         return session==null
             ?null
             :snapshotOf(session);
+    }
+
+    synchronized void retireSessionNowOrWhenIdle(
+        String ownerRef
+    ){
+        String owner=
+            PartyService.requireRef(
+                ownerRef
+            );
+        Session session=
+            sessions.get(
+                owner
+            );
+
+        if(session==null)
+            return;
+
+        if(session.spawnedNpcs.isEmpty()){
+            sessions.remove(
+                owner
+            );
+            return;
+        }
+
+        session.retireWhenIdle=true;
     }
 
     synchronized boolean retireSessionIfNoTrackedNpcs(
@@ -1331,6 +1440,8 @@ final class MonsterSpawnerService {
             left.active==right.active&&
             left.remainingSpawnBudget==
                 right.remainingSpawnBudget&&
+            left.retireWhenIdle==
+                right.retireWhenIdle&&
             left.spawnedNpcIds.equals(
                 right.spawnedNpcIds
             );
