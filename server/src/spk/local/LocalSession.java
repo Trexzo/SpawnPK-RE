@@ -12,6 +12,15 @@ final class LocalSession implements Runnable {
             WorldPlayer player,
             String canonicalUsername
         ) throws Exception;
+
+        default void onCommittedUiResult(
+            LocalMonsterSpawnerUiHandler.Result result,
+            World world,
+            WorldPlayer player,
+            String canonicalUsername,
+            ServerPacketWriter packets,
+            String tag
+        )throws IOException{}
     }
 
     private final Socket socket;
@@ -470,6 +479,22 @@ final class LocalSession implements Runnable {
                     );
                 }
 
+                @Override public void handleMonsterSpawnerUiResult(
+                    LocalMonsterSpawnerUiHandler.Result result,
+                    ServerPacketWriter writer,
+                    String tag
+                )throws IOException{
+                    LocalSession.dispatchMonsterSpawnerUiResult(
+                        LocalSession.this.monsterSpawnerUiFactory,
+                        result,
+                        LocalSession.this.world,
+                        LocalSession.this.worldPlayer,
+                        LocalSession.this.username,
+                        writer,
+                        tag
+                    );
+                }
+
                 @Override public void requestLogout(){
                     LocalSession.this.logoutRequested=true;
                 }
@@ -917,6 +942,73 @@ final class LocalSession implements Runnable {
             );
 
         return adapter;
+    }
+
+    static void dispatchMonsterSpawnerUiResult(
+        MonsterSpawnerUiFactory factory,
+        LocalMonsterSpawnerUiHandler.Result result,
+        World world,
+        WorldPlayer player,
+        String canonicalUsername,
+        ServerPacketWriter packets,
+        String tag
+    )throws IOException{
+        if(factory==null)
+            return;
+
+        LocalMonsterSpawnerUiHandler.Result checkedResult=
+            java.util.Objects.requireNonNull(
+                result,
+                "result"
+            );
+        World checkedWorld=
+            java.util.Objects.requireNonNull(
+                world,
+                "world"
+            );
+        WorldPlayer checkedPlayer=
+            java.util.Objects.requireNonNull(
+                player,
+                "player"
+            );
+        ServerPacketWriter checkedPackets=
+            java.util.Objects.requireNonNull(
+                packets,
+                "packets"
+            );
+        String username=
+            PartyService.requireRef(
+                canonicalUsername
+            );
+        String checkedTag=
+            java.util.Objects.requireNonNull(
+                tag,
+                "tag"
+            );
+
+        if(!checkedResult.session.ownerRef.equals(
+                username))
+            throw new IllegalArgumentException(
+                "Monster Spawner committed result owner differs from canonical session account "+
+                username
+            );
+
+        if(!checkedWorld.players().owns(
+                checkedPlayer,
+                checkedPlayer.generation()
+            ))
+            throw new IllegalStateException(
+                "Monster Spawner result callback requires current session player ownership"
+            );
+
+        factory.onCommittedUiResult(
+            checkedResult,
+            checkedWorld,
+            checkedPlayer,
+            username,
+            checkedPackets,
+            checkedTag
+        );
     }
 
     @Override public void run() {
