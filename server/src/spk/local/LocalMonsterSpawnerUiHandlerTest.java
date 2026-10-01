@@ -1,6 +1,8 @@
 package spk.local;
 
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.OutputStream;
 import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -97,6 +99,9 @@ public final class LocalMonsterSpawnerUiHandlerTest {
             rowAuthorityFailureAtomic(
                 world
             );
+            rowPacketFailureAtomic(
+                world
+            );
             rowCatalogRaceFailsClosed(
                 world
             );
@@ -119,6 +124,7 @@ public final class LocalMonsterSpawnerUiHandlerTest {
                 "callerBudget=true "+
                 "selectedText41019=true "+
                 "rowFailureAtomic=true "+
+                "rowPacketFailureAtomic=true "+
                 "catalogCompareSelect=true "+
                 "noSpawn=true "+
                 "unattachedIgnored=true "+
@@ -584,6 +590,40 @@ public final class LocalMonsterSpawnerUiHandlerTest {
         );
     }
 
+    private static void rowPacketFailureAtomic(
+        World world
+    ){
+        final String owner="monster-ui-row-packet-failure";
+        MonsterSpawnerService service=
+            rowAtomicService(
+                world,
+                owner
+            );
+
+        LocalMonsterSpawnerUiHandler handler=
+            new LocalMonsterSpawnerUiHandler(
+                service,
+                owner,
+                fixedBudget(),
+                labels()
+            );
+
+        expect(
+            IOException.class,
+            ()->handler.handle(
+                MonsterSpawnerPresentation.rowWidget(0),
+                failingWriter()
+            ),
+            "row packet failure"
+        );
+
+        require(
+            service.getSession(owner)
+                .selectedRowIndex==null,
+            "row packet failure mutated selection"
+        );
+    }
+
     private static void rowCatalogRaceFailsClosed(
         World world
     ){
@@ -985,6 +1025,22 @@ public final class LocalMonsterSpawnerUiHandlerTest {
     ){
         return new ServerPacketWriter(
             out,
+            new IsaacCipher(
+                new int[4]
+            )
+        );
+    }
+
+    private static ServerPacketWriter failingWriter(){
+        return new ServerPacketWriter(
+            new OutputStream(){
+                @Override public void write(int value)
+                    throws IOException{
+                    throw new IOException(
+                        "EXPECTED_ROW_PACKET_FAILURE"
+                    );
+                }
+            },
             new IsaacCipher(
                 new int[4]
             )
