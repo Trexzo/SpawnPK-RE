@@ -25,6 +25,11 @@ final class TradeService {
         void publish(RootPublication action) throws IOException;
     }
 
+    @FunctionalInterface
+    interface CompetingRootPublication {
+        boolean publish() throws Exception;
+    }
+
     private static final IdentityHashMap<World,State> STATES=new IdentityHashMap<>();
     private TradeService(){}
 
@@ -352,9 +357,55 @@ final class TradeService {
         if(t==null)
             return false;
 
-        Context peer=t.other(c);
-        t.stage=Stage.CANCELLED;
-        detach(state(c.world),t);
+        retireForCompetingRoot0(
+            c,
+            t
+        );
+        return true;
+    }
+
+    static synchronized boolean publishCompetingRoot(
+        WorldPlayer player,
+        CompetingRootPublication publication
+    )throws Exception{
+        Objects.requireNonNull(
+            player,
+            "player"
+        );
+        CompetingRootPublication checked=
+            Objects.requireNonNull(
+                publication,
+                "publication"
+            );
+
+        Context c=context(player);
+        Trade t=liveTrade(c);
+
+        boolean published=
+            checked.publish();
+
+        if(!published)
+            return false;
+
+        if(t!=null&&
+           c!=null&&
+           c.trade==t&&
+           tradeCurrent(t))
+            retireForCompetingRoot0(
+                c,
+                t
+            );
+
+        return true;
+    }
+
+    private static void retireForCompetingRoot0(
+        Context current,
+        Trade trade
+    )throws IOException{
+        Context peer=trade.other(current);
+        trade.stage=Stage.CANCELLED;
+        detach(state(current.world),trade);
 
         if(!peer.world.closed()&&
            peer.ownerCurrent())
@@ -362,8 +413,6 @@ final class TradeService {
                 219,
                 new byte[0]
             );
-
-        return true;
     }
 
     static synchronized boolean active(WorldPlayer p){
