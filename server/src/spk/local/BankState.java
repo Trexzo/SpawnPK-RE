@@ -47,6 +47,33 @@ final class BankState {
         }
     }
 
+    /**
+     * Prospective complete inventory image for cross-domain transactions.
+     *
+     * It is detached from canonical Stack objects. Callers may derive multiple
+     * semantic changes on this image, publish it, then commit it exactly once.
+     */
+    static final class InventoryPostimage {
+        final int[] itemIds;
+        final int[] quantities;
+
+        InventoryPostimage(
+            int[] itemIds,
+            int[] quantities
+        ){
+            if(itemIds==null||
+               quantities==null||
+               itemIds.length!=INVENTORY_CAPACITY||
+               quantities.length!=INVENTORY_CAPACITY)
+                throw new IllegalArgumentException(
+                    "inventory postimage length"
+                );
+
+            this.itemIds=itemIds.clone();
+            this.quantities=quantities.clone();
+        }
+    }
+
     /** Protocol-independent immutable result of one exact-slot inventory consume. */
     static final class InventoryConsumeResult {
         final int slot;
@@ -486,6 +513,253 @@ final class BankState {
         return st==null
             ?new InventorySlotSnapshot(slot,false,-1,0)
             :new InventorySlotSnapshot(slot,true,st.itemId,st.qty);
+    }
+
+    InventoryPostimage prepareInventoryPostimage(){
+        int[] itemIds=
+            new int[inventory.length];
+        int[] quantities=
+            new int[inventory.length];
+
+        Arrays.fill(
+            itemIds,
+            -1
+        );
+
+        for(int slot=0;
+            slot<inventory.length;
+            slot++){
+            Stack stack=inventory[slot];
+
+            if(stack==null)
+                continue;
+
+            itemIds[slot]=stack.itemId;
+            quantities[slot]=stack.qty;
+        }
+
+        return new InventoryPostimage(
+            itemIds,
+            quantities
+        );
+    }
+
+    boolean postimageConsumeOne(
+        InventoryPostimage postimage,
+        int slot,
+        int expectedItemId
+    ){
+        requireInventoryPostimage(
+            postimage
+        );
+
+        if(slot<0||
+           slot>=INVENTORY_CAPACITY)
+            return false;
+
+        if(postimage.itemIds[slot]!=
+                expectedItemId||
+           postimage.quantities[slot]<=0)
+            return false;
+
+        postimage.quantities[slot]--;
+
+        if(postimage.quantities[slot]==0)
+            postimage.itemIds[slot]=-1;
+
+        return true;
+    }
+
+    int postimageAddOne(
+        InventoryPostimage postimage,
+        int itemId
+    ){
+        return postimageAddOnePreferred(
+            postimage,
+            itemId,
+            -1
+        );
+    }
+
+    int postimageAddOnePreferred(
+        InventoryPostimage postimage,
+        int itemId,
+        int preferredSlot
+    ){
+        requireInventoryPostimage(
+            postimage
+        );
+
+        int dst=
+            preferredPostimageAddDestination(
+                postimage,
+                itemId,
+                preferredSlot
+            );
+
+        if(dst<0)
+            return -1;
+
+        if(postimage.itemIds[dst]<0){
+            postimage.itemIds[dst]=itemId;
+            postimage.quantities[dst]=0;
+        }
+
+        if(postimage.itemIds[dst]!=itemId||
+           postimage.quantities[dst]==
+                Integer.MAX_VALUE)
+            return -1;
+
+        postimage.quantities[dst]++;
+        return dst;
+    }
+
+    void publishInventoryPostimage(
+        ServerPacketWriter writer,
+        InventoryPostimage postimage
+    )throws IOException{
+        requireInventoryPostimage(
+            postimage
+        );
+
+        Stack[] staged=
+            stacksFromPostimage(
+                postimage
+            );
+
+        publishNormalInventoryStructuralPostimage(
+            writer,
+            staged,
+            open
+        );
+    }
+
+    void commitInventoryPostimage(
+        InventoryPostimage postimage
+    ){
+        requireInventoryPostimage(
+            postimage
+        );
+
+        replaceInventorySemantic(
+            postimage.itemIds,
+            postimage.quantities
+        );
+    }
+
+    private static void requireInventoryPostimage(
+        InventoryPostimage postimage
+    ){
+        if(postimage==null)
+            throw new NullPointerException(
+                "inventory postimage"
+            );
+        if(postimage.itemIds.length!=
+                INVENTORY_CAPACITY||
+           postimage.quantities.length!=
+                INVENTORY_CAPACITY)
+            throw new IllegalArgumentException(
+                "inventory postimage length"
+            );
+    }
+
+    private static int preferredPostimageAddDestination(
+        InventoryPostimage postimage,
+        int itemId,
+        int preferredSlot
+    ){
+        int dst=-1;
+
+        if(preferredSlot>=0&&
+           preferredSlot<INVENTORY_CAPACITY){
+            int atItem=
+                postimage.itemIds[
+                    preferredSlot
+                ];
+            int atQuantity=
+                postimage.quantities[
+                    preferredSlot
+                ];
+
+            if(atItem<0)
+                dst=preferredSlot;
+            else if(isStackable(itemId)&&
+                    atItem==itemId&&
+                    atQuantity<Integer.MAX_VALUE)
+                dst=preferredSlot;
+        }
+
+        if(dst<0&&
+           isStackable(itemId))
+            for(int slot=0;
+                slot<INVENTORY_CAPACITY;
+                slot++)
+                if(postimage.itemIds[slot]==
+                    itemId){
+                    dst=slot;
+                    break;
+                }
+
+        if(dst<0)
+            for(int slot=0;
+                slot<INVENTORY_CAPACITY;
+                slot++)
+                if(postimage.itemIds[slot]<0){
+                    dst=slot;
+                    break;
+                }
+
+        if(dst<0)
+            return -1;
+
+        if(postimage.itemIds[dst]>=0&&
+           (postimage.itemIds[dst]!=itemId||
+            postimage.quantities[dst]==
+                Integer.MAX_VALUE))
+            return -1;
+
+        return dst;
+    }
+
+    private static Stack[] stacksFromPostimage(
+        InventoryPostimage postimage
+    ){
+        Stack[] staged=
+            new Stack[INVENTORY_CAPACITY];
+
+        for(int slot=0;
+            slot<INVENTORY_CAPACITY;
+            slot++){
+            int itemId=
+                postimage.itemIds[slot];
+            int quantity=
+                postimage.quantities[slot];
+
+            if(itemId<0){
+                if(quantity!=0)
+                    throw new IllegalArgumentException(
+                        "empty inventory postimage quantity slot="+
+                        slot
+                    );
+                continue;
+            }
+
+            if(quantity<=0)
+                throw new IllegalArgumentException(
+                    "inventory postimage quantity slot="+
+                    slot+
+                    " item="+itemId+
+                    " qty="+quantity
+                );
+
+            staged[slot]=
+                new Stack(
+                    itemId,
+                    quantity
+                );
+        }
+
+        return staged;
     }
 
     /**
