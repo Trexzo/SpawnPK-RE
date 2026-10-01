@@ -393,6 +393,55 @@ public final class LocalSessionUiActionHandlerTest {
                 "late-bound Monster Spawner toggle did not reach adapter"
             );
 
+        World factoryWorld=
+            World.isolatedForTest(
+                600L
+            );
+        try{
+            WorldPlayer factoryPlayer=
+                new WorldPlayer();
+            Object[] observed=
+                new Object[3];
+
+            LocalSession.MonsterSpawnerUiFactory factory=
+                (exactWorld,exactPlayer,accountRef)->{
+                    observed[0]=exactWorld;
+                    observed[1]=exactPlayer;
+                    observed[2]=accountRef;
+                    return null;
+                };
+
+            if(LocalSession.resolveMonsterSpawnerUi(
+                    factory,
+                    factoryWorld,
+                    factoryPlayer,
+                    "factory-account"
+                )!=null)
+                throw new AssertionError(
+                    "null factory binding became configured adapter"
+                );
+
+            if(observed[0]!=factoryWorld||
+               observed[1]!=factoryPlayer||
+               !"factory-account".equals(
+                    observed[2]))
+                throw new AssertionError(
+                    "Monster Spawner UI factory scope drifted"
+                );
+
+            if(LocalSession.resolveMonsterSpawnerUi(
+                    null,
+                    factoryWorld,
+                    factoryPlayer,
+                    "factory-account"
+                )!=null)
+                throw new AssertionError(
+                    "absent Monster Spawner UI factory changed default behavior"
+                );
+        }finally{
+            factoryWorld.close();
+        }
+
         bridge.saveReason=null;
         bridge.clearedKeys=false;
         h.handleInterfaceClose(true,w,"[ui-test] ");
@@ -414,7 +463,8 @@ public final class LocalSessionUiActionHandlerTest {
             "panelBoundary=true monsterSpawnerRoute=true "+
             "monsterSpawnerAbsentPreserved=true "+
             "monsterSpawnerLateInstall=true "+
-            "monsterSpawnerReinstallGuard=true"
+            "monsterSpawnerReinstallGuard=true "+
+            "monsterSpawnerFactoryContract=true"
         );
     }
 }
