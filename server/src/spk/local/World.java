@@ -426,7 +426,7 @@ final class World implements AutoCloseable {
         }
     }
 
-    boolean withOpenTwoPlayerMutationOwnershipIfCurrent(
+    boolean withOpenTwoPlayerOwnershipIfCurrent(
         WorldPlayer firstPlayer,
         long firstGeneration,
         WorldPlayer secondPlayer,
@@ -471,11 +471,19 @@ final class World implements AutoCloseable {
                             secondGeneration
                         ))
                         return false;
-
-                    action.run();
-                    return true;
                 }
             }
+
+            /*
+             * Keep lifecycle ownership across the action, but do not retain
+             * either player mutation lock. Registration/unregistration also
+             * requires lifecycle ownership, so the validated generations
+             * cannot change while the action runs. This avoids inversion with
+             * TradeService commit, whose established order is Trade monitor
+             * -> ordered player mutation locks.
+             */
+            action.run();
+            return true;
         }
     }
 
