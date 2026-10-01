@@ -380,6 +380,29 @@ final class LocalSession implements Runnable {
                 ){
                     LocalSession.this.saveAccountQuiet(tag,reason);
                 }
+
+                @Override public LocalDevPanelAmountHandler.Outcome
+                    handleRootReplacingAmount(
+                        LocalDevPanelCoordinator
+                            .RootReplacingAmountAction action
+                    )throws IOException{
+                    final LocalDevPanelAmountHandler.Outcome[]
+                        outcome={null};
+
+                    String result=
+                        LocalSession.this.uiActions
+                            .replaceMonsterSpawnerRootCommand(
+                                ()->{
+                                    outcome[0]=
+                                        action.handle();
+                                    return true;
+                                }
+                            );
+
+                    return result==null
+                        ?null
+                        :outcome[0];
+                }
             });
         this.commandDispatcher = new LocalCommandDispatcher(
             bankRequests,
@@ -450,6 +473,46 @@ final class LocalSession implements Runnable {
                                 .openMonsterSpawnerIfConfigured(
                                     writer
                                 )
+                    );
+                }
+
+                @Override public LocalCommandDispatcher
+                    .RootReplacingCommandDispatch
+                    handleRootReplacingCommand(
+                        LocalCommandDispatcher
+                            .RootReplacingCommandAction action
+                    )throws IOException{
+                    String result=
+                        LocalSession.this.uiActions
+                            .replaceMonsterSpawnerRootCommand(
+                                ()->
+                                    action.handle()
+                            );
+
+                    if(result==null)
+                        return LocalCommandDispatcher
+                            .RootReplacingCommandDispatch
+                            .rejected();
+
+                    if("ROOT_COMMAND_HANDLED".equals(
+                            result))
+                        return LocalCommandDispatcher
+                            .RootReplacingCommandDispatch
+                            .admitted(
+                                true
+                            );
+
+                    if("ROOT_COMMAND_NOT_HANDLED".equals(
+                            result))
+                        return LocalCommandDispatcher
+                            .RootReplacingCommandDispatch
+                            .admitted(
+                                false
+                            );
+
+                    throw new IllegalStateException(
+                        "Unexpected root command result="+
+                        result
                     );
                 }
 
