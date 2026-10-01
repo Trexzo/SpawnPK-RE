@@ -1398,7 +1398,7 @@ final class BankState {
         }
     }
 
-    private static void publishNormalInventoryStructuralPostimage(
+    private void publishNormalInventoryStructuralPostimage(
         ServerPacketWriter writer,
         Stack[] inventoryPostimage,
         boolean includeBankMirror
