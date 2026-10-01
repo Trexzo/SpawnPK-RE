@@ -565,6 +565,46 @@ final class MonsterSpawnerService {
         }
     }
 
+    synchronized SpawnResult spawnSelectedComposedIfCurrent(
+        String ownerRef,
+        SessionSnapshot expected,
+        int x,
+        int y,
+        int plane,
+        SpawnedNpcCommitAction action
+    )throws Exception{
+        SessionSnapshot checked=
+            Objects.requireNonNull(
+                expected,
+                "expected"
+            );
+
+        Session session=
+            requireSession(
+                ownerRef
+            );
+        SessionSnapshot current=
+            snapshotOf(
+                session
+            );
+
+        if(!sameSessionState(
+                current,
+                checked))
+            throw new IllegalStateException(
+                "Monster Spawner session changed before spawn owner="+
+                session.ownerRef
+            );
+
+        return spawnSelectedComposed(
+            ownerRef,
+            x,
+            y,
+            plane,
+            action
+        );
+    }
+
     synchronized SpawnResult spawnSelectedComposed(
         String ownerRef,
         int x,
