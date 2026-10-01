@@ -87,8 +87,9 @@ public final class EngineR4TradeFlowTest{
    testConfirmRootPublicationFailureClosesTrade();
    testReplacementTradeStartFailureAtomicity();
    testFinalCommitPairAdmissionAtomicity();
+   testOneSidedAcceptancePairAdmissionAtomicity();
 
-   System.out.println("V5140_ENGINE_R4_TRADE_FLOW_PASS roots=3323/3443 offerWidgets=3322/3415/3416 accepts=3420/3546 atomicExchange=true cancelReservationModel=true twoSessionRootOwners=true peerOnlyCompetingClose=true hiddenTradeRejected=true competingRootFailureAtomic=true lockOrderTradeBeforePlayer=true partialStartFailureClosed=true confirmPublicationFailClosed=true replacementStartFailureAtomic=true priorPeerPreserved=true replacementPeerCloseExact=true finalCommitPairAdmissionAtomic=true finalCommitRetryExactlyOnce=true");
+   System.out.println("V5140_ENGINE_R4_TRADE_FLOW_PASS roots=3323/3443 offerWidgets=3322/3415/3416 accepts=3420/3546 atomicExchange=true cancelReservationModel=true twoSessionRootOwners=true peerOnlyCompetingClose=true hiddenTradeRejected=true competingRootFailureAtomic=true lockOrderTradeBeforePlayer=true partialStartFailureClosed=true confirmPublicationFailClosed=true replacementStartFailureAtomic=true priorPeerPreserved=true replacementPeerCloseExact=true finalCommitPairAdmissionAtomic=true finalCommitRetryExactlyOnce=true oneSidedFirstAcceptAtomic=true oneSidedFinalAcceptAtomic=true acceptanceRetryRoutable=true");
   }finally{TradeService.unregister(p1);TradeService.unregister(p2);w.unregisterPlayer(p1);w.unregisterPlayer(p2);w.close();}
  }
  static void testSecondRootPublicationFailureAtomicity()throws Exception{
@@ -454,6 +455,135 @@ public final class EngineR4TradeFlowTest{
       qb.queuedBytes()==0)
     throw new AssertionError(
      "successful final commit emitted no paired postimage"
+    );
+  }finally{
+   TradeService.unregister(a);
+   TradeService.unregister(b);
+   if(a.registered())w.unregisterPlayer(a);
+   if(b.registered())w.unregisterPlayer(b);
+   w.close();
+  }
+ }
+
+ static void testOneSidedAcceptancePairAdmissionAtomicity()throws Exception{
+  World w=World.isolatedForTest(605L);
+  WorldPlayer a=new WorldPlayer(),b=new WorldPlayer();
+  w.registerPlayer(a,"accept-atomic-a");
+  w.registerPlayer(b,"accept-atomic-b");
+
+  OutboundPacketQueue qa=new OutboundPacketQueue(1024);
+  OutboundPacketQueue qb=new OutboundPacketQueue(1024);
+  ServerPacketWriter wa=
+   new ServerPacketWriter(qa,new IsaacCipher(new int[]{49,50,51,52}));
+  ServerPacketWriter wb=
+   new ServerPacketWriter(qb,new IsaacCipher(new int[]{53,54,55,56}));
+
+  try{
+   TradeService.register(
+    w,a,a.generation(),a.bank(),wa,()->{}
+   );
+   TradeService.register(
+    w,b,b.generation(),b.bank(),wb,()->{}
+   );
+
+   need(TradeService.start(w,a,b),"TRADE_UI_OPEN");
+   drain(qa);drain(qb);
+
+   qb.offer(new byte[1000]);
+   boolean firstFailed=false;
+
+   try{
+    TradeService.handleWidget(
+     a,
+     TradeService.FIRST_ACCEPT
+    );
+   }catch(IOException expected){
+    firstFailed=
+     expected.getMessage()!=null&&
+     expected.getMessage().contains(
+      "pair reservation unavailable"
+     );
+   }
+
+   if(!firstFailed||
+      qa.queuedBytes()!=0||
+      qb.queuedBytes()!=1000||
+      qb.overflowed())
+    throw new AssertionError(
+     "first-stage one-sided acceptance failure was not atomic bytes="+
+     qa.queuedBytes()+"/"+qb.queuedBytes()+
+     " overflowed="+qb.overflowed()
+    );
+
+   drain(qb);
+
+   need(
+    TradeService.handleWidget(
+     b,
+     TradeService.FIRST_ACCEPT
+    ),
+    "WAITING_OTHER"
+   );
+   drain(qa);drain(qb);
+
+   need(
+    TradeService.handleWidget(
+     a,
+     TradeService.FIRST_ACCEPT
+    ),
+    "CONFIRM_OPEN"
+   );
+   drain(qa);drain(qb);
+
+   qb.offer(new byte[1000]);
+   boolean finalFailed=false;
+
+   try{
+    TradeService.handleWidget(
+     a,
+     TradeService.FINAL_ACCEPT
+    );
+   }catch(IOException expected){
+    finalFailed=
+     expected.getMessage()!=null&&
+     expected.getMessage().contains(
+      "pair reservation unavailable"
+     );
+   }
+
+   if(!finalFailed||
+      qa.queuedBytes()!=0||
+      qb.queuedBytes()!=1000||
+      qb.overflowed())
+    throw new AssertionError(
+     "final-stage one-sided acceptance failure was not atomic bytes="+
+     qa.queuedBytes()+"/"+qb.queuedBytes()+
+     " overflowed="+qb.overflowed()
+    );
+
+   drain(qb);
+
+   need(
+    TradeService.handleWidget(
+     b,
+     TradeService.FINAL_ACCEPT
+    ),
+    "WAITING_OTHER"
+   );
+   drain(qa);drain(qb);
+
+   need(
+    TradeService.handleWidget(
+     a,
+     TradeService.FINAL_ACCEPT
+    ),
+    "TRADE_COMMITTED"
+   );
+
+   if(TradeService.active(a)||
+      TradeService.active(b))
+    throw new AssertionError(
+     "acceptance retry flow did not complete Trade"
     );
   }finally{
    TradeService.unregister(a);
