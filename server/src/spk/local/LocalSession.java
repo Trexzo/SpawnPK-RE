@@ -1191,7 +1191,7 @@ final class LocalSession implements Runnable {
             player,
             expectedGeneration,
             ()->
-                checkedUi.publishCompetingRootForOwnedSession(
+                checkedUi.publishDevPanelRootForOwnedSession(
                     checkedAction
                 )
         );
