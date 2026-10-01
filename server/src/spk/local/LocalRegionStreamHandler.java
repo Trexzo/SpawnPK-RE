@@ -218,13 +218,13 @@ final class LocalRegionStreamHandler {
         return true;
     }
 
-    void completeRegionLoad(
+    boolean completeRegionLoad(
         RegionLoadLifecycle.Completion completion,
         ServerPacketWriter writer,
         String tag
     )throws IOException{
         if(completion==null||!completion.matched)
-            return;
+            return false;
 
         String reason=completion.reason;
 
@@ -232,7 +232,7 @@ final class LocalRegionStreamHandler {
              "RESPAWN_REATTACH".equals(reason)||
              "DEV_RETURN_HOME_RELOCATION".equals(reason)||
              "MAGIC_HOME_TELEPORT".equals(reason)))
-            return;
+            return false;
 
         if(movement.transientRegion()||
            movement.loadedBaseX()!=MovementState.REGION_BASE_X||
@@ -246,7 +246,7 @@ final class LocalRegionStreamHandler {
                 " base="+movement.loadedBaseX()+","+movement.loadedBaseY()+
                 " transient="+movement.transientRegion()
             );
-            return;
+            return false;
         }
 
         SceneUpdatePublisher publisher=
@@ -297,6 +297,12 @@ final class LocalRegionStreamHandler {
             " groundReplay="+groundReplay+
             " overlayTiming=AFTER_OPCODE121"
         );
+
+        return true;
+    }
+
+    boolean regionLoadPending(){
+        return regionLoads.pending();
     }
 
     void reattachHomeForRespawn(
