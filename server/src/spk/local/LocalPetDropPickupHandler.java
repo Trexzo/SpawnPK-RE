@@ -327,19 +327,19 @@ final class LocalPetDropPickupHandler {
         }catch(IOException failure){
             if(!ended)
                 try{
-                    serverPackets.endBatch();
+                    serverPackets.abortBatch();
                 }catch(Throwable ignored){}
             throw failure;
         }catch(RuntimeException failure){
             if(!ended)
                 try{
-                    serverPackets.endBatch();
+                    serverPackets.abortBatch();
                 }catch(Throwable ignored){}
             throw failure;
         }catch(Error failure){
             if(!ended)
                 try{
-                    serverPackets.endBatch();
+                    serverPackets.abortBatch();
                 }catch(Throwable ignored){}
             throw failure;
         }
@@ -751,7 +751,7 @@ final class LocalPetDropPickupHandler {
             );
             if(!ended)
                 try{
-                    serverPackets.endBatch();
+                    serverPackets.abortBatch();
                 }catch(Throwable ignored){}
             throw failure;
         }catch(RuntimeException failure){
@@ -760,7 +760,7 @@ final class LocalPetDropPickupHandler {
             );
             if(!ended)
                 try{
-                    serverPackets.endBatch();
+                    serverPackets.abortBatch();
                 }catch(Throwable ignored){}
             throw failure;
         }catch(Error failure){
@@ -769,7 +769,7 @@ final class LocalPetDropPickupHandler {
             );
             if(!ended)
                 try{
-                    serverPackets.endBatch();
+                    serverPackets.abortBatch();
                 }catch(Throwable ignored){}
             throw failure;
         }
@@ -1090,19 +1090,19 @@ final class LocalPetDropPickupHandler {
         }catch(IOException failure){
             if(!ended)
                 try{
-                    serverPackets.endBatch();
+                    serverPackets.abortBatch();
                 }catch(Throwable ignored){}
             throw failure;
         }catch(RuntimeException failure){
             if(!ended)
                 try{
-                    serverPackets.endBatch();
+                    serverPackets.abortBatch();
                 }catch(Throwable ignored){}
             throw failure;
         }catch(Error failure){
             if(!ended)
                 try{
-                    serverPackets.endBatch();
+                    serverPackets.abortBatch();
                 }catch(Throwable ignored){}
             throw failure;
         }
