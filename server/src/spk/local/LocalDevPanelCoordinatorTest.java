@@ -272,6 +272,58 @@ public final class LocalDevPanelCoordinatorTest {
                 );
             }
 
+            ServerPacketWriter failedPromptWriter=
+                new ServerPacketWriter(
+                    new java.io.OutputStream(){
+                        @Override public void write(int value)
+                            throws java.io.IOException{
+                            throw new java.io.IOException(
+                                "EXPECTED_DEV_PROMPT_WRITE_FAILURE"
+                            );
+                        }
+                    },
+                    new IsaacCipher(
+                        new int[]{21,22,23,24}
+                    )
+                );
+
+            boolean promptFailed=false;
+            try{
+                coordinator.promptAmount(
+                    DevControlCenter.PendingAmount.HIT_DAMAGE,
+                    failedPromptWriter
+                );
+            }catch(java.io.IOException expected){
+                promptFailed=
+                    "EXPECTED_DEV_PROMPT_WRITE_FAILURE"
+                        .equals(
+                            expected.getMessage()
+                        );
+            }
+
+            String afterFailedPrompt=
+                Files.readString(
+                    keys.file(),
+                    StandardCharsets.UTF_8
+                );
+
+            if(!promptFailed||
+               !panel.isOpen()||
+               panel.page()!=
+                    DevControlCenter.Page.MAIN||
+               panel.hasPending()||
+               !active.equals(
+                    afterFailedPrompt
+               ))
+                throw new AssertionError(
+                    "failed numeric prompt changed authoritative state panelOpen="+
+                    panel.isOpen()+
+                    " page="+panel.page()+
+                    " pending="+panel.pending()+
+                    " sidecarChanged="+
+                    !active.equals(afterFailedPrompt)
+                );
+
             WorldPlayer tradePeer=
                 new WorldPlayer();
             world.registerPlayer(
@@ -485,7 +537,9 @@ public final class LocalDevPanelCoordinatorTest {
                 "targetFailureAtomic=true "+
                 "failedTargetPreservesBank=true "+
                 "failedTargetPreservesItemLibrary=true "+
-                "failedTargetPreservesTrade=true"
+                "failedTargetPreservesTrade=true "+
+                "numericPromptFailureAtomic=true "+
+                "failedPromptSidecarPreserved=true"
             );
         }finally{
             world.close();
