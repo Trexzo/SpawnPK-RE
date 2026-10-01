@@ -303,6 +303,77 @@ final class BankState {
     }
 
     /**
+     * Commit one prevalidated complete inventory postimage without publishing.
+     *
+     * Two-session transactions use this only after their presentation admission
+     * has committed. Unchanged item ids retain their existing Stack object/tab;
+     * replaced slots receive ordinary inventory stacks.
+     */
+    void replaceInventorySemantic(
+        int[] itemIds,
+        int[] quantities
+    ){
+        if(itemIds==null||
+           quantities==null||
+           itemIds.length!=inventory.length||
+           quantities.length!=inventory.length)
+            throw new IllegalArgumentException(
+                "inventory postimage length"
+            );
+
+        for(int slot=0;
+            slot<inventory.length;
+            slot++){
+            int itemId=itemIds[slot];
+            int quantity=quantities[slot];
+
+            if(itemId<0){
+                if(quantity!=0)
+                    throw new IllegalArgumentException(
+                        "empty inventory postimage quantity slot="+
+                        slot
+                    );
+                continue;
+            }
+
+            if(quantity<=0)
+                throw new IllegalArgumentException(
+                    "inventory postimage quantity slot="+
+                    slot+
+                    " item="+itemId+
+                    " qty="+quantity
+                );
+        }
+
+        for(int slot=0;
+            slot<inventory.length;
+            slot++){
+            int itemId=itemIds[slot];
+            int quantity=quantities[slot];
+
+            if(itemId<0){
+                inventory[slot]=null;
+                continue;
+            }
+
+            Stack existing=
+                inventory[slot];
+
+            if(existing!=null&&
+               existing.itemId==itemId){
+                existing.qty=quantity;
+                continue;
+            }
+
+            inventory[slot]=
+                new Stack(
+                    itemId,
+                    quantity
+                );
+        }
+    }
+
+    /**
      * Protocol-independent exact-slot consume primitive.
      *
      * Validates the complete mutation before changing the canonical inventory.
