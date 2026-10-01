@@ -782,17 +782,10 @@ final class LocalMakeoverMageHandler {
     )throws IOException{
         refreshDialogueDefinitionForNewSession();
 
-        DialogueSessionService.Snapshot begun=
-            dialogue.begin(
+        DialogueSessionService.PreparedBegin prepared=
+            dialogue.prepareBegin(
                 dialoguePlayerRef,
                 DIALOGUE_KEY
-            );
-
-        if(!begun.active||
-           !INTRO_NODE.equals(
-                begun.nodeKey))
-            throw new IllegalStateException(
-                "Make-over dialogue did not begin at intro"
             );
 
         MakeoverMageDialogueContent
@@ -800,6 +793,18 @@ final class LocalMakeoverMageHandler {
                 ContentRuntimeAdapters
                     .presentation(packets)
                     .dialogue()
+            );
+
+        DialogueSessionService.Snapshot begun=
+            dialogue.commitPreparedBegin(
+                prepared
+            );
+
+        if(!begun.active||
+           !INTRO_NODE.equals(
+                begun.nodeKey))
+            throw new IllegalStateException(
+                "Make-over dialogue did not begin at intro"
             );
 
         designActive=false;
