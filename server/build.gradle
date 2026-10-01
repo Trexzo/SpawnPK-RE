@@ -4985,6 +4985,7 @@ tasks.named('check') {
     dependsOn tasks.named('monsterSpawnerPresentationRegression')
     dependsOn tasks.named('monsterSpawnerUiServiceAdapterRegression')
     dependsOn tasks.named('localMonsterSpawnerActivationPvmSpawnRegression')
+    dependsOn tasks.named('localMonsterSpawnerCallbackLinearizationRegression')
     dependsOn tasks.named('itemEnchantmentServiceRegression')
     dependsOn tasks.named('itemEnchantmentPresentationRegression')
     dependsOn tasks.named('legendaryPetFusionServiceRegression')
@@ -5903,6 +5904,20 @@ tasks.register('localMonsterSpawnerActivationPvmSpawnRegression', JavaExec) {
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass = 'spk.local.LocalMonsterSpawnerActivationPvmSpawnTest'
+}
+
+
+tasks.register('localMonsterSpawnerCallbackLinearizationRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves Monster Spawner committed-result callbacks linearize with exact player unregister and World terminal close.'
+    dependsOn(
+        tasks.named('testClasses'),
+        tasks.named('localMonsterSpawnerActivationPvmSpawnRegression')
+    )
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.LocalMonsterSpawnerCallbackLinearizationTest'
 }
 
 
