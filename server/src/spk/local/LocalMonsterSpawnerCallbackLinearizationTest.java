@@ -1,0 +1,610 @@
+package spk.local;
+
+import java.io.ByteArrayOutputStream;
+import java.util.Collections;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+
+public final class LocalMonsterSpawnerCallbackLinearizationTest {
+    private static final String OWNER="callback-linearization-owner";
+    private static final String POLICY=
+        "CUSTOM_LOCALLAB_CALLBACK_LINEARIZATION_POLICY";
+    private static final String CATALOG=
+        "CUSTOM_LOCALLAB_CALLBACK_LINEARIZATION_CATALOG";
+
+    public static void main(String[] args)throws Exception{
+        unregisterWaitsForAdmittedCallback();
+        closeWaitsForAdmittedCallback();
+        queuedCallbackRejectedAfterClosePublication();
+
+        System.out.println(
+            "MONSTER_SPAWNER_CALLBACK_LINEARIZATION_PASS "+
+            "unregisterWaits=true "+
+            "closeWaits=true "+
+            "queuedAfterCloseRejected=true "+
+            "exactGeneration=true "+
+            "callbackOnce=true"
+        );
+    }
+
+    private static void unregisterWaitsForAdmittedCallback()
+        throws Exception{
+        World world=World.isolatedForTest(600L);
+        WorldPlayer player=new WorldPlayer();
+        long generation=world.registerPlayer(player,OWNER);
+        Fixture fixture=new Fixture(world);
+
+        CountDownLatch callbackEntered=new CountDownLatch(1);
+        CountDownLatch releaseCallback=new CountDownLatch(1);
+        CountDownLatch unregisterDone=new CountDownLatch(1);
+
+        Throwable[] callbackFailure={null};
+        Throwable[] unregisterFailure={null};
+        boolean[] unregisterResult={false};
+        int[] callbackCalls={0};
+
+        LocalSession.MonsterSpawnerUiFactory factory=
+            blockingFactory(
+                callbackEntered,
+                releaseCallback,
+                callbackCalls
+            );
+
+        Thread callback=
+            new Thread(
+                ()->{
+                    try{
+                        LocalSession.forwardMonsterSpawnerUiResult(
+                            factory,
+                            world,
+                            player,
+                            generation,
+                            OWNER,
+                            fixture.result,
+                            fixture.writer,
+                            "[callback-linearization-unregister] "
+                        );
+                    }catch(Throwable failure){
+                        callbackFailure[0]=failure;
+                    }
+                },
+                "monster-callback-unregister"
+            );
+
+        Thread unregister=
+            new Thread(
+                ()->{
+                    try{
+                        unregisterResult[0]=
+                            world.unregisterPlayer(
+                                player,
+                                generation
+                            );
+                    }catch(Throwable failure){
+                        unregisterFailure[0]=failure;
+                    }finally{
+                        unregisterDone.countDown();
+                    }
+                },
+                "monster-callback-unregister-owner"
+            );
+
+        try{
+            callback.start();
+
+            await(
+                callbackEntered,
+                "callback did not enter before unregister"
+            );
+
+            unregister.start();
+
+            awaitBlocked(
+                unregister,
+                "unregister did not block behind admitted callback"
+            );
+
+            if(unregisterDone.getCount()==0L)
+                throw new AssertionError(
+                    "unregister completed while callback still owned mutation boundary"
+                );
+
+            releaseCallback.countDown();
+
+            join(
+                callback,
+                "callback did not complete after release"
+            );
+            join(
+                unregister,
+                "unregister did not complete after callback release"
+            );
+
+            require(
+                callbackFailure[0]==null&&
+                unregisterFailure[0]==null&&
+                unregisterResult[0]&&
+                callbackCalls[0]==1&&
+                !world.players().owns(
+                    player,
+                    generation
+                ),
+                "unregister linearization result"
+            );
+        }finally{
+            releaseCallback.countDown();
+
+            if(world.players().owns(
+                    player,
+                    generation
+                ))
+                world.unregisterPlayer(
+                    player,
+                    generation
+                );
+
+            world.close();
+        }
+    }
+
+    private static void closeWaitsForAdmittedCallback()
+        throws Exception{
+        World world=World.isolatedForTest(600L);
+        WorldPlayer player=new WorldPlayer();
+        long generation=world.registerPlayer(player,OWNER);
+        Fixture fixture=new Fixture(world);
+
+        CountDownLatch callbackEntered=new CountDownLatch(1);
+        CountDownLatch releaseCallback=new CountDownLatch(1);
+        CountDownLatch closeDone=new CountDownLatch(1);
+
+        Throwable[] callbackFailure={null};
+        Throwable[] closeFailure={null};
+        int[] callbackCalls={0};
+
+        LocalSession.MonsterSpawnerUiFactory factory=
+            blockingFactory(
+                callbackEntered,
+                releaseCallback,
+                callbackCalls
+            );
+
+        Thread callback=
+            new Thread(
+                ()->{
+                    try{
+                        LocalSession.forwardMonsterSpawnerUiResult(
+                            factory,
+                            world,
+                            player,
+                            generation,
+                            OWNER,
+                            fixture.result,
+                            fixture.writer,
+                            "[callback-linearization-close] "
+                        );
+                    }catch(Throwable failure){
+                        callbackFailure[0]=failure;
+                    }
+                },
+                "monster-callback-close"
+            );
+
+        Thread closer=
+            new Thread(
+                ()->{
+                    try{
+                        world.close();
+                    }catch(Throwable failure){
+                        closeFailure[0]=failure;
+                    }finally{
+                        closeDone.countDown();
+                    }
+                },
+                "monster-callback-world-close"
+            );
+
+        try{
+            callback.start();
+
+            await(
+                callbackEntered,
+                "callback did not enter before World close"
+            );
+
+            closer.start();
+
+            awaitClosed(
+                world,
+                "World close flag was not published"
+            );
+
+            awaitBlocked(
+                closer,
+                "World close did not wait behind admitted callback"
+            );
+
+            if(closeDone.getCount()==0L)
+                throw new AssertionError(
+                    "World close completed while admitted callback was still blocked"
+                );
+
+            releaseCallback.countDown();
+
+            join(
+                callback,
+                "callback did not complete after close release"
+            );
+            join(
+                closer,
+                "World close did not complete after callback release"
+            );
+
+            require(
+                callbackFailure[0]==null&&
+                closeFailure[0]==null&&
+                callbackCalls[0]==1&&
+                world.closed()&&
+                closeDone.getCount()==0L,
+                "World close linearization result"
+            );
+        }finally{
+            releaseCallback.countDown();
+            world.close();
+        }
+    }
+
+    private static void queuedCallbackRejectedAfterClosePublication()
+        throws Exception{
+        World world=World.isolatedForTest(600L);
+        WorldPlayer player=new WorldPlayer();
+        long generation=world.registerPlayer(player,OWNER);
+        Fixture fixture=new Fixture(world);
+
+        CountDownLatch lifecycleHeld=new CountDownLatch(1);
+        CountDownLatch releaseLifecycle=new CountDownLatch(1);
+
+        Throwable[] blockerFailure={null};
+        Throwable[] callbackFailure={null};
+        Throwable[] closeFailure={null};
+        int[] callbackCalls={0};
+
+        LocalSession.MonsterSpawnerUiFactory factory=
+            new LocalSession.MonsterSpawnerUiFactory(){
+                @Override public LocalMonsterSpawnerUiHandler create(
+                    World factoryWorld,
+                    WorldPlayer factoryPlayer,
+                    String canonicalUsername
+                ){
+                    return fixture.ui;
+                }
+
+                @Override public void onCommittedResult(
+                    World callbackWorld,
+                    WorldPlayer callbackPlayer,
+                    String canonicalUsername,
+                    LocalMonsterSpawnerUiHandler.Result result,
+                    ServerPacketWriter writer,
+                    String tag
+                ){
+                    callbackCalls[0]++;
+                }
+            };
+
+        Thread blocker=
+            new Thread(
+                ()->{
+                    try{
+                        world.withOpenLifecycleOwnership(
+                            ()->{
+                                lifecycleHeld.countDown();
+
+                                if(!releaseLifecycle.await(
+                                        5L,
+                                        TimeUnit.SECONDS))
+                                    throw new AssertionError(
+                                        "lifecycle release timeout"
+                                    );
+                            }
+                        );
+                    }catch(Throwable failure){
+                        blockerFailure[0]=failure;
+                    }
+                },
+                "monster-callback-lifecycle-blocker"
+            );
+
+        Thread callback=
+            new Thread(
+                ()->{
+                    try{
+                        LocalSession.forwardMonsterSpawnerUiResult(
+                            factory,
+                            world,
+                            player,
+                            generation,
+                            OWNER,
+                            fixture.result,
+                            fixture.writer,
+                            "[callback-linearization-queued] "
+                        );
+                    }catch(Throwable failure){
+                        callbackFailure[0]=failure;
+                    }
+                },
+                "monster-callback-queued"
+            );
+
+        Thread closer=
+            new Thread(
+                ()->{
+                    try{
+                        world.close();
+                    }catch(Throwable failure){
+                        closeFailure[0]=failure;
+                    }
+                },
+                "monster-callback-queued-close"
+            );
+
+        try{
+            blocker.start();
+
+            await(
+                lifecycleHeld,
+                "lifecycle blocker did not enter"
+            );
+
+            callback.start();
+
+            awaitBlocked(
+                callback,
+                "queued callback did not wait for lifecycle ownership"
+            );
+
+            closer.start();
+
+            awaitClosed(
+                world,
+                "queued-callback World close flag was not published"
+            );
+
+            releaseLifecycle.countDown();
+
+            join(
+                blocker,
+                "lifecycle blocker did not exit"
+            );
+            join(
+                callback,
+                "queued callback did not terminate"
+            );
+            join(
+                closer,
+                "queued-callback World close did not terminate"
+            );
+
+            require(
+                blockerFailure[0]==null&&
+                closeFailure[0]==null&&
+                callbackFailure[0] instanceof IllegalStateException&&
+                callbackCalls[0]==0&&
+                world.closed(),
+                "queued callback crossed World terminal publication"
+            );
+        }finally{
+            releaseLifecycle.countDown();
+            world.close();
+        }
+    }
+
+    private static LocalSession.MonsterSpawnerUiFactory
+        blockingFactory(
+            CountDownLatch entered,
+            CountDownLatch release,
+            int[] calls
+        ){
+        return new LocalSession.MonsterSpawnerUiFactory(){
+            @Override public LocalMonsterSpawnerUiHandler create(
+                World factoryWorld,
+                WorldPlayer factoryPlayer,
+                String canonicalUsername
+            ){
+                return null;
+            }
+
+            @Override public void onCommittedResult(
+                World callbackWorld,
+                WorldPlayer callbackPlayer,
+                String canonicalUsername,
+                LocalMonsterSpawnerUiHandler.Result result,
+                ServerPacketWriter writer,
+                String tag
+            )throws Exception{
+                calls[0]++;
+                entered.countDown();
+
+                if(!release.await(
+                        5L,
+                        TimeUnit.SECONDS))
+                    throw new AssertionError(
+                        "callback release timeout"
+                    );
+            }
+        };
+    }
+
+    private static final class Fixture {
+        final MonsterSpawnerService spawner;
+        final LocalMonsterSpawnerUiHandler ui;
+        final ServerPacketWriter writer;
+        final LocalMonsterSpawnerUiHandler.Result result;
+
+        Fixture(
+            World world
+        )throws Exception{
+            spawner=
+                new MonsterSpawnerService(
+                    world.npcs()
+                );
+
+            spawner.replaceCatalog(
+                Collections.singletonList(
+                    new MonsterSpawnerService.CatalogEntry(
+                        0,
+                        "callback-linearization",
+                        1530
+                    )
+                ),
+                CATALOG
+            );
+
+            spawner.openSession(
+                OWNER,
+                POLICY
+            );
+
+            ui=
+                new LocalMonsterSpawnerUiHandler(
+                    spawner,
+                    OWNER,
+                    new LocalMonsterSpawnerUiHandler
+                        .ActivationBudgetResolver(){
+                        @Override public int spawnBudget(
+                            LocalMonsterSpawnerUiHandler.Context context
+                        ){
+                            return 1;
+                        }
+
+                        @Override public String authority(){
+                            return POLICY;
+                        }
+                    },
+                    new LocalMonsterSpawnerUiHandler
+                        .SelectedNpcLabelResolver(){
+                        @Override public String label(
+                            MonsterSpawnerService.CatalogEntry entry
+                        ){
+                            return "NPC-"+entry.definitionId;
+                        }
+
+                        @Override public String authority(){
+                            return CATALOG;
+                        }
+                    }
+                );
+
+            writer=
+                new ServerPacketWriter(
+                    new ByteArrayOutputStream(),
+                    new IsaacCipher(
+                        new int[]{1,2,3,4}
+                    )
+                );
+
+            result=
+                ui.handle(
+                    MonsterSpawnerPresentation.rowWidget(0),
+                    writer
+                );
+
+            require(
+                result!=null&&
+                result.status==
+                    LocalMonsterSpawnerUiHandler.Status.ROW_SELECTED&&
+                OWNER.equals(
+                    result.session.ownerRef
+                ),
+                "callback fixture result"
+            );
+        }
+    }
+
+    private static void await(
+        CountDownLatch latch,
+        String label
+    )throws Exception{
+        if(!latch.await(
+                5L,
+                TimeUnit.SECONDS))
+            throw new AssertionError(
+                label
+            );
+    }
+
+    private static void awaitBlocked(
+        Thread thread,
+        String label
+    )throws Exception{
+        long deadline=
+            System.nanoTime()+
+            TimeUnit.SECONDS.toNanos(
+                5L
+            );
+
+        while(System.nanoTime()<deadline){
+            if(thread.getState()==
+                    Thread.State.BLOCKED)
+                return;
+
+            if(!thread.isAlive())
+                break;
+
+            Thread.yield();
+        }
+
+        throw new AssertionError(
+            label+
+            " state="+
+            thread.getState()
+        );
+    }
+
+    private static void awaitClosed(
+        World world,
+        String label
+    ){
+        long deadline=
+            System.nanoTime()+
+            TimeUnit.SECONDS.toNanos(
+                5L
+            );
+
+        while(!world.closed()&&
+              System.nanoTime()<deadline)
+            Thread.yield();
+
+        if(!world.closed())
+            throw new AssertionError(
+                label
+            );
+    }
+
+    private static void join(
+        Thread thread,
+        String label
+    )throws Exception{
+        thread.join(
+            5_000L
+        );
+
+        if(thread.isAlive())
+            throw new AssertionError(
+                label+
+                " state="+
+                thread.getState()
+            );
+    }
+
+    private static void require(
+        boolean condition,
+        String label
+    ){
+        if(!condition)
+            throw new AssertionError(
+                label
+            );
+    }
+
+    private LocalMonsterSpawnerCallbackLinearizationTest(){}
+}
