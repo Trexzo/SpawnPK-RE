@@ -521,6 +521,250 @@ final class BankState {
     }
 
 
+    void replaceInventorySemantic(
+        int[] itemIds,
+        int[] quantities
+    ){
+        if(itemIds==null||
+           quantities==null||
+           itemIds.length!=inventory.length||
+           quantities.length!=inventory.length)
+            throw new IllegalArgumentException(
+                "inventory postimage length"
+            );
+
+        for(int slot=0;
+            slot<inventory.length;
+            slot++){
+            int itemId=itemIds[slot];
+            int quantity=quantities[slot];
+
+            if(itemId<0){
+                if(quantity!=0)
+                    throw new IllegalArgumentException(
+                        "empty inventory postimage quantity slot="+
+                        slot
+                    );
+                continue;
+            }
+
+            if(quantity<=0)
+                throw new IllegalArgumentException(
+                    "inventory postimage quantity slot="+
+                    slot+
+                    " item="+itemId+
+                    " qty="+quantity
+                );
+        }
+
+        for(int slot=0;
+            slot<inventory.length;
+            slot++){
+            int itemId=itemIds[slot];
+            int quantity=quantities[slot];
+
+            if(itemId<0){
+                inventory[slot]=null;
+                continue;
+            }
+
+            Stack existing=
+                inventory[slot];
+
+            if(existing!=null&&
+               existing.itemId==itemId){
+                existing.qty=quantity;
+                continue;
+            }
+
+            inventory[slot]=
+                new Stack(
+                    itemId,
+                    quantity
+                );
+        }
+    }
+
+    /**
+     * Protocol-independent exact-slot consume primitive.
+     *
+     * Validates the complete mutation before changing the canonical inventory.
+     * It publishes no packet and performs no compaction.
+     */
+    InventoryConsumeResult consumeInventoryAmountSemantic(
+        int slot,
+        int expectedItemId,
+        int amount
+    ){
+        if(!validSlot(inventory,slot))
+            throw new IllegalArgumentException("inventory slot 0..27");
+        if(expectedItemId<0)
+            throw new IllegalArgumentException("expectedItemId");
+        if(amount<=0)
+            throw new IllegalArgumentException("amount");
+
+        Stack st=inventory[slot];
+        if(st==null)
+            throw new IllegalStateException("inventory slot empty slot="+slot);
+        if(st.itemId!=expectedItemId)
+            throw new IllegalStateException(
+                "inventory item mismatch slot="+slot+
+                " expected="+expectedItemId+
+                " actual="+st.itemId
+            );
+        if(st.qty<amount)
+            throw new IllegalStateException(
+                "inventory quantity insufficient slot="+slot+
+                " item="+expectedItemId+
+                " have="+st.qty+
+                " requested="+amount
+            );
+
+        int before=st.qty;
+        int after=before-amount;
+
+        if(after==0)
+            inventory[slot]=null;
+        else
+            st.qty=after;
+
+        return new InventoryConsumeResult(
+            slot,
+            expectedItemId,
+            amount,
+            before,
+            after
+        );
+    }
+
+    /** Remove exactly one item from a concrete inventory slot (pet Drop path). */
+    String consumeInventoryOne(int slot, int itemId, ServerPacketWriter w) throws IOException {
+        if (!validSlot(inventory,slot) || inventory[slot]==null) return "REJECTED_INVENTORY_SLOT";
+        Stack st=inventory[slot];
+        if (st.itemId!=itemId) return "REJECTED_INVENTORY_ITEM_MISMATCH expected="+st.itemId;
+        if (st.qty<=0) return "REJECTED_INVENTORY_QTY";
+        st.qty--;
+        if (st.qty==0) inventory[slot]=null;
+        sendNormalInventory(w);
+        if (open) sendContainers(w);
+        return "INVENTORY_CONSUME_OK item="+itemId+" slot="+slot+" remaining="+(inventory[slot]==null?0:inventory[slot].qty);
+    }
+
+    boolean canAddInventoryOne(int itemId) {
+        if (isStackable(itemId) && findItem(inventory,itemId)>=0) return true;
+        return firstEmpty(inventory)>=0;
+    }
+
+    /** Restore exactly one item to inventory (pet Pick-up path). Returns destination slot. */
+    int addInventoryOne(int itemId, ServerPacketWriter w) throws IOException {
+        int dst = isStackable(itemId) ? findItem(inventory,itemId) : -1;
+        if (dst<0) dst=firstEmpty(inventory);
+        if (dst<0) return -1;
+        if (inventory[dst]==null) inventory[dst]=new Stack(itemId,0);
+        if (inventory[dst].qty==Integer.MAX_VALUE) return -1;
+        inventory[dst].qty++;
+        sendNormalInventory(w);
+        if (open) sendContainers(w);
+        return dst;
+    }
+
+    /**
+     * Restore one item to a preferred concrete slot when possible.  Pet replacement
+     * uses the just-vacated slot of the newly dropped pet, matching production's
+     * swap-like inventory behavior instead of compacting to the first empty slot.
+     */
+    int addInventoryOnePreferred(int itemId,int preferredSlot,ServerPacketWriter w) throws IOException {
+        int dst=-1;
+        if(validSlot(inventory,preferredSlot)){
+            Stack at=inventory[preferredSlot];
+            if(at==null) dst=preferredSlot;
+            else if(isStackable(itemId) && at.itemId==itemId && at.qty<Integer.MAX_VALUE) dst=preferredSlot;
+        }
+        if(dst<0 && isStackable(itemId)) dst=findItem(inventory,itemId);
+        if(dst<0) dst=firstEmpty(inventory);
+        if(dst<0) return -1;
+        if(inventory[dst]==null) inventory[dst]=new Stack(itemId,0);
+        if(inventory[dst].itemId!=itemId || inventory[dst].qty==Integer.MAX_VALUE) return -1;
+        inventory[dst].qty++;
+        sendNormalInventory(w);
+        if(open) sendContainers(w);
+        return dst;
+    }
+
+    /** Consume the entire concrete inventory stack. Used by ordinary ground Drop. */
+    int consumeInventoryAll(int slot,int itemId,ServerPacketWriter w) throws IOException {
+        if(!validSlot(inventory,slot)||inventory[slot]==null)return -1;
+        Stack st=inventory[slot]; if(st.itemId!=itemId||st.qty<=0)return -1;
+        int qty=st.qty; inventory[slot]=null; sendNormalInventory(w); if(open)sendContainers(w); return qty;
+    }
+
+    boolean canAddInventoryAmount(int itemId,int amount){
+        if(amount<=0)return false;
+        if(isStackable(itemId)){
+            int at=findItem(inventory,itemId);
+            if(at>=0)return (long)inventory[at].qty+amount<=Integer.MAX_VALUE;
+            return firstEmpty(inventory)>=0;
+        }
+        int free=0; for(Stack st:inventory)if(st==null)free++;
+        return free>=amount;
+    }
+
+    /** Add a positive amount atomically after canAddInventoryAmount preflight. Returns first destination slot or -1. */
+    int addInventoryAmount(int itemId,int amount,ServerPacketWriter w)throws IOException{
+        if(!canAddInventoryAmount(itemId,amount))return -1;
+        int first=-1;
+        if(isStackable(itemId)){
+            int dst=findItem(inventory,itemId); if(dst<0)dst=firstEmpty(inventory); first=dst;
+            if(inventory[dst]==null)inventory[dst]=new Stack(itemId,0);
+            inventory[dst].qty+=amount;
+        }else{
+            for(int n=0;n<amount;n++){int dst=firstEmpty(inventory);if(first<0)first=dst;inventory[dst]=new Stack(itemId,1);}
+        }
+        sendNormalInventory(w); if(open)sendContainers(w); return first;
+    }
+
+    /** Equip a native icon into the dedicated COSMETIC channel, never AMMO. */
+    String equipCosmeticFromInventory(int slot,int itemId,CosmeticState cosmetic,ServerPacketWriter w)throws IOException{
+        if(cosmetic==null)return "REJECTED_NO_COSMETIC_STATE";
+        if(!ItemCatalog.isNativePlayerIcon(itemId))return "REJECTED_NOT_NATIVE_COSMETIC item="+itemId;
+        if(!validSlot(inventory,slot)||inventory[slot]==null||inventory[slot].itemId!=itemId||inventory[slot].qty<=0)return "REJECTED_INVENTORY_MISMATCH";
+        int old=cosmetic.itemId();
+        // Consuming one from the selected slot always creates capacity for a previous non-stackable cosmetic.
+        Stack st=inventory[slot]; st.qty--; if(st.qty==0)inventory[slot]=null;
+        if(old>=0){
+            int dst=(inventory[slot]==null)?slot:(isStackable(old)?findItem(inventory,old):-1);
+            if(dst<0)dst=firstEmpty(inventory);
+            if(dst<0){ // rollback
+                if(inventory[slot]==null)inventory[slot]=new Stack(itemId,1); else inventory[slot].qty++;
+                return "REJECTED_INVENTORY_FULL_ROLLBACK";
+            }
+            if(inventory[dst]==null)inventory[dst]=new Stack(old,0); inventory[dst].qty++;
+        }
+        cosmetic.set(itemId); sendNormalInventory(w); if(open)sendContainers(w);
+        return "COSMETIC_EQUIP_OK item="+itemId+" old="+old+" slot="+slot+" channel=DEDICATED_BS ammoIndependent=true";
+    }
+
+    String unequipCosmeticToInventory(CosmeticState cosmetic,ServerPacketWriter w)throws IOException{
+        if(cosmetic==null||!cosmetic.active())return "COSMETIC_NONE_ACTIVE";
+        int old=cosmetic.itemId(); if(!canAddInventoryOne(old))return "REJECTED_INVENTORY_FULL";
+        int dst=addInventoryOne(old,w); if(dst<0)return "REJECTED_INVENTORY_FULL"; cosmetic.clear();
+        return "COSMETIC_UNEQUIP_OK item="+old+" inventorySlot="+dst;
+    }
+
+    /** Exact in-slot non-stackable transform used by native Switch-colors actions. */
+    String transformInventoryOne(int slot,int expectedItemId,int replacementItemId,ServerPacketWriter w) throws IOException {
+        if(!validSlot(inventory,slot) || inventory[slot]==null) return "REJECTED_INVENTORY_SLOT";
+        Stack st=inventory[slot];
+        if(st.itemId!=expectedItemId) return "REJECTED_INVENTORY_ITEM_MISMATCH expected="+st.itemId;
+        if(st.qty!=1) return "REJECTED_TRANSFORM_QTY qty="+st.qty;
+        if(ItemDefinitionRepository.get(replacementItemId)==null) return "REJECTED_UNKNOWN_REPLACEMENT item="+replacementItemId;
+        inventory[slot]=new Stack(replacementItemId,1);
+        sendNormalInventory(w);
+        if(open) sendContainers(w);
+        return "INVENTORY_TRANSFORM_OK slot="+slot+" item="+expectedItemId+"->"+replacementItemId;
+    }
+
+
     void restoreAccountState(
         Stack[] nextBank,
         Stack[] nextInventory,
