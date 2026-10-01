@@ -888,20 +888,39 @@ final class LocalSession implements Runnable {
         if(factory==null)
             return null;
 
-        return factory.create(
+        World checkedWorld=
             java.util.Objects.requireNonNull(
                 world,
                 "world"
-            ),
+            );
+        WorldPlayer checkedPlayer=
             java.util.Objects.requireNonNull(
                 player,
                 "player"
-            ),
+            );
+        String checkedAccount=
             java.util.Objects.requireNonNull(
                 accountRef,
                 "accountRef"
-            )
-        );
+            );
+
+        LocalMonsterSpawnerUiHandler handler=
+            factory.create(
+                checkedWorld,
+                checkedPlayer,
+                checkedAccount
+            );
+
+        if(handler!=null&&
+           !handler.isOwnedBy(
+                checkedAccount
+            ))
+            throw new IllegalArgumentException(
+                "Monster Spawner UI owner does not match resolved account "+
+                checkedAccount
+            );
+
+        return handler;
     }
 
     @Override public void run() {
