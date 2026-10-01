@@ -435,6 +435,54 @@ final class Player81WorldSync {
         }
     }
 
+    @FunctionalInterface
+    interface PreparedBatchTransport {
+        void commit()throws IOException;
+    }
+
+    static boolean commitPreparedBatchWithTransport(
+        PreparedBatch prepared,
+        PreparedBatchTransport transport
+    )throws IOException{
+        if(prepared==null||
+           transport==null)
+            throw new NullPointerException(
+                "prepared/transport"
+            );
+
+        Context candidate=
+            prepared.context;
+        final boolean[] committed=
+            new boolean[]{false};
+
+        boolean accepted=
+            candidate.state.world
+                .withOpenPlayerOwnershipIfCurrent(
+                    candidate.owner,
+                    candidate.ownerGeneration,
+                    ()->{
+                        synchronized(Player81WorldSync.class){
+                            if(BY_WRITER.get(
+                                    candidate.writer
+                                )!=candidate)
+                                return;
+                        }
+
+                        if(prepared.completed)
+                            return;
+
+                        transport.commit();
+                        candidate.commitPreparedBatch(
+                            prepared
+                        );
+                        committed[0]=true;
+                    }
+                );
+
+        return accepted&&
+            committed[0];
+    }
+
     static void commitPreparedBatch(
         PreparedBatch prepared
     ){
