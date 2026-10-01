@@ -69,6 +69,24 @@ final class SharedNpcWorldRelay {
     private static void cleanupContext(Context c){
         c.state.contexts.remove(c.owner.id());
 
+        if(c.state.world.closed()){
+            /*
+             * World.close() has crossed the terminal publication boundary.
+             * Retire viewer-local bookkeeping only: live-session cleanup below
+             * can emit packet-65 removals and mutate presentation queues, which
+             * is no longer valid once the World is terminal.
+             */
+            c.remote.clear();
+            c.remoteIndexes.clear();
+            c.genericNpcs.clear();
+            c.genericIndexes.clear();
+
+            if(c.state.contexts.isEmpty()&&
+               c.state.genericNpcIds.isEmpty())
+                BY_WORLD.remove(c.state.world);
+            return;
+        }
+
         c.state.world
             .npcPresentationEvents()
             .removeSource(
