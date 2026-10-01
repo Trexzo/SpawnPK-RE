@@ -10,6 +10,8 @@ public final class LocalPetDropPickupHandlerTest {
         String saveReason;
         long followResetCount;
         long followEnsureCount;
+        final PlayerState playerState=
+            new PlayerState();
 
         @Override public String username(){
             return "opensrc";
@@ -38,9 +40,7 @@ public final class LocalPetDropPickupHandlerTest {
             prepareScopesightPassive(
                 boolean active
             ){
-            PlayerState state=
-                new PlayerState();
-            return state
+            return playerState
                 .prepareScopesightMaintenance(
                     active
                 );
@@ -49,11 +49,35 @@ public final class LocalPetDropPickupHandlerTest {
         @Override public void publishScopesightPassive(
             PlayerState.PreparedScopesightMaintenance prepared,
             ServerPacketWriter serverPackets
-        ){}
+        )throws java.io.IOException{
+            for(int skill=0;
+                skill<PlayerState.COMBAT_SKILL_COUNT;
+                skill++){
+                if((prepared.changedMask&
+                    (1<<skill))==0)
+                    continue;
+
+                serverPackets.fixed(
+                    134,
+                    BootstrapPackets.skill134(
+                        skill,
+                        playerState.xp(skill),
+                        prepared.levelForSkill(
+                            skill
+                        )
+                    )
+                );
+            }
+        }
 
         @Override public void commitScopesightPassive(
             PlayerState.PreparedScopesightMaintenance prepared
-        ){}
+        ){
+            playerState
+                .commitScopesightMaintenance(
+                    prepared
+                );
+        }
 
         @Override public void resetPetFollowDeadline(){
             followResetCount++;
@@ -187,12 +211,15 @@ public final class LocalPetDropPickupHandlerTest {
             }
 
             testOrdinaryGroundDropAtomicity();
+            testMainPetTransactionAtomicity();
 
             System.out.println(
                 "LOCAL_PET_DROP_PICKUP_HANDLER_PASS "+
                 "pickupOwned=true npcCancel=true opcodeBoundary=true "+
                 "ordinaryDropAtomic=true ordinaryDropMergeAtomic=true "+
-                "groundSceneContextRollback=true"
+                "groundSceneContextRollback=true "+
+                "petFreshSummonAtomic=true petReplaceAtomic=true "+
+                "petPickupCompleteAtomic=true petRetryExact=true"
             );
         }finally{
             world.close();
@@ -443,6 +470,374 @@ public final class LocalPetDropPickupHandlerTest {
                bank.inventoryCount(4151)!=0)
                 throw new AssertionError(
                     "merged Drop retry did not preserve identity/exact amount"
+                );
+        }finally{
+            world.close();
+        }
+    }
+
+    private static void testMainPetTransactionAtomicity()
+        throws Exception
+    {
+        World world=
+            World.isolatedForTest(53L);
+
+        try{
+            WorldPlayer player=
+                new WorldPlayer();
+            BankState bank=
+                player.bank();
+            MovementState movement=
+                player.movement();
+            PetState petState=
+                player.petState();
+            PetEffectState effects=
+                player.petEffects();
+            DevAuthorityWorkbench dev=
+                new DevAuthorityWorkbench();
+            NpcRegistry npcs=
+                new NpcRegistry(dev);
+            VoidglassPetState voidglass=
+                new VoidglassPetState();
+            PetAccessoryState accessory=
+                new PetAccessoryState();
+            Bridge bridge=
+                new Bridge();
+
+            ServerPacketWriter healthy=
+                new ServerPacketWriter(
+                    new ByteArrayOutputStream(),
+                    new IsaacCipher(
+                        new int[]{29,30,31,32}
+                    )
+                );
+
+            bridge.scenePublisher=
+                new SceneUpdatePublisher(
+                    healthy,
+                    new SceneCoordinateContext(
+                        MovementState.REGION_BASE_X,
+                        MovementState.REGION_BASE_Y,
+                        0
+                    )
+                );
+
+            LocalPetDropPickupHandler handler=
+                new LocalPetDropPickupHandler(
+                    world,
+                    bank,
+                    movement,
+                    petState,
+                    effects,
+                    player.miniPets(),
+                    npcs,
+                    voidglass,
+                    accessory,
+                    dev,
+                    bridge
+                );
+
+            PetDefinitionRepository.Def first=
+                PetDefinitionRepository.get(
+                    24019
+                );
+
+            if(first==null)
+                throw new AssertionError(
+                    "expected certified pet 24019"
+                );
+
+            PetDefinitionRepository.Def second=null;
+            for(PetDefinitionRepository.Def candidate:
+                    PetDefinitionRepository.all()){
+                if(candidate.itemId!=first.itemId){
+                    second=candidate;
+                    break;
+                }
+            }
+
+            if(second==null)
+                throw new AssertionError(
+                    "expected second mapped pet"
+                );
+
+            bank.spawnItem(
+                first.itemId,
+                1,
+                healthy
+            );
+            int firstSlot=
+                findSlot(
+                    bank,
+                    first.itemId
+                );
+
+            OutboundPacketQueue summonFailQueue=
+                fullQueue();
+            ServerPacketWriter summonFail=
+                queueWriter(
+                    summonFailQueue,
+                    new int[]{33,34,35,36}
+                );
+
+            boolean summonFailed=false;
+            try{
+                handler.handleDrop(
+                    new DropItemAction(
+                        first.itemId,
+                        BankState.NORMAL_INVENTORY_CONTAINER,
+                        firstSlot
+                    ),
+                    summonFail,
+                    "[pet-summon-atomic] "
+                );
+            }catch(java.io.IOException expected){
+                summonFailed=true;
+            }
+
+            if(!summonFailed||
+               bank.inventoryCount(first.itemId)!=1||
+               petState.active()||
+               npcs.pet()!=null||
+               bridge.saveReason!=null)
+                throw new AssertionError(
+                    "failed fresh pet summon changed canonical preimage"
+                );
+
+            handler.handleDrop(
+                new DropItemAction(
+                    first.itemId,
+                    BankState.NORMAL_INVENTORY_CONTAINER,
+                    firstSlot
+                ),
+                healthy,
+                "[pet-summon-atomic] "
+            );
+
+            if(!petState.active()||
+               petState.itemId()!=first.itemId||
+               npcs.pet()==null||
+               bank.inventoryCount(first.itemId)!=0||
+               !"PET_DROP_SUMMON".equals(
+                    bridge.saveReason
+               ))
+                throw new AssertionError(
+                    "fresh pet summon retry did not commit"
+                );
+
+            NpcEntity oldActor=
+                npcs.pet();
+
+            bank.spawnItem(
+                second.itemId,
+                1,
+                healthy
+            );
+            int secondSlot=
+                findSlot(
+                    bank,
+                    second.itemId
+                );
+
+            bridge.saveReason=null;
+
+            OutboundPacketQueue replaceFailQueue=
+                fullQueue();
+            ServerPacketWriter replaceFail=
+                queueWriter(
+                    replaceFailQueue,
+                    new int[]{37,38,39,40}
+                );
+
+            boolean replaceFailed=false;
+            try{
+                handler.handleDrop(
+                    new DropItemAction(
+                        second.itemId,
+                        BankState.NORMAL_INVENTORY_CONTAINER,
+                        secondSlot
+                    ),
+                    replaceFail,
+                    "[pet-replace-atomic] "
+                );
+            }catch(java.io.IOException expected){
+                replaceFailed=true;
+            }
+
+            if(!replaceFailed||
+               petState.itemId()!=first.itemId||
+               npcs.pet()!=oldActor||
+               bank.inventoryCount(second.itemId)!=1||
+               bank.inventoryCount(first.itemId)!=0||
+               bridge.saveReason!=null)
+                throw new AssertionError(
+                    "failed pet replacement changed old/new ownership"
+                );
+
+            handler.handleDrop(
+                new DropItemAction(
+                    second.itemId,
+                    BankState.NORMAL_INVENTORY_CONTAINER,
+                    secondSlot
+                ),
+                healthy,
+                "[pet-replace-atomic] "
+            );
+
+            if(petState.itemId()!=second.itemId||
+               npcs.pet()==null||
+               npcs.pet()==oldActor||
+               bank.inventoryCount(second.itemId)!=0||
+               bank.inventoryCount(first.itemId)!=1||
+               !"PET_REPLACE".equals(
+                    bridge.saveReason
+               ))
+                throw new AssertionError(
+                    "pet replacement retry did not commit exactly once"
+                );
+
+            NpcEntity replacementActor=
+                npcs.pet();
+            int inventoryBeforePickup=
+                bank.inventoryCount(
+                    second.itemId
+                );
+
+            java.lang.reflect.Method complete=
+                LocalPetDropPickupHandler.class
+                    .getDeclaredMethod(
+                        "tryCompletePetPickup",
+                        ServerPacketWriter.class,
+                        String.class,
+                        long.class
+                    );
+            complete.setAccessible(true);
+
+            java.lang.reflect.Field completeAt=
+                LocalPetDropPickupHandler.class
+                    .getDeclaredField(
+                        "pendingPetPickupCompleteAtMs"
+                    );
+            java.lang.reflect.Field pendingScene=
+                LocalPetDropPickupHandler.class
+                    .getDeclaredField(
+                        "pendingPetPickupScene"
+                    );
+            java.lang.reflect.Field pendingItem=
+                LocalPetDropPickupHandler.class
+                    .getDeclaredField(
+                        "pendingPetPickupItem"
+                    );
+            java.lang.reflect.Field pendingNpc=
+                LocalPetDropPickupHandler.class
+                    .getDeclaredField(
+                        "pendingPetPickupNpc"
+                    );
+            java.lang.reflect.Field completeScene=
+                LocalPetDropPickupHandler.class
+                    .getDeclaredField(
+                        "pendingPetPickupCompleteScene"
+                    );
+            java.lang.reflect.Field completeReason=
+                LocalPetDropPickupHandler.class
+                    .getDeclaredField(
+                        "pendingPetPickupCompleteReason"
+                    );
+
+            for(java.lang.reflect.Field field:
+                    new java.lang.reflect.Field[]{
+                        completeAt,
+                        pendingScene,
+                        pendingItem,
+                        pendingNpc,
+                        completeScene,
+                        completeReason
+                    })
+                field.setAccessible(true);
+
+            long now=
+                System.currentTimeMillis();
+            completeAt.setLong(
+                handler,
+                now
+            );
+            pendingScene.set(
+                handler,
+                Integer.valueOf(
+                    replacementActor.sceneIndex
+                )
+            );
+            pendingItem.setInt(
+                handler,
+                second.itemId
+            );
+            pendingNpc.setInt(
+                handler,
+                second.npcId
+            );
+            completeScene.setInt(
+                handler,
+                replacementActor.sceneIndex
+            );
+            completeReason.set(
+                handler,
+                "TEST_ATOMIC_PICKUP"
+            );
+
+            bridge.saveReason=null;
+
+            OutboundPacketQueue pickupFailQueue=
+                fullQueue();
+            ServerPacketWriter pickupFail=
+                queueWriter(
+                    pickupFailQueue,
+                    new int[]{41,42,43,44}
+                );
+
+            boolean pickupFailed=false;
+            try{
+                complete.invoke(
+                    handler,
+                    pickupFail,
+                    "[pet-pickup-atomic] ",
+                    now
+                );
+            }catch(java.lang.reflect.InvocationTargetException wrapped){
+                if(wrapped.getCause()
+                        instanceof java.io.IOException)
+                    pickupFailed=true;
+                else
+                    throw wrapped;
+            }
+
+            if(!pickupFailed||
+               petState.itemId()!=second.itemId||
+               npcs.pet()!=replacementActor||
+               bank.inventoryCount(second.itemId)!=
+                    inventoryBeforePickup||
+               !handler.pickupPending()||
+               bridge.saveReason!=null)
+                throw new AssertionError(
+                    "failed pickup completion changed canonical preimage"
+                );
+
+            complete.invoke(
+                handler,
+                healthy,
+                "[pet-pickup-atomic] ",
+                now
+            );
+
+            if(petState.active()||
+               npcs.pet()!=null||
+               bank.inventoryCount(second.itemId)!=
+                    inventoryBeforePickup+1||
+               handler.pickupPending()||
+               !"PET_PICKUP".equals(
+                    bridge.saveReason
+               ))
+                throw new AssertionError(
+                    "pickup completion retry did not commit exactly once"
                 );
         }finally{
             world.close();
