@@ -100,6 +100,7 @@ final class LocalSessionUiActionHandler {
     private final LocalPetInventoryDialogHandler petDialogs;
     private final LocalGameplayWidgetHandler gameplayWidgetHandler;
     private volatile LocalMonsterSpawnerUiHandler monsterSpawnerUiHandler;
+    private volatile boolean monsterSpawnerUiOpen;
     private final MovementState movement;
     private final boolean movementEnabled;
     private final EquipmentState equipment;
@@ -187,15 +188,19 @@ final class LocalSessionUiActionHandler {
     boolean openMonsterSpawnerIfConfigured(
         ServerPacketWriter serverPackets
     )throws IOException{
-        if(monsterSpawnerUiHandler==null)
+        LocalMonsterSpawnerUiHandler configured=
+            monsterSpawnerUiHandler;
+
+        if(configured==null)
             return false;
 
-        monsterSpawnerUiHandler.open(
+        configured.open(
             Objects.requireNonNull(
                 serverPackets,
                 "serverPackets"
             )
         );
+        monsterSpawnerUiOpen=true;
         return true;
     }
 
@@ -216,6 +221,10 @@ final class LocalSessionUiActionHandler {
             devPanel.isOpen()||devPanel.hasPending();
         devPanel.close();
         bridge.clearDialogNumberKeys();
+
+        boolean monsterSpawnerWasOpen=
+            monsterSpawnerUiOpen;
+        monsterSpawnerUiOpen=false;
 
         boolean wasOpen=bank.clientClosed();
         boolean compWasOpen=compCapeCustomize.close();
@@ -242,6 +251,7 @@ final class LocalSessionUiActionHandler {
             " tradeWasOpen="+tradeWasOpen+
             " itemLibraryWasOpen="+itemLibraryWasOpen+
             " devPanelWasOpen="+devPanelWasOpen+
+            " monsterSpawnerWasOpen="+monsterSpawnerWasOpen+
             " petColorWasOpen="+petColorWasOpen+
             " miniConfigWasOpen="+miniConfigWasOpen+
             " petAccessoryWasOpen="+petAccessoryWasOpen+
@@ -328,6 +338,16 @@ final class LocalSessionUiActionHandler {
            configuredMonsterSpawner.ownsWidget(
                 widget
            )){
+            if(!monsterSpawnerUiOpen){
+                System.out.println(
+                    tag+
+                    "MONSTER_SPAWNER_UI widget="+
+                    widget+
+                    " status=CLOSED_UI_NOOP"
+                );
+                return;
+            }
+
             MonsterSpawnerDispatch dispatch=
                 bridge.handleMonsterSpawnerWidget(
                     configuredMonsterSpawner,
