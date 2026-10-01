@@ -117,9 +117,374 @@ public final class LocalPetInventoryDialogHandlerTest {
 
         testPetAccessoryPublicationAtomicity();
         testPetDialogOpenAtomicity();
+        testPetDialogActionCloseAtomicity();
 
         System.out.println(
-            "LOCAL_PET_INVENTORY_DIALOG_HANDLER_PASS mini=true color=true compat=true pendingStateOwned=true accessoryNoPetAtomic=true accessoryActivePetAtomic=true accessoryDetachAtomic=true accessoryDialogFailurePreserved=true petDialogOpenFailureAtomic=true petDialogReplacementPreservesPrior=true petDialogRetryExact=true");
+            "LOCAL_PET_INVENTORY_DIALOG_HANDLER_PASS mini=true color=true compat=true pendingStateOwned=true accessoryNoPetAtomic=true accessoryActivePetAtomic=true accessoryDetachAtomic=true accessoryDialogFailurePreserved=true petDialogOpenFailureAtomic=true petDialogReplacementPreservesPrior=true petDialogRetryExact=true miniActivateCloseAtomic=true miniDisableCloseAtomic=true colorChoiceCloseAtomic=true petDialogActionRetryExact=true");
+    }
+
+    private static void testPetDialogActionCloseAtomicity()
+        throws Exception
+    {
+        miniSelectionOnlyCloseAtomicity();
+        miniRuntimeCloseAtomicity();
+        colorChoiceCloseAtomicity();
+    }
+
+    private static void miniSelectionOnlyCloseAtomicity()
+        throws Exception
+    {
+        WorldPlayer player=
+            new WorldPlayer();
+        BankState bank=player.bank();
+        PetState state=player.petState();
+        NpcRegistry npcs=
+            new NpcRegistry(
+                new DevAuthorityWorkbench()
+            );
+        LocalPetInventoryDialogHandler handler=
+            new LocalPetInventoryDialogHandler(
+                bank,
+                player.miniPets(),
+                state,
+                npcs,
+                player.movement(),
+                new PetAccessoryState()
+            );
+        ServerPacketWriter healthy=
+            new ServerPacketWriter(
+                new ByteArrayOutputStream(),
+                new IsaacCipher(
+                    new int[]{61,62,63,64}
+                )
+            );
+
+        MiniPetDefinitionRepository.Def mini=
+            MiniPetDefinitionRepository.all()
+                .iterator()
+                .next();
+
+        bank.spawnItem(
+            mini.itemId,
+            1,
+            healthy
+        );
+        int slot=findSlot(
+            bank,
+            mini.itemId
+        );
+
+        LocalPetInventoryDialogHandler.Result opened=
+            handler.handleItemAction(
+                new ItemContainerAction(
+                    122,
+                    BankState.NORMAL_INVENTORY_CONTAINER,
+                    slot,
+                    mini.itemId,
+                    0,
+                    "INVENTORY_OPTION_1"
+                ),
+                healthy
+            );
+
+        if(opened==null||
+           !handler.hasAnyOpen())
+            throw new AssertionError(
+                "selection-only mini dialog did not open"
+            );
+
+        boolean failed=false;
+        try{
+            handler.handleWidget(
+                2482,
+                queueWriter(
+                    fullQueue(),
+                    new int[]{65,66,67,68}
+                )
+            );
+        }catch(java.io.IOException expected){
+            failed=true;
+        }
+
+        if(!failed||
+           state.miniConfigured()||
+           npcs.miniPet()!=null||
+           !handler.hasAnyOpen())
+            throw new AssertionError(
+                "failed selection-only mini close committed hidden state"
+            );
+
+        LocalPetInventoryDialogHandler.Result retry=
+            handler.handleWidget(
+                2482,
+                healthy
+            );
+
+        if(retry==null||
+           !"MINIPET_CONFIGURE".equals(
+                retry.saveReason
+           )||
+           state.miniItemId()!=mini.itemId||
+           npcs.miniPet()!=null||
+           handler.hasAnyOpen())
+            throw new AssertionError(
+                "selection-only mini retry failed"
+            );
+    }
+
+    private static void miniRuntimeCloseAtomicity()
+        throws Exception
+    {
+        WorldPlayer player=
+            new WorldPlayer();
+        BankState bank=player.bank();
+        PetState state=player.petState();
+        MovementState movement=player.movement();
+        NpcRegistry npcs=
+            new NpcRegistry(
+                new DevAuthorityWorkbench()
+            );
+        MiniPetService miniService=
+            player.miniPets();
+        LocalPetInventoryDialogHandler handler=
+            new LocalPetInventoryDialogHandler(
+                bank,
+                miniService,
+                state,
+                npcs,
+                movement,
+                new PetAccessoryState()
+            );
+        ServerPacketWriter healthy=
+            new ServerPacketWriter(
+                new ByteArrayOutputStream(),
+                new IsaacCipher(
+                    new int[]{69,70,71,72}
+                )
+            );
+
+        PetDefinitionRepository.Def main=
+            PetDefinitionRepository.get(22519);
+        if(main==null)
+            throw new AssertionError(
+                "main pet fixture missing"
+            );
+
+        npcs.spawnPet(
+            main,
+            movement,
+            healthy
+        );
+        state.activate(main);
+
+        java.util.Iterator<MiniPetDefinitionRepository.Def> it=
+            MiniPetDefinitionRepository.all().iterator();
+        MiniPetDefinitionRepository.Def miniA=it.next();
+        MiniPetDefinitionRepository.Def miniB=it.next();
+
+        miniService.configure(
+            miniA.itemId,
+            state,
+            npcs,
+            movement,
+            healthy
+        );
+        NpcEntity actorA=npcs.miniPet();
+
+        bank.spawnItem(
+            miniB.itemId,
+            1,
+            healthy
+        );
+        int slot=findSlot(
+            bank,
+            miniB.itemId
+        );
+
+        handler.handleItemAction(
+            new ItemContainerAction(
+                122,
+                BankState.NORMAL_INVENTORY_CONTAINER,
+                slot,
+                miniB.itemId,
+                0,
+                "INVENTORY_OPTION_1"
+            ),
+            healthy
+        );
+
+        boolean replaceFailed=false;
+        try{
+            handler.handleWidget(
+                2482,
+                queueWriter(
+                    fullQueue(),
+                    new int[]{73,74,75,76}
+                )
+            );
+        }catch(java.io.IOException expected){
+            replaceFailed=true;
+        }
+
+        if(!replaceFailed||
+           state.miniItemId()!=miniA.itemId||
+           npcs.miniPet()!=actorA||
+           !handler.hasAnyOpen())
+            throw new AssertionError(
+                "failed mini replacement+close changed state"
+            );
+
+        handler.handleWidget(
+            2482,
+            healthy
+        );
+
+        if(state.miniItemId()!=miniB.itemId||
+           npcs.miniPet()==null||
+           npcs.miniPet()==actorA||
+           handler.hasAnyOpen())
+            throw new AssertionError(
+                "mini replacement+close retry failed"
+            );
+
+        NpcEntity actorB=npcs.miniPet();
+
+        handler.handleItemAction(
+            new ItemContainerAction(
+                122,
+                BankState.NORMAL_INVENTORY_CONTAINER,
+                slot,
+                miniB.itemId,
+                0,
+                "INVENTORY_OPTION_1"
+            ),
+            healthy
+        );
+
+        boolean disableFailed=false;
+        try{
+            handler.handleWidget(
+                2483,
+                queueWriter(
+                    fullQueue(),
+                    new int[]{77,78,79,80}
+                )
+            );
+        }catch(java.io.IOException expected){
+            disableFailed=true;
+        }
+
+        if(!disableFailed||
+           state.miniItemId()!=miniB.itemId||
+           npcs.miniPet()!=actorB||
+           !handler.hasAnyOpen())
+            throw new AssertionError(
+                "failed mini disable+close changed state"
+            );
+
+        handler.handleWidget(
+            2483,
+            healthy
+        );
+
+        if(state.miniConfigured()||
+           npcs.miniPet()!=null||
+           handler.hasAnyOpen())
+            throw new AssertionError(
+                "mini disable+close retry failed"
+            );
+    }
+
+    private static void colorChoiceCloseAtomicity()
+        throws Exception
+    {
+        WorldPlayer player=
+            new WorldPlayer();
+        BankState bank=player.bank();
+        LocalPetInventoryDialogHandler handler=
+            new LocalPetInventoryDialogHandler(
+                bank,
+                player.miniPets(),
+                player.petState(),
+                new NpcRegistry(
+                    new DevAuthorityWorkbench()
+                ),
+                player.movement(),
+                new PetAccessoryState()
+            );
+        ServerPacketWriter healthy=
+            new ServerPacketWriter(
+                new ByteArrayOutputStream(),
+                new IsaacCipher(
+                    new int[]{81,82,83,84}
+                )
+            );
+
+        bank.spawnItem(
+            24016,
+            1,
+            healthy
+        );
+        int slot=findSlot(
+            bank,
+            24016
+        );
+
+        handler.handleItemAction(
+            new ItemContainerAction(
+                75,
+                BankState.NORMAL_INVENTORY_CONTAINER,
+                slot,
+                24016,
+                0,
+                "INVENTORY_OPTION_3"
+            ),
+            healthy
+        );
+
+        boolean failed=false;
+        try{
+            handler.handleWidget(
+                2483,
+                queueWriter(
+                    fullQueue(),
+                    new int[]{85,86,87,88}
+                )
+            );
+        }catch(java.io.IOException expected){
+            failed=true;
+        }
+
+        BankState.Stack afterFailure=
+            bank.inventoryAt(slot);
+
+        if(!failed||
+           afterFailure==null||
+           afterFailure.itemId!=24016||
+           !handler.hasAnyOpen())
+            throw new AssertionError(
+                "failed color choice+close changed item/dialog"
+            );
+
+        LocalPetInventoryDialogHandler.Result retry=
+            handler.handleWidget(
+                2483,
+                healthy
+            );
+
+        BankState.Stack afterRetry=
+            bank.inventoryAt(slot);
+
+        if(retry==null||
+           !"PET_SWITCH_COLOR".equals(
+                retry.saveReason
+           )||
+           afterRetry==null||
+           afterRetry.itemId!=24017||
+           handler.hasAnyOpen())
+            throw new AssertionError(
+                "color choice+close retry failed"
+            );
     }
 
     private static void testPetDialogOpenAtomicity()
