@@ -459,6 +459,11 @@ public final class LocalSessionUiActionHandlerTest {
         boolean[] factoryContext={false};
         boolean[] callbackContext={false};
 
+        lateWorld.registerPlayer(
+            latePlayer,
+            "session-ui-owner"
+        );
+
         try{
             LocalSession.MonsterSpawnerUiFactory callbackFactory=
                 new LocalSession.MonsterSpawnerUiFactory(){
@@ -577,9 +582,94 @@ public final class LocalSessionUiActionHandlerTest {
                 throw new AssertionError(
                     "late Monster Spawner UI owner mismatch was accepted"
                 );
+
+            if(!lateWorld.unregisterPlayer(
+                    latePlayer
+                ))
+                throw new AssertionError(
+                    "late Monster Spawner callback test player unregister"
+                );
+
+            boolean stalePlayerRejected=false;
+            try{
+                LocalSession.forwardMonsterSpawnerUiResult(
+                    callbackFactory,
+                    lateWorld,
+                    latePlayer,
+                    "session-ui-owner",
+                    bridge.lastMonsterSpawnerResult,
+                    w,
+                    "[callback-test] "
+                );
+            }catch(IllegalStateException expected){
+                stalePlayerRejected=true;
+            }
+
+            if(!stalePlayerRejected)
+                throw new AssertionError(
+                    "Monster Spawner callback accepted stale player ownership"
+                );
         }finally{
+            if(latePlayer.registered())
+                lateWorld.unregisterPlayer(
+                    latePlayer
+                );
             lateWorld.close();
         }
+
+        World closedCallbackWorld=
+            World.isolatedForTest(
+                600L
+            );
+        WorldPlayer closedCallbackPlayer=
+            new WorldPlayer();
+
+        closedCallbackWorld.registerPlayer(
+            closedCallbackPlayer,
+            "session-ui-owner"
+        );
+        closedCallbackWorld.close();
+
+        boolean closedWorldRejected=false;
+        try{
+            LocalSession.forwardMonsterSpawnerUiResult(
+                new LocalSession.MonsterSpawnerUiFactory(){
+                    @Override public LocalMonsterSpawnerUiHandler create(
+                        World factoryWorld,
+                        WorldPlayer factoryPlayer,
+                        String canonicalUsername
+                    ){
+                        return monsterSpawnerUi;
+                    }
+
+                    @Override public void onCommittedResult(
+                        World callbackWorld,
+                        WorldPlayer callbackPlayer,
+                        String canonicalUsername,
+                        LocalMonsterSpawnerUiHandler.Result result,
+                        ServerPacketWriter callbackWriter,
+                        String callbackTag
+                    ){
+                        throw new AssertionError(
+                            "closed World callback executed"
+                        );
+                    }
+                },
+                closedCallbackWorld,
+                closedCallbackPlayer,
+                "session-ui-owner",
+                bridge.lastMonsterSpawnerResult,
+                w,
+                "[callback-test] "
+            );
+        }catch(IllegalStateException expected){
+            closedWorldRejected=true;
+        }
+
+        if(!closedWorldRejected)
+            throw new AssertionError(
+                "Monster Spawner callback accepted closed World"
+            );
 
         bridge.saveReason=null;
         bridge.clearedKeys=false;
@@ -613,6 +703,8 @@ public final class LocalSessionUiActionHandlerTest {
             "oneTimeInstall=true "+
             "resultCallback=true "+
             "exactCallbackContext=true "+
+            "currentPlayerFence=true "+
+            "closedWorldFence=true "+
             "policyNeutral=true"
         );
     }
