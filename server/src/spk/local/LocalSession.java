@@ -178,7 +178,13 @@ final class LocalSession implements Runnable {
                 ()->LocalSession.this.worldPlayerGeneration,
                 equipment,
                 combatStyles,
-                npcs
+                npcs,
+                (target,generation)->{},
+                target->
+                    LocalSession.this.world
+                        .finalizeMonsterSpawnerPvmIfOwned(
+                            target
+                        )
             );
         this.equipmentItemActions = new LocalEquipmentItemActionHandler(
             bank,equipment,playerState,playerPresentation,combatStyles);
