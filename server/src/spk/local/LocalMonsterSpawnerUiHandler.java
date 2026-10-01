@@ -222,9 +222,12 @@ final class LocalMonsterSpawnerUiHandler {
         );
 
         String label=
-            selectedLabel.label(
-                entry
-            );
+            MonsterSpawnerPresentation
+                .prepareSelectedNpcName(
+                    selectedLabel.label(
+                        entry
+                    )
+                );
 
         MonsterSpawnerService.SessionSnapshot session=
             service.selectRowIfCurrent(
