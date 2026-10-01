@@ -635,7 +635,12 @@ final class LocalSessionUiActionHandler {
 
         monsterSpawnerUiOpen=false;
         itemLibrary.close();
-        return checked.publish();
+
+        String result=
+            checked.publish();
+
+        bank.clientClosed();
+        return result;
     }
 
     String publishBankRootForOwnedSession(
