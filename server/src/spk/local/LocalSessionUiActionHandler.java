@@ -54,6 +54,10 @@ final class LocalSessionUiActionHandler {
         }
     }
 
+    interface RootInterfaceAction {
+        String publish() throws IOException;
+    }
+
     interface SessionBridge {
         void saveAccount(String tag,String reason);
         void clearDialogNumberKeys();
@@ -131,6 +135,15 @@ final class LocalSessionUiActionHandler {
                 closeAction,
                 "closeAction"
             ).getAsBoolean();
+        }
+
+        default String replaceMonsterSpawnerRoot(
+            RootInterfaceAction action
+        )throws IOException{
+            return Objects.requireNonNull(
+                action,
+                "action"
+            ).publish();
         }
 
         void requestLogout();
@@ -336,10 +349,24 @@ final class LocalSessionUiActionHandler {
 
         if(widget==NativeEquipmentDeathUi.EQUIPMENT_STATS_BUTTON){
             String result=
-                NativeEquipmentDeathUi.openEquipmentStats(
-                    serverPackets,
-                    equipment
+                replaceMonsterSpawnerRoot(
+                    ()->
+                        NativeEquipmentDeathUi.openEquipmentStats(
+                            serverPackets,
+                            equipment
+                        )
                 );
+
+            if(result==null){
+                System.out.println(
+                    tag+
+                    "V5140_EQUIPMENT_STATS widget="+
+                    widget+
+                    " result=LIFECYCLE_REJECTED"
+                );
+                return;
+            }
+
             System.out.println(
                 tag+"V5140_EQUIPMENT_STATS widget="+widget+
                 " result="+result
@@ -349,11 +376,25 @@ final class LocalSessionUiActionHandler {
 
         if(widget==NativeEquipmentDeathUi.DEATH_BUTTON){
             String result=
-                NativeEquipmentDeathUi.openDeathPreview(
-                    serverPackets,
-                    bank,
-                    equipment
+                replaceMonsterSpawnerRoot(
+                    ()->
+                        NativeEquipmentDeathUi.openDeathPreview(
+                            serverPackets,
+                            bank,
+                            equipment
+                        )
                 );
+
+            if(result==null){
+                System.out.println(
+                    tag+
+                    "V5140_DEATH_PREVIEW widget="+
+                    widget+
+                    " result=LIFECYCLE_REJECTED"
+                );
+                return;
+            }
+
             System.out.println(
                 tag+"V5140_DEATH_PREVIEW widget="+widget+
                 " result="+result
@@ -530,6 +571,23 @@ final class LocalSessionUiActionHandler {
                 " action=CLOSE_BANK bankOpen="+bank.isOpen()
             );
         }
+    }
+
+    private String replaceMonsterSpawnerRoot(
+        RootInterfaceAction publisher
+    )throws IOException{
+        RootInterfaceAction checked=
+            Objects.requireNonNull(
+                publisher,
+                "publisher"
+            );
+
+        return bridge.replaceMonsterSpawnerRoot(
+            ()->{
+                monsterSpawnerUiOpen=false;
+                return checked.publish();
+            }
+        );
     }
 
     static boolean isDevPanelWidget(int widget){
