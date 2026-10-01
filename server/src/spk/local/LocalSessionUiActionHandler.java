@@ -339,6 +339,32 @@ final class LocalSessionUiActionHandler {
         }
 
         if(devPanel.isOpen()&&isDevPanelWidget(widget)){
+            if(isDevPanelRootReplacementWidget(
+                    widget
+                )){
+                String replaced=
+                    replaceMonsterSpawnerRoot(
+                        ()->{
+                            bridge.handleDevPanelWidget(
+                                widget,
+                                serverPackets,
+                                tag
+                            );
+                            return "DEV_PANEL_ROOT_REPLACED";
+                        }
+                    );
+
+                if(replaced==null)
+                    System.out.println(
+                        tag+
+                        "V5171_DEV_PANEL widget="+
+                        widget+
+                        " result=LIFECYCLE_REJECTED"
+                    );
+
+                return;
+            }
+
             bridge.handleDevPanelWidget(
                 widget,
                 serverPackets,
@@ -588,6 +614,19 @@ final class LocalSessionUiActionHandler {
                 return checked.publish();
             }
         );
+    }
+
+    private boolean isDevPanelRootReplacementWidget(
+        int widget
+    ){
+        if(devPanel.page()!=
+                DevControlCenter.Page.ITEMS)
+            return false;
+
+        int choice=widget-2482;
+
+        return choice==1||
+            choice==2;
     }
 
     static boolean isDevPanelWidget(int widget){
