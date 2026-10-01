@@ -88,8 +88,9 @@ public final class EngineR4TradeFlowTest{
    testReplacementTradeStartFailureAtomicity();
    testFinalCommitPairAdmissionAtomicity();
    testTradeXPromptFailureAtomicity();
+   testOneSidedAcceptStatusAtomicity();
 
-   System.out.println("V5140_ENGINE_R4_TRADE_FLOW_PASS roots=3323/3443 offerWidgets=3322/3415/3416 accepts=3420/3546 atomicExchange=true cancelReservationModel=true twoSessionRootOwners=true peerOnlyCompetingClose=true hiddenTradeRejected=true competingRootFailureAtomic=true lockOrderTradeBeforePlayer=true partialStartFailureClosed=true confirmPublicationFailClosed=true replacementStartFailureAtomic=true priorPeerPreserved=true replacementPeerCloseExact=true finalCommitPairAdmissionAtomic=true finalCommitRetryExactlyOnce=true tradeOfferXPromptFailureAtomic=true tradeRemoveXPromptFailureAtomic=true tradeXPromptReplacementPreservesPrior=true");
+   System.out.println("V5140_ENGINE_R4_TRADE_FLOW_PASS roots=3323/3443 offerWidgets=3322/3415/3416 accepts=3420/3546 atomicExchange=true cancelReservationModel=true twoSessionRootOwners=true peerOnlyCompetingClose=true hiddenTradeRejected=true competingRootFailureAtomic=true lockOrderTradeBeforePlayer=true partialStartFailureClosed=true confirmPublicationFailClosed=true replacementStartFailureAtomic=true priorPeerPreserved=true replacementPeerCloseExact=true finalCommitPairAdmissionAtomic=true finalCommitRetryExactlyOnce=true tradeOfferXPromptFailureAtomic=true tradeRemoveXPromptFailureAtomic=true tradeXPromptReplacementPreservesPrior=true firstAcceptStatusPairAtomic=true finalAcceptStatusPairAtomic=true");
   }finally{TradeService.unregister(p1);TradeService.unregister(p2);w.unregisterPlayer(p1);w.unregisterPlayer(p2);w.close();}
  }
  static void testSecondRootPublicationFailureAtomicity()throws Exception{
@@ -661,6 +662,167 @@ public final class EngineR4TradeFlowTest{
     );
   }finally{
    outA.fail=false;
+   TradeService.unregister(a);
+   TradeService.unregister(b);
+   if(a.registered())
+    w.unregisterPlayer(a);
+   if(b.registered())
+    w.unregisterPlayer(b);
+   w.close();
+  }
+ }
+
+ static void testOneSidedAcceptStatusAtomicity()throws Exception{
+  World w=World.isolatedForTest(606L);
+  WorldPlayer a=new WorldPlayer(),b=new WorldPlayer();
+  w.registerPlayer(a,"accept-a");
+  w.registerPlayer(b,"accept-b");
+
+  OutboundPacketQueue qa=
+   new OutboundPacketQueue(2048);
+  OutboundPacketQueue qb=
+   new OutboundPacketQueue(1024);
+  ServerPacketWriter wa=
+   new ServerPacketWriter(
+    qa,
+    new IsaacCipher(
+     new int[]{89,90,91,92}
+    )
+   );
+  ServerPacketWriter wb=
+   new ServerPacketWriter(
+    qb,
+    new IsaacCipher(
+     new int[]{93,94,95,96}
+    )
+   );
+
+  try{
+   TradeService.register(
+    w,a,a.generation(),a.bank(),wa,()->{}
+   );
+   TradeService.register(
+    w,b,b.generation(),b.bank(),wb,()->{}
+   );
+
+   need(
+    TradeService.start(w,a,b),
+    "TRADE_UI_OPEN"
+   );
+   drain(qa);
+   drain(qb);
+
+   qb.offer(
+    new byte[1024]
+   );
+
+   String firstRejected=
+    TradeService.handleWidget(
+     a,
+     3420
+    );
+
+   need(
+    firstRejected,
+    "TRADE_FIRST_ACCEPT_REJECTED_PRESENTATION_ADMISSION"
+   );
+
+   if(qa.queuedBytes()!=0||
+      qb.queuedBytes()!=1024)
+    throw new AssertionError(
+     "first accept rejection leaked one-sided status bytes a="+
+     qa.queuedBytes()+
+     " b="+
+     qb.queuedBytes()
+    );
+
+   drain(qb);
+
+   need(
+    TradeService.handleWidget(
+     b,
+     3420
+    ),
+    "TRADE_FIRST_ACCEPT_WAITING_OTHER"
+   );
+
+   if(qa.queuedBytes()==0||
+      qb.queuedBytes()==0)
+    throw new AssertionError(
+     "first accept retry emitted no paired status"
+    );
+
+   drain(qa);
+   drain(qb);
+
+   need(
+    TradeService.handleWidget(
+     a,
+     3420
+    ),
+    "TRADE_FIRST_ACCEPT_BOTH_CONFIRM_OPEN"
+   );
+
+   drain(qa);
+   drain(qb);
+
+   qb.offer(
+    new byte[1024]
+   );
+
+   String finalRejected=
+    TradeService.handleWidget(
+     a,
+     3546
+    );
+
+   need(
+    finalRejected,
+    "TRADE_FINAL_ACCEPT_REJECTED_PRESENTATION_ADMISSION"
+   );
+
+   if(qa.queuedBytes()!=0||
+      qb.queuedBytes()!=1024)
+    throw new AssertionError(
+     "final accept rejection leaked one-sided status bytes a="+
+     qa.queuedBytes()+
+     " b="+
+     qb.queuedBytes()
+    );
+
+   drain(qb);
+
+   need(
+    TradeService.handleWidget(
+     b,
+     3546
+    ),
+    "TRADE_FINAL_ACCEPT_WAITING_OTHER"
+   );
+
+   if(qa.queuedBytes()==0||
+      qb.queuedBytes()==0)
+    throw new AssertionError(
+     "final accept retry emitted no paired status"
+    );
+
+   drain(qa);
+   drain(qb);
+
+   need(
+    TradeService.handleWidget(
+     a,
+     3546
+    ),
+    "TRADE_COMMITTED"
+   );
+
+   if(TradeService.active(a)||
+      TradeService.active(b))
+    throw new AssertionError(
+     "acceptance retry fixture did not commit final Trade"
+    );
+  }finally{
    TradeService.unregister(a);
    TradeService.unregister(b);
    if(a.registered())
