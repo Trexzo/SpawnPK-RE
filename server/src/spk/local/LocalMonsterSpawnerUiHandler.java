@@ -158,6 +158,110 @@ final class LocalMonsterSpawnerUiHandler {
         );
     }
 
+    void open(
+        ServerPacketWriter packets
+    )throws IOException{
+        ServerPacketWriter checkedPackets=
+            Objects.requireNonNull(
+                packets,
+                "packets"
+            );
+        MonsterSpawnerService.SessionSnapshot before=
+            service.getSession(
+                ownerRef
+            );
+
+        if(before==null)
+            throw new IllegalStateException(
+                "Monster Spawner session disappeared "+
+                ownerRef
+            );
+
+        String retainedLabel=null;
+
+        if(before.selectedRowIndex!=null){
+            MonsterSpawnerService.CatalogSnapshot catalog=
+                service.catalog();
+            MonsterSpawnerService.CatalogEntry entry=
+                catalog.row(
+                    before.selectedRowIndex
+                );
+
+            if(entry==null||
+               before.selectedDefinitionId==null||
+               before.selectedDefinitionId.intValue()!=
+                    entry.definitionId||
+               before.selectedSemanticKey==null||
+               !before.selectedSemanticKey.equals(
+                    entry.semanticKey
+               ))
+                throw new IllegalStateException(
+                    "retained Monster Spawner selection identity changed owner="+
+                    ownerRef
+                );
+
+            requireServerAuthority(
+                selectedLabel.authority(),
+                "selected label authority"
+            );
+
+            retainedLabel=
+                MonsterSpawnerPresentation
+                    .prepareSelectedNpcName(
+                        selectedLabel.label(
+                            entry
+                        )
+                    );
+
+            MonsterSpawnerService.SessionSnapshot after=
+                service.getSession(
+                    ownerRef
+                );
+            MonsterSpawnerService.CatalogSnapshot afterCatalog=
+                service.catalog();
+            MonsterSpawnerService.CatalogEntry afterEntry=
+                after==null||after.selectedRowIndex==null
+                    ?null
+                    :afterCatalog.row(
+                        after.selectedRowIndex
+                    );
+
+            if(after==null||
+               !Objects.equals(
+                    before.selectedRowIndex,
+                    after.selectedRowIndex
+               )||
+               !Objects.equals(
+                    before.selectedSemanticKey,
+                    after.selectedSemanticKey
+               )||
+               !Objects.equals(
+                    before.selectedDefinitionId,
+                    after.selectedDefinitionId
+               )||
+               afterEntry==null||
+               afterEntry.definitionId!=entry.definitionId||
+               !afterEntry.semanticKey.equals(
+                    entry.semanticKey
+               ))
+                throw new IllegalStateException(
+                    "retained Monster Spawner selection changed during reopen owner="+
+                    ownerRef
+                );
+        }
+
+        MonsterSpawnerPresentation.open(
+            checkedPackets
+        );
+
+        if(retainedLabel!=null)
+            MonsterSpawnerPresentation
+                .publishSelectedNpcText(
+                    checkedPackets,
+                    retainedLabel
+                );
+    }
+
     Result handle(
         int widgetId,
         ServerPacketWriter packets
