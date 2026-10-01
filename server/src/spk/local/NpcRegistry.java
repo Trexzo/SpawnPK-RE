@@ -806,6 +806,98 @@ final class NpcRegistry {
         return "DEV_PET_FX_SET value="+(selector==null?"AUTO":selector)+" item="+pet.petItemId+" npc="+pet.definitionId+" authority=TEMPORARY_OVERRIDE";
     }
 
+    /**
+     * Publish the visible postimage for a prospective pet particle selector
+     * without mutating dev selector authority, visible membership, or pet identity.
+     *
+     * Callers that own a larger semantic transaction can stage this inside their
+     * packet batch and commit the selector only after the full batch succeeds.
+     */
+    String publishPetParticleSelectorPostimage(
+        Integer selector,
+        MovementState movement,
+        ServerPacketWriter w
+    )throws IOException{
+        if(pet==null)
+            return "DEV_PET_FX_SET value="+
+                (selector==null?"AUTO":selector)+
+                " activePet=none";
+
+        NpcEntity currentPet=pet;
+
+        ArrayList<NpcSyncEncoder.Update> remove=
+            new ArrayList<>();
+        for(NpcEntity n:visible)
+            remove.add(
+                n==currentPet
+                    ?NpcSyncEncoder.Update.remove(n)
+                    :NpcSyncEncoder.Update.retain(n)
+            );
+
+        w.varShort(
+            65,
+            NpcSyncEncoder.encode(
+                remove,
+                Collections.emptyList(),
+                0,
+                0
+            )
+        );
+
+        ArrayList<NpcSyncEncoder.Update> retained=
+            new ArrayList<>();
+        for(NpcEntity n:visible)
+            if(n!=currentPet)
+                retained.add(
+                    NpcSyncEncoder.Update.retain(n)
+                );
+
+        Map<Integer,NpcSpawnPresentation> presentation=
+            selector==null
+                ?Collections.emptyMap()
+                :Collections.singletonMap(
+                    currentPet.sceneIndex,
+                    NpcSpawnPresentation.particle(
+                        selector.intValue()
+                    )
+                );
+
+        w.varShort(
+            65,
+            NpcSyncEncoder.encode(
+                retained,
+                Collections.singletonList(currentPet),
+                movement.x(),
+                movement.y(),
+                presentation
+            )
+        );
+
+        // The main-pet scene index is unchanged. Preserve the existing local
+        // interaction-target refresh without relaying an idempotent target to
+        // other sessions while this local transaction is still staged.
+        if(miniPet!=null)
+            sendMaskLocal(
+                miniPet,
+                NpcSyncEncoder.Mask.interactionTarget(
+                    currentPet.sceneIndex
+                ),
+                w
+            );
+
+        return "DEV_PET_FX_SET value="+
+            (selector==null?"AUTO":selector)+
+            " item="+currentPet.petItemId+
+            " npc="+currentPet.definitionId+
+            " authority=TEMPORARY_OVERRIDE";
+    }
+
+    void commitPetParticleSelector(
+        Integer selector
+    ){
+        dev.setPetParticleSelector(selector);
+    }
+
     String devFollowFreeze(boolean freeze){
         dev.setPetFollowFrozen(freeze);
         return "DEV_PET_FOLLOW_"+(freeze?"FROZEN":"RESUMED")+" queued="+ownerTrail.size();
