@@ -481,6 +481,35 @@ public final class LocalCanonicalNpcAttackPvmRuntimeBridgeTest {
                 ).amount==5,
                 "configured runtime mutated foreign canonical NPC"
             );
+
+            ByteArrayOutputStream foreignRetryBytes=
+                new ByteArrayOutputStream();
+
+            LocalCanonicalNpcAttackHandler.Result foreignRetry=
+                foreignHandler.handle(
+                    new NpcAction(
+                        72,
+                        foreignView.sceneIndex
+                    ),
+                    foreignView,
+                    writer(foreignRetryBytes)
+                );
+
+            require(
+                foreignRetry.status==
+                    LocalCanonicalNpcAttackHandler.Status.TARGET_DEAD&&
+                foreignRetry.appliedDamage==0&&
+                foreignRetryBytes.size()==0&&
+                foreignTerminal[0]!=null&&
+                foreignTerminal[0].status==
+                    MonsterSpawnerPvmRuntime
+                        .FinalizeStatus.NOT_OWNED&&
+                world.npcs().byId(foreign.id)==foreign&&
+                world.npcLifecycle().get(foreign.id)!=null&&
+                world.npcLifecycle().get(foreign.id).dead()&&
+                graph.dropCalls==1,
+                "foreign dead retry mutated NPC"
+            );
         }finally{
             SharedNpcWorldRelay.unregister(
                 relayWriter
