@@ -316,7 +316,19 @@ final class LocalCanonicalNpcAttackHandler {
                 false
             );
 
-        if(before.dead())
+        if(before.dead()){
+            /*
+             * A configured MonsterSpawnerPvmRuntime may retain an exact dead
+             * canonical NPC in FINALIZATION_PENDING after a recoverable
+             * pre-teardown terminalization failure. Give that same optional
+             * finalizer one bounded retry opportunity per later dead-target
+             * click. This path applies no damage, emits no hit packet and does
+             * not advance attack cadence.
+             */
+            finalizeLethal(
+                target
+            );
+
             return result(
                 Status.TARGET_DEAD,
                 clicked,
@@ -328,6 +340,7 @@ final class LocalCanonicalNpcAttackHandler {
                 before.maxHitpoints,
                 false
             );
+        }
 
         long generation=
             generationSupplier.getAsLong();
