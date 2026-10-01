@@ -11,6 +11,35 @@ import java.util.Objects;
  * does not own sockets, persistence implementation, or logout loop control.
  */
 final class LocalSessionUiActionHandler {
+    static final class MonsterSpawnerDispatch {
+        final boolean admitted;
+        final LocalMonsterSpawnerUiHandler.Result result;
+
+        private MonsterSpawnerDispatch(
+            boolean admitted,
+            LocalMonsterSpawnerUiHandler.Result result
+        ){
+            this.admitted=admitted;
+            this.result=result;
+        }
+
+        static MonsterSpawnerDispatch admitted(
+            LocalMonsterSpawnerUiHandler.Result result
+        ){
+            return new MonsterSpawnerDispatch(
+                true,
+                result
+            );
+        }
+
+        static MonsterSpawnerDispatch rejected(){
+            return new MonsterSpawnerDispatch(
+                false,
+                null
+            );
+        }
+    }
+
     interface SessionBridge {
         void saveAccount(String tag,String reason);
         void clearDialogNumberKeys();
@@ -32,6 +61,34 @@ final class LocalSessionUiActionHandler {
             ServerPacketWriter serverPackets,
             String tag
         )throws IOException{}
+
+        default MonsterSpawnerDispatch handleMonsterSpawnerWidget(
+            LocalMonsterSpawnerUiHandler handler,
+            int widget,
+            ServerPacketWriter serverPackets,
+            String tag
+        )throws IOException{
+            LocalMonsterSpawnerUiHandler.Result result=
+                Objects.requireNonNull(
+                    handler,
+                    "handler"
+                ).handle(
+                    widget,
+                    serverPackets
+                );
+
+            if(result!=null)
+                handleMonsterSpawnerResult(
+                    result,
+                    serverPackets,
+                    tag
+                );
+
+            return MonsterSpawnerDispatch.admitted(
+                result
+            );
+        }
+
         void requestLogout();
     }
 
@@ -272,11 +329,27 @@ final class LocalSessionUiActionHandler {
                 configuredMonsterSpawner.ownsWidget(
                     widget
                 );
-            LocalMonsterSpawnerUiHandler.Result monsterSpawner=
-                configuredMonsterSpawner.handle(
+            MonsterSpawnerDispatch dispatch=
+                bridge.handleMonsterSpawnerWidget(
+                    configuredMonsterSpawner,
                     widget,
-                    serverPackets
+                    serverPackets,
+                    tag
                 );
+
+            if(!dispatch.admitted&&
+               monsterSpawnerWidget){
+                System.out.println(
+                    tag+
+                    "MONSTER_SPAWNER_UI widget="+
+                    widget+
+                    " status=LIFECYCLE_REJECTED"
+                );
+                return;
+            }
+
+            LocalMonsterSpawnerUiHandler.Result monsterSpawner=
+                dispatch.result;
 
             if(monsterSpawner!=null){
                 System.out.println(
@@ -289,12 +362,6 @@ final class LocalSessionUiActionHandler {
                     monsterSpawner.rowIndex+
                     " budget="+
                     monsterSpawner.activationBudget
-                );
-
-                bridge.handleMonsterSpawnerResult(
-                    monsterSpawner,
-                    serverPackets,
-                    tag
                 );
                 return;
             }
