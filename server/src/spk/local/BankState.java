@@ -302,6 +302,46 @@ final class BankState {
             :new InventorySlotSnapshot(slot,true,st.itemId,st.qty);
     }
 
+    Stack[] inventoryTransactionSnapshot(){
+        Stack[] snapshot=
+            new Stack[inventory.length];
+
+        for(int i=0;i<inventory.length;i++){
+            Stack st=inventory[i];
+            if(st!=null)
+                snapshot[i]=
+                    new Stack(
+                        st.itemId,
+                        st.qty,
+                        st.tab
+                    );
+        }
+
+        return snapshot;
+    }
+
+    void restoreInventoryTransactionSnapshot(
+        Stack[] snapshot
+    ){
+        if(snapshot==null||
+           snapshot.length!=inventory.length)
+            throw new IllegalArgumentException(
+                "inventory transaction snapshot length"
+            );
+
+        for(int i=0;i<inventory.length;i++){
+            Stack st=snapshot[i];
+            inventory[i]=
+                st==null
+                    ?null
+                    :new Stack(
+                        st.itemId,
+                        st.qty,
+                        st.tab
+                    );
+        }
+    }
+
     /**
      * Protocol-independent exact-slot consume primitive.
      *
