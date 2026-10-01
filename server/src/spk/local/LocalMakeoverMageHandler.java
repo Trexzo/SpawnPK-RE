@@ -539,19 +539,51 @@ final class LocalMakeoverMageHandler {
         if(MakeoverMageDialogueContent
                 .OUTCOME_OPEN_DESIGNER
                 .equals(outcome)){
-            designerRootOwner.publish(
-                ()->{
-                    StandardDialoguePresentationAdapter
-                        .close(packets);
-                    packets.fixed(
-                        97,
-                        BootstrapPackets.interface97(
-                            DESIGN_ROOT
-                        )
-                    );
-                    designActive=true;
-                }
-            );
+            final boolean[] publicationEntered={false};
+
+            try{
+                designerRootOwner.publish(
+                    ()->{
+                        publicationEntered[0]=true;
+                        StandardDialoguePresentationAdapter
+                            .close(packets);
+                        packets.fixed(
+                            97,
+                            BootstrapPackets.interface97(
+                                DESIGN_ROOT
+                            )
+                        );
+                        designActive=true;
+                    }
+                );
+            }catch(IOException failure){
+                rollbackDesignerTransitionAfterFailure(
+                    current,
+                    ended,
+                    publicationEntered[0],
+                    packets,
+                    failure
+                );
+                throw failure;
+            }catch(RuntimeException failure){
+                rollbackDesignerTransitionAfterFailure(
+                    current,
+                    ended,
+                    publicationEntered[0],
+                    packets,
+                    failure
+                );
+                throw failure;
+            }catch(Error failure){
+                rollbackDesignerTransitionAfterFailure(
+                    current,
+                    ended,
+                    publicationEntered[0],
+                    packets,
+                    failure
+                );
+                throw failure;
+            }
 
             System.out.println(
                 tag+
@@ -581,6 +613,54 @@ final class LocalMakeoverMageHandler {
             outcome+
             " option="+optionIndex
         );
+    }
+
+    private void rollbackDesignerTransitionAfterFailure(
+        DialogueSessionService.Snapshot before,
+        DialogueSessionService.Snapshot failedAfter,
+        boolean publicationEntered,
+        ServerPacketWriter packets,
+        Throwable primary
+    ){
+        designActive=false;
+
+        try{
+            DialogueSessionService.Snapshot restored=
+                dialogue.rollbackTransition(
+                    before,
+                    failedAfter
+                );
+
+            if(!restored.active||
+               !OPTIONS_NODE.equals(
+                    restored.nodeKey))
+                throw new IllegalStateException(
+                    "Make-over designer rollback did not restore options"
+                );
+        }catch(Throwable rollbackFailure){
+            primary.addSuppressed(
+                rollbackFailure
+            );
+            return;
+        }
+
+        if(!publicationEntered)
+            return;
+
+        try{
+            StandardDialoguePresentationAdapter
+                .close(packets);
+            MakeoverMageDialogueContent
+                .presentOptions(
+                    ContentRuntimeAdapters
+                        .presentation(packets)
+                        .dialogue()
+                );
+        }catch(Throwable presentationFailure){
+            primary.addSuppressed(
+                presentationFailure
+            );
+        }
     }
 
     Result handleDesign(
