@@ -33,6 +33,7 @@ final class LocalBankObjectInteractionHandler {
     private long pendingDeadlineMs;
     private RootOwner rootOwner=
         action->action.open();
+    private boolean rootOwnerInstalled;
 
     LocalBankObjectInteractionHandler(
         BankState bank,
@@ -65,14 +66,13 @@ final class LocalBankObjectInteractionHandler {
                 "owner"
             );
 
-        if(rootOwner!=null&&
-           rootOwner.getClass()!=
-                RootOwner.class)
+        if(rootOwnerInstalled)
             throw new IllegalStateException(
                 "Bank root owner already installed"
             );
 
         rootOwner=checked;
+        rootOwnerInstalled=true;
     }
 
     String handle(ObjectInteraction request,ServerPacketWriter serverPackets)throws IOException{
