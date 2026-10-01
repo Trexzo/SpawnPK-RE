@@ -225,12 +225,34 @@ final class BankState {
 
     String togglePlaceholders(ServerPacketWriter w) throws IOException {
         if (!open) return "IGNORED_BANK_CLOSED";
-        placeholdersEnabled = !placeholdersEnabled;
-        if (!placeholdersEnabled) {
-            for (int i=0;i<bank.length;i++) if (bank[i] != null && bank[i].qty == 0) bank[i]=null;
+
+        boolean nextPlaceholdersEnabled=
+            !placeholdersEnabled;
+        Stack[] nextBank=
+            copyStacks(bank);
+
+        if (!nextPlaceholdersEnabled) {
+            for (int i=0;i<nextBank.length;i++)
+                if (nextBank[i] != null &&
+                    nextBank[i].qty == 0)
+                    nextBank[i]=null;
         }
-        sendContainers(w);
-        return "PLACEHOLDERS_"+(placeholdersEnabled?"ENABLED":"DISABLED")+" occupied="+bankSlots();
+
+        publishContainerPostimage(
+            w,
+            nextBank,
+            inventory
+        );
+        replaceStacks(
+            bank,
+            nextBank
+        );
+        placeholdersEnabled=
+            nextPlaceholdersEnabled;
+
+        return "PLACEHOLDERS_"+
+            (placeholdersEnabled?"ENABLED":"DISABLED")+
+            " occupied="+bankSlots();
     }
 
     String depositInventory(ServerPacketWriter w) throws IOException {
@@ -916,36 +938,85 @@ final class BankState {
 
     String applyDrag(ContainerDrag d, ServerPacketWriter w) throws IOException {
         // Opcode 214 is shared by the ordinary inventory (3214) and bank containers.
-        // The old handler incorrectly required the bank to be open before even looking
-        // at the widget id. That made a normal inventory drag look correct client-side
-        // while leaving the authoritative server slot unchanged; a later opcode-41
-        // Equip from the moved slot then failed as REJECTED_INVENTORY_SLOT.
-        final boolean normalInventory = d.widgetId==NORMAL_INVENTORY_CONTAINER;
-        Stack[] xs;
-        if (d.widgetId==BANK_CONTAINER) {
-            if (!open) return "IGNORED_BANK_CLOSED";
-            xs=bank;
-        } else if (d.widgetId==BANK_INVENTORY_CONTAINER) {
-            if (!open) return "IGNORED_BANK_CLOSED";
-            xs=inventory;
-        } else if (normalInventory) {
-            xs=inventory;
-        } else {
+        // Derive the structural postimage first so writer failure cannot leave the
+        // authoritative slot order ahead of the visible container state.
+        final boolean normalInventory=
+            d.widgetId==NORMAL_INVENTORY_CONTAINER;
+        final boolean bankDrag=
+            d.widgetId==BANK_CONTAINER;
+        final boolean bankInventoryDrag=
+            d.widgetId==BANK_INVENTORY_CONTAINER;
+
+        if ((bankDrag||bankInventoryDrag)&&!open)
+            return "IGNORED_BANK_CLOSED";
+        if (!bankDrag&&!bankInventoryDrag&&!normalInventory)
             return "OBSERVED_NON_BANK_DRAG widget="+d.widgetId;
-        }
-        if (!validSlot(xs,d.sourceSlot) || !validSlot(xs,d.destinationSlot)) return "REJECTED_DRAG_SLOT";
-        if (d.sourceSlot==d.destinationSlot) return normalInventory ? "INVENTORY_DRAG_NOOP" : "DRAG_NOOP";
-        if (d.mode==1) insertMove(xs,d.sourceSlot,d.destinationSlot);
-        else swap(xs,d.sourceSlot,d.destinationSlot);
+
+        Stack[] nextBank=
+            copyStacks(bank);
+        Stack[] nextInventory=
+            copyStacks(inventory);
+        Stack[] xs=
+            bankDrag
+                ?nextBank
+                :nextInventory;
+
+        if (!validSlot(xs,d.sourceSlot) ||
+            !validSlot(xs,d.destinationSlot))
+            return "REJECTED_DRAG_SLOT";
+        if (d.sourceSlot==d.destinationSlot)
+            return normalInventory
+                ?"INVENTORY_DRAG_NOOP"
+                :"DRAG_NOOP";
+
+        if (d.mode==1)
+            insertMove(
+                xs,
+                d.sourceSlot,
+                d.destinationSlot
+            );
+        else
+            swap(
+                xs,
+                d.sourceSlot,
+                d.destinationSlot
+            );
 
         if (normalInventory) {
-            sendNormalInventory(w);
-            // If a bank overlay is open, keep its mirror of the same inventory state in sync.
-            if (open) sendContainers(w);
-            return "INVENTORY_DRAG_OK mode="+d.mode+" source="+d.sourceSlot+" destination="+d.destinationSlot;
+            publishNormalInventoryDragPostimage(
+                w,
+                nextBank,
+                nextInventory
+            );
+            replaceStacks(
+                inventory,
+                nextInventory
+            );
+            return "INVENTORY_DRAG_OK mode="+d.mode+
+                " source="+d.sourceSlot+
+                " destination="+d.destinationSlot;
         }
-        sendContainers(w);
-        return "DRAG_OK mode="+d.mode+" source="+d.sourceSlot+" destination="+d.destinationSlot;
+
+        publishContainerPostimage(
+            w,
+            nextBank,
+            nextInventory
+        );
+
+        if (bankDrag)
+            replaceStacks(
+                bank,
+                nextBank
+            );
+        else
+            replaceStacks(
+                inventory,
+                nextInventory
+            );
+
+        return "DRAG_OK mode="+d.mode+
+            " source="+d.sourceSlot+
+            " destination="+d.destinationSlot;
     }
 
     /** Handle exact SpawnPK bank-tab command strings emitted through opcode 103. */
@@ -967,10 +1038,20 @@ final class BankState {
             if (p.length<3) return "REJECTED_SETBANKTAB_ARGS";
             int slot=parseInt(p[1],-1), tab=parseInt(p[2],-1);
             if (!validSlot(bank,slot) || bank[slot]==null || tab<0 || tab>8) return "REJECTED_SETBANKTAB_RANGE";
-            bank[slot].tab=tab;
-            // Server-side tab ownership is now authoritative. Current full-bank view keeps
+            Stack[] nextBank=
+                copyStacks(bank);
+            nextBank[slot].tab=tab;
+            // Server-side tab ownership is authoritative. Current full-bank view keeps
             // physical packet-53 slot order unchanged until exact tab-selection control is certified.
-            sendContainers(w);
+            publishContainerPostimage(
+                w,
+                nextBank,
+                inventory
+            );
+            replaceStacks(
+                bank,
+                nextBank
+            );
             return "SETBANKTAB_OK slot="+slot+" tab="+tab+" presentation=FULL_BANK_VIEW";
         }
         if (p[0].equalsIgnoreCase("swapbanktab")) {
@@ -979,9 +1060,27 @@ final class BankState {
             int target=parseInt(p[2],-1);
             int sourceTab=p.length>=4?parseInt(p[3],-1):-1;
             if (target<0 || target>8 || sourceTab<0 || sourceTab>8) return "SWAPBANKTAB_OBSERVED_UNCERTIFIED target="+target+" sourceTab="+sourceTab;
-            for (Stack st:bank) if(st!=null){ if(st.tab==sourceTab)st.tab=-1; else if(st.tab==target)st.tab=sourceTab; }
-            for (Stack st:bank) if(st!=null && st.tab==-1)st.tab=target;
-            sendContainers(w);
+            Stack[] nextBank=
+                copyStacks(bank);
+            for (Stack st:nextBank)
+                if(st!=null){
+                    if(st.tab==sourceTab)
+                        st.tab=-1;
+                    else if(st.tab==target)
+                        st.tab=sourceTab;
+                }
+            for (Stack st:nextBank)
+                if(st!=null && st.tab==-1)
+                    st.tab=target;
+            publishContainerPostimage(
+                w,
+                nextBank,
+                inventory
+            );
+            replaceStacks(
+                bank,
+                nextBank
+            );
             return "SWAPBANKTAB_OK sourceTab="+sourceTab+" targetTab="+target+" presentation=FULL_BANK_VIEW";
         }
         return "IGNORED_NON_BANK_COMMAND";
@@ -1235,6 +1334,61 @@ final class BankState {
                         stack.qty,
                         stack.tab
                     );
+        }
+    }
+
+    private void publishNormalInventoryDragPostimage(
+        ServerPacketWriter writer,
+        Stack[] bankPostimage,
+        Stack[] inventoryPostimage
+    )throws IOException{
+        byte[] normalInventoryPayload=
+            containerPayload(
+                NORMAL_INVENTORY_CONTAINER,
+                inventoryPostimage
+            );
+        byte[] bankPayload=
+            open
+                ?containerPayload(
+                    BANK_CONTAINER,
+                    bankPostimage
+                )
+                :null;
+        byte[] bankInventoryPayload=
+            open
+                ?containerPayload(
+                    BANK_INVENTORY_CONTAINER,
+                    inventoryPostimage
+                )
+                :null;
+
+        writer.beginBatch();
+        boolean ended=false;
+
+        try{
+            writer.varShort(
+                53,
+                normalInventoryPayload
+            );
+
+            if(open){
+                writer.varShort(
+                    53,
+                    bankPayload
+                );
+                writer.varShort(
+                    53,
+                    bankInventoryPayload
+                );
+            }
+
+            writer.endBatch();
+            ended=true;
+        }finally{
+            if(!ended)
+                try{
+                    writer.endBatch();
+                }catch(Throwable ignored){}
         }
     }
 
