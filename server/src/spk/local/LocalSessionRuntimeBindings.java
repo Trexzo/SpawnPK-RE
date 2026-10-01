@@ -12,6 +12,12 @@ import java.util.Objects;
 final class LocalSessionRuntimeBindings {
     interface SessionBridge {
         void saveAccount(String tag,String reason);
+
+        default void publishTradeRoot(
+            TradeService.RootPublication action
+        )throws IOException{
+            action.publish();
+        }
     }
 
     private final World world;
@@ -103,7 +109,11 @@ final class LocalSessionRuntimeBindings {
                         ()->bridge.saveAccount(
                             tag,
                             "TRADE_COMMIT"
-                        )
+                        ),
+                        action->
+                            bridge.publishTradeRoot(
+                                action
+                            )
                     );
 
                     Player81WorldSync
