@@ -24,10 +24,27 @@ final class LocalMakeoverMageHandler {
     }
 
     @FunctionalInterface
+    interface DesignerRootCommit {
+        void commit();
+    }
+
+    @FunctionalInterface
     interface DesignerRootOwner {
         void publish(
             DesignerRootAction action
         ) throws IOException;
+
+        default void publish(
+            DesignerRootAction action,
+            DesignerRootCommit commit
+        ) throws IOException{
+            publish(
+                ()->{
+                    action.open();
+                    commit.commit();
+                }
+            );
+        }
     }
 
     static final int NPC_ID=599;
@@ -522,15 +539,9 @@ final class LocalMakeoverMageHandler {
 
         pendingDialogueOutcome=null;
 
-        DialogueSessionService.Snapshot ended=
-            dialogue.chooseOption(
+        DialogueSessionService.PreparedTransition prepared=
+            dialogue.prepareOption(
                 dialoguePlayerRef,
-                optionIndex
-            );
-
-        if(ended.active)
-            throw new IllegalStateException(
-                "Make-over option did not end semantic dialogue option="+
                 optionIndex
             );
 
@@ -539,19 +550,43 @@ final class LocalMakeoverMageHandler {
         if(MakeoverMageDialogueContent
                 .OUTCOME_OPEN_DESIGNER
                 .equals(outcome)){
-            designerRootOwner.publish(
-                ()->{
-                    StandardDialoguePresentationAdapter
-                        .close(packets);
-                    packets.fixed(
-                        97,
-                        BootstrapPackets.interface97(
-                            DESIGN_ROOT
-                        )
-                    );
-                    designActive=true;
-                }
-            );
+            try{
+                designerRootOwner.publish(
+                    ()->{
+                        StandardDialoguePresentationAdapter
+                            .close(packets);
+                        packets.fixed(
+                            97,
+                            BootstrapPackets.interface97(
+                                DESIGN_ROOT
+                            )
+                        );
+                    },
+                    ()->{
+                        DialogueSessionService.Snapshot ended=
+                            dialogue.commitPrepared(
+                                prepared
+                            );
+
+                        if(ended.active)
+                            throw new IllegalStateException(
+                                "Make-over designer transition did not end semantic dialogue option="+
+                                optionIndex
+                            );
+
+                        designActive=true;
+                    }
+                );
+            }catch(IOException failure){
+                pendingDialogueOutcome=null;
+                throw failure;
+            }catch(RuntimeException failure){
+                pendingDialogueOutcome=null;
+                throw failure;
+            }catch(Error failure){
+                pendingDialogueOutcome=null;
+                throw failure;
+            }
 
             System.out.println(
                 tag+
@@ -561,6 +596,17 @@ final class LocalMakeoverMageHandler {
             );
             return true;
         }
+
+        DialogueSessionService.Snapshot ended=
+            dialogue.commitPrepared(
+                prepared
+            );
+
+        if(ended.active)
+            throw new IllegalStateException(
+                "Make-over option did not end semantic dialogue option="+
+                optionIndex
+            );
 
         if(MakeoverMageDialogueContent
                 .OUTCOME_CANCEL
