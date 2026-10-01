@@ -13,6 +13,7 @@ public final class LocalCanonicalNpcAttackPvmRuntimeBridgeTest {
         unconfiguredLeavesDeadCanonical(definition);
         configuredRuntimeFinalizes(definition);
         preTeardownFailureRetries(definition);
+        unexpectedErrorPropagates(definition);
 
         System.out.println(
             "CANONICAL_NPC_ATTACK_PVM_RUNTIME_BRIDGE_PASS "+
@@ -35,7 +36,9 @@ public final class LocalCanonicalNpcAttackPvmRuntimeBridgeTest {
             "noSecondHitPacket=true "+
             "terminalOnce=true "+
             "lootOnce=true "+
-            "foreignUnchanged=true"
+            "foreignUnchanged=true "+
+            "cadenceUnchanged=true "+
+            "errorPropagates=true"
         );
     }
 
@@ -649,6 +652,9 @@ public final class LocalCanonicalNpcAttackPvmRuntimeBridgeTest {
                 "pre-teardown failure was not retained"
             );
 
+            long cadenceBeforeRetry=
+                handler.nextAllowedAttackTick();
+
             ByteArrayOutputStream retryBytes=
                 new ByteArrayOutputStream();
 
@@ -676,6 +682,8 @@ public final class LocalCanonicalNpcAttackPvmRuntimeBridgeTest {
                     LocalCanonicalNpcAttackHandler.Status.TARGET_DEAD&&
                 retry.appliedDamage==0&&
                 retryBytes.size()==0&&
+                handler.nextAllowedAttackTick()==
+                    cadenceBeforeRetry&&
                 graph.dropCalls==2&&
                 graph.runtime.get(target.id)==null&&
                 world.npcs().byId(target.id)==null&&
@@ -684,6 +692,185 @@ public final class LocalCanonicalNpcAttackPvmRuntimeBridgeTest {
                 loot!=null&&
                 loot.amount==5,
                 "dead-click finalization retry did not terminalize exactly once"
+            );
+        }finally{
+            SharedNpcWorldRelay.unregister(
+                relayWriter
+            );
+
+            if(world.players().owns(
+                    player,
+                    generation
+                ))
+                world.unregisterPlayer(
+                    player,
+                    generation
+                );
+
+            world.close();
+        }
+    }
+
+    private static void unexpectedErrorPropagates(
+        int definition
+    )throws Exception{
+        World world=World.isolatedForTest(600L);
+        WorldPlayer player=new WorldPlayer();
+        long generation=
+            world.registerPlayer(
+                player,
+                "error-killer"
+            );
+
+        player.movement().restoreAccountState(
+            false,
+            100,
+            3087,
+            3495,
+            0
+        );
+
+        RuntimeGraph graph=
+            new RuntimeGraph(
+                world,
+                definition,
+                "click-pvm-error-owner",
+                false,
+                true
+            );
+
+        world.installMonsterSpawnerPvmRuntime(
+            graph.runtime
+        );
+
+        NpcRegistry npcs=
+            new NpcRegistry(
+                new DevAuthorityWorkbench(),
+                world.petNpcs(),
+                player.id()
+            );
+
+        ByteArrayOutputStream relayBytes=
+            new ByteArrayOutputStream();
+        ServerPacketWriter relayWriter=
+            writer(relayBytes);
+
+        try{
+            SharedNpcWorldRelay.register(
+                relayWriter,
+                world,
+                player,
+                npcs,
+                player.movement()
+            );
+
+            MonsterSpawnerPvmRuntime.SpawnResult spawned=
+                graph.runtime.spawnAndBind(
+                    "click-pvm-error-owner",
+                    "error-killer",
+                    3088,
+                    3495,
+                    0
+                );
+
+            WorldNpc target=
+                spawned.spawn.combat.spawn.npc;
+
+            SharedNpcWorldRelay.syncRemotePets(
+                relayWriter
+            );
+
+            NpcEntity view=
+                requireView(
+                    npcs,
+                    target
+                );
+
+            LocalCanonicalNpcAttackHandler handler=
+                new LocalCanonicalNpcAttackHandler(
+                    world,
+                    player,
+                    ()->generation,
+                    player.equipment(),
+                    player.combatStyles(),
+                    npcs,
+                    (npc,expectedGeneration)->{},
+                    npc->
+                        world.finalizeMonsterSpawnerPvmIfOwned(
+                            npc
+                        ),
+                    npc->
+                        world.retryMonsterSpawnerPvmFinalizationIfPending(
+                            npc
+                        )
+                );
+
+            ByteArrayOutputStream lethalBytes=
+                new ByteArrayOutputStream();
+
+            expect(
+                AssertionError.class,
+                ()->handler.handle(
+                    new NpcAction(
+                        72,
+                        view.sceneIndex
+                    ),
+                    view,
+                    writer(lethalBytes)
+                ),
+                "pre-teardown Error propagation"
+            );
+
+            MonsterSpawnerPvmRuntime.Snapshot runtime=
+                graph.runtime.get(
+                    target.id
+                );
+            NpcLifecycleService.Snapshot dead=
+                world.npcLifecycle().get(
+                    target.id
+                );
+
+            require(
+                lethalBytes.size()>0&&
+                runtime!=null&&
+                runtime.state==
+                    MonsterSpawnerPvmRuntime.State.ACTIVE&&
+                world.npcs().byId(target.id)==target&&
+                dead!=null&&dead.dead()&&
+                graph.binder.get(target.id)!=null&&
+                graph.dropCalls==1&&
+                world.groundItems().size()==0,
+                "Error was converted into pending finalization"
+            );
+
+            long cadenceAfterError=
+                handler.nextAllowedAttackTick();
+            ByteArrayOutputStream deadBytes=
+                new ByteArrayOutputStream();
+
+            LocalCanonicalNpcAttackHandler.Result deadClick=
+                handler.handle(
+                    new NpcAction(
+                        72,
+                        view.sceneIndex
+                    ),
+                    view,
+                    writer(deadBytes)
+                );
+
+            require(
+                deadClick.status==
+                    LocalCanonicalNpcAttackHandler.Status.TARGET_DEAD&&
+                deadClick.appliedDamage==0&&
+                deadBytes.size()==0&&
+                handler.nextAllowedAttackTick()==
+                    cadenceAfterError&&
+                graph.runtime.get(target.id)!=null&&
+                graph.runtime.get(target.id).state==
+                    MonsterSpawnerPvmRuntime.State.ACTIVE&&
+                graph.dropCalls==1&&
+                world.groundItems().size()==0,
+                "Error path was retried as FINALIZATION_PENDING"
             );
         }finally{
             SharedNpcWorldRelay.unregister(
@@ -737,6 +924,22 @@ public final class LocalCanonicalNpcAttackPvmRuntimeBridgeTest {
             int definition,
             String owner,
             boolean failFirstDropResolution
+        ){
+            this(
+                world,
+                definition,
+                owner,
+                failFirstDropResolution,
+                false
+            );
+        }
+
+        RuntimeGraph(
+            World world,
+            int definition,
+            String owner,
+            boolean failFirstDropResolution,
+            boolean errorFirstDropResolution
         ){
             this.world=world;
             this.lifecycle=world.npcLifecycle();
@@ -808,6 +1011,12 @@ public final class LocalCanonicalNpcAttackPvmRuntimeBridgeTest {
                                 .DeathContext context
                         ){
                             dropCalls++;
+
+                            if(errorFirstDropResolution&&
+                               dropCalls==1)
+                                throw new AssertionError(
+                                    "synthetic pre-teardown Error"
+                                );
 
                             if(failFirstDropResolution&&
                                dropCalls==1)
