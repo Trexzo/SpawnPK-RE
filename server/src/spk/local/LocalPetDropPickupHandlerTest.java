@@ -547,24 +547,38 @@ public final class LocalPetDropPickupHandlerTest {
                     "expected certified pet 24019"
                 );
 
-            PetDefinitionRepository.Def second=null;
-            for(PetDefinitionRepository.Def candidate:
-                    PetDefinitionRepository.all()){
-                if(candidate.itemId!=first.itemId&&
-                   "Drop".equalsIgnoreCase(
-                       ItemActionResolver
-                           .inventoryOption5Semantic(
-                               candidate.itemId
-                           )
-                   )){
-                    second=candidate;
-                    break;
+            PetDefinitionRepository.Def second=
+                PetDefinitionRepository.get(
+                    ScopesightPetProfile.ITEM_ID
+                );
+
+            if(second==null||
+               !"Drop".equalsIgnoreCase(
+                   ItemActionResolver
+                       .inventoryOption5Semantic(
+                           second.itemId
+                       )
+               )){
+                second=null;
+
+                for(PetDefinitionRepository.Def candidate:
+                        PetDefinitionRepository.all()){
+                    if(candidate.itemId!=first.itemId&&
+                       "Drop".equalsIgnoreCase(
+                           ItemActionResolver
+                               .inventoryOption5Semantic(
+                                   candidate.itemId
+                               )
+                       )){
+                        second=candidate;
+                        break;
+                    }
                 }
             }
 
             if(second==null)
                 throw new AssertionError(
-                    "expected second mapped pet"
+                    "expected second mapped Drop pet"
                 );
 
             bank.spawnItem(
@@ -631,6 +645,45 @@ public final class LocalPetDropPickupHandlerTest {
                     "fresh pet summon retry did not commit"
                 );
 
+            String miniConfigured=
+                player.miniPets().configure(
+                    22088,
+                    petState,
+                    npcs,
+                    movement,
+                    healthy
+                );
+
+            if(miniConfigured==null||
+               !miniConfigured.contains(
+                    "MINIPET_CONFIGURED"
+               )||
+               npcs.miniPet()==null)
+                throw new AssertionError(
+                    "replacement fixture mini configure failed result="+
+                    miniConfigured
+                );
+
+            NpcEntity oldMini=
+                npcs.miniPet();
+
+            accessory.setActiveItem(
+                20543
+            );
+            npcs.devSetParticleSelector(
+                PetAccessoryAuthority.selector(
+                    20543
+                ),
+                movement,
+                healthy
+            );
+
+            if(!Integer.valueOf(2).equals(
+                    dev.petParticleSelector()))
+                throw new AssertionError(
+                    "replacement fixture accessory selector not active"
+                );
+
             NpcEntity oldActor=
                 npcs.pet();
 
@@ -672,9 +725,20 @@ public final class LocalPetDropPickupHandlerTest {
 
             if(!replaceFailed||
                petState.itemId()!=first.itemId||
+               petState.miniItemId()!=22088||
                npcs.pet()!=oldActor||
+               npcs.miniPet()!=oldMini||
+               accessory.activeItem()!=20543||
+               !Integer.valueOf(2).equals(
+                    dev.petParticleSelector())||
                bank.inventoryCount(second.itemId)!=1||
                bank.inventoryCount(first.itemId)!=0||
+               bridge.playerState.currentLevel(
+                    PlayerState.RANGED
+               )!=99||
+               bridge.playerState.currentLevel(
+                    PlayerState.MAGIC
+               )!=99||
                bridge.saveReason!=null)
                 throw new AssertionError(
                     "failed pet replacement changed old/new ownership"
@@ -690,11 +754,29 @@ public final class LocalPetDropPickupHandlerTest {
                 "[pet-replace-atomic] "
             );
 
+            boolean secondIsScopesight=
+                second.itemId==
+                    ScopesightPetProfile.ITEM_ID&&
+                second.npcId==
+                    ScopesightPetProfile.NPC_ID;
+
             if(petState.itemId()!=second.itemId||
+               petState.miniItemId()!=22088||
                npcs.pet()==null||
                npcs.pet()==oldActor||
+               npcs.miniPet()==null||
+               npcs.miniPet()==oldMini||
+               accessory.activeItem()!=20543||
+               !Integer.valueOf(2).equals(
+                    dev.petParticleSelector())||
                bank.inventoryCount(second.itemId)!=0||
                bank.inventoryCount(first.itemId)!=1||
+               bridge.playerState.currentLevel(
+                    PlayerState.RANGED
+               )!=(secondIsScopesight?114:99)||
+               bridge.playerState.currentLevel(
+                    PlayerState.MAGIC
+               )!=(secondIsScopesight?109:99)||
                !"PET_REPLACE".equals(
                     bridge.saveReason
                ))
@@ -818,9 +900,20 @@ public final class LocalPetDropPickupHandlerTest {
 
             if(!pickupFailed||
                petState.itemId()!=second.itemId||
+               petState.miniItemId()!=22088||
                npcs.pet()!=replacementActor||
+               npcs.miniPet()==null||
+               accessory.activeItem()!=20543||
+               !Integer.valueOf(2).equals(
+                    dev.petParticleSelector())||
                bank.inventoryCount(second.itemId)!=
                     inventoryBeforePickup||
+               bridge.playerState.currentLevel(
+                    PlayerState.RANGED
+               )!=(secondIsScopesight?114:99)||
+               bridge.playerState.currentLevel(
+                    PlayerState.MAGIC
+               )!=(secondIsScopesight?109:99)||
                !handler.pickupPending()||
                bridge.saveReason!=null)
                 throw new AssertionError(
@@ -835,9 +928,18 @@ public final class LocalPetDropPickupHandlerTest {
             );
 
             if(petState.active()||
+               !petState.miniConfigured()||
+               petState.miniItemId()!=22088||
                npcs.pet()!=null||
+               npcs.miniPet()!=null||
                bank.inventoryCount(second.itemId)!=
                     inventoryBeforePickup+1||
+               bridge.playerState.currentLevel(
+                    PlayerState.RANGED
+               )!=99||
+               bridge.playerState.currentLevel(
+                    PlayerState.MAGIC
+               )!=99||
                handler.pickupPending()||
                !"PET_PICKUP".equals(
                     bridge.saveReason
