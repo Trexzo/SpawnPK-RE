@@ -5892,13 +5892,29 @@ tasks.register('monsterSpawnerUiServiceAdapterRegression', JavaExec) {
 }
 
 
+tasks.register('localLabMonsterSpawnerProvisioningRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves Main-ready CUSTOM_LOCALLAB Monster Spawner provisioning creates one World-bound UI/runtime graph and a real one-shot PvM spawn.'
+    dependsOn(
+        tasks.named('testClasses'),
+        tasks.named('monsterSpawnerUiServiceAdapterRegression'),
+        tasks.named('monsterSpawnerPvmSpawnExecutorRegression')
+    )
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.LocalLabMonsterSpawnerProvisioningTest'
+}
+
+
 tasks.register('localMonsterSpawnerActivationPvmSpawnRegression', JavaExec) {
     group = 'verification'
     description = 'Proves explicit caller-owned Monster Spawner activation callback can invoke exactly one atomic PvM spawn without default server policy.'
     dependsOn(
         tasks.named('testClasses'),
         tasks.named('monsterSpawnerUiServiceAdapterRegression'),
-        tasks.named('monsterSpawnerPvmSpawnExecutorRegression')
+        tasks.named('monsterSpawnerPvmSpawnExecutorRegression'),
+        tasks.named('localLabMonsterSpawnerProvisioningRegression')
     )
 
     workingDir repoRoot
