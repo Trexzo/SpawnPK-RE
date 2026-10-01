@@ -743,9 +743,25 @@ final class BankState {
         if(st.itemId!=expectedItemId) return "REJECTED_INVENTORY_ITEM_MISMATCH expected="+st.itemId;
         if(st.qty!=1) return "REJECTED_TRANSFORM_QTY qty="+st.qty;
         if(ItemDefinitionRepository.get(replacementItemId)==null) return "REJECTED_UNKNOWN_REPLACEMENT item="+replacementItemId;
-        inventory[slot]=new Stack(replacementItemId,1);
-        sendNormalInventory(w);
-        if(open) sendContainers(w);
+
+        Stack[] nextInventory=
+            copyStacks(inventory);
+        nextInventory[slot]=
+            new Stack(
+                replacementItemId,
+                1
+            );
+
+        publishNormalInventoryStructuralPostimage(
+            w,
+            nextInventory,
+            open
+        );
+        replaceStacks(
+            inventory,
+            nextInventory
+        );
+
         return "INVENTORY_TRANSFORM_OK slot="+slot+" item="+expectedItemId+"->"+replacementItemId;
     }
 
@@ -944,14 +960,56 @@ final class BankState {
         if(st.itemId!=expectedItemId)return "REJECTED_INVENTORY_ITEM_MISMATCH expected="+st.itemId;
         if(st.qty!=1)return "REJECTED_TRANSFORM_QTY qty="+st.qty;
         if(ItemDefinitionRepository.get(primaryReplacement)==null||ItemDefinitionRepository.get(extraItem)==null)return "REJECTED_UNKNOWN_REPLACEMENT";
-        int extraDst=isStackable(extraItem)?findItem(inventory,extraItem):-1;
-        if(extraDst<0) extraDst=firstEmptyExcept(inventory,slot);
-        if(extraDst<0)return "REJECTED_INVENTORY_FULL_FOR_SPLIT";
-        inventory[slot]=new Stack(primaryReplacement,1);
-        if(inventory[extraDst]==null)inventory[extraDst]=new Stack(extraItem,0);
-        if(inventory[extraDst].itemId!=extraItem||inventory[extraDst].qty==Integer.MAX_VALUE)throw new IllegalStateException("split preflight mismatch");
-        inventory[extraDst].qty++;
-        sendNormalInventory(w); if(open)sendContainers(w);
+
+        Stack[] nextInventory=
+            copyStacks(inventory);
+
+        int extraDst=
+            isStackable(extraItem)
+                ?findItem(
+                    nextInventory,
+                    extraItem
+                )
+                :-1;
+        if(extraDst<0)
+            extraDst=
+                firstEmptyExcept(
+                    nextInventory,
+                    slot
+                );
+        if(extraDst<0)
+            return "REJECTED_INVENTORY_FULL_FOR_SPLIT";
+
+        nextInventory[slot]=
+            new Stack(
+                primaryReplacement,
+                1
+            );
+        if(nextInventory[extraDst]==null)
+            nextInventory[extraDst]=
+                new Stack(
+                    extraItem,
+                    0
+                );
+
+        if(nextInventory[extraDst].itemId!=extraItem||
+           nextInventory[extraDst].qty==Integer.MAX_VALUE)
+            throw new IllegalStateException(
+                "split preflight mismatch"
+            );
+
+        nextInventory[extraDst].qty++;
+
+        publishNormalInventoryStructuralPostimage(
+            w,
+            nextInventory,
+            open
+        );
+        replaceStacks(
+            inventory,
+            nextInventory
+        );
+
         return "INVENTORY_SPLIT_OK slot="+slot+" item="+expectedItemId+"->"+primaryReplacement+" extra="+extraItem+" extraSlot="+extraDst;
     }
 
@@ -961,17 +1019,56 @@ final class BankState {
         if(!validSlot(inventory,slotA)||!validSlot(inventory,slotB)||inventory[slotA]==null||inventory[slotB]==null)return "REJECTED_INVENTORY_SLOT";
         if(inventory[slotA].itemId!=itemA||inventory[slotB].itemId!=itemB)return "REJECTED_COMBINE_ITEM_MISMATCH";
         if(ItemDefinitionRepository.get(resultItem)==null)return "REJECTED_UNKNOWN_RESULT";
-        int regularSlot=itemA==3241?slotA:itemB==3241?slotB:slotB;
-        int other=regularSlot==slotA?slotB:slotA;
-        Stack rs=inventory[regularSlot], os=inventory[other];
-        if(rs.qty<=0||os.qty<=0)return "REJECTED_COMBINE_QTY";
-        rs.qty--; os.qty--;
-        if(rs.qty==0)inventory[regularSlot]=null;
-        if(os.qty==0)inventory[other]=null;
+
+        int regularSlot=
+            itemA==3241
+                ?slotA
+                :itemB==3241
+                    ?slotB
+                    :slotB;
+        int other=
+            regularSlot==slotA
+                ?slotB
+                :slotA;
+
+        Stack[] nextInventory=
+            copyStacks(inventory);
+        Stack rs=
+            nextInventory[regularSlot];
+        Stack os=
+            nextInventory[other];
+
+        if(rs.qty<=0||os.qty<=0)
+            return "REJECTED_COMBINE_QTY";
+
+        rs.qty--;
+        os.qty--;
+
+        if(rs.qty==0)
+            nextInventory[regularSlot]=null;
+        if(os.qty==0)
+            nextInventory[other]=null;
+
         // Exact mechanic here uses one regular pet + one dye -> one dyed pet.
-        if(inventory[regularSlot]!=null)return "REJECTED_COMBINE_REGULAR_STACK_REMAINS";
-        inventory[regularSlot]=new Stack(resultItem,1);
-        sendNormalInventory(w); if(open)sendContainers(w);
+        if(nextInventory[regularSlot]!=null)
+            return "REJECTED_COMBINE_REGULAR_STACK_REMAINS";
+
+        nextInventory[regularSlot]=
+            new Stack(
+                resultItem,
+                1
+            );
+
+        publishNormalInventoryStructuralPostimage(
+            w,
+            nextInventory,
+            open
+        );
+        replaceStacks(
+            inventory,
+            nextInventory
+        );
+
         return "INVENTORY_COMBINE_OK regularSlot="+regularSlot+" consumed="+itemA+"+"+itemB+" result="+resultItem;
     }
 
