@@ -171,6 +171,12 @@ final class MonsterSpawnerPvmRuntime {
             );
     }
 
+    boolean isBoundTo(
+        World expectedWorld
+    ){
+        return world==expectedWorld;
+    }
+
     SpawnResult spawnAndBind(
         String ownerRef,
         String recipientRef,
