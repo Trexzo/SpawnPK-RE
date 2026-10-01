@@ -20,16 +20,13 @@ final class LocalMonsterSpawnerUiHandler {
     static final class Context {
         final String ownerRef;
         final MonsterSpawnerService.SessionSnapshot session;
-        final MonsterSpawnerService.CatalogSnapshot catalog;
 
         private Context(
             String ownerRef,
-            MonsterSpawnerService.SessionSnapshot session,
-            MonsterSpawnerService.CatalogSnapshot catalog
+            MonsterSpawnerService.SessionSnapshot session
         ){
             this.ownerRef=ownerRef;
             this.session=session;
-            this.catalog=catalog;
         }
     }
 
@@ -165,6 +162,12 @@ final class LocalMonsterSpawnerUiHandler {
         int rowIndex,
         ServerPacketWriter packets
     )throws IOException{
+        MonsterSpawnerService.SessionSnapshot session=
+            service.selectRow(
+                ownerRef,
+                rowIndex
+            );
+
         MonsterSpawnerService.CatalogSnapshot catalog=
             service.catalog();
 
@@ -173,9 +176,18 @@ final class LocalMonsterSpawnerUiHandler {
                 rowIndex
             );
 
-        if(entry==null)
-            throw new IllegalArgumentException(
-                "unconfigured Monster Spawner row "+
+        if(entry==null||
+           session.selectedRowIndex==null||
+           session.selectedRowIndex.intValue()!=rowIndex||
+           session.selectedDefinitionId==null||
+           session.selectedDefinitionId.intValue()!=
+                entry.definitionId||
+           session.selectedSemanticKey==null||
+           !session.selectedSemanticKey.equals(
+                entry.semanticKey
+           ))
+            throw new IllegalStateException(
+                "Monster Spawner selected row identity changed row="+
                 rowIndex
             );
 
@@ -187,12 +199,6 @@ final class LocalMonsterSpawnerUiHandler {
         String label=
             selectedLabel.label(
                 entry
-            );
-
-        MonsterSpawnerService.SessionSnapshot session=
-            service.selectRow(
-                ownerRef,
-                rowIndex
             );
 
         MonsterSpawnerPresentation
@@ -259,8 +265,7 @@ final class LocalMonsterSpawnerUiHandler {
         Context context=
             new Context(
                 ownerRef,
-                before,
-                service.catalog()
+                before
             );
 
         int budget=
@@ -275,8 +280,9 @@ final class LocalMonsterSpawnerUiHandler {
             );
 
         MonsterSpawnerService.SessionSnapshot after=
-            service.activate(
+            service.activateIfCurrent(
                 ownerRef,
+                before,
                 budget
             );
 
