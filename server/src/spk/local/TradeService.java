@@ -14,6 +14,17 @@ final class TradeService {
     static final int FIRST_ACCEPT=3420, FIRST_DECLINE=3422, CONFIRM_ROOT=3443, CONFIRM_STATUS=3535, GIVE_LIST=3538, RECEIVE_LIST=3539, FINAL_ACCEPT=3546, FINAL_DECLINE=3548;
     private enum Stage { OFFERING, CONFIRMING, COMMITTED, CANCELLED }
     private enum XKind { OFFER, REMOVE }
+
+    @FunctionalInterface
+    interface RootPublication {
+        void publish() throws IOException;
+    }
+
+    @FunctionalInterface
+    interface RootOwner {
+        void publish(RootPublication action) throws IOException;
+    }
+
     private static final IdentityHashMap<World,State> STATES=new IdentityHashMap<>();
     private TradeService(){}
 
@@ -36,10 +47,31 @@ final class TradeService {
         ServerPacketWriter writer,
         Runnable save
     ){
+        register(
+            world,
+            player,
+            expectedGeneration,
+            bank,
+            writer,
+            save,
+            action->action.publish()
+        );
+    }
+
+    static synchronized void register(
+        World world,
+        WorldPlayer player,
+        long expectedGeneration,
+        BankState bank,
+        ServerPacketWriter writer,
+        Runnable save,
+        RootOwner rootOwner
+    ){
         Objects.requireNonNull(world,"world");
         Objects.requireNonNull(player,"player");
         Objects.requireNonNull(bank,"bank");
         Objects.requireNonNull(writer,"writer");
+        Objects.requireNonNull(rootOwner,"rootOwner");
 
         if(world.closed())
             throw new IllegalStateException(
@@ -61,7 +93,8 @@ final class TradeService {
                 expectedGeneration,
                 bank,
                 writer,
-                save
+                save,
+                rootOwner
             )
         );
     }
@@ -129,20 +162,120 @@ final class TradeService {
         state.contexts.clear();
     }
 
-    static synchronized String start(World world,WorldPlayer a,WorldPlayer b)throws IOException{
-        if(world!=null&&world.closed())
+    static String start(
+        World world,
+        WorldPlayer a,
+        WorldPlayer b
+    )throws IOException{
+        if(world==null||a==null||b==null)
+            return "TRADE_UI_REJECTED_CONTEXT_MISSING";
+
+        if(world.closed())
             return "TRADE_UI_REJECTED_WORLD_CLOSED";
-        State s=STATES.get(world);
-        if(s==null)return "TRADE_UI_REJECTED_CONTEXT_MISSING";
-        Context ca=s.contexts.get(a.id()),cb=s.contexts.get(b.id());
-        if(ca==null||cb==null)return "TRADE_UI_REJECTED_CONTEXT_MISSING";
-        if(ca.player!=a||cb.player!=b||
-           !ca.ownerCurrent()||!cb.ownerCurrent())
-            return "TRADE_UI_REJECTED_STALE_CONTEXT";
-        cancel0(s,ca,"REPLACED_BY_NEW_TRADE",tradeCurrent(ca.trade));
-        cancel0(s,cb,"REPLACED_BY_NEW_TRADE",tradeCurrent(cb.trade));
-        Trade t=new Trade(ca,cb);s.trades.put(a.id(),t);s.trades.put(b.id(),t);ca.trade=t;cb.trade=t;
-        publishFirst(t);
+
+        final Context ca;
+        final Context cb;
+
+        synchronized(TradeService.class){
+            State s=STATES.get(world);
+            if(s==null)
+                return "TRADE_UI_REJECTED_CONTEXT_MISSING";
+
+            ca=s.contexts.get(a.id());
+            cb=s.contexts.get(b.id());
+
+            if(ca==null||cb==null)
+                return "TRADE_UI_REJECTED_CONTEXT_MISSING";
+
+            if(ca.player!=a||cb.player!=b)
+                return "TRADE_UI_REJECTED_STALE_CONTEXT";
+        }
+
+        final boolean[] opened={false};
+
+        try{
+            boolean admitted=
+                world.withOpenTwoPlayerMutationOwnershipIfCurrent(
+                    a,
+                    ca.ownerGeneration,
+                    b,
+                    cb.ownerGeneration,
+                    ()->{
+                        synchronized(TradeService.class){
+                            State s=STATES.get(world);
+
+                            if(s==null||
+                               s.contexts.get(a.id())!=ca||
+                               s.contexts.get(b.id())!=cb||
+                               !ca.ownerCurrent()||
+                               !cb.ownerCurrent())
+                                return;
+
+                            cancel0(
+                                s,
+                                ca,
+                                "REPLACED_BY_NEW_TRADE",
+                                tradeCurrent(ca.trade)
+                            );
+                            cancel0(
+                                s,
+                                cb,
+                                "REPLACED_BY_NEW_TRADE",
+                                tradeCurrent(cb.trade)
+                            );
+
+                            Trade t=new Trade(ca,cb);
+
+                            ca.rootOwner.publish(
+                                ()->{
+                                    publishFirstFor(t,ca);
+                                    ca.writer.varShort(
+                                        126,
+                                        BootstrapPackets.widgetText126(
+                                            STATUS_TEXT,
+                                            ""
+                                        )
+                                    );
+                                }
+                            );
+
+                            cb.rootOwner.publish(
+                                ()->{
+                                    publishFirstFor(t,cb);
+                                    cb.writer.varShort(
+                                        126,
+                                        BootstrapPackets.widgetText126(
+                                            STATUS_TEXT,
+                                            ""
+                                        )
+                                    );
+                                }
+                            );
+
+                            s.trades.put(a.id(),t);
+                            s.trades.put(b.id(),t);
+                            ca.trade=t;
+                            cb.trade=t;
+                            opened[0]=true;
+                        }
+                    }
+                );
+
+            if(!admitted||!opened[0])
+                return "TRADE_UI_REJECTED_STALE_CONTEXT";
+        }catch(IOException failure){
+            throw failure;
+        }catch(RuntimeException failure){
+            throw failure;
+        }catch(Error failure){
+            throw failure;
+        }catch(Exception failure){
+            throw new IOException(
+                "trade root publication failed",
+                failure
+            );
+        }
+
         return "TRADE_UI_OPEN root=3323 overlay=3321 own=3415 other=3416 firstAccept=3420 confirmRoot=3443 finalAccept=3546";
     }
 
@@ -208,6 +341,31 @@ final class TradeService {
     static synchronized boolean cancelIfActive(WorldPlayer player,String reason)throws IOException{
         Context c=context(player);Trade t=liveTrade(c);if(t==null)return false;cancel0(state(c.world),c,reason,true);return true;
     }
+
+    static synchronized boolean retireForCompetingRoot(
+        WorldPlayer player,
+        String reason
+    )throws IOException{
+        Context c=context(player);
+        Trade t=liveTrade(c);
+
+        if(t==null)
+            return false;
+
+        Context peer=t.other(c);
+        t.stage=Stage.CANCELLED;
+        detach(state(c.world),t);
+
+        if(!peer.world.closed()&&
+           peer.ownerCurrent())
+            peer.writer.fixed(
+                219,
+                new byte[0]
+            );
+
+        return true;
+    }
+
     static synchronized boolean active(WorldPlayer p){
         Context c=context(p);
         return liveTrade(c)!=null;
@@ -395,6 +553,7 @@ final class TradeService {
         final BankState bank;
         final ServerPacketWriter writer;
         final Runnable save;
+        final RootOwner rootOwner;
         Trade trade;
         PendingX pendingX;
 
@@ -404,7 +563,8 @@ final class TradeService {
             long generation,
             BankState b,
             ServerPacketWriter wr,
-            Runnable s
+            Runnable s,
+            RootOwner owner
         ){
             world=w;
             player=p;
@@ -412,6 +572,7 @@ final class TradeService {
             bank=b;
             writer=wr;
             save=s;
+            rootOwner=owner;
         }
 
         boolean ownerCurrent(){
