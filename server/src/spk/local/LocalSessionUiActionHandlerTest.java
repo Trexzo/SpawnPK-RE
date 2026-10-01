@@ -266,6 +266,35 @@ public final class LocalSessionUiActionHandlerTest {
                 bridge
             );
 
+        int configuredPreOpenWire=
+            wire.size();
+        int configuredPreOpenResults=
+            bridge.monsterSpawnerResults;
+        int configuredPreOpenTransactions=
+            bridge.monsterSpawnerWidgetTransactions;
+
+        routed.handleWidget(
+            MonsterSpawnerPresentation.rowWidget(0),
+            w,
+            "[ui-test] "
+        );
+
+        MonsterSpawnerService.SessionSnapshot
+            configuredPreOpenSession=
+                spawner.getSession(
+                    "session-ui-owner"
+                );
+
+        if(configuredPreOpenSession.selectedRowIndex!=null||
+           wire.size()!=configuredPreOpenWire||
+           bridge.monsterSpawnerResults!=
+                configuredPreOpenResults||
+           bridge.monsterSpawnerWidgetTransactions!=
+                configuredPreOpenTransactions)
+            throw new AssertionError(
+                "closed Monster Spawner UI accepted pre-open row action"
+            );
+
         int configuredSpawnerOpenBefore=
             wire.size();
         if(!routed.openMonsterSpawnerIfConfigured(
@@ -453,7 +482,51 @@ public final class LocalSessionUiActionHandlerTest {
                 "unrelated Home Teleport entered Monster Spawner transaction bridge"
             );
 
-        // Prove an initially unconfigured routing owner becomes live after one late install.
+        routed.handleInterfaceClose(
+            true,
+            w,
+            "[ui-test] "
+        );
+
+        int postCloseWire=
+            wire.size();
+        int postCloseResults=
+            bridge.monsterSpawnerResults;
+        int postCloseTransactions=
+            bridge.monsterSpawnerWidgetTransactions;
+        MonsterSpawnerService.SessionSnapshot
+            beforeClosedToggle=
+                spawner.getSession(
+                    "session-ui-owner"
+                );
+
+        routed.handleWidget(
+            MonsterSpawnerPresentation.TOGGLE_WIDGET,
+            w,
+            "[ui-test] "
+        );
+
+        MonsterSpawnerService.SessionSnapshot
+            afterClosedToggle=
+                spawner.getSession(
+                    "session-ui-owner"
+                );
+
+        if(afterClosedToggle.active||
+           beforeClosedToggle.active!=
+                afterClosedToggle.active||
+           beforeClosedToggle.remainingSpawnBudget!=
+                afterClosedToggle.remainingSpawnBudget||
+           wire.size()!=postCloseWire||
+           bridge.monsterSpawnerResults!=
+                postCloseResults||
+           bridge.monsterSpawnerWidgetTransactions!=
+                postCloseTransactions)
+            throw new AssertionError(
+                "closed Monster Spawner UI accepted post-close toggle action"
+            );
+
+        // Prove an initially unconfigured routing owner becomes live only after explicit open.
         LocalSessionUiActionHandler lateBound=
             new LocalSessionUiActionHandler(
                 player,
@@ -475,15 +548,45 @@ public final class LocalSessionUiActionHandlerTest {
             monsterSpawnerUi
         );
 
+        int lateClosedResults=
+            bridge.monsterSpawnerResults;
+        int lateClosedTransactions=
+            bridge.monsterSpawnerWidgetTransactions;
+
         lateBound.handleWidget(
             MonsterSpawnerPresentation.rowWidget(0),
             w,
             "[ui-test] "
         );
 
-        if(wire.size()<=lateTextBefore)
+        if(wire.size()!=lateTextBefore||
+           bridge.monsterSpawnerResults!=
+                lateClosedResults||
+           bridge.monsterSpawnerWidgetTransactions!=
+                lateClosedTransactions)
             throw new AssertionError(
-                "late-installed Monster Spawner route did not publish selected text"
+                "late-installed Monster Spawner accepted action before explicit open"
+            );
+
+        if(!lateBound.openMonsterSpawnerIfConfigured(
+                w
+            ))
+            throw new AssertionError(
+                "late-installed Monster Spawner did not explicitly open"
+            );
+
+        int lateOpenWire=
+            wire.size();
+
+        lateBound.handleWidget(
+            MonsterSpawnerPresentation.rowWidget(0),
+            w,
+            "[ui-test] "
+        );
+
+        if(wire.size()<=lateOpenWire)
+            throw new AssertionError(
+                "opened late-installed Monster Spawner route did not publish selected text"
             );
 
         lateBound.handleWidget(
@@ -972,7 +1075,10 @@ public final class LocalSessionUiActionHandlerTest {
             "monsterSpawnerOpenAbsentNoop=true "+
             "monsterSpawnerRetainedSelectionReopen=true "+
             "monsterSpawnerUnconfiguredRowBounded=true "+
-            "monsterSpawnerUnrelatedBypass=true"
+            "monsterSpawnerUnrelatedBypass=true "+
+            "monsterSpawnerPreOpenRejected=true "+
+            "monsterSpawnerPostCloseRejected=true "+
+            "monsterSpawnerLateInstallClosed=true"
         );
 
         System.out.println(
