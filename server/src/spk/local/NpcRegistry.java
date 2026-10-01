@@ -438,12 +438,32 @@ final class NpcRegistry {
             )
         );
 
-        sendMask(
-            prepared.newMini,
-            NpcSyncEncoder.Mask.interactionTarget(
-                prepared.expectedMainPet.sceneIndex
-            ),
-            w
+        ArrayList<NpcSyncEncoder.Update> masked=
+            new ArrayList<>();
+
+        for(NpcEntity n:visible)
+            if(n!=prepared.oldMini)
+                masked.add(
+                    NpcSyncEncoder.Update.retain(n)
+                );
+
+        masked.add(
+            NpcSyncEncoder.Update.mask(
+                prepared.newMini,
+                NpcSyncEncoder.Mask.interactionTarget(
+                    prepared.expectedMainPet.sceneIndex
+                )
+            )
+        );
+
+        w.varShort(
+            65,
+            NpcSyncEncoder.encode(
+                masked,
+                Collections.emptyList(),
+                0,
+                0
+            )
         );
 
         return "MINIPET_SPAWN_OK item="+
