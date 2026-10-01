@@ -488,6 +488,7 @@ final class LocalSession implements Runnable {
                         LocalSession.this.monsterSpawnerUiFactory,
                         LocalSession.this.world,
                         LocalSession.this.worldPlayer,
+                        LocalSession.this.worldPlayerGeneration,
                         LocalSession.this.username,
                         result,
                         writer,
@@ -902,6 +903,7 @@ final class LocalSession implements Runnable {
         MonsterSpawnerUiFactory factory,
         World world,
         WorldPlayer player,
+        long expectedGeneration,
         String canonicalUsername,
         LocalMonsterSpawnerUiHandler.Result result,
         ServerPacketWriter writer,
@@ -937,6 +939,33 @@ final class LocalSession implements Runnable {
             tag,
             "tag"
         );
+
+        if(!result.session.ownerRef.equals(
+                username
+            ))
+            throw new IllegalArgumentException(
+                "Monster Spawner committed result owner differs from canonical session account expected="+
+                username+
+                " actual="+
+                result.session.ownerRef
+            );
+
+        if(checkedWorld.closed())
+            throw new IllegalStateException(
+                "Monster Spawner callback rejected after World close owner="+
+                username
+            );
+
+        if(!checkedWorld.players().owns(
+                checkedPlayer,
+                expectedGeneration
+            ))
+            throw new IllegalStateException(
+                "Monster Spawner callback stale player generation owner="+
+                username+
+                " expectedGeneration="+
+                expectedGeneration
+            );
 
         try{
             factory.onCommittedResult(
