@@ -34,6 +34,8 @@ public final class Main {
         world.start();
 
         int kotlinPluginCount;
+        final LocalSession.MonsterSpawnerUiFactory
+            monsterSpawnerUiFactory;
 
         try {
             kotlinPluginCount =
@@ -44,6 +46,12 @@ public final class Main {
                         "kotlin"
                     )
                 );
+
+            monsterSpawnerUiFactory=
+                LocalLabMonsterSpawnerProvisioning
+                    .create(
+                        world
+                    );
         } catch (Throwable failure) {
             try {
                 world.close();
@@ -117,6 +125,9 @@ public final class Main {
                     "KOTLIN: startup plugins=" +
                     kotlinPluginCount
                 );
+                System.out.println(
+                    "MONSTER_SPAWNER: CUSTOM_LOCALLAB shared runtime configured; command=::monsterspawner"
+                );
             }
         );
 
@@ -165,7 +176,8 @@ public final class Main {
                                     s,
                                     bootstrapFinal,
                                     movementFinal,
-                                    world
+                                    world,
+                                    monsterSpawnerUiFactory
                                 )))
                     break;
             }
