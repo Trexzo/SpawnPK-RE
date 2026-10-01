@@ -20,13 +20,18 @@ final class NpcDropGroundSettlementService {
         final int stackAmountAfter;
 
         private SettledGroundItem(
-            GroundItem groundItem,
-            int settledAmount
+            GroundItemRegistry.BatchMutation mutation
         ){
-            this.groundItemId=groundItem.id;
-            this.itemId=groundItem.itemId;
-            this.settledAmount=settledAmount;
-            this.stackAmountAfter=groundItem.amount;
+            GroundItemRegistry.BatchMutation checked=
+                Objects.requireNonNull(
+                    mutation,
+                    "mutation"
+                );
+
+            this.groundItemId=checked.groundItemId;
+            this.itemId=checked.itemId;
+            this.settledAmount=checked.addedAmount;
+            this.stackAmountAfter=checked.newAmount;
         }
     }
 
@@ -229,8 +234,6 @@ final class NpcDropGroundSettlementService {
         ArrayList<GroundItemRegistry.AddRequest>
             requests=
                 new ArrayList<>();
-        ArrayList<Integer> oldAmounts=
-            new ArrayList<>();
 
         for(NpcDropResolutionService.Drop drop:
                 checked.drops){
@@ -239,23 +242,6 @@ final class NpcDropGroundSettlementService {
                     drop,
                     "drop"
                 );
-
-            GroundItem existingStack=
-                groundItems.findOwned(
-                    row.itemId,
-                    checked.context.deathTile.x,
-                    checked.context.deathTile.y,
-                    checked.context.deathTile.plane,
-                    checked.context.recipientRef
-                );
-
-            oldAmounts.add(
-                existingStack==null
-                    ?null
-                    :Integer.valueOf(
-                        existingStack.amount
-                    )
-            );
 
             requests.add(
                 new GroundItemRegistry.AddRequest(
@@ -269,12 +255,13 @@ final class NpcDropGroundSettlementService {
             );
         }
 
-        List<GroundItem> materialized=
-            groundItems.addBatch(
-                requests
-            );
+        List<GroundItemRegistry.BatchMutation>
+            mutations=
+                groundItems.addBatchDetailed(
+                    requests
+                );
 
-        if(materialized.size()!=
+        if(mutations.size()!=
                 checked.drops.size()&&
            !checked.drops.isEmpty())
             throw new IllegalStateException(
@@ -286,11 +273,11 @@ final class NpcDropGroundSettlementService {
             rows=
                 new ArrayList<>();
 
-        for(int i=0;i<materialized.size();i++)
+        for(GroundItemRegistry.BatchMutation mutation:
+                mutations)
             rows.add(
                 new SettledGroundItem(
-                    materialized.get(i),
-                    checked.drops.get(i).amount
+                    mutation
                 )
             );
 
@@ -318,8 +305,7 @@ final class NpcDropGroundSettlementService {
 
         publishLiveOwnerScene(
             checked,
-            materialized,
-            oldAmounts
+            mutations
         );
 
         return receipt;
@@ -327,8 +313,7 @@ final class NpcDropGroundSettlementService {
 
     private void publishLiveOwnerScene(
         NpcDropResolutionService.Resolution resolution,
-        List<GroundItem> materialized,
-        List<Integer> oldAmounts
+        List<GroundItemRegistry.BatchMutation> mutations
     ){
         WorldPlayer recipient=
             world.players().byName(
@@ -350,17 +335,13 @@ final class NpcDropGroundSettlementService {
         long now=
             System.currentTimeMillis();
 
-        for(int i=0;i<materialized.size();i++){
-            GroundItem item=
-                materialized.get(i);
-            Integer oldAmount=
-                oldAmounts.get(i);
-
-            if(oldAmount==null)
+        for(GroundItemRegistry.BatchMutation mutation:
+                mutations)
+            if(mutation.created())
                 world.groundItemPresentationEvents()
                     .enqueueSpawn(
                         now,
-                        item,
+                        mutation,
                         recipient,
                         generation
                     );
@@ -368,12 +349,10 @@ final class NpcDropGroundSettlementService {
                 world.groundItemPresentationEvents()
                     .enqueueAmount(
                         now,
-                        item,
-                        oldAmount.intValue(),
+                        mutation,
                         recipient,
                         generation
                     );
-        }
     }
 
     synchronized Receipt get(
