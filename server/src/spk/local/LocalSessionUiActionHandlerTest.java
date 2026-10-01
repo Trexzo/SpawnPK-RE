@@ -18,7 +18,6 @@ public final class LocalSessionUiActionHandlerTest {
         int monsterSpawnerWidgetTransactions;
         int monsterSpawnerRootReplacements;
         int makeoverDesignerRetireCalls;
-        int tradeRetireCalls;
         LocalMonsterSpawnerUiHandler.Result lastMonsterSpawnerResult;
 
         @Override public void saveAccount(
@@ -83,13 +82,6 @@ public final class LocalSessionUiActionHandlerTest {
 
         @Override public boolean retireMakeoverDesignerRoot(){
             makeoverDesignerRetireCalls++;
-            return true;
-        }
-
-        @Override public boolean retireTradeForCompetingRoot(
-            String reason
-        ){
-            tradeRetireCalls++;
             return true;
         }
 
@@ -171,58 +163,6 @@ public final class LocalSessionUiActionHandlerTest {
             new ServerPacketWriter(
                 wire,
                 new IsaacCipher(new int[]{1,2,3,4})
-            );
-
-        int tradeRetiresBeforeRootProbe=
-            bridge.tradeRetireCalls;
-
-        String tradeOwnedRoot=
-            h.publishTradeRootForOwnedSession(
-                ()->"TRADE_ROOT_TEST"
-            );
-
-        if(!"TRADE_ROOT_TEST".equals(tradeOwnedRoot)||
-           bridge.tradeRetireCalls!=
-                tradeRetiresBeforeRootProbe)
-            throw new AssertionError(
-                "Trade-owned root retired its own Trade state"
-            );
-
-        boolean failedTradeCompetingRoot=false;
-        try{
-            h.publishCompetingRootForOwnedSession(
-                ()->{
-                    throw new java.io.IOException(
-                        "EXPECTED_TRADE_COMPETING_FAILURE"
-                    );
-                }
-            );
-        }catch(java.io.IOException expected){
-            failedTradeCompetingRoot=
-                "EXPECTED_TRADE_COMPETING_FAILURE".equals(
-                    expected.getMessage()
-                );
-        }
-
-        if(!failedTradeCompetingRoot||
-           bridge.tradeRetireCalls!=
-                tradeRetiresBeforeRootProbe)
-            throw new AssertionError(
-                "failed competing root retired Trade state"
-            );
-
-        String successfulTradeCompetingRoot=
-            h.publishCompetingRootForOwnedSession(
-                ()->"COMPETING_ROOT_TEST"
-            );
-
-        if(!"COMPETING_ROOT_TEST".equals(
-                successfulTradeCompetingRoot
-            )||
-           bridge.tradeRetireCalls!=
-                tradeRetiresBeforeRootProbe+1)
-            throw new AssertionError(
-                "successful competing root did not retire Trade state"
             );
 
         int absentSpawnerOpenBefore=
@@ -2134,10 +2074,7 @@ public final class LocalSessionUiActionHandlerTest {
             "compCapeHiddenWidgetRejected=true "+
             "makeoverTargetRootPreserved=true "+
             "makeoverFailedRootPreserved=true "+
-            "makeoverCompCapeRootRevokes=true "+
-            "tradeTargetRootPreserved=true "+
-            "tradeFailedRootPreserved=true "+
-            "tradeCompetingRootRevokes=true"
+            "makeoverCompCapeRootRevokes=true"
         );
 
         System.out.println(
