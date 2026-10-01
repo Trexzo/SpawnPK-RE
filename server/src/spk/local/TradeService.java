@@ -520,17 +520,111 @@ final class TradeService {
             }
             if(!offersAvailable(a,t.offerA)||!offersAvailable(b,t.offerB)){cancel0(state(a.world),a,"FINAL_VALIDATION_MISSING_OFFER",true);return "TRADE_COMMIT_REJECTED_OFFER_CHANGED";}
             if(!canAfterExchange(a.bank,t.offerA,t.offerB)||!canAfterExchange(b.bank,t.offerB,t.offerA)){cancel0(state(a.world),a,"FINAL_VALIDATION_INVENTORY_SPACE",true);return "TRADE_COMMIT_REJECTED_INVENTORY_SPACE";}
-            a.writer.beginBatch();b.writer.beginBatch();boolean endedA=false,endedB=false;
+
+            BankState.Stack[] inventoryA=
+                a.bank.inventoryTransactionSnapshot();
+            BankState.Stack[] inventoryB=
+                b.bank.inventoryTransactionSnapshot();
+            ServerPacketWriter.StateSnapshot writerA=
+                a.writer.snapshotState();
+            ServerPacketWriter.StateSnapshot writerB=
+                b.writer.snapshotState();
+
+            a.writer.beginBatch();
+            b.writer.beginBatch();
+
             try{
-                removeOffer(a.bank,t.offerA,a.writer);removeOffer(b.bank,t.offerB,b.writer);
-                addOffer(a.bank,t.offerB,a.writer);addOffer(b.bank,t.offerA,b.writer);
-                a.bank.sendNormalInventory(a.writer);b.bank.sendNormalInventory(b.writer);
-                a.writer.fixed(219,new byte[0]);b.writer.fixed(219,new byte[0]);
-                a.writer.endBatch();endedA=true;b.writer.endBatch();endedB=true;
-            }finally{if(!endedA)try{a.writer.endBatch();}catch(Throwable ignored){}if(!endedB)try{b.writer.endBatch();}catch(Throwable ignored){}}
-            t.stage=Stage.COMMITTED;detach(state(a.world),t);if(a.save!=null)a.save.run();if(b.save!=null)b.save.run();
+                removeOffer(a.bank,t.offerA,a.writer);
+                removeOffer(b.bank,t.offerB,b.writer);
+                addOffer(a.bank,t.offerB,a.writer);
+                addOffer(b.bank,t.offerA,b.writer);
+                a.bank.sendNormalInventory(a.writer);
+                b.bank.sendNormalInventory(b.writer);
+                a.writer.fixed(219,new byte[0]);
+                b.writer.fixed(219,new byte[0]);
+
+                ServerPacketWriter.endBatchesAtomically(
+                    a.writer,
+                    b.writer
+                );
+            }catch(IOException failure){
+                rollbackFailedCommit(
+                    a,
+                    inventoryA,
+                    writerA,
+                    failure
+                );
+                rollbackFailedCommit(
+                    b,
+                    inventoryB,
+                    writerB,
+                    failure
+                );
+                throw failure;
+            }catch(RuntimeException failure){
+                rollbackFailedCommit(
+                    a,
+                    inventoryA,
+                    writerA,
+                    failure
+                );
+                rollbackFailedCommit(
+                    b,
+                    inventoryB,
+                    writerB,
+                    failure
+                );
+                throw failure;
+            }catch(Error failure){
+                rollbackFailedCommit(
+                    a,
+                    inventoryA,
+                    writerA,
+                    failure
+                );
+                rollbackFailedCommit(
+                    b,
+                    inventoryB,
+                    writerB,
+                    failure
+                );
+                throw failure;
+            }
+
+            t.stage=Stage.COMMITTED;
+            detach(state(a.world),t);
+            if(a.save!=null)a.save.run();
+            if(b.save!=null)b.save.run();
             return "TRADE_COMMITTED a="+a.player.username()+" gives="+t.offerA+" b="+b.player.username()+" gives="+t.offerB;
         }}
+    }
+
+    private static void rollbackFailedCommit(
+        Context context,
+        BankState.Stack[] inventory,
+        ServerPacketWriter.StateSnapshot writer,
+        Throwable primary
+    ){
+        try{
+            context.bank
+                .restoreInventoryTransactionSnapshot(
+                    inventory
+                );
+        }catch(Throwable rollback){
+            primary.addSuppressed(
+                rollback
+            );
+        }
+
+        try{
+            context.writer.restoreState(
+                writer
+            );
+        }catch(Throwable rollback){
+            primary.addSuppressed(
+                rollback
+            );
+        }
     }
 
     private static void changeOffer(Trade t,Context c,int item,int delta)throws IOException{
