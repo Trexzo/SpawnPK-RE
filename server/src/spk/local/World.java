@@ -229,19 +229,25 @@ final class World implements AutoCloseable {
 
         requireOpen();
 
+        final MonsterSpawnerPvmRuntime runtime;
+
         synchronized(lifecycleLock){
             requireOpen();
-
-            MonsterSpawnerPvmRuntime runtime=
-                monsterSpawnerPvmRuntime;
-
-            if(runtime==null)
-                return null;
-
-            return runtime.finalizeIfOwned(
-                checked
-            );
+            runtime=monsterSpawnerPvmRuntime;
         }
+
+        if(runtime==null)
+            return null;
+
+        /*
+         * Do not hold World.lifecycleLock across terminal drop settlement.
+         * MonsterSpawnerPvmRuntime's existing combat/finalization services
+         * reacquire the exact World lifecycle boundary only where canonical
+         * NPC ownership requires it.
+         */
+        return runtime.finalizeIfOwned(
+            checked
+        );
     }
 
     WorldPetNpcService petNpcs(){return petNpcs;}
