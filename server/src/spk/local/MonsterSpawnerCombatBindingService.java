@@ -92,6 +92,14 @@ final class MonsterSpawnerCombatBindingService {
             );
     }
 
+    boolean isBoundTo(
+        World expectedWorld,
+        MonsterSpawnerService expectedSpawner
+    ){
+        return world==expectedWorld&&
+            spawner==expectedSpawner;
+    }
+
     Result spawnAndBind(
         String ownerRef,
         int x,
@@ -114,6 +122,45 @@ final class MonsterSpawnerCombatBindingService {
         int plane,
         SpawnBindingAction action
     )throws Exception{
+        return spawnAndBindComposedExpected(
+            ownerRef,
+            null,
+            x,
+            y,
+            plane,
+            action
+        );
+    }
+
+    Result spawnAndBindComposedIfCurrent(
+        String ownerRef,
+        MonsterSpawnerService.SessionSnapshot expected,
+        int x,
+        int y,
+        int plane,
+        SpawnBindingAction action
+    )throws Exception{
+        return spawnAndBindComposedExpected(
+            ownerRef,
+            Objects.requireNonNull(
+                expected,
+                "expected"
+            ),
+            x,
+            y,
+            plane,
+            action
+        );
+    }
+
+    private Result spawnAndBindComposedExpected(
+        String ownerRef,
+        MonsterSpawnerService.SessionSnapshot expected,
+        int x,
+        int y,
+        int plane,
+        SpawnBindingAction action
+    )throws Exception{
         SpawnBindingAction checkedAction=
             Objects.requireNonNull(
                 action,
@@ -129,12 +176,8 @@ final class MonsterSpawnerCombatBindingService {
             world.withOpenLifecycleOwnership(
                 ()->{
                     try{
-                        spawn[0]=
-                            spawner.spawnSelectedComposed(
-                                ownerRef,
-                                x,
-                                y,
-                                plane,
+                        MonsterSpawnerService.SpawnedNpcCommitAction
+                            spawnAction=
                                 npc->{
                                     attemptedNpcId[0]=
                                         npc.id;
@@ -183,8 +226,27 @@ final class MonsterSpawnerCombatBindingService {
                                             primary
                                         );
                                     }
-                                }
-                            );
+                                };
+
+                        if(expected==null)
+                            spawn[0]=
+                                spawner.spawnSelectedComposed(
+                                    ownerRef,
+                                    x,
+                                    y,
+                                    plane,
+                                    spawnAction
+                                );
+                        else
+                            spawn[0]=
+                                spawner.spawnSelectedComposedIfCurrent(
+                                    ownerRef,
+                                    expected,
+                                    x,
+                                    y,
+                                    plane,
+                                    spawnAction
+                                );
                     }catch(Throwable failure){
                         EntityId attempted=
                             attemptedNpcId[0];
