@@ -34,11 +34,26 @@ public final class LocalPetDropPickupHandlerTest {
             saveReason=reason;
         }
 
-        @Override public int syncScopesightPassive(
-            ServerPacketWriter serverPackets
-        ){
-            return 0;
+        @Override public PlayerState.PreparedScopesightMaintenance
+            prepareScopesightPassive(
+                boolean active
+            ){
+            PlayerState state=
+                new PlayerState();
+            return state
+                .prepareScopesightMaintenance(
+                    active
+                );
         }
+
+        @Override public void publishScopesightPassive(
+            PlayerState.PreparedScopesightMaintenance prepared,
+            ServerPacketWriter serverPackets
+        ){}
+
+        @Override public void commitScopesightPassive(
+            PlayerState.PreparedScopesightMaintenance prepared
+        ){}
 
         @Override public void resetPetFollowDeadline(){
             followResetCount++;
