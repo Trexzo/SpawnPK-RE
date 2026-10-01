@@ -27,6 +27,8 @@ public final class LocalMonsterSpawnerCallbackLinearizationTest {
         widgetAndOpenRejectClosedWorld();
         unregisterWaitsForAdmittedWidgetTransaction();
         queuedWidgetRejectedAfterClosePublication();
+        uiCloseWaitsForAdmittedWidgetTransaction();
+        uiCloseWinningFirstRejectsWidget();
 
         System.out.println(
             "MONSTER_SPAWNER_CALLBACK_LINEARIZATION_PASS "+
@@ -47,7 +49,10 @@ public final class LocalMonsterSpawnerCallbackLinearizationTest {
             "commandOpenExactGeneration=true "+
             "commandOpenClosedWorld=true "+
             "widgetUnregisterWaits=true "+
-            "widgetQueuedAfterCloseRejected=true"
+            "widgetQueuedAfterCloseRejected=true "+
+            "uiCloseWaitsForAdmittedWidget=true "+
+            "postUiCloseWidgetNoop=true "+
+            "uiCloseWinningFirst=true"
         );
     }
 
@@ -1562,6 +1567,360 @@ public final class LocalMonsterSpawnerCallbackLinearizationTest {
             );
         }finally{
             releaseLifecycle.countDown();
+            world.close();
+        }
+    }
+
+    private static void uiCloseWaitsForAdmittedWidgetTransaction()
+        throws Exception{
+        World world=
+            World.isolatedForTest(
+                600L
+            );
+        WorldPlayer player=
+            new WorldPlayer();
+        long generation=
+            world.registerPlayer(
+                player,
+                OWNER
+            );
+        Fixture fixture=
+            new Fixture(
+                world
+            );
+        boolean[] uiOpen={true};
+        CountDownLatch callbackEntered=
+            new CountDownLatch(
+                1
+            );
+        CountDownLatch releaseCallback=
+            new CountDownLatch(
+                1
+            );
+        Throwable[] widgetFailure={null};
+        Throwable[] closeFailure={null};
+        boolean[] closeWasOpen={false};
+        int[] callbackCalls={0};
+        LocalSessionUiActionHandler.MonsterSpawnerDispatch[]
+            firstDispatch={null};
+
+        LocalSession.MonsterSpawnerUiFactory factory=
+            blockingFactory(
+                callbackEntered,
+                releaseCallback,
+                callbackCalls
+            );
+
+        LocalSessionUiActionHandler.MonsterSpawnerWidgetAction
+            widgetAction=
+                ()->{
+                    if(!uiOpen[0])
+                        return LocalSessionUiActionHandler
+                            .MonsterSpawnerDispatch
+                            .closedUiNoop();
+
+                    return LocalSessionUiActionHandler
+                        .MonsterSpawnerDispatch
+                        .admitted(
+                            fixture.ui.handle(
+                                MonsterSpawnerPresentation
+                                    .TOGGLE_WIDGET,
+                                fixture.writer
+                            )
+                        );
+                };
+
+        Thread widget=
+            new Thread(
+                ()->{
+                    try{
+                        firstDispatch[0]=
+                            LocalSession
+                                .dispatchMonsterSpawnerWidgetForCurrentSession(
+                                    factory,
+                                    world,
+                                    player,
+                                    generation,
+                                    OWNER,
+                                    fixture.ui,
+                                    MonsterSpawnerPresentation
+                                        .TOGGLE_WIDGET,
+                                    fixture.writer,
+                                    "[widget-ui-close] ",
+                                    widgetAction
+                                );
+                    }catch(Throwable failure){
+                        widgetFailure[0]=failure;
+                    }
+                },
+                "monster-widget-ui-close"
+            );
+
+        Thread closer=
+            new Thread(
+                ()->{
+                    try{
+                        closeWasOpen[0]=
+                            LocalSession
+                                .revokeMonsterSpawnerForCurrentSession(
+                                    world,
+                                    player,
+                                    generation,
+                                    ()->{
+                                        boolean wasOpen=
+                                            uiOpen[0];
+                                        uiOpen[0]=false;
+                                        return wasOpen;
+                                    }
+                                );
+                    }catch(Throwable failure){
+                        closeFailure[0]=failure;
+                    }
+                },
+                "monster-ui-close-owner"
+            );
+
+        try{
+            widget.start();
+
+            await(
+                callbackEntered,
+                "widget callback did not enter before UI close"
+            );
+
+            closer.start();
+
+            awaitBlocked(
+                closer,
+                "UI close did not wait behind admitted widget transaction"
+            );
+
+            require(
+                uiOpen[0],
+                "UI close crossed admitted widget transaction"
+            );
+
+            releaseCallback.countDown();
+
+            join(
+                widget,
+                "widget did not finish before UI close"
+            );
+            join(
+                closer,
+                "UI close did not finish after admitted widget"
+            );
+
+            MonsterSpawnerService.SessionSnapshot afterFirst=
+                fixture.spawner.getSession(
+                    OWNER
+                );
+
+            require(
+                widgetFailure[0]==null&&
+                closeFailure[0]==null&&
+                firstDispatch[0]!=null&&
+                firstDispatch[0].admitted&&
+                !firstDispatch[0].closedUiNoop&&
+                firstDispatch[0].result!=null&&
+                firstDispatch[0].result.status==
+                    LocalMonsterSpawnerUiHandler
+                        .Status.ACTIVATED&&
+                callbackCalls[0]==1&&
+                closeWasOpen[0]&&
+                !uiOpen[0]&&
+                afterFirst.active,
+                "admitted widget/UI-close linearization"
+            );
+
+            int wireBeforeClosed=
+                fixture.wire.size();
+            MonsterSpawnerService.SessionSnapshot beforeClosed=
+                fixture.spawner.getSession(
+                    OWNER
+                );
+
+            LocalSessionUiActionHandler.MonsterSpawnerDispatch
+                closedDispatch=
+                    LocalSession
+                        .dispatchMonsterSpawnerWidgetForCurrentSession(
+                            factory,
+                            world,
+                            player,
+                            generation,
+                            OWNER,
+                            fixture.ui,
+                            MonsterSpawnerPresentation
+                                .TOGGLE_WIDGET,
+                            fixture.writer,
+                            "[widget-after-ui-close] ",
+                            widgetAction
+                        );
+
+            MonsterSpawnerService.SessionSnapshot afterClosed=
+                fixture.spawner.getSession(
+                    OWNER
+                );
+
+            require(
+                closedDispatch.admitted&&
+                closedDispatch.closedUiNoop&&
+                closedDispatch.result==null&&
+                callbackCalls[0]==1&&
+                fixture.wire.size()==wireBeforeClosed&&
+                beforeClosed.active==
+                    afterClosed.active&&
+                beforeClosed.remainingSpawnBudget==
+                    afterClosed.remainingSpawnBudget&&
+                beforeClosed.selectedRowIndex.equals(
+                    afterClosed.selectedRowIndex
+                ),
+                "post-close widget mutated Monster Spawner state"
+            );
+        }finally{
+            releaseCallback.countDown();
+
+            if(world.players().owns(
+                    player,
+                    generation
+                ))
+                world.unregisterPlayer(
+                    player,
+                    generation
+                );
+
+            world.close();
+        }
+    }
+
+    private static void uiCloseWinningFirstRejectsWidget()
+        throws Exception{
+        World world=
+            World.isolatedForTest(
+                600L
+            );
+        WorldPlayer player=
+            new WorldPlayer();
+        long generation=
+            world.registerPlayer(
+                player,
+                OWNER
+            );
+        Fixture fixture=
+            new Fixture(
+                world
+            );
+        boolean[] uiOpen={true};
+        int[] callbackCalls={0};
+
+        LocalSession.MonsterSpawnerUiFactory factory=
+            new LocalSession.MonsterSpawnerUiFactory(){
+                @Override public LocalMonsterSpawnerUiHandler create(
+                    World factoryWorld,
+                    WorldPlayer factoryPlayer,
+                    String canonicalUsername
+                ){
+                    return fixture.ui;
+                }
+
+                @Override public void onCommittedResult(
+                    World callbackWorld,
+                    WorldPlayer callbackPlayer,
+                    String canonicalUsername,
+                    LocalMonsterSpawnerUiHandler.Result result,
+                    ServerPacketWriter writer,
+                    String tag
+                ){
+                    callbackCalls[0]++;
+                }
+            };
+
+        try{
+            boolean closeWasOpen=
+                LocalSession
+                    .revokeMonsterSpawnerForCurrentSession(
+                        world,
+                        player,
+                        generation,
+                        ()->{
+                            boolean wasOpen=
+                                uiOpen[0];
+                            uiOpen[0]=false;
+                            return wasOpen;
+                        }
+                    );
+
+            int wireBefore=
+                fixture.wire.size();
+            MonsterSpawnerService.SessionSnapshot before=
+                fixture.spawner.getSession(
+                    OWNER
+                );
+
+            LocalSessionUiActionHandler.MonsterSpawnerDispatch
+                dispatch=
+                    LocalSession
+                        .dispatchMonsterSpawnerWidgetForCurrentSession(
+                            factory,
+                            world,
+                            player,
+                            generation,
+                            OWNER,
+                            fixture.ui,
+                            MonsterSpawnerPresentation
+                                .TOGGLE_WIDGET,
+                            fixture.writer,
+                            "[ui-close-before-widget] ",
+                            ()->{
+                                if(!uiOpen[0])
+                                    return LocalSessionUiActionHandler
+                                        .MonsterSpawnerDispatch
+                                        .closedUiNoop();
+
+                                return LocalSessionUiActionHandler
+                                    .MonsterSpawnerDispatch
+                                    .admitted(
+                                        fixture.ui.handle(
+                                            MonsterSpawnerPresentation
+                                                .TOGGLE_WIDGET,
+                                            fixture.writer
+                                        )
+                                    );
+                            }
+                        );
+
+            MonsterSpawnerService.SessionSnapshot after=
+                fixture.spawner.getSession(
+                    OWNER
+                );
+
+            require(
+                closeWasOpen&&
+                !uiOpen[0]&&
+                dispatch.admitted&&
+                dispatch.closedUiNoop&&
+                dispatch.result==null&&
+                callbackCalls[0]==0&&
+                fixture.wire.size()==wireBefore&&
+                before.active==
+                    after.active&&
+                before.remainingSpawnBudget==
+                    after.remainingSpawnBudget&&
+                before.selectedRowIndex.equals(
+                    after.selectedRowIndex
+                ),
+                "UI-close-first widget admission"
+            );
+        }finally{
+            if(world.players().owns(
+                    player,
+                    generation
+                ))
+                world.unregisterPlayer(
+                    player,
+                    generation
+                );
+
             world.close();
         }
     }
