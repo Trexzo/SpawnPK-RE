@@ -126,70 +126,118 @@ final class MonsterSpawnerNpcLifecycleBindingService {
         int y,
         int plane
     )throws Exception{
+        return spawnBindAndRegisterExpected(
+            ownerRef,
+            null,
+            x,
+            y,
+            plane
+        );
+    }
+
+    Result spawnBindAndRegisterIfCurrent(
+        String ownerRef,
+        MonsterSpawnerService.SessionSnapshot expected,
+        int x,
+        int y,
+        int plane
+    )throws Exception{
+        return spawnBindAndRegisterExpected(
+            ownerRef,
+            Objects.requireNonNull(
+                expected,
+                "expected"
+            ),
+            x,
+            y,
+            plane
+        );
+    }
+
+    private Result spawnBindAndRegisterExpected(
+        String ownerRef,
+        MonsterSpawnerService.SessionSnapshot expected,
+        int x,
+        int y,
+        int plane
+    )throws Exception{
         final NpcLifecycleService.Snapshot[]
             lifecycleResult={null};
         final String[] planKey={null};
 
+        MonsterSpawnerCombatBindingService.SpawnBindingAction
+            bindingAction=
+                (npc,binding)->{
+                    try{
+                        LifecyclePlan plan=
+                            Objects.requireNonNull(
+                                planResolver.resolve(
+                                    new Context(npc)
+                                ),
+                                "lifecycle plan"
+                            );
+
+                        lifecycleResult[0]=
+                            lifecycle.register(
+                                npc,
+                                plan.maxHitpoints,
+                                plan.sourceAuthority
+                            );
+                        SharedNpcWorldRelay
+                            .trackCanonicalNpc(
+                                world,
+                                npc
+                            );
+                        planKey[0]=plan.planKey;
+                    }catch(Throwable primary){
+                        try{
+                            SharedNpcWorldRelay
+                                .untrackCanonicalNpc(
+                                    world,
+                                    npc.id
+                                );
+                        }catch(Throwable rollbackFailure){
+                            if(rollbackFailure!=primary)
+                                primary.addSuppressed(
+                                    rollbackFailure
+                                );
+                        }
+
+                        try{
+                            lifecycle.unregisterExact(
+                                npc
+                            );
+                        }catch(Throwable rollbackFailure){
+                            if(rollbackFailure!=primary)
+                                primary.addSuppressed(
+                                    rollbackFailure
+                                );
+                        }
+
+                        rethrow(
+                            primary
+                        );
+                    }
+                };
+
         MonsterSpawnerCombatBindingService.Result
             combatResult=
-                combat.spawnAndBindComposed(
-                    ownerRef,
-                    x,
-                    y,
-                    plane,
-                    (npc,binding)->{
-                        try{
-                            LifecyclePlan plan=
-                                Objects.requireNonNull(
-                                    planResolver.resolve(
-                                        new Context(npc)
-                                    ),
-                                    "lifecycle plan"
-                                );
-
-                            lifecycleResult[0]=
-                                lifecycle.register(
-                                    npc,
-                                    plan.maxHitpoints,
-                                    plan.sourceAuthority
-                                );
-                            SharedNpcWorldRelay
-                                .trackCanonicalNpc(
-                                    world,
-                                    npc
-                                );
-                            planKey[0]=plan.planKey;
-                        }catch(Throwable primary){
-                            try{
-                                SharedNpcWorldRelay
-                                    .untrackCanonicalNpc(
-                                        world,
-                                        npc.id
-                                    );
-                            }catch(Throwable rollbackFailure){
-                                if(rollbackFailure!=primary)
-                                    primary.addSuppressed(
-                                        rollbackFailure
-                                    );
-                            }
-
-                            try{
-                                lifecycle.unregisterExact(
-                                    npc
-                                );
-                            }catch(Throwable rollbackFailure){
-                                if(rollbackFailure!=primary)
-                                    primary.addSuppressed(
-                                        rollbackFailure
-                                    );
-                            }
-
-                            rethrow(
-                                primary
-                            );
-                        }
-                    }
-                );
+                expected==null
+                    ?combat.spawnAndBindComposed(
+                        ownerRef,
+                        x,
+                        y,
+                        plane,
+                        bindingAction
+                    )
+                    :combat.spawnAndBindComposedIfCurrent(
+                        ownerRef,
+                        expected,
+                        x,
+                        y,
+                        plane,
+                        bindingAction
+                    );
 
         return new Result(
             combatResult,
