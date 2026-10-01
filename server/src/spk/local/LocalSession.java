@@ -424,6 +424,15 @@ final class LocalSession implements Runnable {
                     );
                 }
 
+                @Override public boolean openMonsterSpawner(
+                    ServerPacketWriter writer
+                )throws IOException{
+                    return LocalSession.this.uiActions
+                        .openMonsterSpawnerIfConfigured(
+                            writer
+                        );
+                }
+
                 @Override public void applyPetDialog(
                     LocalPetInventoryDialogHandler.Result result,
                     String tag
