@@ -673,6 +673,8 @@ public final class LocalBankObjectInteractionHandlerTest {
                     " count="+rootPublications[0]
                 );
 
+            testBankTransferPublicationAtomicity();
+
             System.out.println(
                 "LOCAL_BANK_OBJECT_HANDLER_PASS "+
                 "contentOwned=true "+
@@ -690,13 +692,360 @@ public final class LocalBankObjectInteractionHandlerTest {
                 "bankCloseFailurePreservesPendingX=true "+
                 "bankWithdrawXPromptFailureAtomic=true "+
                 "bankStoreXPromptFailureAtomic=true "+
-                "bankXPromptReplacementPreservesPrior=true"
+                "bankXPromptReplacementPreservesPrior=true "+
+                "bankWithdrawPublicationAtomic=true "+
+                "bankStorePublicationAtomic=true "+
+                "bankTransferXRetryPreserved=true "+
+                "depositInventoryPublicationAtomic=true "+
+                "partialBankFullPresentationCoherent=true"
             );
         }finally{
             if(player.registered())
                 world.unregisterPlayer(player);
             world.close();
         }
+    }
+
+    private static void testBankTransferPublicationAtomicity()
+        throws Exception
+    {
+        BankState bank=new BankState();
+        ByteArrayOutputStream goodWire=
+            new ByteArrayOutputStream();
+        ServerPacketWriter good=
+            new ServerPacketWriter(
+                goodWire,
+                new IsaacCipher(
+                    new int[]{49,50,51,52}
+                )
+            );
+
+        bank.open(good);
+
+        int bankCoinsBefore=
+            bank.bankAt(0).qty;
+        int inventoryCoinsBefore=
+            bank.inventoryCount(995);
+
+        OutboundPacketQueue failedWithdrawQueue=
+            fullQueue();
+        ServerPacketWriter failedWithdraw=
+            queueWriter(
+                failedWithdrawQueue,
+                new int[]{53,54,55,56}
+            );
+
+        boolean withdrawFailed=false;
+        try{
+            bank.apply(
+                new ItemContainerAction(
+                    145,
+                    BankState.BANK_CONTAINER,
+                    0,
+                    995,
+                    0,
+                    "ITEM_ACTION_1"
+                ),
+                failedWithdraw
+            );
+        }catch(java.io.IOException expected){
+            withdrawFailed=true;
+        }
+
+        if(!withdrawFailed||
+           bank.bankAt(0).qty!=bankCoinsBefore||
+           bank.inventoryCount(995)!=inventoryCoinsBefore)
+            throw new AssertionError(
+                "failed bank withdraw mutated canonical item state"
+            );
+
+        String withdrawOk=
+            bank.apply(
+                new ItemContainerAction(
+                    145,
+                    BankState.BANK_CONTAINER,
+                    0,
+                    995,
+                    0,
+                    "ITEM_ACTION_1"
+                ),
+                good
+            );
+        if(withdrawOk==null||
+           !withdrawOk.contains("WITHDRAW_OK amount=1"))
+            throw new AssertionError(
+                "bank withdraw fixture failed result="+withdrawOk
+            );
+
+        int coinSlot=-1;
+        for(int i=0;i<bank.inventoryCapacity();i++){
+            BankState.Stack stack=bank.inventoryAt(i);
+            if(stack!=null&&stack.itemId==995){
+                coinSlot=i;
+                break;
+            }
+        }
+        if(coinSlot<0)
+            throw new AssertionError(
+                "bank store fixture coin missing"
+            );
+
+        int bankBeforeStore=
+            bank.bankAt(0).qty;
+        int inventoryBeforeStore=
+            bank.inventoryCount(995);
+
+        OutboundPacketQueue failedStoreQueue=
+            fullQueue();
+        ServerPacketWriter failedStore=
+            queueWriter(
+                failedStoreQueue,
+                new int[]{57,58,59,60}
+            );
+
+        boolean storeFailed=false;
+        try{
+            bank.apply(
+                new ItemContainerAction(
+                    145,
+                    BankState.BANK_INVENTORY_CONTAINER,
+                    coinSlot,
+                    995,
+                    0,
+                    "ITEM_ACTION_1"
+                ),
+                failedStore
+            );
+        }catch(java.io.IOException expected){
+            storeFailed=true;
+        }
+
+        if(!storeFailed||
+           bank.bankAt(0).qty!=bankBeforeStore||
+           bank.inventoryCount(995)!=inventoryBeforeStore)
+            throw new AssertionError(
+                "failed bank store mutated canonical item state"
+            );
+
+        // A failed X completion must retain the pending request because
+        // the item transfer did not commit.
+        String prompt=
+            bank.apply(
+                new ItemContainerAction(
+                    135,
+                    BankState.BANK_CONTAINER,
+                    0,
+                    995,
+                    0,
+                    "ITEM_ACTION_X"
+                ),
+                good
+            );
+        if(prompt==null||
+           !prompt.contains("WITHDRAW_X_PROMPT_SENT"))
+            throw new AssertionError(
+                "bank transfer X fixture prompt failed"
+            );
+
+        OutboundPacketQueue failedXQueue=
+            fullQueue();
+        ServerPacketWriter failedX=
+            queueWriter(
+                failedXQueue,
+                new int[]{61,62,63,64}
+            );
+
+        int xBankBefore=
+            bank.bankAt(0).qty;
+        int xInventoryBefore=
+            bank.inventoryCount(995);
+
+        boolean xFailed=false;
+        try{
+            bank.applyAmount(
+                1,
+                failedX
+            );
+        }catch(java.io.IOException expected){
+            xFailed=true;
+        }
+
+        if(!xFailed||
+           bank.bankAt(0).qty!=xBankBefore||
+           bank.inventoryCount(995)!=xInventoryBefore)
+            throw new AssertionError(
+                "failed bank X completion mutated canonical state"
+            );
+
+        String xRetry=
+            bank.applyAmount(
+                1,
+                good
+            );
+
+        if(xRetry==null||
+           !xRetry.contains("WITHDRAW_X_OK amount=1")||
+           bank.bankAt(0).qty!=xBankBefore-1||
+           bank.inventoryCount(995)!=xInventoryBefore+1)
+            throw new AssertionError(
+                "failed bank X completion did not preserve retry authority result="+
+                xRetry
+            );
+
+        // Deposit Inventory publication failure: neither bank nor
+        // inventory may change.
+        BankState depositAll=new BankState();
+        ByteArrayOutputStream depositGoodWire=
+            new ByteArrayOutputStream();
+        ServerPacketWriter depositGood=
+            new ServerPacketWriter(
+                depositGoodWire,
+                new IsaacCipher(
+                    new int[]{65,66,67,68}
+                )
+            );
+        depositAll.open(depositGood);
+        depositAll.spawnItem(
+            385,
+            1,
+            depositGood
+        );
+        depositAll.spawnItem(
+            3144,
+            1,
+            depositGood
+        );
+
+        int depositSlotsBefore=
+            depositAll.inventorySlots();
+        int bankSlotsBefore=
+            depositAll.bankSlots();
+
+        OutboundPacketQueue failedDepositQueue=
+            fullQueue();
+        ServerPacketWriter failedDeposit=
+            queueWriter(
+                failedDepositQueue,
+                new int[]{69,70,71,72}
+            );
+
+        boolean depositFailed=false;
+        try{
+            depositAll.depositInventory(
+                failedDeposit
+            );
+        }catch(java.io.IOException expected){
+            depositFailed=true;
+        }
+
+        if(!depositFailed||
+           depositAll.inventorySlots()!=depositSlotsBefore||
+           depositAll.bankSlots()!=bankSlotsBefore||
+           depositAll.inventoryCount(385)!=1||
+           depositAll.inventoryCount(3144)!=1)
+            throw new AssertionError(
+                "failed Deposit Inventory mutated canonical state"
+            );
+
+        // Preserve the existing PARTIAL_BANK_FULL policy, but require the
+        // partial canonical postimage to be published before return.
+        BankState partial=new BankState();
+        ByteArrayOutputStream partialWire=
+            new ByteArrayOutputStream();
+        ServerPacketWriter partialWriter=
+            new ServerPacketWriter(
+                partialWire,
+                new IsaacCipher(
+                    new int[]{73,74,75,76}
+                )
+            );
+        partial.open(partialWriter);
+        partial.spawnItem(
+            385,
+            1,
+            partialWriter
+        );
+        partial.spawnItem(
+            3144,
+            1,
+            partialWriter
+        );
+
+        java.lang.reflect.Field bankField=
+            BankState.class.getDeclaredField(
+                "bank"
+            );
+        bankField.setAccessible(true);
+        BankState.Stack[] slots=
+            (BankState.Stack[])bankField.get(
+                partial
+            );
+
+        boolean leftOneEmpty=false;
+        for(int i=0;i<slots.length;i++){
+            if(slots[i]!=null)
+                continue;
+
+            if(!leftOneEmpty){
+                leftOneEmpty=true;
+                continue;
+            }
+
+            slots[i]=
+                new BankState.Stack(
+                    100000+i,
+                    1
+                );
+        }
+
+        if(!leftOneEmpty)
+            throw new AssertionError(
+                "partial bank-full fixture found no empty slot"
+            );
+
+        int partialWireBefore=
+            partialWire.size();
+
+        String partialResult=
+            partial.depositInventory(
+                partialWriter
+            );
+
+        if(partialResult==null||
+           !partialResult.contains(
+                "PARTIAL_BANK_FULL movedQty=1"
+           )||
+           partial.inventorySlots()!=1||
+           partialWire.size()<=partialWireBefore)
+            throw new AssertionError(
+                "partial bank-full postimage not coherently published result="+
+                partialResult+
+                " inventorySlots="+
+                partial.inventorySlots()+
+                " wireDelta="+
+                (partialWire.size()-partialWireBefore)
+            );
+    }
+
+    private static OutboundPacketQueue fullQueue()
+        throws Exception
+    {
+        OutboundPacketQueue queue=
+            new OutboundPacketQueue(1024);
+        queue.offer(
+            new byte[1024]
+        );
+        return queue;
+    }
+
+    private static ServerPacketWriter queueWriter(
+        OutboundPacketQueue queue,
+        int[] seed
+    ){
+        return new ServerPacketWriter(
+            queue,
+            new IsaacCipher(seed)
+        );
     }
 
     private static String onWorld(
