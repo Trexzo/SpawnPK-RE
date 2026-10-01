@@ -538,6 +538,24 @@ final class DialogueSessionService {
         );
     }
 
+    PreparedTransition prepareContinue(
+        String playerRef
+    ) {
+        return prepareIntent(
+            playerRef,
+            Intent.continueIntent()
+        );
+    }
+
+    PreparedTransition prepareClose(
+        String playerRef
+    ) {
+        return prepareIntent(
+            playerRef,
+            Intent.closeIntent()
+        );
+    }
+
     PreparedTransition prepareOption(
         String playerRef,
         int optionIndex
