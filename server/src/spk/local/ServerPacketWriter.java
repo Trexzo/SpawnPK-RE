@@ -385,8 +385,8 @@ final class ServerPacketWriter {
     }
 
     void endBatch() throws IOException {
-        Player81WorldSync.PreparedBatch prepared=null;
-        boolean flushPlayer81Relay=false;
+        Player81WorldSync.PreparedBatch prepared;
+        boolean flushPlayer81Relay;
 
         synchronized(this){
             if(batchDepth<=0)
@@ -399,25 +399,50 @@ final class ServerPacketWriter {
                 return;
             }
 
-            /*
-             * Keep the outer batch active until admission/write succeeds. If
-             * flush fails, the caller can abort bytes, ISAAC and staged
-             * Player81 presentation together.
-             */
-            flush();
             prepared=batchPlayer81;
             flushPlayer81Relay=batchContainsPlayer81;
-            completeBatchLocked();
+
+            if(prepared==null){
+                /*
+                 * Byte-only batches keep the ordinary writer-local commit
+                 * path. The outer checkpoint remains active until flush
+                 * succeeds so callers can still abort on admission failure.
+                 */
+                flush();
+                completeBatchLocked();
+            }
         }
 
-        /*
-         * The transport bytes are now admitted. Commit the prospective
-         * multiplayer presentation before returning to gameplay, but never
-         * call back into World ownership while holding the writer monitor.
-         */
-        Player81WorldSync.commitPreparedBatch(
-            prepared
-        );
+        if(prepared!=null){
+            boolean committed=
+                Player81WorldSync
+                    .commitPreparedBatchWithTransport(
+                        prepared,
+                        ()->{
+                            synchronized(ServerPacketWriter.this){
+                                if(batchDepth!=1||
+                                   batchPlayer81!=prepared)
+                                    throw new IllegalStateException(
+                                        "packet-81 batch ownership changed before commit"
+                                    );
+
+                                /*
+                                 * World lifecycle ownership is held by the
+                                 * caller of this transport callback. No player
+                                 * unregister can interleave between admission
+                                 * and the matching semantic postimage.
+                                 */
+                                flush();
+                                completeBatchLocked();
+                            }
+                        }
+                    );
+
+            if(!committed)
+                throw new IOException(
+                    "packet-81 batch owner stale before transport commit"
+                );
+        }
 
         if(flushPlayer81Relay)
             try{
