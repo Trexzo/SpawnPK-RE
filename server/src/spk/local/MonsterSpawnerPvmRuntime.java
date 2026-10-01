@@ -12,12 +12,14 @@ import java.util.*;
 final class MonsterSpawnerPvmRuntime {
     enum State {
         ACTIVE,
+        FINALIZATION_PENDING,
         SETTLEMENT_PENDING
     }
 
     enum FinalizeStatus {
         NOT_OWNED,
         FINALIZED,
+        FINALIZATION_PENDING,
         SETTLEMENT_PENDING
     }
 
@@ -288,13 +290,27 @@ final class MonsterSpawnerPvmRuntime {
                     entry.npc,
                     entry.recipientRef
                 );
-        }catch(Throwable failure){
+        }catch(Error failure){
             synchronized(this){
                 if(entries.get(entry.npc.id)==entry)
                     entry.terminalInProgress=false;
             }
-            rethrow(failure);
-            return null;
+            throw failure;
+        }catch(Exception failure){
+            synchronized(this){
+                if(entries.get(entry.npc.id)==entry){
+                    entry.state=
+                        State.FINALIZATION_PENDING;
+                    entry.terminalInProgress=false;
+                }
+            }
+
+            return new FinalizeResult(
+                FinalizeStatus.FINALIZATION_PENDING,
+                entry.snapshot(),
+                null,
+                null
+            );
         }
 
         synchronized(this){
@@ -311,6 +327,33 @@ final class MonsterSpawnerPvmRuntime {
 
         return settlePending(
             entry
+        );
+    }
+
+    FinalizeResult retryFinalizationIfPending(
+        WorldNpc npc
+    )throws Exception{
+        WorldNpc checked=
+            Objects.requireNonNull(
+                npc,
+                "npc"
+            );
+
+        synchronized(this){
+            Entry entry=
+                entries.get(
+                    checked.id
+                );
+
+            if(entry==null||
+               entry.npc!=checked||
+               entry.state!=
+                    State.FINALIZATION_PENDING)
+                return null;
+        }
+
+        return finalizeIfOwned(
+            checked
         );
     }
 
