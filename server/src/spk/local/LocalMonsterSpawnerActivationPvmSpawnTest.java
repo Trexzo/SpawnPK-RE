@@ -111,6 +111,7 @@ public final class LocalMonsterSpawnerActivationPvmSpawnTest {
                     factory,
                     world,
                     player,
+                    generation,
                     OWNER
                 );
 
@@ -265,6 +266,7 @@ public final class LocalMonsterSpawnerActivationPvmSpawnTest {
                     factory,
                     world,
                     reconnectPlayer,
+                    reconnectGeneration,
                     reconnectOwner
                 );
 
@@ -308,6 +310,7 @@ public final class LocalMonsterSpawnerActivationPvmSpawnTest {
                     factory,
                     world,
                     replacementPlayer,
+                    replacementGeneration,
                     reconnectOwner
                 );
 
