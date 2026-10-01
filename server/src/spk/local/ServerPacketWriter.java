@@ -33,6 +33,24 @@ final class ServerPacketWriter {
             this.reservation=reservation;
         }
 
+        void abort(){
+            synchronized(ATOMIC_PAIR_LOCK){
+                lockWritersUnchecked(
+                    first,
+                    second,
+                    ()->{
+                        if(completed)
+                            return;
+
+                        reservation.release();
+                        first.abortBatchLocked();
+                        second.abortBatchLocked();
+                        completed=true;
+                    }
+                );
+            }
+        }
+
         void commit()throws IOException{
             synchronized(ATOMIC_PAIR_LOCK){
                 lockWriters(
@@ -77,6 +95,8 @@ final class ServerPacketWriter {
                         second.pending.reset();
                         first.batchDepth=0;
                         second.batchDepth=0;
+                        first.clearBatchCheckpoint();
+                        second.clearBatchCheckpoint();
                         completed=true;
                     }
                 );
@@ -87,6 +107,11 @@ final class ServerPacketWriter {
     @FunctionalInterface
     private interface PairWriterAction {
         void run() throws IOException;
+    }
+
+    @FunctionalInterface
+    private interface PairWriterUncheckedAction {
+        void run();
     }
 
     private final OutputStream out;
@@ -188,6 +213,10 @@ final class ServerPacketWriter {
     }
 
     synchronized void beginBatch(){
+        beginBatchLocked();
+    }
+
+    private void beginBatchLocked(){
         if(batchDepth==0){
             batchCipherState=cipher.snapshot();
             batchPendingPrefix=pending.toByteArray();
@@ -196,6 +225,10 @@ final class ServerPacketWriter {
     }
 
     synchronized void abortBatch(){
+        abortBatchLocked();
+    }
+
+    private void abortBatchLocked(){
         if(batchCipherState==null)
             throw new IllegalStateException(
                 "no abortable packet batch"
@@ -260,8 +293,8 @@ final class ServerPacketWriter {
                                 "atomic pair requires idle writers"
                             );
 
-                        first.batchDepth=1;
-                        second.batchDepth=1;
+                        first.beginBatchLocked();
+                        second.beginBatchLocked();
                     }
                 );
             }
@@ -332,6 +365,28 @@ final class ServerPacketWriter {
     }
 
     private void autoFlush() throws IOException { if(batchDepth==0)flush(); }
+
+    private static void lockWritersUnchecked(
+        ServerPacketWriter first,
+        ServerPacketWriter second,
+        PairWriterUncheckedAction action
+    ){
+        ServerPacketWriter lockFirst=
+            System.identityHashCode(first)<
+                System.identityHashCode(second)
+                ?first
+                :second;
+        ServerPacketWriter lockSecond=
+            lockFirst==first
+                ?second
+                :first;
+
+        synchronized(lockFirst){
+            synchronized(lockSecond){
+                action.run();
+            }
+        }
+    }
 
     private static void lockWriters(
         ServerPacketWriter first,
