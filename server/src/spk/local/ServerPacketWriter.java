@@ -450,9 +450,6 @@ final class ServerPacketWriter {
                                     );
                                     pending.reset();
                                     completeBatchLocked();
-                                }catch(IOException failure){
-                                    reservation.release();
-                                    throw failure;
                                 }catch(RuntimeException failure){
                                     reservation.release();
                                     throw failure;
