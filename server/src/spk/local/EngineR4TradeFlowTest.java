@@ -46,9 +46,63 @@ public final class EngineR4TradeFlowTest{
       )!=null)
     throw new AssertionError("hidden trade action accepted after competing root");
 
-   System.out.println("V5140_ENGINE_R4_TRADE_FLOW_PASS roots=3323/3443 offerWidgets=3322/3415/3416 accepts=3420/3546 atomicExchange=true cancelReservationModel=true twoSessionRootOwners=true peerOnlyCompetingClose=true hiddenTradeRejected=true");
+   testSecondRootPublicationFailureAtomicity();
+
+   System.out.println("V5140_ENGINE_R4_TRADE_FLOW_PASS roots=3323/3443 offerWidgets=3322/3415/3416 accepts=3420/3546 atomicExchange=true cancelReservationModel=true twoSessionRootOwners=true peerOnlyCompetingClose=true hiddenTradeRejected=true partialStartFailureClosed=true");
   }finally{TradeService.unregister(p1);TradeService.unregister(p2);w.unregisterPlayer(p1);w.unregisterPlayer(p2);w.close();}
  }
+
+ static void testSecondRootPublicationFailureAtomicity()throws Exception{
+  World w=World.isolatedForTest(601L);
+  WorldPlayer p1=new WorldPlayer(),p2=new WorldPlayer();
+  w.registerPlayer(p1,"partial-a");
+  w.registerPlayer(p2,"partial-b");
+  OutboundPacketQueue q1=new OutboundPacketQueue(),q2=new OutboundPacketQueue();
+  ServerPacketWriter s1=
+   new ServerPacketWriter(q1,new IsaacCipher(new int[]{9,10,11,12}));
+  ServerPacketWriter s2=
+   new ServerPacketWriter(q2,new IsaacCipher(new int[]{13,14,15,16}));
+  try{
+   TradeService.register(
+    w,p1,p1.generation(),p1.bank(),s1,()->{},
+    action->action.publish()
+   );
+   TradeService.register(
+    w,p2,p2.generation(),p2.bank(),s2,()->{},
+    action->{
+     action.publish();
+     throw new IOException("EXPECTED_SECOND_ROOT_FAILURE");
+    }
+   );
+
+   boolean failed=false;
+   try{
+    TradeService.start(w,p1,p2);
+   }catch(IOException expected){
+    failed="EXPECTED_SECOND_ROOT_FAILURE".equals(expected.getMessage());
+   }
+
+   if(!failed)
+    throw new AssertionError("second root publication failure not propagated");
+   if(q1.queuedPackets()!=7||q2.queuedPackets()!=7)
+    throw new AssertionError(
+     "partial Trade roots not closed packets="+
+     q1.queuedPackets()+"/"+q2.queuedPackets()
+    );
+   if(TradeService.active(p1)||TradeService.active(p2))
+    throw new AssertionError("failed partial Trade start became live");
+   if(TradeService.handleWidget(p1,3420)!=null||
+      TradeService.handleWidget(p2,3420)!=null)
+    throw new AssertionError("failed partial Trade start accepted hidden widgets");
+  }finally{
+   TradeService.unregister(p1);
+   TradeService.unregister(p2);
+   w.unregisterPlayer(p1);
+   w.unregisterPlayer(p2);
+   w.close();
+  }
+ }
+
  static byte[] drain(OutboundPacketQueue q)throws Exception{java.io.ByteArrayOutputStream o=new java.io.ByteArrayOutputStream();q.drainTo(o,1<<20);return o.toByteArray();}
  static int find(BankState b,int id){for(int i=0;i<b.inventoryCapacity();i++){BankState.Stack s=b.inventoryAt(i);if(s!=null&&s.itemId==id)return i;}return -1;}
  static void need(String s,String n){if(s==null||!s.contains(n))throw new AssertionError("expected "+n+" got "+s);}
