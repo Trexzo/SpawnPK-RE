@@ -1049,6 +1049,7 @@ final class LocalSession implements Runnable {
             MonsterSpawnerUiFactory factory,
             World world,
             WorldPlayer player,
+            long expectedGeneration,
             String canonicalUsername
         )throws Exception{
         if(factory==null)
@@ -1069,25 +1070,44 @@ final class LocalSession implements Runnable {
                 canonicalUsername
             );
 
-        LocalMonsterSpawnerUiHandler adapter=
-            factory.create(
-                checkedWorld,
-                checkedPlayer,
-                username
+        final LocalMonsterSpawnerUiHandler[]
+            resolved={null};
+
+        boolean delivered=
+            checkedWorld
+                .withOpenPlayerMutationOwnershipIfCurrent(
+                    checkedPlayer,
+                    expectedGeneration,
+                    ()->{
+                        LocalMonsterSpawnerUiHandler adapter=
+                            factory.create(
+                                checkedWorld,
+                                checkedPlayer,
+                                username
+                            );
+
+                        if(adapter!=null&&
+                           !adapter.isBoundToOwner(
+                                username
+                           ))
+                            throw new IllegalArgumentException(
+                                "Monster Spawner UI owner differs from canonical session account "+
+                                username
+                            );
+
+                        resolved[0]=adapter;
+                    }
+                );
+
+        if(!delivered)
+            throw new IllegalStateException(
+                "Monster Spawner post-login factory rejected by World/player ownership fence owner="+
+                username+
+                " expectedGeneration="+
+                expectedGeneration
             );
 
-        if(adapter==null)
-            return null;
-
-        if(!adapter.isBoundToOwner(
-                username
-            ))
-            throw new IllegalArgumentException(
-                "Monster Spawner UI owner differs from canonical session account "+
-                username
-            );
-
-        return adapter;
+        return resolved[0];
     }
 
     @Override public void run() {
@@ -1115,6 +1135,7 @@ final class LocalSession implements Runnable {
                     monsterSpawnerUiFactory,
                     world,
                     worldPlayer,
+                    worldPlayerGeneration,
                     username
                 );
 
