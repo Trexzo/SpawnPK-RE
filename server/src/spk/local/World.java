@@ -250,6 +250,33 @@ final class World implements AutoCloseable {
         );
     }
 
+    MonsterSpawnerPvmRuntime.FinalizeResult
+        retryMonsterSpawnerPvmFinalizationIfPending(
+            WorldNpc npc
+        )throws Exception{
+        WorldNpc checked=
+            Objects.requireNonNull(
+                npc,
+                "npc"
+            );
+
+        requireOpen();
+
+        final MonsterSpawnerPvmRuntime runtime;
+
+        synchronized(lifecycleLock){
+            requireOpen();
+            runtime=monsterSpawnerPvmRuntime;
+        }
+
+        if(runtime==null)
+            return null;
+
+        return runtime.retryFinalizationIfPending(
+            checked
+        );
+    }
+
     WorldPetNpcService petNpcs(){return petNpcs;}
     WorldNpcPresentationEvents npcPresentationEvents(){return npcPresentationEvents;}
     WorldGroundItemPresentationEvents groundItemPresentationEvents(){
