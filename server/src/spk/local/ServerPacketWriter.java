@@ -75,8 +75,25 @@ final class ServerPacketWriter {
 
                         first.pending.reset();
                         second.pending.reset();
-                        first.batchDepth=0;
-                        second.batchDepth=0;
+                        first.finishBatchCommitLocked();
+                        second.finishBatchCommitLocked();
+                        completed=true;
+                    }
+                );
+            }
+        }
+
+        void abort(){
+            synchronized(ATOMIC_PAIR_LOCK){
+                reservation.release();
+                lockWritersUnchecked(
+                    first,
+                    second,
+                    ()->{
+                        if(completed)
+                            return;
+                        first.abortBatchLocked();
+                        second.abortBatchLocked();
                         completed=true;
                     }
                 );
@@ -89,11 +106,18 @@ final class ServerPacketWriter {
         void run() throws IOException;
     }
 
+    @FunctionalInterface
+    private interface PairWriterUncheckedAction {
+        void run();
+    }
+
     private final OutputStream out;
     private final OutboundPacketQueue queue;
     private final IsaacCipher cipher;
     private final ByteArrayOutputStream pending = new ByteArrayOutputStream(4096);
     private int batchDepth;
+    private byte[] batchPendingSnapshot;
+    private IsaacCipher.Snapshot batchCipherSnapshot;
 
     ServerPacketWriter(OutputStream out, IsaacCipher cipher) {
         this.out=out;
@@ -185,7 +209,57 @@ final class ServerPacketWriter {
         autoFlush();
     }
 
-    synchronized void beginBatch(){batchDepth++;}
+    synchronized void beginBatch(){
+        beginBatchLocked();
+    }
+
+    synchronized void abortBatch(){
+        if(batchDepth<=0)
+            throw new IllegalStateException("no packet batch");
+        abortBatchLocked();
+    }
+
+    private void beginBatchLocked(){
+        if(batchDepth==0){
+            batchPendingSnapshot=
+                pending.toByteArray();
+            batchCipherSnapshot=
+                cipher.snapshot();
+        }
+        batchDepth++;
+    }
+
+    private void abortBatchLocked(){
+        if(batchDepth<=0)
+            return;
+
+        pending.reset();
+
+        if(batchPendingSnapshot!=null)
+            pending.write(
+                batchPendingSnapshot,
+                0,
+                batchPendingSnapshot.length
+            );
+
+        if(batchCipherSnapshot!=null)
+            cipher.restore(
+                batchCipherSnapshot
+            );
+
+        batchDepth=0;
+        clearBatchSnapshotLocked();
+    }
+
+    private void finishBatchCommitLocked(){
+        batchDepth=0;
+        clearBatchSnapshotLocked();
+    }
+
+    private void clearBatchSnapshotLocked(){
+        batchPendingSnapshot=null;
+        batchCipherSnapshot=null;
+    }
 
     static AtomicPairBatch beginAtomicQueuePair(
         ServerPacketWriter first,
@@ -232,8 +306,8 @@ final class ServerPacketWriter {
                                 "atomic pair requires idle writers"
                             );
 
-                        first.batchDepth=1;
-                        second.batchDepth=1;
+                        first.beginBatchLocked();
+                        second.beginBatchLocked();
                     }
                 );
             }
@@ -258,18 +332,33 @@ final class ServerPacketWriter {
     }
 
     synchronized void endBatch() throws IOException {
-        if(batchDepth<=0)throw new IllegalStateException("no packet batch");
-        batchDepth--;
-        if(batchDepth==0)flush();
+        if(batchDepth<=0)
+            throw new IllegalStateException("no packet batch");
+
+        if(batchDepth>1){
+            batchDepth--;
+            return;
+        }
+
+        flush();
+        finishBatchCommitLocked();
     }
 
     synchronized void flush() throws IOException {
         if(pending.size()>0){
             byte[] bytes=pending.toByteArray();
-            pending.reset();
-            if(queue!=null)queue.offer(bytes);else out.write(bytes);
+
+            if(queue!=null){
+                queue.offer(bytes);
+                pending.reset();
+            }else{
+                out.write(bytes);
+                pending.reset();
+            }
         }
-        if(out!=null)out.flush();
+
+        if(out!=null)
+            out.flush();
     }
 
     private void autoFlush() throws IOException { if(batchDepth==0)flush(); }
@@ -279,6 +368,28 @@ final class ServerPacketWriter {
         ServerPacketWriter second,
         PairWriterAction action
     )throws IOException{
+        ServerPacketWriter lockFirst=
+            System.identityHashCode(first)<
+                System.identityHashCode(second)
+                ?first
+                :second;
+        ServerPacketWriter lockSecond=
+            lockFirst==first
+                ?second
+                :first;
+
+        synchronized(lockFirst){
+            synchronized(lockSecond){
+                action.run();
+            }
+        }
+    }
+
+    private static void lockWritersUnchecked(
+        ServerPacketWriter first,
+        ServerPacketWriter second,
+        PairWriterUncheckedAction action
+    ){
         ServerPacketWriter lockFirst=
             System.identityHashCode(first)<
                 System.identityHashCode(second)
