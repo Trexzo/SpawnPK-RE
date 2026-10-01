@@ -4901,7 +4901,18 @@ tasks.register('chat1CumulativeWrapperContractRegression') {
     }
 }
 
+tasks.register('player81WorldStateCleanupRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves Player81 static World/writer state is released by World.close and cannot be resurrected after terminal close.'
+    dependsOn tasks.named('testClasses'), tasks.named('verifyJava11Bytecode')
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.Player81WorldStateCleanupTest'
+}
+
 tasks.named('check') {
+    dependsOn tasks.named('player81WorldStateCleanupRegression')
     dependsOn tasks.named('globalEventRegistrationCompositionRegression')
     dependsOn tasks.named('globalEventCompositionOwnershipRegression')
     dependsOn tasks.named('matchInstanceSessionCompositionAtomicityRegression')
