@@ -311,7 +311,14 @@ public final class Player81BatchAbortAtomicityTest {
                     "failed unbatched packet81 committed semantic sequence"
                 );
 
-            drain(queue);
+            ByteArrayOutputStream drained=
+                new ByteArrayOutputStream();
+            while(queue.drainTo(
+                    drained,
+                    Integer.MAX_VALUE
+                )>0){
+                // Drain the queue completely before the retry.
+            }
 
             writer.varShort(
                 81,
