@@ -126,6 +126,16 @@ final class LocalMonsterSpawnerUiHandler {
         );
     }
 
+    boolean isOwnedBy(
+        String expectedOwnerRef
+    ){
+        return ownerRef.equals(
+            PartyService.requireRef(
+                expectedOwnerRef
+            )
+        );
+    }
+
     Result handle(
         int widgetId,
         ServerPacketWriter packets
