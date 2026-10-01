@@ -929,8 +929,8 @@ final class BankState {
                 if (a.extra<=0) return "REJECTED_CONFIGURED_WITHDRAW_AMOUNT amount="+a.extra;
                 return withdrawAmount(a,a.extra,w,"WITHDRAW_CONFIGURED_OK");
             case 135:
-                pendingX=a;
                 w.fixed(27,new byte[0]);
+                pendingX=a;
                 return "WITHDRAW_X_PROMPT_SENT opcode=27 pendingSlot="+a.slot+" itemId="+a.itemId;
             default: return "UNSUPPORTED_BANK_WITHDRAW_OPCODE";
         }
@@ -946,8 +946,8 @@ final class BankState {
             case 43:  return depositAmount(a,10,w,"STORE_OK");
             case 129: return depositAmount(a,s.qty,w,"STORE_OK");
             case 135:
-                pendingX=a;
                 w.fixed(27,new byte[0]);
+                pendingX=a;
                 return "STORE_X_PROMPT_SENT opcode=27 pendingSlot="+a.slot+" itemId="+a.itemId;
             default: return "UNSUPPORTED_BANK_STORE_OPCODE";
         }
