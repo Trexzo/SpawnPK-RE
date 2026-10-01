@@ -407,6 +407,72 @@ final class BankState {
         w.varShort(53, BootstrapPackets.itemContainer53(COSMETIC_WIDGET,new int[]{item},new int[]{qty}));
     }
 
+    private void publishCosmeticInventoryPostimage(
+        ServerPacketWriter writer,
+        Stack[] inventoryPostimage,
+        int cosmeticItemId,
+        boolean includeBankMirror
+    )throws IOException{
+        byte[] normalInventoryPayload=
+            containerPayload(
+                NORMAL_INVENTORY_CONTAINER,
+                inventoryPostimage
+            );
+        byte[] cosmeticPayload=
+            BootstrapPackets.itemContainer53(
+                COSMETIC_WIDGET,
+                new int[]{cosmeticItemId},
+                new int[]{cosmeticItemId>=0?1:0}
+            );
+        byte[] bankPayload=
+            includeBankMirror
+                ?containerPayload(
+                    BANK_CONTAINER,
+                    bank
+                )
+                :null;
+        byte[] bankInventoryPayload=
+            includeBankMirror
+                ?containerPayload(
+                    BANK_INVENTORY_CONTAINER,
+                    inventoryPostimage
+                )
+                :null;
+
+        writer.beginBatch();
+        boolean ended=false;
+
+        try{
+            writer.varShort(
+                53,
+                normalInventoryPayload
+            );
+            writer.varShort(
+                53,
+                cosmeticPayload
+            );
+
+            if(includeBankMirror){
+                writer.varShort(
+                    53,
+                    bankPayload
+                );
+                writer.varShort(
+                    53,
+                    bankInventoryPayload
+                );
+            }
+
+            writer.endBatch();
+            ended=true;
+        }finally{
+            if(!ended)
+                try{
+                    writer.endBatch();
+                }catch(Throwable ignored){}
+        }
+    }
+
 
     /**
      * Protocol-independent exact-slot inventory snapshot for gameplay/domain
@@ -712,27 +778,107 @@ final class BankState {
     String equipCosmeticFromInventory(int slot,int itemId,CosmeticState cosmetic,ServerPacketWriter w)throws IOException{
         if(cosmetic==null)return "REJECTED_NO_COSMETIC_STATE";
         if(!ItemCatalog.isNativePlayerIcon(itemId))return "REJECTED_NOT_NATIVE_COSMETIC item="+itemId;
-        if(!validSlot(inventory,slot)||inventory[slot]==null||inventory[slot].itemId!=itemId||inventory[slot].qty<=0)return "REJECTED_INVENTORY_MISMATCH";
+        if(!validSlot(inventory,slot)||
+           inventory[slot]==null||
+           inventory[slot].itemId!=itemId||
+           inventory[slot].qty<=0)
+            return "REJECTED_INVENTORY_MISMATCH";
+
         int old=cosmetic.itemId();
-        // Consuming one from the selected slot always creates capacity for a previous non-stackable cosmetic.
-        Stack st=inventory[slot]; st.qty--; if(st.qty==0)inventory[slot]=null;
+        Stack[] nextInventory=
+            copyStacks(inventory);
+        Stack source=
+            nextInventory[slot];
+
+        source.qty--;
+        if(source.qty==0)
+            nextInventory[slot]=null;
+
         if(old>=0){
-            int dst=(inventory[slot]==null)?slot:(isStackable(old)?findItem(inventory,old):-1);
-            if(dst<0)dst=firstEmpty(inventory);
-            if(dst<0){ // rollback
-                if(inventory[slot]==null)inventory[slot]=new Stack(itemId,1); else inventory[slot].qty++;
+            int dst=
+                nextInventory[slot]==null
+                    ?slot
+                    :isStackable(old)
+                        ?findItem(nextInventory,old)
+                        :-1;
+
+            if(dst<0)
+                dst=firstEmpty(nextInventory);
+
+            if(dst<0)
                 return "REJECTED_INVENTORY_FULL_ROLLBACK";
-            }
-            if(inventory[dst]==null)inventory[dst]=new Stack(old,0); inventory[dst].qty++;
+
+            if(nextInventory[dst]==null)
+                nextInventory[dst]=
+                    new Stack(
+                        old,
+                        0
+                    );
+
+            if(nextInventory[dst].itemId!=old||
+               nextInventory[dst].qty==Integer.MAX_VALUE)
+                return "REJECTED_INVENTORY_FULL_ROLLBACK";
+
+            nextInventory[dst].qty++;
         }
-        cosmetic.set(itemId); sendNormalInventory(w); if(open)sendContainers(w);
+
+        publishCosmeticInventoryPostimage(
+            w,
+            nextInventory,
+            itemId,
+            open
+        );
+        replaceStacks(
+            inventory,
+            nextInventory
+        );
+        cosmetic.set(itemId);
+
         return "COSMETIC_EQUIP_OK item="+itemId+" old="+old+" slot="+slot+" channel=DEDICATED_BS ammoIndependent=true";
     }
 
     String unequipCosmeticToInventory(CosmeticState cosmetic,ServerPacketWriter w)throws IOException{
-        if(cosmetic==null||!cosmetic.active())return "COSMETIC_NONE_ACTIVE";
-        int old=cosmetic.itemId(); if(!canAddInventoryOne(old))return "REJECTED_INVENTORY_FULL";
-        int dst=addInventoryOne(old,w); if(dst<0)return "REJECTED_INVENTORY_FULL"; cosmetic.clear();
+        if(cosmetic==null||!cosmetic.active())
+            return "COSMETIC_NONE_ACTIVE";
+
+        int old=cosmetic.itemId();
+        Stack[] nextInventory=
+            copyStacks(inventory);
+        int dst=
+            isStackable(old)
+                ?findItem(nextInventory,old)
+                :-1;
+
+        if(dst<0)
+            dst=firstEmpty(nextInventory);
+        if(dst<0)
+            return "REJECTED_INVENTORY_FULL";
+
+        if(nextInventory[dst]==null)
+            nextInventory[dst]=
+                new Stack(
+                    old,
+                    0
+                );
+
+        if(nextInventory[dst].itemId!=old||
+           nextInventory[dst].qty==Integer.MAX_VALUE)
+            return "REJECTED_INVENTORY_FULL";
+
+        nextInventory[dst].qty++;
+
+        publishCosmeticInventoryPostimage(
+            w,
+            nextInventory,
+            -1,
+            open
+        );
+        replaceStacks(
+            inventory,
+            nextInventory
+        );
+        cosmetic.clear();
+
         return "COSMETIC_UNEQUIP_OK item="+old+" inventorySlot="+dst;
     }
 
