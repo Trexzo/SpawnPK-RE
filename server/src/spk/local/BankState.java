@@ -400,6 +400,90 @@ final class BankState {
         w.varShort(53, BootstrapPackets.equipmentContainer53(equipment.containerItems(),equipment.containerQuantities()));
     }
 
+    private void publishEquipmentInventoryPostimage(
+        ServerPacketWriter w,
+        Stack[] nextInventory,
+        int[] nextEquipmentItems,
+        int[] nextEquipmentQuantities,
+        boolean includeBankMirror
+    )throws IOException{
+        Objects.requireNonNull(w,"writer");
+        if(nextInventory==null||
+           nextInventory.length!=INVENTORY_CAPACITY)
+            throw new IllegalArgumentException(
+                "inventory postimage length"
+            );
+        if(nextEquipmentItems==null||
+           nextEquipmentItems.length!=EquipmentState.EQUIPMENT_SLOTS||
+           nextEquipmentQuantities==null||
+           nextEquipmentQuantities.length!=EquipmentState.EQUIPMENT_SLOTS)
+            throw new IllegalArgumentException(
+                "equipment postimage length"
+            );
+
+        byte[] normalInventory=
+            containerPayload(
+                NORMAL_INVENTORY_CONTAINER,
+                nextInventory
+            );
+        byte[] equipmentPayload=
+            BootstrapPackets.equipmentContainer53(
+                nextEquipmentItems,
+                nextEquipmentQuantities
+            );
+        byte[] bankPayload=
+            includeBankMirror
+                ?containerPayload(
+                    BANK_CONTAINER,
+                    bank
+                )
+                :null;
+        byte[] bankInventoryPayload=
+            includeBankMirror
+                ?containerPayload(
+                    BANK_INVENTORY_CONTAINER,
+                    nextInventory
+                )
+                :null;
+
+        w.beginBatch();
+        boolean ended=false;
+        try{
+            w.varShort(
+                53,
+                normalInventory
+            );
+            w.varShort(
+                53,
+                equipmentPayload
+            );
+            if(includeBankMirror){
+                w.varShort(
+                    53,
+                    bankPayload
+                );
+                w.varShort(
+                    53,
+                    bankInventoryPayload
+                );
+            }
+            w.endBatch();
+            ended=true;
+        }catch(IOException failure){
+            if(!ended)
+                try{w.endBatch();}catch(Throwable ignored){}
+            throw failure;
+        }catch(RuntimeException failure){
+            if(!ended)
+                try{w.endBatch();}catch(Throwable ignored){}
+            throw failure;
+        }catch(Error failure){
+            if(!ended)
+                try{w.endBatch();}catch(Throwable ignored){}
+            throw failure;
+        }
+    }
+
     /** Exact client equipment-tab bottom-center cosmetic slot (widget 27701). */
     void sendCosmetic(ServerPacketWriter w, CosmeticState cosmetic) throws IOException {
         int item=(cosmetic!=null&&cosmetic.active())?cosmetic.itemId():-1;
@@ -862,41 +946,77 @@ final class BankState {
         final boolean stackEquip = meta.slot==EquipmentSlot.AMMO && isStackable(itemId);
         if (!stackEquip && clicked.qty != 1) return "REJECTED_EQUIP_STACK_QTY qty="+clicked.qty;
 
-        // Stackable ammunition moves as one authoritative stack and merges with
-        // identical ammo already worn. This keeps inventory/bank/equipment packet-53
-        // quantities coherent instead of turning each arrow/bolt into a new slot.
+        Stack[] nextInventory=copyStacks(inventory);
+        int[] nextEquipmentItems=equipment.containerItems();
+        int[] nextEquipmentQuantities=equipment.containerQuantities();
+        int equipmentIndex=meta.slot.equipmentIndex;
+
         if(stackEquip){
             int amount=clicked.qty;
-            int previous=equipment.itemAt(meta.slot);
-            int previousQty=equipment.quantityAt(meta.slot);
+            int previous=nextEquipmentItems[equipmentIndex];
+            int previousQty=nextEquipmentQuantities[equipmentIndex];
+
             if(previous==itemId){
                 long merged=(long)previousQty+amount;
                 if(merged>Integer.MAX_VALUE) return "REJECTED_EQUIPMENT_QTY_OVERFLOW";
-                equipment.setStack(meta.slot,itemId,(int)merged);
-                inventory[slot]=null;
-                sendNormalInventory(w); sendEquipment(w,equipment); if(open)sendContainers(w);
+
+                nextEquipmentItems[equipmentIndex]=itemId;
+                nextEquipmentQuantities[equipmentIndex]=(int)merged;
+                nextInventory[slot]=null;
+
+                publishEquipmentInventoryPostimage(
+                    w,
+                    nextInventory,
+                    nextEquipmentItems,
+                    nextEquipmentQuantities,
+                    open
+                );
+                replaceStacks(inventory,nextInventory);
+                equipment.restoreAccountState(
+                    nextEquipmentItems,
+                    nextEquipmentQuantities
+                );
+
                 return "EQUIP_STACK_MERGE_OK item="+itemId+" slot="+meta.slot+" moved="+amount+" equippedQty="+merged+" inventorySlot="+slot+" evidence="+meta.evidence;
             }
-            // The clicked slot becomes free, so a displaced ammo stack always has
-            // a deterministic same-slot destination.
-            equipment.setStack(meta.slot,itemId,amount);
-            inventory[slot]=null;
-            if(previous>=0) inventory[slot]=new Stack(previous,Math.max(1,previousQty));
-            sendNormalInventory(w); sendEquipment(w,equipment); if(open)sendContainers(w);
+
+            nextEquipmentItems[equipmentIndex]=itemId;
+            nextEquipmentQuantities[equipmentIndex]=amount;
+            nextInventory[slot]=null;
+            if(previous>=0)
+                nextInventory[slot]=
+                    new Stack(
+                        previous,
+                        Math.max(1,previousQty)
+                    );
+
+            publishEquipmentInventoryPostimage(
+                w,
+                nextInventory,
+                nextEquipmentItems,
+                nextEquipmentQuantities,
+                open
+            );
+            replaceStacks(inventory,nextInventory);
+            equipment.restoreAccountState(
+                nextEquipmentItems,
+                nextEquipmentQuantities
+            );
+
             return "EQUIP_STACK_OK item="+itemId+" slot="+meta.slot+" moved="+amount+" equippedQty="+amount+" displaced="+(previous<0?"[]":"["+previous+" x"+previousQty+"]")+" inventorySlot="+slot+" evidence="+meta.evidence;
         }
 
         ArrayList<Integer> displaced = new ArrayList<>();
-        int previous = equipment.itemAt(meta.slot);
+        int previous = nextEquipmentItems[equipmentIndex];
         if (previous >= 0) displaced.add(previous);
 
         boolean clearShield = false;
         boolean clearWeapon = false;
         if (meta.slot == EquipmentSlot.WEAPON && meta.twoHanded) {
-            int shield = equipment.itemAt(EquipmentSlot.SHIELD);
+            int shield = nextEquipmentItems[EquipmentSlot.SHIELD.equipmentIndex];
             if (shield >= 0) { displaced.add(shield); clearShield = true; }
         } else if (meta.slot == EquipmentSlot.SHIELD) {
-            int weapon = equipment.itemAt(EquipmentSlot.WEAPON);
+            int weapon = nextEquipmentItems[EquipmentSlot.WEAPON.equipmentIndex];
             EquipmentMetadataRepository.Meta weaponMeta = EquipmentMetadataRepository.resolveKnownSlot(weapon, EquipmentSlot.WEAPON);
             if (weapon >= 0 && weaponMeta != null && weaponMeta.twoHanded) {
                 displaced.add(weapon); clearWeapon = true;
@@ -904,24 +1024,41 @@ final class BankState {
         }
 
         int emptyElsewhere = 0;
-        for (int i=0;i<inventory.length;i++) if (i != slot && inventory[i] == null) emptyElsewhere++;
+        for (int i=0;i<nextInventory.length;i++) if (i != slot && nextInventory[i] == null) emptyElsewhere++;
         if (displaced.size() > 1 + emptyElsewhere)
             return "REJECTED_INVENTORY_FULL_FOR_DISPLACED count="+displaced.size();
 
-        equipment.set(meta.slot, itemId);
-        if (clearShield) equipment.unequip(EquipmentSlot.SHIELD);
-        if (clearWeapon) equipment.unequip(EquipmentSlot.WEAPON);
-
-        inventory[slot] = null;
-        for (int i=0;i<displaced.size();i++) {
-            int dst = i == 0 ? slot : firstEmpty(inventory);
-            if (dst < 0) throw new IllegalStateException("preflight inventory-space mismatch");
-            inventory[dst] = new Stack(displaced.get(i),1);
+        nextEquipmentItems[equipmentIndex]=itemId;
+        nextEquipmentQuantities[equipmentIndex]=1;
+        if (clearShield) {
+            nextEquipmentItems[EquipmentSlot.SHIELD.equipmentIndex]=-1;
+            nextEquipmentQuantities[EquipmentSlot.SHIELD.equipmentIndex]=0;
+        }
+        if (clearWeapon) {
+            nextEquipmentItems[EquipmentSlot.WEAPON.equipmentIndex]=-1;
+            nextEquipmentQuantities[EquipmentSlot.WEAPON.equipmentIndex]=0;
         }
 
-        sendNormalInventory(w);
-        sendEquipment(w,equipment);
-        if (open) sendContainers(w);
+        nextInventory[slot] = null;
+        for (int i=0;i<displaced.size();i++) {
+            int dst = i == 0 ? slot : firstEmpty(nextInventory);
+            if (dst < 0) throw new IllegalStateException("preflight inventory-space mismatch");
+            nextInventory[dst] = new Stack(displaced.get(i),1);
+        }
+
+        publishEquipmentInventoryPostimage(
+            w,
+            nextInventory,
+            nextEquipmentItems,
+            nextEquipmentQuantities,
+            open
+        );
+        replaceStacks(inventory,nextInventory);
+        equipment.restoreAccountState(
+            nextEquipmentItems,
+            nextEquipmentQuantities
+        );
+
         return "EQUIP_OK item="+itemId+" slot="+meta.slot+" equipmentIndex="+meta.slot.equipmentIndex
              + " appearanceSlot="+meta.appearanceSlot+" twoHanded="+meta.twoHanded
              + " pose="+meta.pose.name+" poseSpecificMask=0x"+Integer.toHexString(meta.pose.weaponSpecificMask)
@@ -938,18 +1075,36 @@ final class BankState {
         int current = equipment.itemAt(slot);
         if (current < 0) return "REJECTED_EQUIPMENT_EMPTY slot="+slot;
         if (current != itemId) return "REJECTED_EQUIPMENT_ITEM_MISMATCH expected="+current;
+
         int amount=Math.max(1,equipment.quantityAt(slot));
-        int dst=(isStackable(itemId)?findItem(inventory,itemId):-1);
-        if(dst<0) dst=firstEmpty(inventory);
+        Stack[] nextInventory=copyStacks(inventory);
+        int dst=(isStackable(itemId)?findItem(nextInventory,itemId):-1);
+        if(dst<0) dst=firstEmpty(nextInventory);
         if (dst < 0) return "REJECTED_INVENTORY_FULL";
-        if(inventory[dst]==null) inventory[dst]=new Stack(itemId,0);
-        long merged=(long)inventory[dst].qty+amount;
+        if(nextInventory[dst]==null) nextInventory[dst]=new Stack(itemId,0);
+
+        long merged=(long)nextInventory[dst].qty+amount;
         if(merged>Integer.MAX_VALUE)return "REJECTED_INVENTORY_QTY_OVERFLOW";
-        equipment.unequip(slot);
-        inventory[dst].qty=(int)merged;
-        sendNormalInventory(w);
-        sendEquipment(w,equipment);
-        if (open) sendContainers(w);
+        nextInventory[dst].qty=(int)merged;
+
+        int[] nextEquipmentItems=equipment.containerItems();
+        int[] nextEquipmentQuantities=equipment.containerQuantities();
+        nextEquipmentItems[slot.equipmentIndex]=-1;
+        nextEquipmentQuantities[slot.equipmentIndex]=0;
+
+        publishEquipmentInventoryPostimage(
+            w,
+            nextInventory,
+            nextEquipmentItems,
+            nextEquipmentQuantities,
+            open
+        );
+        replaceStacks(inventory,nextInventory);
+        equipment.restoreAccountState(
+            nextEquipmentItems,
+            nextEquipmentQuantities
+        );
+
         return "UNEQUIP_OK item="+itemId+" slot="+slot+" equipmentIndex="+equipmentIndex+" amount="+amount+" inventorySlot="+dst;
     }
 
