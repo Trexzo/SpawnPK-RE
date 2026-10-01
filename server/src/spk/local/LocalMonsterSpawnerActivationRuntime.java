@@ -92,7 +92,7 @@ final class LocalMonsterSpawnerActivationRuntime
         World sessionWorld,
         WorldPlayer player,
         String canonicalUsername
-    ){
+    )throws Exception{
         World checkedWorld=
             Objects.requireNonNull(
                 sessionWorld,
@@ -127,13 +127,15 @@ final class LocalMonsterSpawnerActivationRuntime
             service.getSession(
                 owner
             );
+        boolean openedFresh=false;
 
-        if(session==null)
+        if(session==null){
             session=service.openSession(
                 owner,
                 sessionAuthority
             );
-        else if(!sessionAuthority.equals(
+            openedFresh=true;
+        }else if(!sessionAuthority.equals(
                     session.policyAuthority))
             throw new IllegalStateException(
                 "Monster Spawner retained session authority mismatch owner="+
@@ -142,12 +144,38 @@ final class LocalMonsterSpawnerActivationRuntime
                 " actual="+session.policyAuthority
             );
 
-        return new LocalMonsterSpawnerUiHandler(
-            service,
-            owner,
-            activationBudget,
-            selectedLabel
-        );
+        try{
+            return new LocalMonsterSpawnerUiHandler(
+                service,
+                owner,
+                activationBudget,
+                selectedLabel
+            );
+        }catch(Throwable failure){
+            if(openedFresh){
+                try{
+                    if(!service.retireSessionIfCurrentAndNoTrackedNpcs(
+                            owner,
+                            session
+                        ))
+                        failure.addSuppressed(
+                            new IllegalStateException(
+                                "fresh Monster Spawner session rollback refused owner="+
+                                owner
+                            )
+                        );
+                }catch(Throwable rollbackFailure){
+                    failure.addSuppressed(
+                        rollbackFailure
+                    );
+                }
+            }
+
+            rethrowCreateFailure(
+                failure
+            );
+            return null;
+        }
     }
 
     @Override public void onCommittedResult(
@@ -246,6 +274,20 @@ final class LocalMonsterSpawnerActivationRuntime
 
     MonsterSpawnerPvmRuntime runtime(){
         return runtime;
+    }
+
+    private static void rethrowCreateFailure(
+        Throwable failure
+    )throws Exception{
+        if(failure instanceof Exception)
+            throw (Exception)failure;
+
+        if(failure instanceof Error)
+            throw (Error)failure;
+
+        throw new RuntimeException(
+            failure
+        );
     }
 
     private static String requireServerAuthority(
