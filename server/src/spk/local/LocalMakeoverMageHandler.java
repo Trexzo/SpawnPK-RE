@@ -18,6 +18,18 @@ import spk.content.builtin.MakeoverMageDialogueContent;
  * active dialogue is invalidated when that source disappears or leaves range.
  */
 final class LocalMakeoverMageHandler {
+    @FunctionalInterface
+    interface DesignerRootAction {
+        void open() throws IOException;
+    }
+
+    @FunctionalInterface
+    interface DesignerRootOwner {
+        void publish(
+            DesignerRootAction action
+        ) throws IOException;
+    }
+
     static final int NPC_ID=599;
     static final long APPROACH_TIMEOUT_MS=10_000L;
 
@@ -45,6 +57,9 @@ final class LocalMakeoverMageHandler {
 
     private boolean designActive;
     private String pendingDialogueOutcome;
+    private DesignerRootOwner designerRootOwner=
+        action->action.open();
+    private boolean designerRootOwnerInstalled;
 
     private Integer pendingScene;
     private NpcEntity pendingNpc;
@@ -115,6 +130,24 @@ final class LocalMakeoverMageHandler {
             createDialogueSession(
                 effectiveDialogueDefinition()
             );
+    }
+
+    void installDesignerRootOwner(
+        DesignerRootOwner owner
+    ){
+        DesignerRootOwner checked=
+            java.util.Objects.requireNonNull(
+                owner,
+                "owner"
+            );
+
+        if(designerRootOwnerInstalled)
+            throw new IllegalStateException(
+                "Make-over designer root owner already installed"
+            );
+
+        designerRootOwner=checked;
+        designerRootOwnerInstalled=true;
     }
 
     boolean beginIfSupported(
@@ -506,15 +539,19 @@ final class LocalMakeoverMageHandler {
         if(MakeoverMageDialogueContent
                 .OUTCOME_OPEN_DESIGNER
                 .equals(outcome)){
-            StandardDialoguePresentationAdapter
-                .close(packets);
-            packets.fixed(
-                97,
-                BootstrapPackets.interface97(
-                    DESIGN_ROOT
-                )
+            designerRootOwner.publish(
+                ()->{
+                    StandardDialoguePresentationAdapter
+                        .close(packets);
+                    packets.fixed(
+                        97,
+                        BootstrapPackets.interface97(
+                            DESIGN_ROOT
+                        )
+                    );
+                    designActive=true;
+                }
             );
-            designActive=true;
 
             System.out.println(
                 tag+
