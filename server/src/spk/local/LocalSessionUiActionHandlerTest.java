@@ -534,6 +534,7 @@ public final class LocalSessionUiActionHandlerTest {
                     callbackFactory,
                     lateWorld,
                     latePlayer,
+                    lateGeneration,
                     "session-ui-owner"
                 );
 
@@ -567,6 +568,7 @@ public final class LocalSessionUiActionHandlerTest {
                             foreignWorldUi,
                         lateWorld,
                         latePlayer,
+                        lateGeneration,
                         "session-ui-owner"
                     );
                 }catch(IllegalArgumentException expected){
@@ -603,6 +605,36 @@ public final class LocalSessionUiActionHandlerTest {
             if(!detachedRejected)
                 throw new AssertionError(
                     "detached-registry Monster Spawner UI was accepted"
+                );
+
+            if(LocalSession.resolveMonsterSpawnerUiAfterLogin(
+                    (factoryWorld,factoryPlayer,canonicalUsername)->null,
+                    lateWorld,
+                    latePlayer,
+                    lateGeneration,
+                    "session-ui-owner"
+                )!=null)
+                throw new AssertionError(
+                    "null late Monster Spawner UI factory result changed behavior"
+                );
+
+            boolean ownerMismatchRejected=false;
+            try{
+                LocalSession.resolveMonsterSpawnerUiAfterLogin(
+                    (factoryWorld,factoryPlayer,canonicalUsername)->
+                        lateWorldUi,
+                    lateWorld,
+                    latePlayer,
+                    lateGeneration,
+                    "different-owner"
+                );
+            }catch(IllegalArgumentException expected){
+                ownerMismatchRejected=true;
+            }
+
+            if(!ownerMismatchRejected)
+                throw new AssertionError(
+                    "late Monster Spawner UI owner mismatch was accepted"
                 );
 
             LocalSession.forwardMonsterSpawnerUiResult(
@@ -792,32 +824,22 @@ public final class LocalSessionUiActionHandlerTest {
                     "absent late Monster Spawner UI factory changed behavior"
                 );
 
-            if(LocalSession.resolveMonsterSpawnerUiAfterLogin(
+            boolean terminalFactoryRejected=false;
+            try{
+                LocalSession.resolveMonsterSpawnerUiAfterLogin(
                     (factoryWorld,factoryPlayer,canonicalUsername)->null,
                     lateWorld,
                     latePlayer,
+                    replacementGeneration,
                     "session-ui-owner"
-                )!=null)
-                throw new AssertionError(
-                    "null late Monster Spawner UI factory result changed behavior"
                 );
-
-            boolean ownerMismatchRejected=false;
-            try{
-                LocalSession.resolveMonsterSpawnerUiAfterLogin(
-                    (factoryWorld,factoryPlayer,canonicalUsername)->
-                        monsterSpawnerUi,
-                    lateWorld,
-                    latePlayer,
-                    "different-owner"
-                );
-            }catch(IllegalArgumentException expected){
-                ownerMismatchRejected=true;
+            }catch(IllegalStateException expected){
+                terminalFactoryRejected=true;
             }
 
-            if(!ownerMismatchRejected)
+            if(!terminalFactoryRejected)
                 throw new AssertionError(
-                    "late Monster Spawner UI owner mismatch was accepted"
+                    "closed World admitted Monster Spawner post-login factory"
                 );
         }finally{
             lateWorld.close();
@@ -861,6 +883,7 @@ public final class LocalSessionUiActionHandlerTest {
             "sessionCloseHook=true "+
             "sessionCloseGenerationFence=true "+
             "monsterSpawnerWorldFence=true "+
+            "loginFactoryWorldCloseFence=true "+
             "factoryStillFunctional=true "+
             "policyNeutral=true"
         );
