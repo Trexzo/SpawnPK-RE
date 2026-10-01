@@ -1,6 +1,7 @@
 package spk.local;
 
 import java.io.IOException;
+import java.util.LinkedHashMap;
 import java.util.Objects;
 
 /**
@@ -177,11 +178,29 @@ final class LocalMonsterSpawnerUiHandler {
                 ownerRef
             );
 
+        MonsterSpawnerService.CatalogSnapshot catalog=
+            service.catalog();
+        String labelAuthority=
+            requireServerAuthority(
+                selectedLabel.authority(),
+                "selected label authority"
+            );
+        LinkedHashMap<Integer,String> rowLabels=
+            new LinkedHashMap<>();
+
+        for(MonsterSpawnerService.CatalogEntry entry:
+                catalog.entries)
+            rowLabels.put(
+                entry.rowIndex,
+                resolveSelectedLabel(
+                    entry,
+                    labelAuthority
+                )
+            );
+
         String retainedLabel=null;
 
         if(before.selectedRowIndex!=null){
-            MonsterSpawnerService.CatalogSnapshot catalog=
-                service.catalog();
             MonsterSpawnerService.CatalogEntry entry=
                 catalog.row(
                     before.selectedRowIndex
@@ -201,57 +220,33 @@ final class LocalMonsterSpawnerUiHandler {
                 );
 
             retainedLabel=
-                resolveSelectedLabel(
-                    entry
-                );
-
-            MonsterSpawnerService.SessionSnapshot after=
-                service.getSession(
-                    ownerRef
-                );
-            MonsterSpawnerService.CatalogSnapshot afterCatalog=
-                service.catalog();
-            MonsterSpawnerService.CatalogEntry afterEntry=
-                after==null||after.selectedRowIndex==null
-                    ?null
-                    :afterCatalog.row(
-                        after.selectedRowIndex
-                    );
-
-            if(after==null||
-               !Objects.equals(
-                    before.selectedRowIndex,
-                    after.selectedRowIndex
-               )||
-               !Objects.equals(
-                    before.selectedSemanticKey,
-                    after.selectedSemanticKey
-               )||
-               !Objects.equals(
-                    before.selectedDefinitionId,
-                    after.selectedDefinitionId
-               )||
-               afterEntry==null||
-               afterEntry.definitionId!=entry.definitionId||
-               !afterEntry.semanticKey.equals(
-                    entry.semanticKey
-               ))
-                throw new IllegalStateException(
-                    "retained Monster Spawner selection changed during reopen owner="+
-                    ownerRef
+                rowLabels.get(
+                    entry.rowIndex
                 );
         }
 
         final String presentationLabel=
             retainedLabel;
 
-        service.presentSessionIfCurrent(
+        service.presentSessionCatalogIfCurrent(
             ownerRef,
             before,
+            catalog,
             current->{
                 MonsterSpawnerPresentation.open(
                     checkedPackets
                 );
+
+                for(MonsterSpawnerService.CatalogEntry entry:
+                        catalog.entries)
+                    MonsterSpawnerPresentation
+                        .publishRowText(
+                            checkedPackets,
+                            entry.rowIndex,
+                            rowLabels.get(
+                                entry.rowIndex
+                            )
+                        );
 
                 if(presentationLabel!=null)
                     MonsterSpawnerPresentation
@@ -469,16 +464,47 @@ final class LocalMonsterSpawnerUiHandler {
     private String resolveSelectedLabel(
         MonsterSpawnerService.CatalogEntry entry
     ){
+        String authority=
+            requireServerAuthority(
+                selectedLabel.authority(),
+                "selected label authority"
+            );
+
+        return resolveSelectedLabel(
+            entry,
+            authority
+        );
+    }
+
+    private String resolveSelectedLabel(
+        MonsterSpawnerService.CatalogEntry entry,
+        String expectedAuthority
+    ){
         MonsterSpawnerService.CatalogEntry checkedEntry=
             Objects.requireNonNull(
                 entry,
                 "entry"
+            );
+        String expected=
+            requireServerAuthority(
+                expectedAuthority,
+                "expected selected label authority"
             );
         String beforeAuthority=
             requireServerAuthority(
                 selectedLabel.authority(),
                 "selected label authority"
             );
+
+        if(!expected.equals(
+                beforeAuthority))
+            throw new IllegalStateException(
+                "Monster Spawner selected label authority changed before resolution owner="+
+                ownerRef+
+                " expected="+expected+
+                " actual="+beforeAuthority
+            );
+
         String rawLabel=
             selectedLabel.label(
                 checkedEntry
@@ -489,13 +515,13 @@ final class LocalMonsterSpawnerUiHandler {
                 "selected label authority"
             );
 
-        if(!beforeAuthority.equals(
+        if(!expected.equals(
                 afterAuthority))
             throw new IllegalStateException(
                 "Monster Spawner selected label authority changed during resolution owner="+
                 ownerRef+
-                " before="+beforeAuthority+
-                " after="+afterAuthority
+                " expected="+expected+
+                " actual="+afterAuthority
             );
 
         return MonsterSpawnerPresentation
