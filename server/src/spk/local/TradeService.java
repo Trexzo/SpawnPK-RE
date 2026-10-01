@@ -334,7 +334,9 @@ final class TradeService {
                 s,
                 c,
                 reason,
-                notify&&tradeCurrent(c.trade)
+                notify&&
+                    !s.world.closed()&&
+                    tradeCurrent(c.trade)
             );
             s.contexts.remove(player.id());
             removed++;
