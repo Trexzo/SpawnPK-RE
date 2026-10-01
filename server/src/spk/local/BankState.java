@@ -72,6 +72,32 @@ final class BankState {
         }
     }
 
+    static final class PreparedInventoryMutation {
+        final Stack[] expectedInventory;
+        final Stack[] postimage;
+        final boolean expectedOpen;
+        final int result;
+        final String rejection;
+
+        PreparedInventoryMutation(
+            Stack[] expectedInventory,
+            Stack[] postimage,
+            boolean expectedOpen,
+            int result,
+            String rejection
+        ){
+            this.expectedInventory=expectedInventory;
+            this.postimage=postimage;
+            this.expectedOpen=expectedOpen;
+            this.result=result;
+            this.rejection=rejection;
+        }
+
+        boolean accepted(){
+            return rejection==null;
+        }
+    }
+
     static final class PreparedInventoryTransform {
         final int slot;
         final int expectedItemId;
@@ -732,6 +758,187 @@ final class BankState {
             nextInventory
         );
         return dst;
+    }
+
+    PreparedInventoryMutation prepareConsumeInventoryAll(
+        int slot,
+        int itemId
+    ){
+        Stack[] expected=
+            copyStacks(inventory);
+
+        if(!validSlot(expected,slot)||
+           expected[slot]==null)
+            return new PreparedInventoryMutation(
+                expected,
+                null,
+                open,
+                -1,
+                "REJECTED_INVENTORY_SLOT"
+            );
+
+        Stack st=expected[slot];
+
+        if(st.itemId!=itemId||
+           st.qty<=0)
+            return new PreparedInventoryMutation(
+                expected,
+                null,
+                open,
+                -1,
+                "REJECTED_INVENTORY_ITEM"
+            );
+
+        int qty=st.qty;
+        Stack[] next=
+            copyStacks(expected);
+        next[slot]=null;
+
+        return new PreparedInventoryMutation(
+            expected,
+            next,
+            open,
+            qty,
+            null
+        );
+    }
+
+    PreparedInventoryMutation prepareAddInventoryAmount(
+        int itemId,
+        int amount
+    ){
+        Stack[] expected=
+            copyStacks(inventory);
+
+        if(amount<=0)
+            return new PreparedInventoryMutation(
+                expected,
+                null,
+                open,
+                -1,
+                "REJECTED_AMOUNT"
+            );
+
+        Stack[] next=
+            copyStacks(expected);
+        int first=-1;
+
+        if(isStackable(itemId)){
+            int dst=findItem(
+                next,
+                itemId
+            );
+            if(dst<0)
+                dst=firstEmpty(next);
+
+            if(dst<0)
+                return new PreparedInventoryMutation(
+                    expected,
+                    null,
+                    open,
+                    -1,
+                    "REJECTED_INVENTORY_FULL"
+                );
+
+            if(next[dst]==null)
+                next[dst]=
+                    new Stack(
+                        itemId,
+                        0
+                    );
+
+            long merged=
+                (long)next[dst].qty+
+                amount;
+
+            if(merged>Integer.MAX_VALUE)
+                return new PreparedInventoryMutation(
+                    expected,
+                    null,
+                    open,
+                    -1,
+                    "REJECTED_INVENTORY_QTY_OVERFLOW"
+                );
+
+            next[dst].qty=
+                (int)merged;
+            first=dst;
+        }else{
+            int free=0;
+            for(Stack stack:next)
+                if(stack==null)
+                    free++;
+
+            if(free<amount)
+                return new PreparedInventoryMutation(
+                    expected,
+                    null,
+                    open,
+                    -1,
+                    "REJECTED_INVENTORY_FULL"
+                );
+
+            for(int n=0;n<amount;n++){
+                int dst=firstEmpty(next);
+                if(first<0)
+                    first=dst;
+                next[dst]=
+                    new Stack(
+                        itemId,
+                        1
+                    );
+            }
+        }
+
+        return new PreparedInventoryMutation(
+            expected,
+            next,
+            open,
+            first,
+            null
+        );
+    }
+
+    void publishPreparedInventoryMutation(
+        PreparedInventoryMutation prepared,
+        ServerPacketWriter w
+    )throws IOException{
+        if(prepared==null||
+           !prepared.accepted())
+            throw new IllegalArgumentException(
+                "accepted prepared inventory mutation required"
+            );
+
+        publishNormalInventoryStructuralPostimage(
+            w,
+            prepared.postimage,
+            prepared.expectedOpen
+        );
+    }
+
+    int commitPreparedInventoryMutation(
+        PreparedInventoryMutation prepared
+    ){
+        if(prepared==null||
+           !prepared.accepted())
+            throw new IllegalArgumentException(
+                "accepted prepared inventory mutation required"
+            );
+
+        if(open!=prepared.expectedOpen||
+           !sameStacks(
+                inventory,
+                prepared.expectedInventory
+           ))
+            throw new IllegalStateException(
+                "inventory preimage changed before prepared commit"
+            );
+
+        replaceStacks(
+            inventory,
+            prepared.postimage
+        );
+        return prepared.result;
     }
 
     /** Consume the entire concrete inventory stack. Used by ordinary ground Drop. */
@@ -2353,6 +2560,34 @@ final class BankState {
             return -1;
 
         return dst;
+    }
+
+    private static boolean sameStacks(
+        Stack[] left,
+        Stack[] right
+    ){
+        if(left==null||
+           right==null||
+           left.length!=right.length)
+            return false;
+
+        for(int i=0;i<left.length;i++){
+            Stack a=left[i];
+            Stack b=right[i];
+
+            if(a==null||b==null){
+                if(a!=b)
+                    return false;
+                continue;
+            }
+
+            if(a.itemId!=b.itemId||
+               a.qty!=b.qty||
+               a.tab!=b.tab)
+                return false;
+        }
+
+        return true;
     }
 
     private static int occupied(Stack[] xs){int n=0;for(Stack s:xs)if(s!=null)n++;return n;}
