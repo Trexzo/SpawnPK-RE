@@ -642,6 +642,15 @@ final class LocalSession implements Runnable {
                     );
                 }
 
+                @Override public boolean retireMakeoverDesignerRoot(){
+                    LocalMakeoverMageHandler makeover=
+                        LocalSession.this.routedNpcHandler
+                            .makeoverMage();
+
+                    return makeover!=null&&
+                        makeover.retireDesignerRoot();
+                }
+
                 @Override public void handleMonsterSpawnerResult(
                     LocalMonsterSpawnerUiHandler.Result result,
                     ServerPacketWriter writer,
