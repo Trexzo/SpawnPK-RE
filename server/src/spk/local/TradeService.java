@@ -768,13 +768,9 @@ final class TradeService {
                         endedB=true;
                     }finally{
                         if(!endedA)
-                            try{
-                                a.writer.endBatch();
-                            }catch(Throwable ignored){}
+                            try{a.writer.abortBatch();}catch(Throwable ignored){}
                         if(!endedB)
-                            try{
-                                b.writer.endBatch();
-                            }catch(Throwable ignored){}
+                            try{b.writer.abortBatch();}catch(Throwable ignored){}
                     }
                 }
 
@@ -935,13 +931,9 @@ final class TradeService {
             endedB=true;
         }finally{
             if(!endedA)
-                try{
-                    trade.a.writer.endBatch();
-                }catch(Throwable ignored){}
+                try{trade.a.writer.abortBatch();}catch(Throwable ignored){}
             if(!endedB)
-                try{
-                    trade.b.writer.endBatch();
-                }catch(Throwable ignored){}
+                try{trade.b.writer.abortBatch();}catch(Throwable ignored){}
         }
 
         return null;
