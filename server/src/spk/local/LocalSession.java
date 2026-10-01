@@ -1095,6 +1095,15 @@ final class LocalSession implements Runnable {
                                 username
                             );
 
+                        if(adapter!=null&&
+                           !adapter.isBoundTo(
+                                checkedWorld
+                           ))
+                            throw new IllegalArgumentException(
+                                "Monster Spawner UI service belongs to another World account="+
+                                username
+                            );
+
                         resolved[0]=adapter;
                     }
                 );
