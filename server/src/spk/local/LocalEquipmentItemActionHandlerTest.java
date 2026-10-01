@@ -85,9 +85,10 @@ public final class LocalEquipmentItemActionHandlerTest {
                 "unrelated option should remain outside equipment handler");
 
         testCosmeticPublicationAtomicity();
+        testOverridePublicationAtomicity();
 
         System.out.println(
-            "LOCAL_EQUIPMENT_ITEM_ACTION_HANDLER_PASS equip=true unequip=true persistenceSignals=true unrelatedRejected=true cosmeticPublicationAtomic=true cosmeticReplacementAtomic=true cosmeticUnequipAtomic=true cosmeticOpenBankMirrorAtomic=true");
+            "LOCAL_EQUIPMENT_ITEM_ACTION_HANDLER_PASS equip=true unequip=true persistenceSignals=true unrelatedRejected=true cosmeticPublicationAtomic=true cosmeticReplacementAtomic=true cosmeticUnequipAtomic=true cosmeticOpenBankMirrorAtomic=true cosmeticOverridePublicationAtomic=true cosmeticOverrideReplacementAtomic=true cosmeticOverrideOpenBankMirrorAtomic=true");
     }
 
     private static void testCosmeticPublicationAtomicity()
@@ -381,6 +382,326 @@ public final class LocalEquipmentItemActionHandlerTest {
             throw new AssertionError(
                 "open-bank cosmetic retry did not commit"
             );
+    }
+
+    private static void testOverridePublicationAtomicity()
+        throws Exception
+    {
+        final int firstOverride=21560;
+        final int secondOverride=22132;
+
+        if(!CosmeticOverrideService
+                .definitionAllowsOverride(
+                    firstOverride
+                )||
+           !CosmeticOverrideService
+                .definitionAllowsOverride(
+                    secondOverride
+                ))
+            throw new AssertionError(
+                "Override fixtures lost exact action authority"
+            );
+
+        WorldPlayer player=new WorldPlayer();
+        BankState bank=player.bank();
+        EquipmentState equipment=player.equipment();
+        PlayerState playerState=player.playerState();
+        LocalEquipmentItemActionHandler handler=
+            new LocalEquipmentItemActionHandler(
+                bank,
+                equipment,
+                playerState,
+                new PlayerPresentationService(
+                    new DevAuthorityWorkbench()
+                ),
+                player.combatStyles()
+            );
+        ServerPacketWriter good=
+            new ServerPacketWriter(
+                new ByteArrayOutputStream(),
+                new IsaacCipher(
+                    new int[]{45,46,47,48}
+                )
+            );
+
+        bank.spawnItem(
+            firstOverride,
+            1,
+            good
+        );
+        int firstSlot=
+            findSlot(
+                bank,
+                firstOverride
+            );
+        int firstBefore=
+            bank.inventoryCount(
+                firstOverride
+            );
+        int firstOpcode=
+            overrideOpcode(
+                firstOverride
+            );
+
+        ItemContainerAction firstAction=
+            new ItemContainerAction(
+                firstOpcode,
+                BankState.NORMAL_INVENTORY_CONTAINER,
+                firstSlot,
+                firstOverride,
+                0,
+                "OVERRIDE"
+            );
+
+        boolean firstFailed=false;
+        try{
+            handler.handle(
+                firstAction,
+                "override-atomic",
+                fullQueueWriter(
+                    new int[]{49,50,51,52}
+                )
+            );
+        }catch(java.io.IOException expected){
+            firstFailed=true;
+        }
+
+        if(!firstFailed||
+           playerState.cosmetic().active()||
+           bank.inventoryCount(firstOverride)!=
+                firstBefore)
+            throw new AssertionError(
+                "failed Override mutated canonical state"
+            );
+
+        LocalEquipmentItemActionHandler.Result firstRetry=
+            handler.handle(
+                firstAction,
+                "override-atomic",
+                good
+            );
+
+        if(firstRetry==null||
+           !"COSMETIC_OVERRIDE".equals(
+                firstRetry.saveReason
+           )||
+           playerState.cosmetic().itemId()!=
+                firstOverride||
+           bank.inventoryCount(firstOverride)!=
+                firstBefore-1)
+            throw new AssertionError(
+                "Override retry did not commit"
+            );
+
+        bank.spawnItem(
+            secondOverride,
+            1,
+            good
+        );
+        int secondSlot=
+            findSlot(
+                bank,
+                secondOverride
+            );
+        int secondBefore=
+            bank.inventoryCount(
+                secondOverride
+            );
+        int oldInventoryBefore=
+            bank.inventoryCount(
+                firstOverride
+            );
+        int secondOpcode=
+            overrideOpcode(
+                secondOverride
+            );
+
+        ItemContainerAction replace=
+            new ItemContainerAction(
+                secondOpcode,
+                BankState.NORMAL_INVENTORY_CONTAINER,
+                secondSlot,
+                secondOverride,
+                0,
+                "OVERRIDE"
+            );
+
+        boolean replaceFailed=false;
+        try{
+            handler.handle(
+                replace,
+                "override-atomic",
+                fullQueueWriter(
+                    new int[]{53,54,55,56}
+                )
+            );
+        }catch(java.io.IOException expected){
+            replaceFailed=true;
+        }
+
+        if(!replaceFailed||
+           playerState.cosmetic().itemId()!=
+                firstOverride||
+           bank.inventoryCount(secondOverride)!=
+                secondBefore||
+           bank.inventoryCount(firstOverride)!=
+                oldInventoryBefore)
+            throw new AssertionError(
+                "failed Override replacement mutated canonical state"
+            );
+
+        LocalEquipmentItemActionHandler.Result replaceRetry=
+            handler.handle(
+                replace,
+                "override-atomic",
+                good
+            );
+
+        if(replaceRetry==null||
+           !"COSMETIC_OVERRIDE".equals(
+                replaceRetry.saveReason
+           )||
+           playerState.cosmetic().itemId()!=
+                secondOverride||
+           bank.inventoryCount(secondOverride)!=
+                secondBefore-1||
+           bank.inventoryCount(firstOverride)!=
+                oldInventoryBefore+1||
+           bank.inventoryAt(secondSlot)==null||
+           bank.inventoryAt(secondSlot).itemId!=
+                firstOverride)
+            throw new AssertionError(
+                "Override replacement retry did not commit exact swap"
+            );
+
+        WorldPlayer mirroredPlayer=
+            new WorldPlayer();
+        BankState mirroredBank=
+            mirroredPlayer.bank();
+        LocalEquipmentItemActionHandler mirroredHandler=
+            new LocalEquipmentItemActionHandler(
+                mirroredBank,
+                mirroredPlayer.equipment(),
+                mirroredPlayer.playerState(),
+                new PlayerPresentationService(
+                    new DevAuthorityWorkbench()
+                ),
+                mirroredPlayer.combatStyles()
+            );
+        ServerPacketWriter mirroredGood=
+            new ServerPacketWriter(
+                new ByteArrayOutputStream(),
+                new IsaacCipher(
+                    new int[]{57,58,59,60}
+                )
+            );
+
+        mirroredBank.spawnItem(
+            firstOverride,
+            1,
+            mirroredGood
+        );
+        mirroredBank.open(
+            mirroredGood
+        );
+        int mirroredSlot=
+            findSlot(
+                mirroredBank,
+                firstOverride
+            );
+        int mirroredBefore=
+            mirroredBank.inventoryCount(
+                firstOverride
+            );
+
+        boolean mirroredFailed=false;
+        try{
+            mirroredHandler.handle(
+                new ItemContainerAction(
+                    firstOpcode,
+                    BankState.NORMAL_INVENTORY_CONTAINER,
+                    mirroredSlot,
+                    firstOverride,
+                    0,
+                    "OVERRIDE"
+                ),
+                "override-open-bank",
+                fullQueueWriter(
+                    new int[]{61,62,63,64}
+                )
+            );
+        }catch(java.io.IOException expected){
+            mirroredFailed=true;
+        }
+
+        if(!mirroredFailed||
+           mirroredPlayer.playerState()
+               .cosmetic().active()||
+           mirroredBank.inventoryCount(
+               firstOverride
+           )!=mirroredBefore)
+            throw new AssertionError(
+                "failed open-bank Override mutated canonical state"
+            );
+
+        mirroredHandler.handle(
+            new ItemContainerAction(
+                firstOpcode,
+                BankState.NORMAL_INVENTORY_CONTAINER,
+                mirroredSlot,
+                firstOverride,
+                0,
+                "OVERRIDE"
+            ),
+            "override-open-bank",
+            mirroredGood
+        );
+
+        if(mirroredPlayer.playerState()
+               .cosmetic().itemId()!=
+                    firstOverride||
+           mirroredBank.inventoryCount(
+               firstOverride
+           )!=mirroredBefore-1)
+            throw new AssertionError(
+                "open-bank Override retry did not commit"
+            );
+    }
+
+    private static int overrideOpcode(
+        int itemId
+    ){
+        int[] opcodes=
+            new int[]{
+                122,
+                41,
+                16,
+                75,
+                87
+            };
+
+        for(int opcode:
+                opcodes){
+            InventoryActionRouter.Resolution resolution=
+                InventoryActionRouter.resolve(
+                    new ItemContainerAction(
+                        opcode,
+                        BankState.NORMAL_INVENTORY_CONTAINER,
+                        0,
+                        itemId,
+                        0,
+                        "OVERRIDE_PROBE"
+                    )
+                );
+
+            if(resolution.is("Override"))
+                return opcode;
+        }
+
+        throw new AssertionError(
+            "Override opcode unresolved item="+
+            itemId
+        );
     }
 
     private static ServerPacketWriter fullQueueWriter(
