@@ -61,6 +61,10 @@ final class MiniPetService {
             prepared
         );
         state.configureMini(itemId);
+        npcs.relayCommittedMiniPetInteractionTarget(
+            prepared,
+            w
+        );
 
         return "MINIPET_CONFIGURED item="+itemId+
             " npc="+d.npcId+
