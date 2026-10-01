@@ -21,7 +21,6 @@ final class NativeItemLibraryService {
     String open(ServerPacketWriter w,int itemId)throws IOException{
         ItemAuthorityRepository.Entry e=ItemAuthorityRepository.get(itemId);
         if(e==null)return "ITEM_LIBRARY_REJECTED_UNKNOWN_ITEM id="+itemId;
-        open=true;selectedItem=itemId;
         w.beginBatch();
         try{
             w.fixed(97,BootstrapPackets.interface97(ROOT));
@@ -46,6 +45,8 @@ final class NativeItemLibraryService {
             control(w,"ITEM_GUIDE_REFRESH_PREVIEW");
             populateDescription(w,e);
         } finally { w.endBatch(); }
+        open=true;
+        selectedItem=itemId;
         return "ITEM_LIBRARY_OPEN root=47500 item="+itemId+" name="+clean(e.name)+" authority=EXACT_CURRENT_NATIVE_UI";
     }
 
