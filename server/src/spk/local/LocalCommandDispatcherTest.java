@@ -31,13 +31,30 @@ public final class LocalCommandDispatcherTest {
             new String[]{"regionload","12850"}))
             throw new AssertionError("unrelated command captured by panel route");
 
+        if(!LocalCommandDispatcher.isMonsterSpawnerRoute(
+                new String[]{"monsterspawner"})||
+           !LocalCommandDispatcher.isMonsterSpawnerRoute(
+                new String[]{"mspawn"}))
+            throw new AssertionError(
+                "Monster Spawner LocalLab command aliases not routed"
+            );
+
+        if(LocalCommandDispatcher.isMonsterSpawnerRoute(
+                new String[]{"monsterspawner","extra"})||
+           LocalCommandDispatcher.isMonsterSpawnerRoute(
+                new String[]{"devpanel"}))
+            throw new AssertionError(
+                "Monster Spawner route captured unrelated command"
+            );
+
         String untouched=LocalCommandDispatcher.clean("authority");
         if(!"authority".equals(untouched))
             throw new AssertionError("non-prefixed command changed");
 
         System.out.println(
             "LOCAL_COMMAND_DISPATCHER_PASS "+
-            "normalization=true aliases=true unrelatedRejected=true"
+            "normalization=true aliases=true unrelatedRejected=true "+
+            "monsterSpawnerAliases=true monsterSpawnerExactRoute=true"
         );
     }
 }
