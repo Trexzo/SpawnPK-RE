@@ -2,22 +2,6 @@ package spk.local;
 
 /** Persisted main-pet and configured mini-pet state. Mini selection survives main-pet pickup. */
 final class PetState {
-    static final class Snapshot {
-        final int itemId;
-        final int npcId;
-        final int miniItemId;
-
-        Snapshot(
-            int itemId,
-            int npcId,
-            int miniItemId
-        ){
-            this.itemId=itemId;
-            this.npcId=npcId;
-            this.miniItemId=miniItemId;
-        }
-    }
-
     private int itemId=-1;
     private int npcId=-1;
     private int miniItemId=-1;
