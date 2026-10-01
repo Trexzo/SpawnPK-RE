@@ -255,6 +255,7 @@ final class LocalSessionUiActionHandler {
         if(configured==null)
             return false;
 
+        itemLibrary.close();
         configured.open(
             Objects.requireNonNull(
                 serverPackets,
@@ -630,6 +631,7 @@ final class LocalSessionUiActionHandler {
             );
 
         monsterSpawnerUiOpen=false;
+        itemLibrary.close();
         return checked.publish();
     }
 
