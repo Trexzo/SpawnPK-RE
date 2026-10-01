@@ -7,7 +7,7 @@ public final class MonsterSpawnerServiceTest {
     private static final String POLICY=
         "LOCAL_LAB_POLICY_MONSTER_SPAWNER";
 
-    public static void main(String[] args){
+    public static void main(String[] args)throws Exception{
         WorldNpcRegistry registry=
             new WorldNpcRegistry();
         MonsterSpawnerService service=
@@ -325,6 +325,7 @@ public final class MonsterSpawnerServiceTest {
         selectedRowIdentityStable();
         sessionRetirement();
         exactSessionRetirement();
+        sessionPresentationOwnership();
         protocolBoundary();
 
         System.out.println(
@@ -350,6 +351,8 @@ public final class MonsterSpawnerServiceTest {
             "sameOwnerReopen=true "+
             "exactSessionRetirement=true "+
             "changedSessionRetirementRejected=true "+
+            "sessionPresentationAtomic=true "+
+            "stalePresentationRejected=true "+
             "ownerIdAbuse=false "+
             "sourceItemIdAbuse=false "+
             "rewardMutation=false "+
@@ -669,6 +672,117 @@ public final class MonsterSpawnerServiceTest {
                 staleOpening
             ),
             "exact retirement owner mismatch"
+        );
+    }
+
+    private static void sessionPresentationOwnership()
+        throws Exception{
+        MonsterSpawnerService service=
+            new MonsterSpawnerService(
+                new WorldNpcRegistry()
+            );
+
+        service.replaceCatalog(
+            Arrays.asList(
+                new MonsterSpawnerService.CatalogEntry(
+                    0,
+                    "npc:presentation-zero",
+                    410
+                ),
+                new MonsterSpawnerService.CatalogEntry(
+                    1,
+                    "npc:presentation-one",
+                    411
+                )
+            ),
+            "PRESENTATION_ATOMIC_CATALOG"
+        );
+        service.openSession(
+            "player:presentation",
+            POLICY
+        );
+
+        MonsterSpawnerService.SessionSnapshot expected=
+            service.selectRow(
+                "player:presentation",
+                0
+            );
+
+        final Thread[] mutator={null};
+        final Throwable[] mutationFailure={null};
+
+        service.presentSessionIfCurrent(
+            "player:presentation",
+            expected,
+            current->{
+                require(
+                    current.selectedRowIndex!=null&&
+                    current.selectedRowIndex.intValue()==0,
+                    "presentation action current snapshot"
+                );
+
+                mutator[0]=
+                    new Thread(
+                        ()->{
+                            try{
+                                service.selectRow(
+                                    "player:presentation",
+                                    1
+                                );
+                            }catch(Throwable failure){
+                                mutationFailure[0]=failure;
+                            }
+                        },
+                        "monster-spawner-presentation-mutator"
+                    );
+                mutator[0].start();
+
+                long deadline=
+                    System.nanoTime()+
+                    2_000_000_000L;
+
+                while(mutator[0].isAlive()&&
+                      mutator[0].getState()!=
+                        Thread.State.BLOCKED&&
+                      System.nanoTime()<deadline)
+                    Thread.yield();
+
+                require(
+                    mutator[0].getState()==
+                        Thread.State.BLOCKED,
+                    "session mutation crossed presentation ownership"
+                );
+            }
+        );
+
+        mutator[0].join(
+            2_000L
+        );
+
+        require(
+            !mutator[0].isAlive()&&
+            mutationFailure[0]==null&&
+            service.getSession(
+                "player:presentation"
+            ).selectedRowIndex.intValue()==1,
+            "presentation ownership did not release cleanly"
+        );
+
+        final int[] staleCalls={0};
+
+        expect(
+            IllegalStateException.class,
+            ()->service.presentSessionIfCurrent(
+                "player:presentation",
+                expected,
+                current->staleCalls[0]++
+            ),
+            "stale presentation snapshot"
+        );
+
+        require(
+            staleCalls[0]==0,
+            "stale presentation action executed"
         );
     }
 
