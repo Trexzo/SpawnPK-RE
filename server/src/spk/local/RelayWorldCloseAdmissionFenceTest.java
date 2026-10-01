@@ -42,8 +42,13 @@ public final class RelayWorldCloseAdmissionFenceTest {
 
         ServerPacketWriter sourceWriter=
             writer(11);
+        OutboundPacketQueue viewerQueue=
+            new OutboundPacketQueue();
         ServerPacketWriter viewerWriter=
-            writer(21);
+            writer(
+                viewerQueue,
+                21
+            );
 
         NpcRegistry sourceNpcs=
             new NpcRegistry(
@@ -102,6 +107,16 @@ public final class RelayWorldCloseAdmissionFenceTest {
                 world,
                 trackedGeneric
             );
+
+            SharedNpcWorldRelay.syncRemotePets(
+                viewerWriter
+            );
+
+            if(viewerQueue.queuedPackets()<=0||
+               viewerQueue.queuedBytes()<=0)
+                throw new AssertionError(
+                    "generic canonical NPC was not projected into viewer"
+                );
 
             if(mapSize(
                     SharedNpcWorldRelay.class,
@@ -246,6 +261,48 @@ public final class RelayWorldCloseAdmissionFenceTest {
                     "relay mask entered terminal World during close window"
                 );
 
+            int viewerPackets=
+                viewerQueue.queuedPackets();
+            int viewerBytes=
+                viewerQueue.queuedBytes();
+            int presentationSize=
+                world.npcPresentationEvents()
+                    .size();
+
+            SharedNpcWorldRelay.unregister(
+                viewerWriter
+            );
+
+            if(viewerQueue.queuedPackets()!=
+                    viewerPackets||
+               viewerQueue.queuedBytes()!=
+                    viewerBytes)
+                throw new AssertionError(
+                    "close-boundary relay unregister emitted packet I/O"
+                );
+
+            if(world.npcPresentationEvents()
+                    .size()!=presentationSize)
+                throw new AssertionError(
+                    "close-boundary relay unregister mutated presentation queue"
+                );
+
+            if(mapSize(
+                    SharedNpcWorldRelay.class,
+                    "BY_WRITER"
+                )!=relayWriterBaseline+1)
+                throw new AssertionError(
+                    "close-boundary relay unregister did not detach exact writer"
+                );
+
+            if(mapSize(
+                    SharedNpcWorldRelay.class,
+                    "BY_WORLD"
+                )<=relayWorldBaseline)
+                throw new AssertionError(
+                    "close-boundary relay unregister prematurely removed retained generic WorldState"
+                );
+
             releaseTarget.countDown();
 
             closeThread.join(5_000L);
@@ -347,6 +404,7 @@ public final class RelayWorldCloseAdmissionFenceTest {
                 "genericNpcWorldReleased=true "+
                 "postCloseRegisterRejected=true "+
                 "postCloseTrackRejected=true "+
+                "closeBoundaryUnregisterSilent=true "+
                 "postCloseUnregisterIdempotent=true "+
                 "relayBaselineRestored=true"
             );
@@ -416,6 +474,23 @@ public final class RelayWorldCloseAdmissionFenceTest {
     ){
         return new ServerPacketWriter(
             new ByteArrayOutputStream(),
+            new IsaacCipher(
+                new int[]{
+                    seed,
+                    seed+1,
+                    seed+2,
+                    seed+3
+                }
+            )
+        );
+    }
+
+    private static ServerPacketWriter writer(
+        OutboundPacketQueue queue,
+        int seed
+    ){
+        return new ServerPacketWriter(
+            queue,
             new IsaacCipher(
                 new int[]{
                     seed,
