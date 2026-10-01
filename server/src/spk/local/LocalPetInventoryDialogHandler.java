@@ -240,15 +240,21 @@ final class LocalPetInventoryDialogHandler {
                     ended=true;
                 }catch(IOException failure){
                     if(!ended)
-                        try{serverPackets.endBatch();}catch(Throwable ignored){}
+                        try{
+                    serverPackets.abortBatch();
+                }catch(Throwable ignored){}
                     throw failure;
                 }catch(RuntimeException failure){
                     if(!ended)
-                        try{serverPackets.endBatch();}catch(Throwable ignored){}
+                        try{
+                    serverPackets.abortBatch();
+                }catch(Throwable ignored){}
                     throw failure;
                 }catch(Error failure){
                     if(!ended)
-                        try{serverPackets.endBatch();}catch(Throwable ignored){}
+                        try{
+                    serverPackets.abortBatch();
+                }catch(Throwable ignored){}
                     throw failure;
                 }
 
@@ -295,15 +301,21 @@ final class LocalPetInventoryDialogHandler {
                     ended=true;
                 }catch(IOException failure){
                     if(!ended)
-                        try{serverPackets.endBatch();}catch(Throwable ignored){}
+                        try{
+                    serverPackets.abortBatch();
+                }catch(Throwable ignored){}
                     throw failure;
                 }catch(RuntimeException failure){
                     if(!ended)
-                        try{serverPackets.endBatch();}catch(Throwable ignored){}
+                        try{
+                    serverPackets.abortBatch();
+                }catch(Throwable ignored){}
                     throw failure;
                 }catch(Error failure){
                     if(!ended)
-                        try{serverPackets.endBatch();}catch(Throwable ignored){}
+                        try{
+                    serverPackets.abortBatch();
+                }catch(Throwable ignored){}
                     throw failure;
                 }
 
@@ -372,20 +384,20 @@ final class LocalPetInventoryDialogHandler {
                 }catch(IOException failure){
                     if(!ended)
                         try{
-                            serverPackets.endBatch();
-                        }catch(Throwable ignored){}
+                    serverPackets.abortBatch();
+                }catch(Throwable ignored){}
                     throw failure;
                 }catch(RuntimeException failure){
                     if(!ended)
                         try{
-                            serverPackets.endBatch();
-                        }catch(Throwable ignored){}
+                    serverPackets.abortBatch();
+                }catch(Throwable ignored){}
                     throw failure;
                 }catch(Error failure){
                     if(!ended)
                         try{
-                            serverPackets.endBatch();
-                        }catch(Throwable ignored){}
+                    serverPackets.abortBatch();
+                }catch(Throwable ignored){}
                     throw failure;
                 }
 
@@ -428,20 +440,20 @@ final class LocalPetInventoryDialogHandler {
                 }catch(IOException failure){
                     if(!ended)
                         try{
-                            serverPackets.endBatch();
-                        }catch(Throwable ignored){}
+                    serverPackets.abortBatch();
+                }catch(Throwable ignored){}
                     throw failure;
                 }catch(RuntimeException failure){
                     if(!ended)
                         try{
-                            serverPackets.endBatch();
-                        }catch(Throwable ignored){}
+                    serverPackets.abortBatch();
+                }catch(Throwable ignored){}
                     throw failure;
                 }catch(Error failure){
                     if(!ended)
                         try{
-                            serverPackets.endBatch();
-                        }catch(Throwable ignored){}
+                    serverPackets.abortBatch();
+                }catch(Throwable ignored){}
                     throw failure;
                 }
 
@@ -537,15 +549,21 @@ final class LocalPetInventoryDialogHandler {
                     ended=true;
                 }catch(IOException failure){
                     if(!ended)
-                        try{serverPackets.endBatch();}catch(Throwable ignored){}
+                        try{
+                    serverPackets.abortBatch();
+                }catch(Throwable ignored){}
                     throw failure;
                 }catch(RuntimeException failure){
                     if(!ended)
-                        try{serverPackets.endBatch();}catch(Throwable ignored){}
+                        try{
+                    serverPackets.abortBatch();
+                }catch(Throwable ignored){}
                     throw failure;
                 }catch(Error failure){
                     if(!ended)
-                        try{serverPackets.endBatch();}catch(Throwable ignored){}
+                        try{
+                    serverPackets.abortBatch();
+                }catch(Throwable ignored){}
                     throw failure;
                 }
 
@@ -674,15 +692,21 @@ final class LocalPetInventoryDialogHandler {
             ended=true;
         }catch(IOException failure){
             if(!ended)
-                try{writer.endBatch();}catch(Throwable ignored){}
+                try{
+                    writer.abortBatch();
+                }catch(Throwable ignored){}
             throw failure;
         }catch(RuntimeException failure){
             if(!ended)
-                try{writer.endBatch();}catch(Throwable ignored){}
+                try{
+                    writer.abortBatch();
+                }catch(Throwable ignored){}
             throw failure;
         }catch(Error failure){
             if(!ended)
-                try{writer.endBatch();}catch(Throwable ignored){}
+                try{
+                    writer.abortBatch();
+                }catch(Throwable ignored){}
             throw failure;
         }
 
@@ -735,15 +759,21 @@ final class LocalPetInventoryDialogHandler {
             ended=true;
         }catch(IOException failure){
             if(!ended)
-                try{writer.endBatch();}catch(Throwable ignored){}
+                try{
+                    writer.abortBatch();
+                }catch(Throwable ignored){}
             throw failure;
         }catch(RuntimeException failure){
             if(!ended)
-                try{writer.endBatch();}catch(Throwable ignored){}
+                try{
+                    writer.abortBatch();
+                }catch(Throwable ignored){}
             throw failure;
         }catch(Error failure){
             if(!ended)
-                try{writer.endBatch();}catch(Throwable ignored){}
+                try{
+                    writer.abortBatch();
+                }catch(Throwable ignored){}
             throw failure;
         }
 
@@ -819,15 +849,21 @@ final class LocalPetInventoryDialogHandler {
             ended=true;
         }catch(IOException failure){
             if(!ended)
-                try{writer.endBatch();}catch(Throwable ignored){}
+                try{
+                    writer.abortBatch();
+                }catch(Throwable ignored){}
             throw failure;
         }catch(RuntimeException failure){
             if(!ended)
-                try{writer.endBatch();}catch(Throwable ignored){}
+                try{
+                    writer.abortBatch();
+                }catch(Throwable ignored){}
             throw failure;
         }catch(Error failure){
             if(!ended)
-                try{writer.endBatch();}catch(Throwable ignored){}
+                try{
+                    writer.abortBatch();
+                }catch(Throwable ignored){}
             throw failure;
         }
 
