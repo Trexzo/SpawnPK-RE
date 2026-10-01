@@ -541,6 +541,12 @@ public final class LocalSessionUiActionHandlerTest {
         int[] commandDevPublishes={0};
 
         try{
+            bank.open(w);
+            if(!bank.isOpen())
+                throw new AssertionError(
+                    "bank did not open before Dev Panel root replacement"
+                );
+
             String commandDevResult=
                 LocalSession.openDevPanelForCurrentSession(
                     commandRootWorld,
@@ -560,9 +566,10 @@ public final class LocalSessionUiActionHandlerTest {
                     commandDevResult
                 )||
                commandDevPublishes[0]!=1||
-               !routedDevPanel.isOpen())
+               !routedDevPanel.isOpen()||
+               bank.isOpen())
                 throw new AssertionError(
-                    "Dev Panel command root was not published/preserved exactly once"
+                    "Dev Panel command root was not published/preserved or left BankState open"
                 );
 
             int closedByCommandWire=
@@ -1845,6 +1852,7 @@ public final class LocalSessionUiActionHandlerTest {
             "bankItemLibraryRootRevokes=true "+
             "bankEquipmentRootRevokes=true "+
             "bankDeathRootRevokes=true "+
+            "bankDevPanelRootRevokes=true "+
             "bankTargetRootPreserved=true "+
             "bankFailedRootPreserved=true "+
             "bankHiddenWidgetRejected=true"
