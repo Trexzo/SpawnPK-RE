@@ -293,8 +293,62 @@ public final class LocalSessionUiActionHandlerTest {
                 "configured routing unexpectedly emitted Home Teleport packets"
             );
 
-        // Late-install is one-time: same instance is idempotent, replacement is rejected.
-        routed.installMonsterSpawnerUiHandler(
+        // Prove an initially unconfigured routing owner becomes live after one late install.
+        spawner.deactivate(
+            "session-ui-owner"
+        );
+
+        LocalSessionUiActionHandler lateBound=
+            new LocalSessionUiActionHandler(
+                player,
+                new NativeItemLibraryService(),
+                new DevControlCenter(),
+                bank,
+                compCape,
+                petDialogs,
+                gameplay,
+                movement,
+                true,
+                equipment,
+                bridge
+            );
+
+        int lateTextBefore=wire.size();
+
+        lateBound.installMonsterSpawnerUiHandler(
+            monsterSpawnerUi
+        );
+
+        lateBound.handleWidget(
+            MonsterSpawnerPresentation.rowWidget(0),
+            w,
+            "[ui-test] "
+        );
+
+        if(wire.size()<=lateTextBefore)
+            throw new AssertionError(
+                "late-installed Monster Spawner route did not publish selected text"
+            );
+
+        lateBound.handleWidget(
+            MonsterSpawnerPresentation.TOGGLE_WIDGET,
+            w,
+            "[ui-test] "
+        );
+
+        MonsterSpawnerService.SessionSnapshot lateActivated=
+            spawner.getSession(
+                "session-ui-owner"
+            );
+
+        if(!lateActivated.active||
+           lateActivated.remainingSpawnBudget!=2)
+            throw new AssertionError(
+                "late-installed Monster Spawner toggle did not reach adapter"
+            );
+
+        // Same instance is idempotent; a distinct replacement is rejected.
+        lateBound.installMonsterSpawnerUiHandler(
             monsterSpawnerUi
         );
 
@@ -330,7 +384,7 @@ public final class LocalSessionUiActionHandlerTest {
 
         boolean replacementRejected=false;
         try{
-            routed.installMonsterSpawnerUiHandler(
+            lateBound.installMonsterSpawnerUiHandler(
                 replacementUi
             );
         }catch(IllegalStateException expected){
