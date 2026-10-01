@@ -85,8 +85,11 @@ public final class EngineR4TradeFlowTest{
 
    testSecondRootPublicationFailureAtomicity();
    testConfirmRootPublicationFailureClosesTrade();
+   testReplacementFailurePreservesOldTrades(true);
+   testReplacementFailurePreservesOldTrades(false);
+   testSuccessfulReplacementRetiresOnlyOldPeers();
 
-   System.out.println("V5140_ENGINE_R4_TRADE_FLOW_PASS roots=3323/3443 offerWidgets=3322/3415/3416 accepts=3420/3546 atomicExchange=true cancelReservationModel=true twoSessionRootOwners=true peerOnlyCompetingClose=true hiddenTradeRejected=true competingRootFailureAtomic=true lockOrderTradeBeforePlayer=true partialStartFailureClosed=true confirmPublicationFailClosed=true");
+   System.out.println("V5140_ENGINE_R4_TRADE_FLOW_PASS roots=3323/3443 offerWidgets=3322/3415/3416 accepts=3420/3546 atomicExchange=true cancelReservationModel=true twoSessionRootOwners=true peerOnlyCompetingClose=true hiddenTradeRejected=true competingRootFailureAtomic=true lockOrderTradeBeforePlayer=true partialStartFailureClosed=true confirmPublicationFailClosed=true replacementFirstFailurePreservesOld=true replacementSecondFailurePreservesOld=true replacementCommitPeerOnlyClose=true");
   }finally{TradeService.unregister(p1);TradeService.unregister(p2);w.unregisterPlayer(p1);w.unregisterPlayer(p2);w.close();}
  }
  static void testSecondRootPublicationFailureAtomicity()throws Exception{
@@ -188,6 +191,177 @@ public final class EngineR4TradeFlowTest{
    TradeService.unregister(p2);
    w.unregisterPlayer(p1);
    w.unregisterPlayer(p2);
+   w.close();
+  }
+ }
+
+ static void testReplacementFailurePreservesOldTrades(
+  boolean failFirst
+ )throws Exception{
+  World w=World.isolatedForTest(failFirst?603L:604L);
+  WorldPlayer a=new WorldPlayer(),b=new WorldPlayer(),
+   c=new WorldPlayer(),d=new WorldPlayer();
+  w.registerPlayer(a,"replace-a");
+  w.registerPlayer(b,"replace-b");
+  w.registerPlayer(c,"replace-c");
+  w.registerPlayer(d,"replace-d");
+
+  OutboundPacketQueue qa=new OutboundPacketQueue(),
+   qb=new OutboundPacketQueue(),
+   qc=new OutboundPacketQueue(),
+   qd=new OutboundPacketQueue();
+  ServerPacketWriter sa=new ServerPacketWriter(
+   qa,new IsaacCipher(new int[]{25,26,27,28})
+  );
+  ServerPacketWriter sb=new ServerPacketWriter(
+   qb,new IsaacCipher(new int[]{29,30,31,32})
+  );
+  ServerPacketWriter sc=new ServerPacketWriter(
+   qc,new IsaacCipher(new int[]{33,34,35,36})
+  );
+  ServerPacketWriter sd=new ServerPacketWriter(
+   qd,new IsaacCipher(new int[]{37,38,39,40})
+  );
+  boolean[] failA={false},failB={false};
+
+  try{
+   TradeService.register(
+    w,a,a.generation(),a.bank(),sa,()->{},
+    action->{
+     action.publish();
+     if(failA[0]){
+      failA[0]=false;
+      throw new IOException("EXPECTED_REPLACEMENT_A_FAILURE");
+     }
+    }
+   );
+   TradeService.register(
+    w,b,b.generation(),b.bank(),sb,()->{},
+    action->{
+     action.publish();
+     if(failB[0]){
+      failB[0]=false;
+      throw new IOException("EXPECTED_REPLACEMENT_B_FAILURE");
+     }
+    }
+   );
+   TradeService.register(w,c,c.generation(),c.bank(),sc,()->{});
+   TradeService.register(w,d,d.generation(),d.bank(),sd,()->{});
+
+   need(TradeService.start(w,a,c),"TRADE_UI_OPEN");
+   need(TradeService.start(w,b,d),"TRADE_UI_OPEN");
+   drain(qa);drain(qb);drain(qc);drain(qd);
+
+   if(failFirst)failA[0]=true;
+   else failB[0]=true;
+
+   boolean failed=false;
+   try{
+    TradeService.start(w,a,b);
+   }catch(IOException expected){
+    failed=(failFirst
+     ?"EXPECTED_REPLACEMENT_A_FAILURE"
+     :"EXPECTED_REPLACEMENT_B_FAILURE"
+    ).equals(expected.getMessage());
+   }
+   if(!failed)
+    throw new AssertionError(
+     "replacement failure not propagated first="+failFirst
+    );
+
+   if(!TradeService.active(a)||!TradeService.active(b)||
+      !TradeService.active(c)||!TradeService.active(d))
+    throw new AssertionError(
+     "failed replacement destroyed original trades first="+failFirst
+    );
+
+   need(
+    TradeService.handleWidget(c,TradeService.FIRST_DECLINE),
+    "TRADE_CANCELLED_DECLINE"
+   );
+   if(TradeService.active(a)||TradeService.active(c)||
+      !TradeService.active(b)||!TradeService.active(d))
+    throw new AssertionError(
+     "A-C pairing not authoritative after failed replacement first="+
+     failFirst
+    );
+
+   TradeService.cancelIfActive(b,"REPLACEMENT_FAILURE_TEST_CLEANUP");
+  }finally{
+   TradeService.unregister(a);TradeService.unregister(b);
+   TradeService.unregister(c);TradeService.unregister(d);
+   w.unregisterPlayer(a);w.unregisterPlayer(b);
+   w.unregisterPlayer(c);w.unregisterPlayer(d);
+   w.close();
+  }
+ }
+
+ static void testSuccessfulReplacementRetiresOnlyOldPeers()throws Exception{
+  World w=World.isolatedForTest(605L);
+  WorldPlayer a=new WorldPlayer(),b=new WorldPlayer(),
+   c=new WorldPlayer(),d=new WorldPlayer();
+  w.registerPlayer(a,"commit-a");
+  w.registerPlayer(b,"commit-b");
+  w.registerPlayer(c,"commit-c");
+  w.registerPlayer(d,"commit-d");
+
+  OutboundPacketQueue qa=new OutboundPacketQueue(),
+   qb=new OutboundPacketQueue(),
+   qc=new OutboundPacketQueue(),
+   qd=new OutboundPacketQueue();
+  ServerPacketWriter sa=new ServerPacketWriter(
+   qa,new IsaacCipher(new int[]{41,42,43,44})
+  );
+  ServerPacketWriter sb=new ServerPacketWriter(
+   qb,new IsaacCipher(new int[]{45,46,47,48})
+  );
+  ServerPacketWriter sc=new ServerPacketWriter(
+   qc,new IsaacCipher(new int[]{49,50,51,52})
+  );
+  ServerPacketWriter sd=new ServerPacketWriter(
+   qd,new IsaacCipher(new int[]{53,54,55,56})
+  );
+
+  try{
+   TradeService.register(w,a,a.generation(),a.bank(),sa,()->{});
+   TradeService.register(w,b,b.generation(),b.bank(),sb,()->{});
+   TradeService.register(w,c,c.generation(),c.bank(),sc,()->{});
+   TradeService.register(w,d,d.generation(),d.bank(),sd,()->{});
+
+   need(TradeService.start(w,a,c),"TRADE_UI_OPEN");
+   need(TradeService.start(w,b,d),"TRADE_UI_OPEN");
+   drain(qa);drain(qb);drain(qc);drain(qd);
+
+   need(TradeService.start(w,a,b),"TRADE_UI_OPEN");
+
+   if(!TradeService.active(a)||!TradeService.active(b)||
+      TradeService.active(c)||TradeService.active(d))
+    throw new AssertionError(
+     "successful replacement did not leave only A-B live"
+    );
+
+   if(qa.queuedPackets()!=6||qb.queuedPackets()!=6)
+    throw new AssertionError(
+     "replacement participants received unexpected close/output packets="+
+     qa.queuedPackets()+"/"+qb.queuedPackets()
+    );
+   if(qc.queuedPackets()!=1||qd.queuedPackets()!=1)
+    throw new AssertionError(
+     "displaced peers did not receive exactly one close packet="+
+     qc.queuedPackets()+"/"+qd.queuedPackets()
+    );
+
+   need(
+    TradeService.handleWidget(a,TradeService.FIRST_DECLINE),
+    "TRADE_CANCELLED_DECLINE"
+   );
+   if(TradeService.active(a)||TradeService.active(b))
+    throw new AssertionError("replacement A-B trade did not own both participants");
+  }finally{
+   TradeService.unregister(a);TradeService.unregister(b);
+   TradeService.unregister(c);TradeService.unregister(d);
+   w.unregisterPlayer(a);w.unregisterPlayer(b);
+   w.unregisterPlayer(c);w.unregisterPlayer(d);
    w.close();
   }
  }
