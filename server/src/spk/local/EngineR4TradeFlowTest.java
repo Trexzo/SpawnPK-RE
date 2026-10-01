@@ -85,8 +85,9 @@ public final class EngineR4TradeFlowTest{
 
    testSecondRootPublicationFailureAtomicity();
    testConfirmRootPublicationFailureClosesTrade();
+   testReplacementTradeStartFailureAtomicity();
 
-   System.out.println("V5140_ENGINE_R4_TRADE_FLOW_PASS roots=3323/3443 offerWidgets=3322/3415/3416 accepts=3420/3546 atomicExchange=true cancelReservationModel=true twoSessionRootOwners=true peerOnlyCompetingClose=true hiddenTradeRejected=true competingRootFailureAtomic=true lockOrderTradeBeforePlayer=true partialStartFailureClosed=true confirmPublicationFailClosed=true");
+   System.out.println("V5140_ENGINE_R4_TRADE_FLOW_PASS roots=3323/3443 offerWidgets=3322/3415/3416 accepts=3420/3546 atomicExchange=true cancelReservationModel=true twoSessionRootOwners=true peerOnlyCompetingClose=true hiddenTradeRejected=true competingRootFailureAtomic=true lockOrderTradeBeforePlayer=true partialStartFailureClosed=true confirmPublicationFailClosed=true replacementStartFailureAtomic=true priorPeerPreserved=true replacementPeerCloseExact=true");
   }finally{TradeService.unregister(p1);TradeService.unregister(p2);w.unregisterPlayer(p1);w.unregisterPlayer(p2);w.close();}
  }
  static void testSecondRootPublicationFailureAtomicity()throws Exception{
@@ -190,6 +191,141 @@ public final class EngineR4TradeFlowTest{
    w.unregisterPlayer(p2);
    w.close();
   }
+ }
+
+ static void testReplacementTradeStartFailureAtomicity()throws Exception{
+  World w=World.isolatedForTest(603L);
+  WorldPlayer a=new WorldPlayer(),b=new WorldPlayer(),c=new WorldPlayer(),d=new WorldPlayer();
+  w.registerPlayer(a,"replace-a");
+  w.registerPlayer(b,"replace-b");
+  w.registerPlayer(c,"replace-c");
+  w.registerPlayer(d,"replace-d");
+
+  OutboundPacketQueue qa=new OutboundPacketQueue(),qb=new OutboundPacketQueue(),qc=new OutboundPacketQueue(),qd=new OutboundPacketQueue();
+  ServerPacketWriter wa=new ServerPacketWriter(qa,new IsaacCipher(new int[]{25,26,27,28}));
+  ServerPacketWriter wb=new ServerPacketWriter(qb,new IsaacCipher(new int[]{29,30,31,32}));
+  ServerPacketWriter wc=new ServerPacketWriter(qc,new IsaacCipher(new int[]{33,34,35,36}));
+  ServerPacketWriter wd=new ServerPacketWriter(qd,new IsaacCipher(new int[]{37,38,39,40}));
+
+  int[] failA={0};
+  int[] failB={0};
+
+  try{
+   TradeService.register(
+    w,a,a.generation(),a.bank(),wa,()->{},
+    action->{
+     if(failA[0]==1)throw new IOException("EXPECTED_FIRST_REPLACEMENT_ROOT_FAILURE");
+     action.publish();
+     if(failA[0]==2)throw new IOException("EXPECTED_FIRST_REPLACEMENT_ROOT_FAILURE_AFTER");
+    }
+   );
+   TradeService.register(
+    w,b,b.generation(),b.bank(),wb,()->{},
+    action->{
+     if(failB[0]==1)throw new IOException("EXPECTED_SECOND_REPLACEMENT_ROOT_FAILURE");
+     action.publish();
+     if(failB[0]==2)throw new IOException("EXPECTED_SECOND_REPLACEMENT_ROOT_FAILURE_AFTER");
+    }
+   );
+   TradeService.register(w,c,c.generation(),c.bank(),wc,()->{});
+   TradeService.register(w,d,d.generation(),d.bank(),wd,()->{});
+
+   need(TradeService.start(w,a,c),"TRADE_UI_OPEN");
+   need(TradeService.start(w,b,d),"TRADE_UI_OPEN");
+   drain(qa);drain(qb);drain(qc);drain(qd);
+
+   failA[0]=1;
+   boolean firstFailed=false;
+   try{
+    TradeService.start(w,a,b);
+   }catch(IOException expected){
+    firstFailed="EXPECTED_FIRST_REPLACEMENT_ROOT_FAILURE".equals(expected.getMessage());
+   }
+   failA[0]=0;
+
+   if(!firstFailed||
+      !TradeService.active(a)||
+      !TradeService.active(b)||
+      !TradeService.active(c)||
+      !TradeService.active(d))
+    throw new AssertionError("first replacement-root failure destroyed prior trades");
+   if(drain(qa).length!=0||drain(qb).length!=0||
+      drain(qc).length!=0||drain(qd).length!=0)
+    throw new AssertionError("first replacement-root failure emitted unexpected output");
+
+   failB[0]=2;
+   boolean secondFailed=false;
+   try{
+    TradeService.start(w,a,b);
+   }catch(IOException expected){
+    secondFailed="EXPECTED_SECOND_REPLACEMENT_ROOT_FAILURE_AFTER".equals(expected.getMessage());
+   }
+   failB[0]=0;
+
+   byte[] restoredA=drain(qa);
+   byte[] restoredB=drain(qb);
+   byte[] untouchedC=drain(qc);
+   byte[] untouchedD=drain(qd);
+
+   if(!secondFailed||
+      !TradeService.active(a)||
+      !TradeService.active(b)||
+      !TradeService.active(c)||
+      !TradeService.active(d))
+    throw new AssertionError("second replacement-root failure destroyed prior trades");
+
+   if(!contains(restoredA,"Trading With: replace-c")||
+      !contains(restoredB,"Trading With: replace-d"))
+    throw new AssertionError("failed replacement did not restore prior Trade presentation");
+
+   if(untouchedC.length!=0||untouchedD.length!=0)
+    throw new AssertionError("failed replacement disturbed prior peers");
+
+   need(TradeService.start(w,a,b),"TRADE_UI_OPEN");
+
+   byte[] replacementA=drain(qa);
+   byte[] replacementB=drain(qb);
+
+   if(!contains(replacementA,"Trading With: replace-b")||
+      !contains(replacementB,"Trading With: replace-a"))
+    throw new AssertionError("successful replacement did not publish A-B Trade");
+
+   if(!TradeService.active(a)||
+      !TradeService.active(b)||
+      TradeService.active(c)||
+      TradeService.active(d))
+    throw new AssertionError("successful replacement did not retire prior peer trades");
+
+   if(qc.queuedPackets()!=1||qd.queuedPackets()!=1)
+    throw new AssertionError("successful replacement peer close count="+qc.queuedPackets()+"/"+qd.queuedPackets());
+
+   drain(qc);drain(qd);
+
+   need(TradeService.handleWidget(a,3420),"WAITING_OTHER");
+   need(TradeService.handleWidget(b,3420),"CONFIRM_OPEN");
+  }finally{
+   TradeService.unregister(a);
+   TradeService.unregister(b);
+   TradeService.unregister(c);
+   TradeService.unregister(d);
+   if(a.registered())w.unregisterPlayer(a);
+   if(b.registered())w.unregisterPlayer(b);
+   if(c.registered())w.unregisterPlayer(c);
+   if(d.registered())w.unregisterPlayer(d);
+   w.close();
+  }
+ }
+
+ static boolean contains(byte[] data,String value){
+  byte[] needle=
+   value.getBytes(java.nio.charset.StandardCharsets.ISO_8859_1);
+  outer:
+  for(int i=0;i+needle.length<=data.length;i++){
+   for(int j=0;j<needle.length;j++)
+    if(data[i+j]!=needle[j])continue outer;
+   return true;
+  }
+  return false;
  }
 
  static final class SwitchFailOutputStream extends OutputStream{
