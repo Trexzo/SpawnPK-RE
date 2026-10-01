@@ -1109,10 +1109,11 @@ final class LocalSession implements Runnable {
         );
 
         try{
-            regionStreams.completeRegionLoad(
+            worldTicks.completeRegionLoad(
                 completion,
                 sessionPackets,
-                tag
+                tag,
+                System.currentTimeMillis()
             );
         }catch(IOException e){
             throw new IllegalStateException(
