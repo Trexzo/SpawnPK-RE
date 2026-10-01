@@ -323,6 +323,7 @@ public final class MonsterSpawnerServiceTest {
         );
 
         selectedRowIdentityStable();
+        sessionRetirement();
         protocolBoundary();
 
         System.out.println(
@@ -343,6 +344,9 @@ public final class MonsterSpawnerServiceTest {
             "exactTrackedNpcDespawn=true "+
             "missingCanonicalDespawnRetainsTracking=true "+
             "foreignDespawnRejected=true "+
+            "idleSessionRetirement=true "+
+            "trackedSessionRetained=true "+
+            "sameOwnerReopen=true "+
             "ownerIdAbuse=false "+
             "sourceItemIdAbuse=false "+
             "rewardMutation=false "+
@@ -484,6 +488,113 @@ public final class MonsterSpawnerServiceTest {
             )&&
             spawn.session.selectedDefinitionId==100,
             "selected identity drifted after accepted catalog replacement"
+        );
+    }
+
+    private static void sessionRetirement(){
+        WorldNpcRegistry registry=
+            new WorldNpcRegistry();
+        MonsterSpawnerService service=
+            new MonsterSpawnerService(
+                registry
+            );
+
+        service.replaceCatalog(
+            Collections.singletonList(
+                new MonsterSpawnerService.CatalogEntry(
+                    0,
+                    "npc:retirement",
+                    310
+                )
+            ),
+            "RETIREMENT_CATALOG"
+        );
+
+        service.openSession(
+            "player:retire",
+            POLICY
+        );
+        service.selectRow(
+            "player:retire",
+            0
+        );
+        service.activate(
+            "player:retire",
+            2
+        );
+
+        require(
+            service.retireSessionIfNoTrackedNpcs(
+                "player:retire"
+            )&&
+            service.getSession(
+                "player:retire"
+            )==null&&
+            service.sessionCount()==0,
+            "idle active session retirement"
+        );
+
+        service.openSession(
+            "player:retire",
+            POLICY
+        );
+        service.selectRow(
+            "player:retire",
+            0
+        );
+        service.activate(
+            "player:retire",
+            1
+        );
+
+        MonsterSpawnerService.SpawnResult spawn=
+            service.spawnSelected(
+                "player:retire",
+                3200,
+                3200,
+                0
+            );
+
+        require(
+            !service.retireSessionIfNoTrackedNpcs(
+                "player:retire"
+            )&&
+            service.getSession(
+                "player:retire"
+            ).tracks(
+                spawn.npc.id
+            ),
+            "tracked session retired"
+        );
+
+        service.despawnTracked(
+            "player:retire",
+            spawn.npc.id
+        );
+
+        require(
+            service.retireSessionIfNoTrackedNpcs(
+                "player:retire"
+            )&&
+            service.getSession(
+                "player:retire"
+            )==null,
+            "retirement after tracked NPC release"
+        );
+
+        service.openSession(
+            "player:retire",
+            POLICY
+        );
+
+        require(
+            service.getSession(
+                "player:retire"
+            )!=null&&
+            !service.retireSessionIfNoTrackedNpcs(
+                "missing-owner"
+            ),
+            "same owner reopen / absent retirement"
         );
     }
 
