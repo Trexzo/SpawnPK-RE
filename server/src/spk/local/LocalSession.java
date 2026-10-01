@@ -946,28 +946,26 @@ final class LocalSession implements Runnable {
                 username
             );
 
-        if(checkedWorld.closed())
-            throw new IllegalStateException(
-                "Monster Spawner committed-result callback requires open World"
-            );
-
-        if(!checkedWorld.players().owns(
-                checkedPlayer,
-                checkedPlayer.generation()
-            ))
-            throw new IllegalStateException(
-                "Monster Spawner committed-result callback requires current session player ownership"
-            );
-
         try{
-            factory.onCommittedResult(
-                checkedWorld,
-                checkedPlayer,
-                username,
-                result,
-                writer,
-                tag
-            );
+            boolean delivered=
+                checkedWorld
+                    .withOpenPlayerMutationOwnershipIfCurrent(
+                        checkedPlayer,
+                        checkedPlayer.generation(),
+                        ()->factory.onCommittedResult(
+                            checkedWorld,
+                            checkedPlayer,
+                            username,
+                            checkedResult,
+                            writer,
+                            tag
+                        )
+                    );
+
+            if(!delivered)
+                throw new IllegalStateException(
+                    "Monster Spawner committed-result callback requires open World and current session player ownership"
+                );
         }catch(IOException failure){
             throw failure;
         }catch(RuntimeException failure){
@@ -979,7 +977,7 @@ final class LocalSession implements Runnable {
                 "Monster Spawner post-commit callback failed owner="+
                 username+
                 " status="+
-                result.status,
+                checkedResult.status,
                 failure
             );
         }
