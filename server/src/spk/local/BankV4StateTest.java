@@ -7,6 +7,16 @@ public final class BankV4StateTest {
     public static void main(String[] args) throws Exception {
         ServerPacketWriter w = new ServerPacketWriter(new ByteArrayOutputStream(), new IsaacCipher(new int[]{1,2,3,4}));
         BankState b = new BankState();
+
+        boolean closedOpenFailure=false;
+        try {
+            b.open(failingWriter());
+        } catch (IOException expected) {
+            closedOpenFailure=true;
+        }
+        if(!closedOpenFailure||b.isOpen())
+            throw new AssertionError("failed closed->open committed BankState open="+b.isOpen());
+
         b.open(w);
         if (b.inventoryCapacity()!=28 || b.bankCapacity()!=352) throw new AssertionError("capacity");
         if (!b.togglePlaceholders(w).startsWith("PLACEHOLDERS_ENABLED")) throw new AssertionError("placeholder toggle");
@@ -32,7 +42,18 @@ public final class BankV4StateTest {
         // X cycle on stackable coins: prompt -> amount -> prompt store -> amount.
         r=b.apply(new ItemContainerAction(135,5382,0,995,0,"WITHDRAW_X"),w);
         if(!r.startsWith("WITHDRAW_X_PROMPT_SENT"))throw new AssertionError(r);
-        r=b.applyAmount(123,w); if(!r.startsWith("WITHDRAW_X_OK amount=123"))throw new AssertionError(r);
+
+        boolean reopenFailure=false;
+        try {
+            b.open(failingWriter());
+        } catch (IOException expected) {
+            reopenFailure=true;
+        }
+        if(!reopenFailure||!b.isOpen())
+            throw new AssertionError("failed reopen changed BankState open="+b.isOpen());
+        r=b.applyAmount(123,w);
+        if(!r.startsWith("WITHDRAW_X_OK amount=123"))
+            throw new AssertionError("failed reopen cleared pending-X: "+r);
         int coinSlot=-1; for(int i=0;i<28;i++){BankState.Stack s=b.inventoryAt(i);if(s!=null&&s.itemId==995){coinSlot=i;break;}}
         if(coinSlot<0 || b.inventoryAt(coinSlot).qty!=123)throw new AssertionError("coin x withdraw");
         r=b.apply(new ItemContainerAction(135,5064,coinSlot,995,0,"STORE_X"),w);
@@ -45,6 +66,17 @@ public final class BankV4StateTest {
         if(!r.startsWith("DRAG_OK"))throw new AssertionError(r);
         if(b.inventoryCapacity()!=28)throw new AssertionError();
 
-        System.out.println("V4_BANK_STATE_PASS fixedInventory=28 fixedBank=352 nonStackableFood=20DistinctSlots noCompaction=true placeholders=true withdrawX=123 storeX=23 drag214=true");
+        System.out.println("V4_BANK_STATE_PASS fixedInventory=28 fixedBank=352 nonStackableFood=20DistinctSlots noCompaction=true placeholders=true withdrawX=123 storeX=23 drag214=true targetOpenFailureAtomic=true pendingXPreservedOnFailedReopen=true");
+    }
+
+    private static ServerPacketWriter failingWriter() {
+        return new ServerPacketWriter(
+            new OutputStream() {
+                @Override public void write(int value) throws IOException {
+                    throw new IOException("EXPECTED_BANK_OPEN_WRITE_FAILURE");
+                }
+            },
+            new IsaacCipher(new int[]{1,2,3,4})
+        );
     }
 }
