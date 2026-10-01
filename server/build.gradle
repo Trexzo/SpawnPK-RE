@@ -1944,6 +1944,7 @@ def currentTrainFocusedTests = [
     'spk.local.LocalServerShutdownPoolFailureIsolationTest',
     'spk.local.RemotePetSyncOwnershipLinearizationTest',
     'spk.local.Player81WriterLockOrderTest',
+    'spk.local.Player81BatchLifetimeLinearizationTest',
     'spk.local.Player81TransformOwnershipLinearizationTest',
     'spk.local.WorldPulsePlayerCallbackLockOrderTest',
     'spk.local.WorldCommandExecutionLockOrderTest',
