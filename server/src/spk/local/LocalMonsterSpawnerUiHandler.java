@@ -200,18 +200,10 @@ final class LocalMonsterSpawnerUiHandler {
                     ownerRef
                 );
 
-            requireServerAuthority(
-                selectedLabel.authority(),
-                "selected label authority"
-            );
-
             retainedLabel=
-                MonsterSpawnerPresentation
-                    .prepareSelectedNpcName(
-                        selectedLabel.label(
-                            entry
-                        )
-                    );
+                resolveSelectedLabel(
+                    entry
+                );
 
             MonsterSpawnerService.SessionSnapshot after=
                 service.getSession(
@@ -337,18 +329,10 @@ final class LocalMonsterSpawnerUiHandler {
                 rowIndex
             );
 
-        requireServerAuthority(
-            selectedLabel.authority(),
-            "selected label authority"
-        );
-
         String label=
-            MonsterSpawnerPresentation
-                .prepareSelectedNpcName(
-                    selectedLabel.label(
-                        entry
-                    )
-                );
+            resolveSelectedLabel(
+                entry
+            );
 
         MonsterSpawnerService.SessionSnapshot session=
             service.selectRowIfCurrent(
@@ -466,6 +450,44 @@ final class LocalMonsterSpawnerUiHandler {
             budget,
             after
         );
+    }
+
+    private String resolveSelectedLabel(
+        MonsterSpawnerService.CatalogEntry entry
+    ){
+        MonsterSpawnerService.CatalogEntry checkedEntry=
+            Objects.requireNonNull(
+                entry,
+                "entry"
+            );
+        String beforeAuthority=
+            requireServerAuthority(
+                selectedLabel.authority(),
+                "selected label authority"
+            );
+        String rawLabel=
+            selectedLabel.label(
+                checkedEntry
+            );
+        String afterAuthority=
+            requireServerAuthority(
+                selectedLabel.authority(),
+                "selected label authority"
+            );
+
+        if(!beforeAuthority.equals(
+                afterAuthority))
+            throw new IllegalStateException(
+                "Monster Spawner selected label authority changed during resolution owner="+
+                ownerRef+
+                " before="+beforeAuthority+
+                " after="+afterAuthority
+            );
+
+        return MonsterSpawnerPresentation
+            .prepareSelectedNpcName(
+                rawLabel
+            );
     }
 
     private static String requireServerAuthority(
