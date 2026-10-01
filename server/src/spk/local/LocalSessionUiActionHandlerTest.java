@@ -331,6 +331,59 @@ public final class LocalSessionUiActionHandlerTest {
                 "configured Monster Spawner UI open packet missing"
             );
 
+        int failedItemTargetWireBefore=
+            wire.size();
+        int failedItemTargetResultsBefore=
+            bridge.monsterSpawnerResults;
+        int failedItemTargetTransactionsBefore=
+            bridge.monsterSpawnerWidgetTransactions;
+        boolean failedItemTargetThrown=false;
+
+        try{
+            routed.replaceMonsterSpawnerWithItemLibraryRoot(
+                ()->{
+                    throw new java.io.IOException(
+                        "EXPECTED_ITEM_LIBRARY_TARGET_FAILURE"
+                    );
+                }
+            );
+        }catch(java.io.IOException expected){
+            failedItemTargetThrown=
+                "EXPECTED_ITEM_LIBRARY_TARGET_FAILURE"
+                    .equals(
+                        expected.getMessage()
+                    );
+        }
+
+        if(!failedItemTargetThrown||
+           wire.size()!=failedItemTargetWireBefore)
+            throw new AssertionError(
+                "failed Item Library target publication mutated visible Monster Spawner"
+            );
+
+        routed.handleWidget(
+            MonsterSpawnerPresentation.rowWidget(0),
+            w,
+            "[ui-test] "
+        );
+
+        MonsterSpawnerService.SessionSnapshot
+            afterFailedItemTarget=
+                spawner.getSession(
+                    "session-ui-owner"
+                );
+
+        if(afterFailedItemTarget.selectedRowIndex==null||
+           afterFailedItemTarget.selectedRowIndex.intValue()!=0||
+           wire.size()<=failedItemTargetWireBefore||
+           bridge.monsterSpawnerResults<=
+                failedItemTargetResultsBefore||
+           bridge.monsterSpawnerWidgetTransactions<=
+                failedItemTargetTransactionsBefore)
+            throw new AssertionError(
+                "failed Item Library target retired Monster Spawner ownership"
+            );
+
         bank.open(w);
         if(!bank.isOpen())
             throw new AssertionError(
@@ -605,7 +658,7 @@ public final class LocalSessionUiActionHandlerTest {
             );
 
         String initialItemLibraryRoot=
-            routed.replaceMonsterSpawnerRoot(
+            routed.replaceMonsterSpawnerWithItemLibraryRoot(
                 ()->routedItemLibrary.open(
                     w,
                     28860
@@ -675,7 +728,7 @@ public final class LocalSessionUiActionHandlerTest {
             );
 
         String reopenedItemLibraryRoot=
-            routed.replaceMonsterSpawnerRoot(
+            routed.replaceMonsterSpawnerWithItemLibraryRoot(
                 ()->routedItemLibrary.open(
                     w,
                     28860
@@ -700,6 +753,44 @@ public final class LocalSessionUiActionHandlerTest {
         if(wire.size()<=reopenedItemLibraryWidgetBefore)
             throw new AssertionError(
                 "reopened Item Library widget handling was not restored"
+            );
+
+        int failedFromItemLibraryWireBefore=
+            wire.size();
+        boolean failedFromItemLibraryThrown=false;
+
+        try{
+            routed.replaceMonsterSpawnerRoot(
+                ()->{
+                    throw new java.io.IOException(
+                        "EXPECTED_FROM_ITEM_LIBRARY_FAILURE"
+                    );
+                }
+            );
+        }catch(java.io.IOException expected){
+            failedFromItemLibraryThrown=
+                "EXPECTED_FROM_ITEM_LIBRARY_FAILURE"
+                    .equals(
+                        expected.getMessage()
+                    );
+        }
+
+        if(!failedFromItemLibraryThrown||
+           !routedItemLibrary.isOpen()||
+           wire.size()!=failedFromItemLibraryWireBefore)
+            throw new AssertionError(
+                "failed competing root retired visible Item Library ownership"
+            );
+
+        routed.handleWidget(
+            NativeItemLibraryService.BONUS_BUTTON,
+            w,
+            "[ui-test] "
+        );
+
+        if(wire.size()<=failedFromItemLibraryWireBefore)
+            throw new AssertionError(
+                "Item Library did not remain routable after failed replacement"
             );
 
         if(!routed.openMonsterSpawnerIfConfigured(
@@ -853,7 +944,7 @@ public final class LocalSessionUiActionHandlerTest {
         bridge.clearedKeys=false;
 
         String itemLibraryFromDevPanel=
-            routed.replaceMonsterSpawnerRoot(
+            routed.replaceMonsterSpawnerWithItemLibraryRoot(
                 ()->routedItemLibrary.open(
                     w,
                     28860
@@ -2054,6 +2145,9 @@ public final class LocalSessionUiActionHandlerTest {
             "itemLibraryEquipmentRootRevokes=true "+
             "itemLibraryDeathRootRevokes=true "+
             "itemLibraryReopenRestores=true "+
+            "monsterSpawnerFailedItemLibraryTargetPreserved=true "+
+            "itemLibraryFailedCompetingRootPreserved=true "+
+            "itemLibraryTargetRootPreserved=true "+
             "devPanelMonsterRootRevokes=true "+
             "devPanelItemLibraryRootRevokes=true "+
             "devPanelCommandRootPreserved=true "+
