@@ -130,6 +130,32 @@ final class ServerPacketWriter {
     private Player81WorldSync.PreparedBatch batchPlayer81;
     private boolean batchPlayer81Initialized;
     private boolean batchContainsPlayer81;
+    private boolean packet81OperationInFlight;
+
+    private synchronized void beginPacket81Operation()
+        throws IOException
+    {
+        if(packet81OperationInFlight)
+            throw new IOException(
+                "packet-81 operation already in flight"
+            );
+
+        packet81OperationInFlight=true;
+    }
+
+    private synchronized void endPacket81Operation(){
+        packet81OperationInFlight=false;
+    }
+
+    private void requireNoPacket81OperationLocked(
+        String action
+    ){
+        if(packet81OperationInFlight)
+            throw new IllegalStateException(
+                action+
+                " rejected while packet-81 operation is in flight"
+            );
+    }
 
     ServerPacketWriter(OutputStream out, IsaacCipher cipher) {
         this.out=out;
@@ -161,222 +187,226 @@ final class ServerPacketWriter {
                 :body;
 
         if(opcode==81){
-            boolean staged;
-            boolean initialized;
-            Player81WorldSync.PreparedBatch prepared;
-
-            synchronized(this){
-                staged=batchDepth>0;
-                initialized=batchPlayer81Initialized;
-                prepared=batchPlayer81;
-
-                if(staged)
-                    batchContainsPlayer81=true;
-            }
-
-            if(staged&&!initialized){
+            beginPacket81Operation();
+            try{    
+                boolean staged;
+                boolean initialized;
+                Player81WorldSync.PreparedBatch prepared;
+    
+                synchronized(this){
+                    staged=batchDepth>0;
+                    initialized=batchPlayer81Initialized;
+                    prepared=batchPlayer81;
+    
+                    if(staged)
+                        batchContainsPlayer81=true;
+                }
+    
+                if(staged&&!initialized){
+                    Player81WorldSync.PreparedBatchStart start=
+                        Player81WorldSync.beginPreparedBatchStatus(
+                            this
+                        );
+    
+                    if(start.status==
+                            Player81WorldSync
+                                .PreparedBatchStartStatus
+                                .STALE_REJECTED)
+                        throw new IOException(
+                            "packet-81 batch semantic preparation rejected stale owner"
+                        );
+    
+                    synchronized(this){
+                        if(batchDepth<=0){
+                            staged=false;
+                        }else{
+                            if(!batchPlayer81Initialized){
+                                batchPlayer81=
+                                    start.prepared;
+                                batchPlayer81Initialized=true;
+                            }
+    
+                            prepared=batchPlayer81;
+                            batchContainsPlayer81=true;
+                        }
+                    }
+                }
+    
+                if(staged){
+                    byte[] transformed=
+                        Player81WorldSync.transformPrepared(
+                            prepared,
+                            checkedBody
+                        );
+    
+                    if(transformed.length>65535)
+                        throw new IllegalArgumentException(
+                            "varShort payload too large: "+
+                            transformed.length
+                        );
+    
+                    synchronized(this){
+                        writeOpcode(opcode);
+                        pending.write(
+                            (transformed.length>>>8)&255
+                        );
+                        pending.write(
+                            transformed.length&255
+                        );
+                        pending.write(transformed);
+                        autoFlush();
+                    }
+    
+                    return;
+                }
+    
                 Player81WorldSync.PreparedBatchStart start=
                     Player81WorldSync.beginPreparedBatchStatus(
                         this
                     );
-
+    
                 if(start.status==
                         Player81WorldSync
                             .PreparedBatchStartStatus
                             .STALE_REJECTED)
                     throw new IOException(
-                        "packet-81 batch semantic preparation rejected stale owner"
+                        "packet-81 semantic preparation rejected stale owner"
                     );
-
-                synchronized(this){
-                    if(batchDepth<=0){
-                        staged=false;
-                    }else{
-                        if(!batchPlayer81Initialized){
-                            batchPlayer81=
-                                start.prepared;
-                            batchPlayer81Initialized=true;
-                        }
-
-                        prepared=batchPlayer81;
-                        batchContainsPlayer81=true;
+    
+                if(start.status==
+                        Player81WorldSync
+                            .PreparedBatchStartStatus
+                            .NO_CONTEXT){
+                    byte[] transformed=
+                        Player81WorldSync.transform(
+                            this,
+                            checkedBody
+                        );
+    
+                    if(transformed.length>65535)
+                        throw new IllegalArgumentException(
+                            "varShort payload too large: "+
+                            transformed.length
+                        );
+    
+                    synchronized(this){
+                        writeOpcode(opcode);
+                        pending.write(
+                            (transformed.length>>>8)&255
+                        );
+                        pending.write(
+                            transformed.length&255
+                        );
+                        pending.write(transformed);
+                        autoFlush();
                     }
+    
+                    SharedNpcWorldRelay
+                        .flushAfterPlayer81(this);
+                    return;
                 }
-            }
-
-            if(staged){
-                byte[] transformed=
+    
+                final Player81WorldSync.PreparedBatch unbatchedPrepared=
+                    start.prepared;
+                final byte[] transformed=
                     Player81WorldSync.transformPrepared(
-                        prepared,
+                        unbatchedPrepared,
                         checkedBody
                     );
-
+    
                 if(transformed.length>65535)
                     throw new IllegalArgumentException(
                         "varShort payload too large: "+
                         transformed.length
                     );
-
-                synchronized(this){
-                    writeOpcode(opcode);
-                    pending.write(
-                        (transformed.length>>>8)&255
-                    );
-                    pending.write(
-                        transformed.length&255
-                    );
-                    pending.write(transformed);
-                    autoFlush();
-                }
-
-                return;
-            }
-
-            Player81WorldSync.PreparedBatchStart start=
-                Player81WorldSync.beginPreparedBatchStatus(
-                    this
-                );
-
-            if(start.status==
+    
+                boolean committed=
                     Player81WorldSync
-                        .PreparedBatchStartStatus
-                        .STALE_REJECTED)
-                throw new IOException(
-                    "packet-81 semantic preparation rejected stale owner"
-                );
-
-            if(start.status==
-                    Player81WorldSync
-                        .PreparedBatchStartStatus
-                        .NO_CONTEXT){
-                byte[] transformed=
-                    Player81WorldSync.transform(
-                        this,
-                        checkedBody
+                        .withPreparedBatchOwnership(
+                            unbatchedPrepared,
+                            ()->{
+                                synchronized(ServerPacketWriter.this){
+                                    if(batchDepth!=0||
+                                       pending.size()!=0)
+                                        throw new IllegalStateException(
+                                            "unbatched packet-81 requires idle writer"
+                                        );
+    
+                                    if(queue==null)
+                                        throw new IOException(
+                                            "transactional unbatched packet-81 requires queue-backed writer"
+                                        );
+    
+                                    IsaacCipher.Snapshot checkpoint=
+                                        cipher.snapshot();
+    
+                                    writeOpcode(opcode);
+                                    pending.write(
+                                        (transformed.length>>>8)&255
+                                    );
+                                    pending.write(
+                                        transformed.length&255
+                                    );
+                                    pending.write(transformed);
+    
+                                    byte[] bytes=
+                                        pending.toByteArray();
+                                    OutboundPacketQueue.BatchReservation reservation;
+    
+                                    try{
+                                        reservation=
+                                            OutboundPacketQueue.reserveBatch(
+                                                queue,
+                                                bytes.length
+                                            );
+                                    }catch(IOException failure){
+                                        pending.reset();
+                                        cipher.restore(
+                                            checkpoint
+                                        );
+                                        throw failure;
+                                    }
+    
+                                    try{
+                                        Player81WorldSync
+                                            .commitPreparedBatchOwned(
+                                                unbatchedPrepared
+                                            );
+                                        reservation.commit(
+                                            bytes
+                                        );
+                                        pending.reset();
+                                    }catch(RuntimeException failure){
+                                        reservation.release();
+                                        pending.reset();
+                                        cipher.restore(
+                                            checkpoint
+                                        );
+                                        throw failure;
+                                    }catch(Error failure){
+                                        reservation.release();
+                                        pending.reset();
+                                        cipher.restore(
+                                            checkpoint
+                                        );
+                                        throw failure;
+                                    }
+                                }
+                            }
+                        );
+    
+                if(!committed)
+                    throw new IOException(
+                        "packet-81 owner stale before unbatched joint commit"
                     );
-
-                if(transformed.length>65535)
-                    throw new IllegalArgumentException(
-                        "varShort payload too large: "+
-                        transformed.length
-                    );
-
-                synchronized(this){
-                    writeOpcode(opcode);
-                    pending.write(
-                        (transformed.length>>>8)&255
-                    );
-                    pending.write(
-                        transformed.length&255
-                    );
-                    pending.write(transformed);
-                    autoFlush();
-                }
-
+    
                 SharedNpcWorldRelay
                     .flushAfterPlayer81(this);
                 return;
+            }finally{
+                endPacket81Operation();
             }
-
-            final Player81WorldSync.PreparedBatch unbatchedPrepared=
-                start.prepared;
-            final byte[] transformed=
-                Player81WorldSync.transformPrepared(
-                    unbatchedPrepared,
-                    checkedBody
-                );
-
-            if(transformed.length>65535)
-                throw new IllegalArgumentException(
-                    "varShort payload too large: "+
-                    transformed.length
-                );
-
-            boolean committed=
-                Player81WorldSync
-                    .withPreparedBatchOwnership(
-                        unbatchedPrepared,
-                        ()->{
-                            synchronized(ServerPacketWriter.this){
-                                if(batchDepth!=0||
-                                   pending.size()!=0)
-                                    throw new IllegalStateException(
-                                        "unbatched packet-81 requires idle writer"
-                                    );
-
-                                if(queue==null)
-                                    throw new IOException(
-                                        "transactional unbatched packet-81 requires queue-backed writer"
-                                    );
-
-                                IsaacCipher.Snapshot checkpoint=
-                                    cipher.snapshot();
-
-                                writeOpcode(opcode);
-                                pending.write(
-                                    (transformed.length>>>8)&255
-                                );
-                                pending.write(
-                                    transformed.length&255
-                                );
-                                pending.write(transformed);
-
-                                byte[] bytes=
-                                    pending.toByteArray();
-                                OutboundPacketQueue.BatchReservation reservation;
-
-                                try{
-                                    reservation=
-                                        OutboundPacketQueue.reserveBatch(
-                                            queue,
-                                            bytes.length
-                                        );
-                                }catch(IOException failure){
-                                    pending.reset();
-                                    cipher.restore(
-                                        checkpoint
-                                    );
-                                    throw failure;
-                                }
-
-                                try{
-                                    Player81WorldSync
-                                        .commitPreparedBatchOwned(
-                                            unbatchedPrepared
-                                        );
-                                    reservation.commit(
-                                        bytes
-                                    );
-                                    pending.reset();
-                                }catch(RuntimeException failure){
-                                    reservation.release();
-                                    pending.reset();
-                                    cipher.restore(
-                                        checkpoint
-                                    );
-                                    throw failure;
-                                }catch(Error failure){
-                                    reservation.release();
-                                    pending.reset();
-                                    cipher.restore(
-                                        checkpoint
-                                    );
-                                    throw failure;
-                                }
-                            }
-                        }
-                    );
-
-            if(!committed)
-                throw new IOException(
-                    "packet-81 owner stale before unbatched joint commit"
-                );
-
-            SharedNpcWorldRelay
-                .flushAfterPlayer81(this);
-            return;
         }
-
         if(checkedBody.length>65535)
             throw new IllegalArgumentException(
                 "varShort payload too large: "+
@@ -410,6 +440,9 @@ final class ServerPacketWriter {
     }
 
     private void beginBatchLocked(){
+        requireNoPacket81OperationLocked(
+            "begin packet batch"
+        );
         if(batchDepth==0){
             if(pending.size()!=0)
                 throw new IllegalStateException(
@@ -431,6 +464,10 @@ final class ServerPacketWriter {
     }
 
     private void abortBatchLocked(){
+        requireNoPacket81OperationLocked(
+            "abort packet batch"
+        );
+
         if(batchDepth<=0)
             throw new IllegalStateException(
                 "no packet batch"
@@ -530,6 +567,10 @@ final class ServerPacketWriter {
         boolean flushPlayer81Relay;
 
         synchronized(this){
+            requireNoPacket81OperationLocked(
+                "end packet batch"
+            );
+
             if(batchDepth<=0)
                 throw new IllegalStateException(
                     "no packet batch"
