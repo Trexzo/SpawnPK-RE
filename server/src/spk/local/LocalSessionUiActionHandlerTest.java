@@ -601,6 +601,58 @@ public final class LocalSessionUiActionHandlerTest {
                 throw new AssertionError(
                     "absent Monster Spawner result callback changed behavior"
                 );
+
+            LocalSession.MonsterSpawnerUiFactory failingFactory=
+                new LocalSession.MonsterSpawnerUiFactory(){
+                    @Override public LocalMonsterSpawnerUiHandler create(
+                        World factoryWorld,
+                        WorldPlayer factoryPlayer,
+                        String canonicalUsername
+                    ){
+                        return monsterSpawnerUi;
+                    }
+
+                    @Override public void onCommittedUiResult(
+                        LocalMonsterSpawnerUiHandler.Result result,
+                        World callbackWorld,
+                        WorldPlayer callbackPlayer,
+                        String canonicalUsername,
+                        ServerPacketWriter packets,
+                        String tag
+                    )throws Exception{
+                        throw new Exception(
+                            "EXPECTED_MONSTER_SPAWNER_CALLBACK_FAILURE"
+                        );
+                    }
+                };
+
+            boolean callbackFailureWrapped=false;
+
+            try{
+                LocalSession.dispatchMonsterSpawnerUiResult(
+                    failingFactory,
+                    bridge.lastMonsterSpawnerResult,
+                    lateWorld,
+                    latePlayer,
+                    "session-ui-owner",
+                    w,
+                    "[ui-test] "
+                );
+            }catch(IllegalStateException expected){
+                callbackFailureWrapped=
+                    expected.getCause()!=null&&
+                    "EXPECTED_MONSTER_SPAWNER_CALLBACK_FAILURE".equals(
+                        expected.getCause().getMessage()
+                    );
+            }
+
+            if(!callbackFailureWrapped||
+               !spawner.getSession(
+                    "session-ui-owner"
+                ).active)
+                throw new AssertionError(
+                    "post-commit callback checked failure semantics"
+                );
         }finally{
             if(latePlayer.registered())
                 lateWorld.unregisterPlayer(
@@ -642,6 +694,8 @@ public final class LocalSessionUiActionHandlerTest {
             "rowActivateDeactivate=true "+
             "exactCallbackContext=true "+
             "factoryStillFunctional=true "+
+            "checkedCallbackFailureWrapped=true "+
+            "postCommitNoRollback=true "+
             "policyNeutral=true"
         );
     }
