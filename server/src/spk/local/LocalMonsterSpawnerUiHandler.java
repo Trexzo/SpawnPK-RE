@@ -428,6 +428,20 @@ final class LocalMonsterSpawnerUiHandler {
             activationBudget.spawnBudget(
                 context
             );
+        String afterAuthority=
+            requireServerAuthority(
+                activationBudget.authority(),
+                "activation budget authority"
+            );
+
+        if(!authority.equals(
+                afterAuthority))
+            throw new IllegalStateException(
+                "Monster Spawner activation authority changed during budget resolution owner="+
+                ownerRef+
+                " before="+authority+
+                " after="+afterAuthority
+            );
 
         if(budget<=0)
             throw new IllegalArgumentException(
