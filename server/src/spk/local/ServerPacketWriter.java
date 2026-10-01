@@ -35,7 +35,7 @@ final class ServerPacketWriter {
 
         void commit()throws IOException{
             synchronized(ATOMIC_PAIR_LOCK){
-                lockWriters(
+                lockPacket81LifetimesAndWriters(
                     first,
                     second,
                     ()->{
@@ -94,7 +94,7 @@ final class ServerPacketWriter {
         void abort(){
             synchronized(ATOMIC_PAIR_LOCK){
                 try{
-                    lockWriters(
+                    lockPacket81LifetimesAndWriters(
                         first,
                         second,
                         ()->{
@@ -685,6 +685,22 @@ final class ServerPacketWriter {
     }
 
     private void autoFlush() throws IOException { if(batchDepth==0)flush(); }
+
+    private static void lockPacket81LifetimesAndWriters(
+        ServerPacketWriter first,
+        ServerPacketWriter second,
+        PairWriterAction action
+    )throws IOException{
+        synchronized(first.packet81LifetimeLock){
+            synchronized(second.packet81LifetimeLock){
+                lockWriters(
+                    first,
+                    second,
+                    action
+                );
+            }
+        }
+    }
 
     private static void lockWriters(
         ServerPacketWriter first,
