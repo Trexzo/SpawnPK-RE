@@ -116,9 +116,315 @@ public final class LocalPetInventoryDialogHandlerTest {
             throw new AssertionError("close state");
 
         testPetAccessoryPublicationAtomicity();
+        testDialogOpenPublicationAtomicity();
 
         System.out.println(
-            "LOCAL_PET_INVENTORY_DIALOG_HANDLER_PASS mini=true color=true compat=true pendingStateOwned=true accessoryNoPetAtomic=true accessoryActivePetAtomic=true accessoryDetachAtomic=true accessoryDialogFailurePreserved=true");
+            "LOCAL_PET_INVENTORY_DIALOG_HANDLER_PASS "+
+            "mini=true color=true compat=true pendingStateOwned=true "+
+            "accessoryNoPetAtomic=true accessoryActivePetAtomic=true "+
+            "accessoryDetachAtomic=true accessoryDialogFailurePreserved=true "+
+            "dialogOpenSingleBatch=true "+
+            "dialogOpenFailureAtomic=true "+
+            "dialogReplacementPreservesPrior=true "+
+            "dialogReplacementExact=true");
+    }
+
+    private static void testDialogOpenPublicationAtomicity()
+        throws Exception
+    {
+        WorldPlayer player=
+            new WorldPlayer();
+        BankState bank=player.bank();
+        PetState petState=player.petState();
+        MiniPetService miniPets=player.miniPets();
+        MovementState movement=player.movement();
+        DevAuthorityWorkbench dev=
+            new DevAuthorityWorkbench();
+        NpcRegistry npcs=
+            new NpcRegistry(dev);
+        PetAccessoryState accessory=
+            new PetAccessoryState();
+
+        LocalPetInventoryDialogHandler handler=
+            new LocalPetInventoryDialogHandler(
+                bank,
+                miniPets,
+                petState,
+                npcs,
+                movement,
+                accessory
+            );
+
+        ServerPacketWriter good=
+            new ServerPacketWriter(
+                new ByteArrayOutputStream(),
+                new IsaacCipher(
+                    new int[]{55,56,57,58}
+                )
+            );
+
+        bank.spawnItem(22088,1,good);
+        bank.spawnItem(20543,1,good);
+        bank.spawnItem(24016,1,good);
+
+        int miniSlot=findSlot(bank,22088);
+        int accessorySlot=findSlot(bank,20543);
+        int colorSlot=findSlot(bank,24016);
+
+        if(miniSlot<0||accessorySlot<0||colorSlot<0)
+            throw new AssertionError(
+                "dialog-open atomicity fixture missing items"
+            );
+
+        // No prior dialog: a failed mini-config root batch must leave
+        // no hidden 2482..2485 routing authority.
+        OutboundPacketQueue failedMiniQueue=
+            fullQueue();
+        boolean miniOpenFailed=false;
+
+        try{
+            handler.handleItemAction(
+                new ItemContainerAction(
+                    122,
+                    BankState.NORMAL_INVENTORY_CONTAINER,
+                    miniSlot,
+                    22088,
+                    0,
+                    "INVENTORY_OPTION_1"
+                ),
+                queueWriter(
+                    failedMiniQueue,
+                    new int[]{59,60,61,62}
+                )
+            );
+        }catch(java.io.IOException expected){
+            miniOpenFailed=true;
+        }
+
+        if(!miniOpenFailed||
+           handler.hasAnyOpen()||
+           failedMiniQueue.queuedBytes()!=1024)
+            throw new AssertionError(
+                "failed mini dialog open committed hidden authority"
+            );
+
+        // Establish accessory as the prior authoritative dialog.
+        openAccessory(
+            handler,
+            accessorySlot,
+            20543,
+            good
+        );
+
+        // Failed replacement by mini-config must leave the accessory routing
+        // exact. Widget 2482 after failure must still execute accessory Activate.
+        OutboundPacketQueue replaceMiniQueue=
+            fullQueue();
+        boolean replaceMiniFailed=false;
+
+        try{
+            handler.handleItemAction(
+                new ItemContainerAction(
+                    122,
+                    BankState.NORMAL_INVENTORY_CONTAINER,
+                    miniSlot,
+                    22088,
+                    0,
+                    "INVENTORY_OPTION_1"
+                ),
+                queueWriter(
+                    replaceMiniQueue,
+                    new int[]{63,64,65,66}
+                )
+            );
+        }catch(java.io.IOException expected){
+            replaceMiniFailed=true;
+        }
+
+        if(!replaceMiniFailed||
+           !handler.hasAnyOpen()||
+           replaceMiniQueue.queuedBytes()!=1024)
+            throw new AssertionError(
+                "failed mini replacement lost prior accessory dialog"
+            );
+
+        LocalPetInventoryDialogHandler.Result
+            priorAccessoryAction=
+                handler.handleWidget(
+                    2482,
+                    good
+                );
+
+        if(priorAccessoryAction==null||
+           !"PET_ACCESSORY_ACTIVATE".equals(
+                priorAccessoryAction.saveReason
+           )||
+           accessory.activeItem()!=20543||
+           handler.hasAnyOpen())
+            throw new AssertionError(
+                "failed dialog replacement did not preserve exact accessory routing"
+            );
+
+        // Healthy mini open now owns the routing exclusively.
+        LocalPetInventoryDialogHandler.Result miniOpened=
+            handler.handleItemAction(
+                new ItemContainerAction(
+                    122,
+                    BankState.NORMAL_INVENTORY_CONTAINER,
+                    miniSlot,
+                    22088,
+                    0,
+                    "INVENTORY_OPTION_1"
+                ),
+                good
+            );
+
+        if(miniOpened==null||
+           miniOpened.keyAction!=
+                LocalPetInventoryDialogHandler
+                    .KeyAction.PUBLISH_2482_2485||
+           !handler.hasAnyOpen()||
+           handler.pendingPetColorFamily()!=null)
+            throw new AssertionError(
+                "healthy mini dialog replacement did not commit exactly"
+            );
+
+        LocalPetInventoryDialogHandler.Result
+            miniActivated=
+                handler.handleWidget(
+                    2482,
+                    good
+                );
+
+        if(miniActivated==null||
+           !"MINIPET_CONFIGURE".equals(
+                miniActivated.saveReason
+           )||
+           !petState.miniConfigured()||
+           petState.miniItemId()!=22088||
+           handler.hasAnyOpen())
+            throw new AssertionError(
+                "mini dialog routing after healthy replacement changed"
+            );
+
+        // Color open failure from no prior state must also remain invisible
+        // to routing authority.
+        OutboundPacketQueue failedColorQueue=
+            fullQueue();
+        boolean colorOpenFailed=false;
+
+        try{
+            handler.handleItemAction(
+                new ItemContainerAction(
+                    75,
+                    BankState.NORMAL_INVENTORY_CONTAINER,
+                    colorSlot,
+                    24016,
+                    0,
+                    "INVENTORY_OPTION_3"
+                ),
+                queueWriter(
+                    failedColorQueue,
+                    new int[]{67,68,69,70}
+                )
+            );
+        }catch(java.io.IOException expected){
+            colorOpenFailed=true;
+        }
+
+        if(!colorOpenFailed||
+           handler.hasAnyOpen()||
+           handler.pendingPetColorFamily()!=null||
+           failedColorQueue.queuedBytes()!=1024)
+            throw new AssertionError(
+                "failed color dialog open committed hidden authority"
+            );
+
+        LocalPetInventoryDialogHandler.Result colorOpened=
+            handler.handleItemAction(
+                new ItemContainerAction(
+                    75,
+                    BankState.NORMAL_INVENTORY_CONTAINER,
+                    colorSlot,
+                    24016,
+                    0,
+                    "INVENTORY_OPTION_3"
+                ),
+                good
+            );
+
+        if(colorOpened==null||
+           !"SCOOBY_BEHEMOTH".equals(
+                handler.pendingPetColorFamily()
+           )||
+           !handler.hasAnyOpen())
+            throw new AssertionError(
+                "healthy color dialog open did not commit"
+            );
+
+        // Failed accessory replacement must preserve exact color authority.
+        OutboundPacketQueue replaceAccessoryQueue=
+            fullQueue();
+        boolean replaceAccessoryFailed=false;
+
+        try{
+            handler.handleItemAction(
+                new ItemContainerAction(
+                    122,
+                    BankState.NORMAL_INVENTORY_CONTAINER,
+                    accessorySlot,
+                    20543,
+                    0,
+                    "INVENTORY_OPTION_1"
+                ),
+                queueWriter(
+                    replaceAccessoryQueue,
+                    new int[]{71,72,73,74}
+                )
+            );
+        }catch(java.io.IOException expected){
+            replaceAccessoryFailed=true;
+        }
+
+        if(!replaceAccessoryFailed||
+           !"SCOOBY_BEHEMOTH".equals(
+                handler.pendingPetColorFamily()
+           )||
+           !handler.hasAnyOpen())
+            throw new AssertionError(
+                "failed accessory replacement changed prior color authority"
+            );
+
+        // Healthy accessory replacement must clear color authority and leave
+        // only accessory routing.
+        openAccessory(
+            handler,
+            accessorySlot,
+            20543,
+            good
+        );
+
+        if(handler.pendingPetColorFamily()!=null||
+           !handler.hasAnyOpen())
+            throw new AssertionError(
+                "healthy accessory replacement left stale color authority"
+            );
+
+        LocalPetInventoryDialogHandler.Result
+            exactAccessory=
+                handler.handleWidget(
+                    2482,
+                    good
+                );
+
+        if(exactAccessory==null||
+           !"PET_ACCESSORY_ACTIVATE".equals(
+                exactAccessory.saveReason
+           )||
+           handler.hasAnyOpen())
+            throw new AssertionError(
+                "healthy accessory replacement routing not exact"
+            );
     }
 
     private static void testPetAccessoryPublicationAtomicity()
