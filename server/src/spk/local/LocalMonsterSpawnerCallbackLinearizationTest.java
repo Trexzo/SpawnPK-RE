@@ -23,6 +23,8 @@ public final class LocalMonsterSpawnerCallbackLinearizationTest {
         factoryCreateWorldCloseWaits();
         queuedFactoryCreateRejectedAfterClosePublication();
         factoryCreateRejectsStaleGeneration();
+        widgetAndOpenRejectStaleGeneration();
+        widgetAndOpenRejectClosedWorld();
 
         System.out.println(
             "MONSTER_SPAWNER_CALLBACK_LINEARIZATION_PASS "+
@@ -37,7 +39,11 @@ public final class LocalMonsterSpawnerCallbackLinearizationTest {
             "factoryCreateUnregisterWaits=true "+
             "factoryCreateCloseWaits=true "+
             "factoryCreateQueuedAfterCloseRejected=true "+
-            "factoryCreateExactGeneration=true"
+            "factoryCreateExactGeneration=true "+
+            "widgetTransactionExactGeneration=true "+
+            "widgetTransactionClosedWorld=true "+
+            "commandOpenExactGeneration=true "+
+            "commandOpenClosedWorld=true"
         );
     }
 
@@ -1210,6 +1216,226 @@ public final class LocalMonsterSpawnerCallbackLinearizationTest {
         }
     }
 
+    private static void widgetAndOpenRejectStaleGeneration()
+        throws Exception{
+        World world=
+            World.isolatedForTest(
+                600L
+            );
+        WorldPlayer player=
+            new WorldPlayer();
+        long generation=
+            world.registerPlayer(
+                player,
+                OWNER
+            );
+        Fixture fixture=
+            new Fixture(
+                world
+            );
+        int[] callbacks={0};
+        int[] opens={0};
+
+        LocalSession.MonsterSpawnerUiFactory factory=
+            new LocalSession.MonsterSpawnerUiFactory(){
+                @Override public LocalMonsterSpawnerUiHandler create(
+                    World factoryWorld,
+                    WorldPlayer factoryPlayer,
+                    String canonicalUsername
+                ){
+                    return fixture.ui;
+                }
+
+                @Override public void onCommittedResult(
+                    World callbackWorld,
+                    WorldPlayer callbackPlayer,
+                    String canonicalUsername,
+                    LocalMonsterSpawnerUiHandler.Result result,
+                    ServerPacketWriter writer,
+                    String tag
+                ){
+                    callbacks[0]++;
+                }
+            };
+
+        try{
+            require(
+                world.unregisterPlayer(
+                    player,
+                    generation
+                ),
+                "widget stale generation unregister"
+            );
+
+            MonsterSpawnerService.SessionSnapshot before=
+                fixture.spawner.getSession(
+                    OWNER
+                );
+            int wireBefore=
+                fixture.wire.size();
+
+            LocalSessionUiActionHandler.MonsterSpawnerDispatch
+                dispatch=
+                    LocalSession
+                        .dispatchMonsterSpawnerWidgetForCurrentSession(
+                            factory,
+                            world,
+                            player,
+                            generation,
+                            OWNER,
+                            fixture.ui,
+                            MonsterSpawnerPresentation
+                                .TOGGLE_WIDGET,
+                            fixture.writer,
+                            "[widget-stale] "
+                        );
+
+            boolean opened=
+                LocalSession
+                    .openMonsterSpawnerForCurrentSession(
+                        world,
+                        player,
+                        generation,
+                        ()->{
+                            opens[0]++;
+                            fixture.ui.open(
+                                fixture.writer
+                            );
+                            return true;
+                        }
+                    );
+
+            MonsterSpawnerService.SessionSnapshot after=
+                fixture.spawner.getSession(
+                    OWNER
+                );
+
+            require(
+                !dispatch.admitted&&
+                dispatch.result==null&&
+                !opened&&
+                callbacks[0]==0&&
+                opens[0]==0&&
+                !before.active&&
+                !after.active&&
+                before.remainingSpawnBudget==
+                    after.remainingSpawnBudget&&
+                before.selectedRowIndex.equals(
+                    after.selectedRowIndex
+                )&&
+                fixture.wire.size()==wireBefore,
+                "stale generation crossed Monster Spawner widget/open admission"
+            );
+        }finally{
+            world.close();
+        }
+    }
+
+    private static void widgetAndOpenRejectClosedWorld()
+        throws Exception{
+        World world=
+            World.isolatedForTest(
+                600L
+            );
+        WorldPlayer player=
+            new WorldPlayer();
+        long generation=
+            world.registerPlayer(
+                player,
+                OWNER
+            );
+        Fixture fixture=
+            new Fixture(
+                world
+            );
+        int[] callbacks={0};
+        int[] opens={0};
+
+        LocalSession.MonsterSpawnerUiFactory factory=
+            new LocalSession.MonsterSpawnerUiFactory(){
+                @Override public LocalMonsterSpawnerUiHandler create(
+                    World factoryWorld,
+                    WorldPlayer factoryPlayer,
+                    String canonicalUsername
+                ){
+                    return fixture.ui;
+                }
+
+                @Override public void onCommittedResult(
+                    World callbackWorld,
+                    WorldPlayer callbackPlayer,
+                    String canonicalUsername,
+                    LocalMonsterSpawnerUiHandler.Result result,
+                    ServerPacketWriter writer,
+                    String tag
+                ){
+                    callbacks[0]++;
+                }
+            };
+
+        MonsterSpawnerService.SessionSnapshot before=
+            fixture.spawner.getSession(
+                OWNER
+            );
+        int wireBefore=
+            fixture.wire.size();
+
+        world.close();
+
+        LocalSessionUiActionHandler.MonsterSpawnerDispatch
+            dispatch=
+                LocalSession
+                    .dispatchMonsterSpawnerWidgetForCurrentSession(
+                        factory,
+                        world,
+                        player,
+                        generation,
+                        OWNER,
+                        fixture.ui,
+                        MonsterSpawnerPresentation
+                            .TOGGLE_WIDGET,
+                        fixture.writer,
+                        "[widget-closed] "
+                    );
+
+        boolean opened=
+            LocalSession
+                .openMonsterSpawnerForCurrentSession(
+                    world,
+                    player,
+                    generation,
+                    ()->{
+                        opens[0]++;
+                        fixture.ui.open(
+                            fixture.writer
+                        );
+                        return true;
+                    }
+                );
+
+        MonsterSpawnerService.SessionSnapshot after=
+            fixture.spawner.getSession(
+                OWNER
+            );
+
+        require(
+            !dispatch.admitted&&
+            dispatch.result==null&&
+            !opened&&
+            callbacks[0]==0&&
+            opens[0]==0&&
+            !before.active&&
+            !after.active&&
+            before.remainingSpawnBudget==
+                after.remainingSpawnBudget&&
+            before.selectedRowIndex.equals(
+                after.selectedRowIndex
+            )&&
+            fixture.wire.size()==wireBefore,
+            "closed World crossed Monster Spawner widget/open admission"
+        );
+    }
+
     private static LocalSession.MonsterSpawnerUiFactory
         blockingCreateFactory(
             LocalMonsterSpawnerUiHandler adapter,
@@ -1311,6 +1537,7 @@ public final class LocalMonsterSpawnerCallbackLinearizationTest {
     private static final class Fixture {
         final MonsterSpawnerService spawner;
         final LocalMonsterSpawnerUiHandler ui;
+        final ByteArrayOutputStream wire;
         final ServerPacketWriter writer;
         final LocalMonsterSpawnerUiHandler.Result result;
 
@@ -1368,9 +1595,12 @@ public final class LocalMonsterSpawnerCallbackLinearizationTest {
                     }
                 );
 
+            wire=
+                new ByteArrayOutputStream();
+
             writer=
                 new ServerPacketWriter(
-                    new ByteArrayOutputStream(),
+                    wire,
                     new IsaacCipher(
                         new int[]{1,2,3,4}
                     )
