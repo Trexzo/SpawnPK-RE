@@ -9,13 +9,15 @@ public final class Player81NoContextLinearizationTest {
     public static void main(String[] args)throws Exception{
         assertNoContextSourceContract();
         assertRegistrationAffectsNextPacketOnly();
+        assertStagedNoContextStaysLocalOnly();
 
         System.out.println(
             "PLAYER81_NO_CONTEXT_LINEARIZATION_PASS "+
             "singleClassification=true "+
             "noSecondLiveTransform=true "+
             "noRetroactiveRelayFlush=true "+
-            "registrationAffectsNextPacket=true"
+            "registrationAffectsNextPacket=true "+
+            "stagedNoContextFrozen=true"
         );
     }
 
@@ -74,6 +76,14 @@ public final class Player81NoContextLinearizationTest {
             ))
             throw new AssertionError(
                 "NO_CONTEXT branch does not frame original local-only body"
+            );
+
+        if(!source.contains(
+                "batchContainsPlayer81=\n"+
+                "                        prepared!=null;"
+            ))
+            throw new AssertionError(
+                "staged NO_CONTEXT still marks relay-eligible packet81"
             );
     }
 
@@ -157,6 +167,110 @@ public final class Player81NoContextLinearizationTest {
                 )<0)
                 throw new AssertionError(
                     "registered next packet81 did not materialize remote player"
+                );
+        }finally{
+            Player81WorldSync.unregister(
+                writer
+            );
+
+            if(remote.registered())
+                world.unregisterPlayer(
+                    remote,
+                    remoteGeneration
+                );
+
+            if(player.registered())
+                world.unregisterPlayer(
+                    player,
+                    generation
+                );
+
+            world.close();
+        }
+    }
+
+    private static void assertStagedNoContextStaysLocalOnly()
+        throws Exception
+    {
+        World world=
+            World.isolatedForTest(
+                600L
+            );
+        WorldPlayer player=
+            new WorldPlayer();
+        WorldPlayer remote=
+            new WorldPlayer();
+
+        long generation=
+            world.registerPlayer(
+                player,
+                "packet81-staged-no-context"
+            );
+        long remoteGeneration=
+            world.registerPlayer(
+                remote,
+                "packet81-staged-no-context-remote"
+            );
+
+        OutboundPacketQueue queue=
+            new OutboundPacketQueue();
+        ServerPacketWriter writer=
+            new ServerPacketWriter(
+                queue,
+                new IsaacCipher(
+                    new int[]{17,18,19,20}
+                )
+            );
+
+        try{
+            writer.beginBatch();
+            writer.varShort(
+                81,
+                BootstrapPackets
+                    .player81Idle()
+            );
+
+            if(queue.queuedBytes()!=0)
+                throw new AssertionError(
+                    "staged local-only packet escaped before batch commit"
+                );
+
+            Player81WorldSync.register(
+                writer,
+                world,
+                player,
+                new DevAuthorityWorkbench()
+            );
+
+            writer.endBatch();
+
+            if(queue.queuedBytes()==0)
+                throw new AssertionError(
+                    "staged local-only packet did not commit"
+                );
+
+            if(Player81WorldSync.clientIndexFor(
+                    writer,
+                    remote
+                )>=0)
+                throw new AssertionError(
+                    "registration retroactively changed staged NO_CONTEXT packet"
+                );
+
+            drain(queue);
+
+            writer.varShort(
+                81,
+                BootstrapPackets
+                    .player81Idle()
+            );
+
+            if(Player81WorldSync.clientIndexFor(
+                    writer,
+                    remote
+                )<0)
+                throw new AssertionError(
+                    "registration did not affect packet after staged NO_CONTEXT"
                 );
         }finally{
             Player81WorldSync.unregister(
