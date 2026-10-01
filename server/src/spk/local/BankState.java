@@ -235,20 +235,66 @@ final class BankState {
 
     String depositInventory(ServerPacketWriter w) throws IOException {
         if (!open) return "IGNORED_BANK_CLOSED";
+
+        Stack[] nextBank=
+            copyStacks(bank);
+        Stack[] nextInventory=
+            copyStacks(inventory);
+
         int moved=0;
-        for (int i=0;i<inventory.length;i++) {
-            Stack s=inventory[i];
+        boolean partial=false;
+
+        for (int i=0;i<nextInventory.length;i++) {
+            Stack s=nextInventory[i];
             if (s==null || s.qty<=0) continue;
-            int dst=findItem(bank,s.itemId);
-            if (dst<0) dst=firstEmpty(bank);
-            if (dst<0) return "PARTIAL_BANK_FULL movedQty="+moved;
-            if (bank[dst]==null) bank[dst]=new Stack(s.itemId,0);
-            bank[dst].qty += s.qty;
-            moved += s.qty;
-            inventory[i]=null;
+
+            int dst=findItem(
+                nextBank,
+                s.itemId
+            );
+            if (dst<0)
+                dst=firstEmpty(nextBank);
+
+            if (dst<0) {
+                partial=true;
+                break;
+            }
+
+            if (nextBank[dst]==null)
+                nextBank[dst]=
+                    new Stack(
+                        s.itemId,
+                        0
+                    );
+
+            nextBank[dst].qty+=s.qty;
+            moved+=s.qty;
+            nextInventory[i]=null;
         }
-        sendContainers(w);
-        return "DEPOSITED_ALL movedQty="+moved+" bankOccupied="+bankSlots()+" inventoryOccupied="+inventorySlots();
+
+        if(moved==0&&partial)
+            return "PARTIAL_BANK_FULL movedQty=0";
+
+        publishContainerPostimage(
+            w,
+            nextBank,
+            nextInventory
+        );
+        replaceStacks(
+            bank,
+            nextBank
+        );
+        replaceStacks(
+            inventory,
+            nextInventory
+        );
+
+        if(partial)
+            return "PARTIAL_BANK_FULL movedQty="+moved;
+
+        return "DEPOSITED_ALL movedQty="+moved+
+            " bankOccupied="+occupied(bank)+
+            " inventoryOccupied="+occupied(inventory);
     }
 
     void sendNormalInventory(ServerPacketWriter w) throws IOException {
@@ -825,14 +871,47 @@ final class BankState {
     }
 
     String applyAmount(int amount, ServerPacketWriter w) throws IOException {
-        if (!open) { pendingX=null; return "IGNORED_BANK_CLOSED"; }
+        if (!open) {
+            pendingX=null;
+            return "IGNORED_BANK_CLOSED";
+        }
+
         ItemContainerAction a=pendingX;
+        if (a==null)
+            return "IGNORED_NO_PENDING_X amount="+amount;
+
+        if (amount<=0) {
+            pendingX=null;
+            return "X_NO_ITEMS_MOVED amount="+amount;
+        }
+
+        String result;
+
+        if (a.widgetId==BANK_CONTAINER)
+            result=
+                withdrawAmount(
+                    a,
+                    amount,
+                    w,
+                    "WITHDRAW_X_OK"
+                );
+        else if (a.widgetId==
+                    BANK_INVENTORY_CONTAINER)
+            result=
+                depositAmount(
+                    a,
+                    amount,
+                    w,
+                    "STORE_X_OK"
+                );
+        else {
+            pendingX=null;
+            return "X_PENDING_WIDGET_UNSUPPORTED widget="+
+                a.widgetId;
+        }
+
         pendingX=null;
-        if (a==null) return "IGNORED_NO_PENDING_X amount="+amount;
-        if (amount<=0) return "X_NO_ITEMS_MOVED amount="+amount;
-        if (a.widgetId==BANK_CONTAINER) return withdrawAmount(a, amount, w, "WITHDRAW_X_OK");
-        if (a.widgetId==BANK_INVENTORY_CONTAINER) return depositAmount(a, amount, w, "STORE_X_OK");
-        return "X_PENDING_WIDGET_UNSUPPORTED widget="+a.widgetId;
+        return result;
     }
 
     String applyDrag(ContainerDrag d, ServerPacketWriter w) throws IOException {
@@ -955,53 +1034,246 @@ final class BankState {
 
     private String withdrawAmount(ItemContainerAction a,int requested,ServerPacketWriter w,String label) throws IOException {
         if (!validSlot(bank,a.slot) || bank[a.slot]==null) return "REJECTED_BANK_SLOT";
-        Stack s=bank[a.slot];
-        if (s.itemId!=a.itemId) return "REJECTED_BANK_ITEM_MISMATCH expected="+s.itemId;
-        int requestedClamped=Math.min(Math.max(0,requested),s.qty);
-        if(requestedClamped<=0)return "NO_ITEMS_MOVED";
 
+        Stack source=bank[a.slot];
+        if (source.itemId!=a.itemId)
+            return "REJECTED_BANK_ITEM_MISMATCH expected="+source.itemId;
+
+        int requestedClamped=
+            Math.min(
+                Math.max(0,requested),
+                source.qty
+            );
+        if(requestedClamped<=0)
+            return "NO_ITEMS_MOVED";
+
+        Stack[] nextBank=
+            copyStacks(bank);
+        Stack[] nextInventory=
+            copyStacks(inventory);
+        Stack nextSource=
+            nextBank[a.slot];
+        int itemId=nextSource.itemId;
+        int sourceTab=nextSource.tab;
         int moved=0;
-        if (isStackable(s.itemId)) {
-            int dst=findItem(inventory,s.itemId);
-            if(dst<0)dst=firstEmpty(inventory);
-            if(dst<0)return "REJECTED_INVENTORY_FULL";
-            if(inventory[dst]==null)inventory[dst]=new Stack(s.itemId,0,s.tab);
-            inventory[dst].qty+=requestedClamped;
+
+        if (isStackable(itemId)) {
+            int dst=findItem(
+                nextInventory,
+                itemId
+            );
+            if(dst<0)
+                dst=firstEmpty(nextInventory);
+            if(dst<0)
+                return "REJECTED_INVENTORY_FULL";
+
+            if(nextInventory[dst]==null)
+                nextInventory[dst]=
+                    new Stack(
+                        itemId,
+                        0,
+                        sourceTab
+                    );
+
+            nextInventory[dst].qty+=
+                requestedClamped;
             moved=requestedClamped;
         } else {
             for (int n=0;n<requestedClamped;n++) {
-                int dst=firstEmpty(inventory);
-                if(dst<0)break;
-                inventory[dst]=new Stack(s.itemId,1,s.tab);
+                int dst=firstEmpty(
+                    nextInventory
+                );
+                if(dst<0)
+                    break;
+
+                nextInventory[dst]=
+                    new Stack(
+                        itemId,
+                        1,
+                        sourceTab
+                    );
                 moved++;
             }
-            if(moved==0)return "REJECTED_INVENTORY_FULL";
+
+            if(moved==0)
+                return "REJECTED_INVENTORY_FULL";
         }
 
-        s.qty-=moved;
-        if(s.qty<=0){ s.qty=0; if(!placeholdersEnabled)bank[a.slot]=null; }
-        sendContainers(w);
-        return label+" amount="+moved+" requested="+requestedClamped
-             +" stackable="+isStackable(s.itemId)
-             +" bankOccupied="+bankSlots()+" inventoryOccupied="+inventorySlots();
+        nextSource.qty-=moved;
+        if(nextSource.qty<=0){
+            nextSource.qty=0;
+            if(!placeholdersEnabled)
+                nextBank[a.slot]=null;
+        }
+
+        publishContainerPostimage(
+            w,
+            nextBank,
+            nextInventory
+        );
+        replaceStacks(
+            bank,
+            nextBank
+        );
+        replaceStacks(
+            inventory,
+            nextInventory
+        );
+
+        return label+" amount="+moved+
+            " requested="+requestedClamped+
+            " stackable="+isStackable(itemId)+
+            " bankOccupied="+occupied(bank)+
+            " inventoryOccupied="+occupied(inventory);
     }
 
     private String depositAmount(ItemContainerAction a,int requested,ServerPacketWriter w,String label) throws IOException {
         if (!validSlot(inventory,a.slot) || inventory[a.slot]==null) return "REJECTED_INVENTORY_SLOT";
-        Stack s=inventory[a.slot];
-        if(s.itemId!=a.itemId)return "REJECTED_INVENTORY_ITEM_MISMATCH expected="+s.itemId;
-        int amount=Math.min(Math.max(0,requested),s.qty);
-        if(amount<=0)return "NO_ITEMS_MOVED";
-        int dst=findItem(bank,s.itemId);
-        if(dst<0)dst=firstEmpty(bank);
-        if(dst<0)return "REJECTED_BANK_FULL";
-        if(bank[dst]==null)bank[dst]=new Stack(s.itemId,0,s.tab);
-        bank[dst].qty+=amount;
-        s.qty-=amount;
-        if(s.qty<=0)inventory[a.slot]=null;
-        sendContainers(w);
-        return label+" amount="+amount+" stackable="+isStackable(s.itemId)
-             +" inventorySlotPreserved=true bankOccupied="+bankSlots()+" inventoryOccupied="+inventorySlots();
+
+        Stack source=inventory[a.slot];
+        if(source.itemId!=a.itemId)
+            return "REJECTED_INVENTORY_ITEM_MISMATCH expected="+source.itemId;
+
+        int amount=
+            Math.min(
+                Math.max(0,requested),
+                source.qty
+            );
+        if(amount<=0)
+            return "NO_ITEMS_MOVED";
+
+        Stack[] nextBank=
+            copyStacks(bank);
+        Stack[] nextInventory=
+            copyStacks(inventory);
+        Stack nextSource=
+            nextInventory[a.slot];
+        int itemId=nextSource.itemId;
+        int sourceTab=nextSource.tab;
+
+        int dst=findItem(
+            nextBank,
+            itemId
+        );
+        if(dst<0)
+            dst=firstEmpty(nextBank);
+        if(dst<0)
+            return "REJECTED_BANK_FULL";
+
+        if(nextBank[dst]==null)
+            nextBank[dst]=
+                new Stack(
+                    itemId,
+                    0,
+                    sourceTab
+                );
+
+        nextBank[dst].qty+=amount;
+        nextSource.qty-=amount;
+
+        if(nextSource.qty<=0)
+            nextInventory[a.slot]=null;
+
+        publishContainerPostimage(
+            w,
+            nextBank,
+            nextInventory
+        );
+        replaceStacks(
+            bank,
+            nextBank
+        );
+        replaceStacks(
+            inventory,
+            nextInventory
+        );
+
+        return label+" amount="+amount+
+            " stackable="+isStackable(itemId)+
+            " inventorySlotPreserved=true bankOccupied="+
+            occupied(bank)+
+            " inventoryOccupied="+
+            occupied(inventory);
+    }
+
+    private static Stack[] copyStacks(
+        Stack[] source
+    ){
+        Stack[] copy=
+            new Stack[source.length];
+
+        for(int i=0;i<source.length;i++){
+            Stack stack=source[i];
+            if(stack!=null)
+                copy[i]=
+                    new Stack(
+                        stack.itemId,
+                        stack.qty,
+                        stack.tab
+                    );
+        }
+
+        return copy;
+    }
+
+    private static void replaceStacks(
+        Stack[] target,
+        Stack[] source
+    ){
+        if(target.length!=source.length)
+            throw new IllegalArgumentException(
+                "stack postimage length"
+            );
+
+        for(int i=0;i<target.length;i++){
+            Stack stack=source[i];
+            target[i]=
+                stack==null
+                    ?null
+                    :new Stack(
+                        stack.itemId,
+                        stack.qty,
+                        stack.tab
+                    );
+        }
+    }
+
+    private static void publishContainerPostimage(
+        ServerPacketWriter writer,
+        Stack[] bankPostimage,
+        Stack[] inventoryPostimage
+    )throws IOException{
+        byte[] bankPayload=
+            containerPayload(
+                BANK_CONTAINER,
+                bankPostimage
+            );
+        byte[] inventoryPayload=
+            containerPayload(
+                BANK_INVENTORY_CONTAINER,
+                inventoryPostimage
+            );
+
+        writer.beginBatch();
+        boolean ended=false;
+
+        try{
+            writer.varShort(
+                53,
+                bankPayload
+            );
+            writer.varShort(
+                53,
+                inventoryPayload
+            );
+            writer.endBatch();
+            ended=true;
+        }finally{
+            if(!ended)
+                try{
+                    writer.endBatch();
+                }catch(Throwable ignored){}
+        }
     }
 
     /** Current item-catalog metadata is authoritative when explicit; unknowns default non-stackable. */
