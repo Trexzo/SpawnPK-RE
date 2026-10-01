@@ -264,6 +264,30 @@ public final class LocalSessionUiActionHandlerTest {
         int spawnerTextBefore=wire.size();
         int homeRequestsBeforeSpawner=
             bridge.homeTeleportRequests;
+        int resultsBeforeUnconfigured=
+            bridge.monsterSpawnerResults;
+
+        routed.handleWidget(
+            MonsterSpawnerPresentation.rowWidget(1),
+            w,
+            "[ui-test] "
+        );
+
+        MonsterSpawnerService.SessionSnapshot
+            afterUnconfigured=
+                spawner.getSession(
+                    "session-ui-owner"
+                );
+
+        if(afterUnconfigured.selectedRowIndex!=null||
+           wire.size()!=spawnerTextBefore||
+           bridge.homeTeleportRequests!=
+                homeRequestsBeforeSpawner||
+           bridge.monsterSpawnerResults!=
+                resultsBeforeUnconfigured)
+            throw new AssertionError(
+                "unconfigured exact Monster Spawner row was not bounded/consumed"
+            );
 
         routed.handleWidget(
             MonsterSpawnerPresentation.rowWidget(0),
@@ -921,7 +945,8 @@ public final class LocalSessionUiActionHandlerTest {
             "monsterSpawnerResultForwarding=true "+
             "monsterSpawnerOpenConfigured=true "+
             "monsterSpawnerOpenAbsentNoop=true "+
-            "monsterSpawnerRetainedSelectionReopen=true"
+            "monsterSpawnerRetainedSelectionReopen=true "+
+            "monsterSpawnerUnconfiguredRowBounded=true"
         );
 
         System.out.println(
