@@ -18,6 +18,11 @@ final class LocalCommandDispatcher {
         void replaceScenePublisher(SceneUpdatePublisher scenePublisher);
         void saveAccount(String tag,String reason);
         void openDevPanel(ServerPacketWriter serverPackets)throws IOException;
+        default boolean openMonsterSpawner(
+            ServerPacketWriter serverPackets
+        )throws IOException{
+            return false;
+        }
         void applyPetDialog(LocalPetInventoryDialogHandler.Result result,String tag);
     }
 
@@ -202,6 +207,24 @@ final class LocalCommandDispatcher {
             return true;
         }
 
+        if(isMonsterSpawnerRoute(p)){
+            boolean opened=
+                bridge.openMonsterSpawner(
+                    serverPackets
+                );
+
+            System.out.println(
+                tag+
+                "MONSTER_SPAWNER_UI_COMMAND "+
+                "route="+p[0]+
+                " opened="+opened+
+                " presentationAuthority="+
+                MonsterSpawnerPresentation.PRESENTATION_AUTHORITY+
+                " routeAuthority=CUSTOM_LOCALLAB"
+            );
+            return true;
+        }
+
         if(diagnosticCommands.handle(
             p,
             serverPackets,
@@ -320,6 +343,19 @@ final class LocalCommandDispatcher {
                     p[0].equalsIgnoreCase("dev")&&
                     p.length>=2&&
                     p[1].equalsIgnoreCase("panel")
+                )
+            );
+    }
+
+    static boolean isMonsterSpawnerRoute(String[] p){
+        return p!=null&&
+            p.length==1&&
+            (
+                p[0].equalsIgnoreCase(
+                    "monsterspawner"
+                )||
+                p[0].equalsIgnoreCase(
+                    "mspawn"
                 )
             );
     }
