@@ -85,6 +85,9 @@ public final class LocalMonsterSpawnerUiHandlerTest {
             activationSnapshotRaceFailsClosed(
                 world
             );
+            deactivationSnapshotRaceFailsClosed(
+                world
+            );
             unattachedControlsIgnored(
                 service,
                 handler
@@ -348,6 +351,79 @@ public final class LocalMonsterSpawnerUiHandlerTest {
             after.selectedRowIndex.intValue()==1&&
             world.npcs().size()==0,
             "stale activation policy crossed row change"
+        );
+    }
+
+    private static void deactivationSnapshotRaceFailsClosed(
+        World world
+    ){
+        final String owner="monster-ui-deactivate-race-owner";
+        MonsterSpawnerService service=
+            new MonsterSpawnerService(
+                world.npcs()
+            );
+
+        List<MonsterSpawnerService.CatalogEntry>
+            catalog=
+                new ArrayList<>();
+
+        catalog.add(
+            new MonsterSpawnerService.CatalogEntry(
+                0,
+                "deactivate-race-row",
+                1610
+            )
+        );
+
+        service.replaceCatalog(
+            catalog,
+            CATALOG_AUTHORITY
+        );
+        service.openSession(
+            owner,
+            POLICY_AUTHORITY
+        );
+        service.selectRow(
+            owner,
+            0
+        );
+        service.activate(
+            owner,
+            2
+        );
+
+        MonsterSpawnerService.SessionSnapshot stale=
+            service.getSession(
+                owner
+            );
+
+        service.deactivate(
+            owner
+        );
+        service.activate(
+            owner,
+            5
+        );
+
+        expect(
+            IllegalStateException.class,
+            ()->service.deactivateIfCurrent(
+                owner,
+                stale
+            ),
+            "deactivation snapshot changed"
+        );
+
+        MonsterSpawnerService.SessionSnapshot current=
+            service.getSession(
+                owner
+            );
+
+        require(
+            current.active&&
+            current.remainingSpawnBudget==5&&
+            world.npcs().size()==0,
+            "stale deactivation crossed newer activation"
         );
     }
 
