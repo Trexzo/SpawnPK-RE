@@ -126,13 +126,27 @@ final class LocalMonsterSpawnerUiHandler {
         );
     }
 
-    boolean isBoundToOwner(
-        String expectedOwner
+    boolean isOwnedBy(
+        String expectedOwnerRef
     ){
         return ownerRef.equals(
             PartyService.requireRef(
-                expectedOwner
+                expectedOwnerRef
             )
+        );
+    }
+
+    boolean isBoundTo(
+        World expectedWorld
+    ){
+        World checked=
+            Objects.requireNonNull(
+                expectedWorld,
+                "expectedWorld"
+            );
+
+        return service.isBoundTo(
+            checked.npcs()
         );
     }
 
@@ -172,10 +186,20 @@ final class LocalMonsterSpawnerUiHandler {
         int rowIndex,
         ServerPacketWriter packets
     )throws IOException{
-        MonsterSpawnerService.SessionSnapshot session=
-            service.selectRow(
-                ownerRef,
-                rowIndex
+        MonsterSpawnerService.SessionSnapshot before=
+            service.getSession(
+                ownerRef
+            );
+
+        if(before==null)
+            throw new IllegalStateException(
+                "Monster Spawner session disappeared "+
+                ownerRef
+            );
+
+        if(before.active)
+            throw new IllegalStateException(
+                "cannot change Monster Spawner selection while active"
             );
 
         MonsterSpawnerService.CatalogSnapshot catalog=
@@ -186,8 +210,43 @@ final class LocalMonsterSpawnerUiHandler {
                 rowIndex
             );
 
-        if(entry==null||
-           session.selectedRowIndex==null||
+        if(entry==null)
+            throw new IllegalArgumentException(
+                "unconfigured Monster Spawner row "+
+                rowIndex
+            );
+
+        requireServerAuthority(
+            selectedLabel.authority(),
+            "selected label authority"
+        );
+
+        String label=
+            MonsterSpawnerPresentation
+                .prepareSelectedNpcName(
+                    selectedLabel.label(
+                        entry
+                    )
+                );
+
+        MonsterSpawnerService.SessionSnapshot session=
+            service.selectRowIfCurrent(
+                ownerRef,
+                before,
+                catalog,
+                entry,
+                currentEntry->
+                    MonsterSpawnerPresentation
+                        .publishSelectedNpcText(
+                            Objects.requireNonNull(
+                                packets,
+                                "packets"
+                            ),
+                            label
+                        )
+            );
+
+        if(session.selectedRowIndex==null||
            session.selectedRowIndex.intValue()!=rowIndex||
            session.selectedDefinitionId==null||
            session.selectedDefinitionId.intValue()!=
@@ -199,25 +258,6 @@ final class LocalMonsterSpawnerUiHandler {
             throw new IllegalStateException(
                 "Monster Spawner selected row identity changed row="+
                 rowIndex
-            );
-
-        requireServerAuthority(
-            selectedLabel.authority(),
-            "selected label authority"
-        );
-
-        String label=
-            selectedLabel.label(
-                entry
-            );
-
-        MonsterSpawnerPresentation
-            .publishSelectedNpcText(
-                Objects.requireNonNull(
-                    packets,
-                    "packets"
-                ),
-                label
             );
 
         return new Result(
