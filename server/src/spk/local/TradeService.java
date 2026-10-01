@@ -41,6 +41,11 @@ final class TradeService {
         Objects.requireNonNull(bank,"bank");
         Objects.requireNonNull(writer,"writer");
 
+        if(world.closed())
+            throw new IllegalStateException(
+                "cannot register TradeService on closed World"
+            );
+
         removePlayerContexts(
             player,
             null,
@@ -83,6 +88,47 @@ final class TradeService {
             true
         );
     }
+    static synchronized void closeWorld(
+        World world
+    ){
+        if(world==null)
+            return;
+
+        State state=
+            STATES.remove(
+                world
+            );
+
+        if(state==null)
+            return;
+
+        LinkedHashSet<Trade> active=
+            new LinkedHashSet<>(
+                state.trades.values()
+            );
+
+        for(Trade trade:active){
+            if(trade==null)
+                continue;
+
+            trade.stage=
+                Stage.CANCELLED;
+            trade.a.trade=null;
+            trade.b.trade=null;
+            trade.a.pendingX=null;
+            trade.b.pendingX=null;
+        }
+
+        for(Context context:
+                state.contexts.values()){
+            context.trade=null;
+            context.pendingX=null;
+        }
+
+        state.trades.clear();
+        state.contexts.clear();
+    }
+
     static synchronized String start(World world,WorldPlayer a,WorldPlayer b)throws IOException{
         State s=STATES.get(world);
         if(s==null)return "TRADE_UI_REJECTED_CONTEXT_MISSING";
