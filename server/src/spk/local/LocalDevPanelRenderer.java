@@ -53,12 +53,25 @@ final class LocalDevPanelRenderer {
      * @return true when an open panel was rendered; false when the panel is closed.
      */
     boolean render(ServerPacketWriter writer)throws IOException{
-        if(!panel.isOpen())return false;
+        return render(
+            writer,
+            panel.snapshot()
+        );
+    }
+
+    boolean render(
+        ServerPacketWriter writer,
+        DevControlCenter.StateSnapshot state
+    )throws IOException{
+        if(state==null)
+            throw new NullPointerException("state");
+        if(!state.open)
+            return false;
 
         String title="LocalLab Dev Control Center";
         String[] options={"","","",""};
 
-        switch(panel.page()){
+        switch(state.page){
             case MAIN:
                 title="LocalLab Dev Control Center | "+BuildInfo.VERSION;
                 options[0]="Combat & weapons";
