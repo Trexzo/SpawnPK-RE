@@ -87,7 +87,7 @@ public final class LocalEquipmentItemActionHandlerTest {
         testCosmeticPublicationAtomicity();
 
         System.out.println(
-            "LOCAL_EQUIPMENT_ITEM_ACTION_HANDLER_PASS equip=true unequip=true persistenceSignals=true unrelatedRejected=true cosmeticPublicationAtomic=true cosmeticReplacementAtomic=true cosmeticUnequipAtomic=true cosmeticOpenBankMirrorAtomic=true");
+            "LOCAL_EQUIPMENT_ITEM_ACTION_HANDLER_PASS equip=true unequip=true persistenceSignals=true unrelatedRejected=true cosmeticPublicationAtomic=true cosmeticReplacementAtomic=true cosmeticUnequipAtomic=true cosmeticOpenBankMirrorAtomic=true cosmeticReplacementExactConsumedSlot=true stackableNativeCosmeticApplicable=false");
     }
 
     private static void testCosmeticPublicationAtomicity()
@@ -124,6 +124,21 @@ public final class LocalEquipmentItemActionHandlerTest {
             throw new AssertionError(
                 "native cosmetic fixtures lost authority"
             );
+
+        int[] certifiedNativeIcons={
+            10556,10557,10558,10559,
+            24184,24185,24187,27454,
+            24239,27393,23631,26125,
+            27560,27427
+        };
+        for(int id:certifiedNativeIcons)
+            if(!ItemCatalog.isNativePlayerIcon(id)||
+               BankState.isStackable(id))
+                throw new AssertionError(
+                    "current native cosmetic stackability changed id="+
+                    id+
+                    " name="+ItemCatalog.name(id)
+                );
 
         bank.spawnItem(
             firstIcon,
@@ -236,9 +251,11 @@ public final class LocalEquipmentItemActionHandlerTest {
            playerState.cosmetic().itemId()!=secondIcon||
            bank.inventoryCount(secondIcon)!=secondBefore-1||
            bank.inventoryCount(firstIcon)!=
-                firstInventoryBeforeReplace+1)
+                firstInventoryBeforeReplace+1||
+           bank.inventoryAt(secondSlot)==null||
+           bank.inventoryAt(secondSlot).itemId!=firstIcon)
             throw new AssertionError(
-                "cosmetic replacement retry did not commit exact swap"
+                "cosmetic replacement retry did not commit exact consumed-slot swap"
             );
 
         int secondInventoryBeforeUnequip=
