@@ -1978,8 +1978,7 @@ public final class LocalMonsterSpawnerCallbackLinearizationTest {
                                     generation,
                                     ()->{
                                         root[0]=
-                                            MonsterSpawnerPresentation
-                                                .ROOT_INTERFACE;
+                                            MonsterSpawnerPresentation.ROOT;
                                         uiOpen.set(
                                             true
                                         );
@@ -2011,8 +2010,7 @@ public final class LocalMonsterSpawnerCallbackLinearizationTest {
             require(
                 !uiOpen.get()&&
                 root[0]==
-                    MonsterSpawnerPresentation
-                        .ROOT_INTERFACE,
+                    MonsterSpawnerPresentation.ROOT,
                 "replacement transaction exposed mismatched gate/root to competing World-owned open"
             );
 
@@ -2036,8 +2034,7 @@ public final class LocalMonsterSpawnerCallbackLinearizationTest {
                 queuedOpenResult[0]&&
                 uiOpen.get()&&
                 root[0]==
-                    MonsterSpawnerPresentation
-                        .ROOT_INTERFACE,
+                    MonsterSpawnerPresentation.ROOT,
                 "replacement-first ordering did not leave final Monster Spawner root/gate"
             );
 
@@ -2080,8 +2077,7 @@ public final class LocalMonsterSpawnerCallbackLinearizationTest {
                                             );
 
                                             root[0]=
-                                                MonsterSpawnerPresentation
-                                                    .ROOT_INTERFACE;
+                                                MonsterSpawnerPresentation.ROOT;
                                             uiOpen.set(
                                                 true
                                             );
