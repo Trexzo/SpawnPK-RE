@@ -171,12 +171,303 @@ public final class LocalPetDropPickupHandlerTest {
                 );
             }
 
+            testOrdinaryGroundDropAtomicity();
+
             System.out.println(
                 "LOCAL_PET_DROP_PICKUP_HANDLER_PASS "+
-                "pickupOwned=true npcCancel=true opcodeBoundary=true"
+                "pickupOwned=true npcCancel=true opcodeBoundary=true "+
+                "ordinaryDropAtomic=true ordinaryDropMergeAtomic=true "+
+                "groundSceneContextRollback=true"
             );
         }finally{
             world.close();
         }
     }
+
+    private static void testOrdinaryGroundDropAtomicity()
+        throws Exception
+    {
+        World world=
+            World.isolatedForTest(51L);
+
+        try{
+            WorldPlayer player=
+                new WorldPlayer();
+            BankState bank=
+                player.bank();
+            MovementState movement=
+                player.movement();
+            DevAuthorityWorkbench dev=
+                new DevAuthorityWorkbench();
+            NpcRegistry npcs=
+                new NpcRegistry(dev);
+            Bridge bridge=
+                new Bridge();
+
+            ServerPacketWriter healthy=
+                new ServerPacketWriter(
+                    new ByteArrayOutputStream(),
+                    new IsaacCipher(
+                        new int[]{9,10,11,12}
+                    )
+                );
+
+            bridge.scenePublisher=
+                new SceneUpdatePublisher(
+                    healthy,
+                    new SceneCoordinateContext(
+                        MovementState.REGION_BASE_X,
+                        MovementState.REGION_BASE_Y,
+                        0
+                    )
+                );
+
+            LocalPetDropPickupHandler h=
+                new LocalPetDropPickupHandler(
+                    world,
+                    bank,
+                    movement,
+                    player.petState(),
+                    player.petEffects(),
+                    player.miniPets(),
+                    npcs,
+                    new VoidglassPetState(),
+                    new PetAccessoryState(),
+                    dev,
+                    bridge
+                );
+
+            bank.spawnItem(
+                4151,
+                1,
+                healthy
+            );
+            int slot=
+                findSlot(
+                    bank,
+                    4151
+                );
+
+            if(slot<0)
+                throw new AssertionError(
+                    "ordinary Drop fixture item missing"
+                );
+
+            Tile tile=
+                new Tile(
+                    movement.x(),
+                    movement.y(),
+                    0
+                );
+
+            OutboundPacketQueue failedQueue=
+                fullQueue();
+            ServerPacketWriter failedWriter=
+                queueWriter(
+                    failedQueue,
+                    new int[]{13,14,15,16}
+                );
+            SceneCoordinateContext failedContext=
+                new SceneCoordinateContext(
+                    MovementState.REGION_BASE_X,
+                    MovementState.REGION_BASE_Y,
+                    0
+                );
+            bridge.scenePublisher=
+                new SceneUpdatePublisher(
+                    failedWriter,
+                    failedContext
+                );
+
+            boolean failed=false;
+
+            try{
+                h.handleDrop(
+                    new DropItemAction(
+                        4151,
+                        BankState.NORMAL_INVENTORY_CONTAINER,
+                        slot
+                    ),
+                    failedWriter,
+                    "[ground-drop-atomic] "
+                );
+            }catch(java.io.IOException expected){
+                failed=true;
+            }
+
+            if(!failed||
+               bank.inventoryCount(4151)!=1||
+               world.groundItems().findOwned(
+                    4151,
+                    tile.x,
+                    tile.y,
+                    tile.plane,
+                    "opensrc"
+               )!=null||
+               failedContext.currentChunkX()!=-1||
+               failedContext.currentChunkY()!=-1||
+               failedQueue.queuedBytes()!=1024)
+                throw new AssertionError(
+                    "failed new-stack Drop changed cross-domain preimage"
+                );
+
+            bridge.scenePublisher=
+                new SceneUpdatePublisher(
+                    healthy,
+                    new SceneCoordinateContext(
+                        MovementState.REGION_BASE_X,
+                        MovementState.REGION_BASE_Y,
+                        0
+                    )
+                );
+
+            h.handleDrop(
+                new DropItemAction(
+                    4151,
+                    BankState.NORMAL_INVENTORY_CONTAINER,
+                    slot
+                ),
+                healthy,
+                "[ground-drop-atomic] "
+            );
+
+            GroundItem first=
+                world.groundItems().findOwned(
+                    4151,
+                    tile.x,
+                    tile.y,
+                    tile.plane,
+                    "opensrc"
+                );
+
+            if(first==null||
+               first.amount!=1||
+               bank.inventoryCount(4151)!=0)
+                throw new AssertionError(
+                    "ordinary Drop retry did not commit exactly once"
+                );
+
+            bank.spawnItem(
+                4151,
+                1,
+                healthy
+            );
+            int mergeSlot=
+                findSlot(
+                    bank,
+                    4151
+                );
+
+            OutboundPacketQueue mergeFailQueue=
+                fullQueue();
+            ServerPacketWriter mergeFailWriter=
+                queueWriter(
+                    mergeFailQueue,
+                    new int[]{17,18,19,20}
+                );
+            SceneCoordinateContext mergeContext=
+                new SceneCoordinateContext(
+                    MovementState.REGION_BASE_X,
+                    MovementState.REGION_BASE_Y,
+                    0
+                );
+            bridge.scenePublisher=
+                new SceneUpdatePublisher(
+                    mergeFailWriter,
+                    mergeContext
+                );
+
+            boolean mergeFailed=false;
+
+            try{
+                h.handleDrop(
+                    new DropItemAction(
+                        4151,
+                        BankState.NORMAL_INVENTORY_CONTAINER,
+                        mergeSlot
+                    ),
+                    mergeFailWriter,
+                    "[ground-drop-merge-atomic] "
+                );
+            }catch(java.io.IOException expected){
+                mergeFailed=true;
+            }
+
+            if(!mergeFailed||
+               bank.inventoryCount(4151)!=1||
+               world.groundItems().byId(first.id)!=first||
+               first.amount!=1||
+               mergeContext.currentChunkX()!=-1||
+               mergeContext.currentChunkY()!=-1)
+                throw new AssertionError(
+                    "failed merged Drop changed registry/inventory preimage"
+                );
+
+            bridge.scenePublisher=
+                new SceneUpdatePublisher(
+                    healthy,
+                    new SceneCoordinateContext(
+                        MovementState.REGION_BASE_X,
+                        MovementState.REGION_BASE_Y,
+                        0
+                    )
+                );
+
+            h.handleDrop(
+                new DropItemAction(
+                    4151,
+                    BankState.NORMAL_INVENTORY_CONTAINER,
+                    mergeSlot
+                ),
+                healthy,
+                "[ground-drop-merge-atomic] "
+            );
+
+            if(world.groundItems().byId(first.id)!=first||
+               first.amount!=2||
+               bank.inventoryCount(4151)!=0)
+                throw new AssertionError(
+                    "merged Drop retry did not preserve identity/exact amount"
+                );
+        }finally{
+            world.close();
+        }
+    }
+
+    private static OutboundPacketQueue fullQueue()
+        throws Exception
+    {
+        OutboundPacketQueue queue=
+            new OutboundPacketQueue(1024);
+        queue.offer(
+            new byte[1024]
+        );
+        return queue;
+    }
+
+    private static ServerPacketWriter queueWriter(
+        OutboundPacketQueue queue,
+        int[] seed
+    ){
+        return new ServerPacketWriter(
+            queue,
+            new IsaacCipher(seed)
+        );
+    }
+
+    private static int findSlot(
+        BankState bank,
+        int itemId
+    ){
+        for(int i=0;i<bank.inventoryCapacity();i++){
+            BankState.Stack stack=
+                bank.inventoryAt(i);
+            if(stack!=null&&
+               stack.itemId==itemId&&
+               stack.qty>0)
+                return i;
+        }
+        return -1;
+    }
+
 }
