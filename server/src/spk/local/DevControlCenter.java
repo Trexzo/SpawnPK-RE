@@ -61,7 +61,20 @@ final class DevControlCenter {
     void prompt(PendingAmount p){returnPage=page;pending=p;open=false;}
     PendingAmount pending(){return pending;}
     boolean hasPending(){return pending!=PendingAmount.NONE;}
-    Page finishPrompt(){Page p=returnPage;pending=PendingAmount.NONE;open=true;page=p;return p;}
+    StateSnapshot finishPromptPostimage(){
+        return new StateSnapshot(
+            true,
+            returnPage,
+            PendingAmount.NONE,
+            returnPage
+        );
+    }
+    Page finishPrompt(){
+        StateSnapshot next=
+            finishPromptPostimage();
+        restore(next);
+        return page;
+    }
     void cancelPending(){pending=PendingAmount.NONE;}
 
     int selectedSpellWidget(){return selectedSpellWidget;}
