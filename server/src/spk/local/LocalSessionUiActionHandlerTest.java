@@ -129,6 +129,19 @@ public final class LocalSessionUiActionHandlerTest {
                 new IsaacCipher(new int[]{1,2,3,4})
             );
 
+        int absentSpawnerOpenBefore=
+            wire.size();
+        if(h.openMonsterSpawnerIfConfigured(
+                w
+            ))
+            throw new AssertionError(
+                "unconfigured Monster Spawner UI reported open"
+            );
+        if(wire.size()!=absentSpawnerOpenBefore)
+            throw new AssertionError(
+                "unconfigured Monster Spawner UI emitted packet"
+            );
+
         int before=wire.size();
         h.handleWidget(2458,w,"[ui-test] ");
         if(!bridge.logoutRequested)
@@ -232,6 +245,19 @@ public final class LocalSessionUiActionHandlerTest {
                 equipment,
                 monsterSpawnerUi,
                 bridge
+            );
+
+        int configuredSpawnerOpenBefore=
+            wire.size();
+        if(!routed.openMonsterSpawnerIfConfigured(
+                w
+            ))
+            throw new AssertionError(
+                "configured Monster Spawner UI did not report open"
+            );
+        if(wire.size()<=configuredSpawnerOpenBefore)
+            throw new AssertionError(
+                "configured Monster Spawner UI open packet missing"
             );
 
         int spawnerTextBefore=wire.size();
@@ -865,7 +891,9 @@ public final class LocalSessionUiActionHandlerTest {
             "logout=true runToggle=true homeTeleport=true interfaceClose=true "+
             "panelBoundary=true monsterSpawnerRoute=true "+
             "monsterSpawnerAbsentPreserved=true "+
-            "monsterSpawnerResultForwarding=true"
+            "monsterSpawnerResultForwarding=true "+
+            "monsterSpawnerOpenConfigured=true "+
+            "monsterSpawnerOpenAbsentNoop=true"
         );
 
         System.out.println(
