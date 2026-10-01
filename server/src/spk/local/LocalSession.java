@@ -20,7 +20,7 @@ final class LocalSession implements Runnable {
             String canonicalUsername,
             ServerPacketWriter packets,
             String tag
-        )throws IOException{}
+        )throws Exception{}
     }
 
     private final Socket socket;
@@ -1001,14 +1001,30 @@ final class LocalSession implements Runnable {
                 "Monster Spawner result callback requires current session player ownership"
             );
 
-        factory.onCommittedUiResult(
-            checkedResult,
-            checkedWorld,
-            checkedPlayer,
-            username,
-            checkedPackets,
-            checkedTag
-        );
+        try{
+            factory.onCommittedUiResult(
+                checkedResult,
+                checkedWorld,
+                checkedPlayer,
+                username,
+                checkedPackets,
+                checkedTag
+            );
+        }catch(IOException failure){
+            throw failure;
+        }catch(RuntimeException failure){
+            throw failure;
+        }catch(Error failure){
+            throw failure;
+        }catch(Exception failure){
+            throw new IllegalStateException(
+                "Monster Spawner post-commit callback failed owner="+
+                username+
+                " status="+
+                checkedResult.status,
+                failure
+            );
+        }
     }
 
     @Override public void run() {
