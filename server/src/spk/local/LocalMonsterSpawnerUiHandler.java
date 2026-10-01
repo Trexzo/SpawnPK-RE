@@ -248,8 +248,9 @@ final class LocalMonsterSpawnerUiHandler {
 
         if(before.active){
             MonsterSpawnerService.SessionSnapshot after=
-                service.deactivate(
-                    ownerRef
+                service.deactivateIfCurrent(
+                    ownerRef,
+                    before
                 );
 
             return new Result(
