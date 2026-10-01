@@ -322,6 +322,109 @@ public final class LocalSessionUiActionHandlerTest {
                 "configured Monster Spawner UI open packet missing"
             );
 
+        World commandRootWorld=
+            World.isolatedForTest(
+                600L
+            );
+        long commandRootGeneration=
+            commandRootWorld.registerPlayer(
+                player,
+                "session-ui-owner"
+            );
+        int[] commandDevPublishes={0};
+
+        try{
+            String commandDevResult=
+                LocalSession.openDevPanelForCurrentSession(
+                    commandRootWorld,
+                    player,
+                    commandRootGeneration,
+                    routed,
+                    ()->{
+                        commandDevPublishes[0]++;
+                        routedDevPanel.open(
+                            DevControlCenter.Page.MAIN
+                        );
+                        return "COMMAND_DEV_PANEL_OPENED";
+                    }
+                );
+
+            if(!"COMMAND_DEV_PANEL_OPENED".equals(
+                    commandDevResult
+                )||
+               commandDevPublishes[0]!=1)
+                throw new AssertionError(
+                    "Dev Panel command root was not published exactly once"
+                );
+
+            int closedByCommandWire=
+                wire.size();
+            int closedByCommandResults=
+                bridge.monsterSpawnerResults;
+            int closedByCommandTransactions=
+                bridge.monsterSpawnerWidgetTransactions;
+
+            routed.handleWidget(
+                MonsterSpawnerPresentation.TOGGLE_WIDGET,
+                w,
+                "[ui-test] "
+            );
+
+            if(wire.size()!=closedByCommandWire||
+               bridge.monsterSpawnerResults!=
+                    closedByCommandResults||
+               bridge.monsterSpawnerWidgetTransactions!=
+                    closedByCommandTransactions)
+                throw new AssertionError(
+                    "Dev Panel command root left Monster Spawner gate open"
+                );
+
+            if(!commandRootWorld.unregisterPlayer(
+                    player,
+                    commandRootGeneration
+                ))
+                throw new AssertionError(
+                    "Dev Panel command root test unregister"
+                );
+
+            int stalePublishes=
+                commandDevPublishes[0];
+
+            String staleCommandResult=
+                LocalSession.openDevPanelForCurrentSession(
+                    commandRootWorld,
+                    player,
+                    commandRootGeneration,
+                    routed,
+                    ()->{
+                        commandDevPublishes[0]++;
+                        return "STALE_DEV_PANEL_OPENED";
+                    }
+                );
+
+            if(staleCommandResult!=null||
+               commandDevPublishes[0]!=
+                    stalePublishes)
+                throw new AssertionError(
+                    "stale Dev Panel command root published"
+                );
+        }finally{
+            if(player.registered())
+                commandRootWorld.unregisterPlayer(
+                    player,
+                    commandRootGeneration
+                );
+            commandRootWorld.close();
+            routedDevPanel.close();
+        }
+
+        if(!routed.openMonsterSpawnerIfConfigured(
+                w
+            ))
+            throw new AssertionError(
+                "Monster Spawner did not reopen after Dev Panel command root"
+            );
+
         int spawnerTextBefore=wire.size();
         int homeRequestsBeforeSpawner=
             bridge.homeTeleportRequests;
@@ -1351,7 +1454,9 @@ public final class LocalSessionUiActionHandlerTest {
             "monsterSpawnerDeathRootRevokes=true "+
             "monsterSpawnerDevPanelEquipmentRootRevokes=true "+
             "monsterSpawnerDevPanelDeathRootRevokes=true "+
-            "monsterSpawnerDevPanelNavigationPreserved=true"
+            "monsterSpawnerDevPanelNavigationPreserved=true "+
+            "monsterSpawnerDevPanelCommandRootRevokes=true "+
+            "monsterSpawnerDevPanelCommandStaleRejected=true"
         );
 
         System.out.println(
