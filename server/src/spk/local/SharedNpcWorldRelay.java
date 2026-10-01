@@ -27,6 +27,11 @@ final class SharedNpcWorldRelay {
     static synchronized void register(ServerPacketWriter writer,World world,WorldPlayer owner,NpcRegistry npcs,MovementState movement){
         if(writer==null||world==null||owner==null||npcs==null||movement==null)return;
 
+        if(world.closed())
+            throw new IllegalStateException(
+                "cannot register SharedNpcWorldRelay on closed World"
+            );
+
         Context oldWriter=BY_WRITER.remove(writer);
         if(oldWriter!=null)
             cleanupContext(oldWriter);
@@ -92,6 +97,11 @@ final class SharedNpcWorldRelay {
             Objects.requireNonNull(
                 npc,
                 "npc"
+            );
+
+        if(checkedWorld.closed())
+            throw new IllegalStateException(
+                "cannot track canonical NPC on closed World"
             );
 
         if(checkedWorld.npcs().byId(
