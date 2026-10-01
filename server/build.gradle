@@ -4931,6 +4931,7 @@ tasks.named('check') {
     dependsOn tasks.named('pvpHotspotServiceRegression')
     dependsOn tasks.named('monsterSpawnerNpcDeathFinalizationRegression')
     dependsOn tasks.named('monsterSpawnerPvmRuntimeRegression')
+    dependsOn tasks.named('monsterSpawnerPvmSpawnExecutorRegression')
     dependsOn tasks.named('npcDeadTerminalCompositionRegression')
     dependsOn tasks.named('npcDropResolutionServiceRegression')
     dependsOn tasks.named('groundItemBatchSettlementRegression')
@@ -5490,6 +5491,20 @@ tasks.register('monsterSpawnerPvmRuntimeRegression', JavaExec) {
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass = 'spk.local.MonsterSpawnerPvmRuntimeTest'
+}
+
+
+tasks.register('monsterSpawnerPvmSpawnExecutorRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves caller-owned Monster Spawner placement resolves outside ownership and commits one PvM spawn only against the exact active session snapshot.'
+    dependsOn(
+        tasks.named('testClasses'),
+        tasks.named('monsterSpawnerPvmRuntimeRegression')
+    )
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.MonsterSpawnerPvmSpawnExecutorTest'
 }
 
 
