@@ -277,6 +277,29 @@ final class World implements AutoCloseable {
         );
     }
 
+    int retryMonsterSpawnerPendingSettlements(){
+        if(closed.get())
+            return 0;
+
+        final MonsterSpawnerPvmRuntime runtime;
+
+        synchronized(lifecycleLock){
+            if(closed.get())
+                return 0;
+
+            runtime=monsterSpawnerPvmRuntime;
+        }
+
+        if(runtime==null)
+            return 0;
+
+        /*
+         * Do not hold lifecycleLock across ground settlement. The runtime
+         * reacquires the exact World-open mutation boundary through runIfOpen.
+         */
+        return runtime.retryPendingSettlementsOnce();
+    }
+
     WorldPetNpcService petNpcs(){return petNpcs;}
     WorldNpcPresentationEvents npcPresentationEvents(){return npcPresentationEvents;}
     WorldGroundItemPresentationEvents groundItemPresentationEvents(){
