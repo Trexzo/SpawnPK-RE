@@ -677,6 +677,7 @@ public final class LocalBankObjectInteractionHandlerTest {
             testBankStructuralPublicationAtomicity();
             testBankTransferQuantityOverflow();
             testGenericInventoryPublicationAtomicity();
+            testSpawnPublicationAtomicityAndQuantity();
 
             System.out.println(
                 "LOCAL_BANK_OBJECT_HANDLER_PASS "+
@@ -709,7 +710,10 @@ public final class LocalBankObjectInteractionHandlerTest {
                 "bankTransferOverflowRejected=true "+
                 "bankTransferMaxBoundary=true "+
                 "genericInventoryPublicationAtomic=true "+
-                "genericInventoryOpenBankMirrorAtomic=true"
+                "genericInventoryOpenBankMirrorAtomic=true "+
+                "spawnPublicationAtomic=true "+
+                "spawnOpenBankMirrorAtomic=true "+
+                "spawnQuantityExact=true"
             );
         }finally{
             if(player.registered())
@@ -1935,6 +1939,207 @@ public final class LocalBankObjectInteractionHandlerTest {
                 openCoinsBefore+2)
             throw new AssertionError(
                 "open-bank mirrored retry did not commit"
+            );
+    }
+
+    private static void testSpawnPublicationAtomicityAndQuantity()
+        throws Exception
+    {
+        ServerPacketWriter good=
+            new ServerPacketWriter(
+                new ByteArrayOutputStream(),
+                new IsaacCipher(
+                    new int[]{181,182,183,184}
+                )
+            );
+
+        BankState closed=
+            new BankState();
+        int closedBefore=
+            closed.inventoryCount(995);
+        boolean closedFailed=false;
+
+        try{
+            closed.spawnItem(
+                995,
+                3,
+                queueWriter(
+                    fullQueue(),
+                    new int[]{185,186,187,188}
+                )
+            );
+        }catch(java.io.IOException expected){
+            closedFailed=true;
+        }
+
+        if(!closedFailed||
+           closed.inventoryCount(995)!=closedBefore)
+            throw new AssertionError(
+                "failed closed spawn mutated canonical inventory"
+            );
+
+        String closedRetry=
+            closed.spawnItem(
+                995,
+                3,
+                good
+            );
+
+        if(closedRetry==null||
+           !closedRetry.contains("ITEM_SPAWN_OK")||
+           !closedRetry.contains("moved=3")||
+           closed.inventoryCount(995)!=closedBefore+3)
+            throw new AssertionError(
+                "closed spawn retry did not commit exact quantity"
+            );
+
+        BankState mirrored=
+            new BankState();
+        ServerPacketWriter mirroredGood=
+            new ServerPacketWriter(
+                new ByteArrayOutputStream(),
+                new IsaacCipher(
+                    new int[]{189,190,191,192}
+                )
+            );
+        mirrored.open(
+            mirroredGood
+        );
+
+        int mirroredBefore=
+            mirrored.inventoryCount(995);
+        boolean mirroredFailed=false;
+
+        try{
+            mirrored.spawnItem(
+                995,
+                2,
+                queueWriter(
+                    fullQueue(),
+                    new int[]{193,194,195,196}
+                )
+            );
+        }catch(java.io.IOException expected){
+            mirroredFailed=true;
+        }
+
+        if(!mirroredFailed||
+           mirrored.inventoryCount(995)!=mirroredBefore)
+            throw new AssertionError(
+                "failed open-bank spawn mutated canonical inventory"
+            );
+
+        String mirroredRetry=
+            mirrored.spawnItem(
+                995,
+                2,
+                mirroredGood
+            );
+
+        if(mirroredRetry==null||
+           !mirroredRetry.contains("moved=2")||
+           mirrored.inventoryCount(995)!=mirroredBefore+2)
+            throw new AssertionError(
+                "open-bank spawn retry did not commit exact quantity"
+            );
+
+        BankState saturation=
+            new BankState();
+        ServerPacketWriter saturationGood=
+            new ServerPacketWriter(
+                new ByteArrayOutputStream(),
+                new IsaacCipher(
+                    new int[]{197,198,199,200}
+                )
+            );
+
+        saturation.spawnItem(
+            995,
+            1_000_000_000,
+            saturationGood
+        );
+        saturation.spawnItem(
+            995,
+            1_000_000_000,
+            saturationGood
+        );
+        saturation.spawnItem(
+            995,
+            147_483_640,
+            saturationGood
+        );
+
+        if(saturation.inventoryCount(995)!=
+                Integer.MAX_VALUE-7)
+            throw new AssertionError(
+                "stack saturation fixture mismatch count="+
+                saturation.inventoryCount(995)
+            );
+
+        String saturated=
+            saturation.spawnItem(
+                995,
+                100,
+                saturationGood
+            );
+
+        if(saturated==null||
+           !saturated.contains("requested=100")||
+           !saturated.contains("moved=7")||
+           saturation.inventoryCount(995)!=
+                Integer.MAX_VALUE)
+            throw new AssertionError(
+                "stack saturation reported/committed wrong quantity result="+
+                saturated+
+                " count="+
+                saturation.inventoryCount(995)
+            );
+
+        String fullStack=
+            saturation.spawnItem(
+                995,
+                1,
+                saturationGood
+            );
+
+        if(fullStack==null||
+           !fullStack.contains(
+                "REJECTED_INVENTORY_QTY_OVERFLOW"
+           )||
+           saturation.inventoryCount(995)!=
+                Integer.MAX_VALUE)
+            throw new AssertionError(
+                "full stack did not reject without mutation result="+
+                fullStack
+            );
+
+        if(ItemDefinitionRepository.isStackable(385))
+            throw new AssertionError(
+                "shark fixture unexpectedly stackable"
+            );
+
+        BankState nonStackable=
+            new BankState();
+        String partial=
+            nonStackable.spawnItem(
+                385,
+                30,
+                new ServerPacketWriter(
+                    new ByteArrayOutputStream(),
+                    new IsaacCipher(
+                        new int[]{201,202,203,204}
+                    )
+                )
+            );
+
+        if(partial==null||
+           !partial.contains("requested=30")||
+           !partial.contains("moved=28")||
+           nonStackable.inventoryCount(385)!=28||
+           nonStackable.inventorySlots()!=28)
+            throw new AssertionError(
+                "non-stackable partial spawn quantity mismatch result="+
+                partial
             );
     }
 
