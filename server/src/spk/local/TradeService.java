@@ -506,31 +506,192 @@ final class TradeService {
 
     private static String commit(Trade t)throws IOException{
         Context a=t.a,b=t.b;
-        Object first=a.player.id().value<b.player.id().value?a.player.mutationLock():b.player.mutationLock();
-        Object second=first==a.player.mutationLock()?b.player.mutationLock():a.player.mutationLock();
-        synchronized(first){synchronized(second){
-            if(!a.ownerCurrent()||!b.ownerCurrent()){
-                cancel0(
-                    state(a.world),
-                    a,
-                    "FINAL_VALIDATION_STALE_OWNER",
-                    false
+        Object first=
+            a.player.id().value<
+                b.player.id().value
+                ?a.player.mutationLock()
+                :b.player.mutationLock();
+        Object second=
+            first==a.player.mutationLock()
+                ?b.player.mutationLock()
+                :a.player.mutationLock();
+
+        synchronized(first){
+            synchronized(second){
+                if(!a.ownerCurrent()||
+                   !b.ownerCurrent()){
+                    cancel0(
+                        state(a.world),
+                        a,
+                        "FINAL_VALIDATION_STALE_OWNER",
+                        false
+                    );
+                    return "TRADE_COMMIT_REJECTED_STALE_OWNER";
+                }
+
+                if(!offersAvailable(
+                        a,
+                        t.offerA
+                    )||
+                   !offersAvailable(
+                        b,
+                        t.offerB
+                    )){
+                    cancel0(
+                        state(a.world),
+                        a,
+                        "FINAL_VALIDATION_MISSING_OFFER",
+                        true
+                    );
+                    return "TRADE_COMMIT_REJECTED_OFFER_CHANGED";
+                }
+
+                int[][] postA=
+                    projectedExchangeInventory(
+                        a.bank,
+                        t.offerA,
+                        t.offerB
+                    );
+                int[][] postB=
+                    projectedExchangeInventory(
+                        b.bank,
+                        t.offerB,
+                        t.offerA
+                    );
+
+                if(postA==null||
+                   postB==null){
+                    cancel0(
+                        state(a.world),
+                        a,
+                        "FINAL_VALIDATION_INVENTORY_SPACE",
+                        true
+                    );
+                    return "TRADE_COMMIT_REJECTED_INVENTORY_SPACE";
+                }
+
+                byte[] inventoryA=
+                    BootstrapPackets.itemContainer53(
+                        BankState.NORMAL_INVENTORY_CONTAINER,
+                        postA[0],
+                        postA[1]
+                    );
+                byte[] inventoryB=
+                    BootstrapPackets.itemContainer53(
+                        BankState.NORMAL_INVENTORY_CONTAINER,
+                        postB[0],
+                        postB[1]
+                    );
+
+                int framedA=
+                    inventoryA.length+4;
+                int framedB=
+                    inventoryB.length+4;
+
+                ServerPacketWriter.AtomicPairBatch pair;
+
+                try{
+                    pair=
+                        ServerPacketWriter.beginAtomicQueuePair(
+                            a.writer,
+                            framedA,
+                            b.writer,
+                            framedB
+                        );
+                }catch(IOException admissionFailure){
+                    return "TRADE_COMMIT_REJECTED_PRESENTATION_ADMISSION "+
+                        admissionFailure.getMessage();
+                }
+
+                if(pair!=null){
+                    a.writer.varShort(
+                        53,
+                        inventoryA
+                    );
+                    a.writer.fixed(
+                        219,
+                        new byte[0]
+                    );
+                    b.writer.varShort(
+                        53,
+                        inventoryB
+                    );
+                    b.writer.fixed(
+                        219,
+                        new byte[0]
+                    );
+                    pair.commit();
+                }else{
+                    /*
+                     * Direct OutputStream writers exist only in focused legacy
+                     * tests/tooling. They cannot provide cross-stream atomic
+                     * admission. Still publish before mutating canonical state.
+                     */
+                    a.writer.beginBatch();
+                    b.writer.beginBatch();
+                    boolean endedA=false;
+                    boolean endedB=false;
+
+                    try{
+                        a.writer.varShort(
+                            53,
+                            inventoryA
+                        );
+                        a.writer.fixed(
+                            219,
+                            new byte[0]
+                        );
+                        b.writer.varShort(
+                            53,
+                            inventoryB
+                        );
+                        b.writer.fixed(
+                            219,
+                            new byte[0]
+                        );
+                        a.writer.endBatch();
+                        endedA=true;
+                        b.writer.endBatch();
+                        endedB=true;
+                    }finally{
+                        if(!endedA)
+                            try{
+                                a.writer.endBatch();
+                            }catch(Throwable ignored){}
+                        if(!endedB)
+                            try{
+                                b.writer.endBatch();
+                            }catch(Throwable ignored){}
+                    }
+                }
+
+                a.bank.replaceInventorySemantic(
+                    postA[0],
+                    postA[1]
                 );
-                return "TRADE_COMMIT_REJECTED_STALE_OWNER";
+                b.bank.replaceInventorySemantic(
+                    postB[0],
+                    postB[1]
+                );
+
+                t.stage=Stage.COMMITTED;
+                detach(
+                    state(a.world),
+                    t
+                );
+
+                if(a.save!=null)
+                    a.save.run();
+                if(b.save!=null)
+                    b.save.run();
+
+                return "TRADE_COMMITTED a="+
+                    a.player.username()+
+                    " gives="+t.offerA+
+                    " b="+b.player.username()+
+                    " gives="+t.offerB;
             }
-            if(!offersAvailable(a,t.offerA)||!offersAvailable(b,t.offerB)){cancel0(state(a.world),a,"FINAL_VALIDATION_MISSING_OFFER",true);return "TRADE_COMMIT_REJECTED_OFFER_CHANGED";}
-            if(!canAfterExchange(a.bank,t.offerA,t.offerB)||!canAfterExchange(b.bank,t.offerB,t.offerA)){cancel0(state(a.world),a,"FINAL_VALIDATION_INVENTORY_SPACE",true);return "TRADE_COMMIT_REJECTED_INVENTORY_SPACE";}
-            a.writer.beginBatch();b.writer.beginBatch();boolean endedA=false,endedB=false;
-            try{
-                removeOffer(a.bank,t.offerA,a.writer);removeOffer(b.bank,t.offerB,b.writer);
-                addOffer(a.bank,t.offerB,a.writer);addOffer(b.bank,t.offerA,b.writer);
-                a.bank.sendNormalInventory(a.writer);b.bank.sendNormalInventory(b.writer);
-                a.writer.fixed(219,new byte[0]);b.writer.fixed(219,new byte[0]);
-                a.writer.endBatch();endedA=true;b.writer.endBatch();endedB=true;
-            }finally{if(!endedA)try{a.writer.endBatch();}catch(Throwable ignored){}if(!endedB)try{b.writer.endBatch();}catch(Throwable ignored){}}
-            t.stage=Stage.COMMITTED;detach(state(a.world),t);if(a.save!=null)a.save.run();if(b.save!=null)b.save.run();
-            return "TRADE_COMMITTED a="+a.player.username()+" gives="+t.offerA+" b="+b.player.username()+" gives="+t.offerB;
-        }}
+        }
     }
 
     private static void changeOffer(Trade t,Context c,int item,int delta)throws IOException{
@@ -749,9 +910,51 @@ final class TradeService {
 
     private static boolean offersAvailable(Context c,LinkedHashMap<Integer,Integer> offer){for(Map.Entry<Integer,Integer> e:offer.entrySet())if(c.bank.inventoryCount(e.getKey())<e.getValue()||ItemPolicyRepository.explicitlyUntradeable(e.getKey()))return false;return true;}
     private static boolean canAfterExchange(BankState bank,LinkedHashMap<Integer,Integer> outgoing,LinkedHashMap<Integer,Integer> incoming){
-        int n=bank.inventoryCapacity();int[] ids=new int[n],qs=new int[n];for(int i=0;i<n;i++){BankState.Stack s=bank.inventoryAt(i);ids[i]=s==null?-1:s.itemId;qs[i]=s==null?0:s.qty;}
-        for(Map.Entry<Integer,Integer> e:outgoing.entrySet())if(!simRemove(ids,qs,e.getKey(),e.getValue()))return false;
-        for(Map.Entry<Integer,Integer> e:incoming.entrySet())if(!simAdd(ids,qs,e.getKey(),e.getValue()))return false;return true;
+        return projectedExchangeInventory(
+            bank,
+            outgoing,
+            incoming
+        )!=null;
+    }
+
+    private static int[][] projectedExchangeInventory(
+        BankState bank,
+        LinkedHashMap<Integer,Integer> outgoing,
+        LinkedHashMap<Integer,Integer> incoming
+    ){
+        int n=bank.inventoryCapacity();
+        int[] ids=new int[n];
+        int[] qs=new int[n];
+
+        for(int i=0;i<n;i++){
+            BankState.Stack s=
+                bank.inventoryAt(i);
+            ids[i]=s==null?-1:s.itemId;
+            qs[i]=s==null?0:s.qty;
+        }
+
+        for(Map.Entry<Integer,Integer> e:
+                outgoing.entrySet())
+            if(!simRemove(
+                    ids,
+                    qs,
+                    e.getKey(),
+                    e.getValue()))
+                return null;
+
+        for(Map.Entry<Integer,Integer> e:
+                incoming.entrySet())
+            if(!simAdd(
+                    ids,
+                    qs,
+                    e.getKey(),
+                    e.getValue()))
+                return null;
+
+        return new int[][]{
+            ids,
+            qs
+        };
     }
     private static boolean simRemove(int[] ids,int[] qs,int item,int amount){int rem=amount;for(int i=0;i<ids.length&&rem>0;i++)if(ids[i]==item){int take=Math.min(qs[i],rem);qs[i]-=take;rem-=take;if(qs[i]==0)ids[i]=-1;}return rem==0;}
     private static boolean simAdd(int[] ids,int[] qs,int item,int amount){if(amount<=0)return true;if(BankState.isStackable(item)){for(int i=0;i<ids.length;i++)if(ids[i]==item){long x=(long)qs[i]+amount;if(x>Integer.MAX_VALUE)return false;qs[i]=(int)x;return true;}for(int i=0;i<ids.length;i++)if(ids[i]<0){ids[i]=item;qs[i]=amount;return true;}return false;}int empty=0;for(int id:ids)if(id<0)empty++;if(empty<amount)return false;for(int i=0;i<ids.length&&amount>0;i++)if(ids[i]<0){ids[i]=item;qs[i]=1;amount--;}return amount==0;}
