@@ -5,10 +5,20 @@ import java.net.*;
 import java.time.Instant;
 
 final class LocalSession implements Runnable {
+    @FunctionalInterface
+    interface MonsterSpawnerUiFactory {
+        LocalMonsterSpawnerUiHandler create(
+            World world,
+            WorldPlayer player,
+            String canonicalUsername
+        ) throws Exception;
+    }
+
     private final Socket socket;
     private final boolean bootstrap;
     private final boolean movementEnabled;
     private final World world;
+    private final MonsterSpawnerUiFactory monsterSpawnerUiFactory;
     private final WorldPlayer worldPlayer;
     private final MovementState movement;
     private final BankState bank;
@@ -89,14 +99,52 @@ final class LocalSession implements Runnable {
     private final PetAccessoryState petAccessoryState;
     private volatile boolean logoutRequested;
 
-    LocalSession(Socket socket, boolean bootstrap) { this(socket, bootstrap, false, World.shared()); }
-    LocalSession(Socket socket, boolean bootstrap, boolean movementEnabled) { this(socket, bootstrap, movementEnabled, World.shared()); }
-    LocalSession(Socket socket, boolean bootstrap, boolean movementEnabled, World world) {
+    LocalSession(Socket socket, boolean bootstrap) {
+        this(socket,bootstrap,false,World.shared(),null);
+    }
+
+    LocalSession(
+        Socket socket,
+        boolean bootstrap,
+        boolean movementEnabled
+    ){
+        this(
+            socket,
+            bootstrap,
+            movementEnabled,
+            World.shared(),
+            null
+        );
+    }
+
+    LocalSession(
+        Socket socket,
+        boolean bootstrap,
+        boolean movementEnabled,
+        World world
+    ){
+        this(
+            socket,
+            bootstrap,
+            movementEnabled,
+            world,
+            null
+        );
+    }
+
+    LocalSession(
+        Socket socket,
+        boolean bootstrap,
+        boolean movementEnabled,
+        World world,
+        MonsterSpawnerUiFactory monsterSpawnerUiFactory
+    ){
         VoidglassR3CustomContent.ensureRuntimePetMapping();
         this.socket = socket;
         this.bootstrap = bootstrap;
         this.movementEnabled = movementEnabled;
         this.world = java.util.Objects.requireNonNull(world,"world");
+        this.monsterSpawnerUiFactory=monsterSpawnerUiFactory;
         this.playerPresentation =
             new PlayerPresentationService(
                 this.world,
@@ -825,6 +873,52 @@ final class LocalSession implements Runnable {
         if (movementEnabled && !bootstrap) throw new IllegalArgumentException("movement requires bootstrap");
     }
 
+    static LocalMonsterSpawnerUiHandler
+        resolveMonsterSpawnerUiAfterLogin(
+            MonsterSpawnerUiFactory factory,
+            World world,
+            WorldPlayer player,
+            String canonicalUsername
+        )throws Exception{
+        if(factory==null)
+            return null;
+
+        World checkedWorld=
+            java.util.Objects.requireNonNull(
+                world,
+                "world"
+            );
+        WorldPlayer checkedPlayer=
+            java.util.Objects.requireNonNull(
+                player,
+                "player"
+            );
+        String username=
+            PartyService.requireRef(
+                canonicalUsername
+            );
+
+        LocalMonsterSpawnerUiHandler adapter=
+            factory.create(
+                checkedWorld,
+                checkedPlayer,
+                username
+            );
+
+        if(adapter==null)
+            return null;
+
+        if(!adapter.isBoundToOwner(
+                username
+            ))
+            throw new IllegalArgumentException(
+                "Monster Spawner UI owner differs from canonical session account "+
+                username
+            );
+
+        return adapter;
+    }
+
     @Override public void run() {
         String tag = "[session " + socket.getRemoteSocketAddress() + "] ";
         try (socket; InputStream in = socket.getInputStream(); OutputStream out = socket.getOutputStream()) {
@@ -844,6 +938,19 @@ final class LocalSession implements Runnable {
             persistentAccount=playerInit.persistentAccount;
             worldPlayerGeneration=playerInit.worldPlayerGeneration;
             worldRegistered=true;
+
+            LocalMonsterSpawnerUiHandler monsterSpawnerUi=
+                resolveMonsterSpawnerUiAfterLogin(
+                    monsterSpawnerUiFactory,
+                    world,
+                    worldPlayer,
+                    username
+                );
+
+            if(monsterSpawnerUi!=null)
+                uiActions.installMonsterSpawnerUiHandler(
+                    monsterSpawnerUi
+                );
 
             LocalLoginTransport.Ciphers loginCiphers=
                 LocalLoginTransport.ciphers(frame);
