@@ -91,6 +91,9 @@ public final class LocalMonsterSpawnerUiHandlerTest {
             rowLabelFailureAtomic(
                 world
             );
+            rowInvalidTextFailureAtomic(
+                world
+            );
             rowAuthorityFailureAtomic(
                 world
             );
@@ -485,6 +488,51 @@ public final class LocalMonsterSpawnerUiHandlerTest {
             service.getSession(owner)
                 .selectedRowIndex==null,
             "row label failure mutated selection"
+        );
+    }
+
+    private static void rowInvalidTextFailureAtomic(
+        World world
+    ){
+        final String owner="monster-ui-row-invalid-text";
+        MonsterSpawnerService service=
+            rowAtomicService(
+                world,
+                owner
+            );
+
+        LocalMonsterSpawnerUiHandler handler=
+            new LocalMonsterSpawnerUiHandler(
+                service,
+                owner,
+                fixedBudget(),
+                new LocalMonsterSpawnerUiHandler
+                    .SelectedNpcLabelResolver(){
+                    @Override public String label(
+                        MonsterSpawnerService.CatalogEntry entry
+                    ){
+                        return "   ";
+                    }
+
+                    @Override public String authority(){
+                        return CATALOG_AUTHORITY;
+                    }
+                }
+            );
+
+        expect(
+            IllegalArgumentException.class,
+            ()->handler.handle(
+                MonsterSpawnerPresentation.rowWidget(0),
+                writer(new ByteArrayOutputStream())
+            ),
+            "row invalid presentation text"
+        );
+
+        require(
+            service.getSession(owner)
+                .selectedRowIndex==null,
+            "invalid row presentation text mutated selection"
         );
     }
 
