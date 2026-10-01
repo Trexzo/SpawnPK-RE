@@ -10,6 +10,7 @@ public final class MonsterSpawnerPvmSpawnExecutorTest {
         notReadySkipsPolicy();
         policyFailureDoesNotMutate();
         authorityDriftFailsBeforePolicy();
+        authorityDriftDuringPolicyFailsBeforeSpawn();
         staleSessionDoesNotSpawn();
         exactActiveSnapshotSpawns();
         exactGraphRequired();
@@ -19,6 +20,7 @@ public final class MonsterSpawnerPvmSpawnExecutorTest {
             "notReadyNoPolicy=true "+
             "policyFailureAtomic=true "+
             "authorityDriftRejected=true "+
+            "authorityDriftDuringPolicyRejected=true "+
             "staleSnapshotNoSpawn=true "+
             "exactSnapshotSpawn=true "+
             "budgetConsumedOnce=true "+
@@ -179,6 +181,75 @@ public final class MonsterSpawnerPvmSpawnExecutorTest {
                 f.lifecycle.size()==0&&
                 f.runtime.size()==0,
                 "authority drift invoked policy or mutated spawn state"
+            );
+        }finally{
+            f.close();
+        }
+    }
+
+    private static void authorityDriftDuringPolicyFailsBeforeSpawn()
+        throws Exception{
+        Fixture f=new Fixture();
+        f.spawner.activate(
+            OWNER,
+            1
+        );
+
+        final String[] authority={
+            "CUSTOM_LOCALLAB_SPAWN_REQUEST_A"
+        };
+        final int[] resolveCalls={0};
+
+        try{
+            MonsterSpawnerPvmSpawnExecutor executor=
+                new MonsterSpawnerPvmSpawnExecutor(
+                    f.world,
+                    f.spawner,
+                    f.runtime,
+                    new MonsterSpawnerPvmSpawnExecutor
+                        .RequestResolver(){
+                        @Override public MonsterSpawnerPvmSpawnExecutor.Request
+                            resolve(
+                                MonsterSpawnerPvmSpawnExecutor.Context context
+                            ){
+                            resolveCalls[0]++;
+                            authority[0]=
+                                "CUSTOM_LOCALLAB_SPAWN_REQUEST_B";
+
+                            return new MonsterSpawnerPvmSpawnExecutor.Request(
+                                OWNER,
+                                new Tile(3088,3495,0)
+                            );
+                        }
+
+                        @Override public String authority(){
+                            return authority[0];
+                        }
+                    }
+                );
+
+            expect(
+                IllegalStateException.class,
+                ()->executor.execute(
+                    OWNER
+                ),
+                "request authority drift during policy"
+            );
+
+            MonsterSpawnerService.SessionSnapshot after=
+                f.spawner.getSession(
+                    OWNER
+                );
+
+            require(
+                resolveCalls[0]==1&&
+                after.active&&
+                after.remainingSpawnBudget==1&&
+                after.spawnedNpcIds.isEmpty()&&
+                f.world.npcs().size()==0&&
+                f.lifecycle.size()==0&&
+                f.runtime.size()==0,
+                "authority drift during policy mutated spawn state"
             );
         }finally{
             f.close();
