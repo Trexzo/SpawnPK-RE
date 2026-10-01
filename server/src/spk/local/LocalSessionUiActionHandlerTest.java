@@ -16,6 +16,7 @@ public final class LocalSessionUiActionHandlerTest {
         int homeTeleportRequests;
         int monsterSpawnerResults;
         int monsterSpawnerWidgetTransactions;
+        int monsterSpawnerRootReplacements;
         LocalMonsterSpawnerUiHandler.Result lastMonsterSpawnerResult;
 
         @Override public void saveAccount(
@@ -65,6 +66,16 @@ public final class LocalSessionUiActionHandlerTest {
                     widget,
                     serverPackets,
                     tag
+                );
+        }
+
+        @Override public String replaceMonsterSpawnerRoot(
+            LocalSessionUiActionHandler.RootInterfaceAction action
+        )throws java.io.IOException{
+            monsterSpawnerRootReplacements++;
+            return LocalSessionUiActionHandler.SessionBridge.super
+                .replaceMonsterSpawnerRoot(
+                    action
                 );
         }
 
@@ -250,11 +261,14 @@ public final class LocalSessionUiActionHandlerTest {
                 }
             );
 
+        DevControlCenter routedDevPanel=
+            new DevControlCenter();
+
         LocalSessionUiActionHandler routed=
             new LocalSessionUiActionHandler(
                 player,
                 new NativeItemLibraryService(),
-                new DevControlCenter(),
+                routedDevPanel,
                 bank,
                 compCape,
                 petDialogs,
@@ -573,6 +587,145 @@ public final class LocalSessionUiActionHandlerTest {
             throw new AssertionError(
                 "death-preview root replacement left Monster Spawner gate open"
             );
+
+        if(!routed.openMonsterSpawnerIfConfigured(
+                w
+            ))
+            throw new AssertionError(
+                "Monster Spawner did not reopen before Dev Panel root composition"
+            );
+
+        routedDevPanel.open(
+            DevControlCenter.Page.ITEMS
+        );
+
+        int rootReplacementsBeforeNavigation=
+            bridge.monsterSpawnerRootReplacements;
+        int devPanelWidgetsBeforeNavigation=
+            bridge.devPanelWidgets;
+
+        routed.handleWidget(
+            2482,
+            w,
+            "[ui-test] "
+        );
+
+        if(bridge.devPanelWidgets!=
+                devPanelWidgetsBeforeNavigation+1||
+           bridge.monsterSpawnerRootReplacements!=
+                rootReplacementsBeforeNavigation)
+            throw new AssertionError(
+                "ordinary Dev Panel ITEMS navigation entered root replacement"
+            );
+
+        MonsterSpawnerService.SessionSnapshot
+            beforeDevEquipment=
+                spawner.getSession(
+                    "session-ui-owner"
+                );
+        int devEquipmentWireBefore=
+            wire.size();
+        int devEquipmentResultsBefore=
+            bridge.monsterSpawnerResults;
+        int devEquipmentTransactionsBefore=
+            bridge.monsterSpawnerWidgetTransactions;
+
+        routed.handleWidget(
+            2483,
+            w,
+            "[ui-test] "
+        );
+
+        if(bridge.monsterSpawnerRootReplacements!=
+                rootReplacementsBeforeNavigation+1||
+           bridge.devPanelWidgets!=
+                devPanelWidgetsBeforeNavigation+2)
+            throw new AssertionError(
+                "Dev Panel equipment terminal action missed root replacement"
+            );
+
+        routed.handleWidget(
+            MonsterSpawnerPresentation.TOGGLE_WIDGET,
+            w,
+            "[ui-test] "
+        );
+
+        MonsterSpawnerService.SessionSnapshot
+            afterDevEquipmentClosedWidget=
+                spawner.getSession(
+                    "session-ui-owner"
+                );
+
+        if(afterDevEquipmentClosedWidget.active!=
+                beforeDevEquipment.active||
+           afterDevEquipmentClosedWidget.remainingSpawnBudget!=
+                beforeDevEquipment.remainingSpawnBudget||
+           !afterDevEquipmentClosedWidget.selectedRowIndex.equals(
+                beforeDevEquipment.selectedRowIndex
+            )||
+           wire.size()!=devEquipmentWireBefore||
+           bridge.monsterSpawnerResults!=
+                devEquipmentResultsBefore||
+           bridge.monsterSpawnerWidgetTransactions!=
+                devEquipmentTransactionsBefore)
+            throw new AssertionError(
+                "Dev Panel equipment terminal root left Monster Spawner gate open"
+            );
+
+        if(!routed.openMonsterSpawnerIfConfigured(
+                w
+            ))
+            throw new AssertionError(
+                "Monster Spawner did not reopen before Dev Panel death root"
+            );
+
+        int devDeathWireBefore=
+            wire.size();
+        int devDeathResultsBefore=
+            bridge.monsterSpawnerResults;
+        int devDeathTransactionsBefore=
+            bridge.monsterSpawnerWidgetTransactions;
+
+        routed.handleWidget(
+            2484,
+            w,
+            "[ui-test] "
+        );
+
+        if(bridge.monsterSpawnerRootReplacements!=
+                rootReplacementsBeforeNavigation+2||
+           bridge.devPanelWidgets!=
+                devPanelWidgetsBeforeNavigation+3)
+            throw new AssertionError(
+                "Dev Panel death terminal action missed root replacement"
+            );
+
+        routed.handleWidget(
+            MonsterSpawnerPresentation.TOGGLE_WIDGET,
+            w,
+            "[ui-test] "
+        );
+
+        MonsterSpawnerService.SessionSnapshot
+            afterDevDeathClosedWidget=
+                spawner.getSession(
+                    "session-ui-owner"
+                );
+
+        if(afterDevDeathClosedWidget.active!=
+                beforeDevEquipment.active||
+           afterDevDeathClosedWidget.remainingSpawnBudget!=
+                beforeDevEquipment.remainingSpawnBudget||
+           wire.size()!=devDeathWireBefore||
+           bridge.monsterSpawnerResults!=
+                devDeathResultsBefore||
+           bridge.monsterSpawnerWidgetTransactions!=
+                devDeathTransactionsBefore)
+            throw new AssertionError(
+                "Dev Panel death terminal root left Monster Spawner gate open"
+            );
+
+        routedDevPanel.close();
 
         int configuredHomeBefore=wire.size();
         int monsterTransactionsBeforeHome=
@@ -1195,7 +1348,10 @@ public final class LocalSessionUiActionHandlerTest {
             "monsterSpawnerPostCloseRejected=true "+
             "monsterSpawnerLateInstallClosed=true "+
             "monsterSpawnerEquipmentRootRevokes=true "+
-            "monsterSpawnerDeathRootRevokes=true"
+            "monsterSpawnerDeathRootRevokes=true "+
+            "monsterSpawnerDevPanelEquipmentRootRevokes=true "+
+            "monsterSpawnerDevPanelDeathRootRevokes=true "+
+            "monsterSpawnerDevPanelNavigationPreserved=true"
         );
 
         System.out.println(
