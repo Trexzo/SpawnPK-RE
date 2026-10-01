@@ -353,24 +353,95 @@ final class TradeService {
             if(amount<0){c.writer.fixed(27,new byte[0]);c.pendingX=new PendingX(XKind.OFFER,a.itemId);return "TRADE_OFFER_X_PROMPT item="+a.itemId;}
             int available=Math.max(0,c.bank.inventoryCount(a.itemId)-t.offer(c).getOrDefault(a.itemId,0));
             int add=amount==Integer.MAX_VALUE?available:Math.min(amount,available);if(add<=0)return "TRADE_OFFER_REJECTED_NO_AVAILABLE item="+a.itemId;
-            changeOffer(t,c,a.itemId,add);return "TRADE_OFFER_OK item="+a.itemId+" qty="+add+" explicitTradeable="+ItemPolicyRepository.explicitTradeable(a.itemId);
+            String presentationFailure=changeOffer(t,c,a.itemId,add);
+            if(presentationFailure!=null)return presentationFailure;
+            return "TRADE_OFFER_OK item="+a.itemId+" qty="+add+" explicitTradeable="+ItemPolicyRepository.explicitTradeable(a.itemId);
         }else{
             int item=offerItemAt(t,c,a.slot);if(item<0||item!=a.itemId)return "TRADE_REMOVE_REJECTED_SLOT_MISMATCH slot="+a.slot+" item="+a.itemId+" resolved="+item;
             if(amount<0){c.writer.fixed(27,new byte[0]);c.pendingX=new PendingX(XKind.REMOVE,item);return "TRADE_REMOVE_X_PROMPT item="+item;}
             int have=t.offer(c).getOrDefault(item,0);int rem=amount==Integer.MAX_VALUE?have:Math.min(amount,have);if(rem<=0)return "TRADE_REMOVE_REJECTED_EMPTY item="+item;
-            changeOffer(t,c,item,-rem);return "TRADE_REMOVE_OK item="+item+" qty="+rem;
+            String presentationFailure=changeOffer(t,c,item,-rem);
+            if(presentationFailure!=null)return presentationFailure;
+            return "TRADE_REMOVE_OK item="+item+" qty="+rem;
         }
     }
 
     static synchronized String handleAmount(WorldPlayer player,int amount)throws IOException{
-        Context c=context(player);Trade t=liveTrade(c);if(t==null||c.pendingX==null)return null;PendingX p=c.pendingX;c.pendingX=null;
-        if(amount<=0)return "TRADE_X_REJECTED_AMOUNT amount="+amount;
-        if(t.stage!=Stage.OFFERING)return "TRADE_X_REJECTED_STAGE_"+t.stage;
-        if(p.kind==XKind.OFFER){
-            if(ItemPolicyRepository.explicitlyUntradeable(p.item))return "TRADE_X_REJECTED_EXPLICIT_UNTRADEABLE item="+p.item;
-            int available=Math.max(0,c.bank.inventoryCount(p.item)-t.offer(c).getOrDefault(p.item,0));int add=Math.min(amount,available);if(add<=0)return "TRADE_X_REJECTED_NO_AVAILABLE";changeOffer(t,c,p.item,add);return "TRADE_OFFER_X_OK item="+p.item+" qty="+add;
+        Context c=context(player);
+        Trade t=liveTrade(c);
+        if(t==null||c.pendingX==null)return null;
+
+        PendingX p=c.pendingX;
+
+        if(amount<=0){
+            c.pendingX=null;
+            return "TRADE_X_REJECTED_AMOUNT amount="+amount;
         }
-        int have=t.offer(c).getOrDefault(p.item,0);int rem=Math.min(amount,have);if(rem<=0)return "TRADE_X_REMOVE_EMPTY";changeOffer(t,c,p.item,-rem);return "TRADE_REMOVE_X_OK item="+p.item+" qty="+rem;
+
+        if(t.stage!=Stage.OFFERING){
+            c.pendingX=null;
+            return "TRADE_X_REJECTED_STAGE_"+t.stage;
+        }
+
+        if(p.kind==XKind.OFFER){
+            if(ItemPolicyRepository.explicitlyUntradeable(p.item)){
+                c.pendingX=null;
+                return "TRADE_X_REJECTED_EXPLICIT_UNTRADEABLE item="+p.item;
+            }
+
+            int available=Math.max(
+                0,
+                c.bank.inventoryCount(p.item)-
+                    t.offer(c).getOrDefault(p.item,0)
+            );
+            int add=Math.min(amount,available);
+
+            if(add<=0){
+                c.pendingX=null;
+                return "TRADE_X_REJECTED_NO_AVAILABLE";
+            }
+
+            String presentationFailure=
+                changeOffer(
+                    t,
+                    c,
+                    p.item,
+                    add
+                );
+
+            if(presentationFailure!=null)
+                return presentationFailure;
+
+            return "TRADE_OFFER_X_OK item="+p.item+" qty="+add;
+        }
+
+        int have=
+            t.offer(c).getOrDefault(
+                p.item,
+                0
+            );
+        int rem=Math.min(
+            amount,
+            have
+        );
+
+        if(rem<=0){
+            c.pendingX=null;
+            return "TRADE_X_REMOVE_EMPTY";
+        }
+
+        String presentationFailure=
+            changeOffer(
+                t,
+                c,
+                p.item,
+                -rem
+            );
+
+        if(presentationFailure!=null)
+            return presentationFailure;
+
+        return "TRADE_REMOVE_X_OK item="+p.item+" qty="+rem;
     }
 
     static synchronized String handleWidget(WorldPlayer player,int widget)throws IOException{
@@ -736,9 +807,55 @@ final class TradeService {
         }
     }
 
-    private static void changeOffer(Trade t,Context c,int item,int delta)throws IOException{
-        LinkedHashMap<Integer,Integer> m=t.offer(c);int q=m.getOrDefault(item,0)+delta;if(q<=0)m.remove(item);else m.put(item,q);
-        t.firstAcceptedA=t.firstAcceptedB=t.finalAcceptedA=t.finalAcceptedB=false;c.pendingX=null;t.other(c).pendingX=null;publishFirst(t);
+    private static String changeOffer(
+        Trade trade,
+        Context changing,
+        int item,
+        int delta
+    )throws IOException{
+        LinkedHashMap<Integer,Integer> prospective=
+            new LinkedHashMap<>(
+                trade.offer(changing)
+            );
+
+        int quantity=
+            prospective.getOrDefault(
+                item,
+                0
+            )+
+            delta;
+
+        if(quantity<=0)
+            prospective.remove(item);
+        else
+            prospective.put(
+                item,
+                quantity
+            );
+
+        String presentationFailure=
+            publishProspectiveFirstStage(
+                trade,
+                changing,
+                prospective
+            );
+
+        if(presentationFailure!=null)
+            return presentationFailure;
+
+        LinkedHashMap<Integer,Integer> canonical=
+            trade.offer(changing);
+        canonical.clear();
+        canonical.putAll(prospective);
+
+        trade.firstAcceptedA=false;
+        trade.firstAcceptedB=false;
+        trade.finalAcceptedA=false;
+        trade.finalAcceptedB=false;
+        trade.a.pendingX=null;
+        trade.b.pendingX=null;
+
+        return null;
     }
 
     private static void publishFirst(Trade t)throws IOException{
