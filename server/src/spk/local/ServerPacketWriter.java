@@ -8,6 +8,25 @@ import java.io.*;
  * synchronizer the byte stream is identical to R2.14.
  */
 final class ServerPacketWriter {
+    static final class StateSnapshot {
+        final byte[] pending;
+        final int batchDepth;
+        final IsaacCipher.Snapshot cipher;
+
+        StateSnapshot(
+            byte[] pending,
+            int batchDepth,
+            IsaacCipher.Snapshot cipher
+        ){
+            this.pending=pending;
+            this.batchDepth=batchDepth;
+            this.cipher=cipher;
+        }
+    }
+
+    private static final Object ATOMIC_PAIR_LOCK=
+        new Object();
+
     private final OutputStream out;
     private final OutboundPacketQueue queue;
     private final IsaacCipher cipher;
@@ -102,6 +121,100 @@ final class ServerPacketWriter {
         pending.write(body.length&255);
         pending.write(body);
         autoFlush();
+    }
+
+    synchronized StateSnapshot snapshotState(){
+        return new StateSnapshot(
+            pending.toByteArray(),
+            batchDepth,
+            cipher.snapshot()
+        );
+    }
+
+    synchronized void restoreState(
+        StateSnapshot snapshot
+    ){
+        if(snapshot==null)
+            throw new NullPointerException("snapshot");
+
+        pending.reset();
+        pending.write(
+            snapshot.pending,
+            0,
+            snapshot.pending.length
+        );
+        batchDepth=snapshot.batchDepth;
+        cipher.restore(snapshot.cipher);
+    }
+
+    static void endBatchesAtomically(
+        ServerPacketWriter a,
+        ServerPacketWriter b
+    )throws IOException{
+        if(a==null||b==null)
+            throw new NullPointerException("writer");
+        if(a==b)
+            throw new IllegalArgumentException(
+                "atomic pair requires distinct writers"
+            );
+
+        synchronized(ATOMIC_PAIR_LOCK){
+            int ah=System.identityHashCode(a);
+            int bh=System.identityHashCode(b);
+
+            if(ah<=bh){
+                synchronized(a){
+                    synchronized(b){
+                        endBatchesAtomicallyLocked(
+                            a,
+                            b
+                        );
+                    }
+                }
+            }else{
+                synchronized(b){
+                    synchronized(a){
+                        endBatchesAtomicallyLocked(
+                            a,
+                            b
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    private static void endBatchesAtomicallyLocked(
+        ServerPacketWriter a,
+        ServerPacketWriter b
+    )throws IOException{
+        if(a.queue==null||b.queue==null)
+            throw new IllegalStateException(
+                "atomic paired batch requires queue-backed writers"
+            );
+
+        if(a.batchDepth!=1||b.batchDepth!=1)
+            throw new IllegalStateException(
+                "atomic paired batch depth expected 1/1 actual "+
+                a.batchDepth+"/"+b.batchDepth
+            );
+
+        byte[] aBytes=
+            a.pending.toByteArray();
+        byte[] bBytes=
+            b.pending.toByteArray();
+
+        OutboundPacketQueue.offerPair(
+            a.queue,
+            aBytes,
+            b.queue,
+            bBytes
+        );
+
+        a.pending.reset();
+        b.pending.reset();
+        a.batchDepth=0;
+        b.batchDepth=0;
     }
 
     synchronized void beginBatch(){batchDepth++;}
