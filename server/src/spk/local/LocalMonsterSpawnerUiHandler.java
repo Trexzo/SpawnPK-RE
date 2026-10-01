@@ -263,6 +263,15 @@ final class LocalMonsterSpawnerUiHandler {
         );
     }
 
+    boolean ownsWidget(
+        int widgetId
+    ){
+        return MonsterSpawnerPresentation
+            .resolveWidget(
+                widgetId
+            )!=null;
+    }
+
     Result handle(
         int widgetId,
         ServerPacketWriter packets
@@ -324,10 +333,7 @@ final class LocalMonsterSpawnerUiHandler {
             );
 
         if(entry==null)
-            throw new IllegalArgumentException(
-                "unconfigured Monster Spawner row "+
-                rowIndex
-            );
+            return null;
 
         String label=
             resolveSelectedLabel(
