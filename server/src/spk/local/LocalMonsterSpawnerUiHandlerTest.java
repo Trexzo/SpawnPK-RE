@@ -87,6 +87,9 @@ public final class LocalMonsterSpawnerUiHandlerTest {
             activationSnapshotRaceFailsClosed(
                 world
             );
+            activationAuthorityDriftDuringBudgetFailsClosed(
+                world
+            );
             deactivationSnapshotRaceFailsClosed(
                 world
             );
@@ -128,6 +131,7 @@ public final class LocalMonsterSpawnerUiHandlerTest {
                 "exactRows=true "+
                 "exactToggle=true "+
                 "callerBudget=true "+
+                "activationAuthorityStable=true "+
                 "selectedText41019=true "+
                 "rowFailureAtomic=true "+
                 "rowPacketFailureAtomic=true "+
@@ -381,6 +385,95 @@ public final class LocalMonsterSpawnerUiHandlerTest {
             after.selectedRowIndex.intValue()==1&&
             world.npcs().size()==0,
             "stale activation policy crossed row change"
+        );
+    }
+
+    private static void activationAuthorityDriftDuringBudgetFailsClosed(
+        World world
+    )throws Exception{
+        final String owner=
+            "monster-ui-activation-authority-drift";
+        final String driftAuthority=
+            "CUSTOM_LOCALLAB_MONSTER_UI_POLICY_DRIFT";
+        MonsterSpawnerService service=
+            new MonsterSpawnerService(
+                world.npcs()
+            );
+
+        List<MonsterSpawnerService.CatalogEntry>
+            catalog=
+                new ArrayList<>();
+
+        catalog.add(
+            new MonsterSpawnerService.CatalogEntry(
+                0,
+                "activation-authority-row",
+                1602
+            )
+        );
+
+        service.replaceCatalog(
+            catalog,
+            CATALOG_AUTHORITY
+        );
+        service.openSession(
+            owner,
+            POLICY_AUTHORITY
+        );
+        service.selectRow(
+            owner,
+            0
+        );
+
+        final String[] authority={
+            POLICY_AUTHORITY
+        };
+
+        LocalMonsterSpawnerUiHandler handler=
+            new LocalMonsterSpawnerUiHandler(
+                service,
+                owner,
+                new LocalMonsterSpawnerUiHandler
+                    .ActivationBudgetResolver(){
+                    @Override public int spawnBudget(
+                        LocalMonsterSpawnerUiHandler
+                            .Context context
+                    ){
+                        authority[0]=driftAuthority;
+                        return 5;
+                    }
+
+                    @Override public String authority(){
+                        return authority[0];
+                    }
+                },
+                labels()
+            );
+
+        expect(
+            IllegalStateException.class,
+            ()->handler.handle(
+                MonsterSpawnerPresentation
+                    .TOGGLE_WIDGET,
+                writer(
+                    new ByteArrayOutputStream()
+                )
+            ),
+            "activation budget authority drift"
+        );
+
+        MonsterSpawnerService.SessionSnapshot after=
+            service.getSession(
+                owner
+            );
+
+        require(
+            !after.active&&
+            after.remainingSpawnBudget==0&&
+            after.selectedRowIndex!=null&&
+            after.selectedRowIndex.intValue()==0&&
+            world.npcs().size()==0,
+            "activation budget authority drift crossed commit"
         );
     }
 
