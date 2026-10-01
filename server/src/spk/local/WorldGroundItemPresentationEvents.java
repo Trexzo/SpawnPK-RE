@@ -36,21 +36,26 @@ final class WorldGroundItemPresentationEvents
             long sequence,
             long createdAt,
             Kind kind,
-            GroundItem item,
-            int oldAmount,
+            GroundItemRegistry.BatchMutation mutation,
             EntityId recipientId,
             long recipientGeneration
         ){
+            GroundItemRegistry.BatchMutation checked=
+                Objects.requireNonNull(
+                    mutation,
+                    "mutation"
+                );
+
             this.sequence=sequence;
             this.createdAt=createdAt;
             this.kind=Objects.requireNonNull(kind,"kind");
-            this.groundItemId=item.id;
-            this.itemId=item.itemId;
-            this.tile=item.tile;
-            this.oldAmount=oldAmount;
-            this.newAmount=item.amount;
-            this.owner=item.owner;
-            this.spawnedTick=item.spawnedTick;
+            this.groundItemId=checked.groundItemId;
+            this.itemId=checked.itemId;
+            this.tile=checked.tile;
+            this.oldAmount=checked.oldAmount;
+            this.newAmount=checked.newAmount;
+            this.owner=checked.owner;
+            this.spawnedTick=checked.spawnedTick;
             this.recipientId=Objects.requireNonNull(
                 recipientId,
                 "recipientId"
@@ -66,15 +71,26 @@ final class WorldGroundItemPresentationEvents
 
     synchronized boolean enqueueSpawn(
         long now,
-        GroundItem item,
+        GroundItemRegistry.BatchMutation mutation,
         WorldPlayer recipient,
         long generation
     ){
+        GroundItemRegistry.BatchMutation checked=
+            Objects.requireNonNull(
+                mutation,
+                "mutation"
+            );
+
+        if(!checked.created())
+            throw new IllegalArgumentException(
+                "spawn mutation has oldAmount="+
+                checked.oldAmount
+            );
+
         return enqueue(
             now,
             Kind.SPAWN,
-            item,
-            -1,
+            checked,
             recipient,
             generation
         );
@@ -82,25 +98,29 @@ final class WorldGroundItemPresentationEvents
 
     synchronized boolean enqueueAmount(
         long now,
-        GroundItem item,
-        int oldAmount,
+        GroundItemRegistry.BatchMutation mutation,
         WorldPlayer recipient,
         long generation
     ){
-        if(oldAmount<=0||
-           oldAmount>=item.amount)
+        GroundItemRegistry.BatchMutation checked=
+            Objects.requireNonNull(
+                mutation,
+                "mutation"
+            );
+
+        if(checked.created()||
+           checked.oldAmount>=checked.newAmount)
             throw new IllegalArgumentException(
                 "oldAmount="+
-                oldAmount+
+                checked.oldAmount+
                 " newAmount="+
-                item.amount
+                checked.newAmount
             );
 
         return enqueue(
             now,
             Kind.AMOUNT,
-            item,
-            oldAmount,
+            checked,
             recipient,
             generation
         );
@@ -109,18 +129,17 @@ final class WorldGroundItemPresentationEvents
     private boolean enqueue(
         long now,
         Kind kind,
-        GroundItem item,
-        int oldAmount,
+        GroundItemRegistry.BatchMutation mutation,
         WorldPlayer recipient,
         long generation
     ){
         if(closed)
             return false;
 
-        GroundItem checkedItem=
+        GroundItemRegistry.BatchMutation checkedMutation=
             Objects.requireNonNull(
-                item,
-                "item"
+                mutation,
+                "mutation"
             );
         WorldPlayer checkedRecipient=
             Objects.requireNonNull(
@@ -135,8 +154,7 @@ final class WorldGroundItemPresentationEvents
                 ++sequence,
                 now,
                 kind,
-                checkedItem,
-                oldAmount,
+                checkedMutation,
                 checkedRecipient.id(),
                 generation
             )
