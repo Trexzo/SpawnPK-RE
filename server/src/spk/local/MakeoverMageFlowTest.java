@@ -99,6 +99,104 @@ public final class MakeoverMageFlowTest {
                 "Continue was not consumed"
             );
 
+        WorldPlayer failedPlayer=
+            new WorldPlayer();
+        LocalMakeoverMageHandler failedHandler=
+            new LocalMakeoverMageHandler(
+                failedPlayer,
+                failedPlayer.equipment()
+            );
+        failedHandler.installDesignerRootOwner(
+            action->{
+                action.open();
+                throw new java.io.IOException(
+                    "EXPECTED_DESIGNER_ROOT_FAILURE"
+                );
+            }
+        );
+
+        ByteArrayOutputStream failedWire=
+            new ByteArrayOutputStream();
+        ServerPacketWriter failedPackets=
+            new ServerPacketWriter(
+                failedWire,
+                new IsaacCipher(
+                    new int[]{9,10,11,12}
+                )
+            );
+        NpcEntity failedMage=
+            new NpcEntity(
+                32,
+                LocalMakeoverMageHandler.NPC_ID,
+                failedPlayer.movement().x()+1,
+                failedPlayer.movement().y()
+            );
+        NpcAction failedTalk=
+            new NpcAction(
+                155,
+                32
+            );
+
+        if(!failedHandler.beginIfSupported(
+                failedTalk,
+                failedMage,
+                failedPackets,
+                "[makeover-failure-test] ")||
+           !failedHandler.handleContinue(
+                StandardDialoguePresentationAdapter
+                    .namedNpcContinueWidget(1),
+                failedPackets,
+                "[makeover-failure-test] "))
+            throw new AssertionError(
+                "designer failure fixture did not reach options"
+            );
+
+        DialogueSessionService.Snapshot
+            failedBefore=
+                failedHandler
+                    .semanticDialogueSnapshot();
+
+        boolean designerFailed=false;
+        try{
+            failedHandler.handleOption(
+                1,
+                failedPackets,
+                "[makeover-failure-test] "
+            );
+        }catch(java.io.IOException expected){
+            designerFailed=
+                "EXPECTED_DESIGNER_ROOT_FAILURE"
+                    .equals(
+                        expected.getMessage()
+                    );
+        }
+
+        DialogueSessionService.Snapshot
+            failedAfter=
+                failedHandler
+                    .semanticDialogueSnapshot();
+
+        if(!designerFailed||
+           failedHandler.designActive()||
+           !failedAfter.active||
+           !failedBefore.nodeKey.equals(
+                failedAfter.nodeKey
+           )||
+           failedAfter.revision<=
+                failedBefore.revision)
+            throw new AssertionError(
+                "designer publication failure did not restore semantic options"
+            );
+
+        if(!failedHandler.handleOption(
+                2,
+                failedPackets,
+                "[makeover-failure-test] ")||
+           failedHandler.active())
+            throw new AssertionError(
+                "restored Make-over options were not routable after failure"
+            );
+
         if(designerRootPublishes[0]!=0)
             throw new AssertionError(
                 "dialogue/chatbox transition entered designer root ownership"
@@ -308,7 +406,7 @@ public final class MakeoverMageFlowTest {
             );
 
         System.out.println(
-            "MAKEOVER_MAGE_FLOW_PASS npc=599 route=TALK roots=4882->2459->3559 c2s101=true keyboardContinue4907=true keyboardDialogueOption1=true chatboxPreservesMainRoot=true designerRootOwnership=true designerOnlyRetirement=true ordinaryDialoguePreserved=true hiddenDesignRejected=true gender=FEMALE femaleJaw=-1 appearanceStateApplied=true wireBytes="+
+            "MAKEOVER_MAGE_FLOW_PASS npc=599 route=TALK roots=4882->2459->3559 c2s101=true keyboardContinue4907=true keyboardDialogueOption1=true chatboxPreservesMainRoot=true designerRootOwnership=true designerPublicationFailureAtomic=true designerFailureOptionsRestored=true designerOnlyRetirement=true ordinaryDialoguePreserved=true hiddenDesignRejected=true gender=FEMALE femaleJaw=-1 appearanceStateApplied=true wireBytes="+
             wire.size()
         );
     }
