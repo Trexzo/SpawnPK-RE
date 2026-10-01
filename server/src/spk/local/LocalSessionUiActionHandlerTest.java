@@ -325,6 +325,119 @@ public final class LocalSessionUiActionHandlerTest {
                 "configured Monster Spawner UI open packet missing"
             );
 
+        bank.open(w);
+        if(!bank.isOpen())
+            throw new AssertionError(
+                "bank did not open before Monster Spawner replacement"
+            );
+
+        if(!routed.openMonsterSpawnerIfConfigured(
+                w
+            )||
+           bank.isOpen())
+            throw new AssertionError(
+                "Monster Spawner root did not retire BankState"
+            );
+
+        boolean hiddenBankPlaceholders=
+            bank.placeholdersEnabled();
+        int hiddenBankWidgetWire=
+            wire.size();
+
+        routed.handleWidget(
+            BankState.TOGGLE_PLACEHOLDERS_WIDGET,
+            w,
+            "[ui-test] "
+        );
+
+        if(bank.placeholdersEnabled()!=
+                hiddenBankPlaceholders||
+           wire.size()!=hiddenBankWidgetWire)
+            throw new AssertionError(
+                "hidden bank widget mutated after Monster Spawner replacement"
+            );
+
+        String bankRootResult=
+            routed.replaceMonsterSpawnerWithBankRoot(
+                ()->{
+                    bank.open(w);
+                    return "BANK_ROOT_OPENED";
+                }
+            );
+
+        if(!"BANK_ROOT_OPENED".equals(
+                bankRootResult
+            )||
+           !bank.isOpen())
+            throw new AssertionError(
+                "bank-target root publication did not preserve BankState"
+            );
+
+        MonsterSpawnerService.SessionSnapshot
+            beforeBankTargetHiddenMonster=
+                spawner.getSession(
+                    "session-ui-owner"
+                );
+        int beforeBankTargetHiddenMonsterWire=
+            wire.size();
+        int beforeBankTargetHiddenMonsterResults=
+            bridge.monsterSpawnerResults;
+        int beforeBankTargetHiddenMonsterTransactions=
+            bridge.monsterSpawnerWidgetTransactions;
+
+        routed.handleWidget(
+            MonsterSpawnerPresentation.TOGGLE_WIDGET,
+            w,
+            "[ui-test] "
+        );
+
+        MonsterSpawnerService.SessionSnapshot
+            afterBankTargetHiddenMonster=
+                spawner.getSession(
+                    "session-ui-owner"
+                );
+
+        if(afterBankTargetHiddenMonster.active!=
+                beforeBankTargetHiddenMonster.active||
+           afterBankTargetHiddenMonster.remainingSpawnBudget!=
+                beforeBankTargetHiddenMonster.remainingSpawnBudget||
+           wire.size()!=
+                beforeBankTargetHiddenMonsterWire||
+           bridge.monsterSpawnerResults!=
+                beforeBankTargetHiddenMonsterResults||
+           bridge.monsterSpawnerWidgetTransactions!=
+                beforeBankTargetHiddenMonsterTransactions)
+            throw new AssertionError(
+                "bank-target root left Monster Spawner ownership open"
+            );
+
+        int failedCompetingWireBefore=
+            wire.size();
+        boolean failedCompetingThrown=false;
+
+        try{
+            routed.replaceMonsterSpawnerRoot(
+                ()->{
+                    throw new java.io.IOException(
+                        "EXPECTED_COMPETING_ROOT_FAILURE"
+                    );
+                }
+            );
+        }catch(java.io.IOException expected){
+            failedCompetingThrown=
+                "EXPECTED_COMPETING_ROOT_FAILURE"
+                    .equals(
+                        expected.getMessage()
+                    );
+        }
+
+        if(!failedCompetingThrown||
+           !bank.isOpen()||
+           wire.size()!=failedCompetingWireBefore)
+            throw new AssertionError(
+                "failed competing root spuriously retired/mutated visible bank"
+            );
+
         String initialItemLibraryRoot=
             routed.replaceMonsterSpawnerRoot(
                 ()->routedItemLibrary.open(
@@ -334,9 +447,10 @@ public final class LocalSessionUiActionHandlerTest {
             );
 
         if(initialItemLibraryRoot==null||
-           !routedItemLibrary.isOpen())
+           !routedItemLibrary.isOpen()||
+           bank.isOpen())
             throw new AssertionError(
-                "Item Library root did not claim widget ownership"
+                "Item Library root did not claim ownership / retire BankState"
             );
 
         int visibleItemLibraryWidgetBefore=
@@ -744,6 +858,12 @@ public final class LocalSessionUiActionHandlerTest {
                 spawner.getSession(
                     "session-ui-owner"
                 );
+        bank.open(w);
+        if(!bank.isOpen())
+            throw new AssertionError(
+                "bank did not open before equipment-root replacement"
+            );
+
         int equipmentRootWireBefore=
             wire.size();
 
@@ -752,6 +872,11 @@ public final class LocalSessionUiActionHandlerTest {
             w,
             "[ui-test] "
         );
+
+        if(bank.isOpen())
+            throw new AssertionError(
+                "equipment-stats root left BankState open"
+            );
 
         int equipmentRootWireAfter=
             wire.size();
@@ -842,6 +967,12 @@ public final class LocalSessionUiActionHandlerTest {
                 spawner.getSession(
                     "session-ui-owner"
                 );
+        bank.open(w);
+        if(!bank.isOpen())
+            throw new AssertionError(
+                "bank did not open before death-root replacement"
+            );
+
         int deathRootWireBefore=
             wire.size();
 
@@ -850,6 +981,11 @@ public final class LocalSessionUiActionHandlerTest {
             w,
             "[ui-test] "
         );
+
+        if(bank.isOpen())
+            throw new AssertionError(
+                "death-preview root left BankState open"
+            );
 
         int deathRootWireAfter=
             wire.size();
@@ -1704,7 +1840,14 @@ public final class LocalSessionUiActionHandlerTest {
             "itemLibraryReopenRestores=true "+
             "devPanelMonsterRootRevokes=true "+
             "devPanelItemLibraryRootRevokes=true "+
-            "devPanelCommandRootPreserved=true"
+            "devPanelCommandRootPreserved=true "+
+            "bankMonsterRootRevokes=true "+
+            "bankItemLibraryRootRevokes=true "+
+            "bankEquipmentRootRevokes=true "+
+            "bankDeathRootRevokes=true "+
+            "bankTargetRootPreserved=true "+
+            "bankFailedRootPreserved=true "+
+            "bankHiddenWidgetRejected=true"
         );
 
         System.out.println(
