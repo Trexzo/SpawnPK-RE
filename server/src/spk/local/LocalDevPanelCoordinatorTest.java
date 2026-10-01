@@ -320,6 +320,124 @@ public final class LocalDevPanelCoordinatorTest {
                     keysAfterFailedPrompt
                 );
 
+            // Successful prompt followed by failed amount-result reopen:
+            // pending/open/page/return-page authority and dialog-key ownership
+            // must remain exactly at the prompt preimage.
+            coordinator.promptAmount(
+                DevControlCenter.PendingAmount.HIT_DAMAGE,
+                writer
+            );
+
+            DevControlCenter.StateSnapshot
+                reopenPreimage=
+                    panel.snapshot();
+
+            String keysBeforeFailedReopen=
+                Files.readString(
+                    keys.file(),
+                    StandardCharsets.UTF_8
+                );
+
+            OutboundPacketQueue failedReopenQueue=
+                new OutboundPacketQueue(1024);
+            failedReopenQueue.offer(
+                new byte[900]
+            );
+            ServerPacketWriter failedReopenWriter=
+                new ServerPacketWriter(
+                    failedReopenQueue,
+                    new IsaacCipher(
+                        new int[]{25,26,27,28}
+                    )
+                );
+
+            boolean reopenFailed=false;
+            try{
+                coordinator.handleAmount(
+                    7,
+                    failedReopenWriter,
+                    "[dev-panel-test] "
+                );
+            }catch(java.io.IOException expected){
+                reopenFailed=true;
+            }
+
+            DevControlCenter.StateSnapshot
+                afterFailedReopen=
+                    panel.snapshot();
+
+            if(!reopenFailed||
+               afterFailedReopen.open!=
+                    reopenPreimage.open||
+               afterFailedReopen.page!=
+                    reopenPreimage.page||
+               afterFailedReopen.pending!=
+                    reopenPreimage.pending||
+               afterFailedReopen.returnPage!=
+                    reopenPreimage.returnPage)
+                throw new AssertionError(
+                    "failed amount reopen changed Dev Panel authority"+
+                    " beforeOpen="+reopenPreimage.open+
+                    " afterOpen="+afterFailedReopen.open+
+                    " beforePage="+reopenPreimage.page+
+                    " afterPage="+afterFailedReopen.page+
+                    " beforePending="+reopenPreimage.pending+
+                    " afterPending="+afterFailedReopen.pending+
+                    " beforeReturn="+reopenPreimage.returnPage+
+                    " afterReturn="+afterFailedReopen.returnPage
+                );
+
+            String keysAfterFailedReopen=
+                Files.readString(
+                    keys.file(),
+                    StandardCharsets.UTF_8
+                );
+
+            if(!keysAfterFailedReopen.equals(
+                    keysBeforeFailedReopen
+               )||
+               !keysAfterFailedReopen.startsWith(
+                    "active=false\nwidgets=\n"
+               ))
+                throw new AssertionError(
+                    "failed amount reopen published dialog-key ownership: "+
+                    keysAfterFailedReopen
+                );
+
+            coordinator.handleAmount(
+                7,
+                writer,
+                "[dev-panel-test] "
+            );
+
+            if(!panel.isOpen()||
+               panel.hasPending()||
+               panel.page()!=
+                    reopenPreimage.returnPage)
+                throw new AssertionError(
+                    "amount reopen retry did not commit exact return page"+
+                    " open="+panel.isOpen()+
+                    " pending="+panel.pending()+
+                    " page="+panel.page()+
+                    " expected="+reopenPreimage.returnPage
+                );
+
+            String keysAfterReopenRetry=
+                Files.readString(
+                    keys.file(),
+                    StandardCharsets.UTF_8
+                );
+
+            if(!keysAfterReopenRetry.contains(
+                    "active=true")||
+               !keysAfterReopenRetry.contains(
+                    "widgets=2482,2483,2484,2485"
+               ))
+                throw new AssertionError(
+                    "successful amount reopen did not publish dialog keys: "+
+                    keysAfterReopenRetry
+                );
+
             WorldPlayer tradePeer=
                 new WorldPlayer();
             world.registerPlayer(
@@ -532,6 +650,9 @@ public final class LocalDevPanelCoordinatorTest {
                 "numericPrompt=true "+
                 "promptFailureAtomic=true "+
                 "promptFailurePreservesKeys=true "+
+                "amountReopenFailureAtomic=true "+
+                "amountReopenFailurePreservesKeys=true "+
+                "amountReopenRetryExact=true "+
                 "sessionClose=true "+
                 "targetFailureAtomic=true "+
                 "failedTargetPreservesBank=true "+
