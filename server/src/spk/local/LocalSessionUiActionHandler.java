@@ -62,6 +62,10 @@ final class LocalSessionUiActionHandler {
         boolean publish() throws IOException;
     }
 
+    interface RootCommitAction {
+        void commit();
+    }
+
     interface SessionBridge {
         void saveAccount(String tag,String reason);
         void clearDialogNumberKeys();
@@ -832,6 +836,33 @@ final class LocalSessionUiActionHandler {
                 publishMakeoverRootForOwnedSession(
                     checked
                 )
+        );
+    }
+
+    String replaceMonsterSpawnerWithMakeoverRoot(
+        RootInterfaceAction publisher,
+        RootCommitAction commit
+    )throws IOException{
+        RootInterfaceAction checked=
+            Objects.requireNonNull(
+                publisher,
+                "publisher"
+            );
+        RootCommitAction checkedCommit=
+            Objects.requireNonNull(
+                commit,
+                "commit"
+            );
+
+        return bridge.replaceMonsterSpawnerRoot(
+            ()->{
+                String result=
+                    publishMakeoverRootForOwnedSession(
+                        checked
+                    );
+                checkedCommit.commit();
+                return result;
+            }
         );
     }
 
