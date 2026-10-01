@@ -24,22 +24,6 @@ final class PetState {
     }
     void clearMini(){miniItemId=-1;}
 
-    Snapshot snapshot(){
-        return new Snapshot(
-            itemId,
-            npcId,
-            miniItemId
-        );
-    }
-
-    void restore(Snapshot snapshot){
-        if(snapshot==null)
-            throw new NullPointerException("snapshot");
-        itemId=snapshot.itemId;
-        npcId=snapshot.npcId;
-        miniItemId=snapshot.miniItemId;
-    }
-
 
 
 }
