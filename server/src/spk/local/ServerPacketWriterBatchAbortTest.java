@@ -9,12 +9,14 @@ public final class ServerPacketWriterBatchAbortTest {
         testExplicitAbortEmitsNothingAndRewindsIsaac();
         testSuccessfulBatchParity();
         testQueueAdmissionFailureRemainsAbortable();
+        testAtomicPairAbortRewindsBothWriters();
         testStagedPrefixDoesNotLeak();
         System.out.println(
             "SERVER_PACKET_WRITER_BATCH_ABORT_PASS "+
             "zeroBytesOnAbort=true "+
             "isaacRewind=true "+
             "queueFailureAbortable=true "+
+            "atomicPairAbort=true "+
             "successfulBatchParity=true "+
             "stagedPrefixLeak=false"
         );
@@ -179,6 +181,75 @@ public final class ServerPacketWriterBatchAbortTest {
         require(
             cipher.nextInt()==fresh.nextInt(),
             "queue-failure abort did not rewind ISAAC"
+        );
+    }
+
+    private static void testAtomicPairAbortRewindsBothWriters()
+        throws Exception
+    {
+        int[] firstSeed={21,22,23,24};
+        int[] secondSeed={25,26,27,28};
+
+        OutboundPacketQueue firstQueue=
+            new OutboundPacketQueue(4096);
+        OutboundPacketQueue secondQueue=
+            new OutboundPacketQueue(4096);
+
+        IsaacCipher firstCipher=
+            new IsaacCipher(firstSeed);
+        IsaacCipher secondCipher=
+            new IsaacCipher(secondSeed);
+
+        ServerPacketWriter first=
+            new ServerPacketWriter(
+                firstQueue,
+                firstCipher
+            );
+        ServerPacketWriter second=
+            new ServerPacketWriter(
+                secondQueue,
+                secondCipher
+            );
+
+        ServerPacketWriter.AtomicPairBatch pair=
+            ServerPacketWriter.beginAtomicQueuePair(
+                first,
+                64,
+                second,
+                64
+            );
+
+        require(
+            pair!=null,
+            "queue-backed pair reservation missing"
+        );
+
+        first.fixed(
+            97,
+            BootstrapPackets.interface97(3323)
+        );
+        second.fixed(
+            97,
+            BootstrapPackets.interface97(3323)
+        );
+
+        pair.abort();
+
+        require(
+            firstQueue.queuedBytes()==0&&
+            secondQueue.queuedBytes()==0,
+            "atomic pair abort leaked staged bytes"
+        );
+
+        IsaacCipher freshFirst=
+            new IsaacCipher(firstSeed);
+        IsaacCipher freshSecond=
+            new IsaacCipher(secondSeed);
+
+        require(
+            firstCipher.nextInt()==freshFirst.nextInt()&&
+            secondCipher.nextInt()==freshSecond.nextInt(),
+            "atomic pair abort did not rewind both ISAAC streams"
         );
     }
 
