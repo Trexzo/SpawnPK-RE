@@ -176,6 +176,11 @@ final class MonsterSpawnerService {
         void run(CatalogEntry entry) throws E;
     }
 
+    @FunctionalInterface
+    interface SessionPresentationAction<E extends Exception> {
+        void run(SessionSnapshot session) throws E;
+    }
+
     interface TrackedNpcDespawnCommit {
         SessionSnapshot commit() throws Exception;
     }
@@ -510,6 +515,56 @@ final class MonsterSpawnerService {
         return snapshotOf(
             session
         );
+    }
+
+    synchronized <E extends Exception>
+        SessionSnapshot presentSessionIfCurrent(
+            String ownerRef,
+            SessionSnapshot expectedSession,
+            SessionPresentationAction<E> action
+        )throws E{
+        SessionSnapshot expected=
+            Objects.requireNonNull(
+                expectedSession,
+                "expectedSession"
+            );
+        SessionPresentationAction<E> checkedAction=
+            Objects.requireNonNull(
+                action,
+                "action"
+            );
+
+        Session session=
+            requireSession(
+                ownerRef
+            );
+
+        if(!session.ownerRef.equals(
+                expected.ownerRef))
+            throw new IllegalArgumentException(
+                "Monster Spawner expected presentation owner mismatch expected="+
+                expected.ownerRef+
+                " actual="+session.ownerRef
+            );
+
+        SessionSnapshot current=
+            snapshotOf(
+                session
+            );
+
+        if(!sameSessionState(
+                current,
+                expected))
+            throw new IllegalStateException(
+                "Monster Spawner session changed before presentation owner="+
+                session.ownerRef
+            );
+
+        checkedAction.run(
+            current
+        );
+
+        return current;
     }
 
     synchronized SessionSnapshot activate(
