@@ -13,13 +13,16 @@ import java.util.Objects;
 final class LocalSessionUiActionHandler {
     static final class MonsterSpawnerDispatch {
         final boolean admitted;
+        final boolean closedUiNoop;
         final LocalMonsterSpawnerUiHandler.Result result;
 
         private MonsterSpawnerDispatch(
             boolean admitted,
+            boolean closedUiNoop,
             LocalMonsterSpawnerUiHandler.Result result
         ){
             this.admitted=admitted;
+            this.closedUiNoop=closedUiNoop;
             this.result=result;
         }
 
@@ -28,16 +31,36 @@ final class LocalSessionUiActionHandler {
         ){
             return new MonsterSpawnerDispatch(
                 true,
+                false,
                 result
+            );
+        }
+
+        static MonsterSpawnerDispatch closedUiNoop(){
+            return new MonsterSpawnerDispatch(
+                true,
+                true,
+                null
             );
         }
 
         static MonsterSpawnerDispatch rejected(){
             return new MonsterSpawnerDispatch(
                 false,
+                false,
                 null
             );
         }
+    }
+
+    @FunctionalInterface
+    interface MonsterSpawnerWidgetAction {
+        MonsterSpawnerDispatch handle() throws IOException;
+    }
+
+    @FunctionalInterface
+    interface MonsterSpawnerCloseAction {
+        boolean revoke();
     }
 
     interface SessionBridge {
@@ -66,27 +89,36 @@ final class LocalSessionUiActionHandler {
             LocalMonsterSpawnerUiHandler handler,
             int widget,
             ServerPacketWriter serverPackets,
-            String tag
+            String tag,
+            MonsterSpawnerWidgetAction action
         )throws IOException{
-            LocalMonsterSpawnerUiHandler.Result result=
+            Objects.requireNonNull(
+                handler,
+                "handler"
+            );
+            MonsterSpawnerDispatch dispatch=
                 Objects.requireNonNull(
-                    handler,
-                    "handler"
-                ).handle(
-                    widget,
-                    serverPackets
-                );
+                    action,
+                    "action"
+                ).handle();
 
-            if(result!=null)
+            if(dispatch.result!=null)
                 handleMonsterSpawnerResult(
-                    result,
+                    dispatch.result,
                     serverPackets,
                     tag
                 );
 
-            return MonsterSpawnerDispatch.admitted(
-                result
-            );
+            return dispatch;
+        }
+
+        default boolean revokeMonsterSpawnerUiOpen(
+            MonsterSpawnerCloseAction action
+        )throws IOException{
+            return Objects.requireNonNull(
+                action,
+                "action"
+            ).revoke();
         }
 
         void requestLogout();
@@ -223,8 +255,14 @@ final class LocalSessionUiActionHandler {
         bridge.clearDialogNumberKeys();
 
         boolean monsterSpawnerWasOpen=
-            monsterSpawnerUiOpen;
-        monsterSpawnerUiOpen=false;
+            bridge.revokeMonsterSpawnerUiOpen(
+                ()->{
+                    boolean wasOpen=
+                        monsterSpawnerUiOpen;
+                    monsterSpawnerUiOpen=false;
+                    return wasOpen;
+                }
+            );
 
         boolean wasOpen=bank.clientClosed();
         boolean compWasOpen=compCapeCustomize.close();
@@ -338,22 +376,26 @@ final class LocalSessionUiActionHandler {
            configuredMonsterSpawner.ownsWidget(
                 widget
            )){
-            if(!monsterSpawnerUiOpen){
-                System.out.println(
-                    tag+
-                    "MONSTER_SPAWNER_UI widget="+
-                    widget+
-                    " status=CLOSED_UI_NOOP"
-                );
-                return;
-            }
-
             MonsterSpawnerDispatch dispatch=
                 bridge.handleMonsterSpawnerWidget(
                     configuredMonsterSpawner,
                     widget,
                     serverPackets,
-                    tag
+                    tag,
+                    ()->{
+                        if(!monsterSpawnerUiOpen)
+                            return MonsterSpawnerDispatch
+                                .closedUiNoop();
+
+                        return MonsterSpawnerDispatch
+                            .admitted(
+                                configuredMonsterSpawner
+                                    .handle(
+                                        widget,
+                                        serverPackets
+                                    )
+                            );
+                    }
                 );
 
             if(!dispatch.admitted){
@@ -362,6 +404,16 @@ final class LocalSessionUiActionHandler {
                     "MONSTER_SPAWNER_UI widget="+
                     widget+
                     " status=LIFECYCLE_REJECTED"
+                );
+                return;
+            }
+
+            if(dispatch.closedUiNoop){
+                System.out.println(
+                    tag+
+                    "MONSTER_SPAWNER_UI widget="+
+                    widget+
+                    " status=CLOSED_UI_NOOP"
                 );
                 return;
             }
