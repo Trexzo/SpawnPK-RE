@@ -179,9 +179,65 @@ final class MonsterSpawnerPvmRuntime {
         return world==expectedWorld;
     }
 
+    boolean isBoundTo(
+        World expectedWorld,
+        MonsterSpawnerService expectedSpawner
+    ){
+        MonsterSpawnerCombatBindingService combat=
+            lifecycleBinding.combatAuthority();
+
+        return world==expectedWorld&&
+            combat.isBoundTo(
+                expectedWorld,
+                Objects.requireNonNull(
+                    expectedSpawner,
+                    "expectedSpawner"
+                )
+            );
+    }
+
     SpawnResult spawnAndBind(
         String ownerRef,
         String recipientRef,
+        int x,
+        int y,
+        int plane
+    )throws Exception{
+        return spawnAndBindExpected(
+            ownerRef,
+            recipientRef,
+            null,
+            x,
+            y,
+            plane
+        );
+    }
+
+    SpawnResult spawnAndBindIfCurrent(
+        String ownerRef,
+        String recipientRef,
+        MonsterSpawnerService.SessionSnapshot expected,
+        int x,
+        int y,
+        int plane
+    )throws Exception{
+        return spawnAndBindExpected(
+            ownerRef,
+            recipientRef,
+            Objects.requireNonNull(
+                expected,
+                "expected"
+            ),
+            x,
+            y,
+            plane
+        );
+    }
+
+    private SpawnResult spawnAndBindExpected(
+        String ownerRef,
+        String recipientRef,
+        MonsterSpawnerService.SessionSnapshot expected,
         int x,
         int y,
         int plane
@@ -197,12 +253,20 @@ final class MonsterSpawnerPvmRuntime {
 
         MonsterSpawnerNpcLifecycleBindingService.Result
             spawned=
-                lifecycleBinding.spawnBindAndRegister(
-                    owner,
-                    x,
-                    y,
-                    plane
-                );
+                expected==null
+                    ?lifecycleBinding.spawnBindAndRegister(
+                        owner,
+                        x,
+                        y,
+                        plane
+                    )
+                    :lifecycleBinding.spawnBindAndRegisterIfCurrent(
+                        owner,
+                        expected,
+                        x,
+                        y,
+                        plane
+                    );
 
         WorldNpc npc=
             spawned.combat.spawn.npc;
