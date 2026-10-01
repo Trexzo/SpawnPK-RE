@@ -8,6 +8,87 @@ import java.io.*;
  * synchronizer the byte stream is identical to R2.14.
  */
 final class ServerPacketWriter {
+    private static final Object ATOMIC_PAIR_LOCK=
+        new Object();
+
+    static final class AtomicPairBatch {
+        private final ServerPacketWriter first;
+        private final ServerPacketWriter second;
+        private final int firstBytes;
+        private final int secondBytes;
+        private final OutboundPacketQueue.PairReservation reservation;
+        private boolean completed;
+
+        private AtomicPairBatch(
+            ServerPacketWriter first,
+            int firstBytes,
+            ServerPacketWriter second,
+            int secondBytes,
+            OutboundPacketQueue.PairReservation reservation
+        ){
+            this.first=first;
+            this.firstBytes=firstBytes;
+            this.second=second;
+            this.secondBytes=secondBytes;
+            this.reservation=reservation;
+        }
+
+        void commit()throws IOException{
+            synchronized(ATOMIC_PAIR_LOCK){
+                lockWriters(
+                    first,
+                    second,
+                    ()->{
+                        if(completed)
+                            throw new IllegalStateException(
+                                "atomic pair batch already completed"
+                            );
+
+                        if(first.batchDepth!=1||
+                           second.batchDepth!=1)
+                            throw new IllegalStateException(
+                                "atomic pair batch depth changed"
+                            );
+
+                        byte[] firstData=
+                            first.pending.toByteArray();
+                        byte[] secondData=
+                            second.pending.toByteArray();
+
+                        if(firstData.length!=
+                                firstBytes||
+                           secondData.length!=
+                                secondBytes){
+                            reservation.release();
+                            throw new IllegalStateException(
+                                "atomic pair batch size mismatch expected="+
+                                firstBytes+"/"+secondBytes+
+                                " actual="+
+                                firstData.length+"/"+secondData.length
+                            );
+                        }
+
+                        reservation.commit(
+                            firstData,
+                            secondData
+                        );
+
+                        first.pending.reset();
+                        second.pending.reset();
+                        first.batchDepth=0;
+                        second.batchDepth=0;
+                        completed=true;
+                    }
+                );
+            }
+        }
+    }
+
+    @FunctionalInterface
+    private interface PairWriterAction {
+        void run() throws IOException;
+    }
+
     private final OutputStream out;
     private final OutboundPacketQueue queue;
     private final IsaacCipher cipher;
@@ -106,6 +187,76 @@ final class ServerPacketWriter {
 
     synchronized void beginBatch(){batchDepth++;}
 
+    static AtomicPairBatch beginAtomicQueuePair(
+        ServerPacketWriter first,
+        int firstBytes,
+        ServerPacketWriter second,
+        int secondBytes
+    )throws IOException{
+        if(first==null||second==null)
+            throw new NullPointerException(
+                "pair writer"
+            );
+        if(first==second)
+            throw new IllegalArgumentException(
+                "atomic pair requires distinct writers"
+            );
+        if(firstBytes<0||secondBytes<0)
+            throw new IllegalArgumentException(
+                "atomic pair bytes"
+            );
+
+        if(first.queue==null||
+           second.queue==null)
+            return null;
+
+        OutboundPacketQueue.PairReservation reservation=
+            OutboundPacketQueue.reservePair(
+                first.queue,
+                firstBytes,
+                second.queue,
+                secondBytes
+            );
+
+        try{
+            synchronized(ATOMIC_PAIR_LOCK){
+                lockWriters(
+                    first,
+                    second,
+                    ()->{
+                        if(first.batchDepth!=0||
+                           second.batchDepth!=0||
+                           first.pending.size()!=0||
+                           second.pending.size()!=0)
+                            throw new IllegalStateException(
+                                "atomic pair requires idle writers"
+                            );
+
+                        first.batchDepth=1;
+                        second.batchDepth=1;
+                    }
+                );
+            }
+        }catch(IOException failure){
+            reservation.release();
+            throw failure;
+        }catch(RuntimeException failure){
+            reservation.release();
+            throw failure;
+        }catch(Error failure){
+            reservation.release();
+            throw failure;
+        }
+
+        return new AtomicPairBatch(
+            first,
+            firstBytes,
+            second,
+            secondBytes,
+            reservation
+        );
+    }
+
     synchronized void endBatch() throws IOException {
         if(batchDepth<=0)throw new IllegalStateException("no packet batch");
         batchDepth--;
@@ -122,6 +273,28 @@ final class ServerPacketWriter {
     }
 
     private void autoFlush() throws IOException { if(batchDepth==0)flush(); }
+
+    private static void lockWriters(
+        ServerPacketWriter first,
+        ServerPacketWriter second,
+        PairWriterAction action
+    )throws IOException{
+        ServerPacketWriter lockFirst=
+            System.identityHashCode(first)<
+                System.identityHashCode(second)
+                ?first
+                :second;
+        ServerPacketWriter lockSecond=
+            lockFirst==first
+                ?second
+                :first;
+
+        synchronized(lockFirst){
+            synchronized(lockSecond){
+                action.run();
+            }
+        }
+    }
 
     private void writeOpcode(int opcode){
         if(opcode<0||opcode>255)throw new IllegalArgumentException("opcode out of range: "+opcode);
