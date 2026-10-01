@@ -8,6 +8,8 @@ public final class MonsterSpawnerNpcLifecycleBindingTest {
     public static void main(String[] args)throws Exception{
         legacyCombatSpawnCompatible();
         atomicSpawnCombatLifecycle();
+        registrationCommitAtomic();
+        registrationCommitFailureRollback();
         resolverUnlocked();
         resolverFailureRollback();
         invalidHpRollback();
@@ -17,6 +19,8 @@ public final class MonsterSpawnerNpcLifecycleBindingTest {
         System.out.println(
             "MONSTER_SPAWNER_NPC_LIFECYCLE_BINDING_PASS "+
             "atomicSpawnCombatLifecycle=true "+
+            "registrationCommitAtomic=true "+
+            "commitFailureRollback=true "+
             "callerMaxHp=true "+
             "lifecycleAlive=true "+
             "canonicalDamageable=true "+
@@ -121,6 +125,142 @@ public final class MonsterSpawnerNpcLifecycleBindingTest {
                 !damage.newlyDied&&
                 f.lifecycle.get(id).hitpoints==30,
                 "spawned combat NPC not canonically damageable"
+            );
+        }finally{
+            f.close();
+        }
+    }
+
+    private static void registrationCommitAtomic()
+        throws Exception{
+        Fixture f=new Fixture();
+
+        try{
+            MonsterSpawnerNpcLifecycleBindingService service=
+                f.lifecycleBinding(
+                    context->
+                        new MonsterSpawnerNpcLifecycleBindingService
+                            .LifecyclePlan(
+                                "commit-hp-23",
+                                23,
+                                "CUSTOM_LOCALLAB_MONSTER_HP"
+                            )
+                );
+
+            final int[] calls={0};
+
+            MonsterSpawnerNpcLifecycleBindingService.Result result=
+                service.spawnBindAndRegisterComposed(
+                    OWNER,
+                    3087,
+                    3495,
+                    0,
+                    (npc,lifecycle,planKey)->{
+                        calls[0]++;
+
+                        MonsterSpawnerService.SessionSnapshot session=
+                            f.spawner.getSession(
+                                OWNER
+                            );
+
+                        require(
+                            f.world.npcs().byId(
+                                npc.id
+                            )==npc&&
+                            session!=null&&
+                            session.tracks(
+                                npc.id
+                            )&&
+                            f.binder.get(
+                                npc.id
+                            )!=null&&
+                            f.world.npcTickTargetCount()==1&&
+                            f.lifecycle.get(
+                                npc.id
+                            )!=null&&
+                            lifecycle.npcId.equals(
+                                npc.id
+                            )&&
+                            "commit-hp-23".equals(
+                                planKey
+                            ),
+                            "registration commit did not observe full composed graph"
+                        );
+                    }
+                );
+
+            require(
+                calls[0]==1&&
+                f.world.npcs().byId(
+                    result.combat.spawn.npc.id
+                )==result.combat.spawn.npc,
+                "registration commit publication"
+            );
+        }finally{
+            f.close();
+        }
+    }
+
+    private static void registrationCommitFailureRollback()
+        throws Exception{
+        Fixture f=new Fixture();
+
+        try{
+            MonsterSpawnerNpcLifecycleBindingService service=
+                f.lifecycleBinding(
+                    context->
+                        new MonsterSpawnerNpcLifecycleBindingService
+                            .LifecyclePlan(
+                                "commit-failure-hp",
+                                19,
+                                "CUSTOM_LOCALLAB_MONSTER_HP"
+                            )
+                );
+
+            final IllegalStateException primary=
+                new IllegalStateException(
+                    "REGISTRATION_COMMIT_FAILURE"
+                );
+
+            Throwable observed=
+                capture(
+                    ()->service.spawnBindAndRegisterComposed(
+                        OWNER,
+                        3087,
+                        3495,
+                        0,
+                        (npc,lifecycle,planKey)->{
+                            require(
+                                f.world.npcs().byId(
+                                    npc.id
+                                )==npc&&
+                                f.spawner.getSession(
+                                    OWNER
+                                ).tracks(
+                                    npc.id
+                                )&&
+                                f.binder.get(
+                                    npc.id
+                                )!=null&&
+                                f.lifecycle.get(
+                                    npc.id
+                                )!=null,
+                                "commit failure probe missing composed ownership"
+                            );
+
+                            throw primary;
+                        }
+                    )
+                );
+
+            require(
+                observed==primary,
+                "registration commit failure identity lost"
+            );
+
+            assertCleanRollback(
+                f,
+                "registration commit failure rollback"
             );
         }finally{
             f.close();
