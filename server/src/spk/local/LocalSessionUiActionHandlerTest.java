@@ -1,6 +1,7 @@
 package spk.local;
 
 import java.io.ByteArrayOutputStream;
+import java.util.Collections;
 
 public final class LocalSessionUiActionHandlerTest {
     private static final class Bridge
@@ -146,6 +147,152 @@ public final class LocalSessionUiActionHandlerTest {
                 "routing-only test unexpectedly emitted Home Teleport packets"
             );
 
+        int absentSpawnerBefore=wire.size();
+        h.handleWidget(
+            MonsterSpawnerPresentation.rowWidget(0),
+            w,
+            "[ui-test] "
+        );
+        if(wire.size()!=absentSpawnerBefore)
+            throw new AssertionError(
+                "legacy UI route unexpectedly handled Monster Spawner row"
+            );
+
+        MonsterSpawnerService spawner=
+            new MonsterSpawnerService(
+                new WorldNpcRegistry()
+            );
+        spawner.replaceCatalog(
+            Collections.singletonList(
+                new MonsterSpawnerService.CatalogEntry(
+                    0,
+                    "session-ui-route",
+                    1700
+                )
+            ),
+            "CUSTOM_LOCALLAB_SESSION_UI_CATALOG"
+        );
+        spawner.openSession(
+            "session-ui-owner",
+            "CUSTOM_LOCALLAB_SESSION_UI_POLICY"
+        );
+
+        LocalMonsterSpawnerUiHandler monsterSpawnerUi=
+            new LocalMonsterSpawnerUiHandler(
+                spawner,
+                "session-ui-owner",
+                new LocalMonsterSpawnerUiHandler
+                    .ActivationBudgetResolver(){
+                    @Override public int spawnBudget(
+                        LocalMonsterSpawnerUiHandler.Context context
+                    ){
+                        return 2;
+                    }
+
+                    @Override public String authority(){
+                        return "CUSTOM_LOCALLAB_SESSION_UI_POLICY";
+                    }
+                },
+                new LocalMonsterSpawnerUiHandler
+                    .SelectedNpcLabelResolver(){
+                    @Override public String label(
+                        MonsterSpawnerService.CatalogEntry entry
+                    ){
+                        return "NPC-"+entry.definitionId;
+                    }
+
+                    @Override public String authority(){
+                        return "CUSTOM_LOCALLAB_SESSION_UI_CATALOG";
+                    }
+                }
+            );
+
+        LocalSessionUiActionHandler routed=
+            new LocalSessionUiActionHandler(
+                player,
+                new NativeItemLibraryService(),
+                new DevControlCenter(),
+                bank,
+                compCape,
+                petDialogs,
+                gameplay,
+                movement,
+                true,
+                equipment,
+                monsterSpawnerUi,
+                bridge
+            );
+
+        int spawnerTextBefore=wire.size();
+        int homeRequestsBeforeSpawner=
+            bridge.homeTeleportRequests;
+
+        routed.handleWidget(
+            MonsterSpawnerPresentation.rowWidget(0),
+            w,
+            "[ui-test] "
+        );
+
+        MonsterSpawnerService.SessionSnapshot selected=
+            spawner.getSession(
+                "session-ui-owner"
+            );
+
+        if(selected.selectedRowIndex==null||
+           selected.selectedRowIndex.intValue()!=0||
+           selected.selectedDefinitionId==null||
+           selected.selectedDefinitionId.intValue()!=1700)
+            throw new AssertionError(
+                "Monster Spawner row did not route through configured adapter"
+            );
+        if(wire.size()<=spawnerTextBefore)
+            throw new AssertionError(
+                "Monster Spawner selected-text packet missing"
+            );
+        if(bridge.homeTeleportRequests!=
+                homeRequestsBeforeSpawner)
+            throw new AssertionError(
+                "Monster Spawner row fell through to unrelated widget route"
+            );
+
+        routed.handleWidget(
+            MonsterSpawnerPresentation.TOGGLE_WIDGET,
+            w,
+            "[ui-test] "
+        );
+
+        MonsterSpawnerService.SessionSnapshot activated=
+            spawner.getSession(
+                "session-ui-owner"
+            );
+
+        if(!activated.active||
+           activated.remainingSpawnBudget!=2)
+            throw new AssertionError(
+                "Monster Spawner toggle did not route caller-owned budget"
+            );
+        if(bridge.homeTeleportRequests!=
+                homeRequestsBeforeSpawner)
+            throw new AssertionError(
+                "Monster Spawner toggle fell through to unrelated widget route"
+            );
+
+        int configuredHomeBefore=wire.size();
+        routed.handleWidget(
+            1195,
+            w,
+            "[ui-test] "
+        );
+        if(bridge.homeTeleportRequests!=
+                homeRequestsBeforeSpawner+1)
+            throw new AssertionError(
+                "configured Monster Spawner route captured Home Teleport"
+            );
+        if(wire.size()!=configuredHomeBefore)
+            throw new AssertionError(
+                "configured routing unexpectedly emitted Home Teleport packets"
+            );
+
         bridge.saveReason=null;
         bridge.clearedKeys=false;
         h.handleInterfaceClose(true,w,"[ui-test] ");
@@ -164,7 +311,8 @@ public final class LocalSessionUiActionHandlerTest {
         System.out.println(
             "LOCAL_SESSION_UI_ACTION_HANDLER_PASS "+
             "logout=true runToggle=true homeTeleport=true interfaceClose=true "+
-            "panelBoundary=true"
+            "panelBoundary=true monsterSpawnerRoute=true "+
+            "monsterSpawnerAbsentPreserved=true"
         );
     }
 }
