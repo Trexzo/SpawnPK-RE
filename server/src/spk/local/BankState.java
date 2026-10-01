@@ -266,7 +266,7 @@ final class BankState {
         Stack[] nextInventory=
             copyStacks(inventory);
 
-        int moved=0;
+        long moved=0L;
         boolean partial=false;
 
         for (int i=0;i<nextInventory.length;i++) {
@@ -292,8 +292,18 @@ final class BankState {
                         0
                     );
 
-            nextBank[dst].qty+=s.qty;
-            moved+=s.qty;
+            long merged=
+                (long)nextBank[dst].qty+
+                (long)s.qty;
+            if(merged>Integer.MAX_VALUE)
+                return "REJECTED_QUANTITY_OVERFLOW item="+
+                    s.itemId+
+                    " destination=BANK"+
+                    " current="+nextBank[dst].qty+
+                    " incoming="+s.qty;
+
+            nextBank[dst].qty=(int)merged;
+            moved+=(long)s.qty;
             nextInventory[i]=null;
         }
 
@@ -1197,8 +1207,18 @@ final class BankState {
                         sourceTab
                     );
 
-            nextInventory[dst].qty+=
-                requestedClamped;
+            long merged=
+                (long)nextInventory[dst].qty+
+                (long)requestedClamped;
+            if(merged>Integer.MAX_VALUE)
+                return "REJECTED_QUANTITY_OVERFLOW item="+
+                    itemId+
+                    " destination=INVENTORY"+
+                    " current="+nextInventory[dst].qty+
+                    " incoming="+requestedClamped;
+
+            nextInventory[dst].qty=
+                (int)merged;
             moved=requestedClamped;
         } else {
             for (int n=0;n<requestedClamped;n++) {
@@ -1290,7 +1310,17 @@ final class BankState {
                     sourceTab
                 );
 
-        nextBank[dst].qty+=amount;
+        long merged=
+            (long)nextBank[dst].qty+
+            (long)amount;
+        if(merged>Integer.MAX_VALUE)
+            return "REJECTED_QUANTITY_OVERFLOW item="+
+                itemId+
+                " destination=BANK"+
+                " current="+nextBank[dst].qty+
+                " incoming="+amount;
+
+        nextBank[dst].qty=(int)merged;
         nextSource.qty-=amount;
 
         if(nextSource.qty<=0)
