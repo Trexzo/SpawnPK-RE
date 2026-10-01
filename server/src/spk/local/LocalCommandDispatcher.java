@@ -188,6 +188,48 @@ final class LocalCommandDispatcher {
             if(content!=null){
                 if(content.hasAction()){
                     LocalContentCommandActionExecutor.Outcome
+                        action;
+
+                    if(isItemLibraryRootAction(
+                            content.actionKey()
+                        )){
+                        final LocalContentCommandActionExecutor.Outcome[]
+                            rootAction={null};
+
+                        RootReplacingCommandDispatch rootDispatch=
+                            bridge.handleRootReplacingCommand(
+                                ()->{
+                                    rootAction[0]=
+                                        contentCommandActions
+                                            .executeOutcome(
+                                                content.actionKey(),
+                                                command,
+                                                username,
+                                                loginAlias,
+                                                persistentAccount,
+                                                bridge.scenePublisher(),
+                                                serverPackets
+                                            );
+                                    return true;
+                                }
+                            );
+
+                        if(!rootDispatch.admitted){
+                            System.out.println(
+                                tag+
+                                "V5150_ITEM_LIBRARY_DEV_OPEN "+
+                                "result=LIFECYCLE_REJECTED"
+                            );
+                            return true;
+                        }
+
+                        action=rootAction[0];
+
+                        if(action==null)
+                            throw new IllegalStateException(
+                                "Item Library root action produced no runtime outcome"
+                            );
+                    }else{
                         action=
                             contentCommandActions.executeOutcome(
                                 content.actionKey(),
@@ -198,6 +240,7 @@ final class LocalCommandDispatcher {
                                 bridge.scenePublisher(),
                                 serverPackets
                             );
+                    }
 
                     if(action.dialogResult!=null){
                         bridge.applyPetDialog(
@@ -409,6 +452,17 @@ final class LocalCommandDispatcher {
 
     static String[] tokens(String clean){
         return clean.split("\\s+");
+    }
+
+    static boolean isItemLibraryRootAction(
+        String actionKey
+    ){
+        return actionKey!=null&&
+            actionKey.startsWith(
+                LocalDiagnosticContentModule
+                    .ITEMLIB_OPEN_ACTION_PREFIX+
+                ":"
+            );
     }
 
     static boolean isDevPanelRoute(String[] p){
