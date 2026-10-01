@@ -761,22 +761,21 @@ final class NpcRegistry {
                     ?oldMini.sceneIndex
                     :allocateDynamicSceneIndex();
 
-            if(scene<0)
-                return null;
+            if(scene>=0){
+                int[] start=
+                    miniTrailingTileFor(
+                        nextPet,
+                        movement
+                    );
 
-            int[] start=
-                miniTrailingTileFor(
-                    nextPet,
-                    movement
-                );
-
-            nextMini=
-                new NpcEntity(
-                    scene,
-                    miniDefinition.npcId,
-                    start[0],
-                    start[1]
-                );
+                nextMini=
+                    new NpcEntity(
+                        scene,
+                        miniDefinition.npcId,
+                        start[0],
+                        start[1]
+                    );
+            }
         }
 
         int egressDir=
@@ -974,9 +973,14 @@ final class NpcRegistry {
         MovementState movement,
         ServerPacketWriter w
     )throws IOException{
-        if(prepared==null||
-           prepared.newMini==null)
+        if(prepared==null)
             return "MINIPET_NONE_CONFIGURED";
+
+        if(prepared.newMini==null)
+            return prepared.configuredMiniItemId>=0
+                ?"MINIPET_CONFIGURED_REJECTED_NO_FREE_SCENE_INDEX item="+
+                    prepared.configuredMiniItemId
+                :"MINIPET_NONE_CONFIGURED";
 
         ArrayList<NpcSyncEncoder.Update> retained=
             prospectiveRetainedWithoutOld(
