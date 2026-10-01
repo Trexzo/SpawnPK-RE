@@ -675,6 +675,7 @@ public final class LocalBankObjectInteractionHandlerTest {
 
             testBankTransferPublicationAtomicity();
             testBankStructuralPublicationAtomicity();
+            testBankTransferQuantityOverflow();
 
             System.out.println(
                 "LOCAL_BANK_OBJECT_HANDLER_PASS "+
@@ -703,7 +704,9 @@ public final class LocalBankObjectInteractionHandlerTest {
                 "bankDragFailureAtomic=true "+
                 "openInventoryDragFailureAtomic=true "+
                 "setBankTabFailureAtomic=true "+
-                "swapBankTabFailureAtomic=true"
+                "swapBankTabFailureAtomic=true "+
+                "bankTransferOverflowRejected=true "+
+                "bankTransferMaxBoundary=true"
             );
         }finally{
             if(player.registered())
@@ -1030,6 +1033,303 @@ public final class LocalBankObjectInteractionHandlerTest {
                 partial.inventorySlots()+
                 " wireDelta="+
                 (partialWire.size()-partialWireBefore)
+            );
+    }
+
+    private static void testBankTransferQuantityOverflow()
+        throws Exception
+    {
+        // Withdraw into an existing MAX_VALUE stack: reject before any
+        // packet publication or canonical mutation.
+        BankState withdrawMax=new BankState();
+        ByteArrayOutputStream withdrawWire=
+            new ByteArrayOutputStream();
+        ServerPacketWriter withdrawWriter=
+            new ServerPacketWriter(
+                withdrawWire,
+                new IsaacCipher(
+                    new int[]{113,114,115,116}
+                )
+            );
+        withdrawMax.open(withdrawWriter);
+        withdrawMax.spawnItem(
+            995,
+            1,
+            withdrawWriter
+        );
+        int withdrawSlot=-1;
+        for(int i=0;i<withdrawMax.inventoryCapacity();i++){
+            BankState.Stack stack=withdrawMax.inventoryAt(i);
+            if(stack!=null&&stack.itemId==995){
+                withdrawSlot=i;
+                break;
+            }
+        }
+        if(withdrawSlot<0)
+            throw new AssertionError(
+                "withdraw overflow fixture missing coins"
+            );
+        withdrawMax.inventoryAt(withdrawSlot).qty=
+            Integer.MAX_VALUE;
+
+        int withdrawBankBefore=
+            withdrawMax.bankAt(0).qty;
+        int withdrawWireBefore=
+            withdrawWire.size();
+
+        String withdrawRejected=
+            withdrawMax.apply(
+                new ItemContainerAction(
+                    145,
+                    BankState.BANK_CONTAINER,
+                    0,
+                    995,
+                    0,
+                    "ITEM_ACTION_1"
+                ),
+                withdrawWriter
+            );
+
+        if(withdrawRejected==null||
+           !withdrawRejected.contains(
+                "REJECTED_QUANTITY_OVERFLOW"
+           )||
+           withdrawMax.bankAt(0).qty!=withdrawBankBefore||
+           withdrawMax.inventoryAt(withdrawSlot).qty!=
+                Integer.MAX_VALUE||
+           withdrawWire.size()!=withdrawWireBefore)
+            throw new AssertionError(
+                "MAX withdraw overflow was not failure-atomic result="+
+                withdrawRejected
+            );
+
+        // Cross MAX by exactly one via X amount=2 against MAX-1.
+        withdrawMax.inventoryAt(withdrawSlot).qty=
+            Integer.MAX_VALUE-1;
+        String prompt=
+            withdrawMax.apply(
+                new ItemContainerAction(
+                    135,
+                    BankState.BANK_CONTAINER,
+                    0,
+                    995,
+                    0,
+                    "ITEM_ACTION_X"
+                ),
+                withdrawWriter
+            );
+        if(prompt==null||
+           !prompt.contains("WITHDRAW_X_PROMPT_SENT"))
+            throw new AssertionError(
+                "cross-one withdraw prompt failed"
+            );
+
+        int crossWireBefore=
+            withdrawWire.size();
+        int crossBankBefore=
+            withdrawMax.bankAt(0).qty;
+
+        String crossRejected=
+            withdrawMax.applyAmount(
+                2,
+                withdrawWriter
+            );
+
+        if(crossRejected==null||
+           !crossRejected.contains(
+                "REJECTED_QUANTITY_OVERFLOW"
+           )||
+           withdrawMax.bankAt(0).qty!=crossBankBefore||
+           withdrawMax.inventoryAt(withdrawSlot).qty!=
+                Integer.MAX_VALUE-1||
+           withdrawWire.size()!=crossWireBefore)
+            throw new AssertionError(
+                "MAX-1 + 2 withdraw overflow was not atomic result="+
+                crossRejected
+            );
+
+        // Store into a MAX_VALUE bank stack.
+        BankState storeMax=new BankState();
+        ByteArrayOutputStream storeWire=
+            new ByteArrayOutputStream();
+        ServerPacketWriter storeWriter=
+            new ServerPacketWriter(
+                storeWire,
+                new IsaacCipher(
+                    new int[]{117,118,119,120}
+                )
+            );
+        storeMax.open(storeWriter);
+        storeMax.spawnItem(
+            995,
+            1,
+            storeWriter
+        );
+        int storeSlot=-1;
+        for(int i=0;i<storeMax.inventoryCapacity();i++){
+            BankState.Stack stack=storeMax.inventoryAt(i);
+            if(stack!=null&&stack.itemId==995){
+                storeSlot=i;
+                break;
+            }
+        }
+        if(storeSlot<0)
+            throw new AssertionError(
+                "store overflow fixture missing coins"
+            );
+
+        storeMax.bankAt(0).qty=
+            Integer.MAX_VALUE;
+        int storeWireBefore=
+            storeWire.size();
+
+        String storeRejected=
+            storeMax.apply(
+                new ItemContainerAction(
+                    145,
+                    BankState.BANK_INVENTORY_CONTAINER,
+                    storeSlot,
+                    995,
+                    0,
+                    "ITEM_ACTION_1"
+                ),
+                storeWriter
+            );
+
+        if(storeRejected==null||
+           !storeRejected.contains(
+                "REJECTED_QUANTITY_OVERFLOW"
+           )||
+           storeMax.bankAt(0).qty!=Integer.MAX_VALUE||
+           storeMax.inventoryAt(storeSlot)==null||
+           storeMax.inventoryAt(storeSlot).qty!=1||
+           storeWire.size()!=storeWireBefore)
+            throw new AssertionError(
+                "MAX store overflow was not failure-atomic result="+
+                storeRejected
+            );
+
+        // Deposit Inventory must reject the complete operation when a later
+        // merge would overflow, even if an earlier stack could have moved.
+        BankState depositOverflow=new BankState();
+        ByteArrayOutputStream depositWire=
+            new ByteArrayOutputStream();
+        ServerPacketWriter depositWriter=
+            new ServerPacketWriter(
+                depositWire,
+                new IsaacCipher(
+                    new int[]{121,122,123,124}
+                )
+            );
+        depositOverflow.open(depositWriter);
+        depositOverflow.spawnItem(
+            385,
+            1,
+            depositWriter
+        );
+        depositOverflow.spawnItem(
+            995,
+            2,
+            depositWriter
+        );
+        int depositCoinSlot=-1;
+        for(int i=0;i<depositOverflow.inventoryCapacity();i++){
+            BankState.Stack stack=
+                depositOverflow.inventoryAt(i);
+            if(stack!=null&&stack.itemId==995){
+                depositCoinSlot=i;
+                break;
+            }
+        }
+        if(depositCoinSlot<0)
+            throw new AssertionError(
+                "deposit overflow fixture missing coins"
+            );
+
+        depositOverflow.bankAt(0).qty=
+            Integer.MAX_VALUE-1;
+        int depositWireBefore=
+            depositWire.size();
+        int depositSlotsBefore=
+            depositOverflow.inventorySlots();
+
+        String depositRejected=
+            depositOverflow.depositInventory(
+                depositWriter
+            );
+
+        if(depositRejected==null||
+           !depositRejected.contains(
+                "REJECTED_QUANTITY_OVERFLOW"
+           )||
+           depositOverflow.bankAt(0).qty!=
+                Integer.MAX_VALUE-1||
+           depositOverflow.inventorySlots()!=
+                depositSlotsBefore||
+           depositOverflow.inventoryCount(385)!=1||
+           depositOverflow.inventoryCount(995)!=2||
+           depositWire.size()!=depositWireBefore)
+            throw new AssertionError(
+                "Deposit Inventory overflow partially committed result="+
+                depositRejected
+            );
+
+        // Exact MAX boundary remains valid and publishes/commits once.
+        BankState boundary=new BankState();
+        ByteArrayOutputStream boundaryWire=
+            new ByteArrayOutputStream();
+        ServerPacketWriter boundaryWriter=
+            new ServerPacketWriter(
+                boundaryWire,
+                new IsaacCipher(
+                    new int[]{125,126,127,128}
+                )
+            );
+        boundary.open(boundaryWriter);
+        boundary.spawnItem(
+            995,
+            1,
+            boundaryWriter
+        );
+        int boundarySlot=-1;
+        for(int i=0;i<boundary.inventoryCapacity();i++){
+            BankState.Stack stack=boundary.inventoryAt(i);
+            if(stack!=null&&stack.itemId==995){
+                boundarySlot=i;
+                break;
+            }
+        }
+        if(boundarySlot<0)
+            throw new AssertionError(
+                "boundary fixture missing coins"
+            );
+
+        boundary.bankAt(0).qty=
+            Integer.MAX_VALUE-1;
+        int boundaryWireBefore=
+            boundaryWire.size();
+
+        String boundaryResult=
+            boundary.apply(
+                new ItemContainerAction(
+                    145,
+                    BankState.BANK_INVENTORY_CONTAINER,
+                    boundarySlot,
+                    995,
+                    0,
+                    "ITEM_ACTION_1"
+                ),
+                boundaryWriter
+            );
+
+        if(boundaryResult==null||
+           !boundaryResult.contains("STORE_OK amount=1")||
+           boundary.bankAt(0).qty!=Integer.MAX_VALUE||
+           boundary.inventoryAt(boundarySlot)!=null||
+           boundaryWire.size()<=boundaryWireBefore)
+            throw new AssertionError(
+                "exact MAX boundary did not commit result="+
+                boundaryResult
             );
     }
 
