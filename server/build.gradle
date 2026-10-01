@@ -6248,3 +6248,18 @@ tasks.register('chat1CurrentCumulativeCertification') {
     }
 }
 
+
+
+tasks.register('serverPacketWriterBatchAbortRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves failed single-writer packet batches discard staged bytes and restore exact ISAAC framing state.'
+    dependsOn tasks.named('testClasses')
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.ServerPacketWriterBatchAbortTest'
+}
+
+tasks.named('check') {
+    dependsOn tasks.named('serverPacketWriterBatchAbortRegression')
+}
