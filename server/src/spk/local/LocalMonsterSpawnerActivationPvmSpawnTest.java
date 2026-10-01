@@ -165,7 +165,7 @@ public final class LocalMonsterSpawnerActivationPvmSpawnTest {
                 routed.openMonsterSpawnerIfConfigured(
                     writer
                 ),
-                "activation PvM fixture did not explicitly open Monster Spawner UI"
+                "configured Monster Spawner UI did not open"
             );
 
             routed.handleWidget(
