@@ -15,6 +15,7 @@ public final class LocalSessionUiActionHandlerTest {
         int petDialogResults;
         int homeTeleportRequests;
         int monsterSpawnerResults;
+        int monsterSpawnerWidgetTransactions;
         LocalMonsterSpawnerUiHandler.Result lastMonsterSpawnerResult;
 
         @Override public void saveAccount(
@@ -48,6 +49,23 @@ public final class LocalSessionUiActionHandlerTest {
             String tag
         ){
             homeTeleportRequests++;
+        }
+
+        @Override public LocalSessionUiActionHandler
+            .MonsterSpawnerDispatch handleMonsterSpawnerWidget(
+                LocalMonsterSpawnerUiHandler handler,
+                int widget,
+                ServerPacketWriter serverPackets,
+                String tag
+            )throws java.io.IOException{
+            monsterSpawnerWidgetTransactions++;
+            return LocalSessionUiActionHandler.SessionBridge.super
+                .handleMonsterSpawnerWidget(
+                    handler,
+                    widget,
+                    serverPackets,
+                    tag
+                );
         }
 
         @Override public void handleMonsterSpawnerResult(
@@ -413,6 +431,8 @@ public final class LocalSessionUiActionHandlerTest {
             );
 
         int configuredHomeBefore=wire.size();
+        int monsterTransactionsBeforeHome=
+            bridge.monsterSpawnerWidgetTransactions;
         routed.handleWidget(
             1195,
             w,
@@ -426,6 +446,11 @@ public final class LocalSessionUiActionHandlerTest {
         if(wire.size()!=configuredHomeBefore)
             throw new AssertionError(
                 "configured routing unexpectedly emitted Home Teleport packets"
+            );
+        if(bridge.monsterSpawnerWidgetTransactions!=
+                monsterTransactionsBeforeHome)
+            throw new AssertionError(
+                "unrelated Home Teleport entered Monster Spawner transaction bridge"
             );
 
         // Prove an initially unconfigured routing owner becomes live after one late install.
@@ -946,7 +971,8 @@ public final class LocalSessionUiActionHandlerTest {
             "monsterSpawnerOpenConfigured=true "+
             "monsterSpawnerOpenAbsentNoop=true "+
             "monsterSpawnerRetainedSelectionReopen=true "+
-            "monsterSpawnerUnconfiguredRowBounded=true"
+            "monsterSpawnerUnconfiguredRowBounded=true "+
+            "monsterSpawnerUnrelatedBypass=true"
         );
 
         System.out.println(
