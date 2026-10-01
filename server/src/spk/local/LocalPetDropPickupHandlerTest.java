@@ -550,7 +550,13 @@ public final class LocalPetDropPickupHandlerTest {
             PetDefinitionRepository.Def second=null;
             for(PetDefinitionRepository.Def candidate:
                     PetDefinitionRepository.all()){
-                if(candidate.itemId!=first.itemId){
+                if(candidate.itemId!=first.itemId&&
+                   "Drop".equalsIgnoreCase(
+                       ItemActionResolver
+                           .inventoryOption5Semantic(
+                               candidate.itemId
+                           )
+                   )){
                     second=candidate;
                     break;
                 }
