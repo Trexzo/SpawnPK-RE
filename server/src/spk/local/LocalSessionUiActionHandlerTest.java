@@ -981,6 +981,11 @@ public final class LocalSessionUiActionHandlerTest {
                 "Monster Spawner did not reclaim root after Dev Panel inverse-state tests"
             );
 
+        MonsterSpawnerService.SessionSnapshot
+            beforeUnconfigured=
+                spawner.getSession(
+                    "session-ui-owner"
+                );
         int spawnerTextBefore=wire.size();
         int homeRequestsBeforeSpawner=
             bridge.homeTeleportRequests;
@@ -999,7 +1004,25 @@ public final class LocalSessionUiActionHandlerTest {
                     "session-ui-owner"
                 );
 
-        if(afterUnconfigured.selectedRowIndex!=null||
+        if(!java.util.Objects.equals(
+                afterUnconfigured.selectedRowIndex,
+                beforeUnconfigured.selectedRowIndex
+           )||
+           !java.util.Objects.equals(
+                afterUnconfigured.selectedDefinitionId,
+                beforeUnconfigured.selectedDefinitionId
+           )||
+           !java.util.Objects.equals(
+                afterUnconfigured.selectedSemanticKey,
+                beforeUnconfigured.selectedSemanticKey
+           )||
+           afterUnconfigured.active!=
+                beforeUnconfigured.active||
+           afterUnconfigured.remainingSpawnBudget!=
+                beforeUnconfigured.remainingSpawnBudget||
+           !afterUnconfigured.spawnedNpcIds.equals(
+                beforeUnconfigured.spawnedNpcIds
+           )||
            wire.size()!=spawnerTextBefore||
            bridge.homeTeleportRequests!=
                 homeRequestsBeforeSpawner||
