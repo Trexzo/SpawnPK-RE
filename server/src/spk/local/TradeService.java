@@ -195,7 +195,7 @@ final class TradeService {
 
         try{
             boolean admitted=
-                world.withOpenTwoPlayerMutationOwnershipIfCurrent(
+                world.withOpenTwoPlayerOwnershipIfCurrent(
                     a,
                     ca.ownerGeneration,
                     b,
