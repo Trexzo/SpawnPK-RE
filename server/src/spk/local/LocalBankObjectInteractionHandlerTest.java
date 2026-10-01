@@ -677,6 +677,7 @@ public final class LocalBankObjectInteractionHandlerTest {
             testBankStructuralPublicationAtomicity();
             testBankTransferQuantityOverflow();
             testGenericInventoryPublicationAtomicity();
+            testEquipmentInventoryPublicationAtomicity();
 
             System.out.println(
                 "LOCAL_BANK_OBJECT_HANDLER_PASS "+
@@ -709,7 +710,9 @@ public final class LocalBankObjectInteractionHandlerTest {
                 "bankTransferOverflowRejected=true "+
                 "bankTransferMaxBoundary=true "+
                 "genericInventoryPublicationAtomic=true "+
-                "genericInventoryOpenBankMirrorAtomic=true"
+                "genericInventoryOpenBankMirrorAtomic=true "+
+                "equipmentInventoryPublicationAtomic=true "+
+                "equipmentInventoryOpenBankMirrorAtomic=true"
             );
         }finally{
             if(player.registered())
@@ -1936,6 +1939,415 @@ public final class LocalBankObjectInteractionHandlerTest {
             throw new AssertionError(
                 "open-bank mirrored retry did not commit"
             );
+    }
+
+    private static void testEquipmentInventoryPublicationAtomicity()
+        throws Exception
+    {
+        BankState bank=new BankState();
+        EquipmentState equipment=new EquipmentState();
+        ServerPacketWriter good=
+            new ServerPacketWriter(
+                new ByteArrayOutputStream(),
+                new IsaacCipher(
+                    new int[]{149,150,151,152}
+                )
+            );
+
+        int weaponItem=4151;
+        EquipmentMetadataRepository.Meta weaponMeta=
+            ItemDefinitionRepository
+                .equipmentMetaForClientAction(
+                    weaponItem
+                );
+        if(weaponMeta==null||
+           weaponMeta.slot!=EquipmentSlot.WEAPON||
+           weaponMeta.twoHanded)
+            weaponItem=
+                findEquipmentFixture(
+                    EquipmentSlot.WEAPON,
+                    false,
+                    false
+                );
+
+        if(weaponItem<0)
+            throw new AssertionError(
+                "ordinary weapon fixture unavailable"
+            );
+
+        if(bank.spawnItem(
+                weaponItem,
+                1,
+                good
+            )==null)
+            throw new AssertionError(
+                "ordinary weapon fixture spawn failed"
+            );
+
+        int weaponSlot=
+            findInventorySlot(
+                bank,
+                weaponItem
+            );
+        int priorWeapon=
+            equipment.itemAt(
+                EquipmentSlot.WEAPON
+            );
+        int priorWeaponQty=
+            equipment.quantityAt(
+                EquipmentSlot.WEAPON
+            );
+
+        boolean equipFailed=false;
+        try{
+            bank.equipFromInventory(
+                weaponSlot,
+                weaponItem,
+                equipment,
+                queueWriter(
+                    fullQueue(),
+                    new int[]{153,154,155,156}
+                )
+            );
+        }catch(java.io.IOException expected){
+            equipFailed=true;
+        }
+
+        if(!equipFailed||
+           equipment.itemAt(
+               EquipmentSlot.WEAPON
+           )!=priorWeapon||
+           equipment.quantityAt(
+               EquipmentSlot.WEAPON
+           )!=priorWeaponQty||
+           bank.inventoryAt(weaponSlot)==null||
+           bank.inventoryAt(weaponSlot).itemId!=
+                weaponItem)
+            throw new AssertionError(
+                "failed ordinary equip mutated canonical equipment/inventory"
+            );
+
+        String equipRetry=
+            bank.equipFromInventory(
+                weaponSlot,
+                weaponItem,
+                equipment,
+                good
+            );
+
+        if(equipRetry==null||
+           !equipRetry.contains("EQUIP_OK")||
+           equipment.itemAt(
+               EquipmentSlot.WEAPON
+           )!=weaponItem)
+            throw new AssertionError(
+                "ordinary equip retry did not commit"
+            );
+
+        int weaponCountBeforeUnequip=
+            bank.inventoryCount(
+                weaponItem
+            );
+        boolean unequipFailed=false;
+        try{
+            bank.unequipToInventory(
+                EquipmentSlot.WEAPON.equipmentIndex,
+                weaponItem,
+                equipment,
+                queueWriter(
+                    fullQueue(),
+                    new int[]{157,158,159,160}
+                )
+            );
+        }catch(java.io.IOException expected){
+            unequipFailed=true;
+        }
+
+        if(!unequipFailed||
+           equipment.itemAt(
+               EquipmentSlot.WEAPON
+           )!=weaponItem||
+           bank.inventoryCount(
+               weaponItem
+           )!=weaponCountBeforeUnequip)
+            throw new AssertionError(
+                "failed unequip mutated canonical equipment/inventory"
+            );
+
+        String unequipRetry=
+            bank.unequipToInventory(
+                EquipmentSlot.WEAPON.equipmentIndex,
+                weaponItem,
+                equipment,
+                good
+            );
+
+        if(unequipRetry==null||
+           !unequipRetry.contains("UNEQUIP_OK")||
+           equipment.itemAt(
+               EquipmentSlot.WEAPON
+           )>=0||
+           bank.inventoryCount(
+               weaponItem
+           )!=weaponCountBeforeUnequip+1)
+            throw new AssertionError(
+                "unequip retry did not commit"
+            );
+
+        int ammoItem=
+            findEquipmentFixture(
+                EquipmentSlot.AMMO,
+                false,
+                true
+            );
+
+        if(ammoItem>=0){
+            BankState ammoBank=
+                new BankState();
+            EquipmentState ammoEquipment=
+                new EquipmentState();
+            ServerPacketWriter ammoGood=
+                new ServerPacketWriter(
+                    new ByteArrayOutputStream(),
+                    new IsaacCipher(
+                        new int[]{161,162,163,164}
+                    )
+                );
+
+            ammoBank.spawnItem(
+                ammoItem,
+                3,
+                ammoGood
+            );
+            int ammoSlot=
+                findInventorySlot(
+                    ammoBank,
+                    ammoItem
+                );
+
+            boolean ammoFailed=false;
+            try{
+                ammoBank.equipFromInventory(
+                    ammoSlot,
+                    ammoItem,
+                    ammoEquipment,
+                    queueWriter(
+                        fullQueue(),
+                        new int[]{165,166,167,168}
+                    )
+                );
+            }catch(java.io.IOException expected){
+                ammoFailed=true;
+            }
+
+            if(!ammoFailed||
+               ammoEquipment.itemAt(
+                   EquipmentSlot.AMMO
+               )>=0||
+               ammoBank.inventoryCount(
+                   ammoItem
+               )!=3)
+                throw new AssertionError(
+                    "failed ammo equip mutated canonical state"
+                );
+
+            String ammoRetry=
+                ammoBank.equipFromInventory(
+                    ammoSlot,
+                    ammoItem,
+                    ammoEquipment,
+                    ammoGood
+                );
+
+            if(ammoRetry==null||
+               !ammoRetry.contains("EQUIP_STACK")||
+               ammoEquipment.itemAt(
+                   EquipmentSlot.AMMO
+               )!=ammoItem||
+               ammoEquipment.quantityAt(
+                   EquipmentSlot.AMMO
+               )!=3||
+               ammoBank.inventoryCount(
+                   ammoItem
+               )!=0)
+                throw new AssertionError(
+                    "ammo equip retry did not commit exact stack"
+                );
+
+            ammoBank.spawnItem(
+                ammoItem,
+                2,
+                ammoGood
+            );
+            int mergeSlot=
+                findInventorySlot(
+                    ammoBank,
+                    ammoItem
+                );
+            boolean mergeFailed=false;
+            try{
+                ammoBank.equipFromInventory(
+                    mergeSlot,
+                    ammoItem,
+                    ammoEquipment,
+                    queueWriter(
+                        fullQueue(),
+                        new int[]{169,170,171,172}
+                    )
+                );
+            }catch(java.io.IOException expected){
+                mergeFailed=true;
+            }
+
+            if(!mergeFailed||
+               ammoEquipment.quantityAt(
+                   EquipmentSlot.AMMO
+               )!=3||
+               ammoBank.inventoryCount(
+                   ammoItem
+               )!=2)
+                throw new AssertionError(
+                    "failed ammo merge mutated canonical state"
+                );
+
+            ammoBank.equipFromInventory(
+                mergeSlot,
+                ammoItem,
+                ammoEquipment,
+                ammoGood
+            );
+
+            if(ammoEquipment.quantityAt(
+                    EquipmentSlot.AMMO
+               )!=5||
+               ammoBank.inventoryCount(
+                    ammoItem
+               )!=0)
+                throw new AssertionError(
+                    "ammo merge retry did not commit exact stack"
+                );
+        }
+
+        BankState mirroredBank=
+            new BankState();
+        EquipmentState mirroredEquipment=
+            new EquipmentState();
+        ServerPacketWriter mirroredGood=
+            new ServerPacketWriter(
+                new ByteArrayOutputStream(),
+                new IsaacCipher(
+                    new int[]{173,174,175,176}
+                )
+            );
+
+        mirroredBank.spawnItem(
+            weaponItem,
+            1,
+            mirroredGood
+        );
+        mirroredBank.open(
+            mirroredGood
+        );
+
+        int mirroredSlot=
+            findInventorySlot(
+                mirroredBank,
+                weaponItem
+            );
+        int mirroredWeaponBefore=
+            mirroredEquipment.itemAt(
+                EquipmentSlot.WEAPON
+            );
+
+        boolean mirroredFailed=false;
+        try{
+            mirroredBank.equipFromInventory(
+                mirroredSlot,
+                weaponItem,
+                mirroredEquipment,
+                queueWriter(
+                    fullQueue(),
+                    new int[]{177,178,179,180}
+                )
+            );
+        }catch(java.io.IOException expected){
+            mirroredFailed=true;
+        }
+
+        if(!mirroredFailed||
+           mirroredEquipment.itemAt(
+               EquipmentSlot.WEAPON
+           )!=mirroredWeaponBefore||
+           mirroredBank.inventoryAt(
+               mirroredSlot
+           )==null||
+           mirroredBank.inventoryAt(
+               mirroredSlot
+           ).itemId!=weaponItem)
+            throw new AssertionError(
+                "failed open-bank mirrored equip mutated canonical state"
+            );
+
+        String mirroredRetry=
+            mirroredBank.equipFromInventory(
+                mirroredSlot,
+                weaponItem,
+                mirroredEquipment,
+                mirroredGood
+            );
+
+        if(mirroredRetry==null||
+           !mirroredRetry.contains("EQUIP_OK")||
+           mirroredEquipment.itemAt(
+               EquipmentSlot.WEAPON
+           )!=weaponItem)
+            throw new AssertionError(
+                "open-bank mirrored equip retry did not commit"
+            );
+    }
+
+    private static int findEquipmentFixture(
+        EquipmentSlot slot,
+        boolean twoHanded,
+        boolean stackable
+    ){
+        for(ItemCatalog.Meta item:
+                ItemCatalog.all()){
+            EquipmentMetadataRepository.Meta meta=
+                ItemDefinitionRepository
+                    .equipmentMetaForClientAction(
+                        item.id
+                    );
+            if(meta==null||
+               meta.slot!=slot||
+               meta.twoHanded!=twoHanded||
+               ItemDefinitionRepository
+                    .isStackable(
+                        item.id
+                    )!=stackable)
+                continue;
+
+            return item.id;
+        }
+
+        return -1;
+    }
+
+    private static int findInventorySlot(
+        BankState bank,
+        int itemId
+    ){
+        for(int slot=0;
+            slot<bank.inventoryCapacity();
+            slot++){
+            BankState.Stack stack=
+                bank.inventoryAt(slot);
+            if(stack!=null&&
+               stack.itemId==itemId)
+                return slot;
+        }
+
+        return -1;
     }
 
     private static OutboundPacketQueue fullQueue()
