@@ -457,6 +457,35 @@ final class MonsterSpawnerPvmRuntime {
         );
     }
 
+    int retryPendingSettlementsOnce(){
+        ArrayList<Entry> pending=
+            new ArrayList<>();
+
+        synchronized(this){
+            for(Entry entry:entries.values())
+                if(entry.state==
+                        State.SETTLEMENT_PENDING)
+                    pending.add(
+                        entry
+                    );
+        }
+
+        int attempts=0;
+
+        for(Entry entry:pending){
+            FinalizeResult result=
+                settlePending(
+                    entry,
+                    true
+                );
+
+            if(result!=null)
+                attempts++;
+        }
+
+        return attempts;
+    }
+
     FinalizeResult retrySettlement(
         EntityId npcId
     ){
@@ -494,31 +523,53 @@ final class MonsterSpawnerPvmRuntime {
     private FinalizeResult settlePending(
         Entry entry
     ){
+        return settlePending(
+            entry,
+            false
+        );
+    }
+
+    private FinalizeResult settlePending(
+        Entry entry,
+        boolean skipUnavailable
+    ){
         MonsterSpawnerNpcDeathFinalizationService.Result
             finalized;
 
         synchronized(this){
-            if(entries.get(entry.npc.id)!=entry)
+            if(entries.get(entry.npc.id)!=entry){
+                if(skipUnavailable)
+                    return null;
+
                 return new FinalizeResult(
                     FinalizeStatus.NOT_OWNED,
                     null,
                     null,
                     null
                 );
+            }
 
             if(entry.state!=
                     State.SETTLEMENT_PENDING||
-               entry.finalization==null)
+               entry.finalization==null){
+                if(skipUnavailable)
+                    return null;
+
                 throw new IllegalStateException(
                     "Monster Spawner PvM missing terminal resolution id="+
                     entry.npc.id
                 );
+            }
 
-            if(entry.terminalInProgress)
+            if(entry.terminalInProgress){
+                if(skipUnavailable)
+                    return null;
+
                 throw new IllegalStateException(
                     "Monster Spawner PvM settlement already in progress id="+
                     entry.npc.id
                 );
+            }
 
             entry.terminalInProgress=true;
             finalized=entry.finalization;
