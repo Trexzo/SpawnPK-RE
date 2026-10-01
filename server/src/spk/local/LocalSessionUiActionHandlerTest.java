@@ -1211,7 +1211,7 @@ public final class LocalSessionUiActionHandlerTest {
                 "equipment-stats root replacement left Monster Spawner gate open"
             );
 
-        routed.replaceMonsterSpawnerRoot(
+        routed.replaceMonsterSpawnerWithItemLibraryRoot(
             ()->routedItemLibrary.open(
                 w,
                 28860
@@ -1334,7 +1334,7 @@ public final class LocalSessionUiActionHandlerTest {
                 "death-preview root replacement left Monster Spawner gate open"
             );
 
-        routed.replaceMonsterSpawnerRoot(
+        routed.replaceMonsterSpawnerWithItemLibraryRoot(
             ()->routedItemLibrary.open(
                 w,
                 28860
