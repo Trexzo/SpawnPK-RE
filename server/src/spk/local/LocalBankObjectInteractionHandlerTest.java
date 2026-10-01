@@ -674,6 +674,7 @@ public final class LocalBankObjectInteractionHandlerTest {
                 );
 
             testBankTransferPublicationAtomicity();
+            testBankStructuralPublicationAtomicity();
 
             System.out.println(
                 "LOCAL_BANK_OBJECT_HANDLER_PASS "+
@@ -697,7 +698,12 @@ public final class LocalBankObjectInteractionHandlerTest {
                 "bankStorePublicationAtomic=true "+
                 "bankTransferXRetryPreserved=true "+
                 "depositInventoryPublicationAtomic=true "+
-                "partialBankFullPresentationCoherent=true"
+                "partialBankFullPresentationCoherent=true "+
+                "placeholderToggleFailureAtomic=true "+
+                "bankDragFailureAtomic=true "+
+                "openInventoryDragFailureAtomic=true "+
+                "setBankTabFailureAtomic=true "+
+                "swapBankTabFailureAtomic=true"
             );
         }finally{
             if(player.registered())
@@ -1024,6 +1030,346 @@ public final class LocalBankObjectInteractionHandlerTest {
                 partial.inventorySlots()+
                 " wireDelta="+
                 (partialWire.size()-partialWireBefore)
+            );
+    }
+
+    private static void testBankStructuralPublicationAtomicity()
+        throws Exception
+    {
+        // Placeholder toggle: failed disable must preserve both the flag and
+        // zero-quantity placeholder slot.
+        BankState placeholders=
+            new BankState();
+        ByteArrayOutputStream placeholderWire=
+            new ByteArrayOutputStream();
+        ServerPacketWriter placeholderGood=
+            new ServerPacketWriter(
+                placeholderWire,
+                new IsaacCipher(
+                    new int[]{77,78,79,80}
+                )
+            );
+        placeholders.open(
+            placeholderGood
+        );
+        String enabled=
+            placeholders.togglePlaceholders(
+                placeholderGood
+            );
+        if(enabled==null||
+           !enabled.contains(
+                "PLACEHOLDERS_ENABLED"
+           ))
+            throw new AssertionError(
+                "placeholder fixture did not enable"
+            );
+
+        String allCoins=
+            placeholders.apply(
+                new ItemContainerAction(
+                    129,
+                    BankState.BANK_CONTAINER,
+                    0,
+                    995,
+                    0,
+                    "ITEM_ACTION_ALL"
+                ),
+                placeholderGood
+            );
+        if(allCoins==null||
+           !allCoins.contains("WITHDRAW_OK")||
+           placeholders.bankAt(0)==null||
+           placeholders.bankAt(0).qty!=0)
+            throw new AssertionError(
+                "placeholder fixture did not retain zero slot"
+            );
+
+        boolean placeholderFailed=false;
+        try{
+            placeholders.togglePlaceholders(
+                queueWriter(
+                    fullQueue(),
+                    new int[]{81,82,83,84}
+                )
+            );
+        }catch(java.io.IOException expected){
+            placeholderFailed=true;
+        }
+
+        if(!placeholderFailed||
+           !placeholders.placeholdersEnabled()||
+           placeholders.bankAt(0)==null||
+           placeholders.bankAt(0).qty!=0)
+            throw new AssertionError(
+                "failed placeholder disable mutated canonical structure"
+            );
+
+        String disabled=
+            placeholders.togglePlaceholders(
+                placeholderGood
+            );
+        if(disabled==null||
+           !disabled.contains(
+                "PLACEHOLDERS_DISABLED"
+           )||
+           placeholders.bankAt(0)!=null)
+            throw new AssertionError(
+                "placeholder retry did not commit"
+            );
+
+        // Bank-slot drag.
+        BankState bankDrag=
+            new BankState();
+        ServerPacketWriter bankDragGood=
+            new ServerPacketWriter(
+                new ByteArrayOutputStream(),
+                new IsaacCipher(
+                    new int[]{85,86,87,88}
+                )
+            );
+        bankDrag.open(
+            bankDragGood
+        );
+
+        int bank0=
+            bankDrag.bankAt(0).itemId;
+        int bank1=
+            bankDrag.bankAt(1).itemId;
+
+        boolean bankDragFailed=false;
+        try{
+            bankDrag.applyDrag(
+                new ContainerDrag(
+                    BankState.BANK_CONTAINER,
+                    0,
+                    0,
+                    1
+                ),
+                queueWriter(
+                    fullQueue(),
+                    new int[]{89,90,91,92}
+                )
+            );
+        }catch(java.io.IOException expected){
+            bankDragFailed=true;
+        }
+
+        if(!bankDragFailed||
+           bankDrag.bankAt(0).itemId!=bank0||
+           bankDrag.bankAt(1).itemId!=bank1)
+            throw new AssertionError(
+                "failed bank drag mutated canonical slots"
+            );
+
+        String bankDragRetry=
+            bankDrag.applyDrag(
+                new ContainerDrag(
+                    BankState.BANK_CONTAINER,
+                    0,
+                    0,
+                    1
+                ),
+                bankDragGood
+            );
+
+        if(bankDragRetry==null||
+           !bankDragRetry.contains("DRAG_OK")||
+           bankDrag.bankAt(0).itemId!=bank1||
+           bankDrag.bankAt(1).itemId!=bank0)
+            throw new AssertionError(
+                "bank drag retry did not commit"
+            );
+
+        // Normal inventory drag while Bank is open must publish normal
+        // inventory + bank mirror in one batch before the slot swap commits.
+        BankState inventoryDrag=
+            new BankState();
+        ServerPacketWriter inventoryDragGood=
+            new ServerPacketWriter(
+                new ByteArrayOutputStream(),
+                new IsaacCipher(
+                    new int[]{93,94,95,96}
+                )
+            );
+        inventoryDrag.open(
+            inventoryDragGood
+        );
+        inventoryDrag.spawnItem(
+            385,
+            1,
+            inventoryDragGood
+        );
+        inventoryDrag.spawnItem(
+            3144,
+            1,
+            inventoryDragGood
+        );
+
+        int firstSlot=-1;
+        int secondSlot=-1;
+        for(int i=0;i<inventoryDrag.inventoryCapacity();i++){
+            BankState.Stack stack=
+                inventoryDrag.inventoryAt(i);
+            if(stack==null)
+                continue;
+            if(firstSlot<0)
+                firstSlot=i;
+            else{
+                secondSlot=i;
+                break;
+            }
+        }
+
+        if(firstSlot<0||secondSlot<0)
+            throw new AssertionError(
+                "inventory drag fixture missing two items"
+            );
+
+        int firstItem=
+            inventoryDrag.inventoryAt(firstSlot).itemId;
+        int secondItem=
+            inventoryDrag.inventoryAt(secondSlot).itemId;
+
+        boolean inventoryDragFailed=false;
+        try{
+            inventoryDrag.applyDrag(
+                new ContainerDrag(
+                    BankState.NORMAL_INVENTORY_CONTAINER,
+                    0,
+                    firstSlot,
+                    secondSlot
+                ),
+                queueWriter(
+                    fullQueue(),
+                    new int[]{97,98,99,100}
+                )
+            );
+        }catch(java.io.IOException expected){
+            inventoryDragFailed=true;
+        }
+
+        if(!inventoryDragFailed||
+           inventoryDrag.inventoryAt(firstSlot).itemId!=firstItem||
+           inventoryDrag.inventoryAt(secondSlot).itemId!=secondItem)
+            throw new AssertionError(
+                "failed open inventory drag mutated canonical slots"
+            );
+
+        String inventoryDragRetry=
+            inventoryDrag.applyDrag(
+                new ContainerDrag(
+                    BankState.NORMAL_INVENTORY_CONTAINER,
+                    0,
+                    firstSlot,
+                    secondSlot
+                ),
+                inventoryDragGood
+            );
+
+        if(inventoryDragRetry==null||
+           !inventoryDragRetry.contains(
+                "INVENTORY_DRAG_OK"
+           )||
+           inventoryDrag.inventoryAt(firstSlot).itemId!=secondItem||
+           inventoryDrag.inventoryAt(secondSlot).itemId!=firstItem)
+            throw new AssertionError(
+                "open inventory drag retry did not commit"
+            );
+
+        // setbanktab failure/retry.
+        BankState tabs=
+            new BankState();
+        ServerPacketWriter tabsGood=
+            new ServerPacketWriter(
+                new ByteArrayOutputStream(),
+                new IsaacCipher(
+                    new int[]{101,102,103,104}
+                )
+            );
+        tabs.open(
+            tabsGood
+        );
+
+        int originalTab=
+            tabs.bankAt(0).tab;
+
+        boolean setTabFailed=false;
+        try{
+            tabs.applyCommand(
+                "setbanktab 0 3",
+                queueWriter(
+                    fullQueue(),
+                    new int[]{105,106,107,108}
+                )
+            );
+        }catch(java.io.IOException expected){
+            setTabFailed=true;
+        }
+
+        if(!setTabFailed||
+           tabs.bankAt(0).tab!=originalTab)
+            throw new AssertionError(
+                "failed setbanktab mutated canonical tab"
+            );
+
+        String setTabRetry=
+            tabs.applyCommand(
+                "setbanktab 0 3",
+                tabsGood
+            );
+
+        if(setTabRetry==null||
+           !setTabRetry.contains(
+                "SETBANKTAB_OK"
+           )||
+           tabs.bankAt(0).tab!=3)
+            throw new AssertionError(
+                "setbanktab retry did not commit"
+            );
+
+        tabs.applyCommand(
+            "setbanktab 0 1",
+            tabsGood
+        );
+        tabs.applyCommand(
+            "setbanktab 1 2",
+            tabsGood
+        );
+
+        boolean swapTabFailed=false;
+        try{
+            tabs.applyCommand(
+                "swapbanktab 0 2 1",
+                queueWriter(
+                    fullQueue(),
+                    new int[]{109,110,111,112}
+                )
+            );
+        }catch(java.io.IOException expected){
+            swapTabFailed=true;
+        }
+
+        if(!swapTabFailed||
+           tabs.bankAt(0).tab!=1||
+           tabs.bankAt(1).tab!=2)
+            throw new AssertionError(
+                "failed swapbanktab mutated canonical tabs"
+            );
+
+        String swapRetry=
+            tabs.applyCommand(
+                "swapbanktab 0 2 1",
+                tabsGood
+            );
+
+        if(swapRetry==null||
+           !swapRetry.contains(
+                "SWAPBANKTAB_OK"
+           )||
+           tabs.bankAt(0).tab!=2||
+           tabs.bankAt(1).tab!=1)
+            throw new AssertionError(
+                "swapbanktab retry did not commit"
             );
     }
 
