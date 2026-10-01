@@ -345,6 +345,134 @@ final class Player81WorldSync {
             :event.forViewer(viewer);
     }
 
+    static final class PreparedBatch {
+        final Context context;
+        final LinkedHashMap<EntityId,Track> visible;
+        final HashMap<EntityId,Integer> reservedIndexes;
+        final ArrayList<LegacyLocal> publications=
+            new ArrayList<>();
+        boolean completed;
+
+        PreparedBatch(
+            Context context,
+            LinkedHashMap<EntityId,Track> visible,
+            HashMap<EntityId,Integer> reservedIndexes
+        ){
+            this.context=context;
+            this.visible=visible;
+            this.reservedIndexes=reservedIndexes;
+        }
+    }
+
+    static PreparedBatch beginPreparedBatch(
+        ServerPacketWriter writer
+    )throws IOException{
+        final Context candidate;
+
+        synchronized(Player81WorldSync.class){
+            candidate=BY_WRITER.get(writer);
+        }
+
+        if(candidate==null)
+            return null;
+
+        final PreparedBatch[] prepared=
+            new PreparedBatch[1];
+
+        boolean accepted=
+            candidate.state.world
+                .withOpenPlayerOwnershipIfCurrent(
+                    candidate.owner,
+                    candidate.ownerGeneration,
+                    ()->prepared[0]=
+                        candidate.beginPreparedBatch()
+                );
+
+        return accepted
+            ?prepared[0]
+            :null;
+    }
+
+    static byte[] transformPrepared(
+        PreparedBatch prepared,
+        byte[] body
+    ){
+        if(body==null)
+            return null;
+
+        if(prepared==null)
+            return body;
+
+        Context candidate=
+            prepared.context;
+
+        final byte[][] transformed=
+            new byte[][]{body};
+
+        try{
+            boolean accepted=
+                candidate.state.world
+                    .withOpenPlayerOwnershipIfCurrent(
+                        candidate.owner,
+                        candidate.ownerGeneration,
+                        ()->transformed[0]=
+                            candidate.transformPrepared(
+                                prepared,
+                                body
+                            )
+                    );
+
+            return accepted
+                ?transformed[0]
+                :body;
+        }catch(Throwable t){
+            System.err.println(
+                "[ENGINE-R3] prepared player81 merge failed for "+
+                candidate.owner.id()+": "+t+
+                "; using certified local-only body"
+            );
+            return body;
+        }
+    }
+
+    static void commitPreparedBatch(
+        PreparedBatch prepared
+    ){
+        if(prepared==null)
+            return;
+
+        Context candidate=
+            prepared.context;
+
+        try{
+            boolean accepted=
+                candidate.state.world
+                    .withOpenPlayerOwnershipIfCurrent(
+                        candidate.owner,
+                        candidate.ownerGeneration,
+                        ()->candidate.commitPreparedBatch(
+                            prepared
+                        )
+                    );
+
+            if(!accepted)
+                prepared.completed=true;
+        }catch(Throwable t){
+            prepared.completed=true;
+            System.err.println(
+                "[ENGINE-R3] prepared player81 commit failed owner="+
+                candidate.owner.id()+": "+t
+            );
+        }
+    }
+
+    static void abortPreparedBatch(
+        PreparedBatch prepared
+    ){
+        if(prepared!=null)
+            prepared.completed=true;
+    }
+
     static final class Context {
         final ServerPacketWriter writer;
         final WorldState state;
@@ -577,6 +705,254 @@ final class Player81WorldSync {
             return out.toByteArray();
         }
 
+        synchronized byte[] transformPrepared(PreparedBatch prepared,byte[] legacy)throws IOException{
+            if(!ownerCurrent())
+                return legacy;
+
+            LegacyLocal local=LegacyLocal.parse(legacy);
+            if(local==null||local.oldRemoteCount!=0||local.sentinel!=SENTINEL)return legacy;
+
+            if(prepared==null||
+               prepared.context!=this||
+               prepared.completed)
+                return legacy;
+
+            LinkedHashMap<EntityId,Track> workingVisible=
+                copyTracks(
+                    prepared.visible
+                );
+            HashMap<EntityId,Integer> workingReservedIndexes=
+                new HashMap<>(
+                    prepared.reservedIndexes
+                );
+
+            List<WorldPlayer> players=state.world.players().snapshot();
+            HashMap<EntityId,WorldPlayer> current=new HashMap<>();
+            for(WorldPlayer p:players)current.put(p.id(),p);
+
+            ArrayList<Track> oldTracks=new ArrayList<>(workingVisible.values());
+            LinkedHashMap<EntityId,Track> nextVisible=new LinkedHashMap<>();
+            ArrayList<byte[]> remoteTails=new ArrayList<>();
+            HashSet<EntityId> removedThisPacket=new HashSet<>();
+
+            BitWriter bits=new BitWriter();
+            local.writeLocal(bits);
+            bits.write(oldTracks.size(),8);
+
+            for(Track t:oldTracks){
+                WorldPlayer remote=current.get(t.id);
+                boolean keep=
+                    isVisible(remote)&&
+                    state.world.players().owns(
+                        remote,
+                        t.generation
+                    );
+                if(!keep){
+                    bits.write(1,1);bits.write(3,2);
+                    removedThisPacket.add(t.id);
+                    continue;
+                }
+
+                Motion m=state.motions.get(t.id);
+                boolean hasNewMotion=m!=null&&m.seq>t.lastMotionSeq;
+                boolean hardReanchor=false;
+                int moveType=0,dir1=-1,dir2=-1;
+                if(hasNewMotion){
+                    if(m.type==1||m.type==2){moveType=m.type;dir1=m.dir1;dir2=m.dir2;}
+                    else if(m.type==3)hardReanchor=true;
+                }else if(remote.movement().x()!=t.x||remote.movement().y()!=t.y||remote.movement().plane()!=t.plane){
+                    int dx=remote.movement().x()-t.x,dy=remote.movement().y()-t.y;
+                    if(remote.movement().plane()!=t.plane)hardReanchor=true;
+                    else if(Math.abs(dx)<=1&&Math.abs(dy)<=1&&(dx!=0||dy!=0)){
+                        moveType=1;dir1=MovementState.direction(t.x,t.y,remote.movement().x(),remote.movement().y());
+                        if(dir1<0)hardReanchor=true;
+                    }else if(Math.abs(dx)<=2&&Math.abs(dy)<=2&&(dx!=0||dy!=0)){
+                        int mx=t.x+Integer.signum(dx),my=t.y+Integer.signum(dy);
+                        int d1=MovementState.direction(t.x,t.y,mx,my);
+                        int d2=MovementState.direction(mx,my,remote.movement().x(),remote.movement().y());
+                        if(d1>=0&&d2>=0){moveType=2;dir1=d1;dir2=d2;}else hardReanchor=true;
+                    }else hardReanchor=true;
+                }
+
+                if(hardReanchor){
+                    bits.write(1,1);bits.write(3,2);
+                    removedThisPacket.add(t.id);
+                    continue;
+                }
+
+                Event ev=state.nextEventAfter(t.id,t.lastEventSeq);
+                boolean eventPending=ev!=null;
+                byte[] appearance=appearanceTail(remote);
+                int appearanceHash=Arrays.hashCode(appearance);
+                boolean appearanceChanged=appearanceHash!=t.appearanceHash;
+                byte[] maskTail=null;
+                long consumedEventSeq=t.lastEventSeq;
+                if(eventPending){
+                    maskTail=ev.forViewer(this);
+                    consumedEventSeq=ev.seq;
+                    if((maskOfTail(maskTail)&0x10)!=0)appearanceChanged=false;
+                }else if(appearanceChanged){
+                    maskTail=appearance;
+                }
+                boolean hasMask=maskTail!=null&&maskTail.length>0;
+
+                if(moveType==1){
+                    bits.write(1,1);bits.write(1,2);bits.write(dir1,3);bits.write(hasMask?1:0,1);
+                }else if(moveType==2){
+                    bits.write(1,1);bits.write(2,2);bits.write(dir1,3);bits.write(dir2,3);bits.write(hasMask?1:0,1);
+                }else if(hasMask){
+                    bits.write(1,1);bits.write(0,2);
+                }else bits.write(0,1);
+
+                t.x=remote.movement().x();t.y=remote.movement().y();t.plane=remote.movement().plane();
+                if(hasNewMotion)t.lastMotionSeq=m.seq;
+                if(eventPending)t.lastEventSeq=consumedEventSeq;
+                if(!appearanceChanged || (hasMask&&(maskOfTail(maskTail)&0x10)!=0))t.appearanceHash=appearanceHash;
+                nextVisible.put(t.id,t);
+                if(hasMask)remoteTails.add(maskTail);
+            }
+
+            // Add newly-visible players after processing the previous remote list.
+            for(WorldPlayer remote:players){
+                if(remote==owner||!isVisible(remote)||workingVisible.containsKey(remote.id())||removedThisPacket.contains(remote.id()))continue;
+
+                long remoteGeneration=
+                    remote.generation();
+                if(!state.world.players().owns(
+                        remote,
+                        remoteGeneration
+                    ))
+                    continue;
+
+                int idx=indexForPrepared(workingReservedIndexes,remote.id());
+                int dx=remote.movement().x()-owner.movement().x(),dy=remote.movement().y()-owner.movement().y();
+                if(!signed5(dx)||!signed5(dy))continue;
+                bits.write(idx,11);
+                bits.write(1,1); // appearance mask follows
+                bits.write(1,1); // discard stale walking queue on add
+                bits.write(dy&31,5); // exact client order: relative Y then X
+                bits.write(dx&31,5);
+                byte[] tail=appearanceTail(remote);
+
+                Track t=new Track(
+                    remote.id(),
+                    remoteGeneration,
+                    idx,
+                    remote.movement().x(),
+                    remote.movement().y(),
+                    remote.movement().plane()
+                );
+                t.appearanceHash=Arrays.hashCode(tail);
+                Motion m=state.motions.get(remote.id());if(m!=null)t.lastMotionSeq=m.seq;
+                Event e=state.latestEvent(remote.id());if(e!=null)t.lastEventSeq=e.seq;
+                nextVisible.put(t.id,t);remoteTails.add(tail);
+            }
+            bits.write(SENTINEL,11);
+
+            ByteArrayOutputStream out=new ByteArrayOutputStream(legacy.length+remoteTails.size()*80+16);
+            out.write(bits.finish());
+            if(local.maskTail.length>0)out.write(local.maskTail);
+            for(byte[] tail:remoteTails)out.write(tail);
+            prepared.visible.clear();
+            prepared.visible.putAll(nextVisible);
+            prepared.reservedIndexes.clear();
+            prepared.reservedIndexes.putAll(
+                workingReservedIndexes
+            );
+            prepared.publications.add(local);
+            return out.toByteArray();
+        }
+
+        synchronized PreparedBatch beginPreparedBatch(){
+            return new PreparedBatch(
+                this,
+                copyTracks(
+                    visible
+                ),
+                new HashMap<>(
+                    reservedIndexes
+                )
+            );
+        }
+
+        synchronized void commitPreparedBatch(
+            PreparedBatch prepared
+        ){
+            if(prepared==null||
+               prepared.context!=this||
+               prepared.completed)
+                return;
+
+            for(LegacyLocal local:
+                    prepared.publications)
+                state.publish(
+                    owner,
+                    this,
+                    local
+                );
+
+            visible.clear();
+            visible.putAll(
+                prepared.visible
+            );
+            reservedIndexes.clear();
+            reservedIndexes.putAll(
+                prepared.reservedIndexes
+            );
+            prepared.completed=true;
+        }
+
+        private static LinkedHashMap<EntityId,Track>
+            copyTracks(
+                Map<EntityId,Track> source
+            ){
+            LinkedHashMap<EntityId,Track> copy=
+                new LinkedHashMap<>();
+
+            for(Map.Entry<EntityId,Track> entry:
+                    source.entrySet())
+                copy.put(
+                    entry.getKey(),
+                    entry.getValue().copy()
+                );
+
+            return copy;
+        }
+
+        private int indexForPrepared(
+            Map<EntityId,Integer> reserved,
+            EntityId id
+        ){
+            Integer existing=
+                reserved.get(id);
+
+            if(existing!=null)
+                return existing;
+
+            boolean[] used=
+                new boolean[2047];
+            used[LOCAL_PLAYER_INDEX]=true;
+
+            for(Integer value:
+                    reserved.values())
+                if(value>=0&&
+                   value<used.length)
+                    used[value]=true;
+
+            for(int i=2;i<2047;i++)
+                if(!used[i]){
+                    reserved.put(
+                        id,
+                        i
+                    );
+                    return i;
+                }
+
+            throw new IllegalStateException(
+                "no remote player indexes available"
+            );
+        }
+
         private boolean isVisible(WorldPlayer p){
             if(p==null||p==owner||!p.registered())return false;
             MovementState a=owner.movement(),b=p.movement();
@@ -786,6 +1162,22 @@ final class Player81WorldSync {
             this.x=x;
             this.y=y;
             this.plane=plane;
+        }
+
+        Track copy(){
+            Track copy=
+                new Track(
+                    id,
+                    generation,
+                    clientIndex,
+                    x,
+                    y,
+                    plane
+                );
+            copy.appearanceHash=appearanceHash;
+            copy.lastMotionSeq=lastMotionSeq;
+            copy.lastEventSeq=lastEventSeq;
+            return copy;
         }
     }
     private static final class Motion {
