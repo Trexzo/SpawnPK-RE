@@ -328,6 +328,166 @@ final class NpcRegistry {
             " world="+replacement.x+","+replacement.y+" persisted=false pickupStillReturnsItem="+old.petItemId;
     }
 
+    static final class PreparedMiniPetReplacement {
+        final NpcEntity expectedMainPet;
+        final NpcEntity oldMini;
+        final NpcEntity newMini;
+        final int itemId;
+
+        PreparedMiniPetReplacement(
+            NpcEntity expectedMainPet,
+            NpcEntity oldMini,
+            NpcEntity newMini,
+            int itemId
+        ){
+            this.expectedMainPet=expectedMainPet;
+            this.oldMini=oldMini;
+            this.newMini=newMini;
+            this.itemId=itemId;
+        }
+    }
+
+    PreparedMiniPetReplacement prepareMiniPetReplacement(
+        MiniPetDefinitionRepository.Def d,
+        MovementState movement
+    ){
+        if(d==null)
+            throw new IllegalArgumentException(
+                "mini definition"
+            );
+        if(pet==null)
+            throw new IllegalStateException(
+                "no active main pet"
+            );
+
+        int scene=
+            miniPet!=null
+                ?miniPet.sceneIndex
+                :allocateDynamicSceneIndex();
+
+        if(scene<0)
+            return null;
+
+        int[] start=
+            miniTrailingTile(movement);
+
+        NpcEntity next=
+            new NpcEntity(
+                scene,
+                d.npcId,
+                start[0],
+                start[1]
+            );
+
+        return new PreparedMiniPetReplacement(
+            pet,
+            miniPet,
+            next,
+            d.itemId
+        );
+    }
+
+    String publishMiniPetReplacement(
+        PreparedMiniPetReplacement prepared,
+        MovementState movement,
+        ServerPacketWriter w
+    )throws IOException{
+        if(prepared==null)
+            return "REJECTED_NO_FREE_SCENE_INDEX";
+
+        if(prepared.oldMini!=null){
+            ArrayList<NpcSyncEncoder.Update> remove=
+                new ArrayList<>();
+
+            for(NpcEntity n:visible)
+                remove.add(
+                    n==prepared.oldMini
+                        ?NpcSyncEncoder.Update.remove(n)
+                        :NpcSyncEncoder.Update.retain(n)
+                );
+
+            w.varShort(
+                65,
+                NpcSyncEncoder.encode(
+                    remove,
+                    Collections.emptyList(),
+                    0,
+                    0
+                )
+            );
+        }
+
+        ArrayList<NpcSyncEncoder.Update> retained=
+            new ArrayList<>();
+
+        for(NpcEntity n:visible)
+            if(n!=prepared.oldMini)
+                retained.add(
+                    NpcSyncEncoder.Update.retain(n)
+                );
+
+        w.varShort(
+            65,
+            NpcSyncEncoder.encode(
+                retained,
+                Collections.singletonList(
+                    prepared.newMini
+                ),
+                movement.x(),
+                movement.y()
+            )
+        );
+
+        sendMask(
+            prepared.newMini,
+            NpcSyncEncoder.Mask.interactionTarget(
+                prepared.expectedMainPet.sceneIndex
+            ),
+            w
+        );
+
+        return "MINIPET_SPAWN_OK item="+
+            prepared.itemId+
+            " npc="+prepared.newMini.definitionId+
+            " scene="+prepared.newMini.sceneIndex+
+            " world="+prepared.newMini.x+
+            ","+prepared.newMini.y+
+            " mainPetScene="+
+            prepared.expectedMainPet.sceneIndex+
+            " relation=PLAYER_TO_MAINPET_TO_MINIPET spawnPolicy=LOCAL_TRAILING_MAINPET";
+    }
+
+    void commitMiniPetReplacement(
+        PreparedMiniPetReplacement prepared
+    ){
+        if(prepared==null)
+            throw new NullPointerException(
+                "prepared"
+            );
+        if(pet!=prepared.expectedMainPet||
+           miniPet!=prepared.oldMini)
+            throw new IllegalStateException(
+                "mini-pet state changed before prepared commit"
+            );
+
+        if(prepared.oldMini!=null)
+            visible.remove(
+                prepared.oldMini
+            );
+
+        visible.add(
+            prepared.newMini
+        );
+        miniPet=prepared.newMini;
+        miniTrail.clear();
+        hasMiniTrail=true;
+        miniTrailX=pet.x;
+        miniTrailY=pet.y;
+        canonicalEnsureMini(
+            prepared.itemId
+        );
+    }
+
     String spawnOrReplaceMiniPet(MiniPetDefinitionRepository.Def d,MovementState movement,ServerPacketWriter w)throws IOException {
         if(d==null)return "REJECTED_NULL_MINI_DEFINITION";
         if(pet==null)return "REJECTED_NO_MAIN_PET";
