@@ -284,8 +284,51 @@ final class LocalDevPanelCoordinator {
         );
 
         if(outcome.reopen){
-            devPanel.finishPrompt();
-            render(writer);
+            DevControlCenter.StateSnapshot prior=
+                devPanel.snapshot();
+
+            writer.beginBatch();
+            boolean ended=false;
+
+            try{
+                devPanel.finishPrompt();
+
+                if(!renderer.render(writer))
+                    throw new IllegalStateException(
+                        "staged Dev Panel reopen did not render"
+                    );
+
+                writer.endBatch();
+                ended=true;
+            }catch(IOException failure){
+                devPanel.restore(prior);
+                if(!ended)
+                    try{
+                        writer.endBatch();
+                    }catch(Throwable ignored){}
+                throw failure;
+            }catch(RuntimeException failure){
+                devPanel.restore(prior);
+                if(!ended)
+                    try{
+                        writer.endBatch();
+                    }catch(Throwable ignored){}
+                throw failure;
+            }catch(Error failure){
+                devPanel.restore(prior);
+                if(!ended)
+                    try{
+                        writer.endBatch();
+                    }catch(Throwable ignored){}
+                throw failure;
+            }
+
+            dialogKeys.publish(
+                2482,
+                2483,
+                2484,
+                2485
+            );
         }else{
             devPanel.cancelPending();
         }
