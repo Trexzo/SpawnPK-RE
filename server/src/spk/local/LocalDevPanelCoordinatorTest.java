@@ -272,6 +272,54 @@ public final class LocalDevPanelCoordinatorTest {
                 );
             }
 
+            OutboundPacketQueue failedPromptQueue=
+                new OutboundPacketQueue(1024);
+            failedPromptQueue.offer(
+                new byte[1023]
+            );
+            ServerPacketWriter failedPromptWriter=
+                new ServerPacketWriter(
+                    failedPromptQueue,
+                    new IsaacCipher(
+                        new int[]{21,22,23,24}
+                    )
+                );
+
+            boolean promptFailed=false;
+            try{
+                coordinator.promptAmount(
+                    DevControlCenter.PendingAmount.HIT_DAMAGE,
+                    failedPromptWriter
+                );
+            }catch(java.io.IOException expected){
+                promptFailed=true;
+            }
+
+            if(!promptFailed||
+               !panel.isOpen()||
+               panel.page()!=
+                    DevControlCenter.Page.MAIN||
+               panel.hasPending())
+                throw new AssertionError(
+                    "failed numeric prompt committed Dev Panel state"
+                );
+
+            String keysAfterFailedPrompt=
+                Files.readString(
+                    keys.file(),
+                    StandardCharsets.UTF_8
+                );
+
+            if(!keysAfterFailedPrompt.contains(
+                    "active=true")||
+               !keysAfterFailedPrompt.contains(
+                    "widgets=2482,2483,2484,2485"
+               ))
+                throw new AssertionError(
+                    "failed numeric prompt cleared dialog key sidecar: "+
+                    keysAfterFailedPrompt
+                );
+
             WorldPlayer tradePeer=
                 new WorldPlayer();
             world.registerPlayer(
@@ -481,7 +529,10 @@ public final class LocalDevPanelCoordinatorTest {
                 "openRender=true keyPublication=true "+
                 "itemLibraryRootReplacement=true "+
                 "invalidItemLibraryPreserved=true "+
-                "numericPrompt=true sessionClose=true "+
+                "numericPrompt=true "+
+                "promptFailureAtomic=true "+
+                "promptFailurePreservesKeys=true "+
+                "sessionClose=true "+
                 "targetFailureAtomic=true "+
                 "failedTargetPreservesBank=true "+
                 "failedTargetPreservesItemLibrary=true "+
