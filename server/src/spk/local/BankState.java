@@ -815,28 +815,89 @@ final class BankState {
     String spawnItem(int itemId, int requested, ServerPacketWriter w) throws IOException {
         ItemCatalog.Meta meta=ItemDefinitionRepository.get(itemId);
         if (meta==null) return "REJECTED_UNKNOWN_ITEM id="+itemId;
-        int amount=Math.max(1,Math.min(requested,1_000_000_000));
-        boolean stackable=ItemDefinitionRepository.isStackable(itemId);
+
+        int amount=
+            Math.max(
+                1,
+                Math.min(
+                    requested,
+                    1_000_000_000
+                )
+            );
+        boolean stackable=
+            ItemDefinitionRepository.isStackable(itemId);
+        Stack[] nextInventory=
+            copyStacks(inventory);
         int moved=0;
+
         if (stackable) {
-            int dst=findItem(inventory,itemId);
-            if (dst<0) dst=firstEmpty(inventory);
-            if (dst<0) return "REJECTED_INVENTORY_FULL";
-            if (inventory[dst]==null) inventory[dst]=new Stack(itemId,0);
-            long next=(long)inventory[dst].qty+amount;
-            inventory[dst].qty=(int)Math.min(Integer.MAX_VALUE,next);
-            moved=amount;
+            int dst=findItem(
+                nextInventory,
+                itemId
+            );
+            if (dst<0)
+                dst=firstEmpty(nextInventory);
+            if (dst<0)
+                return "REJECTED_INVENTORY_FULL";
+
+            if (nextInventory[dst]==null)
+                nextInventory[dst]=
+                    new Stack(
+                        itemId,
+                        0
+                    );
+
+            int current=
+                nextInventory[dst].qty;
+            long remaining=
+                (long)Integer.MAX_VALUE-
+                (long)current;
+
+            if(remaining<=0L)
+                return "REJECTED_INVENTORY_QTY_LIMIT item="+
+                    itemId+
+                    " current="+current+
+                    " requested="+amount;
+
+            moved=
+                (int)Math.min(
+                    (long)amount,
+                    remaining
+                );
+            nextInventory[dst].qty=
+                current+
+                moved;
         } else {
             for (int i=0;i<amount;i++) {
-                int dst=firstEmpty(inventory);
-                if (dst<0) break;
-                inventory[dst]=new Stack(itemId,1);
+                int dst=
+                    firstEmpty(
+                        nextInventory
+                    );
+                if (dst<0)
+                    break;
+
+                nextInventory[dst]=
+                    new Stack(
+                        itemId,
+                        1
+                    );
                 moved++;
             }
-            if (moved==0) return "REJECTED_INVENTORY_FULL";
+
+            if (moved==0)
+                return "REJECTED_INVENTORY_FULL";
         }
-        sendNormalInventory(w);
-        if (open) sendContainers(w);
+
+        publishNormalInventoryStructuralPostimage(
+            w,
+            nextInventory,
+            open
+        );
+        replaceStacks(
+            inventory,
+            nextInventory
+        );
+
         return "ITEM_SPAWN_OK id="+itemId+" name="+safe(meta.name)+" requested="+amount+" moved="+moved
              +" stackable="+stackable+" stackabilityEvidence="+ItemDefinitionRepository.stackabilityEvidence(itemId)
              +" inventoryOccupied="+inventorySlots()+"/"+inventoryCapacity();
