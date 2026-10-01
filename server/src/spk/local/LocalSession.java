@@ -925,10 +925,11 @@ final class LocalSession implements Runnable {
                 canonicalUsername
             );
 
-        java.util.Objects.requireNonNull(
-            result,
-            "result"
-        );
+        LocalMonsterSpawnerUiHandler.Result checkedResult=
+            java.util.Objects.requireNonNull(
+                result,
+                "result"
+            );
         java.util.Objects.requireNonNull(
             writer,
             "writer"
@@ -937,6 +938,26 @@ final class LocalSession implements Runnable {
             tag,
             "tag"
         );
+
+        if(!checkedResult.session.ownerRef.equals(
+                username))
+            throw new IllegalArgumentException(
+                "Monster Spawner committed result owner differs from canonical session account "+
+                username
+            );
+
+        if(checkedWorld.closed())
+            throw new IllegalStateException(
+                "Monster Spawner committed-result callback requires open World"
+            );
+
+        if(!checkedWorld.players().owns(
+                checkedPlayer,
+                checkedPlayer.generation()
+            ))
+            throw new IllegalStateException(
+                "Monster Spawner committed-result callback requires current session player ownership"
+            );
 
         try{
             factory.onCommittedResult(
