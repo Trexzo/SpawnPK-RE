@@ -262,6 +262,7 @@ final class LocalSessionUiActionHandler {
                 "serverPackets"
             )
         );
+        bank.clientClosed();
         devPanel.close();
         bridge.clearDialogNumberKeys();
         monsterSpawnerUiOpen=true;
@@ -637,7 +638,7 @@ final class LocalSessionUiActionHandler {
         return checked.publish();
     }
 
-    String publishCompetingRootForOwnedSession(
+    String publishBankRootForOwnedSession(
         RootInterfaceAction publisher
     )throws IOException{
         RootInterfaceAction checked=
@@ -655,6 +656,44 @@ final class LocalSessionUiActionHandler {
         devPanel.close();
         bridge.clearDialogNumberKeys();
         return result;
+    }
+
+    String publishCompetingRootForOwnedSession(
+        RootInterfaceAction publisher
+    )throws IOException{
+        RootInterfaceAction checked=
+            Objects.requireNonNull(
+                publisher,
+                "publisher"
+            );
+
+        monsterSpawnerUiOpen=false;
+        itemLibrary.close();
+
+        String result=
+            checked.publish();
+
+        bank.clientClosed();
+        devPanel.close();
+        bridge.clearDialogNumberKeys();
+        return result;
+    }
+
+    String replaceMonsterSpawnerWithBankRoot(
+        RootInterfaceAction publisher
+    )throws IOException{
+        RootInterfaceAction checked=
+            Objects.requireNonNull(
+                publisher,
+                "publisher"
+            );
+
+        return bridge.replaceMonsterSpawnerRoot(
+            ()->
+                publishBankRootForOwnedSession(
+                    checked
+                )
+        );
     }
 
     String replaceMonsterSpawnerRoot(
