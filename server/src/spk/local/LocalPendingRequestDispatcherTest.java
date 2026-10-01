@@ -138,7 +138,7 @@ public final class LocalPendingRequestDispatcherTest {
                     npcs,
                     bank,
                     movement,
-                    world.content(),
+                    null,
                     player,
                     equipment
                 );
