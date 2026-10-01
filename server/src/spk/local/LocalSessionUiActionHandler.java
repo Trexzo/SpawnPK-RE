@@ -58,6 +58,10 @@ final class LocalSessionUiActionHandler {
         String publish() throws IOException;
     }
 
+    interface RootInterfaceBooleanAction {
+        boolean publish() throws IOException;
+    }
+
     interface SessionBridge {
         void saveAccount(String tag,String reason);
         void clearDialogNumberKeys();
@@ -571,6 +575,23 @@ final class LocalSessionUiActionHandler {
                 " action=CLOSE_BANK bankOpen="+bank.isOpen()
             );
         }
+    }
+
+    String replaceMonsterSpawnerRootCommand(
+        RootInterfaceBooleanAction publisher
+    )throws IOException{
+        RootInterfaceBooleanAction checked=
+            Objects.requireNonNull(
+                publisher,
+                "publisher"
+            );
+
+        return replaceMonsterSpawnerRoot(
+            ()->
+                checked.publish()
+                    ?"ROOT_COMMAND_HANDLED"
+                    :"ROOT_COMMAND_NOT_HANDLED"
+        );
     }
 
     private String replaceMonsterSpawnerRoot(
