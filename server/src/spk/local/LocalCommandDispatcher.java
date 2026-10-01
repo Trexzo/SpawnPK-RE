@@ -187,11 +187,13 @@ final class LocalCommandDispatcher {
 
             if(content!=null){
                 if(content.hasAction()){
+                    String contentActionKey=
+                        content.actionKey();
                     LocalContentCommandActionExecutor.Outcome
                         action;
 
                     if(isItemLibraryRootAction(
-                            content.actionKey()
+                            contentActionKey
                         )){
                         final LocalContentCommandActionExecutor.Outcome[]
                             rootAction={null};
@@ -202,7 +204,7 @@ final class LocalCommandDispatcher {
                                     rootAction[0]=
                                         contentCommandActions
                                             .executeOutcome(
-                                                content.actionKey(),
+                                                contentActionKey,
                                                 command,
                                                 username,
                                                 loginAlias,
@@ -232,7 +234,7 @@ final class LocalCommandDispatcher {
                     }else{
                         action=
                             contentCommandActions.executeOutcome(
-                                content.actionKey(),
+                                contentActionKey,
                                 command,
                                 username,
                                 loginAlias,
