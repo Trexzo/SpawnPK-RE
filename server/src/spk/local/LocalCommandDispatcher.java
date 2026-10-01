@@ -13,6 +13,40 @@ import spk.content.api.ContentResult;
  * exposed through a narrow bridge rather than implemented here.
  */
 final class LocalCommandDispatcher {
+    @FunctionalInterface
+    interface RootReplacingCommandAction {
+        boolean handle() throws IOException;
+    }
+
+    static final class RootReplacingCommandDispatch {
+        final boolean admitted;
+        final boolean handled;
+
+        private RootReplacingCommandDispatch(
+            boolean admitted,
+            boolean handled
+        ){
+            this.admitted=admitted;
+            this.handled=handled;
+        }
+
+        static RootReplacingCommandDispatch admitted(
+            boolean handled
+        ){
+            return new RootReplacingCommandDispatch(
+                true,
+                handled
+            );
+        }
+
+        static RootReplacingCommandDispatch rejected(){
+            return new RootReplacingCommandDispatch(
+                false,
+                false
+            );
+        }
+    }
+
     interface SessionBridge {
         SceneUpdatePublisher scenePublisher();
         void replaceScenePublisher(SceneUpdatePublisher scenePublisher);
@@ -22,6 +56,17 @@ final class LocalCommandDispatcher {
             ServerPacketWriter serverPackets
         )throws IOException{
             return false;
+        }
+        default RootReplacingCommandDispatch
+            handleRootReplacingCommand(
+                RootReplacingCommandAction action
+            )throws IOException{
+            return RootReplacingCommandDispatch.admitted(
+                Objects.requireNonNull(
+                    action,
+                    "action"
+                ).handle()
+            );
         }
         void applyPetDialog(LocalPetInventoryDialogHandler.Result result,String tag);
     }
@@ -222,6 +267,40 @@ final class LocalCommandDispatcher {
                 MonsterSpawnerPresentation.PRESENTATION_AUTHORITY+
                 " routeAuthority=CUSTOM_LOCALLAB"
             );
+            return true;
+        }
+
+        if(diagnosticCommands.itemLibrarySearchWillOpen(
+                p
+            )){
+            RootReplacingCommandDispatch rootDispatch=
+                bridge.handleRootReplacingCommand(
+                    ()->
+                        diagnosticCommands.handle(
+                            p,
+                            serverPackets,
+                            tag,
+                            username,
+                            loginAlias,
+                            persistentAccount,
+                            bridge.scenePublisher()
+                        )
+                );
+
+            if(!rootDispatch.admitted){
+                System.out.println(
+                    tag+
+                    "V5150_ITEM_LIBRARY_IGSEARCH "+
+                    "result=LIFECYCLE_REJECTED"
+                );
+                return true;
+            }
+
+            if(!rootDispatch.handled)
+                throw new IllegalStateException(
+                    "known Item Library root command was not handled"
+                );
+
             return true;
         }
 
