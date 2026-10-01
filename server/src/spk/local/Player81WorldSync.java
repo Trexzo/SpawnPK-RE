@@ -366,6 +366,7 @@ final class Player81WorldSync {
 
         boolean ownerCurrent(){
             return !closed&&
+                !state.world.closed()&&
                 state.world.players().owns(
                     owner,
                     ownerGeneration
