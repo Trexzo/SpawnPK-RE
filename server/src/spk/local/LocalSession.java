@@ -12,6 +12,15 @@ final class LocalSession implements Runnable {
             WorldPlayer player,
             String canonicalUsername
         ) throws Exception;
+
+        default void onCommittedResult(
+            World world,
+            WorldPlayer player,
+            String canonicalUsername,
+            LocalMonsterSpawnerUiHandler.Result result,
+            ServerPacketWriter writer,
+            String tag
+        ) throws Exception{}
     }
 
     private final Socket socket;
@@ -470,6 +479,22 @@ final class LocalSession implements Runnable {
                     );
                 }
 
+                @Override public void handleMonsterSpawnerResult(
+                    LocalMonsterSpawnerUiHandler.Result result,
+                    ServerPacketWriter writer,
+                    String tag
+                )throws IOException{
+                    forwardMonsterSpawnerUiResult(
+                        LocalSession.this.monsterSpawnerUiFactory,
+                        LocalSession.this.world,
+                        LocalSession.this.worldPlayer,
+                        LocalSession.this.username,
+                        result,
+                        writer,
+                        tag
+                    );
+                }
+
                 @Override public void requestLogout(){
                     LocalSession.this.logoutRequested=true;
                 }
@@ -871,6 +896,72 @@ final class LocalSession implements Runnable {
             )
         );
         if (movementEnabled && !bootstrap) throw new IllegalArgumentException("movement requires bootstrap");
+    }
+
+    static void forwardMonsterSpawnerUiResult(
+        MonsterSpawnerUiFactory factory,
+        World world,
+        WorldPlayer player,
+        String canonicalUsername,
+        LocalMonsterSpawnerUiHandler.Result result,
+        ServerPacketWriter writer,
+        String tag
+    )throws IOException{
+        if(factory==null)
+            return;
+
+        World checkedWorld=
+            java.util.Objects.requireNonNull(
+                world,
+                "world"
+            );
+        WorldPlayer checkedPlayer=
+            java.util.Objects.requireNonNull(
+                player,
+                "player"
+            );
+        String username=
+            PartyService.requireRef(
+                canonicalUsername
+            );
+
+        java.util.Objects.requireNonNull(
+            result,
+            "result"
+        );
+        java.util.Objects.requireNonNull(
+            writer,
+            "writer"
+        );
+        java.util.Objects.requireNonNull(
+            tag,
+            "tag"
+        );
+
+        try{
+            factory.onCommittedResult(
+                checkedWorld,
+                checkedPlayer,
+                username,
+                result,
+                writer,
+                tag
+            );
+        }catch(IOException failure){
+            throw failure;
+        }catch(RuntimeException failure){
+            throw failure;
+        }catch(Error failure){
+            throw failure;
+        }catch(Exception failure){
+            throw new IllegalStateException(
+                "Monster Spawner post-commit callback failed owner="+
+                username+
+                " status="+
+                result.status,
+                failure
+            );
+        }
     }
 
     static LocalMonsterSpawnerUiHandler
