@@ -329,6 +329,12 @@ public final class LocalPendingRequestDispatcherTest {
                             rootReplacements[0]++;
                             return action.publish();
                         }
+                        @Override public boolean retireMakeoverDesignerRoot(){
+                            LocalMakeoverMageHandler makeover=
+                                routedNpcs.makeoverMage();
+                            return makeover!=null&&
+                                makeover.retireDesignerRoot();
+                        }
                         @Override public void requestLogout(){}
                     }
                 );
@@ -482,6 +488,125 @@ public final class LocalPendingRequestDispatcherTest {
                         ){}
                     }
                 );
+
+            LocalMakeoverMageHandler sharedMakeover=
+                routedNpcs.makeoverMage();
+
+            if(sharedMakeover==null)
+                throw new AssertionError(
+                    "shared Make-over handler missing"
+                );
+
+            int makeoverRootBefore=
+                rootReplacements[0];
+
+            NpcEntity makeoverMageNpc=
+                new NpcEntity(
+                    901,
+                    LocalMakeoverMageHandler.NPC_ID,
+                    movement.x()+1,
+                    movement.y()
+                );
+
+            if(!sharedMakeover.beginIfSupported(
+                    new NpcAction(
+                        155,
+                        makeoverMageNpc.sceneIndex
+                    ),
+                    makeoverMageNpc,
+                    writer,
+                    "[pending-test] "
+                )||
+               !sharedMakeover.handleContinue(
+                    StandardDialoguePresentationAdapter
+                        .namedNpcContinueWidget(1),
+                    writer,
+                    "[pending-test] "
+                )||
+               !sharedMakeover.handleOption(
+                    1,
+                    writer,
+                    "[pending-test] "
+                ))
+                throw new AssertionError(
+                    "Make-over designer root integration did not reach 3559"
+                );
+
+            if(rootReplacements[0]!=
+                    makeoverRootBefore+1||
+               !sharedMakeover.designActive())
+                throw new AssertionError(
+                    "Make-over 3559 target was not preserved through owned root publication"
+                );
+
+            CharacterDesignRequest hiddenDesignRequest=
+                CharacterDesignRequest.decode(
+                    new byte[]{
+                        1,
+                        45,(byte)255,56,61,67,70,79,
+                        11,15,14,5,23
+                    }
+                );
+
+            PlayerState makeoverState=
+                player.playerState();
+            int makeoverGenderBefore=
+                makeoverState.characterGender();
+            int[] makeoverKitsBefore=
+                makeoverState.characterKits().clone();
+            int[] makeoverColoursBefore=
+                makeoverState.characterColours().clone();
+
+            String itemLibraryAfterDesigner=
+                uiActions.replaceMonsterSpawnerRoot(
+                    ()->itemLibrary.open(
+                        writer,
+                        28860
+                    )
+                );
+
+            if(itemLibraryAfterDesigner==null||
+               rootReplacements[0]!=
+                    makeoverRootBefore+2||
+               sharedMakeover.designActive())
+                throw new AssertionError(
+                    "Item Library did not retire owned Make-over designer"
+                );
+
+            int hiddenDesignWireBefore=
+                wire.size();
+
+            LocalMakeoverMageHandler.Result
+                hiddenDesignResult=
+                    sharedMakeover.handleDesign(
+                        hiddenDesignRequest,
+                        writer,
+                        "[pending-test] "
+                    );
+
+            if(!hiddenDesignResult.handled||
+               hiddenDesignResult.saveReason!=null||
+               hiddenDesignResult.logText==null||
+               !hiddenDesignResult.logText.contains(
+                    "NO_ACTIVE_DESIGN"
+               )||
+               wire.size()!=hiddenDesignWireBefore||
+               makeoverState.characterGender()!=
+                    makeoverGenderBefore||
+               !java.util.Arrays.equals(
+                    makeoverState.characterKits(),
+                    makeoverKitsBefore
+               )||
+               !java.util.Arrays.equals(
+                    makeoverState.characterColours(),
+                    makeoverColoursBefore
+               ))
+                throw new AssertionError(
+                    "hidden Make-over designer accepted late character design result="+
+                    hiddenDesignResult.logText
+                );
+
+            itemLibrary.close();
 
             int[] probeSeed={5,6,7,8};
             ByteArrayOutputStream typedWire=
@@ -949,7 +1074,10 @@ public final class LocalPendingRequestDispatcherTest {
                 "compCapeRootRevokesMonsterSpawner=true "+
                 "invalidCompCapePreservesMonsterSpawner=true "+
                 "monsterSpawnerRevokesCompCape=true "+
-                "hiddenCompCapeWidgetRejected=true"
+                "hiddenCompCapeWidgetRejected=true "+
+                "makeoverDesignerTargetPreserved=true "+
+                "itemLibraryRevokesMakeoverDesigner=true "+
+                "hiddenMakeoverDesignRejected=true"
             );
         }finally{
             world.close();
