@@ -47,8 +47,9 @@ public final class EngineR4TradeFlowTest{
     throw new AssertionError("hidden trade action accepted after competing root");
 
    testSecondRootPublicationFailureAtomicity();
+   testConfirmRootPublicationFailureClosesTrade();
 
-   System.out.println("V5140_ENGINE_R4_TRADE_FLOW_PASS roots=3323/3443 offerWidgets=3322/3415/3416 accepts=3420/3546 atomicExchange=true cancelReservationModel=true twoSessionRootOwners=true peerOnlyCompetingClose=true hiddenTradeRejected=true partialStartFailureClosed=true");
+   System.out.println("V5140_ENGINE_R4_TRADE_FLOW_PASS roots=3323/3443 offerWidgets=3322/3415/3416 accepts=3420/3546 atomicExchange=true cancelReservationModel=true twoSessionRootOwners=true peerOnlyCompetingClose=true hiddenTradeRejected=true partialStartFailureClosed=true confirmPublicationFailClosed=true");
   }finally{TradeService.unregister(p1);TradeService.unregister(p2);w.unregisterPlayer(p1);w.unregisterPlayer(p2);w.close();}
  }
 
@@ -100,6 +101,75 @@ public final class EngineR4TradeFlowTest{
    w.unregisterPlayer(p1);
    w.unregisterPlayer(p2);
    w.close();
+  }
+ }
+
+ static void testConfirmRootPublicationFailureClosesTrade()throws Exception{
+  World w=World.isolatedForTest(602L);
+  WorldPlayer p1=new WorldPlayer(),p2=new WorldPlayer();
+  w.registerPlayer(p1,"confirm-a");
+  w.registerPlayer(p2,"confirm-b");
+  SwitchFailOutputStream out1=new SwitchFailOutputStream();
+  SwitchFailOutputStream out2=new SwitchFailOutputStream();
+  ServerPacketWriter s1=
+   new ServerPacketWriter(out1,new IsaacCipher(new int[]{17,18,19,20}));
+  ServerPacketWriter s2=
+   new ServerPacketWriter(out2,new IsaacCipher(new int[]{21,22,23,24}));
+  try{
+   TradeService.register(
+    w,p1,p1.generation(),p1.bank(),s1,()->{}
+   );
+   TradeService.register(
+    w,p2,p2.generation(),p2.bank(),s2,()->{}
+   );
+   need(TradeService.start(w,p1,p2),"TRADE_UI_OPEN");
+   need(TradeService.handleWidget(p1,3420),"WAITING_OTHER");
+
+   int p1WritesBefore=out1.writes;
+   out2.fail=true;
+   boolean failed=false;
+   try{
+    TradeService.handleWidget(p2,3420);
+   }catch(IOException expected){
+    failed="SWITCH_FAIL".equals(expected.getMessage());
+   }
+
+   if(!failed)
+    throw new AssertionError("confirmation root publication failure not propagated");
+   if(out1.writes-p1WritesBefore!=7)
+    throw new AssertionError(
+     "first participant did not receive 6 confirm packets + close delta="+
+     (out1.writes-p1WritesBefore)
+    );
+   if(TradeService.active(p1)||TradeService.active(p2))
+    throw new AssertionError("failed confirmation publication left Trade live");
+   if(TradeService.handleWidget(p1,3546)!=null||
+      TradeService.handleWidget(p2,3546)!=null)
+    throw new AssertionError("failed confirmation publication accepted hidden final accept");
+  }finally{
+   out2.fail=false;
+   TradeService.unregister(p1);
+   TradeService.unregister(p2);
+   w.unregisterPlayer(p1);
+   w.unregisterPlayer(p2);
+   w.close();
+  }
+ }
+
+ static final class SwitchFailOutputStream extends OutputStream{
+  final ByteArrayOutputStream bytes=new ByteArrayOutputStream();
+  int writes;
+  boolean fail;
+
+  @Override public void write(int value)throws IOException{
+   if(fail)throw new IOException("SWITCH_FAIL");
+   bytes.write(value);
+  }
+
+  @Override public void write(byte[] data,int offset,int length)throws IOException{
+   if(fail)throw new IOException("SWITCH_FAIL");
+   writes++;
+   bytes.write(data,offset,length);
   }
  }
 
