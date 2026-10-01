@@ -9,6 +9,7 @@ public final class MonsterSpawnerPvmRuntimeTest {
         successfulLifecycle();
         aliveAndForeignFailClosed();
         settlementPendingRetry();
+        settlementRetryFencedByWorldClose();
         spawnFailurePublishesNothing();
         exactGraphRequired();
 
@@ -21,6 +22,8 @@ public final class MonsterSpawnerPvmRuntimeTest {
             "deathFinalization=true "+
             "settlement=true "+
             "settlementPendingRetry=true "+
+            "settlementWorldCloseFence=true "+
+            "terminalRetryNoMutation=true "+
             "dropResolutionOnce=true "+
             "duplicateDeathBlocked=true "+
             "protocolIndependent=true"
@@ -262,6 +265,304 @@ public final class MonsterSpawnerPvmRuntimeTest {
                 "pending settlement retry"
             );
         }finally{
+            f.close();
+        }
+    }
+
+    private static void settlementRetryFencedByWorldClose()
+        throws Exception{
+        postCloseRetryDoesNotMutate();
+        closeWindowRetryDoesNotMutate();
+    }
+
+    private static void postCloseRetryDoesNotMutate()
+        throws Exception{
+        Fixture f=new Fixture(false);
+
+        try{
+            MonsterSpawnerPvmRuntime.SpawnResult spawned=
+                f.runtime.spawnAndBind(
+                    OWNER,
+                    "killer",
+                    3088,
+                    3495,
+                    0
+                );
+
+            WorldNpc npc=
+                spawned.spawn.combat.spawn.npc;
+            Tile deathTile=
+                npc.tile();
+
+            GroundItem blocker=
+                f.world.groundItems().add(
+                    995,
+                    Integer.MAX_VALUE,
+                    deathTile,
+                    "killer",
+                    1L,
+                    false
+                );
+
+            require(
+                f.lifecycle.applyDamage(
+                    npc.id,
+                    99,
+                    61L
+                ).newlyDied,
+                "post-close pending lethal fixture"
+            );
+
+            MonsterSpawnerPvmRuntime.FinalizeResult pending=
+                f.runtime.finalizeIfOwned(
+                    npc
+                );
+
+            require(
+                pending.status==
+                    MonsterSpawnerPvmRuntime.FinalizeStatus.SETTLEMENT_PENDING&&
+                f.runtime.get(npc.id)!=null&&
+                f.runtime.get(npc.id).state==
+                    MonsterSpawnerPvmRuntime.State.SETTLEMENT_PENDING&&
+                f.dropCalls==1,
+                "post-close pending state"
+            );
+
+            require(
+                f.world.groundItems().remove(
+                    blocker.id
+                ),
+                "remove post-close overflow blocker"
+            );
+
+            require(
+                f.world.groundItems().size()==0,
+                "post-close fixture retained blocker"
+            );
+
+            f.world.close();
+
+            MonsterSpawnerPvmRuntime.FinalizeResult retried=
+                f.runtime.retrySettlement(
+                    npc.id
+                );
+
+            MonsterSpawnerPvmRuntime.Snapshot after=
+                f.runtime.get(
+                    npc.id
+                );
+
+            require(
+                retried.status==
+                    MonsterSpawnerPvmRuntime.FinalizeStatus.SETTLEMENT_PENDING&&
+                retried.settlement==null&&
+                after!=null&&
+                after.state==
+                    MonsterSpawnerPvmRuntime.State.SETTLEMENT_PENDING&&
+                f.settlement.get(npc.id)==null&&
+                f.world.groundItems().size()==0&&
+                f.world.groundItemPresentationEvents().closed()&&
+                f.dropCalls==1,
+                "post-close settlement retry mutated terminal World"
+            );
+        }finally{
+            f.close();
+        }
+    }
+
+    private static void closeWindowRetryDoesNotMutate()
+        throws Exception{
+        Fixture f=new Fixture(false);
+
+        java.util.concurrent.CountDownLatch lifecycleHeld=
+            new java.util.concurrent.CountDownLatch(1);
+        java.util.concurrent.CountDownLatch releaseLifecycle=
+            new java.util.concurrent.CountDownLatch(1);
+
+        Throwable[] blockerFailure={null};
+        Throwable[] retryFailure={null};
+        Throwable[] closeFailure={null};
+        MonsterSpawnerPvmRuntime.FinalizeResult[]
+            retryResult={null};
+
+        Thread blockerThread=null;
+        Thread retryThread=null;
+        Thread closeThread=null;
+
+        try{
+            MonsterSpawnerPvmRuntime.SpawnResult spawned=
+                f.runtime.spawnAndBind(
+                    OWNER,
+                    "killer",
+                    3088,
+                    3495,
+                    0
+                );
+
+            WorldNpc npc=
+                spawned.spawn.combat.spawn.npc;
+            Tile deathTile=
+                npc.tile();
+
+            GroundItem blocker=
+                f.world.groundItems().add(
+                    995,
+                    Integer.MAX_VALUE,
+                    deathTile,
+                    "killer",
+                    1L,
+                    false
+                );
+
+            require(
+                f.lifecycle.applyDamage(
+                    npc.id,
+                    99,
+                    62L
+                ).newlyDied,
+                "close-window pending lethal fixture"
+            );
+
+            MonsterSpawnerPvmRuntime.FinalizeResult pending=
+                f.runtime.finalizeIfOwned(
+                    npc
+                );
+
+            require(
+                pending.status==
+                    MonsterSpawnerPvmRuntime.FinalizeStatus.SETTLEMENT_PENDING&&
+                f.runtime.get(npc.id)!=null,
+                "close-window pending state"
+            );
+
+            require(
+                f.world.groundItems().remove(
+                    blocker.id
+                ),
+                "remove close-window overflow blocker"
+            );
+
+            blockerThread=
+                new Thread(
+                    ()->{
+                        try{
+                            f.world.withOpenLifecycleOwnership(
+                                ()->{
+                                    lifecycleHeld.countDown();
+
+                                    if(!releaseLifecycle.await(
+                                            5L,
+                                            java.util.concurrent.TimeUnit.SECONDS))
+                                        throw new AssertionError(
+                                            "close-window lifecycle release timeout"
+                                        );
+                                }
+                            );
+                        }catch(Throwable failure){
+                            blockerFailure[0]=failure;
+                        }
+                    },
+                    "pvm-settlement-lifecycle-blocker"
+                );
+
+            retryThread=
+                new Thread(
+                    ()->{
+                        try{
+                            retryResult[0]=
+                                f.runtime.retrySettlement(
+                                    npc.id
+                                );
+                        }catch(Throwable failure){
+                            retryFailure[0]=failure;
+                        }
+                    },
+                    "pvm-settlement-retry"
+                );
+
+            closeThread=
+                new Thread(
+                    ()->{
+                        try{
+                            f.world.close();
+                        }catch(Throwable failure){
+                            closeFailure[0]=failure;
+                        }
+                    },
+                    "pvm-settlement-close"
+                );
+
+            blockerThread.start();
+
+            await(
+                lifecycleHeld,
+                "close-window lifecycle blocker did not enter"
+            );
+
+            retryThread.start();
+
+            awaitBlocked(
+                retryThread,
+                "settlement retry did not wait for lifecycle ownership"
+            );
+
+            closeThread.start();
+
+            awaitClosed(
+                f.world,
+                "close-window World terminal flag was not published"
+            );
+
+            releaseLifecycle.countDown();
+
+            join(
+                blockerThread,
+                "close-window lifecycle blocker did not exit"
+            );
+            join(
+                retryThread,
+                "close-window settlement retry did not exit"
+            );
+            join(
+                closeThread,
+                "close-window World close did not exit"
+            );
+
+            MonsterSpawnerPvmRuntime.Snapshot after=
+                f.runtime.get(
+                    npc.id
+                );
+
+            require(
+                blockerFailure[0]==null&&
+                retryFailure[0]==null&&
+                closeFailure[0]==null&&
+                retryResult[0]!=null&&
+                retryResult[0].status==
+                    MonsterSpawnerPvmRuntime.FinalizeStatus.SETTLEMENT_PENDING&&
+                retryResult[0].settlement==null&&
+                after!=null&&
+                after.state==
+                    MonsterSpawnerPvmRuntime.State.SETTLEMENT_PENDING&&
+                f.settlement.get(npc.id)==null&&
+                f.world.groundItems().size()==0&&
+                f.world.groundItemPresentationEvents().closed()&&
+                f.dropCalls==1,
+                "close-window settlement crossed terminal World boundary"
+            );
+        }finally{
+            releaseLifecycle.countDown();
+
+            if(blockerThread!=null&&
+               blockerThread.isAlive())
+                blockerThread.join(5_000L);
+            if(retryThread!=null&&
+               retryThread.isAlive())
+                retryThread.join(5_000L);
+            if(closeThread!=null&&
+               closeThread.isAlive())
+                closeThread.join(5_000L);
+
             f.close();
         }
     }
@@ -561,6 +862,84 @@ public final class MonsterSpawnerPvmRuntimeTest {
     @FunctionalInterface
     private interface ThrowingRunnable {
         void run() throws Exception;
+    }
+
+    private static void await(
+        java.util.concurrent.CountDownLatch latch,
+        String label
+    )throws Exception{
+        if(!latch.await(
+                5L,
+                java.util.concurrent.TimeUnit.SECONDS))
+            throw new AssertionError(
+                label
+            );
+    }
+
+    private static void awaitBlocked(
+        Thread thread,
+        String label
+    ){
+        long deadline=
+            System.nanoTime()+
+            java.util.concurrent.TimeUnit.SECONDS
+                .toNanos(
+                    5L
+                );
+
+        while(System.nanoTime()<deadline){
+            if(thread.getState()==
+                    Thread.State.BLOCKED)
+                return;
+
+            if(!thread.isAlive())
+                break;
+
+            Thread.yield();
+        }
+
+        throw new AssertionError(
+            label+
+            " state="+
+            thread.getState()
+        );
+    }
+
+    private static void awaitClosed(
+        World world,
+        String label
+    ){
+        long deadline=
+            System.nanoTime()+
+            java.util.concurrent.TimeUnit.SECONDS
+                .toNanos(
+                    5L
+                );
+
+        while(!world.closed()&&
+              System.nanoTime()<deadline)
+            Thread.yield();
+
+        if(!world.closed())
+            throw new AssertionError(
+                label
+            );
+    }
+
+    private static void join(
+        Thread thread,
+        String label
+    )throws Exception{
+        thread.join(
+            5_000L
+        );
+
+        if(thread.isAlive())
+            throw new AssertionError(
+                label+
+                " state="+
+                thread.getState()
+            );
     }
 
     private static void require(
