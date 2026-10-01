@@ -6289,3 +6289,17 @@ tasks.register('player81BatchAbortAtomicityRegression', JavaExec) {
 tasks.named('check') {
     dependsOn tasks.named('player81BatchAbortAtomicityRegression')
 }
+
+tasks.register('player81WriterBatchLifetimeRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves packet81 semantic preparation is linearized with writer batch lifetime without writer-to-World lock inversion.'
+    dependsOn tasks.named('testClasses')
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.Player81WriterBatchLifetimeLinearizationTest'
+}
+
+tasks.named('check') {
+    dependsOn tasks.named('player81WriterBatchLifetimeRegression')
+}
