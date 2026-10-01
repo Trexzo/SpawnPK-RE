@@ -1136,19 +1136,35 @@ final class LocalSession implements Runnable {
                 "action"
             );
         final boolean[] opened={false};
+        final boolean[] published={false};
 
         try{
-            boolean delivered=
+            boolean worldOpen=
                 checkedWorld
-                    .withOpenPlayerMutationOwnershipIfCurrent(
-                        checkedPlayer,
-                        expectedGeneration,
+                    .withOpenLifecycleOwnership(
                         ()->
-                            opened[0]=
-                                checkedAction.open()
+                            published[0]=
+                                TradeService.publishCompetingRoot(
+                                    checkedPlayer,
+                                    ()->{
+                                        boolean delivered=
+                                            checkedWorld
+                                                .withOpenPlayerMutationOwnershipIfCurrent(
+                                                    checkedPlayer,
+                                                    expectedGeneration,
+                                                    ()->
+                                                        opened[0]=
+                                                            checkedAction.open()
+                                                );
+
+                                        return delivered&&
+                                            opened[0];
+                                    }
+                                )
                     );
 
-            return delivered&&
+            return worldOpen&&
+                published[0]&&
                 opened[0];
         }catch(IOException failure){
             throw failure;
@@ -1263,19 +1279,30 @@ final class LocalSession implements Runnable {
                 "action"
             );
         final String[] result={null};
+        final boolean[] published={false};
 
         try{
-            boolean delivered=
+            boolean worldOpen=
                 checkedWorld
-                    .withOpenPlayerMutationOwnershipIfCurrent(
-                        checkedPlayer,
-                        expectedGeneration,
+                    .withOpenLifecycleOwnership(
                         ()->
-                            result[0]=
-                                checkedAction.publish()
+                            published[0]=
+                                TradeService.publishCompetingRoot(
+                                    checkedPlayer,
+                                    ()->
+                                        checkedWorld
+                                            .withOpenPlayerMutationOwnershipIfCurrent(
+                                                checkedPlayer,
+                                                expectedGeneration,
+                                                ()->
+                                                    result[0]=
+                                                        checkedAction.publish()
+                                            )
+                                )
                     );
 
-            return delivered
+            return worldOpen&&
+                published[0]
                 ?result[0]
                 :null;
         }catch(IOException failure){
