@@ -599,6 +599,19 @@ final class LocalSessionUiActionHandler {
         }
     }
 
+    String publishCompetingRootForOwnedSession(
+        RootInterfaceAction publisher
+    )throws IOException{
+        RootInterfaceAction checked=
+            Objects.requireNonNull(
+                publisher,
+                "publisher"
+            );
+
+        monsterSpawnerUiOpen=false;
+        return checked.publish();
+    }
+
     private String replaceMonsterSpawnerRoot(
         RootInterfaceAction publisher
     )throws IOException{
@@ -609,10 +622,10 @@ final class LocalSessionUiActionHandler {
             );
 
         return bridge.replaceMonsterSpawnerRoot(
-            ()->{
-                monsterSpawnerUiOpen=false;
-                return checked.publish();
-            }
+            ()->
+                publishCompetingRootForOwnedSession(
+                    checked
+                )
         );
     }
 
