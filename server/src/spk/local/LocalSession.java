@@ -489,6 +489,7 @@ final class LocalSession implements Runnable {
                         result,
                         LocalSession.this.world,
                         LocalSession.this.worldPlayer,
+                        LocalSession.this.worldPlayerGeneration,
                         LocalSession.this.username,
                         writer,
                         tag
@@ -949,6 +950,7 @@ final class LocalSession implements Runnable {
         LocalMonsterSpawnerUiHandler.Result result,
         World world,
         WorldPlayer player,
+        long expectedPlayerGeneration,
         String canonicalUsername,
         ServerPacketWriter packets,
         String tag
@@ -993,9 +995,14 @@ final class LocalSession implements Runnable {
                 username
             );
 
+        if(checkedWorld.closed())
+            throw new IllegalStateException(
+                "Monster Spawner result callback requires open World"
+            );
+
         if(!checkedWorld.players().owns(
                 checkedPlayer,
-                checkedPlayer.generation()
+                expectedPlayerGeneration
             ))
             throw new IllegalStateException(
                 "Monster Spawner result callback requires current session player ownership"
