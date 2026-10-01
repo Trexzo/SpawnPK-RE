@@ -50,6 +50,14 @@ final class ServerPacketWriter {
                                 "atomic pair batch depth changed"
                             );
 
+                        if(first.batchContainsPlayer81||
+                           second.batchContainsPlayer81){
+                            reservation.release();
+                            throw new IllegalStateException(
+                                "atomic pair does not support staged packet 81"
+                            );
+                        }
+
                         byte[] firstData=
                             first.pending.toByteArray();
                         byte[] secondData=
@@ -119,6 +127,9 @@ final class ServerPacketWriter {
     private final ByteArrayOutputStream pending = new ByteArrayOutputStream(4096);
     private int batchDepth;
     private IsaacCipher.Snapshot batchCipherCheckpoint;
+    private Player81WorldSync.PreparedBatch batchPlayer81;
+    private boolean batchPlayer81Initialized;
+    private boolean batchContainsPlayer81;
 
     ServerPacketWriter(OutputStream out, IsaacCipher cipher) {
         this.out=out;
@@ -150,11 +161,51 @@ final class ServerPacketWriter {
                 :body;
 
         if(opcode==81){
+            boolean staged;
+            boolean initialized;
+            Player81WorldSync.PreparedBatch prepared;
+
+            synchronized(this){
+                staged=batchDepth>0;
+                initialized=batchPlayer81Initialized;
+                prepared=batchPlayer81;
+
+                if(staged)
+                    batchContainsPlayer81=true;
+            }
+
+            if(staged&&!initialized){
+                Player81WorldSync.PreparedBatch created=
+                    Player81WorldSync.beginPreparedBatch(
+                        this
+                    );
+
+                synchronized(this){
+                    if(batchDepth<=0){
+                        staged=false;
+                    }else{
+                        if(!batchPlayer81Initialized){
+                            batchPlayer81=created;
+                            batchPlayer81Initialized=true;
+                        }
+
+                        prepared=batchPlayer81;
+                        batchContainsPlayer81=true;
+                    }
+                }
+            }
+
             byte[] transformed=
-                Player81WorldSync.transform(
-                    this,
-                    checkedBody
-                );
+                staged
+                    ?Player81WorldSync
+                        .transformPrepared(
+                            prepared,
+                            checkedBody
+                        )
+                    :Player81WorldSync.transform(
+                        this,
+                        checkedBody
+                    );
 
             if(transformed.length>65535)
                 throw new IllegalArgumentException(
@@ -174,11 +225,14 @@ final class ServerPacketWriter {
                 autoFlush();
             }
 
-            // Never call back into World/Player81 ownership while
-            // holding the writer monitor.  The packet-81 bytes are
-            // already ordered ahead of any released packet-65 work.
-            SharedNpcWorldRelay
-                .flushAfterPlayer81(this);
+            if(!staged){
+                // Never call back into World/Player81 ownership while
+                // holding the writer monitor. The packet-81 bytes are
+                // already ordered ahead of released packet-65 work.
+                SharedNpcWorldRelay
+                    .flushAfterPlayer81(this);
+            }
+
             return;
         }
 
@@ -223,6 +277,9 @@ final class ServerPacketWriter {
 
             batchCipherCheckpoint=
                 cipher.snapshot();
+            batchPlayer81=null;
+            batchPlayer81Initialized=false;
+            batchContainsPlayer81=false;
         }
 
         batchDepth++;
@@ -247,8 +304,14 @@ final class ServerPacketWriter {
         cipher.restore(
             batchCipherCheckpoint
         );
+        Player81WorldSync.abortPreparedBatch(
+            batchPlayer81
+        );
         batchDepth=0;
         batchCipherCheckpoint=null;
+        batchPlayer81=null;
+        batchPlayer81Initialized=false;
+        batchContainsPlayer81=false;
     }
 
     static AtomicPairBatch beginAtomicQueuePair(
@@ -321,28 +384,59 @@ final class ServerPacketWriter {
         );
     }
 
-    synchronized void endBatch() throws IOException {
-        if(batchDepth<=0)
-            throw new IllegalStateException(
-                "no packet batch"
-            );
+    void endBatch() throws IOException {
+        Player81WorldSync.PreparedBatch prepared=null;
+        boolean flushPlayer81Relay=false;
 
-        if(batchDepth>1){
-            batchDepth--;
-            return;
+        synchronized(this){
+            if(batchDepth<=0)
+                throw new IllegalStateException(
+                    "no packet batch"
+                );
+
+            if(batchDepth>1){
+                batchDepth--;
+                return;
+            }
+
+            /*
+             * Keep the outer batch active until admission/write succeeds. If
+             * flush fails, the caller can abort bytes, ISAAC and staged
+             * Player81 presentation together.
+             */
+            flush();
+            prepared=batchPlayer81;
+            flushPlayer81Relay=batchContainsPlayer81;
+            completeBatchLocked();
         }
 
         /*
-         * Keep the outer batch active until admission/write succeeds. If flush
-         * fails, the caller can abort and restore the exact pre-batch cipher.
+         * The transport bytes are now admitted. Commit the prospective
+         * multiplayer presentation before returning to gameplay, but never
+         * call back into World ownership while holding the writer monitor.
          */
-        flush();
-        completeBatchLocked();
+        Player81WorldSync.commitPreparedBatch(
+            prepared
+        );
+
+        if(flushPlayer81Relay)
+            try{
+                SharedNpcWorldRelay
+                    .flushAfterPlayer81(this);
+            }catch(Throwable relayFailure){
+                System.err.println(
+                    "[ENGINE-R3] committed packet81 relay flush failed: "+
+                    relayFailure
+                );
+            }
     }
 
     private void completeBatchLocked(){
         batchDepth=0;
         batchCipherCheckpoint=null;
+        batchPlayer81=null;
+        batchPlayer81Initialized=false;
+        batchContainsPlayer81=false;
     }
 
     synchronized void flush() throws IOException {
