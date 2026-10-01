@@ -415,16 +415,9 @@ final class LocalMakeoverMageHandler {
 
         pendingDialogueOutcome=null;
 
-        DialogueSessionService.Snapshot after=
-            dialogue.continueDialogue(
+        DialogueSessionService.PreparedTransition prepared=
+            dialogue.prepareContinue(
                 dialoguePlayerRef
-            );
-
-        if(!after.active||
-           !OPTIONS_NODE.equals(
-                after.nodeKey))
-            throw new IllegalStateException(
-                "Make-over Continue did not enter options"
             );
 
         if(takeDialogueOutcome()!=null)
@@ -437,6 +430,18 @@ final class LocalMakeoverMageHandler {
                 ContentRuntimeAdapters
                     .presentation(packets)
                     .dialogue()
+            );
+
+        DialogueSessionService.Snapshot after=
+            dialogue.commitPrepared(
+                prepared
+            );
+
+        if(!after.active||
+           !OPTIONS_NODE.equals(
+                after.nodeKey))
+            throw new IllegalStateException(
+                "Make-over Continue did not enter options"
             );
 
         System.out.println(
@@ -499,14 +504,9 @@ final class LocalMakeoverMageHandler {
                 )){
             pendingDialogueOutcome=null;
 
-            DialogueSessionService.Snapshot ended=
-                dialogue.close(
+            DialogueSessionService.PreparedTransition prepared=
+                dialogue.prepareClose(
                     dialoguePlayerRef
-                );
-
-            if(ended.active)
-                throw new IllegalStateException(
-                    "Make-over close did not end semantic dialogue"
                 );
 
             String outcome=takeDialogueOutcome();
@@ -521,6 +521,17 @@ final class LocalMakeoverMageHandler {
 
             StandardDialoguePresentationAdapter
                 .close(packets);
+
+            DialogueSessionService.Snapshot ended=
+                dialogue.commitPrepared(
+                    prepared
+                );
+
+            if(ended.active)
+                throw new IllegalStateException(
+                    "Make-over close did not end semantic dialogue"
+                );
+
             clearActive();
 
             System.out.println(
@@ -597,22 +608,23 @@ final class LocalMakeoverMageHandler {
             return true;
         }
 
-        DialogueSessionService.Snapshot ended=
-            dialogue.commitPrepared(
-                prepared
-            );
-
-        if(ended.active)
-            throw new IllegalStateException(
-                "Make-over option did not end semantic dialogue option="+
-                optionIndex
-            );
-
         if(MakeoverMageDialogueContent
                 .OUTCOME_CANCEL
                 .equals(outcome)){
             StandardDialoguePresentationAdapter
                 .close(packets);
+
+            DialogueSessionService.Snapshot ended=
+                dialogue.commitPrepared(
+                    prepared
+                );
+
+            if(ended.active)
+                throw new IllegalStateException(
+                    "Make-over option did not end semantic dialogue option="+
+                    optionIndex
+                );
+
             clearActive();
 
             System.out.println(
