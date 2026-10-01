@@ -559,6 +559,17 @@ final class LocalSession implements Runnable {
                     );
                 }
 
+                @Override public String replaceMonsterSpawnerRoot(
+                    LocalSessionUiActionHandler.RootInterfaceAction action
+                )throws IOException{
+                    return replaceMonsterSpawnerRootForCurrentSession(
+                        LocalSession.this.world,
+                        LocalSession.this.worldPlayer,
+                        LocalSession.this.worldPlayerGeneration,
+                        action
+                    );
+                }
+
                 @Override public void handleMonsterSpawnerResult(
                     LocalMonsterSpawnerUiHandler.Result result,
                     ServerPacketWriter writer,
@@ -1072,6 +1083,57 @@ final class LocalSession implements Runnable {
         }catch(Exception failure){
             throw new IOException(
                 "Monster Spawner UI close failed",
+                failure
+            );
+        }
+    }
+
+    static String replaceMonsterSpawnerRootForCurrentSession(
+        World world,
+        WorldPlayer player,
+        long expectedGeneration,
+        LocalSessionUiActionHandler.RootInterfaceAction action
+    )throws IOException{
+        World checkedWorld=
+            java.util.Objects.requireNonNull(
+                world,
+                "world"
+            );
+        WorldPlayer checkedPlayer=
+            java.util.Objects.requireNonNull(
+                player,
+                "player"
+            );
+        LocalSessionUiActionHandler.RootInterfaceAction checkedAction=
+            java.util.Objects.requireNonNull(
+                action,
+                "action"
+            );
+        final String[] result={null};
+
+        try{
+            boolean delivered=
+                checkedWorld
+                    .withOpenPlayerMutationOwnershipIfCurrent(
+                        checkedPlayer,
+                        expectedGeneration,
+                        ()->
+                            result[0]=
+                                checkedAction.publish()
+                    );
+
+            return delivered
+                ?result[0]
+                :null;
+        }catch(IOException failure){
+            throw failure;
+        }catch(RuntimeException failure){
+            throw failure;
+        }catch(Error failure){
+            throw failure;
+        }catch(Exception failure){
+            throw new IOException(
+                "Monster Spawner root replacement failed",
                 failure
             );
         }
