@@ -184,7 +184,7 @@ final class ServerPacketWriter {
                 initialized=batchPlayer81Initialized;
                 prepared=batchPlayer81;
 
-                if(staged)
+                if(staged&&prepared!=null)
                     batchContainsPlayer81=true;
             }
 
@@ -217,7 +217,8 @@ final class ServerPacketWriter {
                     }
 
                     prepared=batchPlayer81;
-                    batchContainsPlayer81=true;
+                    batchContainsPlayer81=
+                        prepared!=null;
                 }
             }
 
