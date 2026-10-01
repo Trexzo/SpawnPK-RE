@@ -204,6 +204,98 @@ public final class LocalBankObjectInteractionHandlerTest {
                     " coinsAfter="+
                     bank.inventoryCount(995)
                 );
+            BankState closeBank=
+                new BankState();
+            ByteArrayOutputStream closeWire=
+                new ByteArrayOutputStream();
+            ServerPacketWriter closeWriter=
+                new ServerPacketWriter(
+                    closeWire,
+                    new IsaacCipher(
+                        new int[]{25,26,27,28}
+                    )
+                );
+            closeBank.open(
+                closeWriter
+            );
+
+            String closePending=
+                closeBank.apply(
+                    new ItemContainerAction(
+                        135,
+                        BankState.BANK_CONTAINER,
+                        0,
+                        995,
+                        0,
+                        "ITEM_ACTION_X"
+                    ),
+                    closeWriter
+                );
+
+            if(closePending==null||
+               !closePending.contains(
+                    "WITHDRAW_X_PROMPT_SENT"
+               ))
+                throw new AssertionError(
+                    "bank close pending-X fixture failed result="+
+                    closePending
+                );
+
+            OutboundPacketQueue failedCloseQueue=
+                new OutboundPacketQueue(1024);
+            failedCloseQueue.offer(
+                new byte[1023]
+            );
+            ServerPacketWriter failedCloseWriter=
+                new ServerPacketWriter(
+                    failedCloseQueue,
+                    new IsaacCipher(
+                        new int[]{29,30,31,32}
+                    )
+                );
+
+            boolean closeFailed=false;
+            try{
+                closeBank.close(
+                    failedCloseWriter
+                );
+            }catch(java.io.IOException expected){
+                closeFailed=true;
+            }
+
+            if(!closeFailed||
+               !closeBank.isOpen())
+                throw new AssertionError(
+                    "failed bank close retired open state"
+                );
+
+            int closeCoinsBefore=
+                closeBank.inventoryCount(995);
+            String closePendingAfterFailure=
+                closeBank.applyAmount(
+                    1,
+                    closeWriter
+                );
+
+            if(closePendingAfterFailure==null||
+               !closePendingAfterFailure.contains(
+                    "WITHDRAW_X_OK"
+               )||
+               closeBank.inventoryCount(995)!=
+                    closeCoinsBefore+1)
+                throw new AssertionError(
+                    "failed bank close cleared pending-X result="+
+                    closePendingAfterFailure
+                );
+
+            closeBank.close(
+                closeWriter
+            );
+
+            if(closeBank.isOpen())
+                throw new AssertionError(
+                    "successful bank close did not retire state"
+                );
 
             ObjectInteraction nonBank=
                 new ObjectInteraction(
@@ -385,7 +477,9 @@ public final class LocalBankObjectInteractionHandlerTest {
                 "pathEndCancel=true "+
                 "bankClosedOpenFailureAtomic=true "+
                 "bankRetryFailurePreservesPendingX=true "+
-                "bankHiddenMutationRejectedAfterFailedOpen=true"
+                "bankHiddenMutationRejectedAfterFailedOpen=true "+
+                "bankCloseFailureAtomic=true "+
+                "bankCloseFailurePreservesPendingX=true"
             );
         }finally{
             if(player.registered())
