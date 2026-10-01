@@ -651,15 +651,6 @@ final class LocalSession implements Runnable {
                         makeover.retireDesignerRoot();
                 }
 
-                @Override public boolean retireTradeForCompetingRoot(
-                    String reason
-                )throws IOException{
-                    return TradeService.retireForCompetingRoot(
-                        LocalSession.this.worldPlayer,
-                        reason
-                    );
-                }
-
                 @Override public void handleMonsterSpawnerResult(
                     LocalMonsterSpawnerUiHandler.Result result,
                     ServerPacketWriter writer,
