@@ -497,6 +497,48 @@ final class MonsterSpawnerService {
         return snapshotOf(session);
     }
 
+    synchronized SessionSnapshot deactivateIfCurrent(
+        String ownerRef,
+        SessionSnapshot expected
+    ){
+        SessionSnapshot checked=
+            Objects.requireNonNull(
+                expected,
+                "expected"
+            );
+
+        Session session=
+            requireSession(
+                ownerRef
+            );
+
+        SessionSnapshot current=
+            snapshotOf(
+                session
+            );
+
+        if(!sameSessionState(
+                current,
+                checked))
+            throw new IllegalStateException(
+                "Monster Spawner session changed before deactivation owner="+
+                session.ownerRef
+            );
+
+        if(!current.active)
+            throw new IllegalStateException(
+                "Monster Spawner not active "+
+                session.ownerRef
+            );
+
+        session.active=false;
+        session.remainingSpawnBudget=0;
+
+        return snapshotOf(
+            session
+        );
+    }
+
     synchronized SpawnResult spawnSelected(
         String ownerRef,
         int x,
