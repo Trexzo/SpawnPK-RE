@@ -438,6 +438,123 @@ public final class LocalSessionUiActionHandlerTest {
                 "failed competing root spuriously retired/mutated visible bank"
             );
 
+        String compSpawn=
+            bank.spawnItem(
+                23063,
+                1,
+                w
+            );
+        int compSlot=-1;
+        for(int i=0;
+            i<bank.inventoryCapacity();
+            i++){
+            BankState.Stack stack=
+                bank.inventoryAt(i);
+            if(stack!=null&&
+               stack.itemId==23063&&
+               stack.qty>0){
+                compSlot=i;
+                break;
+            }
+        }
+
+        if(compSlot<0)
+            throw new AssertionError(
+                "Comp Cape inverse-root fixture missing item spawn="+
+                compSpawn
+            );
+
+        final int compOpenSlot=compSlot;
+        ItemContainerAction compOpenAction=
+            new ItemContainerAction(
+                75,
+                BankState.NORMAL_INVENTORY_CONTAINER,
+                compOpenSlot,
+                23063,
+                0,
+                "INVENTORY_OPTION_3"
+            );
+
+        String compTargetResult=
+            routed.replaceMonsterSpawnerWithCompCapeRoot(
+                ()->
+                    compCape.handleItemAction(
+                        compOpenAction,
+                        w
+                    )
+            );
+
+        if(compTargetResult==null||
+           !compTargetResult.contains(
+                "OPENED_NATIVE_ROOT_63036"
+           )||
+           !compCape.isOpen()||
+           bank.isOpen())
+            throw new AssertionError(
+                "Comp Cape target root was not preserved or failed to retire BankState result="+
+                compTargetResult
+            );
+
+        int failedCompCapeWireBefore=
+            wire.size();
+        boolean failedCompCapeThrown=false;
+
+        try{
+            routed.replaceMonsterSpawnerRoot(
+                ()->{
+                    throw new java.io.IOException(
+                        "EXPECTED_COMP_CAPE_ROOT_FAILURE"
+                    );
+                }
+            );
+        }catch(java.io.IOException expected){
+            failedCompCapeThrown=
+                "EXPECTED_COMP_CAPE_ROOT_FAILURE"
+                    .equals(
+                        expected.getMessage()
+                    );
+        }
+
+        if(!failedCompCapeThrown||
+           !compCape.isOpen()||
+           wire.size()!=failedCompCapeWireBefore)
+            throw new AssertionError(
+                "failed competing root spuriously retired/mutated visible Comp Cape"
+            );
+
+        String bankAfterComp=
+            routed.replaceMonsterSpawnerWithBankRoot(
+                ()->{
+                    bank.open(w);
+                    return "BANK_AFTER_COMP";
+                }
+            );
+
+        if(!"BANK_AFTER_COMP".equals(
+                bankAfterComp
+            )||
+           !bank.isOpen()||
+           compCape.isOpen())
+            throw new AssertionError(
+                "bank-target root did not retire stale Comp Cape ownership"
+            );
+
+        String compBeforeItemLibrary=
+            routed.replaceMonsterSpawnerWithCompCapeRoot(
+                ()->
+                    compCape.handleItemAction(
+                        compOpenAction,
+                        w
+                    )
+            );
+
+        if(compBeforeItemLibrary==null||
+           !compCape.isOpen()||
+           bank.isOpen())
+            throw new AssertionError(
+                "Comp Cape did not reopen before Item Library replacement"
+            );
+
         String initialItemLibraryRoot=
             routed.replaceMonsterSpawnerRoot(
                 ()->routedItemLibrary.open(
@@ -448,9 +565,24 @@ public final class LocalSessionUiActionHandlerTest {
 
         if(initialItemLibraryRoot==null||
            !routedItemLibrary.isOpen()||
-           bank.isOpen())
+           bank.isOpen()||
+           compCape.isOpen())
             throw new AssertionError(
-                "Item Library root did not claim ownership / retire BankState"
+                "Item Library root did not claim ownership / retire BankState and Comp Cape"
+            );
+
+        int hiddenCompAfterItemLibrary=
+            wire.size();
+
+        routed.handleWidget(
+            63031,
+            w,
+            "[ui-test] "
+        );
+
+        if(wire.size()!=hiddenCompAfterItemLibrary)
+            throw new AssertionError(
+                "hidden Comp Cape widget emitted close packet after Item Library replacement"
             );
 
         int visibleItemLibraryWidgetBefore=
@@ -865,6 +997,19 @@ public final class LocalSessionUiActionHandlerTest {
                 spawner.getSession(
                     "session-ui-owner"
                 );
+
+        String compBeforeEquipment=
+            compCape.handleItemAction(
+                compOpenAction,
+                w
+            );
+
+        if(compBeforeEquipment==null||
+           !compCape.isOpen())
+            throw new AssertionError(
+                "Comp Cape did not open before equipment-root replacement"
+            );
+
         bank.open(w);
         if(!bank.isOpen())
             throw new AssertionError(
@@ -880,9 +1025,10 @@ public final class LocalSessionUiActionHandlerTest {
             "[ui-test] "
         );
 
-        if(bank.isOpen())
+        if(bank.isOpen()||
+           compCape.isOpen())
             throw new AssertionError(
-                "equipment-stats root left BankState open"
+                "equipment-stats root left BankState or Comp Cape ownership open"
             );
 
         int equipmentRootWireAfter=
@@ -974,6 +1120,19 @@ public final class LocalSessionUiActionHandlerTest {
                 spawner.getSession(
                     "session-ui-owner"
                 );
+
+        String compBeforeDeath=
+            compCape.handleItemAction(
+                compOpenAction,
+                w
+            );
+
+        if(compBeforeDeath==null||
+           !compCape.isOpen())
+            throw new AssertionError(
+                "Comp Cape did not open before death-root replacement"
+            );
+
         bank.open(w);
         if(!bank.isOpen())
             throw new AssertionError(
@@ -989,9 +1148,10 @@ public final class LocalSessionUiActionHandlerTest {
             "[ui-test] "
         );
 
-        if(bank.isOpen())
+        if(bank.isOpen()||
+           compCape.isOpen())
             throw new AssertionError(
-                "death-preview root left BankState open"
+                "death-preview root left BankState or Comp Cape ownership open"
             );
 
         int deathRootWireAfter=
@@ -1855,7 +2015,14 @@ public final class LocalSessionUiActionHandlerTest {
             "bankDevPanelRootRevokes=true "+
             "bankTargetRootPreserved=true "+
             "bankFailedRootPreserved=true "+
-            "bankHiddenWidgetRejected=true"
+            "bankHiddenWidgetRejected=true "+
+            "compCapeTargetRootPreserved=true "+
+            "compCapeFailedRootPreserved=true "+
+            "compCapeBankRootRevokes=true "+
+            "compCapeItemLibraryRootRevokes=true "+
+            "compCapeEquipmentRootRevokes=true "+
+            "compCapeDeathRootRevokes=true "+
+            "compCapeHiddenWidgetRejected=true"
         );
 
         System.out.println(
