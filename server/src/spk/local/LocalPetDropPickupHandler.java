@@ -542,13 +542,14 @@ final class LocalPetDropPickupHandler {
             return;
         }
 
-        int qty=
-            bank.consumeInventoryAll(
+        BankState.PreparedInventoryMutation inventoryMutation=
+            bank.prepareConsumeInventoryAll(
                 a.slot,
-                a.itemId,
-                serverPackets
+                a.itemId
             );
-        if(qty<=0){
+
+        if(!inventoryMutation.accepted()||
+           inventoryMutation.result<=0){
             System.out.println(
                 tag+"V511_GROUND_DROP "+a+
                 " result=REJECTED_CONSUME_FAILED itemRetained=true"
@@ -556,8 +557,11 @@ final class LocalPetDropPickupHandler {
             return;
         }
 
-        GroundItem g=
-            world.groundItems().add(
+        int qty=
+            inventoryMutation.result;
+
+        GroundItemRegistry.PreparedAdd groundMutation=
+            world.groundItems().prepareAdd(
                 a.itemId,
                 qty,
                 tile,
@@ -566,13 +570,72 @@ final class LocalPetDropPickupHandler {
                 false
             );
 
-        if(oldAmount>0)
-            bridge.scenePublisher().groundAmount(
-                g,
-                oldAmount
+        SceneUpdatePublisher scene=
+            bridge.scenePublisher();
+        SceneCoordinateContext.Snapshot sceneBefore=
+            scene.context().snapshot();
+
+        serverPackets.beginBatch();
+        boolean ended=false;
+
+        try{
+            bank.publishPreparedInventoryMutation(
+                inventoryMutation,
+                serverPackets
             );
-        else
-            bridge.scenePublisher().groundSpawn(g);
+
+            if(groundMutation.merge())
+                scene.groundAmount(
+                    a.itemId,
+                    groundMutation.expectedOldAmount,
+                    groundMutation.newAmount,
+                    tile
+                );
+            else
+                scene.groundSpawn(
+                    a.itemId,
+                    groundMutation.newAmount,
+                    tile
+                );
+
+            serverPackets.endBatch();
+            ended=true;
+        }catch(IOException failure){
+            scene.context().restore(
+                sceneBefore
+            );
+            if(!ended)
+                try{
+                    serverPackets.endBatch();
+                }catch(Throwable ignored){}
+            throw failure;
+        }catch(RuntimeException failure){
+            scene.context().restore(
+                sceneBefore
+            );
+            if(!ended)
+                try{
+                    serverPackets.endBatch();
+                }catch(Throwable ignored){}
+            throw failure;
+        }catch(Error failure){
+            scene.context().restore(
+                sceneBefore
+            );
+            if(!ended)
+                try{
+                    serverPackets.endBatch();
+                }catch(Throwable ignored){}
+            throw failure;
+        }
+
+        bank.commitPreparedInventoryMutation(
+            inventoryMutation
+        );
+        GroundItem g=
+            world.groundItems().commitPreparedAdd(
+                groundMutation
+            );
 
         bridge.saveAccount(tag,"GROUND_DROP");
 
