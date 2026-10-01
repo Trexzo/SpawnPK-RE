@@ -13,6 +13,16 @@ import java.util.*;
 final class MonsterSpawnerService {
     static final int CLIENT_ROW_COUNT=22;
 
+    static final class StaleSessionException
+        extends IllegalStateException
+    {
+        StaleSessionException(
+            String message
+        ){
+            super(message);
+        }
+    }
+
     static final class CatalogEntry {
         final int rowIndex;
         final String semanticKey;
@@ -591,7 +601,7 @@ final class MonsterSpawnerService {
         if(!sameSessionState(
                 current,
                 checked))
-            throw new IllegalStateException(
+            throw new StaleSessionException(
                 "Monster Spawner session changed before spawn owner="+
                 session.ownerRef
             );
