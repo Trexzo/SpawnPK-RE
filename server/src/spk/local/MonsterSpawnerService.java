@@ -226,6 +226,16 @@ final class MonsterSpawnerService {
             );
     }
 
+    boolean isBoundTo(
+        WorldNpcRegistry expectedRegistry
+    ){
+        return npcs==
+            Objects.requireNonNull(
+                expectedRegistry,
+                "expectedRegistry"
+            );
+    }
+
     synchronized CatalogSnapshot replaceCatalog(
         Collection<CatalogEntry> entries,
         String sourceAuthority
