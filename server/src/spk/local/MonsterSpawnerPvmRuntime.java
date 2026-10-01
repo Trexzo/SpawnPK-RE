@@ -522,12 +522,18 @@ final class MonsterSpawnerPvmRuntime {
             finalized=entry.finalization;
         }
 
-        final NpcDropGroundSettlementService.Receipt receipt;
+        final NpcDropGroundSettlementService.Receipt[]
+            receipt={null};
+        final boolean worldOpen;
 
         try{
-            receipt=
-                settlement.settle(
-                    finalized.drops
+            worldOpen=
+                world.runIfOpen(
+                    ()->
+                        receipt[0]=
+                            settlement.settle(
+                                finalized.drops
+                            )
                 );
         }catch(RuntimeException failure){
             synchronized(this){
@@ -550,6 +556,27 @@ final class MonsterSpawnerPvmRuntime {
             throw failure;
         }
 
+        if(!worldOpen){
+            synchronized(this){
+                if(entries.get(entry.npc.id)==entry)
+                    entry.terminalInProgress=false;
+            }
+
+            return new FinalizeResult(
+                FinalizeStatus.SETTLEMENT_PENDING,
+                entry.snapshot(),
+                finalized,
+                null
+            );
+        }
+
+        NpcDropGroundSettlementService.Receipt
+            settled=
+                Objects.requireNonNull(
+                    receipt[0],
+                    "ground settlement receipt"
+                );
+
         synchronized(this){
             if(entries.get(entry.npc.id)!=entry)
                 throw new IllegalStateException(
@@ -567,7 +594,7 @@ final class MonsterSpawnerPvmRuntime {
             FinalizeStatus.FINALIZED,
             null,
             finalized,
-            receipt
+            settled
         );
     }
 
