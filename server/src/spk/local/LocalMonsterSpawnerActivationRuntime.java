@@ -123,26 +123,26 @@ final class LocalMonsterSpawnerActivationRuntime
                 owner
             );
 
-        MonsterSpawnerService.SessionSnapshot session=
-            service.getSession(
-                owner
+        MonsterSpawnerService.ResumeResult resumed=
+            service.resumeSessionIfPresent(
+                owner,
+                sessionAuthority
             );
+        MonsterSpawnerService.SessionSnapshot session;
         boolean openedFresh=false;
+        boolean retirementWasPending=false;
 
-        if(session==null){
+        if(resumed==null){
             session=service.openSession(
                 owner,
                 sessionAuthority
             );
             openedFresh=true;
-        }else if(!sessionAuthority.equals(
-                    session.policyAuthority))
-            throw new IllegalStateException(
-                "Monster Spawner retained session authority mismatch owner="+
-                owner+
-                " expected="+sessionAuthority+
-                " actual="+session.policyAuthority
-            );
+        }else{
+            session=resumed.session;
+            retirementWasPending=
+                resumed.retirementWasPending;
+        }
 
         try{
             return new LocalMonsterSpawnerUiHandler(
@@ -164,6 +164,16 @@ final class LocalMonsterSpawnerActivationRuntime
                                 owner
                             )
                         );
+                }catch(Throwable rollbackFailure){
+                    failure.addSuppressed(
+                        rollbackFailure
+                    );
+                }
+            }else if(retirementWasPending){
+                try{
+                    service.retireSessionNowOrWhenIdle(
+                        owner
+                    );
                 }catch(Throwable rollbackFailure){
                     failure.addSuppressed(
                         rollbackFailure
@@ -263,7 +273,7 @@ final class LocalMonsterSpawnerActivationRuntime
                 " expectedGeneration="+expectedGeneration
             );
 
-        service.retireSessionIfNoTrackedNpcs(
+        service.retireSessionNowOrWhenIdle(
             owner
         );
     }
