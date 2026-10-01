@@ -2,6 +2,9 @@ package spk.local;
 
 import java.lang.reflect.Field;
 import java.util.IdentityHashMap;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 public final class TradeServiceWorldStateCleanupTest {
     public static void main(String[] args)throws Exception{
@@ -64,6 +67,9 @@ public final class TradeServiceWorldStateCleanupTest {
             worldCloseCleanup(
                 baseline
             );
+            closeWindowOperationsFence(
+                baseline
+            );
 
             System.out.println(
                 "TRADE_WORLD_STATE_CLEANUP_PASS activeCancel=true "+
@@ -73,6 +79,10 @@ public final class TradeServiceWorldStateCleanupTest {
                 "postCloseRegisterRejected=true "+
                 "postCloseUnregisterIdempotent=true "+
                 "noStateResurrection=true "+
+                "closeWindowStartRejected=true "+
+                "closeWindowWidgetNoop=true "+
+                "closeWindowActiveFalse=true "+
+                "closeWindowPacketIo=false "+
                 "baseline="+baseline
             );
         }finally{
@@ -222,6 +232,278 @@ public final class TradeServiceWorldStateCleanupTest {
                     "post-close TradeService unregister changed terminal state"
                 );
         }finally{
+            TradeService.unregister(a);
+            TradeService.unregister(b);
+
+            if(a.registered())
+                world.unregisterPlayer(a);
+            if(b.registered())
+                world.unregisterPlayer(b);
+
+            world.close();
+        }
+    }
+
+    private static void closeWindowOperationsFence(
+        int baseline
+    )throws Exception{
+        World world=
+            World.isolatedForTest(
+                600L
+            );
+        WorldPlayer a=
+            new WorldPlayer();
+        WorldPlayer b=
+            new WorldPlayer();
+
+        world.registerPlayer(
+            a,
+            "trade-close-window-a"
+        );
+        world.registerPlayer(
+            b,
+            "trade-close-window-b"
+        );
+
+        OutboundPacketQueue qa=
+            new OutboundPacketQueue();
+        OutboundPacketQueue qb=
+            new OutboundPacketQueue();
+        ServerPacketWriter wa=
+            new ServerPacketWriter(
+                qa,
+                new IsaacCipher(
+                    new int[]{17,18,19,20}
+                )
+            );
+        ServerPacketWriter wb=
+            new ServerPacketWriter(
+                qb,
+                new IsaacCipher(
+                    new int[]{21,22,23,24}
+                )
+            );
+
+        CountDownLatch lifecycleEntered=
+            new CountDownLatch(1);
+        CountDownLatch releaseLifecycle=
+            new CountDownLatch(1);
+        AtomicReference<Throwable> blockerFailure=
+            new AtomicReference<>();
+        AtomicReference<Throwable> closeFailure=
+            new AtomicReference<>();
+
+        Thread blocker=null;
+        Thread closer=null;
+
+        try{
+            TradeService.register(
+                world,
+                a,
+                a.bank(),
+                wa,
+                ()->{}
+            );
+            TradeService.register(
+                world,
+                b,
+                b.bank(),
+                wb,
+                ()->{}
+            );
+
+            String opened=
+                TradeService.start(
+                    world,
+                    a,
+                    b
+                );
+
+            if(opened==null||
+               !opened.contains(
+                    "TRADE_UI_OPEN"
+                )||
+               !TradeService.active(a)||
+               !TradeService.active(b))
+                throw new AssertionError(
+                    "close-window trade fixture did not become active"
+                );
+
+            int packetsA=
+                qa.queuedPackets();
+            int packetsB=
+                qb.queuedPackets();
+            int bytesA=
+                qa.queuedBytes();
+            int bytesB=
+                qb.queuedBytes();
+
+            blocker=
+                new Thread(
+                    ()->{
+                        try{
+                            boolean accepted=
+                                world.withOpenLifecycleOwnership(
+                                    ()->{
+                                        lifecycleEntered.countDown();
+
+                                        boolean interrupted=false;
+                                        while(releaseLifecycle.getCount()>0L){
+                                            try{
+                                                releaseLifecycle.await(
+                                                    10L,
+                                                    TimeUnit.MILLISECONDS
+                                                );
+                                            }catch(InterruptedException ignored){
+                                                interrupted=true;
+                                            }
+                                        }
+
+                                        if(interrupted)
+                                            Thread.currentThread()
+                                                .interrupt();
+                                    }
+                                );
+
+                            if(!accepted)
+                                throw new AssertionError(
+                                    "lifecycle blocker was not admitted"
+                                );
+                        }catch(Throwable failure){
+                            blockerFailure.set(
+                                failure
+                            );
+                        }
+                    },
+                    "trade-close-window-lifecycle-owner"
+                );
+            blocker.start();
+
+            if(!lifecycleEntered.await(
+                    5L,
+                    TimeUnit.SECONDS))
+                throw new AssertionError(
+                    "lifecycle blocker did not enter"
+                );
+
+            closer=
+                new Thread(
+                    ()->{
+                        try{
+                            world.close();
+                        }catch(Throwable failure){
+                            closeFailure.set(
+                                failure
+                            );
+                        }
+                    },
+                    "trade-close-window-close-owner"
+                );
+            closer.start();
+
+            long closedDeadline=
+                System.nanoTime()+
+                TimeUnit.SECONDS.toNanos(
+                    2L
+                );
+
+            while(!world.closed()&&
+                  System.nanoTime()<
+                    closedDeadline)
+                Thread.sleep(1L);
+
+            if(!world.closed())
+                throw new AssertionError(
+                    "World close boundary was not published"
+                );
+
+            if(!closer.isAlive())
+                throw new AssertionError(
+                    "close owner did not remain behind lifecycle barrier"
+                );
+
+            if(trackedWorlds()!=baseline+1)
+                throw new AssertionError(
+                    "TradeService state swept before lifecycle barrier released"
+                );
+
+            String rejected=
+                TradeService.start(
+                    world,
+                    a,
+                    b
+                );
+
+            if(!"TRADE_UI_REJECTED_WORLD_CLOSED".equals(
+                    rejected))
+                throw new AssertionError(
+                    "close-window trade start was not rejected: "+
+                    rejected
+                );
+
+            String widget=
+                TradeService.handleWidget(
+                    a,
+                    TradeService.FIRST_DECLINE
+                );
+
+            if(widget!=null)
+                throw new AssertionError(
+                    "close-window widget reached active trade: "+
+                    widget
+                );
+
+            if(TradeService.active(a)||
+               TradeService.active(b))
+                throw new AssertionError(
+                    "closed World still exposed active trade"
+                );
+
+            if(qa.queuedPackets()!=packetsA||
+               qb.queuedPackets()!=packetsB||
+               qa.queuedBytes()!=bytesA||
+               qb.queuedBytes()!=bytesB)
+                throw new AssertionError(
+                    "close-window TradeService operation emitted packet I/O"
+                );
+
+            releaseLifecycle.countDown();
+
+            blocker.join(5_000L);
+            closer.join(5_000L);
+
+            if(blocker.isAlive()||
+               closer.isAlive())
+                throw new AssertionError(
+                    "close-window threads did not terminate"
+                );
+
+            if(blockerFailure.get()!=null)
+                throw new AssertionError(
+                    "lifecycle blocker failed",
+                    blockerFailure.get()
+                );
+
+            if(closeFailure.get()!=null)
+                throw new AssertionError(
+                    "World close failed",
+                    closeFailure.get()
+                );
+
+            if(trackedWorlds()!=baseline)
+                throw new AssertionError(
+                    "terminal TradeService cleanup did not restore baseline"
+                );
+        }finally{
+            releaseLifecycle.countDown();
+
+            if(blocker!=null&&
+               blocker.isAlive())
+                blocker.join(5_000L);
+            if(closer!=null&&
+               closer.isAlive())
+                closer.join(5_000L);
+
             TradeService.unregister(a);
             TradeService.unregister(b);
 
