@@ -175,9 +175,17 @@ final class ServerPacketWriter {
             }
 
             if(staged&&!initialized){
-                Player81WorldSync.PreparedBatch created=
-                    Player81WorldSync.beginPreparedBatch(
+                Player81WorldSync.PreparedBatchStart start=
+                    Player81WorldSync.beginPreparedBatchStatus(
                         this
+                    );
+
+                if(start.status==
+                        Player81WorldSync
+                            .PreparedBatchStartStatus
+                            .STALE_REJECTED)
+                    throw new IOException(
+                        "packet-81 batch semantic preparation rejected stale owner"
                     );
 
                 synchronized(this){
@@ -185,7 +193,8 @@ final class ServerPacketWriter {
                         staged=false;
                     }else{
                         if(!batchPlayer81Initialized){
-                            batchPlayer81=created;
+                            batchPlayer81=
+                                start.prepared;
                             batchPlayer81Initialized=true;
                         }
 
