@@ -345,6 +345,25 @@ final class Player81WorldSync {
             :event.forViewer(viewer);
     }
 
+    enum PreparedBatchStartStatus {
+        NO_CONTEXT,
+        PREPARED,
+        STALE_REJECTED
+    }
+
+    static final class PreparedBatchStart {
+        final PreparedBatchStartStatus status;
+        final PreparedBatch prepared;
+
+        PreparedBatchStart(
+            PreparedBatchStartStatus status,
+            PreparedBatch prepared
+        ){
+            this.status=status;
+            this.prepared=prepared;
+        }
+    }
+
     static final class PreparedBatch {
         final Context context;
         final LinkedHashMap<EntityId,Track> visible;
@@ -364,7 +383,7 @@ final class Player81WorldSync {
         }
     }
 
-    static PreparedBatch beginPreparedBatch(
+    static PreparedBatchStart beginPreparedBatchStatus(
         ServerPacketWriter writer
     )throws IOException{
         final Context candidate;
@@ -374,7 +393,10 @@ final class Player81WorldSync {
         }
 
         if(candidate==null)
-            return null;
+            return new PreparedBatchStart(
+                PreparedBatchStartStatus.NO_CONTEXT,
+                null
+            );
 
         final PreparedBatch[] prepared=
             new PreparedBatch[1];
@@ -388,8 +410,29 @@ final class Player81WorldSync {
                         candidate.beginPreparedBatch()
                 );
 
-        return accepted
-            ?prepared[0]
+        if(!accepted||
+           prepared[0]==null)
+            return new PreparedBatchStart(
+                PreparedBatchStartStatus.STALE_REJECTED,
+                null
+            );
+
+        return new PreparedBatchStart(
+            PreparedBatchStartStatus.PREPARED,
+            prepared[0]
+        );
+    }
+
+    static PreparedBatch beginPreparedBatch(
+        ServerPacketWriter writer
+    )throws IOException{
+        PreparedBatchStart start=
+            beginPreparedBatchStatus(
+                writer
+            );
+        return start.status==
+                PreparedBatchStartStatus.PREPARED
+            ?start.prepared
             :null;
     }
 
