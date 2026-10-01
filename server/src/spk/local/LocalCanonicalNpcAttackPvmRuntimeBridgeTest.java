@@ -12,6 +12,7 @@ public final class LocalCanonicalNpcAttackPvmRuntimeBridgeTest {
 
         unconfiguredLeavesDeadCanonical(definition);
         configuredRuntimeFinalizes(definition);
+        preTeardownFailureRetries(definition);
 
         System.out.println(
             "CANONICAL_NPC_ATTACK_PVM_RUNTIME_BRIDGE_PASS "+
@@ -23,6 +24,18 @@ public final class LocalCanonicalNpcAttackPvmRuntimeBridgeTest {
             "liveLootPending=true "+
             "foreignNpcUntouched=true "+
             "policyNeutral=true"
+        );
+
+        System.out.println(
+            "CANONICAL_NPC_ATTACK_PVM_FINALIZATION_RETRY_PASS "+
+            "preTeardownFailureRetained=true "+
+            "noSessionThrow=true "+
+            "deadRetry=true "+
+            "noSecondDamage=true "+
+            "noSecondHitPacket=true "+
+            "terminalOnce=true "+
+            "lootOnce=true "+
+            "foreignUnchanged=true"
         );
     }
 
@@ -505,6 +518,191 @@ public final class LocalCanonicalNpcAttackPvmRuntimeBridgeTest {
         }
     }
 
+    private static void preTeardownFailureRetries(
+        int definition
+    )throws Exception{
+        World world=World.isolatedForTest(600L);
+        WorldPlayer player=new WorldPlayer();
+        long generation=
+            world.registerPlayer(
+                player,
+                "retry-killer"
+            );
+
+        player.movement().restoreAccountState(
+            false,
+            100,
+            3087,
+            3495,
+            0
+        );
+
+        RuntimeGraph graph=
+            new RuntimeGraph(
+                world,
+                definition,
+                "click-pvm-retry-owner",
+                true
+            );
+
+        world.installMonsterSpawnerPvmRuntime(
+            graph.runtime
+        );
+
+        NpcRegistry npcs=
+            new NpcRegistry(
+                new DevAuthorityWorkbench(),
+                world.petNpcs(),
+                player.id()
+            );
+
+        ByteArrayOutputStream relayBytes=
+            new ByteArrayOutputStream();
+        ServerPacketWriter relayWriter=
+            writer(relayBytes);
+
+        try{
+            SharedNpcWorldRelay.register(
+                relayWriter,
+                world,
+                player,
+                npcs,
+                player.movement()
+            );
+
+            MonsterSpawnerPvmRuntime.SpawnResult spawned=
+                graph.runtime.spawnAndBind(
+                    "click-pvm-retry-owner",
+                    "retry-killer",
+                    3088,
+                    3495,
+                    0
+                );
+
+            WorldNpc target=
+                spawned.spawn.combat.spawn.npc;
+
+            SharedNpcWorldRelay.syncRemotePets(
+                relayWriter
+            );
+
+            NpcEntity view=
+                requireView(
+                    npcs,
+                    target
+                );
+
+            LocalCanonicalNpcAttackHandler handler=
+                new LocalCanonicalNpcAttackHandler(
+                    world,
+                    player,
+                    ()->generation,
+                    player.equipment(),
+                    player.combatStyles(),
+                    npcs,
+                    (npc,expectedGeneration)->{},
+                    npc->
+                        world.finalizeMonsterSpawnerPvmIfOwned(
+                            npc
+                        ),
+                    npc->
+                        world.retryMonsterSpawnerPvmFinalizationIfPending(
+                            npc
+                        )
+                );
+
+            ByteArrayOutputStream lethalBytes=
+                new ByteArrayOutputStream();
+
+            LocalCanonicalNpcAttackHandler.Result lethal=
+                handler.handle(
+                    new NpcAction(
+                        72,
+                        view.sceneIndex
+                    ),
+                    view,
+                    writer(lethalBytes)
+                );
+
+            MonsterSpawnerPvmRuntime.Snapshot pending=
+                graph.runtime.get(
+                    target.id
+                );
+            NpcLifecycleService.Snapshot dead=
+                world.npcLifecycle().get(
+                    target.id
+                );
+
+            require(
+                lethal.status==
+                    LocalCanonicalNpcAttackHandler.Status.HIT&&
+                lethal.newlyDied&&
+                lethalBytes.size()>0&&
+                graph.dropCalls==1&&
+                pending!=null&&
+                pending.state==
+                    MonsterSpawnerPvmRuntime.State
+                        .FINALIZATION_PENDING&&
+                world.npcs().byId(target.id)==target&&
+                dead!=null&&dead.dead()&&
+                world.groundItems().size()==0,
+                "pre-teardown failure was not retained"
+            );
+
+            ByteArrayOutputStream retryBytes=
+                new ByteArrayOutputStream();
+
+            LocalCanonicalNpcAttackHandler.Result retry=
+                handler.handle(
+                    new NpcAction(
+                        72,
+                        view.sceneIndex
+                    ),
+                    view,
+                    writer(retryBytes)
+                );
+
+            GroundItem loot=
+                world.groundItems().findOwned(
+                    995,
+                    3088,
+                    3495,
+                    0,
+                    "retry-killer"
+                );
+
+            require(
+                retry.status==
+                    LocalCanonicalNpcAttackHandler.Status.TARGET_DEAD&&
+                retry.appliedDamage==0&&
+                retryBytes.size()==0&&
+                graph.dropCalls==2&&
+                graph.runtime.get(target.id)==null&&
+                world.npcs().byId(target.id)==null&&
+                world.npcLifecycle().get(target.id)==null&&
+                graph.binder.get(target.id)==null&&
+                loot!=null&&
+                loot.amount==5,
+                "dead-click finalization retry did not terminalize exactly once"
+            );
+        }finally{
+            SharedNpcWorldRelay.unregister(
+                relayWriter
+            );
+
+            if(world.players().owns(
+                    player,
+                    generation
+                ))
+                world.unregisterPlayer(
+                    player,
+                    generation
+                );
+
+            world.close();
+        }
+    }
+
     private static final class RuntimeGraph {
         final World world;
         final MonsterSpawnerService spawner;
@@ -525,6 +723,20 @@ public final class LocalCanonicalNpcAttackPvmRuntimeBridgeTest {
             World world,
             int definition,
             String owner
+        ){
+            this(
+                world,
+                definition,
+                owner,
+                false
+            );
+        }
+
+        RuntimeGraph(
+            World world,
+            int definition,
+            String owner,
+            boolean failFirstDropResolution
         ){
             this.world=world;
             this.lifecycle=world.npcLifecycle();
@@ -596,6 +808,12 @@ public final class LocalCanonicalNpcAttackPvmRuntimeBridgeTest {
                                 .DeathContext context
                         ){
                             dropCalls++;
+
+                            if(failFirstDropResolution&&
+                               dropCalls==1)
+                                throw new IllegalStateException(
+                                    "synthetic pre-teardown drop failure"
+                                );
 
                             return Collections.singletonList(
                                 new NpcDropResolutionService.Drop(
