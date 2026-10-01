@@ -117,6 +117,9 @@ public final class LocalMonsterSpawnerUiHandlerTest {
             rowSessionRaceFailsClosed(
                 world
             );
+            unconfiguredRowBoundedNoop(
+                world
+            );
             unattachedControlsIgnored(
                 service,
                 handler
@@ -137,6 +140,8 @@ public final class LocalMonsterSpawnerUiHandlerTest {
                 "rowPacketFailureAtomic=true "+
                 "labelAuthorityStable=true "+
                 "catalogCompareSelect=true "+
+                "unconfiguredRowBounded=true "+
+                "activeUnconfiguredRowBounded=true "+
                 "noSpawn=true "+
                 "unattachedIgnored=true "+
                 "policyOwned=false"
@@ -1009,6 +1014,133 @@ public final class LocalMonsterSpawnerUiHandlerTest {
                 return POLICY_AUTHORITY;
             }
         };
+    }
+
+    private static void unconfiguredRowBoundedNoop(
+        World world
+    )throws Exception{
+        final String owner=
+            "monster-ui-unconfigured-row";
+        MonsterSpawnerService service=
+            new MonsterSpawnerService(
+                world.npcs()
+            );
+        List<MonsterSpawnerService.CatalogEntry>
+            catalog=
+                new ArrayList<>();
+
+        catalog.add(
+            new MonsterSpawnerService.CatalogEntry(
+                0,
+                "configured-row-zero",
+                1660
+            )
+        );
+
+        service.replaceCatalog(
+            catalog,
+            CATALOG_AUTHORITY
+        );
+        service.openSession(
+            owner,
+            POLICY_AUTHORITY
+        );
+
+        LocalMonsterSpawnerUiHandler handler=
+            new LocalMonsterSpawnerUiHandler(
+                service,
+                owner,
+                fixedBudget(),
+                labels()
+            );
+        ByteArrayOutputStream wire=
+            new ByteArrayOutputStream();
+
+        LocalMonsterSpawnerUiHandler.Result inactiveNoop=
+            handler.handle(
+                MonsterSpawnerPresentation.rowWidget(1),
+                writer(wire)
+            );
+
+        MonsterSpawnerService.SessionSnapshot inactiveAfter=
+            service.getSession(
+                owner
+            );
+
+        require(
+            inactiveNoop==null&&
+            inactiveAfter.selectedRowIndex==null&&
+            inactiveAfter.selectedDefinitionId==null&&
+            inactiveAfter.selectedSemanticKey==null&&
+            wire.size()==0&&
+            handler.ownsWidget(
+                MonsterSpawnerPresentation.rowWidget(1)
+            )&&
+            !handler.ownsWidget(
+                MonsterSpawnerPresentation
+                    .UNATTACHED_X3_WIDGET
+            ),
+            "inactive unconfigured exact row was not bounded no-op"
+        );
+
+        LocalMonsterSpawnerUiHandler.Result configured=
+            handler.handle(
+                MonsterSpawnerPresentation.rowWidget(0),
+                writer(wire)
+            );
+
+        require(
+            configured!=null&&
+            configured.status==
+                LocalMonsterSpawnerUiHandler.Status.ROW_SELECTED&&
+            service.getSession(owner)
+                .selectedDefinitionId.intValue()==1660&&
+            wire.size()>0,
+            "configured row failed after bounded unconfigured row"
+        );
+
+        handler.handle(
+            MonsterSpawnerPresentation.TOGGLE_WIDGET,
+            writer(
+                new ByteArrayOutputStream()
+            )
+        );
+
+        MonsterSpawnerService.SessionSnapshot activeBefore=
+            service.getSession(
+                owner
+            );
+        int activeWireBefore=
+            wire.size();
+
+        LocalMonsterSpawnerUiHandler.Result activeNoop=
+            handler.handle(
+                MonsterSpawnerPresentation.rowWidget(1),
+                writer(wire)
+            );
+
+        MonsterSpawnerService.SessionSnapshot activeAfter=
+            service.getSession(
+                owner
+            );
+
+        require(
+            activeNoop==null&&
+            activeAfter.active&&
+            activeAfter.remainingSpawnBudget==
+                activeBefore.remainingSpawnBudget&&
+            activeAfter.selectedRowIndex.equals(
+                activeBefore.selectedRowIndex
+            )&&
+            activeAfter.selectedDefinitionId.equals(
+                activeBefore.selectedDefinitionId
+            )&&
+            activeAfter.selectedSemanticKey.equals(
+                activeBefore.selectedSemanticKey
+            )&&
+            wire.size()==activeWireBefore,
+            "active unconfigured exact row crossed bounded no-op"
+        );
     }
 
     private static void unattachedControlsIgnored(
