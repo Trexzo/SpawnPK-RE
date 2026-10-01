@@ -199,6 +199,7 @@ public final class Player81BatchAbortAtomicityTest {
                 );
 
             testOwnershipCommitBarrier();
+            testStalePreparationFailClosed();
 
             System.out.println(
                 "PLAYER81_BATCH_ABORT_ATOMICITY_PASS "+
@@ -207,7 +208,9 @@ public final class Player81BatchAbortAtomicityTest {
                 "zeroAbortBytes=true "+
                 "retryCommittedOnce=true "+
                 "relayBarrierRetained=true "+
-                "transportSemanticOwnershipAtomic=true"
+                "transportSemanticOwnershipAtomic=true "+
+                "stalePrepareFailClosed=true "+
+                "noContextLocalOnlyPreserved=true"
             );
         }finally{
             SharedNpcWorldRelay.unregister(
@@ -234,6 +237,109 @@ public final class Player81BatchAbortAtomicityTest {
 
             world.close();
         }
+    }
+
+    private static void testStalePreparationFailClosed()
+        throws Exception
+    {
+        World staleWorld=
+            World.isolatedForTest(603L);
+        WorldPlayer stalePlayer=
+            new WorldPlayer();
+
+        staleWorld.registerPlayer(
+            stalePlayer,
+            "player81-stale-prepare"
+        );
+
+        OutboundPacketQueue staleQueue=
+            new OutboundPacketQueue();
+        ServerPacketWriter staleWriter=
+            new ServerPacketWriter(
+                staleQueue,
+                new IsaacCipher(
+                    new int[]{17,18,19,20}
+                )
+            );
+
+        Player81WorldSync.register(
+            staleWriter,
+            staleWorld,
+            stalePlayer,
+            new DevAuthorityWorkbench()
+        );
+
+        try{
+            staleWriter.beginBatch();
+
+            if(!staleWorld.unregisterPlayer(
+                    stalePlayer))
+                throw new AssertionError(
+                    "failed to invalidate owner before Player81 preparation"
+                );
+
+            boolean rejected=false;
+            try{
+                staleWriter.varShort(
+                    81,
+                    BootstrapPackets.player81Idle()
+                );
+            }catch(java.io.IOException expected){
+                rejected=
+                    expected.getMessage()!=null&&
+                    expected.getMessage().contains(
+                        "semantic preparation rejected stale owner"
+                    );
+            }
+
+            if(!rejected)
+                throw new AssertionError(
+                    "stale Player81 preparation did not fail closed"
+                );
+
+            if(staleQueue.queuedBytes()!=0)
+                throw new AssertionError(
+                    "stale Player81 preparation emitted bytes"
+                );
+
+            staleWriter.abortBatch();
+
+            if(staleQueue.queuedBytes()!=0)
+                throw new AssertionError(
+                    "stale Player81 abort leaked bytes"
+                );
+        }finally{
+            Player81WorldSync.unregister(
+                staleWriter
+            );
+            if(stalePlayer.registered())
+                staleWorld.unregisterPlayer(
+                    stalePlayer
+                );
+            staleWorld.close();
+        }
+
+        OutboundPacketQueue localQueue=
+            new OutboundPacketQueue();
+        ServerPacketWriter localWriter=
+            new ServerPacketWriter(
+                localQueue,
+                new IsaacCipher(
+                    new int[]{21,22,23,24}
+                )
+            );
+
+        localWriter.beginBatch();
+        localWriter.varShort(
+            81,
+            BootstrapPackets.player81Idle()
+        );
+        localWriter.endBatch();
+
+        if(localQueue.queuedBytes()==0)
+            throw new AssertionError(
+                "unregistered local-only packet81 compatibility was lost"
+            );
     }
 
     private static void testOwnershipCommitBarrier()
