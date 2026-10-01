@@ -1105,6 +1105,53 @@ final class MonsterSpawnerService {
         )==session;
     }
 
+    synchronized boolean retireSessionIfCurrentAndNoTrackedNpcs(
+        String ownerRef,
+        SessionSnapshot expectedSession
+    ){
+        String owner=
+            PartyService.requireRef(
+                ownerRef
+            );
+        SessionSnapshot expected=
+            Objects.requireNonNull(
+                expectedSession,
+                "expectedSession"
+            );
+
+        if(!owner.equals(
+                expected.ownerRef
+            ))
+            throw new IllegalArgumentException(
+                "Monster Spawner expected retirement owner mismatch expected="+
+                expected.ownerRef+
+                " actual="+
+                owner
+            );
+
+        Session session=
+            sessions.get(
+                owner
+            );
+
+        if(session==null)
+            return false;
+
+        if(!sameSessionState(
+                snapshotOf(session),
+                expected
+            ))
+            return false;
+
+        if(!session.spawnedNpcs.isEmpty())
+            return false;
+
+        return sessions.remove(
+            owner
+        )==session;
+    }
+
+
     synchronized int sessionCount(){
         return sessions.size();
     }
