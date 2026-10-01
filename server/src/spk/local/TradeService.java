@@ -366,7 +366,35 @@ final class TradeService {
             if(t.stage!=Stage.OFFERING)return "TRADE_FIRST_ACCEPT_REJECTED_STAGE_"+t.stage;
             t.setFirstAccepted(c,true);
             if(t.firstAcceptedA&&t.firstAcceptedB){
-                t.stage=Stage.CONFIRMING;t.a.pendingX=t.b.pendingX=null;publishConfirm(t);
+                t.a.pendingX=t.b.pendingX=null;
+                try{
+                    publishConfirm(t);
+                }catch(IOException failure){
+                    cancel0(
+                        state(c.world),
+                        c,
+                        "CONFIRM_ROOT_PUBLICATION_FAILED",
+                        true
+                    );
+                    throw failure;
+                }catch(RuntimeException failure){
+                    cancel0(
+                        state(c.world),
+                        c,
+                        "CONFIRM_ROOT_PUBLICATION_FAILED",
+                        true
+                    );
+                    throw failure;
+                }catch(Error failure){
+                    cancel0(
+                        state(c.world),
+                        c,
+                        "CONFIRM_ROOT_PUBLICATION_FAILED",
+                        true
+                    );
+                    throw failure;
+                }
+                t.stage=Stage.CONFIRMING;
                 return "TRADE_FIRST_ACCEPT_BOTH_CONFIRM_OPEN root=3443";
             }
             publishFirstAcceptStatus(t);
