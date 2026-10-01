@@ -127,6 +127,124 @@ public final class MakeoverMageFlowTest {
                 }
             );
 
+        WorldPlayer retirePlayer=
+            new WorldPlayer();
+        LocalMakeoverMageHandler retireHandler=
+            new LocalMakeoverMageHandler(
+                retirePlayer,
+                retirePlayer.equipment()
+            );
+        int[] retireDesignerRootPublishes={0};
+        retireHandler.installDesignerRootOwner(
+            action->{
+                retireDesignerRootPublishes[0]++;
+                action.open();
+            }
+        );
+
+        ByteArrayOutputStream retireWire=
+            new ByteArrayOutputStream();
+        ServerPacketWriter retirePackets=
+            new ServerPacketWriter(
+                retireWire,
+                new IsaacCipher(
+                    new int[]{5,6,7,8}
+                )
+            );
+        NpcEntity retireMage=
+            new NpcEntity(
+                31,
+                LocalMakeoverMageHandler.NPC_ID,
+                retirePlayer.movement().x()+1,
+                retirePlayer.movement().y()
+            );
+        NpcAction retireTalk=
+            new NpcAction(
+                155,
+                31
+            );
+
+        if(!retireHandler.beginIfSupported(
+                retireTalk,
+                retireMage,
+                retirePackets,
+                "[makeover-retire-test] "))
+            throw new AssertionError(
+                "designer-retirement dialogue did not start"
+            );
+
+        if(retireHandler.retireDesignerRoot()||
+           !retireHandler.active())
+            throw new AssertionError(
+                "designer-only retirement altered ordinary dialogue"
+            );
+
+        if(!retireHandler.handleContinue(
+                StandardDialoguePresentationAdapter
+                    .namedNpcContinueWidget(1),
+                retirePackets,
+                "[makeover-retire-test] ")||
+           !retireHandler.handleOption(
+                1,
+                retirePackets,
+                "[makeover-retire-test] "))
+            throw new AssertionError(
+                "designer-retirement fixture did not reach root 3559"
+            );
+
+        if(retireDesignerRootPublishes[0]!=1||
+           !retireHandler.designActive())
+            throw new AssertionError(
+                "designer-retirement fixture did not own root 3559"
+            );
+
+        PlayerState retireState=
+            retirePlayer.playerState();
+        int retireGenderBefore=
+            retireState.characterGender();
+        int[] retireKitsBefore=
+            retireState.characterKits().clone();
+        int[] retireColoursBefore=
+            retireState.characterColours().clone();
+        int retireWireBefore=
+            retireWire.size();
+
+        if(!retireHandler.retireDesignerRoot()||
+           retireHandler.designActive()||
+           retireHandler.active())
+            throw new AssertionError(
+                "designer-only retirement did not clear exact root ownership"
+            );
+
+        LocalMakeoverMageHandler.Result lateDesign=
+            retireHandler.handleDesign(
+                request,
+                retirePackets,
+                "[makeover-retire-test] "
+            );
+
+        if(!lateDesign.handled||
+           lateDesign.saveReason!=null||
+           lateDesign.logText==null||
+           !lateDesign.logText.contains(
+                "NO_ACTIVE_DESIGN"
+           )||
+           retireWire.size()!=retireWireBefore||
+           retireState.characterGender()!=
+                retireGenderBefore||
+           !Arrays.equals(
+                retireState.characterKits(),
+                retireKitsBefore
+           )||
+           !Arrays.equals(
+                retireState.characterColours(),
+                retireColoursBefore
+           ))
+            throw new AssertionError(
+                "retired hidden designer accepted/mutated late character design result="+
+                lateDesign.logText
+            );
+
         LocalMakeoverMageHandler.Result result=
             handler.handleDesign(
                 request,
@@ -190,7 +308,7 @@ public final class MakeoverMageFlowTest {
             );
 
         System.out.println(
-            "MAKEOVER_MAGE_FLOW_PASS npc=599 route=TALK roots=4882->2459->3559 c2s101=true keyboardContinue4907=true keyboardDialogueOption1=true chatboxPreservesMainRoot=true designerRootOwnership=true gender=FEMALE femaleJaw=-1 appearanceStateApplied=true wireBytes="+
+            "MAKEOVER_MAGE_FLOW_PASS npc=599 route=TALK roots=4882->2459->3559 c2s101=true keyboardContinue4907=true keyboardDialogueOption1=true chatboxPreservesMainRoot=true designerRootOwnership=true designerOnlyRetirement=true ordinaryDialoguePreserved=true hiddenDesignRejected=true gender=FEMALE femaleJaw=-1 appearanceStateApplied=true wireBytes="+
             wire.size()
         );
     }
