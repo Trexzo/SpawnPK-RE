@@ -89,8 +89,9 @@ public final class EngineR4TradeFlowTest{
    testFinalCommitPairAdmissionAtomicity();
    testTradeXPromptFailureAtomicity();
    testOneSidedAcceptStatusAtomicity();
+   testOfferRefreshAtomicity();
 
-   System.out.println("V5140_ENGINE_R4_TRADE_FLOW_PASS roots=3323/3443 offerWidgets=3322/3415/3416 accepts=3420/3546 atomicExchange=true cancelReservationModel=true twoSessionRootOwners=true peerOnlyCompetingClose=true hiddenTradeRejected=true competingRootFailureAtomic=true lockOrderTradeBeforePlayer=true partialStartFailureClosed=true confirmPublicationFailClosed=true replacementStartFailureAtomic=true priorPeerPreserved=true replacementPeerCloseExact=true finalCommitPairAdmissionAtomic=true finalCommitRetryExactlyOnce=true tradeOfferXPromptFailureAtomic=true tradeRemoveXPromptFailureAtomic=true tradeXPromptReplacementPreservesPrior=true firstAcceptStatusPairAtomic=true finalAcceptStatusPairAtomic=true");
+   System.out.println("V5140_ENGINE_R4_TRADE_FLOW_PASS roots=3323/3443 offerWidgets=3322/3415/3416 accepts=3420/3546 atomicExchange=true cancelReservationModel=true twoSessionRootOwners=true peerOnlyCompetingClose=true hiddenTradeRejected=true competingRootFailureAtomic=true lockOrderTradeBeforePlayer=true partialStartFailureClosed=true confirmPublicationFailClosed=true replacementStartFailureAtomic=true priorPeerPreserved=true replacementPeerCloseExact=true finalCommitPairAdmissionAtomic=true finalCommitRetryExactlyOnce=true tradeOfferXPromptFailureAtomic=true tradeRemoveXPromptFailureAtomic=true tradeXPromptReplacementPreservesPrior=true firstAcceptStatusPairAtomic=true finalAcceptStatusPairAtomic=true offerRefreshPairAtomic=true removeRefreshPairAtomic=true xRefreshRetryPreserved=true");
   }finally{TradeService.unregister(p1);TradeService.unregister(p2);w.unregisterPlayer(p1);w.unregisterPlayer(p2);w.close();}
  }
  static void testSecondRootPublicationFailureAtomicity()throws Exception{
@@ -822,6 +823,277 @@ public final class EngineR4TradeFlowTest{
     throw new AssertionError(
      "acceptance retry fixture did not commit final Trade"
     );
+  }finally{
+   TradeService.unregister(a);
+   TradeService.unregister(b);
+   if(a.registered())
+    w.unregisterPlayer(a);
+   if(b.registered())
+    w.unregisterPlayer(b);
+   w.close();
+  }
+ }
+
+ static void testOfferRefreshAtomicity()throws Exception{
+  World w=World.isolatedForTest(607L);
+  WorldPlayer a=new WorldPlayer(),b=new WorldPlayer();
+  w.registerPlayer(a,"refresh-a");
+  w.registerPlayer(b,"refresh-b");
+
+  OutboundPacketQueue qa=
+   new OutboundPacketQueue(4096);
+  OutboundPacketQueue qb=
+   new OutboundPacketQueue(1024);
+  ServerPacketWriter wa=
+   new ServerPacketWriter(
+    qa,
+    new IsaacCipher(
+     new int[]{97,98,99,100}
+    )
+   );
+  ServerPacketWriter wb=
+   new ServerPacketWriter(
+    qb,
+    new IsaacCipher(
+     new int[]{101,102,103,104}
+    )
+   );
+
+  try{
+   a.bank().spawnItem(
+    995,
+    1000,
+    wa
+   );
+   drain(qa);
+
+   TradeService.register(
+    w,a,a.generation(),a.bank(),wa,()->{}
+   );
+   TradeService.register(
+    w,b,b.generation(),b.bank(),wb,()->{}
+   );
+
+   // Phase 1: rejected offer refresh preserves the already-committed
+   // first-accept bit.
+   need(
+    TradeService.start(w,a,b),
+    "TRADE_UI_OPEN"
+   );
+   drain(qa);drain(qb);
+
+   need(
+    TradeService.handleWidget(a,3420),
+    "TRADE_FIRST_ACCEPT_WAITING_OTHER"
+   );
+   drain(qa);drain(qb);
+
+   qb.offer(new byte[1024]);
+
+   String rejectedOffer=
+    TradeService.handleItemAction(
+     a,
+     new ItemContainerAction(
+      145,
+      3322,
+      find(a.bank(),995),
+      995,
+      0,
+      "ITEM_ACTION_1"
+     )
+    );
+
+   need(
+    rejectedOffer,
+    "TRADE_OFFER_CHANGE_REJECTED_PRESENTATION_ADMISSION"
+   );
+
+   if(qa.queuedBytes()!=0||
+      qb.queuedBytes()!=1024)
+    throw new AssertionError(
+     "rejected offer refresh leaked postimage bytes a="+
+     qa.queuedBytes()+
+     " b="+
+     qb.queuedBytes()
+    );
+
+   drain(qb);
+
+   need(
+    TradeService.handleWidget(b,3420),
+    "TRADE_FIRST_ACCEPT_BOTH_CONFIRM_OPEN"
+   );
+
+   TradeService.cancelIfActive(
+    a,
+    "REFRESH_ACCEPTANCE_PHASE_CLEANUP"
+   );
+   drain(qa);drain(qb);
+
+   // Phase 2: rejected direct Offer 1 preserves an existing Offer-X
+   // request and does not mutate the canonical offer map.
+   need(
+    TradeService.start(w,a,b),
+    "TRADE_UI_OPEN"
+   );
+   drain(qa);drain(qb);
+
+   int coinSlot=find(a.bank(),995);
+
+   need(
+    TradeService.handleItemAction(
+     a,
+     new ItemContainerAction(
+      135,
+      3322,
+      coinSlot,
+      995,
+      0,
+      "ITEM_ACTION_X"
+     )
+    ),
+    "TRADE_OFFER_X_PROMPT"
+   );
+   drain(qa);
+
+   qb.offer(new byte[1024]);
+
+   String rejectedDirectOffer=
+    TradeService.handleItemAction(
+     a,
+     new ItemContainerAction(
+      145,
+      3322,
+      coinSlot,
+      995,
+      0,
+      "ITEM_ACTION_1"
+     )
+    );
+
+   need(
+    rejectedDirectOffer,
+    "TRADE_OFFER_CHANGE_REJECTED_PRESENTATION_ADMISSION"
+   );
+
+   if(qa.queuedBytes()!=0||
+      qb.queuedBytes()!=1024)
+    throw new AssertionError(
+     "rejected direct offer leaked postimage bytes"
+    );
+
+   drain(qb);
+
+   need(
+    TradeService.handleAmount(a,2),
+    "TRADE_OFFER_X_OK item=995 qty=2"
+   );
+   drain(qa);drain(qb);
+
+   String removeAllTwo=
+    TradeService.handleItemAction(
+     a,
+     new ItemContainerAction(
+      129,
+      3415,
+      0,
+      995,
+      0,
+      "ITEM_ACTION_ALL"
+     )
+    );
+
+   need(
+    removeAllTwo,
+    "TRADE_REMOVE_OK item=995 qty=2"
+   );
+   drain(qa);drain(qb);
+
+   // Phase 3: rejected direct Remove 1 preserves pending Remove-X and
+   // leaves the canonical offer quantity unchanged.
+   need(
+    TradeService.handleItemAction(
+     a,
+     new ItemContainerAction(
+      117,
+      3322,
+      coinSlot,
+      995,
+      0,
+      "ITEM_ACTION_5"
+     )
+    ),
+    "TRADE_OFFER_OK item=995 qty=5"
+   );
+   drain(qa);drain(qb);
+
+   need(
+    TradeService.handleItemAction(
+     a,
+     new ItemContainerAction(
+      135,
+      3415,
+      0,
+      995,
+      0,
+      "ITEM_ACTION_X"
+     )
+    ),
+    "TRADE_REMOVE_X_PROMPT"
+   );
+   drain(qa);
+
+   qb.offer(new byte[1024]);
+
+   String rejectedDirectRemove=
+    TradeService.handleItemAction(
+     a,
+     new ItemContainerAction(
+      145,
+      3415,
+      0,
+      995,
+      0,
+      "ITEM_ACTION_1"
+     )
+    );
+
+   need(
+    rejectedDirectRemove,
+    "TRADE_OFFER_CHANGE_REJECTED_PRESENTATION_ADMISSION"
+   );
+
+   if(qa.queuedBytes()!=0||
+      qb.queuedBytes()!=1024)
+    throw new AssertionError(
+     "rejected direct remove leaked postimage bytes"
+    );
+
+   drain(qb);
+
+   need(
+    TradeService.handleAmount(a,2),
+    "TRADE_REMOVE_X_OK item=995 qty=2"
+   );
+   drain(qa);drain(qb);
+
+   String removeRemaining=
+    TradeService.handleItemAction(
+     a,
+     new ItemContainerAction(
+      129,
+      3415,
+      0,
+      995,
+      0,
+      "ITEM_ACTION_ALL"
+     )
+    );
+
+   need(
+    removeRemaining,
+    "TRADE_REMOVE_OK item=995 qty=3"
+   );
   }finally{
    TradeService.unregister(a);
    TradeService.unregister(b);
