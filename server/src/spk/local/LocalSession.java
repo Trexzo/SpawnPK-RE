@@ -391,7 +391,7 @@ final class LocalSession implements Runnable {
 
                     String result=
                         LocalSession.this.uiActions
-                            .replaceMonsterSpawnerRootCommand(
+                            .replaceMonsterSpawnerWithItemLibraryRootCommand(
                                 ()->{
                                     outcome[0]=
                                         action.handle();
@@ -484,7 +484,7 @@ final class LocalSession implements Runnable {
                     )throws IOException{
                     String result=
                         LocalSession.this.uiActions
-                            .replaceMonsterSpawnerRootCommand(
+                            .replaceMonsterSpawnerWithItemLibraryRootCommand(
                                 ()->
                                     action.handle()
                             );
