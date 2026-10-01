@@ -13,6 +13,8 @@ public final class LocalSessionUiActionHandlerTest {
         int devPanelWidgets;
         int petDialogResults;
         int homeTeleportRequests;
+        int monsterSpawnerResults;
+        LocalMonsterSpawnerUiHandler.Result lastMonsterSpawnerResult;
 
         @Override public void saveAccount(
             String tag,
@@ -45,6 +47,15 @@ public final class LocalSessionUiActionHandlerTest {
             String tag
         ){
             homeTeleportRequests++;
+        }
+
+        @Override public void handleMonsterSpawnerResult(
+            LocalMonsterSpawnerUiHandler.Result result,
+            ServerPacketWriter serverPackets,
+            String tag
+        ){
+            monsterSpawnerResults++;
+            lastMonsterSpawnerResult=result;
         }
 
         @Override public void requestLogout(){
@@ -255,6 +266,15 @@ public final class LocalSessionUiActionHandlerTest {
                 "Monster Spawner row fell through to unrelated widget route"
             );
 
+        if(bridge.monsterSpawnerResults!=1||
+           bridge.lastMonsterSpawnerResult==null||
+           bridge.lastMonsterSpawnerResult.status!=
+                LocalMonsterSpawnerUiHandler.Status.ROW_SELECTED||
+           bridge.lastMonsterSpawnerResult.session!=selected)
+            throw new AssertionError(
+                "ROW_SELECTED result was not forwarded exactly once after commit"
+            );
+
         routed.handleWidget(
             MonsterSpawnerPresentation.TOGGLE_WIDGET,
             w,
@@ -271,6 +291,38 @@ public final class LocalSessionUiActionHandlerTest {
             throw new AssertionError(
                 "Monster Spawner toggle did not route caller-owned budget"
             );
+
+        if(bridge.monsterSpawnerResults!=2||
+           bridge.lastMonsterSpawnerResult==null||
+           bridge.lastMonsterSpawnerResult.status!=
+                LocalMonsterSpawnerUiHandler.Status.ACTIVATED||
+           bridge.lastMonsterSpawnerResult.activationBudget!=2||
+           bridge.lastMonsterSpawnerResult.session!=activated)
+            throw new AssertionError(
+                "ACTIVATED result was not forwarded exactly once with committed budget"
+            );
+
+        routed.handleWidget(
+            MonsterSpawnerPresentation.TOGGLE_WIDGET,
+            w,
+            "[ui-test] "
+        );
+
+        MonsterSpawnerService.SessionSnapshot deactivated=
+            spawner.getSession(
+                "session-ui-owner"
+            );
+
+        if(deactivated.active||
+           bridge.monsterSpawnerResults!=3||
+           bridge.lastMonsterSpawnerResult==null||
+           bridge.lastMonsterSpawnerResult.status!=
+                LocalMonsterSpawnerUiHandler.Status.DEACTIVATED||
+           bridge.lastMonsterSpawnerResult.session!=deactivated)
+            throw new AssertionError(
+                "DEACTIVATED result was not forwarded exactly once after commit"
+            );
+
         if(bridge.homeTeleportRequests!=
                 homeRequestsBeforeSpawner)
             throw new AssertionError(
@@ -294,10 +346,6 @@ public final class LocalSessionUiActionHandlerTest {
             );
 
         // Prove an initially unconfigured routing owner becomes live after one late install.
-        spawner.deactivate(
-            "session-ui-owner"
-        );
-
         LocalSessionUiActionHandler lateBound=
             new LocalSessionUiActionHandler(
                 player,
@@ -403,11 +451,16 @@ public final class LocalSessionUiActionHandlerTest {
         WorldPlayer latePlayer=
             new WorldPlayer();
         boolean[] factoryContext={false};
+        boolean[] callbackContext={false};
 
         try{
-            LocalMonsterSpawnerUiHandler resolved=
-                LocalSession.resolveMonsterSpawnerUiAfterLogin(
-                    (factoryWorld,factoryPlayer,canonicalUsername)->{
+            LocalSession.MonsterSpawnerUiFactory callbackFactory=
+                new LocalSession.MonsterSpawnerUiFactory(){
+                    @Override public LocalMonsterSpawnerUiHandler create(
+                        World factoryWorld,
+                        WorldPlayer factoryPlayer,
+                        String canonicalUsername
+                    ){
                         factoryContext[0]=
                             factoryWorld==lateWorld&&
                             factoryPlayer==latePlayer&&
@@ -415,7 +468,33 @@ public final class LocalSessionUiActionHandlerTest {
                                 canonicalUsername
                             );
                         return monsterSpawnerUi;
-                    },
+                    }
+
+                    @Override public void onCommittedResult(
+                        World callbackWorld,
+                        WorldPlayer callbackPlayer,
+                        String canonicalUsername,
+                        LocalMonsterSpawnerUiHandler.Result result,
+                        ServerPacketWriter callbackWriter,
+                        String callbackTag
+                    ){
+                        callbackContext[0]=
+                            callbackWorld==lateWorld&&
+                            callbackPlayer==latePlayer&&
+                            "session-ui-owner".equals(
+                                canonicalUsername
+                            )&&
+                            result==bridge.lastMonsterSpawnerResult&&
+                            callbackWriter==w&&
+                            "[callback-test] ".equals(
+                                callbackTag
+                            );
+                    }
+                };
+
+            LocalMonsterSpawnerUiHandler resolved=
+                LocalSession.resolveMonsterSpawnerUiAfterLogin(
+                    callbackFactory,
                     lateWorld,
                     latePlayer,
                     "session-ui-owner"
@@ -429,6 +508,31 @@ public final class LocalSessionUiActionHandlerTest {
                 throw new AssertionError(
                     "late Monster Spawner UI factory context"
                 );
+
+            LocalSession.forwardMonsterSpawnerUiResult(
+                callbackFactory,
+                lateWorld,
+                latePlayer,
+                "session-ui-owner",
+                bridge.lastMonsterSpawnerResult,
+                w,
+                "[callback-test] "
+            );
+
+            if(!callbackContext[0])
+                throw new AssertionError(
+                    "Monster Spawner callback exact LocalSession context"
+                );
+
+            LocalSession.forwardMonsterSpawnerUiResult(
+                null,
+                lateWorld,
+                latePlayer,
+                "session-ui-owner",
+                bridge.lastMonsterSpawnerResult,
+                w,
+                "[callback-test] "
+            );
 
             if(LocalSession.resolveMonsterSpawnerUiAfterLogin(
                     null,
@@ -490,7 +594,8 @@ public final class LocalSessionUiActionHandlerTest {
             "LOCAL_SESSION_UI_ACTION_HANDLER_PASS "+
             "logout=true runToggle=true homeTeleport=true interfaceClose=true "+
             "panelBoundary=true monsterSpawnerRoute=true "+
-            "monsterSpawnerAbsentPreserved=true"
+            "monsterSpawnerAbsentPreserved=true "+
+            "monsterSpawnerResultForwarding=true"
         );
 
         System.out.println(
@@ -500,6 +605,8 @@ public final class LocalSessionUiActionHandlerTest {
             "ownerFence=true "+
             "nullPreserved=true "+
             "oneTimeInstall=true "+
+            "resultCallback=true "+
+            "exactCallbackContext=true "+
             "policyNeutral=true"
         );
     }
