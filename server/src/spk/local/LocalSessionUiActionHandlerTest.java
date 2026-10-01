@@ -445,9 +445,10 @@ public final class LocalSessionUiActionHandlerTest {
             if(!"COMMAND_DEV_PANEL_OPENED".equals(
                     commandDevResult
                 )||
-               commandDevPublishes[0]!=1)
+               commandDevPublishes[0]!=1||
+               !routedDevPanel.isOpen())
                 throw new AssertionError(
-                    "Dev Panel command root was not published exactly once"
+                    "Dev Panel command root was not published/preserved exactly once"
                 );
 
             int closedByCommandWire=
@@ -511,11 +512,80 @@ public final class LocalSessionUiActionHandlerTest {
             routedDevPanel.close();
         }
 
+        routedDevPanel.open(
+            DevControlCenter.Page.MAIN
+        );
+        bridge.clearedKeys=false;
+
+        int hiddenDevPanelWidgetsBeforeMonster=
+            bridge.devPanelWidgets;
+
         if(!routed.openMonsterSpawnerIfConfigured(
                 w
             ))
             throw new AssertionError(
                 "Monster Spawner did not reopen after Dev Panel command root"
+            );
+
+        if(routedDevPanel.isOpen()||
+           !bridge.clearedKeys)
+            throw new AssertionError(
+                "Monster Spawner root did not retire Dev Panel ownership"
+            );
+
+        routed.handleWidget(
+            2482,
+            w,
+            "[ui-test] "
+        );
+
+        if(bridge.devPanelWidgets!=
+                hiddenDevPanelWidgetsBeforeMonster)
+            throw new AssertionError(
+                "hidden Dev Panel widget routed after Monster Spawner replacement"
+            );
+
+        routedDevPanel.open(
+            DevControlCenter.Page.MAIN
+        );
+        bridge.clearedKeys=false;
+
+        String itemLibraryFromDevPanel=
+            routed.replaceMonsterSpawnerRoot(
+                ()->routedItemLibrary.open(
+                    w,
+                    28860
+                )
+            );
+
+        if(itemLibraryFromDevPanel==null||
+           !routedItemLibrary.isOpen()||
+           routedDevPanel.isOpen()||
+           !bridge.clearedKeys)
+            throw new AssertionError(
+                "Item Library root did not retire Dev Panel ownership"
+            );
+
+        int hiddenDevPanelWidgetsBeforeItemLibrary=
+            bridge.devPanelWidgets;
+
+        routed.handleWidget(
+            2482,
+            w,
+            "[ui-test] "
+        );
+
+        if(bridge.devPanelWidgets!=
+                hiddenDevPanelWidgetsBeforeItemLibrary)
+            throw new AssertionError(
+                "hidden Dev Panel widget routed after Item Library replacement"
+            );
+
+        if(!routed.openMonsterSpawnerIfConfigured(
+                w
+            ))
+            throw new AssertionError(
+                "Monster Spawner did not reclaim root after Dev Panel inverse-state tests"
             );
 
         int spawnerTextBefore=wire.size();
@@ -1627,7 +1697,10 @@ public final class LocalSessionUiActionHandlerTest {
             "itemLibraryMonsterRootRevokes=true "+
             "itemLibraryEquipmentRootRevokes=true "+
             "itemLibraryDeathRootRevokes=true "+
-            "itemLibraryReopenRestores=true"
+            "itemLibraryReopenRestores=true "+
+            "devPanelMonsterRootRevokes=true "+
+            "devPanelItemLibraryRootRevokes=true "+
+            "devPanelCommandRootPreserved=true"
         );
 
         System.out.println(
