@@ -82,6 +82,30 @@ final class ServerPacketWriter {
                 );
             }
         }
+
+        void abort(){
+            synchronized(ATOMIC_PAIR_LOCK){
+                try{
+                    lockWriters(
+                        first,
+                        second,
+                        ()->{
+                            if(completed)
+                                return;
+
+                            reservation.release();
+                            first.abortBatchLocked();
+                            second.abortBatchLocked();
+                            completed=true;
+                        }
+                    );
+                }catch(IOException impossible){
+                    throw new AssertionError(
+                        impossible
+                    );
+                }
+            }
+        }
     }
 
     @FunctionalInterface
@@ -205,6 +229,10 @@ final class ServerPacketWriter {
     }
 
     synchronized void abortBatch(){
+        abortBatchLocked();
+    }
+
+    private void abortBatchLocked(){
         if(batchDepth<=0)
             throw new IllegalStateException(
                 "no packet batch"
