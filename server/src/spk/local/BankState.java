@@ -862,66 +862,187 @@ final class BankState {
         final boolean stackEquip = meta.slot==EquipmentSlot.AMMO && isStackable(itemId);
         if (!stackEquip && clicked.qty != 1) return "REJECTED_EQUIP_STACK_QTY qty="+clicked.qty;
 
+        Stack[] nextInventory=
+            copyStacks(inventory);
+        int[] nextEquipmentItems=
+            equipment.containerItems();
+        int[] nextEquipmentQuantities=
+            equipment.containerQuantities();
+        int equipmentIndex=
+            meta.slot.equipmentIndex;
+
         // Stackable ammunition moves as one authoritative stack and merges with
-        // identical ammo already worn. This keeps inventory/bank/equipment packet-53
-        // quantities coherent instead of turning each arrow/bolt into a new slot.
+        // identical ammo already worn. Derive both postimages before publication.
         if(stackEquip){
             int amount=clicked.qty;
-            int previous=equipment.itemAt(meta.slot);
-            int previousQty=equipment.quantityAt(meta.slot);
+            int previous=
+                nextEquipmentItems[equipmentIndex];
+            int previousQty=
+                previous<0
+                    ?0
+                    :nextEquipmentQuantities[equipmentIndex];
+
             if(previous==itemId){
-                long merged=(long)previousQty+amount;
-                if(merged>Integer.MAX_VALUE) return "REJECTED_EQUIPMENT_QTY_OVERFLOW";
-                equipment.setStack(meta.slot,itemId,(int)merged);
-                inventory[slot]=null;
-                sendNormalInventory(w); sendEquipment(w,equipment); if(open)sendContainers(w);
+                long merged=
+                    (long)previousQty+
+                    (long)amount;
+                if(merged>Integer.MAX_VALUE)
+                    return "REJECTED_EQUIPMENT_QTY_OVERFLOW";
+
+                nextEquipmentItems[equipmentIndex]=
+                    itemId;
+                nextEquipmentQuantities[equipmentIndex]=
+                    (int)merged;
+                nextInventory[slot]=null;
+
+                publishEquipmentSwapPostimage(
+                    w,
+                    nextInventory,
+                    nextEquipmentItems,
+                    nextEquipmentQuantities
+                );
+                replaceStacks(
+                    inventory,
+                    nextInventory
+                );
+                equipment.restoreAccountState(
+                    nextEquipmentItems,
+                    nextEquipmentQuantities
+                );
+
                 return "EQUIP_STACK_MERGE_OK item="+itemId+" slot="+meta.slot+" moved="+amount+" equippedQty="+merged+" inventorySlot="+slot+" evidence="+meta.evidence;
             }
+
             // The clicked slot becomes free, so a displaced ammo stack always has
             // a deterministic same-slot destination.
-            equipment.setStack(meta.slot,itemId,amount);
-            inventory[slot]=null;
-            if(previous>=0) inventory[slot]=new Stack(previous,Math.max(1,previousQty));
-            sendNormalInventory(w); sendEquipment(w,equipment); if(open)sendContainers(w);
+            nextEquipmentItems[equipmentIndex]=
+                itemId;
+            nextEquipmentQuantities[equipmentIndex]=
+                amount;
+            nextInventory[slot]=null;
+
+            if(previous>=0)
+                nextInventory[slot]=
+                    new Stack(
+                        previous,
+                        Math.max(1,previousQty)
+                    );
+
+            publishEquipmentSwapPostimage(
+                w,
+                nextInventory,
+                nextEquipmentItems,
+                nextEquipmentQuantities
+            );
+            replaceStacks(
+                inventory,
+                nextInventory
+            );
+            equipment.restoreAccountState(
+                nextEquipmentItems,
+                nextEquipmentQuantities
+            );
+
             return "EQUIP_STACK_OK item="+itemId+" slot="+meta.slot+" moved="+amount+" equippedQty="+amount+" displaced="+(previous<0?"[]":"["+previous+" x"+previousQty+"]")+" inventorySlot="+slot+" evidence="+meta.evidence;
         }
 
         ArrayList<Integer> displaced = new ArrayList<>();
-        int previous = equipment.itemAt(meta.slot);
-        if (previous >= 0) displaced.add(previous);
+        int previous =
+            nextEquipmentItems[equipmentIndex];
+        if (previous >= 0)
+            displaced.add(previous);
 
         boolean clearShield = false;
         boolean clearWeapon = false;
+
         if (meta.slot == EquipmentSlot.WEAPON && meta.twoHanded) {
-            int shield = equipment.itemAt(EquipmentSlot.SHIELD);
-            if (shield >= 0) { displaced.add(shield); clearShield = true; }
+            int shield =
+                nextEquipmentItems[
+                    EquipmentSlot.SHIELD.equipmentIndex
+                ];
+            if (shield >= 0) {
+                displaced.add(shield);
+                clearShield = true;
+            }
         } else if (meta.slot == EquipmentSlot.SHIELD) {
-            int weapon = equipment.itemAt(EquipmentSlot.WEAPON);
-            EquipmentMetadataRepository.Meta weaponMeta = EquipmentMetadataRepository.resolveKnownSlot(weapon, EquipmentSlot.WEAPON);
-            if (weapon >= 0 && weaponMeta != null && weaponMeta.twoHanded) {
-                displaced.add(weapon); clearWeapon = true;
+            int weapon =
+                nextEquipmentItems[
+                    EquipmentSlot.WEAPON.equipmentIndex
+                ];
+            EquipmentMetadataRepository.Meta weaponMeta =
+                EquipmentMetadataRepository.resolveKnownSlot(
+                    weapon,
+                    EquipmentSlot.WEAPON
+                );
+            if (weapon >= 0 &&
+                weaponMeta != null &&
+                weaponMeta.twoHanded) {
+                displaced.add(weapon);
+                clearWeapon = true;
             }
         }
 
         int emptyElsewhere = 0;
-        for (int i=0;i<inventory.length;i++) if (i != slot && inventory[i] == null) emptyElsewhere++;
+        for (int i=0;i<nextInventory.length;i++)
+            if (i != slot && nextInventory[i] == null)
+                emptyElsewhere++;
+
         if (displaced.size() > 1 + emptyElsewhere)
             return "REJECTED_INVENTORY_FULL_FOR_DISPLACED count="+displaced.size();
 
-        equipment.set(meta.slot, itemId);
-        if (clearShield) equipment.unequip(EquipmentSlot.SHIELD);
-        if (clearWeapon) equipment.unequip(EquipmentSlot.WEAPON);
+        nextEquipmentItems[equipmentIndex]=
+            itemId;
+        nextEquipmentQuantities[equipmentIndex]=
+            1;
 
-        inventory[slot] = null;
-        for (int i=0;i<displaced.size();i++) {
-            int dst = i == 0 ? slot : firstEmpty(inventory);
-            if (dst < 0) throw new IllegalStateException("preflight inventory-space mismatch");
-            inventory[dst] = new Stack(displaced.get(i),1);
+        if (clearShield) {
+            int shieldIndex=
+                EquipmentSlot.SHIELD.equipmentIndex;
+            nextEquipmentItems[shieldIndex]=-1;
+            nextEquipmentQuantities[shieldIndex]=0;
         }
 
-        sendNormalInventory(w);
-        sendEquipment(w,equipment);
-        if (open) sendContainers(w);
+        if (clearWeapon) {
+            int weaponIndex=
+                EquipmentSlot.WEAPON.equipmentIndex;
+            nextEquipmentItems[weaponIndex]=-1;
+            nextEquipmentQuantities[weaponIndex]=0;
+        }
+
+        nextInventory[slot] = null;
+        for (int i=0;i<displaced.size();i++) {
+            int dst =
+                i == 0
+                    ?slot
+                    :firstEmpty(nextInventory);
+
+            if (dst < 0)
+                throw new IllegalStateException(
+                    "preflight inventory-space mismatch"
+                );
+
+            nextInventory[dst] =
+                new Stack(
+                    displaced.get(i),
+                    1
+                );
+        }
+
+        publishEquipmentSwapPostimage(
+            w,
+            nextInventory,
+            nextEquipmentItems,
+            nextEquipmentQuantities
+        );
+        replaceStacks(
+            inventory,
+            nextInventory
+        );
+        equipment.restoreAccountState(
+            nextEquipmentItems,
+            nextEquipmentQuantities
+        );
+
         return "EQUIP_OK item="+itemId+" slot="+meta.slot+" equipmentIndex="+meta.slot.equipmentIndex
              + " appearanceSlot="+meta.appearanceSlot+" twoHanded="+meta.twoHanded
              + " pose="+meta.pose.name+" poseSpecificMask=0x"+Integer.toHexString(meta.pose.weaponSpecificMask)
@@ -935,21 +1056,69 @@ final class BankState {
     String unequipToInventory(int equipmentIndex, int itemId, EquipmentState equipment, ServerPacketWriter w) throws IOException {
         EquipmentSlot slot = EquipmentSlot.fromEquipmentIndex(equipmentIndex);
         if (slot == null) return "REJECTED_EQUIPMENT_SLOT index="+equipmentIndex;
-        int current = equipment.itemAt(slot);
-        if (current < 0) return "REJECTED_EQUIPMENT_EMPTY slot="+slot;
-        if (current != itemId) return "REJECTED_EQUIPMENT_ITEM_MISMATCH expected="+current;
-        int amount=Math.max(1,equipment.quantityAt(slot));
-        int dst=(isStackable(itemId)?findItem(inventory,itemId):-1);
-        if(dst<0) dst=firstEmpty(inventory);
-        if (dst < 0) return "REJECTED_INVENTORY_FULL";
-        if(inventory[dst]==null) inventory[dst]=new Stack(itemId,0);
-        long merged=(long)inventory[dst].qty+amount;
-        if(merged>Integer.MAX_VALUE)return "REJECTED_INVENTORY_QTY_OVERFLOW";
-        equipment.unequip(slot);
-        inventory[dst].qty=(int)merged;
-        sendNormalInventory(w);
-        sendEquipment(w,equipment);
-        if (open) sendContainers(w);
+
+        int[] nextEquipmentItems=
+            equipment.containerItems();
+        int[] nextEquipmentQuantities=
+            equipment.containerQuantities();
+
+        int current=
+            nextEquipmentItems[equipmentIndex];
+        if (current < 0)
+            return "REJECTED_EQUIPMENT_EMPTY slot="+slot;
+        if (current != itemId)
+            return "REJECTED_EQUIPMENT_ITEM_MISMATCH expected="+current;
+
+        int amount=
+            Math.max(
+                1,
+                nextEquipmentQuantities[equipmentIndex]
+            );
+        Stack[] nextInventory=
+            copyStacks(inventory);
+        int dst=
+            isStackable(itemId)
+                ?findItem(nextInventory,itemId)
+                :-1;
+
+        if(dst<0)
+            dst=firstEmpty(nextInventory);
+        if (dst < 0)
+            return "REJECTED_INVENTORY_FULL";
+
+        if(nextInventory[dst]==null)
+            nextInventory[dst]=
+                new Stack(
+                    itemId,
+                    0
+                );
+
+        long merged=
+            (long)nextInventory[dst].qty+
+            (long)amount;
+        if(merged>Integer.MAX_VALUE)
+            return "REJECTED_INVENTORY_QTY_OVERFLOW";
+
+        nextEquipmentItems[equipmentIndex]=-1;
+        nextEquipmentQuantities[equipmentIndex]=0;
+        nextInventory[dst].qty=
+            (int)merged;
+
+        publishEquipmentSwapPostimage(
+            w,
+            nextInventory,
+            nextEquipmentItems,
+            nextEquipmentQuantities
+        );
+        replaceStacks(
+            inventory,
+            nextInventory
+        );
+        equipment.restoreAccountState(
+            nextEquipmentItems,
+            nextEquipmentQuantities
+        );
+
         return "UNEQUIP_OK item="+itemId+" slot="+slot+" equipmentIndex="+equipmentIndex+" amount="+amount+" inventorySlot="+dst;
     }
 
@@ -1561,6 +1730,71 @@ final class BankState {
                 53,
                 inventoryPayload
             );
+            writer.endBatch();
+            ended=true;
+        }finally{
+            if(!ended)
+                try{
+                    writer.endBatch();
+                }catch(Throwable ignored){}
+        }
+    }
+
+    private void publishEquipmentSwapPostimage(
+        ServerPacketWriter writer,
+        Stack[] inventoryPostimage,
+        int[] equipmentItemsPostimage,
+        int[] equipmentQuantitiesPostimage
+    )throws IOException{
+        byte[] normalInventoryPayload=
+            containerPayload(
+                NORMAL_INVENTORY_CONTAINER,
+                inventoryPostimage
+            );
+        byte[] equipmentPayload=
+            BootstrapPackets.equipmentContainer53(
+                equipmentItemsPostimage,
+                equipmentQuantitiesPostimage
+            );
+        byte[] bankPayload=
+            open
+                ?containerPayload(
+                    BANK_CONTAINER,
+                    bank
+                )
+                :null;
+        byte[] bankInventoryPayload=
+            open
+                ?containerPayload(
+                    BANK_INVENTORY_CONTAINER,
+                    inventoryPostimage
+                )
+                :null;
+
+        writer.beginBatch();
+        boolean ended=false;
+
+        try{
+            writer.varShort(
+                53,
+                normalInventoryPayload
+            );
+            writer.varShort(
+                53,
+                equipmentPayload
+            );
+
+            if(open){
+                writer.varShort(
+                    53,
+                    bankPayload
+                );
+                writer.varShort(
+                    53,
+                    bankInventoryPayload
+                );
+            }
+
             writer.endBatch();
             ended=true;
         }finally{
