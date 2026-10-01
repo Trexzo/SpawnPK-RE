@@ -37,6 +37,7 @@ final class LocalSessionUiActionHandler {
     private final LocalCompCapeCustomizeHandler compCapeCustomize;
     private final LocalPetInventoryDialogHandler petDialogs;
     private final LocalGameplayWidgetHandler gameplayWidgetHandler;
+    private final LocalMonsterSpawnerUiHandler monsterSpawnerUiHandler;
     private final MovementState movement;
     private final boolean movementEnabled;
     private final EquipmentState equipment;
@@ -55,6 +56,36 @@ final class LocalSessionUiActionHandler {
         EquipmentState equipment,
         SessionBridge bridge
     ){
+        this(
+            worldPlayer,
+            itemLibrary,
+            devPanel,
+            bank,
+            compCapeCustomize,
+            petDialogs,
+            gameplayWidgetHandler,
+            movement,
+            movementEnabled,
+            equipment,
+            null,
+            bridge
+        );
+    }
+
+    LocalSessionUiActionHandler(
+        WorldPlayer worldPlayer,
+        NativeItemLibraryService itemLibrary,
+        DevControlCenter devPanel,
+        BankState bank,
+        LocalCompCapeCustomizeHandler compCapeCustomize,
+        LocalPetInventoryDialogHandler petDialogs,
+        LocalGameplayWidgetHandler gameplayWidgetHandler,
+        MovementState movement,
+        boolean movementEnabled,
+        EquipmentState equipment,
+        LocalMonsterSpawnerUiHandler monsterSpawnerUiHandler,
+        SessionBridge bridge
+    ){
         this.worldPlayer=Objects.requireNonNull(worldPlayer,"worldPlayer");
         this.itemLibrary=Objects.requireNonNull(itemLibrary,"itemLibrary");
         this.devPanel=Objects.requireNonNull(devPanel,"devPanel");
@@ -64,6 +95,7 @@ final class LocalSessionUiActionHandler {
         this.petDialogs=Objects.requireNonNull(petDialogs,"petDialogs");
         this.gameplayWidgetHandler=Objects.requireNonNull(
             gameplayWidgetHandler,"gameplayWidgetHandler");
+        this.monsterSpawnerUiHandler=monsterSpawnerUiHandler;
         this.movement=Objects.requireNonNull(movement,"movement");
         this.movementEnabled=movementEnabled;
         this.equipment=Objects.requireNonNull(equipment,"equipment");
@@ -190,6 +222,29 @@ final class LocalSessionUiActionHandler {
                 " result="+tradeWidget
             );
             return;
+        }
+
+        if(monsterSpawnerUiHandler!=null){
+            LocalMonsterSpawnerUiHandler.Result monsterSpawner=
+                monsterSpawnerUiHandler.handle(
+                    widget,
+                    serverPackets
+                );
+
+            if(monsterSpawner!=null){
+                System.out.println(
+                    tag+
+                    "MONSTER_SPAWNER_UI widget="+
+                    widget+
+                    " status="+
+                    monsterSpawner.status+
+                    " row="+
+                    monsterSpawner.rowIndex+
+                    " budget="+
+                    monsterSpawner.activationBudget
+                );
+                return;
+            }
         }
 
         String gameplayWidget=
