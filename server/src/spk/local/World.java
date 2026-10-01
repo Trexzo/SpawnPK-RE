@@ -390,6 +390,10 @@ final class World implements AutoCloseable {
         void run() throws Exception;
     }
 
+    interface OwnedTwoPlayerAction {
+        void run() throws Exception;
+    }
+
     interface OpenWorldAction {
         void run() throws Exception;
     }
@@ -418,6 +422,59 @@ final class World implements AutoCloseable {
 
                 action.run();
                 return true;
+            }
+        }
+    }
+
+    boolean withOpenTwoPlayerMutationOwnershipIfCurrent(
+        WorldPlayer firstPlayer,
+        long firstGeneration,
+        WorldPlayer secondPlayer,
+        long secondGeneration,
+        OwnedTwoPlayerAction action
+    )throws Exception{
+        if(firstPlayer==null||
+           secondPlayer==null||
+           action==null)
+            throw new NullPointerException();
+
+        if(firstPlayer==secondPlayer)
+            throw new IllegalArgumentException(
+                "two-player ownership requires distinct players"
+            );
+
+        if(closed.get())
+            return false;
+
+        synchronized(lifecycleLock){
+            if(closed.get())
+                return false;
+
+            WorldPlayer lockFirst=
+                firstPlayer.id().value<
+                    secondPlayer.id().value
+                    ?firstPlayer
+                    :secondPlayer;
+            WorldPlayer lockSecond=
+                lockFirst==firstPlayer
+                    ?secondPlayer
+                    :firstPlayer;
+
+            synchronized(lockFirst.mutationLock()){
+                synchronized(lockSecond.mutationLock()){
+                    if(!players.owns(
+                            firstPlayer,
+                            firstGeneration
+                        )||
+                       !players.owns(
+                            secondPlayer,
+                            secondGeneration
+                        ))
+                        return false;
+
+                    action.run();
+                    return true;
+                }
             }
         }
     }
