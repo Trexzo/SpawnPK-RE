@@ -259,13 +259,13 @@ final class LocalSessionUiActionHandler {
         if(configured==null)
             return false;
 
-        itemLibrary.close();
         configured.open(
             Objects.requireNonNull(
                 serverPackets,
                 "serverPackets"
             )
         );
+        itemLibrary.close();
         bridge.retireMakeoverDesignerRoot();
         bank.clientClosed();
         compCapeCustomize.close();
@@ -630,6 +630,23 @@ final class LocalSessionUiActionHandler {
         );
     }
 
+    String replaceMonsterSpawnerWithItemLibraryRootCommand(
+        RootInterfaceBooleanAction publisher
+    )throws IOException{
+        RootInterfaceBooleanAction checked=
+            Objects.requireNonNull(
+                publisher,
+                "publisher"
+            );
+
+        return replaceMonsterSpawnerWithItemLibraryRoot(
+            ()->
+                checked.publish()
+                    ?"ROOT_COMMAND_HANDLED"
+                    :"ROOT_COMMAND_NOT_HANDLED"
+        );
+    }
+
     String publishDevPanelRootForOwnedSession(
         RootInterfaceAction publisher
     )throws IOException{
@@ -639,11 +656,11 @@ final class LocalSessionUiActionHandler {
                 "publisher"
             );
 
-        monsterSpawnerUiOpen=false;
-        itemLibrary.close();
-
         String result=
             checked.publish();
+
+        monsterSpawnerUiOpen=false;
+        itemLibrary.close();
 
         bridge.retireMakeoverDesignerRoot();
         bank.clientClosed();
@@ -660,11 +677,11 @@ final class LocalSessionUiActionHandler {
                 "publisher"
             );
 
-        monsterSpawnerUiOpen=false;
-        itemLibrary.close();
-
         String result=
             checked.publish();
+
+        monsterSpawnerUiOpen=false;
+        itemLibrary.close();
 
         bridge.retireMakeoverDesignerRoot();
         compCapeCustomize.close();
@@ -682,11 +699,11 @@ final class LocalSessionUiActionHandler {
                 "publisher"
             );
 
-        monsterSpawnerUiOpen=false;
-        itemLibrary.close();
-
         String result=
             checked.publish();
+
+        monsterSpawnerUiOpen=false;
+        itemLibrary.close();
 
         bridge.retireMakeoverDesignerRoot();
         bank.clientClosed();
@@ -704,11 +721,11 @@ final class LocalSessionUiActionHandler {
                 "publisher"
             );
 
-        monsterSpawnerUiOpen=false;
-        itemLibrary.close();
-
         String result=
             checked.publish();
+
+        monsterSpawnerUiOpen=false;
+        itemLibrary.close();
 
         bank.clientClosed();
         compCapeCustomize.close();
@@ -726,12 +743,33 @@ final class LocalSessionUiActionHandler {
                 "publisher"
             );
 
+        String result=
+            checked.publish();
+
         monsterSpawnerUiOpen=false;
         itemLibrary.close();
+
+        bridge.retireMakeoverDesignerRoot();
+        bank.clientClosed();
+        compCapeCustomize.close();
+        devPanel.close();
+        bridge.clearDialogNumberKeys();
+        return result;
+    }
+
+    String publishItemLibraryRootForOwnedSession(
+        RootInterfaceAction publisher
+    )throws IOException{
+        RootInterfaceAction checked=
+            Objects.requireNonNull(
+                publisher,
+                "publisher"
+            );
 
         String result=
             checked.publish();
 
+        monsterSpawnerUiOpen=false;
         bridge.retireMakeoverDesignerRoot();
         bank.clientClosed();
         compCapeCustomize.close();
@@ -749,11 +787,11 @@ final class LocalSessionUiActionHandler {
                 "publisher"
             );
 
-        monsterSpawnerUiOpen=false;
-        itemLibrary.close();
-
         String result=
             checked.publish();
+
+        monsterSpawnerUiOpen=false;
+        itemLibrary.close();
 
         bridge.retireMakeoverDesignerRoot();
         bank.clientClosed();
@@ -761,6 +799,23 @@ final class LocalSessionUiActionHandler {
         devPanel.close();
         bridge.clearDialogNumberKeys();
         return result;
+    }
+
+    String replaceMonsterSpawnerWithItemLibraryRoot(
+        RootInterfaceAction publisher
+    )throws IOException{
+        RootInterfaceAction checked=
+            Objects.requireNonNull(
+                publisher,
+                "publisher"
+            );
+
+        return bridge.replaceMonsterSpawnerRoot(
+            ()->
+                publishItemLibraryRootForOwnedSession(
+                    checked
+                )
+        );
     }
 
     String replaceMonsterSpawnerWithMakeoverRoot(
