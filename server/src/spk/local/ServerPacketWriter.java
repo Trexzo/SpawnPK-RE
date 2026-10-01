@@ -379,8 +379,6 @@ final class ServerPacketWriter {
                 SharedNpcWorldRelay
                     .flushAfterPlayer81(this);
                 return;
-            }
-    
             }finally{
                 endPlayer81Operation();
             }
