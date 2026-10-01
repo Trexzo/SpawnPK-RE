@@ -211,6 +211,22 @@ final class MonsterSpawnerPvmSpawnExecutor {
         }
     }
 
+    boolean isBoundTo(
+        MonsterSpawnerService expectedSpawner,
+        MonsterSpawnerPvmRuntime expectedRuntime
+    ){
+        return spawner==
+                Objects.requireNonNull(
+                    expectedSpawner,
+                    "expectedSpawner"
+                )&&
+            runtime==
+                Objects.requireNonNull(
+                    expectedRuntime,
+                    "expectedRuntime"
+                );
+    }
+
     String requestAuthority(){
         return requestAuthority;
     }
