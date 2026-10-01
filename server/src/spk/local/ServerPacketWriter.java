@@ -340,8 +340,25 @@ final class ServerPacketWriter {
             return;
         }
 
-        flush();
+        flushBatchCommit();
         finishBatchCommitLocked();
+    }
+
+    private void flushBatchCommit() throws IOException {
+        if(pending.size()>0){
+            byte[] bytes=pending.toByteArray();
+
+            if(queue!=null){
+                queue.offerBatch(bytes);
+                pending.reset();
+            }else{
+                out.write(bytes);
+                pending.reset();
+            }
+        }
+
+        if(out!=null)
+            out.flush();
     }
 
     synchronized void flush() throws IOException {
