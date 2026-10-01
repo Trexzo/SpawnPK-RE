@@ -388,6 +388,91 @@ final class MonsterSpawnerService {
         return snapshotOf(session);
     }
 
+    synchronized SessionSnapshot selectRowIfCurrent(
+        String ownerRef,
+        SessionSnapshot expectedSession,
+        String expectedCatalogAuthority,
+        CatalogEntry expectedEntry
+    ){
+        SessionSnapshot checkedSession=
+            Objects.requireNonNull(
+                expectedSession,
+                "expectedSession"
+            );
+        String checkedAuthority=
+            MatchRules.requireText(
+                expectedCatalogAuthority,
+                "expectedCatalogAuthority"
+            );
+        CatalogEntry checkedEntry=
+            Objects.requireNonNull(
+                expectedEntry,
+                "expectedEntry"
+            );
+
+        Session session=
+            requireSession(
+                ownerRef
+            );
+
+        if(!session.ownerRef.equals(
+                checkedSession.ownerRef))
+            throw new IllegalArgumentException(
+                "Monster Spawner expected session owner mismatch expected="+
+                checkedSession.ownerRef+
+                " actual="+session.ownerRef
+            );
+
+        SessionSnapshot current=
+            snapshotOf(
+                session
+            );
+
+        if(!sameSessionState(
+                current,
+                checkedSession))
+            throw new IllegalStateException(
+                "Monster Spawner session changed before row selection owner="+
+                session.ownerRef
+            );
+
+        if(current.active)
+            throw new IllegalStateException(
+                "cannot change Monster Spawner selection while active"
+            );
+
+        if(!catalogAuthority.equals(
+                checkedAuthority))
+            throw new IllegalStateException(
+                "Monster Spawner catalog authority changed before row selection expected="+
+                checkedAuthority+
+                " actual="+catalogAuthority
+            );
+
+        CatalogEntry currentEntry=
+            catalog.get(
+                checkedEntry.rowIndex
+            );
+
+        if(currentEntry==null||
+           currentEntry.definitionId!=
+                checkedEntry.definitionId||
+           !currentEntry.semanticKey.equals(
+                checkedEntry.semanticKey
+           ))
+            throw new IllegalStateException(
+                "Monster Spawner catalog row changed before selection row="+
+                checkedEntry.rowIndex
+            );
+
+        session.selectedRowIndex=
+            currentEntry.rowIndex;
+
+        return snapshotOf(
+            session
+        );
+    }
+
     synchronized SessionSnapshot activate(
         String ownerRef,
         int spawnBudget
