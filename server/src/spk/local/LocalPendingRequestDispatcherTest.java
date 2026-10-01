@@ -137,7 +137,10 @@ public final class LocalPendingRequestDispatcherTest {
                 new LocalRoutedNpcInteractionHandler(
                     npcs,
                     bank,
-                    movement
+                    movement,
+                    world.content(),
+                    player,
+                    equipment
                 );
             LocalGenericInteractionHandler genericInteractions=
                 new LocalGenericInteractionHandler();
