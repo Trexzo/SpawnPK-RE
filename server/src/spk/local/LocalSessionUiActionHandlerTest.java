@@ -464,6 +464,8 @@ public final class LocalSessionUiActionHandlerTest {
         boolean[] factoryContext={false};
         boolean[] callbackContext={false};
         int[] callbackCalls={0};
+        boolean[] closeContext={false};
+        int[] closeCalls={0};
 
         try{
             LocalSession.MonsterSpawnerUiFactory callbackFactory=
@@ -501,6 +503,23 @@ public final class LocalSessionUiActionHandlerTest {
                             callbackWriter==w&&
                             "[callback-test] ".equals(
                                 callbackTag
+                            );
+                    }
+
+                    @Override public void onSessionClosed(
+                        World closeWorld,
+                        WorldPlayer closePlayer,
+                        long expectedGeneration,
+                        String canonicalUsername
+                    ){
+                        closeCalls[0]++;
+                        closeContext[0]=
+                            closeWorld==lateWorld&&
+                            closePlayer==latePlayer&&
+                            expectedGeneration==
+                                latePlayer.generation()&&
+                            "session-ui-owner".equals(
+                                canonicalUsername
                             );
                     }
                 };
@@ -629,6 +648,52 @@ public final class LocalSessionUiActionHandlerTest {
                     "replacement generation did not invoke explicit current callback"
                 );
 
+            LocalSession.notifyMonsterSpawnerSessionClosed(
+                callbackFactory,
+                lateWorld,
+                latePlayer,
+                replacementGeneration,
+                "session-ui-owner"
+            );
+
+            if(closeCalls[0]!=1||
+               !closeContext[0])
+                throw new AssertionError(
+                    "Monster Spawner session-close callback exact context"
+                );
+
+            LocalSession.notifyMonsterSpawnerSessionClosed(
+                null,
+                lateWorld,
+                latePlayer,
+                replacementGeneration,
+                "session-ui-owner"
+            );
+
+            if(closeCalls[0]!=1)
+                throw new AssertionError(
+                    "null Monster Spawner session-close factory invoked policy"
+                );
+
+            boolean staleCloseRejected=false;
+            try{
+                LocalSession.notifyMonsterSpawnerSessionClosed(
+                    callbackFactory,
+                    lateWorld,
+                    latePlayer,
+                    lateGeneration,
+                    "session-ui-owner"
+                );
+            }catch(IllegalStateException expected){
+                staleCloseRejected=true;
+            }
+
+            if(!staleCloseRejected||
+               closeCalls[0]!=1)
+                throw new AssertionError(
+                    "stale generation invoked Monster Spawner session-close callback"
+                );
+
             lateWorld.close();
 
             boolean terminalWorldRejected=false;
@@ -729,6 +794,9 @@ public final class LocalSessionUiActionHandlerTest {
             "callbackOwnerFence=true "+
             "callbackGenerationFence=true "+
             "callbackWorldCloseFence=true "+
+            "sessionCloseHook=true "+
+            "sessionCloseGenerationFence=true "+
+            "factoryStillFunctional=true "+
             "policyNeutral=true"
         );
     }
