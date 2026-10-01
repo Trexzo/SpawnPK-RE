@@ -837,6 +837,86 @@ final class BankState {
         return "COSMETIC_EQUIP_OK item="+itemId+" old="+old+" slot="+slot+" channel=DEDICATED_BS ammoIndependent=true";
     }
 
+    String overrideCosmeticFromInventory(
+        int slot,
+        int itemId,
+        CosmeticState cosmetic,
+        ServerPacketWriter w
+    )throws IOException{
+        if(cosmetic==null)
+            return "REJECTED_NO_COSMETIC_STATE";
+        if(!validSlot(inventory,slot)||
+           inventory[slot]==null||
+           inventory[slot].itemId!=itemId||
+           inventory[slot].qty<=0)
+            return "REJECTED_INVENTORY_MISMATCH";
+
+        int old=cosmetic.itemId();
+        Stack[] nextInventory=
+            copyStacks(inventory);
+        Stack source=
+            nextInventory[slot];
+
+        source.qty--;
+        if(source.qty==0)
+            nextInventory[slot]=null;
+
+        int returnedSlot=-1;
+
+        if(old>=0){
+            returnedSlot=
+                preferredAddDestination(
+                    nextInventory,
+                    old,
+                    slot
+                );
+
+            if(returnedSlot<0){
+                int rollbackSlot=
+                    preferredAddDestination(
+                        nextInventory,
+                        itemId,
+                        slot
+                    );
+
+                return "REJECTED_INVENTORY_FULL_ROLLBACK old="+
+                    old+
+                    " rollbackSlot="+
+                    rollbackSlot;
+            }
+
+            if(nextInventory[returnedSlot]==null)
+                nextInventory[returnedSlot]=
+                    new Stack(
+                        old,
+                        0
+                    );
+
+            nextInventory[returnedSlot].qty++;
+        }
+
+        publishCosmeticInventoryPostimage(
+            w,
+            nextInventory,
+            itemId,
+            open
+        );
+        replaceStacks(
+            inventory,
+            nextInventory
+        );
+        cosmetic.set(itemId);
+
+        return "COSMETIC_OVERRIDE_OK item="+
+            itemId+
+            " previous="+
+            old+
+            " sourceSlot="+
+            slot+
+            " returnedOldSlot="+
+            returnedSlot;
+    }
+
     String unequipCosmeticToInventory(CosmeticState cosmetic,ServerPacketWriter w)throws IOException{
         if(cosmetic==null||!cosmetic.active())
             return "COSMETIC_NONE_ACTIVE";
@@ -2076,6 +2156,46 @@ final class BankState {
     private static String safe(String s) {
         if (s==null) return "";
         return s.replace(' ','_').replace('\t','_').replace('\n','_').replace('\r','_');
+    }
+
+    private static int preferredAddDestination(
+        Stack[] source,
+        int itemId,
+        int preferredSlot
+    ){
+        int dst=-1;
+
+        if(validSlot(source,preferredSlot)){
+            Stack at=
+                source[preferredSlot];
+
+            if(at==null)
+                dst=preferredSlot;
+            else if(isStackable(itemId)&&
+                    at.itemId==itemId&&
+                    at.qty<Integer.MAX_VALUE)
+                dst=preferredSlot;
+        }
+
+        if(dst<0&&
+           isStackable(itemId))
+            dst=findItem(
+                source,
+                itemId
+            );
+
+        if(dst<0)
+            dst=firstEmpty(source);
+
+        if(dst<0)
+            return -1;
+
+        if(source[dst]!=null&&
+           (source[dst].itemId!=itemId||
+            source[dst].qty==Integer.MAX_VALUE))
+            return -1;
+
+        return dst;
     }
 
     private static int occupied(Stack[] xs){int n=0;for(Stack s:xs)if(s!=null)n++;return n;}
