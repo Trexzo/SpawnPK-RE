@@ -858,6 +858,205 @@ final class TradeService {
         return null;
     }
 
+    private static String publishProspectiveFirstStage(
+        Trade trade,
+        Context changing,
+        LinkedHashMap<Integer,Integer> prospective
+    )throws IOException{
+        LinkedHashMap<Integer,Integer> offerA=
+            changing==trade.a
+                ?prospective
+                :trade.offerA;
+        LinkedHashMap<Integer,Integer> offerB=
+            changing==trade.b
+                ?prospective
+                :trade.offerB;
+
+        byte[][] postA=
+            firstStagePostimage(
+                trade,
+                trade.a,
+                offerA,
+                offerB
+            );
+        byte[][] postB=
+            firstStagePostimage(
+                trade,
+                trade.b,
+                offerA,
+                offerB
+            );
+
+        ServerPacketWriter.AtomicPairBatch pair;
+
+        try{
+            pair=
+                ServerPacketWriter.beginAtomicQueuePair(
+                    trade.a.writer,
+                    firstStageFramedBytes(postA),
+                    trade.b.writer,
+                    firstStageFramedBytes(postB)
+                );
+        }catch(IOException admissionFailure){
+            return "TRADE_OFFER_CHANGE_REJECTED_PRESENTATION_ADMISSION "+
+                admissionFailure.getMessage();
+        }
+
+        if(pair!=null){
+            writeFirstStagePostimage(
+                trade.a.writer,
+                postA
+            );
+            writeFirstStagePostimage(
+                trade.b.writer,
+                postB
+            );
+            pair.commit();
+            return null;
+        }
+
+        trade.a.writer.beginBatch();
+        trade.b.writer.beginBatch();
+        boolean endedA=false;
+        boolean endedB=false;
+
+        try{
+            writeFirstStagePostimage(
+                trade.a.writer,
+                postA
+            );
+            writeFirstStagePostimage(
+                trade.b.writer,
+                postB
+            );
+            trade.a.writer.endBatch();
+            endedA=true;
+            trade.b.writer.endBatch();
+            endedB=true;
+        }finally{
+            if(!endedA)
+                try{
+                    trade.a.writer.endBatch();
+                }catch(Throwable ignored){}
+            if(!endedB)
+                try{
+                    trade.b.writer.endBatch();
+                }catch(Throwable ignored){}
+        }
+
+        return null;
+    }
+
+    private static byte[][] firstStagePostimage(
+        Trade trade,
+        Context context,
+        LinkedHashMap<Integer,Integer> offerA,
+        LinkedHashMap<Integer,Integer> offerB
+    )throws IOException{
+        Context other=
+            trade.other(context);
+        LinkedHashMap<Integer,Integer> ownOffer=
+            context==trade.a
+                ?offerA
+                :offerB;
+        LinkedHashMap<Integer,Integer> otherOffer=
+            context==trade.a
+                ?offerB
+                :offerA;
+
+        int[][] inventory=
+            projectedInventory(
+                context.bank,
+                ownOffer
+            );
+        int[][] own=
+            offerUi(ownOffer);
+        int[][] peer=
+            offerUi(otherOffer);
+
+        return new byte[][]{
+            BootstrapPackets.interfaceOverlay248(
+                TRADE_ROOT,
+                INVENTORY_OVERLAY
+            ),
+            BootstrapPackets.itemContainer53(
+                INVENTORY_GRID,
+                inventory[0],
+                inventory[1]
+            ),
+            BootstrapPackets.itemContainer53(
+                OWN_OFFER,
+                own[0],
+                own[1]
+            ),
+            BootstrapPackets.itemContainer53(
+                OTHER_OFFER,
+                peer[0],
+                peer[1]
+            ),
+            BootstrapPackets.widgetText126(
+                PARTNER_TEXT,
+                "Trading With: "+
+                    other.player.username()
+            ),
+            BootstrapPackets.widgetText126(
+                STATUS_TEXT,
+                ""
+            )
+        };
+    }
+
+    private static int firstStageFramedBytes(
+        byte[][] postimage
+    ){
+        if(postimage==null||
+           postimage.length!=6)
+            throw new IllegalArgumentException(
+                "first-stage postimage"
+            );
+
+        int bytes=
+            1+
+            postimage[0].length;
+
+        for(int i=1;i<postimage.length;i++)
+            bytes+=
+                3+
+                postimage[i].length;
+
+        return bytes;
+    }
+
+    private static void writeFirstStagePostimage(
+        ServerPacketWriter writer,
+        byte[][] postimage
+    )throws IOException{
+        writer.fixed(
+            248,
+            postimage[0]
+        );
+        writer.varShort(
+            53,
+            postimage[1]
+        );
+        writer.varShort(
+            53,
+            postimage[2]
+        );
+        writer.varShort(
+            53,
+            postimage[3]
+        );
+        writer.varShort(
+            126,
+            postimage[4]
+        );
+        writer.varShort(
+            126,
+            postimage[5]
+        );
+    }
+
     private static void publishFirst(Trade t)throws IOException{
         publishFirstFor(t,t.a);publishFirstFor(t,t.b);
         // Exact cache default says "Waiting for other player", but production-style
