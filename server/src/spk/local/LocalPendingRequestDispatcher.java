@@ -141,13 +141,31 @@ final class LocalPendingRequestDispatcher {
                     npcs
                 );
         this.makeoverMage.installDesignerRootOwner(
-            action->
-                this.uiActions.replaceMonsterSpawnerWithMakeoverRoot(
-                    ()->{
-                        action.open();
-                        return "MAKEOVER_DESIGN_ROOT_OPENED";
-                    }
-                )
+            new LocalMakeoverMageHandler.DesignerRootOwner(){
+                @Override public void publish(
+                    LocalMakeoverMageHandler.DesignerRootAction action
+                )throws IOException{
+                    uiActions.replaceMonsterSpawnerWithMakeoverRoot(
+                        ()->{
+                            action.open();
+                            return "MAKEOVER_DESIGN_ROOT_OPENED";
+                        }
+                    );
+                }
+
+                @Override public void publish(
+                    LocalMakeoverMageHandler.DesignerRootAction action,
+                    LocalMakeoverMageHandler.DesignerRootCommit commit
+                )throws IOException{
+                    uiActions.replaceMonsterSpawnerWithMakeoverRoot(
+                        ()->{
+                            action.open();
+                            return "MAKEOVER_DESIGN_ROOT_OPENED";
+                        },
+                        commit::commit
+                    );
+                }
+            }
         );
 
         this.compCapeCustomize=Objects.requireNonNull(
