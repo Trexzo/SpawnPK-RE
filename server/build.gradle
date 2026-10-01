@@ -4984,6 +4984,7 @@ tasks.named('check') {
     dependsOn tasks.named('normalDuelPresentationRegression')
     dependsOn tasks.named('monsterSpawnerPresentationRegression')
     dependsOn tasks.named('monsterSpawnerUiServiceAdapterRegression')
+    dependsOn tasks.named('localMonsterSpawnerActivationPvmSpawnRegression')
     dependsOn tasks.named('itemEnchantmentServiceRegression')
     dependsOn tasks.named('itemEnchantmentPresentationRegression')
     dependsOn tasks.named('legendaryPetFusionServiceRegression')
@@ -5887,6 +5888,21 @@ tasks.register('monsterSpawnerUiServiceAdapterRegression', JavaExec) {
     workingDir repoRoot
     classpath = sourceSets.test.runtimeClasspath
     mainClass = 'spk.local.LocalMonsterSpawnerUiHandlerTest'
+}
+
+
+tasks.register('localMonsterSpawnerActivationPvmSpawnRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves explicit caller-owned Monster Spawner activation callback can invoke exactly one atomic PvM spawn without default server policy.'
+    dependsOn(
+        tasks.named('testClasses'),
+        tasks.named('monsterSpawnerUiServiceAdapterRegression'),
+        tasks.named('monsterSpawnerPvmSpawnExecutorRegression')
+    )
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.LocalMonsterSpawnerActivationPvmSpawnTest'
 }
 
 
