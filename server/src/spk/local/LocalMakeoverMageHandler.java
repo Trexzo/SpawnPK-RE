@@ -689,6 +689,16 @@ final class LocalMakeoverMageHandler {
         return designActive;
     }
 
+    boolean retireDesignerRoot(){
+        if(!designActive)
+            return false;
+
+        designActive=false;
+        activeScene=null;
+        activeNpc=null;
+        return true;
+    }
+
     boolean pending(){
         return pendingScene!=null;
     }
