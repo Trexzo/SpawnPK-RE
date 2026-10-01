@@ -123,6 +123,13 @@ final class ServerPacketWriter {
 
     private final OutputStream out;
     private final OutboundPacketQueue queue;
+    /*
+     * Packet-81 semantic preparation intentionally runs without the writer
+     * monitor because it may acquire World lifecycle ownership.  This
+     * independent lifetime mutex prevents begin/end/abort from changing the
+     * writer batch underneath that unlocked semantic work.
+     */
+    private final Object packet81LifetimeLock=new Object();
     private final IsaacCipher cipher;
     private final ByteArrayOutputStream pending = new ByteArrayOutputStream(4096);
     private int batchDepth;
@@ -161,6 +168,7 @@ final class ServerPacketWriter {
                 :body;
 
         if(opcode==81){
+            synchronized(packet81LifetimeLock){
             boolean staged;
             boolean initialized;
             Player81WorldSync.PreparedBatch prepared;
@@ -375,6 +383,7 @@ final class ServerPacketWriter {
             SharedNpcWorldRelay
                 .flushAfterPlayer81(this);
             return;
+            }
         }
 
         if(checkedBody.length>65535)
@@ -405,8 +414,12 @@ final class ServerPacketWriter {
         autoFlush();
     }
 
-    synchronized void beginBatch(){
-        beginBatchLocked();
+    void beginBatch(){
+        synchronized(packet81LifetimeLock){
+            synchronized(this){
+                beginBatchLocked();
+            }
+        }
     }
 
     private void beginBatchLocked(){
@@ -426,8 +439,12 @@ final class ServerPacketWriter {
         batchDepth++;
     }
 
-    synchronized void abortBatch(){
-        abortBatchLocked();
+    void abortBatch(){
+        synchronized(packet81LifetimeLock){
+            synchronized(this){
+                abortBatchLocked();
+            }
+        }
     }
 
     private void abortBatchLocked(){
@@ -526,6 +543,7 @@ final class ServerPacketWriter {
     }
 
     void endBatch() throws IOException {
+        synchronized(packet81LifetimeLock){
         Player81WorldSync.PreparedBatch prepared;
         boolean flushPlayer81Relay;
 
@@ -618,6 +636,7 @@ final class ServerPacketWriter {
                     relayFailure
                 );
             }
+        }
     }
 
     private void completeBatchLocked(){
