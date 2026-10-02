@@ -22,7 +22,28 @@ final class Player81WorldSync {
 
     private Player81WorldSync(){}
 
-    static synchronized Context register(ServerPacketWriter writer,World world,WorldPlayer owner,DevAuthorityWorkbench dev){
+    static synchronized Context register(
+        ServerPacketWriter writer,
+        World world,
+        WorldPlayer owner,
+        DevAuthorityWorkbench dev
+    ){
+        return register(
+            writer,
+            world,
+            owner,
+            dev,
+            false
+        );
+    }
+
+    static synchronized Context register(
+        ServerPacketWriter writer,
+        World world,
+        WorldPlayer owner,
+        DevAuthorityWorkbench dev,
+        boolean playerOptionsAlreadySent
+    ){
         if(writer==null||world==null||owner==null)throw new NullPointerException();
 
         if(world.closed())
@@ -57,6 +78,8 @@ final class Player81WorldSync {
         }
 
         Context c=new Context(writer,ws,owner,dev);
+        c.playerOptionsSent=
+            playerOptionsAlreadySent;
         BY_WRITER.put(writer,c);ws.contexts.put(owner.id(),c);
         return c;
     }
@@ -293,6 +316,98 @@ final class Player81WorldSync {
             );
             return body;
         }
+    }
+
+    static final class RetryablePlayerOptionsException
+        extends IOException
+    {
+        RetryablePlayerOptionsException(
+            String message
+        ){
+            super(message);
+        }
+    }
+
+    static synchronized boolean preparePlayerOptionsForRegistration(
+        World world,
+        WorldPlayer owner,
+        ServerPacketWriter targetWriter
+    )throws IOException{
+        if(world==null||
+           owner==null||
+           targetWriter==null)
+            throw new NullPointerException(
+                "player option registration context"
+            );
+
+        if(world.players().size()<2)
+            return false;
+
+        WorldState ws=
+            BY_WORLD.get(world);
+
+        if(ws!=null){
+            for(Context context:
+                    new ArrayList<>(
+                        ws.contexts.values()
+                    )){
+                if(!context.ownerCurrent()||
+                   context.playerOptionsSent)
+                    continue;
+
+                ServerPacketWriter.RecoverablePacketResult
+                    result=
+                        context.writer
+                            .publishRecoverablePacket(
+                                ()->sendPlayerOptions(
+                                    context.writer
+                                )
+                            );
+
+                if(result==
+                        ServerPacketWriter
+                            .RecoverablePacketResult
+                            .RETRACTED_RETRYABLE)
+                    throw new RetryablePlayerOptionsException(
+                        "player option publication retracted for existing context "+
+                        context.owner.id()
+                    );
+
+                context.playerOptionsSent=true;
+            }
+        }
+
+        Context oldWriter=
+            BY_WRITER.get(
+                targetWriter
+            );
+
+        if(oldWriter!=null&&
+           oldWriter.ownerCurrent()&&
+           oldWriter.playerOptionsSent)
+            return true;
+
+        ServerPacketWriter.RecoverablePacketResult
+            targetResult=
+                targetWriter.publishRecoverablePacket(
+                    ()->sendPlayerOptions(
+                        targetWriter
+                    )
+                );
+
+        if(targetResult==
+                ServerPacketWriter
+                    .RecoverablePacketResult
+                    .RETRACTED_RETRYABLE)
+            throw new RetryablePlayerOptionsException(
+                "player option publication retracted for target writer"
+            );
+
+        if(oldWriter!=null&&
+           oldWriter.ownerCurrent())
+            oldWriter.playerOptionsSent=true;
+
+        return true;
     }
 
     static synchronized void sendPlayerOptionsIfMultiplayer(World world)throws IOException{
