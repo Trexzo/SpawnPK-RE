@@ -422,6 +422,19 @@ final class ServerPacketWriter {
                     "packet-81 owner stale before unbatched joint commit"
                 );
 
+            /*
+             * Packet81 semantic + transport authority is now committed.
+             * SharedNpc relay is explicitly post-commit work (#1573) and may
+             * publish another packet through this same writer. Release the
+             * packet81 lifetime gate before entering relay so recoverable
+             * S2C65 publication cannot wait on its own caller.
+             *
+             * This also matches staged packet81: varShort() ends its in-flight
+             * lifetime before a later endBatch() performs the post-commit
+             * relay flush.
+             */
+            completePacket81InFlight();
+
             try{
                 SharedNpcWorldRelay
                     .flushAfterPlayer81(this);
@@ -433,12 +446,7 @@ final class ServerPacketWriter {
             }
             return;
             }finally{
-                synchronized(this){
-                    packet81InFlight=false;
-                    packet81InFlightStaged=false;
-                    packet81InFlightBatchGeneration=-1L;
-                    notifyAll();
-                }
+                completePacket81InFlight();
             }
         }
 
@@ -460,6 +468,13 @@ final class ServerPacketWriter {
             pending.write(checkedBody);
             autoFlush();
         }
+    }
+
+    private synchronized void completePacket81InFlight(){
+        packet81InFlight=false;
+        packet81InFlightStaged=false;
+        packet81InFlightBatchGeneration=-1L;
+        notifyAll();
     }
 
     synchronized void varByte(int opcode, byte[] body) throws IOException {
