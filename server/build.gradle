@@ -6319,6 +6319,21 @@ tasks.named('check') {
     dependsOn tasks.named('player81PreparedTransformFailureRegression')
 }
 
+
+tasks.register('sharedNpcRelayContextRetirementLinearizationRegression', JavaExec) {
+    group = 'verification'
+    description = 'Proves SharedNpc relay unregister/rebind cannot retire a viewer context through an in-flight packet65 delivery commit.'
+    dependsOn tasks.named('testClasses')
+
+    workingDir repoRoot
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'spk.local.SharedNpcRelayContextRetirementLinearizationTest'
+}
+
+tasks.named('check') {
+    dependsOn tasks.named('sharedNpcRelayContextRetirementLinearizationRegression')
+}
+
 tasks.register('player81ContextRetirementLinearizationRegression', JavaExec) {
     group = 'verification'
     description = 'Proves prepared packet81 commit authority cannot be retired or rebound inside its semantic+transport commit critical section.'
